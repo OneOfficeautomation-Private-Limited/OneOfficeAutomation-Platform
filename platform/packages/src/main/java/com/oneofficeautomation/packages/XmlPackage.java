@@ -142,28 +142,40 @@ public final class XmlPackage {
     }
 
     @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Set the text (or an attribute) of every node matching an XPath, in a file or in XML text.",
-            panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, value, attribute")
+            panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, value, attribute | attributes")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes changed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> setValue(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
             @Input(name = "xpath", type = OoaType.STRING, description = "XPath of the nodes to change.") String xpath,
-            @Input(name = "value", type = OoaType.STRING, description = "New text.") String value,
+            @Input(name = "value", type = OoaType.STRING, required = false, description = "New text (or the attribute's new value).") String value,
             @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo,
             @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Set this attribute (created when missing) instead of the node text.") String attribute,
-            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml) {
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml,
+            @Input(name = "attributes", type = OoaType.DICTIONARY, required = false, example = "{\"status\": \"paid\", \"currency\": \"EUR\"}",
+                    description = "Several attributes to set at once, as name to value (created when missing). With these, the node text changes only when value is filled in.") Map<String, Object> attributes) {
+        boolean many = attributes != null && !attributes.isEmpty();
+        boolean one = attribute != null && !attribute.isBlank();
+        boolean setText = !one && (!many || (value != null && !value.isEmpty()));
+        if (value == null && !many) throw new ActionException("XML.NO_VALUE", "Give the new value", "Fill in 'value', or 'attributes' to set several attributes.");
         int[] count = {0};
         String out = edit(ctx, xml, path, saveTo, doc -> {
             NodeList n = select(doc, xpath);
             count[0] = n.getLength();
             try {
                 for (int i = 0; i < n.getLength(); i++) {
-                    if (attribute != null && !attribute.isBlank()) { if (n.item(i) instanceof Element e) e.setAttribute(attribute, value); }
-                    else n.item(i).setTextContent(value);
+                    if (one) { if (n.item(i) instanceof Element e) e.setAttribute(attribute, value == null ? "" : value); }
+                    else if (setText) n.item(i).setTextContent(value);
+                    if (many && n.item(i) instanceof Element e)
+                        for (Map.Entry<String, Object> a : attributes.entrySet()) e.setAttribute(a.getKey(), a.getValue() == null ? "" : String.valueOf(a.getValue()));
                 }
             } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid attribute name: " + e.getMessage()); }
         });
         return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
+    }
+
+    public Map<String, Object> setValue(ActionContext ctx, String path, String xpath, String value, String saveTo, String attribute, String xml) {
+        return setValue(ctx, path, xpath, value, saveTo, attribute, xml, null);
     }
 
     @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element (with text and attributes) under, before or after every node matching an XPath.",
@@ -337,20 +349,26 @@ public final class XmlPackage {
 
     @Action(id = "save_file", name = "Save XML file", category = "XML", capabilities = "filesystem",
             description = "Check that XML text is well-formed and write it to a file, optionally indented.",
-            panel = "xml, path, indent")
+            panel = "xml, path, indent, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
     public Map<String, Object> saveFile(ActionContext ctx,
             @Input(name = "xml", type = OoaType.STRING, description = "XML text to save.") String xml,
             @Input(name = "path", type = OoaType.FILE, description = "Target file.") String path,
-            @Input(name = "indent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Re-format with indentation instead of keeping the text as given.") boolean indent) {
+            @Input(name = "indent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Re-format with indentation instead of keeping the text as given.") boolean indent,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that is already there; when off, the step fails instead.") boolean overwrite) {
         if (xml == null || xml.isBlank()) throw new ActionException("XML.NO_SOURCE", "The XML text is empty", "Fill in 'xml'.");
         Document doc = XmlSupport.parse(xml, false);
         String text = indent ? XmlSupport.write(doc, true) : xml;
         Path out = ctx.resolvePath(needFile(path));
+        if (!overwrite && Files.exists(out)) throw new ActionException("FILE.EXISTS", "A file already exists at " + out, "Choose another path or turn on overwrite.");
         try {
             if (out.getParent() != null) Files.createDirectories(out.getParent());
             Files.writeString(out, text);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), null, true); }
         return Out.of("path", out.toString());
+    }
+
+    public Map<String, Object> saveFile(ActionContext ctx, String xml, String path, boolean indent) {
+        return saveFile(ctx, xml, path, indent, true);
     }
 }

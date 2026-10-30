@@ -134,9 +134,11 @@ public final class PgpPackage {
     @Action(id = "encrypt", name = "Encrypt file", category = "Encryption", timeoutSeconds = 300, capabilities = "filesystem",
             description = "Encrypt a file for one or more recipients' public keys, or with a passphrase only (symmetric), choosing the cipher and compression.",
             panel = "(Encrypt for: Keys in the keyring = recipients / A public key file = public_key_file / A passphrase only = passphrase), path, target, overwrite, armor | cipher, compression, gnupg_home")
+    @Output(name = "target", type = OoaType.FILE, description = "Full path of the encrypted file.")
     public Map<String, Object> encrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to encrypt.") String path,
-            @Input(name = "target", type = OoaType.FILE, description = "Encrypted file to create, e.g. report.csv.pgp.") String target,
+            @Input(name = "target", type = OoaType.FILE, required = false,
+                    description = "Encrypted file to create; when empty, next to the file with .pgp added (.asc with armor), e.g. report.csv.pgp.") String target,
             @Input(name = "recipients", required = false, description = "Recipient key ids, fingerprints or email addresses (text or List); may be empty when public_key_file is given.") Object recipients,
             @Input(name = "armor", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "ASCII-armored output (text) instead of binary.") boolean armor,
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home,
@@ -154,11 +156,34 @@ public final class PgpPackage {
             throw new ActionException("PGP.BAD_PASSPHRASE_INPUT", "The passphrase must come from the credential vault", "Pick a credential for passphrase.");
         if (passphrase instanceof SecureString s && s.reveal().isEmpty())
             throw new ActionException("PGP.EMPTY_PASSPHRASE", "The passphrase is empty", "Store a non-empty passphrase in the vault.");
-        if (!overwrite && Files.exists(ctx.resolvePath(target))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(target), "Set overwrite to true or choose another name.");
+        String to = encryptTarget(path, target, armor);
+        if (!overwrite && Files.exists(ctx.resolvePath(to))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(to), "Set overwrite to true or choose another name.");
         KeyHome kh = keyHome(ctx, home, publicKeyFile, null);
         try {
-            return encryptWith(ctx, path, target, recipients, armor, kh, cipherName, compressName, (SecureString) passphrase);
+            encryptWith(ctx, path, to, recipients, armor, kh, cipherName, compressName, (SecureString) passphrase);
+            return Out.of("target", ctx.resolvePath(to).toString());
         } finally { kh.close(ctx); }
+    }
+
+    /** The target as given, or the source with .pgp (.asc with armor) added. */
+    static String encryptTarget(String path, String target, boolean armor) {
+        if (target != null && !target.isBlank()) return target;
+        if (path == null || path.isBlank()) throw new ActionException("PGP.NO_TARGET", "Give the file to encrypt", "Fill in 'path'.");
+        return path.strip() + (armor ? ".asc" : ".pgp");
+    }
+
+    /** The target as given, or the source without its .pgp, .gpg or .asc ending. */
+    static String decryptTarget(String path, String target) {
+        if (target != null && !target.isBlank()) return target;
+        String p = path == null ? "" : path.strip();
+        String lower = p.toLowerCase(Locale.ROOT);
+        for (String ext : List.of(".pgp", ".gpg", ".asc")) {
+            if (!lower.endsWith(ext)) continue;
+            String base = p.substring(0, p.length() - ext.length());
+            if (!base.isEmpty() && !base.endsWith("/") && !base.endsWith("\\")) return base;
+        }
+        throw new ActionException("PGP.NO_TARGET", "Cannot work out the decrypted file name: '" + path + "' does not end in .pgp, .gpg or .asc",
+                "Fill in 'target'.");
     }
 
     /** A keyring for one step: the given home, or a temporary one when a key file is used without a home. */
@@ -226,16 +251,22 @@ public final class PgpPackage {
 
     @Action(id = "decrypt", name = "Decrypt file", category = "Encryption", timeoutSeconds = 300, capabilities = "filesystem", description = "Decrypt a file with your private key.",
             panel = "[Use a private key file: private_key_file], passphrase, path, target, overwrite | gnupg_home")
+    @Output(name = "target", type = OoaType.FILE, description = "Full path of the decrypted file.")
     public Map<String, Object> decrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Encrypted file.") String path,
-            @Input(name = "target", type = OoaType.FILE, description = "Decrypted file to create.") String target,
+            @Input(name = "target", type = OoaType.FILE, required = false,
+                    description = "Decrypted file to create; when empty, the encrypted file's name without .pgp, .gpg or .asc.") String target,
             @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false, description = "Private key passphrase from the vault.") Object pass,
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home,
             @Input(name = "private_key_file", type = OoaType.FILE, required = false, description = "Private key file (.asc or .gpg) to decrypt with, without importing it into a keyring first.") String privateKeyFile,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) {
-        if (!overwrite && Files.exists(ctx.resolvePath(target))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(target), "Set overwrite to true or choose another name.");
+        String to = decryptTarget(path, target);
+        if (!overwrite && Files.exists(ctx.resolvePath(to))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(to), "Set overwrite to true or choose another name.");
         KeyHome kh = keyHome(ctx, home, privateKeyFile, pass);
-        try { return decryptWith(ctx, path, target, pass, kh.home()); } finally { kh.close(ctx); }
+        try {
+            decryptWith(ctx, path, to, pass, kh.home());
+            return Out.of("target", ctx.resolvePath(to).toString());
+        } finally { kh.close(ctx); }
     }
 
     private Map<String, Object> decryptWith(ActionContext ctx, String path, String target, Object pass, String home) {
@@ -315,7 +346,7 @@ public final class PgpPackage {
 
     @Action(id = "create_keys", name = "Create key pair", category = "Keys", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Generate a new OpenPGP key pair (signing key plus encryption subkey) and optionally export it to armored key files.",
-            panel = "public_key_file, private_key_file, algorithm, passphrase, name, email | comment, expires, gnupg_home")
+            panel = "public_key_file, private_key_file, algorithm, passphrase, name, email | comment, expires, overwrite, gnupg_home")
     @Output(name = "fingerprint", type = OoaType.STRING, description = "Fingerprint of the new key.")
     @Output(name = "user_id", type = OoaType.STRING, description = "User id stored in the key, e.g. Finance Agent <agent@example.com>.")
     @Output(name = "public_key_file", type = OoaType.FILE, description = "Exported public key, or empty.")
@@ -330,10 +361,15 @@ public final class PgpPackage {
             @Input(name = "expires", type = OoaType.STRING, required = false, defaultValue = "\"2y\"", description = "Lifetime, e.g. 1y, 6m, 90d, a date like 2028-12-31, or never.") String expires,
             @Input(name = "public_key_file", type = OoaType.FILE, required = false, description = "Where to save the armored public key (.asc) to share with partners.") String publicFile,
             @Input(name = "private_key_file", type = OoaType.FILE, required = false, description = "Where to save the armored private key (.asc) as a backup; keep it secret.") String privateFile,
-            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Replace key files that are already there; when off, the step fails before any key is made.") boolean overwrite) {
         String uid = userId(name, email, comment);
         String[] algo = algorithms(algorithm);
         String exp = expiry(expires);
+        if (!overwrite) for (String f : new String[]{publicFile, privateFile})
+            if (f != null && !f.isBlank() && Files.exists(ctx.resolvePath(f)))
+                throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(f), "Set overwrite to true or choose another name.");
         String stdin = (pass instanceof SecureString s ? s.reveal() : "") + "\n";
         if (!(pass instanceof SecureString)) ctx.warn("Creating a PGP key without a passphrase; anyone who gets the key file can use it.");
         List<String> loop = List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0");
@@ -364,6 +400,11 @@ public final class PgpPackage {
         }
         ctx.info("Created PGP key " + fpr + " for " + uid);
         return Out.of("fingerprint", fpr, "user_id", uid, "public_key_file", pub, "private_key_file", priv);
+    }
+
+    public Map<String, Object> createKeys(ActionContext ctx, String name, String email, Object pass, String comment, String algorithm, String expires,
+                                          String publicFile, String privateFile, String home) {
+        return createKeys(ctx, name, email, pass, comment, algorithm, expires, publicFile, privateFile, home, true);
     }
 
 }

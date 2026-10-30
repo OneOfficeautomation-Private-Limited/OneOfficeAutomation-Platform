@@ -302,9 +302,71 @@ public final class WorkdayPackage {
         return launchIntegration(ctx, host, tenant, integrationId, version, user, password, token, idType, null);
     }
 
+    @Action(id = "launch_eib", name = "Launch EIB with file", category = "Integrations", timeoutSeconds = 600, capabilities = "network,filesystem",
+            description = "Start an inbound EIB with a file to load (a spreadsheet or XML attached at launch) through the Integrations web service's Launch_EIB, and return the event id to track it.",
+            panel = "host, tenant, id_type, integration_system_id, file, file_field | (Sign in with: User name and password = user, password / An access token = access_token), content_type, version")
+    @Output(name = "event_id", type = OoaType.STRING, description = "Integration event WID; pass it to Get integration event.")
+    public Map<String, Object> launchEib(ActionContext ctx,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "integration_system_id", type = OoaType.STRING, example = "INT_Worker_Load", description = "Integration System ID of the EIB to start.") String integrationId,
+            @Input(name = "file", type = OoaType.FILE, description = "File to load: the EIB's spreadsheet template filled in, or XML.") String file,
+            @Input(name = "file_field", type = OoaType.STRING, example = "Attachment",
+                    description = "Name of the EIB data source field that takes the file at launch, as the EIB's Launch / Schedule page shows it.") String field,
+            @Input(name = "content_type", type = OoaType.STRING, required = false,
+                    description = "MIME type of the file; worked out from the file name (.xlsx, .xls, .xml, .csv, .txt) when empty.") String contentType,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant, e.g. isu_int@acme (basic sign-in).") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
+            @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"integration_system_id\"", enumValues = {"integration_system_id", "wid"},
+                    description = "Whether integration_system_id holds the Integration System ID or the EIB's Workday ID (WID).") String idType) {
+        if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'");
+        boolean wid = "wid".equals(idType);
+        if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
+        if (field == null || field.isBlank()) throw new ActionException(P + ".NO_FILE_FIELD", "Say which EIB field takes the file", "Use the data source field name shown on the EIB's Launch / Schedule page.");
+        String fieldName = field.strip();
+        java.nio.file.Path f = ctx.resolvePath(file);
+        if (!java.nio.file.Files.isRegularFile(f)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + f, "Check the path.");
+        byte[] content;
+        try { content = java.nio.file.Files.readAllBytes(f); }
+        catch (java.io.IOException e) { throw new ActionException("FILE.READ_FAILED", "Cannot read " + f + ": " + e.getMessage()); }
+        String name = f.getFileName().toString();
+        String type = contentType != null && !contentType.isBlank() ? contentType.strip() : mimeType(name);
+        // Launch_EIB_Request: the file is Attachment_Data of a field override on the EIB's data source (Integrations web service)
+        String body = "<bsvc:Launch_EIB_Request bsvc:version=\"" + xml(version) + "\"><bsvc:Integration_System_Reference>"
+                + "<bsvc:ID bsvc:type=\"" + (wid ? "WID" : "Integration_System_ID") + "\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference>"
+                + "<bsvc:Service_Component_Data><bsvc:Data_Source>true</bsvc:Data_Source><bsvc:Field_Override_Data><bsvc:Field_Name>" + xml(fieldName) + "</bsvc:Field_Name>"
+                + "<bsvc:Attachment_Data bsvc:Filename=\"" + xml(name) + "\" bsvc:Content_Type=\"" + xml(type) + "\">"
+                + "<bsvc:File_Content>" + Base64.getEncoder().encodeToString(content) + "</bsvc:File_Content></bsvc:Attachment_Data>"
+                + "</bsvc:Field_Override_Data></bsvc:Service_Component_Data></bsvc:Launch_EIB_Request>";
+        org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
+        String event = refId(d, "Integration_Event_Reference", "WID");
+        if (event == null) throw new ActionException(P + ".BAD_RESPONSE", "Workday did not return an integration event id", "Check the EIB takes a file at launch and this user may launch it.");
+        return Out.of("event_id", event);
+    }
+
+    /** The MIME type of an EIB file from its name. */
+    static String mimeType(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        return n.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                : n.endsWith(".xls") ? "application/vnd.ms-excel"
+                : n.endsWith(".xml") ? "text/xml"
+                : n.endsWith(".csv") ? "text/csv"
+                : n.endsWith(".txt") ? "text/plain"
+                : "application/octet-stream";
+    }
+
+    /** Earlier signature, kept for callers written before id_type. */
+    public Map<String, Object> getIntegrationEvent(ActionContext ctx, String host, String tenant, String eventId, String version, String user, Object password, Object token) {
+        return getIntegrationEvent(ctx, host, tenant, eventId, version, user, password, token, "WID");
+    }
+
+    private static final Pattern ID_TYPE = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{0,63}$");
+
     @Action(id = "get_integration_event", name = "Get integration event", category = "Integrations", idempotent = true, timeoutSeconds = 120, capabilities = "network",
             description = "Read the status and timing of an integration run.",
-            panel = "host, tenant, event_id | (Sign in with: User name and password = user, password / An access token = access_token), version")
+            panel = "host, tenant, event_id | id_type, (Sign in with: User name and password = user, password / An access token = access_token), version")
     @Output(name = "status", type = OoaType.STRING, description = "Run status, e.g. Processing, Completed, Completed with Warnings or Failed.")
     @Output(name = "percent_complete", type = OoaType.NUMBER, description = "Progress percentage when Workday reports it.")
     @Output(name = "started", type = OoaType.STRING, description = "Start time.")
@@ -317,10 +379,20 @@ public final class WorkdayPackage {
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant (basic sign-in).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
-        if (eventId == null || !eventId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "An event id is a 32-character WID.");
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
+            @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"WID\"", example = "WID",
+                    description = "Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns), or the name of another ID type "
+                            + "your tenant accepts for integration event references, written exactly as Workday names it.") String idType) {
+        String type = idType == null || idType.isBlank() ? "WID" : idType.strip();
+        if (!ID_TYPE.matcher(type).matches()) throw new ActionException(P + ".BAD_ID_TYPE", "Invalid id type '" + idType + "'", "Use WID, or a Workday ID type name such as the ones shown in the event's reference ids.");
+        boolean wid = type.equalsIgnoreCase("WID");
+        if (wid) type = "WID";
+        if (wid && (eventId == null || !eventId.matches("^[0-9a-fA-F]{32}$")))
+            throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "An event id is a 32-character WID.");
+        if (!wid && (eventId == null || !REF_ID.matcher(eventId.strip()).matches()))
+            throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "Use letters, digits, _ . : or - only.");
         String body = "<bsvc:Get_Integration_Events_Request bsvc:version=\"" + version + "\"><bsvc:Request_References>"
-                + "<bsvc:Integration_Event_Reference><bsvc:ID bsvc:type=\"WID\">" + eventId + "</bsvc:ID></bsvc:Integration_Event_Reference>"
+                + "<bsvc:Integration_Event_Reference><bsvc:ID bsvc:type=\"" + type + "\">" + xml(eventId.strip()) + "</bsvc:ID></bsvc:Integration_Event_Reference>"
                 + "</bsvc:Request_References></bsvc:Get_Integration_Events_Request>";
         org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
         String status = refId(d, "Background_Process_Instance_Status_Reference", "Background_Process_Instance_Status_ID");

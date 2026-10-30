@@ -6,4 +6,4 @@ gives its category and lists its agents (the path in the agent repository, and t
 
 The publish script signs them into `templates.json` on the releases page (`ooa release templates --dir templates
 --key private.key --out templates.json`). Command Centers list them in Automation > Templates and install them into a
-folder; see docs/CONTROL_ROOM_AND_AGENT.md, Templates.
+folder; see docs/user-guide/00-README.md, Templates.

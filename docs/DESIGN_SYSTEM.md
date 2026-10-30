@@ -3,18 +3,22 @@
 One visual language for **One Command Center** (the console) and **One Agent Studio**. It is plain CSS: no framework,
 no build step, no external fonts or CDNs (the console's content-security policy is `default-src 'self'`).
 
+The new Studio (`platform/ui`, [architecture/12-ui-redesign.md](architecture/12-ui-redesign.md)) uses the denser,
+higher-contrast look approved on 2026-10-29: its colours and sizes are in `platform/ui/src/theme.css`, its components in
+`platform/ui/src/components`. The Command Center moves to it after Studio.
+
 ## Files
 
 | File | What it holds | Served at |
 |---|---|---|
-| `platform/control-room/src/main/resources/ooa-ui/ooa-tokens.css` | Design tokens: palette, semantic colours, spacing, radius, shadows, type, sizes, layers, motion; light and dark | `/ooa-tokens.css` (console), `studio/ooa-tokens.css` (Studio) |
-| `platform/control-room/src/main/resources/ooa-ui/ooa-components.css` | Shared components (see below) | `/ooa-components.css`, `studio/ooa-components.css` |
+| `platform/control-room/src/main/resources/ooa-ui/ooa-tokens.css` | Design tokens: palette, semantic colours, spacing, radius, shadows, type, sizes, layers, motion; light and dark | `/ooa-tokens.css` |
+| `platform/control-room/src/main/resources/ooa-ui/ooa-components.css` | Shared components (see below) | `/ooa-components.css` |
 | `platform/control-room/src/main/resources/console/cr.css` | Console layout and pages | `/cr.css` |
-| `platform/cli/src/main/resources/studio/studio.css` | Studio workbench, canvas, editors | `studio/studio.css` |
+| `platform/ui/src/theme.css`, `src/components/components.css`, `src/studio/studio.css` | Studio's tokens (light, dark, compact), components and screens | built into Studio's page |
 
-There is one copy of the shared files. `ControlRoomServer.serveStatic` serves any `ooa-*.css` from `/ooa-ui/`, and
-`StudioServer.asset` serves the same two files from the same classpath folder (the CLI module depends on control-room).
-`UnifiedServerTest` checks that both applications return identical sheets.
+There is one copy of the console's shared files: `ControlRoomServer.serveStatic` serves any `ooa-*.css` from
+`/ooa-ui/`. Studio (`platform/ui`) has its own tokens in `src/theme.css`; Classic Studio, which
+served the console's sheets too, was removed on 2026-10-30.
 
 Load order in each `index.html`: tokens, then components, then the application sheet. Every sheet starts with a
 numbered table of contents; find a rule by its section heading.

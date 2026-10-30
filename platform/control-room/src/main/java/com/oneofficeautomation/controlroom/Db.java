@@ -519,9 +519,19 @@ public final class Db implements AutoCloseable {
         "CREATE UNIQUE INDEX custom_toolkits_version ON custom_toolkits (toolkit_id, version)",
     };
 
+    /**
+     * Version 24: a time until which a work item is deferred (picked up again by itself after it), and what a schedule
+     * does with times it missed (run once or skip) and when its previous run is still going (start anyway or skip).
+     */
+    private static final String[] SCHEMA_V24 = {
+        "ALTER TABLE queue_items ADD COLUMN defer_until TIMESTAMP",
+        "ALTER TABLE schedules ADD COLUMN missed_runs VARCHAR(10)",
+        "ALTER TABLE schedules ADD COLUMN overlap VARCHAR(10)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 23;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23 };
+    public static final int LATEST = 24;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

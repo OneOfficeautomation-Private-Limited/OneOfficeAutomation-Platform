@@ -35,6 +35,10 @@ public final class StudioServer {
     private TriggerService triggers;
     private ControlRoomLink cr;
     private final Map<String, LiveRun> live = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Each agent's variable values from its last run here, for Run from here (by agent id; the 50 most recent agents). */
+    private final Map<String, Runner.ValueTrail> trails = java.util.Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, Runner.ValueTrail> e) { return size() > 50; }
+    });
 
     /** A run started from Studio in the background, so the UI can follow it live and pause or stop it. */
     static final class LiveRun {
@@ -130,20 +134,42 @@ public final class StudioServer {
         }
     }
 
+    /**
+     * Studio's page and files (platform/ui, built into /studio-next/), at the root. The preview's old address /next/
+     * goes there. A build made without Node.js has no page, and says how to build one.
+     */
     private void asset(HttpExchange ex, String path) throws IOException {
-        String name = switch (path) {
-            case "/", "/index.html" -> "index.html";
-            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css", "/ooa-i18n.js" -> path.substring(1);
-            // interface language catalogs
-            default -> path.matches("^/ooa-i18n-[a-z]{2}\\.json$") ? path.substring(1) : null;
-        };
-        if (name == null) { send(ex, 404, "text/plain", "Not found"); return; }
-        // The shared design system comes from the Command Center module, so both applications use the same files.
-        String folder = name.startsWith("ooa-") ? "/ooa-ui/" : "/studio/";
-        try (InputStream in = StudioServer.class.getResourceAsStream(folder + name)) {
-            if (in == null) { send(ex, 404, "text/plain", "Missing asset " + name); return; }
-            String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".json") ? "application/json; charset=utf-8"
-                    : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
+        if (path.equals("/next") || path.startsWith("/next/")) { ex.getResponseHeaders().set("Location", base + "/"); send(ex, 302, "text/plain", "Moved"); return; }
+        if ((path.equals("/") || path.equals("/index.html")) && StudioServer.class.getResource("/studio-next/index.html") == null) {
+            send(ex, 503, "text/plain; charset=utf-8", "Agent Studio's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist");
+            return;
+        }
+        nextAsset(ex, path.substring(1));
+    }
+
+    /** Files of the new Studio (platform/ui, built by :cli:uiBuild into /studio-next/), served at the root. */
+    private static final java.util.regex.Pattern NEXT_FILE = java.util.regex.Pattern.compile("^(index\\.html|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
+    private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
+
+    private void nextAsset(HttpExchange ex, String file) throws IOException {
+        String name = file.isEmpty() ? "index.html" : file;
+        if (!NEXT_FILE.matcher(name).matches()) { send(ex, 404, "text/plain", "Not found"); return; }
+        try (InputStream in = StudioServer.class.getResourceAsStream("/studio-next/" + name)) {
+            if (in == null) { send(ex, 404, "text/plain", "Not found"); return; }
+            if (name.equals("index.html")) {
+                // a fresh nonce per page: the one style element the dialogs add (to stop the page scrolling behind them)
+                // carries it, so the policy still refuses every other inline style
+                byte[] r = new byte[16];
+                NONCES.nextBytes(r);
+                String nonce = Base64.getEncoder().encodeToString(r);
+                byte[] page = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                // data: images: the pictures Capture and Record keep of each element (an image never runs script)
+                sendBytes(ex, 200, "text/html; charset=utf-8", page,
+                        "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce + "'; script-src 'self'; frame-ancestors 'none'");
+                return;
+            }
+            String type = name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".css") ? "text/css; charset=utf-8"
+                    : name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".woff2") ? "font/woff2" : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
             sendBytes(ex, 200, type, in.readAllBytes());
         }
     }
@@ -157,6 +183,11 @@ public final class StudioServer {
             info.put("workspace", workspace.toString());
             info.put("controlRoom", sameServerControlRoom == null ? null : "/");
             sendJson(ex, 200, info);
+        } else if (method.equals("GET") && route.equals("blueprints")) {
+            // agents to start from (Create > Start from), shared by both Studios
+            try (InputStream in = StudioServer.class.getResourceAsStream("/studio/blueprints.json")) {
+                sendJson(ex, 200, Map.of("blueprints", in == null ? List.of() : json.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8))));
+            }
         } else if (method.equals("GET") && route.equals("packages")) {
             sendJson(ex, 200, Map.of("packages", registry.allManifests()));
         } else if (method.equals("GET") && route.equals("tree")) {
@@ -174,6 +205,12 @@ public final class StudioServer {
                         a.put("id", f.getOrDefault("id", ""));
                         a.put("name", f.getOrDefault("name", ""));
                         a.put("variables", f.getOrDefault("variables", List.of()));
+                        // the agents it runs (Run agent steps), for the "Run by" note in Studio
+                        Set<Object> runs = new LinkedHashSet<>();
+                        if (f.get("steps") instanceof List<?> steps)
+                            for (Map<String, Object> st : Steps.walk((List<Object>) steps))
+                                if ("core/run_bot".equals(st.get("action")) && st.get("args") instanceof Map<?, ?> args && args.get("automation") instanceof String id && !id.isBlank()) runs.add(id);
+                        a.put("runs", new ArrayList<>(runs));
                         agents.add(a);
                     } catch (RuntimeException | IOException ignored) { /* not a readable agent */ }
                 }
@@ -229,10 +266,11 @@ public final class StudioServer {
                 String text = b instanceof Map<?, ?> m && m.get("text") instanceof String t ? t : null;
                 sendJson(ex, 200, Map.of("saved", ws.writeItem(rel, text, json::parse)));
             } else send(ex, 405, "text/plain", "Method not allowed");
-        } else if (route.equals("connections") && method.equals("GET")) {
+        } else if (route.equals("model-connections") && method.equals("GET")) {
+            // One Model Connections (model-connections.json); "connections" are the saved connector connections below
             Path f = ws.root.resolve("model-connections.json");
             sendJson(ex, 200, Files.isRegularFile(f) ? json.parse(Files.readString(f)) : Map.of("default", "", "connections", List.of()));
-        } else if (route.equals("connections") && method.equals("PUT")) {
+        } else if (route.equals("model-connections") && method.equals("PUT")) {
             sendJson(ex, 200, saveConnections(body(ex)));
         } else if (route.equals("connectors") || route.startsWith("connectors/")) {
             connectors(ex, method, route.substring("connectors".length()));
@@ -269,7 +307,7 @@ public final class StudioServer {
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
             else if (method.equals("POST") && r.equals("checkout")) sendJson(ex, 200, cr.checkout((String) ((Map<String, Object>) body(ex)).get("path"), json));
-            else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), json)); }
+            else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), json)); }
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");
         } else if (method.equals("POST") && route.equals("runs")) {
@@ -292,6 +330,16 @@ public final class StudioServer {
             // Step menu: "Run this step only" (only_step) and "Run from here" (start_at); see Runner.RunOptions.
             if (req.get("only_step") instanceof String only && !only.isBlank()) opts.onlyStep(only);
             else if (req.get("start_at") instanceof String from && !from.isBlank()) opts.startAt(from);
+            // ...with the values the agent's last run here had at that step (carry_over), in place of the skipped steps' work
+            String agentKey = String.valueOf(flow.getOrDefault("id", flow.getOrDefault("name", "")));
+            Runner.ValueTrail lastTrail = trails.get(agentKey), trail = new Runner.ValueTrail();
+            opts.trail(trail);
+            String carried = null;
+            String from = req.get("only_step") instanceof String o && !o.isBlank() ? o : req.get("start_at") instanceof String s && !s.isBlank() ? s : null;
+            if (from != null && !Boolean.FALSE.equals(req.get("carry_over")) && lastTrail != null && lastTrail.before(from) != null) {
+                opts.carryOver(lastTrail.before(from));
+                carried = lastTrail.reached(from) ? "step" : "end";
+            }
             // "Convert selectors to captured objects": the run notes every element its web steps find by selector
             if (Boolean.TRUE.equals(req.get("record_objects"))) {
                 try { lr.objectsFile = Files.createTempFile("ooa-objects-", ".jsonl"); }
@@ -302,7 +350,10 @@ public final class StudioServer {
             Thread t = new Thread(() -> {
                 try { lr.result = runner(lr.sink).run(flow, inputs, opts); }
                 catch (RuntimeException e) { lr.result = new RunResult(id, null, "failed", Map.of(), Map.of("code", "STUDIO.RUN_CRASHED", "message", String.valueOf(e.getMessage())), System.currentTimeMillis() - lr.startedAt, null, 0); }
-                finally { lr.finishedAt = System.currentTimeMillis(); if (lr.objectsFile != null) recordObjects(null); }
+                finally {
+                    lr.finishedAt = System.currentTimeMillis(); if (lr.objectsFile != null) recordObjects(null);
+                    if (trail.atEnd() != null) trails.put(agentKey, trail.keepFrom(lastTrail));
+                }
             }, "ooa-studio-run-" + id);
             t.setDaemon(true);
             t.start();
@@ -315,7 +366,10 @@ public final class StudioServer {
                 RunWindow.open(String.valueOf(flow.getOrDefault("name", "Agent")), flow, lr.sink, lr.pause, lr.cancel, () -> lr.result != null,
                         a -> names.getOrDefault(a, a));
             }
-            sendJson(ex, 202, Map.of("run_id", id));
+            Map<String, Object> started = new LinkedHashMap<>();
+            started.put("run_id", id);
+            if (carried != null) started.put("carried_over", carried);
+            sendJson(ex, 202, started);
         } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}/objects")) {
             LiveRun lr = live.get(route.substring(5, route.indexOf("/objects")));
             if (lr == null || lr.objectsFile == null) throw new OoaException("STUDIO.NOT_FOUND", "This run did not record objects");
@@ -434,8 +488,13 @@ public final class StudioServer {
             if (!desktop) {
                 args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
                 args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
-                // record in an open tab of a browser connected through the extension
+                // record in an open tab: of a browser connected through the extension (tab_id), or of the browser agents
+                // keep open on its debugging port (endpoint, with the tab's title and address)
                 if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
+                for (String k : List.of("endpoint", "tab_title", "tab_url")) if (req.get(k) != null && !String.valueOf(req.get(k)).isBlank()) args.put(k, String.valueOf(req.get(k)));
+            } else {
+                // the application window chosen in Studio: it comes to the front and only its clicks and typing are recorded
+                for (String k : List.of("window_title", "process")) if (req.get(k) != null && !String.valueOf(req.get(k)).isBlank()) args.put(k, String.valueOf(req.get(k)));
             }
             flow.put("steps", List.of(Map.of("id", "rec", "action", module + "/record", "args", args, "out", Map.of("steps", "steps"))));
             // the recording's progress (GET record/progress) and Cancel (POST record/cancel) while this request waits
@@ -972,9 +1031,13 @@ public final class StudioServer {
     }
 
     private static void sendBytes(HttpExchange ex, int code, String type, byte[] b) throws IOException {
+        sendBytes(ex, code, type, b, "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+    }
+
+    private static void sendBytes(HttpExchange ex, int code, String type, byte[] b, String policy) throws IOException {
         ex.getResponseHeaders().set("Content-Type", type);
         ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
-        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+        ex.getResponseHeaders().set("Content-Security-Policy", policy);
         ex.getResponseHeaders().set("Cache-Control", "no-store");
         writeBody(ex, code, b);
     }

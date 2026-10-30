@@ -123,6 +123,46 @@ public final class Ooa {
         } finally { s.db().close(); }
     }
 
+    /**
+     * ooa vault rekey: with the Command Center stopped, re-encrypts every stored secret with a new master key taken
+     * from an environment variable, for a key kept outside the data folder (OOA_MASTER_KEY or a key store), which the
+     * console's Rotate cannot change. The new key is never printed.
+     */
+    static int vaultRekey(Map<String, String> o) throws Exception {
+        String var = o.get("new-key-env");
+        String value = var == null ? null : System.getenv(var);
+        if (value == null || value.isBlank()) {
+            System.err.println("Put the new key (32 random bytes, Base64) in the environment variable " + var + " first, e.g. in PowerShell:");
+            System.err.println("  $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $env:" + var + " = [Convert]::ToBase64String($b)");
+            return 1;
+        }
+        byte[] key;
+        try { key = java.util.Base64.getDecoder().decode(value.trim()); }
+        catch (IllegalArgumentException e) { System.err.println("The new key in " + var + " is not Base64."); return 1; }
+        if (key.length != 32) { System.err.println("The new key must be 32 bytes (44 Base64 characters); it is " + key.length + "."); return 1; }
+        ControlRoomSetup s;
+        try { s = openControlRoom(o); }
+        catch (Exception e) {
+            System.err.println("Cannot open the Command Center database. Stop the Command Center first, then run this again.");
+            System.err.println("  (" + e.getMessage() + ")");
+            return 2;
+        }
+        try {
+            String source = s.cr().vault.keySource;
+            Map<String, Object> r = s.cr().vaultAdmin.rekey(key);
+            System.out.println("Re-encrypted " + r.get("re_encrypted") + " stored values with the new key (fingerprint " + r.get("key_fingerprint") + ").");
+            if (Boolean.TRUE.equals(r.get("key_file"))) System.out.println("The key file holds the new key; the old one is kept next to it as master.key.old-<time>.");
+            else {
+                System.out.println("Now replace the old key where it is kept (" + source + ") with the new one from " + var + ",");
+                System.out.println("then start the Command Center. Until then it cannot read its secrets.");
+            }
+            return 0;
+        } catch (OoaException e) {
+            System.err.println(e.getMessage());
+            return 1;
+        } finally { s.db().close(); }
+    }
+
     static int controlRoom(Map<String, String> o) throws Exception {
         int port = Integer.parseInt(o.getOrDefault("port", "8720"));
         String host = o.getOrDefault("host", "127.0.0.1");
@@ -159,7 +199,7 @@ public final class Ooa {
         var studio = new StudioServer(workspace, port, Path.of("../examples/refund"));
         server.mount("/studio", studio.mountedAt("/studio", localUrl));
         server.start();
-        Path agentConfig = Path.of(o.getOrDefault("agent-config", Path.of(System.getProperty("user.home"), ".ooa-agent", "local-agent.json").toString()));
+        Path agentConfig = o.containsKey("agent-config") ? Path.of(o.get("agent-config")) : localAgentConfig(s.data());
         Path agentWorkspace = Path.of(o.getOrDefault("agent-workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString()));
         com.oneofficeautomation.agent.Agent agent = o.containsKey("no-agent") ? null : startLocalAgent(s.cr(), localUrl, agentConfig, agentWorkspace);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { if (agent != null) agent.stop(); server.stop(); s.db().close(); }));
@@ -191,13 +231,37 @@ public final class Ooa {
         return "on (" + d.get("subject") + ", valid until " + String.valueOf(d.get("valid_until")).substring(0, 10) + (Boolean.TRUE.equals(d.get("self_signed")) ? ", self-signed" : "") + ")";
     }
 
-    /** Registers this computer once (its own config file, so a separately registered agent is never touched) and runs the agent. */
+    /**
+     * The registration of this computer's runner with the Command Center of a data folder: one file per data folder, so
+     * Command Centers on other data folders (tests, a second install) never overwrite it and make it register again.
+     * The file of earlier versions (local-agent.json, shared by all) is taken over by the data folder whose Command
+     * Center it belongs to (startLocalAgent checks that).
+     */
+    static Path localAgentConfig(Path data) {
+        Path dir = Path.of(System.getProperty("user.home"), ".ooa-agent");
+        String id = sha12(data.toAbsolutePath().normalize().toString().toLowerCase(Locale.ROOT));
+        return dir.resolve("local-agent-" + id + ".json");
+    }
+
+    private static String sha12(String s) {
+        try { return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))).substring(0, 12); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
+    /**
+     * Registers this computer once (its own config file, so a separately registered agent is never touched) and runs the
+     * agent. A registration this Command Center still knows is kept even when its address changed (another port): only
+     * the address in the file is updated, so restarting on another port does not add a runner.
+     */
     @SuppressWarnings("unchecked")
     static com.oneofficeautomation.agent.Agent startLocalAgent(com.oneofficeautomation.controlroom.ControlRoom cr, String url, Path config, Path workspace) throws Exception {
-        boolean registered = false;
-        if (Files.exists(config)) {
-            Map<String, Object> c = (Map<String, Object>) JsonLite.parse(Files.readString(config));
-            registered = url.equals(c.get("url")) && cr.device((String) c.get("device_id"), (String) c.get("secret")) != null;
+        // the shared file of earlier versions: kept when it is this Command Center's runner
+        Path legacy = config.resolveSibling("local-agent.json");
+        if (!Files.exists(config) && !config.equals(legacy) && Files.exists(legacy) && knownTo(cr, legacy)) Files.copy(legacy, config);
+        boolean registered = Files.exists(config) && knownTo(cr, config);
+        if (registered) {
+            Map<String, Object> c = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(config)));
+            if (!url.equals(c.get("url"))) { c.put("url", url); Files.writeString(config, JsonLite.write(c)); }
         }
         if (!registered) com.oneofficeautomation.agent.Agent.register(url, cr.localRegistrationKey(), com.oneofficeautomation.agent.Agent.hostname() + " (this computer)", config);
         var agent = new com.oneofficeautomation.agent.Agent(config, workspace);
@@ -205,6 +269,15 @@ public final class Ooa {
         t.setDaemon(true);
         t.start();
         return agent;
+    }
+
+    /** Whether a runner registration file is one this Command Center knows (its device and secret). */
+    @SuppressWarnings("unchecked")
+    static boolean knownTo(com.oneofficeautomation.controlroom.ControlRoom cr, Path config) {
+        try {
+            Map<String, Object> c = (Map<String, Object>) JsonLite.parse(Files.readString(config));
+            return cr.device((String) c.get("device_id"), (String) c.get("secret")) != null;
+        } catch (Exception e) { return false; }
     }
 
     static void openBrowser(String url) {
@@ -221,6 +294,15 @@ public final class Ooa {
         Path config = Path.of(o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString()));
         switch (verb) {
             case "register" -> {
+                if (o.containsKey("keep-existing")) {
+                    Map<String, Object> kept = com.oneofficeautomation.agent.Agent.existingRegistration(o.get("url"), config);
+                    if (kept != null) {
+                        System.out.println("Already registered as runner '" + kept.get("name") + "' (" + kept.get("device_id") + "); the registration is kept.");
+                        return 0;
+                    }
+                }
+                if (o.get("key") == null || o.get("key").isBlank())
+                    throw new OoaException("CLI.BAD_INPUT", "A registration key is needed: this computer has no registration the Command Center accepts", "Create one in Command Center > Runners > Register a runner, and pass it with --key.");
                 Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null,
                     o.get("proxy"), o.get("proxy-user"), proxyPassword(o));
                 System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
@@ -312,7 +394,8 @@ public final class Ooa {
             try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }
             inputs.put(kv.substring(0, eq), val);
         }
-        Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false))
+        // Credential inputs ({"$credential": "folder/credential/attribute"}) are read from OOA_SECRET_... variables, as in Agent Studio.
+        Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false)).service("vault", new EnvVault())
                 .schemaValidator(schemaValidator()).workDir(Path.of(".")).build();
         RunResult r = runner.run(flow, inputs);
         System.out.println(json.write(r.toMap(), true));

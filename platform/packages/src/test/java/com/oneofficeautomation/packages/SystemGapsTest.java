@@ -172,6 +172,7 @@ class SystemGapsTest {
         final DatagramSocket socket = new DatagramSocket(0, InetAddress.getLoopbackAddress());
         final TreeMap<String, NetworkPackage.Snmp.VarBind> mib = new TreeMap<>(SystemGapsTest::compareOids);
         final List<NetworkPackage.Snmp.Message> traps = new CopyOnWriteArrayList<>();
+        final List<NetworkPackage.Snmp.Message> requests = new CopyOnWriteArrayList<>();
         final AtomicBoolean running = new AtomicBoolean(true);
         final Thread thread;
 
@@ -197,6 +198,7 @@ class SystemGapsTest {
                     DatagramPacket in = new DatagramPacket(buf, buf.length);
                     socket.receive(in);
                     var req = NetworkPackage.Snmp.decode(in.getData(), in.getLength());
+                    requests.add(req);
                     if (req.pduType() == NetworkPackage.Snmp.TRAP) { traps.add(req); continue; }
                     if (!req.community().equals(req.pduType() == NetworkPackage.Snmp.SET ? "private" : "public")) continue;  // wrong community: silence
                     List<NetworkPackage.Snmp.VarBind> out = new ArrayList<>();
@@ -209,6 +211,15 @@ class SystemGapsTest {
                         } else if (req.pduType() == NetworkPackage.Snmp.GETNEXT) {
                             var next = mib.higherEntry(vb.oid());
                             out.add(next != null ? next.getValue() : new NetworkPackage.Snmp.VarBind(vb.oid(), NetworkPackage.Snmp.END_OF_MIB, null));
+                        } else if (req.pduType() == NetworkPackage.Snmp.GETBULK) {
+                            // non-repeaters (in error-status) are not used by the walk; max-repetitions arrives in error-index
+                            String cur = vb.oid();
+                            for (int r = 0; r < Math.max(1, req.errorIndex()); r++) {
+                                var next = mib.higherEntry(cur);
+                                if (next == null) { out.add(new NetworkPackage.Snmp.VarBind(cur, NetworkPackage.Snmp.END_OF_MIB, null)); break; }
+                                out.add(next.getValue());
+                                cur = next.getKey();
+                            }
                         } else if (req.pduType() == NetworkPackage.Snmp.SET) {
                             if (vb.oid().equals("1.3.6.1.2.1.1.1.0")) { err = 17; idx = i + 1; out.add(vb); continue; }  // notWritable
                             mib.put(vb.oid(), vb);
@@ -258,6 +269,20 @@ class SystemGapsTest {
             eqNum("3", walk.get("row_count"));
             assertEquals("eth1", rows(walk.get("table")).get(1).get(2));
             eqNum("4000000000", rows(walk.get("table")).get(2).get(2));
+
+            // the same walk with GETBULK, two objects per request: same rows, fewer requests, max-repetitions on the wire
+            agent.requests.clear();
+            Map<String, Object> bulk = n.snmpWalk(c, host, "1.3.6.1.2.1.2.2", "public", port, 100, 2000, 0, "v2c", null, null, null, null, null, null, "getbulk", 2);
+            assertEquals(rows(walk.get("table")), rows(bulk.get("table")));
+            assertTrue(agent.requests.stream().allMatch(r -> r.pduType() == NetworkPackage.Snmp.GETBULK && r.errorIndex() == 2 && r.errorStatus() == 0), "GETBULK with non-repeaters 0, max-repetitions 2");
+            assertEquals(2, agent.requests.size(), "3 objects in 2 bulk requests");
+            Map<String, Object> capped = n.snmpWalk(c, host, "1.3.6.1", "public", port, 4, 2000, 0, "v2c", null, null, null, null, null, null, "getbulk", 10);
+            eqNum("4", capped.get("row_count"));
+            Map<String, Object> toEnd = n.snmpWalk(c, host, "1.3.6.1.2.1.4", "public", port, 100, 2000, 0, "v2c", null, null, null, null, null, null, "getbulk", 10);
+            eqNum("1", toEnd.get("row_count"));
+            assertEquals("SNMP.BAD_OPTION", code(() -> n.snmpWalk(c, host, "1.3.6.1", "public", port, 100, 2000, 0, "v1", null, null, null, null, null, null, "getbulk", 10)));
+            assertEquals("SNMP.BAD_OPTION", code(() -> n.snmpWalk(c, host, "1.3.6.1", "public", port, 100, 2000, 0, "v2c", null, null, null, null, null, null, "bulk", 10)));
+            assertEquals("SNMP.BAD_OPTION", code(() -> n.snmpWalk(c, host, "1.3.6.1", "public", port, 100, 2000, 0, "v2c", null, null, null, null, null, null, "getbulk", 0)));
 
             Map<String, Object> set = n.snmpSet(c, host, "1.3.6.1.2.1.1.6.0", "Server room B", "string", "private", port, 2000, 0, "v2c");
             assertEquals("Server room B", set.get("value"));
@@ -314,6 +339,11 @@ class SystemGapsTest {
         log.logToCommandCenter(c, "debug line", "DEBUG", null);
         assertEquals("debug", lines.get(lines.size() - 1)[0]);
         assertEquals("LOG.BAD_LEVEL", code(() -> log.logToCommandCenter(c, "x", "LOUD", null)));
+        log.logToCommandCenter(c, "Checked 4 invoices", "INFO", Map.of("ok", true), " invoice-check ");
+        assertEquals("info", lines.get(lines.size() - 1)[0]);
+        assertEquals("[invoice-check] Checked 4 invoices {\"ok\":true}", lines.get(lines.size() - 1)[1]);
+        log.logToCommandCenter(c, "no tag", "INFO", null, "  ");
+        assertEquals("no tag", lines.get(lines.size() - 1)[1]);
     }
 
     // ---------- PGP ----------

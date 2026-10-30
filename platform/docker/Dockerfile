@@ -5,7 +5,7 @@
 # Run (data in a volume; the vault key from your secret store):
 #   docker run -d -p 8720:8720 -v ooa-data:/data -e OOA_MASTER_KEY=... ooa-command-center:0.1.1
 # With SQL Server: -e OOA_DB_URL="jdbc:sqlserver://sql:1433;databaseName=ooa_command_center;encrypt=true"
-#   -e OOA_DB_USER=ooa_app -e OOA_DB_PASSWORD=...   (see docker/compose.yaml and docs/CLOUD_INSTALL.md)
+#   -e OOA_DB_USER=ooa_app -e OOA_DB_PASSWORD=...   (see docker/compose.yaml and docs/infrastructure/03-installation-linux-and-containers.md)
 FROM eclipse-temurin:21-jre-jammy
 
 LABEL org.opencontainers.image.title="ONEOFFICEAUTOMATION Command Center" \

@@ -10,7 +10,7 @@ this repository.
 
 ## Before you start
 
-- A test Command Center on SQL Server with HTTPS (see [SECURITY_REVIEW.md](SECURITY_REVIEW.md), section 2), and one
+- A test Command Center on SQL Server with HTTPS (see [Security architecture](architecture/06-security-architecture.md#14-independent-security-review), section 2), and one
   desktop runner (Install.cmd -Role Runner), signed in and unlocked.
 - `public_url` set in Administration > Settings to the address people use.
 - For each system below: a test account, and its secrets stored in a vault folder that the test agents can read.

@@ -18,7 +18,7 @@ final class FullCommands {
             .opt("--workspace", "DIR", "Agent Studio's workspace (default: ~/OOA Workspace).")
             .flag("--no-agent", "Do not start the runner for this computer.")
             .flag("--no-browser", "Do not open the browser.")
-            .opt("--agent-config", "FILE", "The local runner's registration (default: ~/.ooa-agent/local-agent.json).")
+            .opt("--agent-config", "FILE", "The local runner's registration (default: one file per data folder in ~/.ooa-agent).")
             .opt("--agent-workspace", "DIR", "The local runner's workspace (default: ~/OOA Agent Workspace)."));
         c.command("studio", "Start Agent Studio on its own (http://localhost:8710).", a -> Ooa.studio(a.o()))
             .opt("--workspace", "DIR", "The workspace (default: ~/OOA Workspace).")
@@ -32,8 +32,9 @@ final class FullCommands {
         c.group("agent", "Register and run a runner (Bot Agent) on this computer.");
         network(c.command("agent register", "Register this computer as a runner with a Command Center.", a -> Ooa.agent("register", a.o()))
             .required("--url", "URL", "The Command Center, such as https://commandcenter:8720.")
-            .required("--key", "KEY", "A registration key (Devices > Registration keys).")
+            .opt("--key", "KEY", "A registration key (Runners > Register a runner); not needed with --keep-existing when the registration is kept.")
             .opt("--name", "NAME", "The runner's name (default: this computer's name).")
+            .flag("--keep-existing", "Keep this computer's registration with the same Command Center when it still works (setup run again).")
             .opt("--config", "FILE", "Where the registration is saved (default: ~/.ooa-agent/agent.json)."));
         c.command("agent start", "Run the registered runner until stopped.", a -> Ooa.agent("start", a.o())).opt("--config", "FILE", "The registration.")
             .opt("--workspace", "DIR", "The runner's workspace (default: ~/OOA Agent Workspace).");
@@ -47,7 +48,7 @@ final class FullCommands {
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent uninstall-task", "Stop starting the runner at sign-in.", a -> Ooa.agent("uninstall-task", a.o()));
 
-        c.group("db", "Set up and look after the Command Center database (docs/DATABASE.md).");
+        c.group("db", "Set up and look after the Command Center database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")
             .opt("--engine", "ENGINE", "sqlserver (default) or postgresql.")
             .opt("--host", "HOST", "The database server.")
@@ -88,12 +89,12 @@ final class FullCommands {
         }
 
         c.command("release page", "Write the public releases page from a repository's GitHub releases.", a -> ReleasePage.run(a.o()))
-            .required("--repo", "OWNER/NAME", "The release repository, such as VirupakshaPrabhu/OOA_Customer_Build.")
+            .required("--repo", "OWNER/NAME", "The release repository on GitHub (OWNER/NAME; ours is the organisation's OOA_Customer_Build).")
             .required("--out", "DIR", "Where to write index.html and releases.json.")
             .opt("--token-env", "VAR", "The environment variable with a GitHub token (for a private repository).")
             .opt("--api", "URL", "The GitHub API address (default https://api.github.com).");
 
-        c.group("region", "Run the SaaS service: a region with its tenants (docs/SAAS.md).");
+        c.group("region", "Run the SaaS service: a region with its tenants (docs/infrastructure/09-saas-and-multi-region-operations.md).");
         c.command("region start", "Start a region: every tenant on one port, the host name picking the tenant.", a -> RegionCommand.start(a.o()))
             .opt("--data", "DIR", "The region's data folder, with config/ooa-region.properties.")
             .opt("--host", "HOST", "The address to listen on (default 0.0.0.0; TLS ends at the load balancer).")
@@ -134,6 +135,10 @@ final class FullCommands {
 
         c.command("check", "Check whether this computer is ready for a Command Center.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
+
+        c.group("vault", "Look after the vault's master key.");
+        database(c.command("vault rekey", "Re-encrypt every stored secret with a new master key. Stop the server first.", a -> Ooa.vaultRekey(a.o()))
+            .required("--new-key-env", "VAR", "The environment variable with the new key (32 random bytes, Base64)."));
 
         c.group("backup", "Back up and restore the Command Center.");
         database(c.command("backup now", "Make a backup into the backup folder.", a -> BackupCommand.run("now", a.o(), null)));

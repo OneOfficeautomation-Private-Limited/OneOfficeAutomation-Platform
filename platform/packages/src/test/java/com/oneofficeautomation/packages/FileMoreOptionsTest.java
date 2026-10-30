@@ -82,4 +82,46 @@ class FileMoreOptionsTest {
         assertEquals("FILE.EXISTS", assertThrows(ActionException.class, () -> fp.move(ctx(), "m2", "archive2", false, false, "*.log", false, null, null, null, null)).code());
         assertEquals(tmp.resolve("renamed.log").toString(), fp.move(ctx(), "m2/y.log", "renamed.log", false, false).get("path"), "old signature");
     }
+
+    @Test void readTextDetectsTheEncodingAndTrims() throws Exception {
+        String text = "Gr\u00fc\u00dfe \u20ac";
+        Path u8 = tmp.resolve("u8.txt"), bom = tmp.resolve("bom.txt"), le = tmp.resolve("le.txt"), be = tmp.resolve("be.txt"), ansi = tmp.resolve("ansi.txt");
+        Files.write(u8, text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Files.write(bom, concat(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF}, text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        Files.write(le, concat(new byte[]{(byte) 0xFF, (byte) 0xFE}, text.getBytes(java.nio.charset.StandardCharsets.UTF_16LE)));
+        Files.write(be, concat(new byte[]{(byte) 0xFE, (byte) 0xFF}, text.getBytes(java.nio.charset.StandardCharsets.UTF_16BE)));
+        Files.write(ansi, text.getBytes(java.nio.charset.Charset.forName("windows-1252")));
+        for (Path p : List.of(u8, bom, le, be, ansi)) assertEquals(text, fp.readText(ctx(), p.toString(), "auto", null).get("text"), p.getFileName().toString());
+        // utf-8 as before
+        assertEquals(text, fp.readText(ctx(), u8.toString(), "utf-8", "none").get("text"));
+        Path sp = tmp.resolve("sp.txt");
+        Files.writeString(sp, "  hello \n");
+        assertEquals("  hello \n", fp.readText(ctx(), sp.toString(), null, null).get("text"));
+        assertEquals("hello \n", fp.readText(ctx(), sp.toString(), null, "leading").get("text"));
+        assertEquals("  hello", fp.readText(ctx(), sp.toString(), null, "trailing").get("text"));
+        assertEquals("hello", fp.readText(ctx(), sp.toString(), "auto", "both").get("text"));
+        assertEquals("FILE.BAD_OPTION", assertThrows(ActionException.class, () -> fp.readText(ctx(), sp.toString(), null, "middle")).code());
+    }
+
+    static byte[] concat(byte[] a, byte[] b) {
+        byte[] r = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, r, a.length, b.length);
+        return r;
+    }
+
+    @Test void readVariablesTrimSidesAndLowerCaseNames() throws Exception {
+        Path f = tmp.resolve("vars.ini");
+        Files.writeString(f, "Server =  db1 \nPORT= 1433\n");
+        @SuppressWarnings("unchecked") Map<String, Object> both = (Map<String, Object>) fp.readVariables(ctx(), f.toString(), "=", null, true, null, false).get("values");
+        assertEquals(Map.of("Server", "db1", "PORT", "1433"), both);
+        @SuppressWarnings("unchecked") Map<String, Object> lead = (Map<String, Object>) fp.readVariables(ctx(), f.toString(), "=", null, true, "leading", true).get("values");
+        assertEquals("db1 ", lead.get("server "));
+        assertEquals("1433", lead.get("port"));
+        @SuppressWarnings("unchecked") Map<String, Object> trail = (Map<String, Object>) fp.readVariables(ctx(), f.toString(), "=", null, true, "trailing", false).get("values");
+        assertEquals("  db1", trail.get("Server"));
+        // trim off keeps everything, whatever trim_side says
+        @SuppressWarnings("unchecked") Map<String, Object> none = (Map<String, Object>) fp.readVariables(ctx(), f.toString(), "=", "auto", false, "both", false).get("values");
+        assertEquals("  db1 ", none.get("Server "));
+        assertEquals("FILE.BAD_OPTION", assertThrows(ActionException.class, () -> fp.readVariables(ctx(), f.toString(), "=", null, true, "middle", false)).code());
+    }
 }

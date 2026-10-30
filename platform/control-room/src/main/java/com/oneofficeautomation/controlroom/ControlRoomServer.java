@@ -203,6 +203,31 @@ public final class ControlRoomServer {
 
     static String ip(HttpExchange ex) { return ex.getRemoteAddress().getAddress().getHostAddress(); }
 
+    /**
+     * The client's address: the connection's, or, when the connection comes from this computer or from a trusted proxy
+     * (Settings: trusted_proxies, e.g. the load balancer), the last address in X-Forwarded-For that is not itself a
+     * trusted proxy. A client that is not behind a trusted proxy cannot choose its address with the header.
+     */
+    static String clientIp(HttpExchange ex, IpAllowList trusted) {
+        return clientIp(ip(ex), ex.getRemoteAddress().getAddress().isLoopbackAddress(), ex.getRequestHeaders().getFirst("X-Forwarded-For"), trusted);
+    }
+
+    static String clientIp(String peer, boolean peerIsLocal, String fwd, IpAllowList trusted) {
+        boolean viaProxy = peerIsLocal || (!trusted.isEmpty() && trusted.allows(peer));
+        if (!viaProxy || fwd == null || fwd.isBlank()) return peer;
+        String[] hops = fwd.split(",");
+        for (int i = hops.length - 1; i >= 0; i--) {
+            String h = hops[i].trim();
+            if (!h.matches("[0-9A-Fa-f:.]{2,45}")) return peer;   // not an address: do not trust the header
+            if (i == 0 || trusted.isEmpty() || !trusted.allows(h)) return h;
+        }
+        return peer;
+    }
+
+    static boolean isLoopback(String address) {
+        try { return java.net.InetAddress.getByName(address).isLoopbackAddress(); } catch (Exception e) { return false; }
+    }
+
     static String token(HttpExchange ex) {
         String auth = ex.getRequestHeaders().getFirst("Authorization");
         if (auth != null && auth.startsWith("Bearer ")) return auth.substring(7).trim();
@@ -253,12 +278,14 @@ public final class ControlRoomServer {
     @SuppressWarnings("unchecked")
     private void api(HttpExchange ex, String route) throws IOException {
         String m = "HEAD".equals(ex.getRequestMethod()) ? "GET" : ex.getRequestMethod();   // HEAD is answered like GET, without the body
-        String ip = ip(ex);
+        String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
         Map<String, String> q = query(ex);
         String[] seg = route.split("/");
+        boolean fromHere = isLoopback(ip);
 
-        // the IP allow list (Settings): this computer and the health checks are always allowed
-        if (!route.startsWith("health") && !ex.getRemoteAddress().getAddress().isLoopbackAddress()) {
+        // the IP allow list (Settings): this computer and the health checks are always allowed; behind a proxy, the
+        // client's own address counts (not the proxy's)
+        if (!route.startsWith("health") && !fromHere) {
             IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
             if (!allow.isEmpty() && !allow.allows(ip)) {
                 sendJson(ex, 403, Map.of("error", Map.of("code", "CR.IP_BLOCKED", "message", "This address may not use the Command Center", "retryable", false)));
@@ -269,9 +296,7 @@ public final class ControlRoomServer {
         // per-address limits on the routes that need no session (a client on this computer without a proxy is not limited)
         String limitGroup = RateLimiter.group(m, route);
         if (limitGroup != null) {
-            boolean local = ex.getRemoteAddress().getAddress().isLoopbackAddress();
-            String fwd = ex.getRequestHeaders().getFirst("X-Forwarded-For");
-            String who = local && fwd != null && !fwd.isBlank() ? fwd.split(",")[0].trim() : local ? null : ip;
+            String who = fromHere ? null : ip;
             if (who != null && !limiter.allow(who, limitGroup)) {
                 ex.getResponseHeaders().set("Retry-After", String.valueOf(limiter.retryAfter()));
                 sendJson(ex, 429, Map.of("error", Map.of("code", "CR.RATE_LIMITED", "message", "Too many requests from this address; try again in a minute", "retryable", true)));
@@ -628,7 +653,11 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("items"))
                     sendJson(ex, 200, cr.platform.items(u, seg[1], q.get("status"), q.get("q"), ControlRoom.intOr(q.get("limit"), 100), ControlRoom.intOr(q.get("offset"), 0)));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("items")) sendJson(ex, 200, cr.platform.addItems(u, seg[1], (List<Object>) map(body(ex)).get("items"), ip));
-                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items")) { cr.platform.updateItems(u, seg[1], (List<Object>) map(body(ex)).get("ids"), seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items")) {
+                    Map<String, Object> b = map(body(ex));
+                    cr.platform.updateItems(u, seg[1], (List<Object>) b.get("ids"), seg[3], ControlRoom.instantOr(b.get("until")), ip);
+                    sendJson(ex, 200, Map.of("ok", true));
+                }
                 else if (m.equals("POST") && seg.length == 5 && seg[2].equals("items") && seg[4].equals("validate")) sendJson(ex, 200, cr.platform.validateItem(u, seg[1], seg[3], map(body(ex)), ip));
                 else notFound(ex);
             }

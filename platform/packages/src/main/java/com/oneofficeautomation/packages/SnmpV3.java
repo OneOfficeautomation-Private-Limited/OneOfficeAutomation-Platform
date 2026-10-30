@@ -208,9 +208,52 @@ final class SnmpV3 {
     }
 
     private static final Map<String, Engine> ENGINES = new ConcurrentHashMap<>();
+
+    // ---------- notifications: this computer is the authoritative engine ----------
+
+    /** This computer's engine ID (RFC 3411 text format): 80 00 00 00 04, then "OOA-" and the computer name, at most 32 bytes. */
+    static byte[] localEngineId() {
+        String name;
+        try { name = InetAddress.getLocalHost().getHostName(); } catch (IOException e) { name = "runner"; }
+        byte[] text = ("OOA-" + name).getBytes(StandardCharsets.UTF_8);
+        byte[] id = new byte[Math.min(32, 5 + text.length)];
+        id[0] = (byte) 0x80; id[4] = 4;
+        System.arraycopy(text, 0, id, 5, id.length - 5);
+        return id;
+    }
+
+    /** An engine ID typed as hex (5 to 32 bytes, spaces and colons allowed). */
+    static byte[] engineId(String hex) {
+        String h = hex.replaceAll("[\\s:]", "").replaceFirst("^(0x|0X)", "");
+        try {
+            byte[] id = HexFormat.of().parseHex(h);
+            if (id.length >= 5 && id.length <= 32) return id;
+        } catch (IllegalArgumentException ignored) { }
+        throw new ActionException("SNMP.BAD_ENGINE_ID", "The engine ID must be 5 to 32 bytes of hex, such as 800000000403414243", "Leave it empty to use this computer's own.");
+    }
+
+    /** Engine boots: the notification receiver only needs it to stay the same or grow, so 1 with time since the start. */
+    private static final long STARTED = System.currentTimeMillis();
+
+    /** Sends an SNMPv2-Trap as a v3 message from the engine {@code engineId}, signed and encrypted with keys localised to it. */
+    static void trap(String host, int port, Security sec, byte[] engineId, List<Snmp.VarBind> vars) {
+        byte[] authKey = sec.auth().equals("none") ? null : localizedKey(sec.auth(), sec.authPassword(), engineId);
+        byte[] privKey = sec.priv().equals("none") ? null : localizedKey(sec.auth(), sec.privPassword(), engineId);
+        byte[] salt = new byte[8];
+        RANDOM.nextBytes(salt);
+        int time = (int) Math.min(Integer.MAX_VALUE, (System.currentTimeMillis() - STARTED) / 1000);
+        Msg m = new Msg(RANDOM.nextInt(Integer.MAX_VALUE), sec.flags(), engineId, 1, time, sec.user(), salt, sec.context(),
+            Snmp.TRAP, RANDOM.nextInt(Integer.MAX_VALUE), 0, 0, vars);
+        Snmp.send(host, port, encode(m, sec.auth(), authKey, sec.priv(), privKey));
+    }
     private static final String USM = "1.3.6.1.6.3.15.1.1.";
 
     static Snmp.Message request(ActionContext ctx, String host, int port, Security sec, int pduType, List<Snmp.VarBind> vars, int timeoutMs, int retries) {
+        return request(ctx, host, port, sec, pduType, vars, timeoutMs, retries, 0, 0);
+    }
+
+    /** For GETBULK, field1 and field2 are non-repeaters and max-repetitions; otherwise 0. */
+    static Snmp.Message request(ActionContext ctx, String host, int port, Security sec, int pduType, List<Snmp.VarBind> vars, int timeoutMs, int retries, int field1, int field2) {
         InetAddress addr;
         try { addr = InetAddress.getByName(host); }
         catch (UnknownHostException e) { throw new ActionException("SNMP.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
@@ -227,7 +270,7 @@ final class SnmpV3 {
                 RANDOM.nextBytes(salt);
                 if (sec.priv().equals("des")) ByteBuffer.wrap(salt).putInt(e.boots());
                 Engine en = e;
-                byte[] out = encode(new Msg(msgId, sec.flags() | FLAG_REPORTABLE, e.id(), e.boots(), e.now(), sec.user(), salt, sec.context(), pduType, reqId, 0, 0, vars),
+                byte[] out = encode(new Msg(msgId, sec.flags() | FLAG_REPORTABLE, e.id(), e.boots(), e.now(), sec.user(), salt, sec.context(), pduType, reqId, field1, field2, vars),
                     sec.auth(), authKey, sec.priv(), privKey);
                 Msg m = exchange(ctx, s, addr, port, out, msgId, timeoutMs, retries, sec, (id, u) -> new byte[][]{authKey, privKey});
                 if (m.pduType() == REPORT) {

@@ -17,9 +17,13 @@ import java.util.*;
 public final class BrowserConnector {
     /** Fixed by the "key" in the extension manifest, so the host can accept only this extension. */
     public static final String EXTENSION_ID = "fnceeakhokkekgdehkobdpdehpfnemah";
+    /** The extension's id in Firefox (manifest.firefox.json, browser_specific_settings). */
+    public static final String FIREFOX_EXTENSION_ID = "browser-connector@oneofficeautomation.com";
     public static final String HOST_NAME = "com.oneofficeautomation.bridge";
     static final List<String> REG_KEYS = List.of("HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\" + HOST_NAME,
             "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\" + HOST_NAME);
+    /** Firefox finds native-messaging hosts here; its host manifest names the extension by id, not by origin. */
+    static final String FIREFOX_REG_KEY = "HKCU\\Software\\Mozilla\\NativeMessagingHosts\\" + HOST_NAME;
 
     private BrowserConnector() {}
 
@@ -59,6 +63,17 @@ public final class BrowserConnector {
         return JsonLite.write(m);
     }
 
+    /** The same for Firefox, which allows extensions by id. */
+    static String firefoxHostManifest(Path launcher) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", HOST_NAME);
+        m.put("description", "ONEOFFICEAUTOMATION browser connector");
+        m.put("path", launcher.toAbsolutePath().toString());
+        m.put("type", "stdio");
+        m.put("allowed_extensions", List.of(FIREFOX_EXTENSION_ID));
+        return JsonLite.write(m);
+    }
+
     static int install(Path home) throws IOException, InterruptedException {
         Path ooa = home.resolve("bin").resolve("ooa.bat");
         Path ext = home.resolve("browser-extension");
@@ -70,8 +85,13 @@ public final class BrowserConnector {
         Files.writeString(launcher, "@echo off\r\ncall \"" + ooa.toAbsolutePath() + "\" native-host %*\r\n", StandardCharsets.UTF_8);
         Path manifest = dir.resolve(HOST_NAME + ".json");
         Files.writeString(manifest, hostManifest(launcher), StandardCharsets.UTF_8);
+        Path firefox = dir.resolve(HOST_NAME + ".firefox.json");
+        Files.writeString(firefox, firefoxHostManifest(launcher), StandardCharsets.UTF_8);
         boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
-        if (windows) for (String key : REG_KEYS) reg("add", key, "/ve", "/t", "REG_SZ", "/d", manifest.toAbsolutePath().toString(), "/f");
+        if (windows) {
+            for (String key : REG_KEYS) reg("add", key, "/ve", "/t", "REG_SZ", "/d", manifest.toAbsolutePath().toString(), "/f");
+            reg("add", FIREFOX_REG_KEY, "/ve", "/t", "REG_SZ", "/d", firefox.toAbsolutePath().toString(), "/f");
+        }
         System.out.println("Browser connector installed for " + System.getProperty("user.name") + ".");
         System.out.println("  Host:      " + manifest);
         System.out.println("  Extension: " + ext);
@@ -79,12 +99,18 @@ public final class BrowserConnector {
         System.out.println("Load the extension once in each browser:");
         System.out.println("  Edge:   open edge://extensions, turn on Developer mode, choose Load unpacked and pick the Extension folder above.");
         System.out.println("  Chrome: open chrome://extensions, turn on Developer mode, choose Load unpacked and pick the same folder.");
+        System.out.println("  Firefox: open about:debugging#/runtime/this-firefox, choose Load Temporary Add-on and pick manifest.json in");
+        System.out.println("           " + home.resolve("browser-extension-firefox") + " (until Firefox restarts; a signed add-on stays).");
+        System.out.println("           Then allow it on all websites: about:addons > OOA Connector > Permissions.");
         System.out.println("The extension's icon shows Connected when it can reach this computer's agents.");
         return 0;
     }
 
     static int uninstall() throws IOException, InterruptedException {
-        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) for (String key : REG_KEYS) reg("delete", key, "/f");
+        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            for (String key : REG_KEYS) reg("delete", key, "/f");
+            reg("delete", FIREFOX_REG_KEY, "/f");
+        }
         Path dir = hostDir();
         if (Files.isDirectory(dir)) try (var s = Files.list(dir)) { for (Path p : s.toList()) Files.deleteIfExists(p); }
         Files.deleteIfExists(dir);
@@ -108,7 +134,7 @@ public final class BrowserConnector {
                 if (alive) n++;
             }
         }
-        if (n == 0) System.out.println("No browser is connected now (open Edge or Chrome with the extension loaded).");
+        if (n == 0) System.out.println("No browser is connected now (open Edge, Chrome or Firefox with the extension loaded).");
         return 0;
     }
 

@@ -30,7 +30,7 @@ Start (zip without the installer, ooa-customer-<version>.zip)
   This zip needs Java 21 or later installed; the setup package above brings its own.
 
 Evaluation and license
-  Without a license the product runs as a 30-day evaluation, counted from the first start, for 2 developers,
+  Without a license the product runs as a 60-day evaluation, counted from the first start, for 2 developers,
   2 attended runners and 2 unattended runners. A banner shows the days left.
   A licensed installation runs on Microsoft SQL Server: set it up first (see Database below), then sign in as an
   administrator and open Administration > Licenses. Send the install id shown there with your license request: the

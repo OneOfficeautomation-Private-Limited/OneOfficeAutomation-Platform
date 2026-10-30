@@ -117,8 +117,14 @@ final class CheckCommand {
             } catch (Exception e) { r.add(new Result("FAIL", "HTTPS certificate", e.getMessage())); }
         }
         // the vault key
-        r.add(new Result(System.getenv("OOA_MASTER_KEY") != null ? "PASS" : "WARN", "Vault key", System.getenv("OOA_MASTER_KEY") != null ? "from OOA_MASTER_KEY"
-            : "key file in the data folder; for production set OOA_MASTER_KEY and keep a copy apart from backups"));
+        r.add(vaultKey(System.getenv("OOA_MASTER_KEY"), System.getenv("OOA_MASTER_KEY_SOURCE")));
         return r;
+    }
+
+    /** Where the vault key comes from: the environment, a key store (OOA_MASTER_KEY_SOURCE), or a file next to the data. */
+    static Result vaultKey(String env, String source) {
+        if (env != null && !env.isBlank()) return new Result("PASS", "Vault key", "from OOA_MASTER_KEY");
+        if (source != null && !source.isBlank()) return new Result("PASS", "Vault key", "from " + com.oneofficeautomation.controlroom.KeySources.describe(source.trim()));
+        return new Result("WARN", "Vault key", "key file in the data folder; for production set OOA_MASTER_KEY or OOA_MASTER_KEY_SOURCE and keep a copy apart from backups");
     }
 }

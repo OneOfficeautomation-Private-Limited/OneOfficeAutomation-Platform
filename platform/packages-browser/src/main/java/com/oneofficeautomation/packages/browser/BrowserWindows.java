@@ -342,7 +342,7 @@ final class BrowserWindows {
         if (version(ep) == null) {
             if (!portFree(port)) throw new ActionException("BROWSER.PORT_IN_USE", "Port " + port + " is used by another program", "Close that program, or set keep_open to false.");
             Path dir = ctx.workDir().resolve(".ooa").resolve("browser-profiles").resolve(kind + "-" + port);
-            start(executable(kind, null), port, dir, url, false);
+            start(executable(kind, null), port, dir, null, false);   // a blank page: the address is opened once, below
             started = true;
             long end = System.currentTimeMillis() + (long) Math.max(1000, timeoutMs);
             while (version(ep) == null) {
@@ -366,15 +366,28 @@ final class BrowserWindows {
                 params.addProperty("newWindow", true);
                 page = bs.context.waitForPage(() -> cdp.send("Target.createTarget", params));
                 try { cdp.detach(); } catch (PlaywrightException ignored) { }
-                if (url != null && !url.isBlank()) page.navigate(url);
             }
-            if (started && url != null && !url.isBlank() && !page.url().startsWith(url.replaceAll("/$", ""))) page.navigate(url);
+            if (url != null && !url.isBlank()) go(page, url);
             bs.page = page;
             page.bringToFront();
             bs.ownPages.add(page);
             ctx.info((started ? "Started " : "Opened a window in ") + kind + " (debugging port " + port + "); it stays open after the agent ends");
             return bs;
         } catch (PlaywrightException e) { throw BrowserPackage.pwPublic(e, "Opening a browser window"); }
+    }
+
+    /**
+     * Goes to the address. A navigation that another one overtakes (net::ERR_ABORTED: a redirect such as google.com to
+     * www.google.com, or the browser's own start or welcome page) is not a failure: the page settles where it ends up.
+     */
+    static void go(Page page, String url) {
+        try { page.navigate(url); }
+        catch (PlaywrightException e) {
+            if (!String.valueOf(e.getMessage()).contains("ERR_ABORTED")) throw e;
+            try { page.waitForLoadState(com.microsoft.playwright.options.LoadState.DOMCONTENTLOADED, new Page.WaitForLoadStateOptions().setTimeout(15_000)); }
+            catch (PlaywrightException ignored) { /* still loading: the recorder's script reaches the page when it does */ }
+            if (page.url().isBlank() || page.url().equals("about:blank")) page.navigate(url);   // nothing took its place: once more
+        }
     }
 
     // ---------- Starting a browser with a debugging port ----------
@@ -467,7 +480,9 @@ final class BrowserWindows {
                 String proc = line.substring(0, tab).trim().replace("\uFEFF", ""), title = line.substring(tab + 1).trim();
                 if (title.isEmpty()) continue;
                 String browser = proc.equalsIgnoreCase("msedge") ? "edge" : proc.equalsIgnoreCase("chrome") ? "chrome" : "";
-                out.add(row("application", title, "", browser));
+                Map<String, Object> app = row("application", title, "", browser);
+                app.put("process", proc);
+                out.add(app);
             }
         } catch (IOException e) {
             if (ctx != null) ctx.warn("Desktop windows could not be listed: " + e.getMessage());

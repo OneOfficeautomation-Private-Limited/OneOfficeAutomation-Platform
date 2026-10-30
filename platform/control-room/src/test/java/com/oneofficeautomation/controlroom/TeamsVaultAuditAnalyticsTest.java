@@ -78,6 +78,8 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals("CR.FORBIDDEN", code(() -> cr.setCredential(jane, "fin", "erp", "user", "x", null)));
         cr.setCredential(carl, "fin", "erp", "url", "https://erp.test", null);
         assertEquals("participant", cr.lockers(jane).stream().filter(l -> l.get("name").equals("fin")).findFirst().orElseThrow().get("my_role"));
+        assertEquals(Boolean.TRUE, cr.me(jane).get("leads_team"), "jane leads finance: the console shows her the Teams page");
+        assertEquals(Boolean.FALSE, cr.me(bob).get("leads_team"));
         // user-provided attribute: each person's own value; a run reads its user's value
         cr.vaultAdmin.saveCredential(bob, "fin", "erp", Map.of("user_attributes", List.of("password"), "description", "ERP sign-in"), null);
         assertEquals("CR.BAD_INPUT", code(() -> cr.setCredential(bob, "fin", "erp", "password", "shared", null)));
@@ -109,6 +111,17 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals("svc-erp", cr.credentialForRun(dev, runBob2, "fin/erp/user"));
         db.update("UPDATE runs SET status = 'success' WHERE id = ?", runBob2);
         assertEquals(rot.get("key_fingerprint"), new Vault(data).fingerprint());   // the key file on disk is the new key
+        // rekey (ooa vault rekey): a key the administrator brings; values still read, the key file holds it
+        byte[] brought = new byte[32];
+        new java.security.SecureRandom().nextBytes(brought);
+        Map<String, Object> rk = cr.vaultAdmin.rekey(brought);
+        assertEquals(Vault.ofKey(brought, "test").fingerprint(), rk.get("key_fingerprint"));
+        assertEquals(Vault.ofKey(brought, "test").fingerprint(), new Vault(data).fingerprint());
+        String runBob3 = (String) cr.startRun("admin", "admin", "Ops/Backup.flow.json", null, null, Map.of(), "manual", null, 0, null, "bob", null).get("run_id");
+        cr.claimNext(dev);
+        assertEquals("bobs-secret", cr.credentialForRun(dev, runBob3, "fin/erp/password"));
+        db.update("UPDATE runs SET status = 'success' WHERE id = ?", runBob3);
+        assertEquals("CR.VAULT_KEY", code(() -> cr.vaultAdmin.rekey(brought)), "the key in use is refused as the new key");
         // a folder with credentials is not deleted; whole-credential delete, then the folder
         assertEquals("CR.CONFLICT", code(() -> cr.vaultAdmin.deleteLocker(admin, "fin", null)));
         assertEquals("CR.FORBIDDEN", code(() -> cr.vaultAdmin.deleteCredential(jane, "fin", "erp", null)));

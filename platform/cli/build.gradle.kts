@@ -1,5 +1,6 @@
 import java.security.MessageDigest
 import java.time.Instant
+import java.util.Base64
 
 plugins { application }
 
@@ -32,6 +33,33 @@ application {
     mainClass.set("com.oneofficeautomation.cli.Ooa")
     applicationName = "ooa"
 }
+
+// The new Studio screens (docs/architecture/12-ui-redesign.md): platform/ui, TypeScript and React, built by npm into
+// the resources and served by Studio at its root. uiInstall installs the locked packages (npm ci, no install scripts);
+// uiBuild type-checks, tests, checks licences and the audit, then builds. Customers get only the built files.
+val uiDir = rootProject.file("ui")
+val uiOut = layout.buildDirectory.dir("generated/ui")
+val npm = if (System.getProperty("os.name").lowercase().contains("win")) "npm.cmd" else "npm"
+
+val uiInstall by tasks.registering(Exec::class) {
+    description = "Installs the new Studio's npm packages exactly as locked (npm ci)."
+    workingDir = uiDir
+    inputs.files(File(uiDir, "package.json"), File(uiDir, "package-lock.json"), File(uiDir, ".npmrc"))
+    outputs.dir(File(uiDir, "node_modules"))
+    commandLine(npm, "ci", "--no-fund")
+}
+
+val uiBuild by tasks.registering(Exec::class) {
+    description = "Checks and builds the new Studio (platform/ui) into the CLI's resources."
+    dependsOn(uiInstall)
+    workingDir = uiDir
+    inputs.dir(File(uiDir, "src"))
+    inputs.files(File(uiDir, "index.html"), File(uiDir, "vite.config.ts"), File(uiDir, "tsconfig.json"), File(uiDir, "package-lock.json"), File(uiDir, "tools"))
+    outputs.dir(uiOut)
+    commandLine(npm, "run", "check")
+}
+
+sourceSets.main { resources.srcDir(files(uiOut).builtBy(uiBuild)) }
 
 // Windows sign-in to SQL Server (integrated security, also for a gMSA service account) needs the driver's native
 // library next to the jars; the start scripts and services put lib\ on java.library.path.
@@ -103,11 +131,13 @@ val javaRuntime by tasks.registering {
 
 // The software bill of materials (gradlew :cli:sbom): every third-party library the customer distribution ships, as
 // CycloneDX 1.5 JSON with its Maven coordinates and SHA-256, for the customer's vulnerability scanning. It goes into the
-// customer and setup packages as sbom.cdx.json.
+// customer and setup packages as sbom.cdx.json. The npm packages built into the new Studio (platform/ui, not its
+// build tools) are listed too, with their npm address and the lock file's SHA-512.
 val sbom by tasks.registering {
     val out = layout.buildDirectory.file("sbom/sbom.cdx.json")
     val runtime = configurations.named("runtimeClasspath")
-    inputs.files(runtime)
+    val uiLock = File(uiDir, "package-lock.json")
+    inputs.files(runtime, uiLock)
     outputs.file(out)
     doLast {
         val components = mutableListOf<Map<String, Any>>()
@@ -117,6 +147,15 @@ val sbom by tasks.registering {
             val sha = MessageDigest.getInstance("SHA-256").digest(a.file.readBytes()).joinToString("") { "%02x".format(it) }
             components.add(mapOf("type" to "library", "group" to id.group, "name" to id.module, "version" to id.version,
                 "purl" to "pkg:maven/${id.group}/${id.module}@${id.version}", "hashes" to listOf(mapOf("alg" to "SHA-256", "content" to sha))))
+        }
+        val lock = groovy.json.JsonSlurper().parse(uiLock) as Map<*, *>
+        for ((path, info) in (lock["packages"] as Map<*, *>).entries.sortedBy { it.key.toString() }) {
+            val p = info as Map<*, *>
+            if (path.toString().isEmpty() || p["dev"] == true) continue   // the project itself, and build tools that do not ship
+            val name = path.toString().substringAfterLast("node_modules/")
+            val sha512 = Base64.getDecoder().decode(p["integrity"].toString().removePrefix("sha512-")).joinToString("") { "%02x".format(it) }
+            components.add(mapOf("type" to "library", "name" to name, "version" to p["version"].toString(),
+                "purl" to "pkg:npm/${name.replace("@", "%40")}@${p["version"]}", "hashes" to listOf(mapOf("alg" to "SHA-512", "content" to sha512))))
         }
         val bom = mapOf("bomFormat" to "CycloneDX", "specVersion" to "1.5", "version" to 1,
             "metadata" to mapOf("timestamp" to Instant.now().toString(),
@@ -156,24 +195,39 @@ val nativeExecutable by tasks.registering(Exec::class) {
         // an argument file: the class path is longer than a Windows command line may be
         val argFile = temporaryDir.resolve("native-image.args")
         val q = { v: String -> "\"" + v.replace("\\", "\\\\") + "\"" }
+        // all charsets: the 5250 and 3270 terminals read EBCDIC code pages (IBM037 and the like)
         argFile.writeText(listOf("-cp", classpath.asPath, "-o", out.get().file("ooa").asFile.path, "--no-fallback",
-            "-march=compatibility", "com.oneofficeautomation.cli.OoaNative").joinToString("\n") { q(it) })
+            "-march=compatibility", "-H:+AddAllCharsets", "com.oneofficeautomation.cli.OoaNative").joinToString("\n") { q(it) })
         executable = tool.path
         args("@" + argFile.path)
     }
+}
+
+// The Firefox add-on as one file for Mozilla to sign (gradlew :cli:firefoxAddon): build/distributions/ooa-connector-firefox-VERSION.xpi,
+// with manifest.json at its root. A signed copy installs for good; the unsigned one only as a temporary add-on.
+val firefoxAddon by tasks.registering(Zip::class) {
+    archiveFileName.set(provider { "ooa-connector-firefox-" + groovy.json.JsonSlurper().parse(rootProject.file("browser-extension/manifest.firefox.json")).let { (it as Map<*, *>)["version"] } + ".xpi" })
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    from(rootProject.file("browser-extension")) { exclude("manifest.json", "manifest.firefox.json") }
+    from(rootProject.file("browser-extension/manifest.firefox.json")) { rename { "manifest.json" } }
+    from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js"))
 }
 
 // The browser connector extension ships in the install (browser-extension\), with the shared page script.
 distributions {
     main {
         contents {
-            from(rootProject.file("browser-extension")) { into("browser-extension") }
+            from(rootProject.file("browser-extension")) { into("browser-extension"); exclude("manifest.firefox.json") }
             from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension") }
+            // the same extension for Firefox, with its own manifest
+            from(rootProject.file("browser-extension")) { into("browser-extension-firefox"); exclude("manifest.json", "manifest.firefox.json") }
+            from(rootProject.file("browser-extension/manifest.firefox.json")) { into("browser-extension-firefox"); rename { "manifest.json" } }
+            from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension-firefox") }
             from(nativeLibs) { into("lib"); rename { "mssql-jdbc_auth-12.8.1.x64.dll" } }
         }
     }
     // What customers install (gradlew :cli:customerDistZip): the same product without the vendor's license tools, so a
-    // new install runs the 30-day evaluation and can only check license files, never make them.
+    // new install runs the 60-day evaluation and can only check license files, never make them.
     create("customer") {
         distributionBaseName.set("ooa-customer")
         contents {

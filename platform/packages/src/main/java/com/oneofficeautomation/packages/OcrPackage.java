@@ -103,7 +103,7 @@ public final class OcrPackage {
      * Keeps the text between two markers and trims it: after a non-empty "after" marker (first occurrence) and before a
      * non-empty "before" marker (first occurrence after that); empty when a marker is missing.
      */
-    static String filterText(String text, String after, String before, boolean trim) {
+    public static String filterText(String text, String after, String before, boolean trim) {
         String t = text == null ? "" : text;
         if (after != null && !after.isEmpty()) {
             int i = t.indexOf(after);
@@ -182,6 +182,11 @@ public final class OcrPackage {
             if (img == null) throw new ActionException("OCR.UNSUPPORTED_IMAGE", "Not a readable image: " + p, "Use PNG, JPG, BMP or GIF.");
             return img;
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check the file permissions.", true); }
+    }
+
+    /** OCR of an image in memory, such as a rendered PDF page (the PDF toolkit's read_text_ocr), then the marker filter. */
+    public static String readText(ActionContext ctx, BufferedImage img, String lang, int psm, String after, String before, boolean trim) {
+        return filterText(ocr(ctx, img, lang, psm), after, before, trim);
     }
 
     /** OCR of an image after the optional preparation; the temporary file is always removed. */

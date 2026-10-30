@@ -279,7 +279,7 @@ public final class GenAiPackage {
 
     @Action(id = "key_phrases", name = "Key phrases", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
             description = "List the phrases that say what a text is about, most important first.",
-            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | max_phrases, mask_pii")
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | language, max_phrases, mask_pii")
     @Output(name = "phrases", type = OoaType.LIST, description = "Phrases as they appear in the text.")
     public Map<String, Object> keyPhrases(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text, e.g. a support ticket.") String text,
@@ -291,20 +291,34 @@ public final class GenAiPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
-            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
+            @Input(name = "language", type = OoaType.STRING, required = false, example = "de", description = D_LANGUAGE) String language) {
         if (maxPhrases < 1 || maxPhrases > 50) throw new ActionException("AI.BAD_OPTION", "max_phrases must be between 1 and 50");
         Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 800, mask, awsKeyId, awsRegion),
-                "List at most " + maxPhrases + " key phrases of the user's text, most important first, each copied exactly as it appears. Reply with JSON {\"phrases\": [\"...\"]}.", text, true, "key_phrases"));
+                "List at most " + maxPhrases + " key phrases of the user's text, most important first, each copied exactly as it appears." + languageNote(language) + " Reply with JSON {\"phrases\": [\"...\"]}.", text, true, "key_phrases"));
         List<Object> out = new ArrayList<>();
         if (j instanceof Map<?, ?> m && m.get("phrases") instanceof List<?> l) for (Object o : l) if (o != null && out.size() < maxPhrases) out.add(String.valueOf(o));
         return Map.of("phrases", out);
+    }
+
+    /** Key phrases without the language option (the signature before it was added). */
+    public Map<String, Object> keyPhrases(ActionContext ctx, String text, int maxPhrases, String provider, String connection, String model, Object key, String base,
+                                          boolean mask, Object awsKeyId, String awsRegion) {
+        return keyPhrases(ctx, text, maxPhrases, provider, connection, model, key, base, mask, awsKeyId, awsRegion, null);
+    }
+
+    static final String D_LANGUAGE = "Language of the text, e.g. en or de; worked out from the text when empty.";
+
+    /** A sentence telling the model the text's language, or nothing when none is given. */
+    static String languageNote(String language) {
+        return language == null || language.isBlank() ? "" : " The text is written in " + language.strip() + ".";
     }
 
     static final List<String> ENTITY_TYPES = List.of("PERSON", "ORGANIZATION", "LOCATION", "DATE", "QUANTITY", "EVENT", "TITLE", "COMMERCIAL_ITEM", "OTHER");
 
     @Action(id = "entities", name = "Named entities", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
             description = "Find the people, organisations, places, dates, amounts and products a text names.",
-            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | types, mask_pii")
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | language, types, mask_pii")
     @Output(name = "entities", type = OoaType.TABLE, description = "Columns: text, type, score.")
     @Output(name = "by_type", type = OoaType.DICTIONARY, description = "Type to the list of texts of that type.")
     public Map<String, Object> entities(ActionContext ctx,
@@ -317,7 +331,8 @@ public final class GenAiPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_MASK + " Off by default because names and numbers are what you are looking for.") boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
-            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
+            @Input(name = "language", type = OoaType.STRING, required = false, example = "de", description = D_LANGUAGE) String language) {
         List<String> wanted = new ArrayList<>();
         if (types != null) for (Object t : types) {
             String s = Values.text(t).toUpperCase(Locale.ROOT).strip();
@@ -326,7 +341,7 @@ public final class GenAiPackage {
         }
         List<String> allowed = wanted.isEmpty() ? ENTITY_TYPES : wanted;
         Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2000, mask, awsKeyId, awsRegion),
-                "Find the named entities in the user's text. Types: " + JsonLite.write(allowed) + ". Copy each entity exactly as written; list each once. "
+                "Find the named entities in the user's text. Types: " + JsonLite.write(allowed) + ". Copy each entity exactly as written; list each once." + languageNote(language) + " "
                         + "Reply with JSON {\"entities\": [{\"text\": \"...\", \"type\": \"...\", \"score\": number from 0 to 1}]}.", text, true, "entities"));
         List<Object> rows = new ArrayList<>();
         Map<String, Object> byType = new LinkedHashMap<>();
@@ -340,6 +355,12 @@ public final class GenAiPackage {
             list.add(t);
         }
         return Map.of("entities", Values.table(List.of("text", "type", "score"), rows), "by_type", byType);
+    }
+
+    /** Named entities without the language option (the signature before it was added). */
+    public Map<String, Object> entities(ActionContext ctx, String text, List<Object> types, String provider, String connection, String model, Object key, String base,
+                                        boolean mask, Object awsKeyId, String awsRegion) {
+        return entities(ctx, text, types, provider, connection, model, key, base, mask, awsKeyId, awsRegion, null);
     }
 
     /** A model's 0..1 number, kept in range; 0 when it gave none. */
@@ -471,7 +492,7 @@ public final class GenAiPackage {
     }
 
     @Action(id = "sentiment", name = "Sentiment", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Rate text as positive, neutral or negative, with a score from -1 to 1.",
-            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | language, mask_pii")
     @Output(name = "sentiment", type = OoaType.STRING, description = "positive, neutral or negative.")
     @Output(name = "score", type = OoaType.NUMBER, description = "From -1 (very negative) to 1 (very positive).")
     public Map<String, Object> sentiment(ActionContext ctx,
@@ -483,14 +504,21 @@ public final class GenAiPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
-            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
+            @Input(name = "language", type = OoaType.STRING, required = false, example = "de", description = D_LANGUAGE) String language) {
         Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 200, mask, awsKeyId, awsRegion),
-                "Rate the sentiment of the user's text. Reply with JSON {\"sentiment\": \"positive|neutral|negative\", \"score\": number between -1 and 1}.", text, true, "sentiment"));
+                "Rate the sentiment of the user's text." + languageNote(language) + " Reply with JSON {\"sentiment\": \"positive|neutral|negative\", \"score\": number between -1 and 1}.", text, true, "sentiment"));
         Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
         String s = String.valueOf(m.get("sentiment")).toLowerCase(Locale.ROOT);
         if (!Set.of("positive", "neutral", "negative").contains(s)) s = "neutral";
         BigDecimal score;
         try { score = Values.toNumber(m.get("score")).max(BigDecimal.ONE.negate()).min(BigDecimal.ONE); } catch (OoaException e) { score = BigDecimal.ZERO; }
         return Out.of("sentiment", s, "score", score);
+    }
+
+    /** Sentiment without the language option (the signature before it was added). */
+    public Map<String, Object> sentiment(ActionContext ctx, String text, String provider, String connection, String model, Object key, String base,
+                                         boolean mask, Object awsKeyId, String awsRegion) {
+        return sentiment(ctx, text, provider, connection, model, key, base, mask, awsKeyId, awsRegion, null);
     }
 }

@@ -699,7 +699,20 @@ public final class DesktopPackage {
         return out;
     }
 
-    private Map<String, Object> pick(String title, boolean folders, String startIn, ActionContext ctx, List<String> types, boolean multiple, int timeout, boolean onTop) {
+    /** The message shown above a file or folder picker, or null when there is none. */
+    static JTextArea pickerMessage(String message) {
+        if (message == null || message.isBlank()) return null;
+        JTextArea a = new JTextArea(message.strip());
+        a.setEditable(false);
+        a.setFocusable(false);
+        a.setLineWrap(true);
+        a.setWrapStyleWord(true);
+        a.setOpaque(false);
+        a.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 12, 0, 12));
+        return a;
+    }
+
+    private Map<String, Object> pick(String title, boolean folders, String startIn, ActionContext ctx, List<String> types, boolean multiple, int timeout, boolean onTop, String message) {
         DesktopSupport.requireDesktop();
         DesktopSupport.requirePerson(timeout, "The file or folder picker");
         List<String> chosen = onEdt(() -> {
@@ -707,6 +720,14 @@ public final class DesktopPackage {
                 @Override protected JDialog createDialog(Component parent) {
                     JDialog d = super.createDialog(parent);
                     d.setAlwaysOnTop(onTop);
+                    JTextArea text = pickerMessage(message);
+                    if (text != null) {
+                        // wrap the text to the dialog's width instead of widening the dialog
+                        text.setSize(Math.max(200, d.getWidth() - 24), Short.MAX_VALUE);
+                        d.getContentPane().add(text, BorderLayout.NORTH);
+                        d.setSize(d.getWidth(), d.getHeight() + text.getPreferredSize().height);
+                        d.setLocationRelativeTo(parent);
+                    }
                     return d;
                 }
             };
@@ -726,7 +747,7 @@ public final class DesktopPackage {
     }
 
     @Action(id = "prompt_file", name = "Prompt for file", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to choose one or more files, optionally of given types.",
-            panel = "title, file_types, multiple | start_folder, timeout_seconds, always_on_top")
+            panel = "title, message, file_types, multiple | start_folder, timeout_seconds, always_on_top")
     @Output(name = "path", type = OoaType.FILE, description = "Chosen file (the first one when several), empty when cancelled.")
     @Output(name = "paths", type = OoaType.LIST, description = "All chosen files.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when cancelled or timed out.")
@@ -736,21 +757,33 @@ public final class DesktopPackage {
             @Input(name = "file_types", type = OoaType.STRING, required = false, example = "pdf, xlsx", description = "Only show files with these extensions; all files when empty.") String fileTypes,
             @Input(name = "multiple", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Let the user choose several files.") boolean multiple,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
-            @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
-        return pick(title, false, start, ctx, extensions(fileTypes), multiple, timeout, onTop);
+            @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
+            @Input(name = "message", type = OoaType.STRING, required = false, example = "Pick this month's bank statement.", description = D_PICK_MESSAGE) String message) {
+        return pick(title, false, start, ctx, extensions(fileTypes), multiple, timeout, onTop, message);
     }
 
+    public Map<String, Object> promptFile(ActionContext ctx, String title, String start, String fileTypes, boolean multiple, int timeout, boolean onTop) {
+        return promptFile(ctx, title, start, fileTypes, multiple, timeout, onTop, null);
+    }
+
+    private static final String D_PICK_MESSAGE = "Text shown in the dialog above the list, e.g. what to choose and why.";
+
     @Action(id = "prompt_folder", name = "Prompt for folder", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to choose a folder.",
-            panel = "title | start_folder, timeout_seconds, always_on_top")
+            panel = "title, message | start_folder, timeout_seconds, always_on_top")
     @Output(name = "path", type = OoaType.FILE, description = "Chosen folder, empty when cancelled.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when cancelled or timed out.")
     public Map<String, Object> promptFolder(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a folder\"", description = "Dialog title.") String title,
             @Input(name = "start_folder", type = OoaType.FILE, required = false, description = "Folder to start in.") String start,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
-            @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
-        Map<String, Object> r = pick(title, true, start, ctx, List.of(), false, timeout, onTop);
+            @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
+            @Input(name = "message", type = OoaType.STRING, required = false, example = "Pick the folder with the scanned invoices.", description = D_PICK_MESSAGE) String message) {
+        Map<String, Object> r = pick(title, true, start, ctx, List.of(), false, timeout, onTop, message);
         r.remove("paths");
         return r;
+    }
+
+    public Map<String, Object> promptFolder(ActionContext ctx, String title, String start, int timeout, boolean onTop) {
+        return promptFolder(ctx, title, start, timeout, onTop, null);
     }
 }

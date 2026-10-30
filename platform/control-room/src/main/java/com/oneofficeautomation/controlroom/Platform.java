@@ -32,7 +32,7 @@ public final class Platform {
         DEFAULTS.put("announcement", "");
         DEFAULTS.put("inactive_user_days", 0);
         DEFAULTS.put("session_hours", 8);
-        DEFAULTS.put("max_upload_mb", 5);
+        DEFAULTS.put("max_upload_mb", 25);   // Excel work items and licence files travel inside JSON, as Base64
         DEFAULTS.put("queue_poll_seconds", 15);
         DEFAULTS.put("default_minutes_saved", 0);
         DEFAULTS.put("public_url", "");
@@ -49,6 +49,8 @@ public final class Platform {
         DEFAULTS.put("syslog_target", "");
         DEFAULTS.put("syslog_protocol", "udp");
         DEFAULTS.put("ip_allow_list", "");
+        // load balancers and reverse proxies whose X-Forwarded-For header names the client (addresses or CIDR ranges)
+        DEFAULTS.put("trusted_proxies", "");
         DEFAULTS.put("max_sessions_per_user", 5);
         DEFAULTS.put("password_min_length", 12);
         DEFAULTS.put("block_executable_uploads", 0);
@@ -226,6 +228,7 @@ public final class Platform {
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
                 if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
+                if (k.equals("trusted_proxies")) IpAllowList.parse(s);
                 if (k.equals("ip_allow_list")) {
                     IpAllowList l = IpAllowList.parse(s);
                     // never lock out the person saving the list (this computer is always allowed)
@@ -601,17 +604,25 @@ public final class Platform {
         return Map.of("items", rows, "total", total);
     }
 
-    /** Puts failed or deferred items back to new (attempts reset) or marks items deferred. */
-    public void updateItems(User by, String qid, List<Object> ids, String action, String ip) {
+    public void updateItems(User by, String qid, List<Object> ids, String action, String ip) { updateItems(by, qid, ids, action, null, ip); }
+
+    /**
+     * Puts failed or deferred items back to new (attempts reset) or marks items deferred. A deferred item with a time
+     * (until) is picked up again by itself once that time has passed; without one it waits until someone retries it.
+     */
+    public void updateItems(User by, String qid, List<Object> ids, String action, Instant until, String ip) {
         cr.require(by, "queues.work", "change work items");
         if (action.equals("delete")) { deleteItems(by, qid, ids, ip); return; }
         requireQueue(by, qid, "process", "change work items in this queue");
         String to = switch (action) { case "retry" -> "new"; case "defer" -> "deferred"; default -> throw new OoaException("CR.BAD_INPUT", "Use retry, defer or delete"); };
+        Instant deferUntil = to.equals("deferred") ? until : null;
         int n = 0;
         for (Object o : ids == null ? List.of() : ids)
-            n += db.update("UPDATE queue_items SET status = ?, attempts = CASE WHEN ? = 'new' THEN 0 ELSE attempts END, updated = ? WHERE id = ? AND queue_id = ? AND status IN ('failed', 'deferred', 'new', 'retry')",
-                    to, to, now(), String.valueOf(o), qid);
-        cr.audit.record(by.username(), "queue.items_" + action, "queue", qid, Map.of("count", n), "ok", ip);
+            n += db.update("UPDATE queue_items SET status = ?, attempts = CASE WHEN ? = 'new' THEN 0 ELSE attempts END, defer_until = ?, updated = ? WHERE id = ? AND queue_id = ? AND status IN ('failed', 'deferred', 'new', 'retry')",
+                    to, to, deferUntil, now(), String.valueOf(o), qid);
+        Map<String, Object> detail = new LinkedHashMap<>(Map.of("count", n));
+        if (deferUntil != null) detail.put("until", deferUntil.toString());
+        cr.audit.record(by.username(), "queue.items_" + action, "queue", qid, detail, "ok", ip);
     }
 
     // ----- work item models, queue members, single items, CSV -----
@@ -1143,7 +1154,7 @@ public final class Platform {
         String state = String.valueOf(lic.get("state"));
         boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);
         m.put("edition", licensed ? lic.getOrDefault("edition", "Enterprise") + " (licensed to " + lic.getOrDefault("customer", "?") + ")"
-            : state.startsWith("evaluation") ? "Evaluation (30 days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
+            : state.startsWith("evaluation") ? "Evaluation (" + Licensing.EVALUATION_DAYS + " days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
         m.put("limits", licensed || state.startsWith("evaluation") ? "seats per license type; see Administration > Licenses" : "none until a license is installed");
         m.put("license", lic);
         m.put("users", cr.count("SELECT COUNT(*) AS n FROM users WHERE enabled = TRUE"));
@@ -1202,12 +1213,15 @@ public final class Platform {
         int started = 0;
         for (Map<String, Object> q : db.query("SELECT * FROM queues WHERE processing = TRUE")) {
             for (int guard = 0; guard < 50; guard++) {
-                Map<String, Object> next = db.one("SELECT id, data FROM queue_items WHERE queue_id = ? AND status IN ('new', 'retry') ORDER BY priority DESC, created LIMIT 1", q.get("id"));
+                // new and retry items, and deferred items whose time has come
+                Instant t = now();
+                Map<String, Object> next = db.one("SELECT id, data FROM queue_items WHERE queue_id = ? AND (status IN ('new', 'retry') OR (status = 'deferred' AND defer_until <= ?)) "
+                        + "ORDER BY priority DESC, created LIMIT 1", q.get("id"), t);
                 if (next == null) break;
                 String device = pickIdle((String) q.get("pool_id"));
                 if (device == null) break;
-                if (db.update("UPDATE queue_items SET status = 'in_progress', attempts = attempts + 1, device_id = ?, updated = ? WHERE id = ? AND status IN ('new', 'retry')",
-                        device, now(), next.get("id")) != 1) continue;
+                if (db.update("UPDATE queue_items SET status = 'in_progress', attempts = attempts + 1, device_id = ?, defer_until = NULL, updated = ? WHERE id = ? "
+                        + "AND (status IN ('new', 'retry') OR (status = 'deferred' AND defer_until <= ?))", device, now(), next.get("id"), t) != 1) continue;
                 try {
                     Map<String, Object> inputs = new LinkedHashMap<>();
                     Map<String, Object> declared = declaredInputs((String) q.get("bot_path"));

@@ -5,6 +5,7 @@ import com.oneofficeautomation.sdk.ActionContext;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.file.*;
 import java.util.*;
 
 import static com.oneofficeautomation.packages.ConnectorsTest.ok;
@@ -12,7 +13,7 @@ import static com.oneofficeautomation.packages.ConnectorsTest.q;
 import static com.oneofficeautomation.packages.RestToolkitTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Zendesk options: role and organization filters on Find users, custom fields on Create user and Create organization. */
+/** Zendesk options: role and organization filters on Find users, custom fields on Create user and Create organization, a chosen name for uploads. */
 class ZendeskMoreOptionsTest {
     final ZendeskPackage zd = new ZendeskPackage();
     static final String AGENT = "agent@acme.com";
@@ -72,6 +73,26 @@ class ZendeskMoreOptionsTest {
             fails("ZENDESK.BAD_INPUT", () -> zd.createUser(ctx, s, AGENT, TOKEN, null, "X", null, "end-user", null, null, null, false, Map.of("bad key", "v")));
             fails("ZENDESK.BAD_INPUT", () -> zd.createOrganization(ctx, s, AGENT, TOKEN, null, "X", null, null, null, null, Map.of("a/b", "v")));
             assertEquals(calls, f.calls.size(), "bad field keys are rejected before any request");
+        }
+    }
+
+    @Test void uploadAttachmentUnderAnotherName() throws Exception {
+        try (Fake f = new Fake()) {
+            String s = f.url();
+            f.on("POST /api/v2/uploads", c -> new Object[]{201, "{\"upload\":{\"token\":\"up-1\",\"attachment\":{\"id\":901}}}"});
+            Path w = PackagesTest.tmp();
+            Files.writeString(w.resolve("scan-0001.pdf"), "%PDF-1.4");
+            ActionContext ctx = ctx(w);
+
+            Map<String, Object> r = zd.upload(ctx, s, AGENT, TOKEN, null, "scan-0001.pdf", null, "Receipt 88123.pdf");
+            assertEquals("up-1", r.get("token"));
+            assertEquals("filename=Receipt 88123.pdf", q(f.last("POST", "/api/v2/uploads")), "the chosen name is sent");
+            assertEquals("%PDF-1.4", f.last("POST", "/api/v2/uploads").text());
+
+            zd.upload(ctx, s, AGENT, TOKEN, null, "scan-0001.pdf", "up-1", " ");
+            assertEquals("filename=scan-0001.pdf&token=up-1", q(f.last("POST", "/api/v2/uploads")), "blank name keeps the local file name");
+            zd.upload(ctx, s, AGENT, TOKEN, null, "scan-0001.pdf", null);
+            assertEquals("filename=scan-0001.pdf", q(f.last("POST", "/api/v2/uploads")), "earlier signature unchanged");
         }
     }
 }

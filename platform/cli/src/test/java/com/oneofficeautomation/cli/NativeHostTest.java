@@ -69,5 +69,8 @@ class NativeHostTest {
         assertFalse(t.isAlive());
         assertFalse(Files.exists(reg), "registration removed");
         assertTrue(BrowserConnector.hostManifest(Path.of("C:/x/host.bat")).contains("chrome-extension://" + BrowserConnector.EXTENSION_ID + "/"));
+        // Firefox allows the extension by its id
+        String ff = BrowserConnector.firefoxHostManifest(Path.of("C:/x/host.bat"));
+        assertTrue(ff.contains("\"allowed_extensions\":[\"" + BrowserConnector.FIREFOX_EXTENSION_ID + "\"]") && !ff.contains("allowed_origins"), ff);
     }
 }

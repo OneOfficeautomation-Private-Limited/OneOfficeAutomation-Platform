@@ -8,6 +8,8 @@ for (const m of ["append", "replaceChildren"]) {
 }
 
 const S = { user: null, page: "home", timer: null, drawerTimer: null, devices: [], bots: [], users: [], names: {} };
+// A link such as /?page=queues (from the new Studio menu) opens that page after sign-in.
+const LINKED_PAGE = new URLSearchParams(location.search).get("page");
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -69,6 +71,8 @@ async function api(method, path, body) {
 }
 
 const can = (p) => S.user && (S.user.permissions || []).includes(p);
+/** A page's permission: one of several (a|b); team_lead is anyone who leads a team. */
+const canAny = (spec) => String(spec).split("|").some((p) => p === "team_lead" ? !!(S.user && S.user.leads_team) : can(p));
 const fmt = (t) => t ? String(t).replace("T", " ").replace(/\.\d+Z$|Z$/, "") : "";
 const local = (t) => { if (!t) return ""; const d = new Date(t); return isNaN(d) ? fmt(t) : d.toLocaleString(); };
 const botName = (p) => String(p || "").replace(/\.(flow|process|form)\.json$/, "");
@@ -185,6 +189,7 @@ function showApp() {
   api("GET", "catalog").then((r) => { S.names = r.actions || {}; }).catch(() => {});
   api("GET", "auth/me").then((u) => { showAnnouncement(u.announcement); showLicenseBanner(u.license_banner); }).catch(() => {});
   document.body.classList.toggle("nav-mini", stored(NAV_MINI_KEY) === "1");
+  if (LINKED_PAGE && Object.hasOwn(VIEWS, LINKED_PAGE) && S.page === "home") S.page = LINKED_PAGE;
   renderNav(); go(S.page);
 }
 
@@ -194,11 +199,11 @@ const PAGES = [
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
-  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
+  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
   ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
-  ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage", "key", "#b45309"]];
+  ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
 /**
  * The menu: Home, then short sections: Build, Manage, Operations, Administration, AI (shown in capitals). The section of the current page is open, and the one opened last; the others show only their name.
@@ -225,7 +230,7 @@ function navButton(id) {
     return a;
   }
   const page = PAGES.find((x) => x[0] === id);
-  if (!page || (page[2] && !can(page[2]))) return null;
+  if (!page || (page[2] && !canAny(page[2]))) return null;
   const [, label, , icon] = page;
   return h("button", { type: "button", class: S.page === id ? "active" : "", "aria-current": S.page === id ? "page" : null, "aria-label": label, title: label, onclick: () => go(id) },
     ic(icon, "#fff"), h("span", { class: "nav-label", text: label }));
@@ -291,7 +296,7 @@ function showLicenseBanner(b) {
   if (!b || (b.level !== "critical" && dismissed === b.text)) { bar.hidden = true; return; }
   bar.classList.toggle("critical", b.level === "critical");
   bar.replaceChildren(ic("key", b.level === "critical" ? "#dc2626" : "#d97706", "sm"), h("span", { class: "ann-text", text: b.text }),
-    can("users.manage") ? h("button", { type: "button", class: "link", onclick: () => go("licenses") }, "Licenses") : null,
+    canAny("users.manage|settings.manage") ? h("button", { type: "button", class: "link", onclick: () => go("licenses") }, "Licenses") : null,
     b.level === "critical" ? null : h("button", { type: "button", class: "icon-close", "aria-label": "Dismiss", onclick: () => { bar.hidden = true; try { sessionStorage.setItem("ooa.cc.licenseBanner", b.text); } catch (_) { /* storage unavailable */ } } }, "\u2715"));
   bar.hidden = false;
 }
@@ -942,6 +947,7 @@ const VIEWS = {
       const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
         h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
+      const trustedProxies = h("textarea", { rows: 2, value: st.trusted_proxies || "", placeholder: "10.0.5.10, 10.0.6.0/24" });
       const syslogTarget = txt("syslog_target", "siem.example.com:514");
       const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
       const offNow = String(st.switched_off_roles || "").split(",").filter(Boolean);
@@ -1000,6 +1006,7 @@ const VIEWS = {
           h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
           h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays)),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
+        h("label", {}, "Trusted proxies: load balancers whose X-Forwarded-For names the client (addresses or ranges)", trustedProxies),
         h("p", { class: "muted", text: "Switch off built-in roles you do not use: they then give no permissions and cannot be given to anyone. People who still have one keep only their other roles." }),
         h("div", { class: "grid2" }, roleOff.map(([, box, l]) => h("label", { class: "check" }, box, "Switch off " + l))),
         h("h3", {}, ic("globe", "#475569", "sm"), "Outgoing connections"),
@@ -1062,7 +1069,7 @@ const VIEWS = {
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
-              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
+              ip_allow_list: allowList.value.trim(), trusted_proxies: trustedProxies.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
               switched_off_roles: roleOff.filter(([, b]) => b.checked).map(([r]) => r).join(","), outbound_proxy: proxy.value.trim(), outbound_proxy_bypass: proxyBypass.value.trim() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
@@ -1141,7 +1148,8 @@ const VIEWS = {
           { label: "", sort: false, render: (s) => can("schedules.manage") ? h("input", { type: "checkbox", "aria-label": "Select " + s.name, checked: picked.has(s.id),
             onchange: (e) => { if (e.target.checked) picked.add(s.id); else picked.delete(s.id); } }) : "" },
           { label: "Runner", value: (s) => s.pool_id ? "Pool: " + ((S.pools.find((p) => p.id === s.pool_id) || {}).name || s.pool_id) : s.device_id ? deviceName(s.device_id) : "default runner of " + s.run_as },
-          { label: "When", value: (s) => when(s) + " (" + s.time_zone + ")" + (s.holiday_calendar ? ", not on " + s.holiday_calendar : "") },
+          { label: "When", value: (s) => when(s) + " (" + s.time_zone + ")" + (s.holiday_calendar ? ", not on " + s.holiday_calendar : "")
+            + (s.missed_runs === "skip" ? ", skips missed times" : "") + (s.overlap === "skip" ? ", skips while the previous run is going" : "") },
           { label: "Owner", value: (s) => s.created_by || "", render: (s) => h("span", {}, s.created_by || "", s.run_as ? h("div", { class: "muted small", text: "runs as " + s.run_as }) : null) },
           { label: "Next run", value: (s) => s.enabled ? s.next_run || "" : "", render: (s) => s.enabled ? h("span", { title: local(s.next_run) }, ago(s.next_run)) : "\u2014" },
           { label: "Last run", value: (s) => s.last_run || "", render: (s) => s.last_run ? h("span", { title: local(s.last_run) }, ago(s.last_run)) : "never" },
@@ -1409,8 +1417,8 @@ const VIEWS = {
       h("div", { class: "card" },
         h("div", { class: "card-head" }, h("h2", { text: "License" }), h("span", { class: "pill " + stateCls, text: stateText })),
         L.state === "unlicensed" ? h("p", { class: "muted", text: "No license is installed, so nothing is limited. Install the license file you received from ONEOFFICEAUTOMATION to apply its seats and expiry date." })
-          : L.state === "evaluation" || L.state === "evaluation_ended" ? h("p", { class: "muted", text: (L.state === "evaluation" ? "This is a 30-day evaluation: " + L.days_left + " days left (until " + L.evaluation_ends + "). "
-            : "The 30-day evaluation ended on " + L.evaluation_ends + ". ") + "It allows 2 developers, 2 attended and 2 unattended runners; seats are given out automatically on first use. Install the license file you received from ONEOFFICEAUTOMATION." })
+          : L.state === "evaluation" || L.state === "evaluation_ended" ? h("p", { class: "muted", text: (L.state === "evaluation" ? "This is a 60-day evaluation: " + L.days_left + " days left (until " + L.evaluation_ends + "). "
+            : "The 60-day evaluation ended on " + L.evaluation_ends + ". ") + "It allows 2 developers, 2 attended and 2 unattended runners; seats are given out automatically on first use. Install the license file you received from ONEOFFICEAUTOMATION." })
           : kv([["Licensed to", L.customer], ["Edition", L.edition], ["License id", L.id], ["Valid", (L.issued || "") + " to " + (L.expires || "") + (L.days_left !== undefined && L.days_left >= 0 ? " (" + L.days_left + " days left)" : "")],
             ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null], ["Issued for", L.bound_to]]),
         L.problem ? h("p", { class: "error", text: L.problem }) : null,
@@ -1876,15 +1884,17 @@ async function scheduleDialog() {
   kind.addEventListener("change", sync); sync();
   const runAs = await runAsSelect();
   const noRunner = h("label", { class: "check" }, h("input", { type: "checkbox" }), "Use the run-as user's default runner");
+  const opts = scheduleOptionSelects();
   modal("New schedule", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool)),
     h("div", { class: "grid2" }, h("label", {}, "Run as (credentials are checked against this person)", runAs), noRunner),
     h("label", {}, "Repeat", kind), everyBox, atBox, daysBox,
-    h("div", { class: "grid2" }, h("label", {}, "Time zone", tz), h("label", {}, "Skip the dates of a holiday calendar", cal)), h("label", {}, "Inputs (JSON, optional)", inputs)],
+    h("div", { class: "grid2" }, h("label", {}, "Time zone", tz), h("label", {}, "Skip the dates of a holiday calendar", cal)), opts.row, h("label", {}, "Inputs (JSON, optional)", inputs)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
         const useDefault = runAs.value && noRunner.firstChild.checked;
         const body = { name: name.value || "Schedule", bot_path: bot.value, device_id: pool.value || useDefault ? null : dev.value, pool_id: useDefault ? null : pool.value || null, holiday_calendar: cal.value || null,
-          kind: kind.value, time_zone: tz.value, inputs: parseJson(inputs.value, {}), run_as: runAs.value || null };
+          kind: kind.value, time_zone: tz.value, inputs: parseJson(inputs.value, {}), run_as: runAs.value || null,
+          missed_runs: opts.missed.value, overlap: opts.overlap.value };
         if (kind.value === "every") body.every_minutes = parseInt(every.value, 10); else body.at_time = at.value;
         if (kind.value === "weekly") body.days = days.map((l) => l.firstChild).filter((c) => c.checked).map((c) => c.value).join(",");
         const r = await api("POST", "schedules", body); closeModal(); toast("Next run " + local(r.next_run)); go("schedules");
@@ -2072,10 +2082,10 @@ async function credentialDetails(l, name) {
 async function vaultKeyDialog() {
   let st;
   try { st = await api("GET", "vault/status"); } catch (e) { toast(e.message, true); return; }
-  modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : "OOA_MASTER_KEY environment variable"], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
+  modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : st.key_source === "environment" ? "OOA_MASTER_KEY environment variable" : st.key_source_detail], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
     ["Vault folders", String(st.vault_folders)], ["Shared values", String(st.values)], ["People's own values", String(st.personal_values)], ["External vault links", String(st.external_links)]]),
     h("p", { class: "muted", text: st.can_rotate ? "Rotating makes a new master key and encrypts every stored value again with it, in one transaction. The old key file is kept beside the new one (master.key.old-…) until you remove it; back it up with the database." :
-      "The key comes from OOA_MASTER_KEY, so it is rotated where that variable is managed." })],
+      "The key is kept outside the data folder, so it cannot be changed here. To change it: stop the Command Center, run ooa vault rekey --new-key-env VAR (every value is encrypted again with the new key), put the new key where the old one is kept, and start again." })],
   st.can_rotate ? [h("button", { type: "button", class: "danger", onclick: async () => {
     if (!confirm("Rotate the vault master key now? Agents keep working; every value is encrypted again.")) return;
     try { const r = await api("POST", "vault/rotate"); toast("Key rotated: " + r.re_encrypted + " values encrypted again. New fingerprint " + r.key_fingerprint); vaultKeyDialog(); } catch (e) { toast(e.message, true); } } }, "Rotate key")] : []);
@@ -2463,17 +2473,26 @@ async function openTask(t) {
     done && t.result ? h("details", {}, h("summary", { text: "Answer" }), h("pre", { class: "json", text: JSON.stringify(t.result, null, 2) })) : null].filter(Boolean), acts);
 }
 
+/** What a schedule does with times it missed, and when its previous run is still going (empty value = the default). */
+function scheduleOptionSelects(s) {
+  const missed = h("select", { "aria-label": "Missed times" }, h("option", { value: "once", text: "Run once for them" }), h("option", { value: "skip", text: "Skip them" }));
+  const overlap = h("select", { "aria-label": "Previous run still going" }, h("option", { value: "allow", text: "Start another run" }), h("option", { value: "skip", text: "Skip this time" }));
+  missed.value = (s && s.missed_runs) || "once"; overlap.value = (s && s.overlap) || "allow";
+  return { missed, overlap, row: h("div", { class: "grid2" }, h("label", {}, "Times missed while the Command Center was down", missed), h("label", {}, "When the previous run is still going", overlap)) };
+}
+
 async function scheduleEditDialog(s) {
   const name = h("input", { value: s.name });
   const runAs = await runAsSelect(s.run_as);
   const cal = h("select", { "aria-label": "Holiday calendar" }, h("option", { value: "", text: "(none)" }), (S.calendars || []).map((c) => h("option", { value: c.name, text: c.name })));
   cal.value = s.holiday_calendar || "";
   const owner = h("input", { value: s.created_by || "", placeholder: "user name" });
+  const opts = scheduleOptionSelects(s);
   modal("Edit " + s.name, [h("label", {}, "Name", name), h("label", {}, "Skip the dates of a holiday calendar", cal), h("label", {}, "Owner (runs use the owner's permissions)", owner),
-    h("label", {}, "Run as", runAs)],
+    h("label", {}, "Run as", runAs), opts.row],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
-        const body = { name: name.value, holiday_calendar: cal.value || null, run_as: runAs.value || null };
+        const body = { name: name.value, holiday_calendar: cal.value || null, run_as: runAs.value || null, missed_runs: opts.missed.value, overlap: opts.overlap.value };
         if (owner.value.trim() && owner.value.trim() !== s.created_by) body.owner = owner.value.trim();
         await api("PUT", "schedules/" + s.id, body); closeModal(); go("schedules");
       } catch (e) { toast(e.message, true); } } }, "Save")]);
@@ -2578,7 +2597,18 @@ async function openQueue(q) {
   const act = (action) => h("button", { type: "button", onclick: async () => {
     if (!sel.size) { toast("Tick items first", true); return; }
     if (action === "delete" && !confirm("Delete " + sel.size + " item(s)? Items being worked on are kept.")) return;
-    try { await api("POST", "queues/" + q.id + "/items/" + action, { ids: [...sel] }); sel.clear(); load(); } catch (e) { toast(e.message, true); } } },
+    const body = { ids: [...sel] };
+    if (action === "defer") {
+      // a time: the item is picked up again by itself after it; empty: it waits until someone presses Retry
+      const when = prompt("Defer until when? (YYYY-MM-DD HH:MM, your time; empty = until someone presses Retry)", "");
+      if (when === null) return;
+      if (when.trim()) {
+        const d = new Date(when.trim().replace(" ", "T"));
+        if (isNaN(d)) { toast("Write the time like 2026-11-02 09:00", true); return; }
+        body.until = d.toISOString();
+      }
+    }
+    try { await api("POST", "queues/" + q.id + "/items/" + action, body); sel.clear(); load(); } catch (e) { toast(e.message, true); } } },
     action === "retry" ? "Retry selected" : action === "defer" ? "Defer selected" : "Delete selected");
   async function load() {
     const [r, all] = await Promise.all([api("GET", "queues/" + q.id + "/items?limit=200&status=" + st.status + "&q=" + encodeURIComponent(st.q)), api("GET", "queues")]);
@@ -2590,7 +2620,7 @@ async function openQueue(q) {
       const box = h("input", { type: "checkbox", "aria-label": "Select " + (it.reference || it.id), checked: sel.has(it.id), onchange: (e) => { if (e.target.checked) sel.add(it.id); else sel.delete(it.id); } });
       const err = parseMaybe(it.error), res = parseMaybe(it.result);
       return { data: it, cells: [can("queues.work") ? box : "", h("div", {}, h("strong", { text: it.reference || it.id }), h("div", { class: "muted small mono", text: String(it.data).slice(0, 120) })),
-        pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
+        it.status === "deferred" ? h("span", {}, pill(it.status), h("div", { class: "muted small", text: it.defer_until ? "until " + local(it.defer_until) : "until Retry" })) : pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
         it.run_id ? h("button", { type: "button", class: "link", onclick: () => openRun(it.run_id) }, err ? (err.code || "") + " " + (err.message || "") : res ? JSON.stringify(res).slice(0, 80) : "view run")
           : h("span", { class: "muted", text: err ? (err.code || JSON.stringify(err)) : "" }),
         it.status === "review" && can("queues.work") ? h("button", { type: "button", class: "primary", onclick: () => validateDialog(q, it, load) }, "Validate")

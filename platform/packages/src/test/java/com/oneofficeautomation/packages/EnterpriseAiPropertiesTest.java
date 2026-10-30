@@ -107,7 +107,7 @@ class EnterpriseAiPropertiesTest {
             assertEquals(List.of("Connect(mvs.example.com:23)", "Wait(30,3270Mode)"), e.commands);
             assertEquals(List.of("-model", "3279-2"), started.get(1).subList(1, 3), "no code page option when empty");
 
-            fails("TERMINAL.UNSUPPORTED_TYPE", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "tn5250", 30, null, null, true, null));
+            fails("TERMINAL.UNSUPPORTED_TYPE", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "vt-telnet", 30, null, null, true, null));
             fails("TERMINAL.BAD_LU", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "tn3270e", 30, "LU;rm", null, true, null));
             fails("TERMINAL.BAD_CODE_PAGE", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "tn3270e", 30, null, "cp 037", true, null));
             fails("TERMINAL.BAD_PORT", () -> t.connect(ctx, "h", 0, false, "3279-2", "x", "tn3270e", 30, null, null, true, null));
@@ -707,9 +707,10 @@ class EnterpriseAiPropertiesTest {
 
             g.prompt(ctx, "Hi", null, "anthropic", null, "claude-test", KEY, f.url(), 0, 50, false, null, null, 0.8, 40, List.of("STOP"), null, null, null, 1, "text", null, 0);
             Map<String, Object> ab = json(f.last("POST", "/v1/messages"));
-            assertEquals(new BigDecimal(40), ab.get("top_k"));
             assertEquals(List.of("STOP"), ab.get("stop_sequences"));
-            assertEquals(new BigDecimal("0.8"), ab.get("top_p"));
+            // current Claude models refuse sampling settings (HTTP 400), so none are sent to Anthropic
+            assertFalse(ab.containsKey("top_k") || ab.containsKey("top_p") || ab.containsKey("temperature"), "no sampling settings for Claude: " + ab);
+            assertTrue(LlmClient.claudeModel("us.anthropic.claude-haiku-5-5") && LlmClient.claudeModel("claude-opus-5-5") && !LlmClient.claudeModel("amazon.nova-pro-v1:0"));
 
             fails("AI.BAD_OPTION", () -> g.prompt(ctx, "x", null, "openai", null, "m", KEY, f.url() + "/v1", 0, 50, false, null, null, 1.5, null, null, null, null, null, 1, "text", null, 0));
             fails("AI.BAD_OPTION", () -> g.prompt(ctx, "x", null, "openai", null, "m", KEY, f.url() + "/v1", 0, 50, false, null, null, null, null, List.of("a", "b", "c", "d", "e"), null, null, null, 1, "text", null, 0));

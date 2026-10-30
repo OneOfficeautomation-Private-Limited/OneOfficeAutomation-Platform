@@ -1,11 +1,11 @@
-# Publishes a customer release of ONEOFFICEAUTOMATION to the public repository VirupakshaPrabhu/OOA_Customer_Build.
+# Publishes a customer release of ONEOFFICEAUTOMATION to the public repository OneOfficeautomation-Private-Limited/OOA_Customer_Build.
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft] [-Preview]
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -PageOnly
 # After a release, and alone with -PageOnly, it refreshes the public releases page (Q10): docs\index.html,
 # docs\releases.json and the signed template catalogue docs\templates.json (K7) in that repository, which GitHub Pages
 # serves (Settings > Pages: branch main, folder /docs).
 # -Preview publishes v<version>-preview as a GitHub pre-release, for customers' sandbox Command Centers about three weeks
-# before the general release v<version> of the same version (docs\RELEASING.md, Release cadence).
+# before the general release v<version> of the same version (docs\infrastructure\10-upgrades-releases-and-patching.md, Release cadence).
 # It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
 # release v<version> (the version in platform\build.gradle.kts) with the zips, the software bill of materials and a
 # manifest signed with the vendor key attached (customers check downloads with: ooa release verify), and prints the
@@ -16,7 +16,7 @@ param(
     [switch]$Draft,
     [switch]$Preview,
     [switch]$PageOnly,
-    [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build",
+    [string]$Repository = "OneOfficeautomation-Private-Limited/OOA_Customer_Build",
     [string]$SigningKey = (Join-Path $env:USERPROFILE "OOA License Keys\private.key")
 )
 $ErrorActionPreference = "Stop"

@@ -181,9 +181,14 @@ public final class DatabricksPackage {
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before wait_seconds. */
+    public Map<String, Object> fetchResults(ActionContext ctx, String url, String id, int max, Object token) {
+        return fetchResults(ctx, url, id, max, token, 0);
+    }
+
     @Action(id = "fetch_results", name = "Get statement results", category = "SQL", idempotent = true, timeoutSeconds = 3600, capabilities = "network",
             description = "Read the rows of a finished SQL statement into a data table, chunk by chunk.",
-            panel = "workspace_url, access_token, statement_id, max_rows")
+            panel = "workspace_url, access_token, statement_id, max_rows, wait_seconds")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the full result, which can be more than max_rows.")
@@ -191,8 +196,16 @@ public final class DatabricksPackage {
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back.") int max,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        Map<String, Object> st = checkFailed(getStatement(ctx, url, token, id));
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
+                    description = "How long to wait for a running statement to finish; 0 fails at once if it is still running.") int wait) {
+        Map<String, Object> st = getStatement(ctx, url, token, id);
+        long deadline = System.currentTimeMillis() + Math.max(0, wait) * 1000L;
+        while (running(state(st)) && System.currentTimeMillis() < deadline) {
+            HttpJson.pause(ctx, pollMillis);
+            st = getStatement(ctx, url, token, id);
+        }
+        checkFailed(st);
         if (running(state(st))) throw new ActionException(P + ".STILL_RUNNING", "The statement is still running", "Wait, then try again, or check it with Get statement status.", true);
         Map<String, Object> t = readTable(ctx, url, token, st, max);
         @SuppressWarnings("unchecked") Map<String, Object> tbl = (Map<String, Object>) t.get("table");

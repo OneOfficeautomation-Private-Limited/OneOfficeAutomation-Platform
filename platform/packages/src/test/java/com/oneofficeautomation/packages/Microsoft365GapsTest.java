@@ -569,7 +569,7 @@ class Microsoft365GapsTest {
             "excel_read_row", "excel_read_column", "excel_list_tables", "excel_create_table", "excel_add_table_rows", "excel_get_table_rows", "excel_delete_table",
             "excel_write_data_table", "update_event", "cancel_event", "delete_event", "respond_to_event", "add_attendees", "remove_attendees", "add_event_attachment",
             "find_meeting_times", "list_teams", "get_team_by_name", "list_channels", "get_channel_by_name", "get_team_details", "get_user", "send_chat_message",
-            "create_chat", "list_lists", "get_list_items", "create_list_item", "update_list_item", "delete_list_item");
+            "create_chat", "list_lists", "get_list_items", "create_list_item", "update_list_item", "delete_list_item", "excel_column_name", "clear_event_details");
 
     @Test void everyActionIsDescribedAndUsesVaultCredentials() {
         Set<String> ids = new HashSet<>();
@@ -579,7 +579,8 @@ class Microsoft365GapsTest {
             assertTrue(ids.add(a.id()), "duplicate id " + a.id());
             assertFalse(a.description().isBlank(), a.id());
             assertFalse(a.description().matches("(?i).*\\bbots?\\b.*"), a.id() + " says bot");
-            assertTrue(Arrays.asList(a.capabilities()).contains("network"), a.id());
+            // excel_column_name only works out an address and makes no request
+            if (!a.id().equals("excel_column_name")) assertTrue(Arrays.asList(a.capabilities()).contains("network"), a.id());
             for (Parameter p : m.getParameters()) {
                 Input in = p.getAnnotation(Input.class);
                 if (in == null) continue;

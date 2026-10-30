@@ -163,6 +163,34 @@ public class RecordBar : System.Windows.Forms.Form {
     }
     public void SetCount(int n) { count.Text = n + (n == 1 ? " step" : " steps"); }
     public bool Contains(int x, int y) { return Bounds.Contains(x, y); }
+
+    // the control under the pointer, framed in red as desktop Capture does (click-through, never takes the focus);
+    // green for a moment when a step is recorded
+    readonly Frame[] edges = new Frame[4];
+    protected override void OnShown(EventArgs e) {
+        base.OnShown(e);
+        for (int i = 0; i < 4; i++) { edges[i] = new Frame(); edges[i].Bounds = new System.Drawing.Rectangle(-10, -10, 1, 1); edges[i].Show(); }
+    }
+    protected override void OnFormClosed(System.Windows.Forms.FormClosedEventArgs e) {
+        foreach (Frame f in edges) if (f != null) f.Close();
+        base.OnFormClosed(e);
+    }
+    public void Outline(System.Drawing.Rectangle r) {
+        if (edges[0] == null) return;
+        if (r.IsEmpty) { foreach (Frame f in edges) f.Bounds = new System.Drawing.Rectangle(-10, -10, 1, 1); return; }
+        int t = 2, x = r.X, y = r.Y, w = Math.Max(1, r.Width), h = Math.Max(1, r.Height);
+        edges[0].Bounds = new System.Drawing.Rectangle(x - t, y - t, w + 2 * t, t);
+        edges[1].Bounds = new System.Drawing.Rectangle(x - t, y + h, w + 2 * t, t);
+        edges[2].Bounds = new System.Drawing.Rectangle(x - t, y, t, h);
+        edges[3].Bounds = new System.Drawing.Rectangle(x + w, y, t, h);
+    }
+    public void Flash() {
+        if (edges[0] == null) return;
+        foreach (Frame f in edges) f.BackColor = System.Drawing.Color.FromArgb(29, 122, 70);
+        System.Windows.Forms.Timer back = new System.Windows.Forms.Timer { Interval = 400 };
+        back.Tick += (o, e) => { back.Stop(); back.Dispose(); foreach (Frame f in edges) f.BackColor = System.Drawing.Color.Red; };
+        back.Start();
+    }
 }
 
 public static class Bridge {
@@ -244,7 +272,8 @@ public static class Bridge {
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
-            case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true));
+            case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true),
+                Str(req, "window_title", ""), Str(req, "process", ""));
             case "resize": return Resize(Int(req, "handle", 0), Int(req, "width", 0), Int(req, "height", 0));
             case "msaa_find": return Msaa.Find(req);
             case "msaa_act": return Msaa.Act(req);
@@ -703,6 +732,38 @@ public static class Bridge {
         }
     }
 
+    /** The whole window as a JPEG at most 960 px wide (base64), with where the control sits in it as fractions, as AA shows a capture. */
+    static Dictionary<string, object> WindowShot(System.Windows.Rect win, System.Windows.Rect el) {
+        if (win.IsEmpty || el.IsEmpty || win.Width < 20 || win.Height < 20 || win.Width > 8000 || win.Height > 8000) return null;
+        try {
+            int w = (int)win.Width, h = (int)win.Height;
+            double k = Math.Min(1.0, 960.0 / w);
+            int nw = Math.Max(1, (int)(w * k)), nh = Math.Max(1, (int)(h * k));
+            using (System.Drawing.Bitmap full = new System.Drawing.Bitmap(w, h))
+            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(full))
+            using (System.Drawing.Bitmap small = new System.Drawing.Bitmap(nw, nh))
+            using (System.Drawing.Graphics s = System.Drawing.Graphics.FromImage(small))
+            using (MemoryStream ms = new MemoryStream()) {
+                g.CopyFromScreen((int)win.X, (int)win.Y, 0, 0, new System.Drawing.Size(w, h));
+                s.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                s.DrawImage(full, 0, 0, nw, nh);
+                System.Drawing.Imaging.ImageCodecInfo jpeg = null;
+                foreach (System.Drawing.Imaging.ImageCodecInfo c in System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders()) if (c.FormatID == System.Drawing.Imaging.ImageFormat.Jpeg.Guid) jpeg = c;
+                if (jpeg == null) return null;
+                System.Drawing.Imaging.EncoderParameters p = new System.Drawing.Imaging.EncoderParameters(1);
+                p.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 70L);
+                small.Save(ms, jpeg, p);
+                Dictionary<string, object> d = new Dictionary<string, object>();
+                d["image"] = Convert.ToBase64String(ms.ToArray());
+                d["left"] = Frac((el.X - win.X) / win.Width); d["top"] = Frac((el.Y - win.Y) / win.Height);
+                d["width"] = Frac(el.Width / win.Width); d["height"] = Frac(el.Height / win.Height);
+                return d;
+            }
+        } catch (Exception) { return null; }   // a picture is a nice-to-have
+    }
+
+    static double Frac(double v) { return Math.Round(Math.Max(0, Math.Min(1, v)), 4); }
+
     /** The top-level window an element belongs to (the element itself for a window). */
     static AutomationElement TopOf(AutomationElement e) {
         TreeWalker w = TreeWalker.ControlViewWalker;
@@ -810,6 +871,7 @@ public static class Bridge {
         Dictionary<string, object> d = new Dictionary<string, object>();
         d["element"] = props; d["window"] = win; d["path"] = path;
         d["screenshot"] = shot ? Screenshot(e.Current.BoundingRectangle) : "";
+        if (shot) { Dictionary<string, object> ws = WindowShot(tr, e.Current.BoundingRectangle); if (ws != null) d["window_shot"] = ws; }
         d["point"] = new int[] { x, y };
         return d;
     }
@@ -834,7 +896,39 @@ public static class Bridge {
         return e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly && ct != ControlType.Button;
     }
 
-    static List<object> Record(object reqId, int timeoutMs, bool shot) {
+    /**
+     * The processes of the window to record in, found by its exact title (else the first window of the process): the
+     * window's own process and those of its child windows (a Store app's content runs in another process than its
+     * frame). The window comes to the front, as AA's recorder does.
+     */
+    static HashSet<int> RecordTarget(string title, string process) {
+        Dictionary<string, object> chosen = null;
+        foreach (object o in Windows()) {
+            Dictionary<string, object> w = (Dictionary<string, object>)o;
+            if (title.Length > 0 && (string)w["title"] == title && (process.Length == 0 || string.Equals((string)w["process"], process, StringComparison.OrdinalIgnoreCase))) { chosen = w; break; }
+        }
+        if (chosen == null && title.Length > 0)
+            foreach (object o in Windows()) { Dictionary<string, object> w = (Dictionary<string, object>)o; if ((string)w["title"] == title) { chosen = w; break; } }
+        if (chosen == null && process.Length > 0)
+            foreach (object o in Windows()) { Dictionary<string, object> w = (Dictionary<string, object>)o; if (string.Equals((string)w["process"], process, StringComparison.OrdinalIgnoreCase) && ((string)w["title"]).Length > 0) { chosen = w; break; } }
+        if (chosen == null) throw new BridgeError("WINDOW_NOT_FOUND", "No open window is titled '" + title + "'" + (process.Length > 0 ? " (" + process + ")" : "") + "; it may have been closed or renamed");
+        IntPtr h = new IntPtr((int)chosen["handle"]);
+        HashSet<int> pids = new HashSet<int> { (int)chosen["pid"] };
+        try { foreach (AutomationElement c in AutomationElement.FromHandle(h).FindAll(TreeScope.Children, Condition.TrueCondition)) { try { pids.Add(c.Current.ProcessId); } catch (ElementNotAvailableException) { } } }
+        catch (Exception) { /* the window has no readable children: its own process is enough */ }
+        Native.Activate(h);
+        return pids;
+    }
+
+    /** Whether the point is over the recorded application (null: record everywhere). */
+    static bool InTarget(HashSet<int> pids, int x, int y) {
+        if (pids == null) return true;
+        try { return pids.Contains(AutomationElement.FromPoint(new System.Windows.Point(x, y)).Current.ProcessId); }
+        catch (Exception) { return false; }
+    }
+
+    static List<object> Record(object reqId, int timeoutMs, bool shot, string title, string process) {
+        HashSet<int> pids = title.Length > 0 || process.Length > 0 ? RecordTarget(title, process) : null;
         List<object> events = new List<object>();
         lock (Clicks) Clicks.Clear();
         KeyTyped = false; KeyFlush = false;
@@ -873,7 +967,9 @@ public static class Bridge {
         ui.IsBackground = true;
         ui.Start();
         shown.WaitOne(10000);
-        Action<int> setCount = n => { try { bar.BeginInvoke((Action)(() => bar.SetCount(n))); } catch (Exception) { } };
+        Action<int> setCount = n => { try { bar.BeginInvoke((Action)(() => { bar.SetCount(n); bar.Flash(); })); } catch (Exception) { } };
+        Action<System.Drawing.Rectangle> outline = r => { try { bar.BeginInvoke((Action)(() => bar.Outline(r))); } catch (Exception) { } };
+        DateTime nextHover = DateTime.MinValue; string lastRect = null; int me = Process.GetCurrentProcess().Id;
 
         AutomationElement typingIn = null; Dictionary<string, object> typingCapture = null;
         Dictionary<string, object> lastClick = null; Click last = default(Click);
@@ -895,7 +991,7 @@ public static class Bridge {
             while (!bar.Stopped && DateTime.UtcNow < end && ui.IsAlive) {
                 Click c; bool has;
                 lock (Clicks) { has = Clicks.Count > 0; c = has ? Clicks.Dequeue() : default(Click); }
-                if (has && !bar.Contains(c.X, c.Y)) {
+                if (has && !bar.Contains(c.X, c.Y) && InTarget(pids, c.X, c.Y)) {   // clicks elsewhere (the taskbar, Studio) are not recorded
                     bool dbl = lastClick != null && c.Button == "left" && last.Button == "left"
                             && Math.Abs(c.X - last.X) <= 4 && Math.Abs(c.Y - last.Y) <= 4 && (c.At - last.At).TotalMilliseconds < 500;
                     last = c;
@@ -912,7 +1008,8 @@ public static class Bridge {
                     KeyTyped = false;
                     try {
                         AutomationElement f = AutomationElement.FocusedElement;
-                        if (f != null && f.Current.ProcessId != Process.GetCurrentProcess().Id && TakesText(f) && (typingIn == null || !Automation.Compare(f, typingIn))) {
+                        if (f != null && f.Current.ProcessId != Process.GetCurrentProcess().Id && (pids == null || pids.Contains(f.Current.ProcessId))
+                                && TakesText(f) && (typingIn == null || !Automation.Compare(f, typingIn))) {
                             flushTyping();
                             System.Windows.Rect r = f.Current.BoundingRectangle;
                             if (!r.IsEmpty) { typingIn = f; typingCapture = CaptureAt((int)(r.X + r.Width / 2), (int)(r.Y + r.Height / 2), shot); }
@@ -920,6 +1017,25 @@ public static class Bridge {
                     } catch (Exception) { }
                 }
                 if (KeyFlush) { KeyFlush = false; Thread.Sleep(80); flushTyping(); }
+                if (DateTime.UtcNow >= nextHover) {
+                    // the frame follows the pointer over the recorded application only (nothing over other windows or the bar)
+                    nextHover = DateTime.UtcNow.AddMilliseconds(150);
+                    Native.POINT pt; Native.GetCursorPos(out pt);
+                    System.Drawing.Rectangle r = System.Drawing.Rectangle.Empty;
+                    try {
+                        if (!bar.Contains(pt.X, pt.Y)) {
+                            AutomationElement under = AutomationElement.FromPoint(new System.Windows.Point(pt.X, pt.Y));
+                            int pid = under.Current.ProcessId;
+                            if (pid == me) continue;   // the frame itself: keep it where it is
+                            if (pids == null || pids.Contains(pid)) {
+                                System.Windows.Rect b = under.Current.BoundingRectangle;
+                                if (!b.IsEmpty) r = new System.Drawing.Rectangle((int)b.X, (int)b.Y, (int)b.Width, (int)b.Height);
+                            }
+                        }
+                    } catch (Exception) { }
+                    string key = r.ToString();
+                    if (key != lastRect) { lastRect = key; outline(r); }
+                }
                 if (!has) Thread.Sleep(20);
             }
             flushTyping();

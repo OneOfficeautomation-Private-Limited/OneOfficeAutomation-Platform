@@ -56,7 +56,7 @@ final class ControlRoomLink {
         if (auth) b.header("Authorization", "Bearer " + token);
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach Command Center at " + url + ": " + e.getMessage(), "Check the address and that Command Center is running."); }
+        catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach Command Center at " + url + (e.getMessage() == null ? "" : ": " + e.getMessage()), "Check the address and that Command Center is running."); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted"); }
         Object parsed;
         try { parsed = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("STUDIO.CR_BAD_RESPONSE", "Unexpected answer from " + url + " (HTTP " + r.statusCode() + ")", "Check the Command Center address."); }
@@ -121,6 +121,14 @@ final class ControlRoomLink {
 
     Map<String, Object> repo(String q) { return call("GET", "repo?q=" + enc(q == null ? "" : q), null, true); }
 
+    /** Whether the agent at this repository path has a live (production) version already. */
+    boolean hasLiveVersion(String repoPath) {
+        if (!(repo(repoPath).get("bots") instanceof List<?> bots)) return false;
+        for (Object o : bots)
+            if (o instanceof Map<?, ?> b && repoPath.equals(b.get("path")) && b.get("production_version") instanceof Number n && n.intValue() > 0) return true;
+        return false;
+    }
+
     Map<String, Object> versions(String path) { return call("GET", "repo/versions?path=" + enc(path), null, true); }
 
     // ---------- check-out mapping ----------
@@ -153,16 +161,24 @@ final class ControlRoomLink {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> checkin(String local, String repoPathOverride, String comment, JsonCodec json) throws IOException {
+        return checkin(local, repoPathOverride, comment, true, json);
+    }
+
+    /** Checks the agent in as a new version; with production it also becomes the live version (or a request for it, when approval is on). */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> checkin(String local, String repoPathOverride, String comment, boolean production, JsonCodec json) throws IOException {
         Path p = ws.resolve(local);
         if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + local);
         Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
         Map<String, Object> m = mapping();
         String repoPath = repoPathOverride != null && !repoPathOverride.isBlank() ? repoPathOverride
                 : m.containsKey(local) ? String.valueOf(m.get(local)) : local.startsWith(FOLDER + "/") ? local.substring(FOLDER.length() + 1) : local;
-        Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", true), true);
+        // an agent with no live version yet gets its first one live, or nothing could run it
+        if (!production && !hasLiveVersion(repoPath)) production = true;
+        Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", production), true);
         m.put(local, repoPath);
         saveMapping(m);
-        Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local));
+        Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local, "production", production));
         if (r.get("production_request") != null) out.put("production_request", r.get("production_request"));   // approval before production is on
         return out;
     }

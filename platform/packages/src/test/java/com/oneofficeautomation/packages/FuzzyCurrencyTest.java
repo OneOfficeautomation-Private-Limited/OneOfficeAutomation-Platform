@@ -56,6 +56,20 @@ class FuzzyCurrencyTest {
         assertEquals("FUZZY.BAD_ALGORITHM", assertThrows(ActionException.class, () -> fz.bestMatch(c, "x", List.of(), 50, "nope", false)).code());
     }
 
+    @Test void bestMatchReadsTheTextFromAFile() throws Exception {
+        Path w = tmp();
+        ActionContext c = PackagesTestSupport.ctx(w, Map.of());
+        java.nio.file.Files.writeString(w.resolve("name.txt"), "  ACME Corp.\r\n");
+        List<Object> names = List.of("Globex Inc", "Acme Corporation", "Initech");
+        Map<String, Object> r = fz.bestMatch(c, null, names, 50, "token_set", false, "name.txt");
+        assertEquals("Acme Corporation", r.get("match"));
+        eqNum("1", r.get("index"));
+        // typed text wins over the file
+        assertEquals("Initech", fz.bestMatch(c, "Initech", names, 50, "levenshtein", false, "name.txt").get("match"));
+        assertEquals("FILE.NOT_FOUND", assertThrows(ActionException.class, () -> fz.bestMatch(c, null, names, 50, "levenshtein", false, "missing.txt")).code());
+        assertEquals("FUZZY.NO_TEXT", assertThrows(ActionException.class, () -> fz.bestMatch(c, null, names, 50, "levenshtein", false, null)).code());
+    }
+
     @Test void fuzzyLookupJoinsTables() throws Exception {
         var c = ctx();
         Map<String, Object> invoices = Values.table(List.of("invoice", "vendor"), List.of(

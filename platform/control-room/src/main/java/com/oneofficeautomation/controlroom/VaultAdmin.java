@@ -327,50 +327,13 @@ public final class VaultAdmin {
         cr.require(by, "lockers.manage", "administer the vault");
         Path file = cr.vault.keyFile;
         if (file == null) throw new OoaException("CR.VAULT_KEY", "The master key comes from " + cr.vault.keySource + ", so it cannot be changed here",
-                "Rotate it where the key is kept, with a planned restart.");
+                "Stop the Command Center, run: ooa vault rekey --new-key-env VAR (re-encrypts every value with the new key), put the new key where it is kept, and start again.");
         Vault next = Vault.fresh();
         Path nextFile = file.resolveSibling("master.key.next");
         try { Files.writeString(nextFile, next.keyBase64()); } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot write the new key: " + e.getMessage()); }
         int n;
         synchronized (cr.vault) {
-            n = db.tx(() -> {
-                int k = 0;
-                for (Map<String, Object> c : db.query("SELECT locker, name, attribute, ciphertext FROM credentials")) {
-                    String ref = c.get("locker") + "/" + c.get("name") + "/" + c.get("attribute");
-                    db.update("UPDATE credentials SET ciphertext = ? WHERE locker = ? AND name = ? AND attribute = ?",
-                            next.encrypt(cr.vault.decrypt((String) c.get("ciphertext"), ref), ref), c.get("locker"), c.get("name"), c.get("attribute"));
-                    k++;
-                }
-                for (Map<String, Object> c : db.query("SELECT locker, name, attribute, username, ciphertext FROM credential_user_values")) {
-                    String bound = userBound(c.get("locker") + "/" + c.get("name") + "/" + c.get("attribute"), (String) c.get("username"));
-                    db.update("UPDATE credential_user_values SET ciphertext = ? WHERE locker = ? AND name = ? AND attribute = ? AND username = ?",
-                            next.encrypt(cr.vault.decrypt((String) c.get("ciphertext"), bound), bound), c.get("locker"), c.get("name"), c.get("attribute"), c.get("username"));
-                    k++;
-                }
-                for (Map<String, Object> l : db.query("SELECT name, external_secret FROM lockers WHERE external_secret IS NOT NULL")) {
-                    String bound = "external:" + l.get("name");
-                    db.update("UPDATE lockers SET external_secret = ? WHERE name = ?", next.encrypt(cr.vault.decrypt((String) l.get("external_secret"), bound), bound), l.get("name"));
-                    k++;
-                }
-                // values the Command Center keeps for itself: evaluation start, install id, audit chain key
-                for (String[] s : new String[][] { {"evaluation_started", "evaluation"}, {"install_id", "install-id"}, {"audit_chain_key", "audit-chain"} }) {
-                    Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = ?", s[0]);
-                    if (r == null) continue;
-                    String plain = cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), s[1]);
-                    db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, s[1])), s[0]);
-                    k++;
-                }
-                // two-step sign-in secrets
-                for (Map<String, Object> u : db.query("SELECT id, mfa_secret FROM users WHERE mfa_secret IS NOT NULL")) {
-                    String bound = "mfa:" + u.get("id");
-                    db.update("UPDATE users SET mfa_secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt((String) u.get("mfa_secret"), bound), bound), u.get("id"));
-                    k++;
-                }
-                return k;
-            });
-            // passwords in the configuration files (database, HTTPS certificate): each file is kept as .before-rotate first
-            n += reencryptConfig(DbConfig.defaultFile(cr.dataDir), "ooa-db:", next);
-            n += reencryptConfig(TlsConfig.defaultFile(cr.dataDir), "ooa-tls:", next);
+            n = reencryptAll(next);
             String old = cr.vault.fingerprint();
             try {
                 Files.move(file, file.resolveSibling("master.key.old-" + now().toString().replace(":", "")), StandardCopyOption.ATOMIC_MOVE);
@@ -385,5 +348,78 @@ public final class VaultAdmin {
             cr.audit.record(by.username(), "vault.rotate", "vault", null, Map.of("values", n, "old_key", old, "new_key", cr.vault.fingerprint()), "ok", ip);
         }
         return Map.of("re_encrypted", n, "key_fingerprint", cr.vault.fingerprint());
+    }
+
+    /**
+     * Re-encrypts everything with a key the administrator brings (Base64, 32 bytes), for a master key kept outside the
+     * data folder (OOA_MASTER_KEY or a key store), where the console cannot change it. Run with the Command Center
+     * stopped (ooa vault rekey); afterwards the new key must replace the old one where it is kept before the next start.
+     * With a key file, the new key is written to it and the old one kept as master.key.old-&lt;time&gt;.
+     */
+    public Map<String, Object> rekey(byte[] newKey) {
+        Vault next = Vault.ofKey(newKey, "new key");
+        String old = cr.vault.fingerprint();
+        if (old.equals(next.fingerprint())) throw new OoaException("CR.VAULT_KEY", "The new key is the key in use", "Make a new random key, e.g. 32 random bytes in Base64.");
+        int n;
+        synchronized (cr.vault) {
+            n = reencryptAll(next);
+            Path file = cr.vault.keyFile;
+            if (file != null) {
+                try {
+                    Files.copy(file, file.resolveSibling("master.key.old-" + now().toString().replace(":", "")));
+                    Files.writeString(file, next.keyBase64());
+                } catch (IOException e) {
+                    cr.vault.adopt(next);
+                    throw new OoaException("CR.VAULT_KEY", "The values were re-encrypted, but the key file could not be written: " + e.getMessage(),
+                            "Put the new key into " + file + " before the next start.");
+                }
+            }
+            cr.vault.adopt(next);
+            cr.audit.record("ooa vault rekey", "vault.rekey", "vault", null, Map.of("values", n, "old_key", old, "new_key", cr.vault.fingerprint()), "ok", null);
+        }
+        return Map.of("re_encrypted", n, "key_fingerprint", cr.vault.fingerprint(), "key_file", cr.vault.keyFile != null);
+    }
+
+    /** Decrypts every stored value with the current key and encrypts it with next (database in one transaction, then the config files). */
+    private int reencryptAll(Vault next) {
+        int n = db.tx(() -> {
+            int k = 0;
+            for (Map<String, Object> c : db.query("SELECT locker, name, attribute, ciphertext FROM credentials")) {
+                String ref = c.get("locker") + "/" + c.get("name") + "/" + c.get("attribute");
+                db.update("UPDATE credentials SET ciphertext = ? WHERE locker = ? AND name = ? AND attribute = ?",
+                        next.encrypt(cr.vault.decrypt((String) c.get("ciphertext"), ref), ref), c.get("locker"), c.get("name"), c.get("attribute"));
+                k++;
+            }
+            for (Map<String, Object> c : db.query("SELECT locker, name, attribute, username, ciphertext FROM credential_user_values")) {
+                String bound = userBound(c.get("locker") + "/" + c.get("name") + "/" + c.get("attribute"), (String) c.get("username"));
+                db.update("UPDATE credential_user_values SET ciphertext = ? WHERE locker = ? AND name = ? AND attribute = ? AND username = ?",
+                        next.encrypt(cr.vault.decrypt((String) c.get("ciphertext"), bound), bound), c.get("locker"), c.get("name"), c.get("attribute"), c.get("username"));
+                k++;
+            }
+            for (Map<String, Object> l : db.query("SELECT name, external_secret FROM lockers WHERE external_secret IS NOT NULL")) {
+                String bound = "external:" + l.get("name");
+                db.update("UPDATE lockers SET external_secret = ? WHERE name = ?", next.encrypt(cr.vault.decrypt((String) l.get("external_secret"), bound), bound), l.get("name"));
+                k++;
+            }
+            // values the Command Center keeps for itself: evaluation start, install id, audit chain key
+            for (String[] s : new String[][] { {"evaluation_started", "evaluation"}, {"install_id", "install-id"}, {"audit_chain_key", "audit-chain"} }) {
+                Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = ?", s[0]);
+                if (r == null) continue;
+                String plain = cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), s[1]);
+                db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, s[1])), s[0]);
+                k++;
+            }
+            // two-step sign-in secrets
+            for (Map<String, Object> u : db.query("SELECT id, mfa_secret FROM users WHERE mfa_secret IS NOT NULL")) {
+                String bound = "mfa:" + u.get("id");
+                db.update("UPDATE users SET mfa_secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt((String) u.get("mfa_secret"), bound), bound), u.get("id"));
+                k++;
+            }
+            return k;
+        });
+        // passwords in the configuration files (database, HTTPS certificate): each file is kept as .before-rotate first
+        n += reencryptConfig(DbConfig.defaultFile(cr.dataDir), "ooa-db:", next);
+        n += reencryptConfig(TlsConfig.defaultFile(cr.dataDir), "ooa-tls:", next);
+        return n;
     }
 }

@@ -421,13 +421,12 @@ final class LlmClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", cfg.model());
         body.put("max_tokens", cfg.maxTokens());
-        body.put("temperature", BigDecimal.valueOf(cfg.temperature()));
+        // no temperature, top_p or top_k: current Claude models refuse them (HTTP 400 "temperature is deprecated")
         if (system.length() > 0) body.put("system", system.toString().strip());
         body.put("messages", out);
         if (tools != null && !tools.isEmpty()) body.put("tools", tools);
         Options opt = cfg.opts();
-        if (opt.topP() != null) body.put("top_p", BigDecimal.valueOf(opt.topP()));
-        if (opt.topK() != null) body.put("top_k", opt.topK());
+        if (opt.topP() != null || opt.topK() != null) ctx.warn("top_p and top_k are not sent to Anthropic: current Claude models do not take them");
         if (opt.stop() != null) body.put("stop_sequences", opt.stop());
         if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Map api_key to a Credential variable.");
         String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.anthropic.com" : cfg.baseUrl().replaceAll("/+$", "");
@@ -442,6 +441,12 @@ final class LlmClient {
         }
         Map<String, Object> u = r.get("usage") instanceof Map ? (Map<String, Object>) r.get("usage") : Map.of();
         return new Reply(text.length() == 0 ? null : text.toString(), calls, num(u.get("input_tokens")), num(u.get("output_tokens")), Map.of());
+    }
+
+    /** A Claude model id, also as Bedrock names it (anthropic.claude-..., us.anthropic.claude-...). */
+    static boolean claudeModel(String model) {
+        String m = model == null ? "" : model.toLowerCase(java.util.Locale.ROOT);
+        return m.contains("anthropic.") || m.startsWith("claude");
     }
 
     /** Parses a model's JSON answer, tolerating ```json fences. */
@@ -555,9 +560,12 @@ final class LlmClient {
         if (system.length() > 0) body.put("system", List.of(Map.of("text", system.toString().strip())));
         Map<String, Object> inf = new LinkedHashMap<>();
         inf.put("maxTokens", cfg.maxTokens());
-        inf.put("temperature", BigDecimal.valueOf(cfg.temperature()));
         Options opt = cfg.opts();
-        if (opt.topP() != null) inf.put("topP", BigDecimal.valueOf(opt.topP()));
+        // Claude models on Bedrock refuse sampling settings like the Anthropic API does; other Bedrock models take them
+        if (!claudeModel(cfg.model())) {
+            inf.put("temperature", BigDecimal.valueOf(cfg.temperature()));
+            if (opt.topP() != null) inf.put("topP", BigDecimal.valueOf(opt.topP()));
+        } else if (opt.topP() != null) ctx.warn("top_p is not sent to Claude models: they do not take it");
         if (opt.stop() != null) inf.put("stopSequences", opt.stop());
         body.put("inferenceConfig", inf);
         if (tools != null && !tools.isEmpty()) {

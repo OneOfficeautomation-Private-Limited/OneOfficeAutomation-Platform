@@ -69,11 +69,15 @@ class DesktopUiLiveTest {
             // capture the control at its centre, as Pick object does after Ctrl+Shift+C, and find it again with the result
             Map<String, Object> raw = (Map<String, Object>) bridge.call("capture_at", Map.of("x", xy.get("center_x"), "y", xy.get("center_y"), "screenshot", true), 30_000, null);
             Map<String, Object> captured = DesktopUiPackage.captured(c, raw);
-            System.out.println("    captured: " + new LinkedHashMap<>(captured) {{ put("screenshot", String.valueOf(get("screenshot")).length() + " base64 chars"); }});
+            System.out.println("    captured: " + new LinkedHashMap<>(captured) {{ put("screenshot", String.valueOf(get("screenshot")).length() + " base64 chars"); remove("window_shot"); }});
             assertEquals("desktop", captured.get("technology"));
             assertEquals("charmap", ((Map<String, Object>) captured.get("window")).get("process"));
             assertFalse(((List<?>) captured.get("path")).isEmpty());
             assertTrue(String.valueOf(captured.get("screenshot")).startsWith("iVBOR"), "PNG screenshot");
+            // and the whole window with where the control sits in it, as AA shows a capture
+            Map<String, Object> ws = (Map<String, Object>) captured.get("window_shot");
+            assertTrue(String.valueOf(ws.get("image")).startsWith("/9j/"), "a JPEG of the window");
+            for (String k : List.of("left", "top", "width", "height")) { double v = ((Number) ws.get(k)).doubleValue(); assertTrue(v > 0 && v < 1, k + " " + v); }
             assertEquals("typed", p.objectAction(c, captured, "get_text", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 10, "error", false).get("result"));
             assertTrue(((BigDecimal) p.findObjects(c, captured, 0).get("count")).intValue() >= 1);
 

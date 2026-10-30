@@ -562,7 +562,7 @@ public final class ZendeskPackage {
 
     @Action(id = "upload_attachment", name = "Upload attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Upload a local file and get a token; pass the token to Create ticket or Add comment to attach the file.",
-            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), path | add_to_token")
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), path | file_name, add_to_token")
     @Output(name = "token", type = OoaType.STRING, description = "Upload token to pass in upload_tokens.")
     @Output(name = "attachment_id", type = OoaType.NUMBER, description = "Id of the stored file.")
     public Map<String, Object> upload(ActionContext ctx,
@@ -571,16 +571,21 @@ public final class ZendeskPackage {
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "path", type = OoaType.FILE, example = "out/receipt-88123.pdf", description = "Local file to upload.") String path,
-            @Input(name = "add_to_token", type = OoaType.STRING, required = false, description = "Token of an earlier upload, to group several files under one token.") String existing) {
+            @Input(name = "add_to_token", type = OoaType.STRING, required = false, description = "Token of an earlier upload, to group several files under one token.") String existing,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to give the attachment; the local file name when empty.") String fileName) {
         byte[] data = HttpJson.readFile(ctx, path);
         Path p = ctx.resolvePath(path);
         String type;
         try { type = Optional.ofNullable(Files.probeContentType(p)).orElse("application/octet-stream"); } catch (java.io.IOException e) { type = "application/octet-stream"; }
         Map<String, Object> q = new LinkedHashMap<>();
-        q.put("filename", HttpJson.safeName(p.getFileName().toString()));
+        q.put("filename", HttpJson.safeName(fileName == null || fileName.isBlank() ? p.getFileName().toString() : fileName.strip()));
         if (existing != null && !existing.isBlank()) q.put("token", existing);
         Map<String, Object> r = req("POST", api(site) + "/uploads?" + HttpJson.query(q), email, apiToken, oauth).bytes(data, type).timeout(600).send(ctx).map();
         return Out.of("token", HttpJson.path(r, "upload.token"), "attachment_id", HttpJson.path(r, "upload.attachment.id"));
+    }
+
+    public Map<String, Object> upload(ActionContext ctx, String site, String email, Object apiToken, Object oauth, String path, String existing) {
+        return upload(ctx, site, email, apiToken, oauth, path, existing, null);
     }
 
     @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},

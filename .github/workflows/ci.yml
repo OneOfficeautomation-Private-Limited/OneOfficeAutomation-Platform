@@ -38,6 +38,15 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
+      - name: Audit the new Studio's npm packages (high or critical findings fail the build)
+        shell: pwsh
+        working-directory: platform/ui
+        run: npm audit --omit=optional --audit-level=high
       - name: Build and run every test
         shell: pwsh
         env:
@@ -187,6 +196,11 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
       - name: Command Center and runner end to end, runner and SDK tests, conformance cases
         run: |
           chmod +x gradlew
@@ -220,6 +234,11 @@ jobs:
           java-version: "21"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           cache: gradle
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
       - name: Build the native executable and the Java install
         run: |
           chmod +x gradlew
@@ -263,6 +282,11 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
       - name: Build the image
         run: |
           chmod +x gradlew
@@ -363,9 +387,11 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
         with:
-          node-version: "20"
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
       - name: Build the distribution
         run: |
           chmod +x gradlew
@@ -381,14 +407,15 @@ jobs:
           test -n "$PW" || { cat "$RUNNER_TEMP/cr.log"; exit 1; }
           cd control-room/src/test/ui
           CONSOLE_DIR=../../main/resources/console CR_URL=http://localhost:8763 CR_ADMIN_PASSWORD="$PW" node console.ui.test.js
-      - name: Studio UI test
+      - name: Studio serves its page
         run: |
           OOA=cli/build/install/ooa/bin/ooa
           mkdir -p "$RUNNER_TEMP/ws"
           nohup "$OOA" studio --workspace "$RUNNER_TEMP/ws" --port 8746 > "$RUNNER_TEMP/studio.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8746/ >/dev/null && break; sleep 2; done
-          cd cli/src/test/ui
-          STUDIO_DIR=../../main/resources/studio OOA_WS="$RUNNER_TEMP/ws" OOA_STUDIO_URL=http://localhost:8746 node studio.ui.test.js
+          # the installed Studio serves the page (the new Studio's own tests run with npm run check, its server in :cli:test)
+          curl -sf http://localhost:8746/ | grep -q 'id="root"'
+          curl -sf http://localhost:8746/api/tree | grep -q '"tree"'
       - name: Server logs
         if: failure()
         run: tail -n 100 "$RUNNER_TEMP"/*.log || true
@@ -404,6 +431,11 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
       - name: WiX Toolset 5
         shell: pwsh
         run: dotnet tool install --global wix --version 5.0.2

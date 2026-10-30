@@ -10,11 +10,11 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Terminal automation: IBM mainframe (TN3270) hosts through the open-source x3270 scripting engine
- * (s3270 on Linux/macOS, ws3270 from the wc3270 installer on Windows), and VT100/ANSI hosts over SSH
- * through {@link VtSshSession}. Rows and columns are 1-based, as on screen.
+ * (s3270 on Linux/macOS, ws3270 from the wc3270 installer on Windows), IBM i (TN5250) hosts through
+ * {@link Tn5250Session}, and VT100/ANSI hosts over SSH through {@link VtSshSession}. Rows and columns are 1-based, as on screen.
  */
-@OoaPackage(id = "ooa.terminal", name = "Terminal emulator (TN3270, VT over SSH)", version = "1.1.0",
-        description = "Connect to IBM mainframe 3270 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text.")
+@OoaPackage(id = "ooa.terminal", name = "Terminal emulator (TN3270, TN5250, VT over SSH)", version = "1.2.0",
+        description = "Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text.")
 public final class TerminalPackage {
 
     static String exe() {
@@ -74,20 +74,21 @@ public final class TerminalPackage {
 
     private static final String VT = "terminal_type=vt-ssh", TN3270 = "terminal_type!=vt-ssh";
 
-    @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen.",
+    @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen.",
             panel = "host, port, terminal_type, tls, model, code_page, user, password, [Sign in with a key file: key_file, key_passphrase], [Ask for a specific device name: lu_name], [Wait for text on the first screen: wait_for_text], session"
                     + " | connect_timeout_seconds, wait_for_input_field, host_key_fingerprint, emulation, screen_rows, screen_columns")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or address.") String host,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, min = 1, max = 65535, description = "Port; 23 for 3270 (992 is common with TLS) and 22 for SSH when empty.") Integer port,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, min = 1, max = 65535, description = "Port; 23 for 3270 and 5250 (992 is common with TLS) and 22 for SSH when empty.") Integer port,
             @Input(name = "tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = TN3270, description = "Use a TLS-encrypted connection.") boolean tls,
-            @Input(name = "model", type = OoaType.STRING, required = false, defaultValue = "\"3279-2\"", enumValues = {"3279-2", "3279-3", "3279-4", "3279-5", "3278-2", "3278-3", "3278-4", "3278-5"}, visibleWhen = TN3270, description = "Screen model (2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome).") String model,
+            @Input(name = "model", type = OoaType.STRING, required = false, defaultValue = "\"3279-2\"", enumValues = {"3279-2", "3279-3", "3279-4", "3279-5", "3278-2", "3278-3", "3278-4", "3278-5", "3179-2", "3477-FC"}, visibleWhen = TN3270,
+                    description = "Screen model. 3270: 2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome. 5250: 3179-2 = 24x80, 3477-FC = 27x132 (a 3270 model 5 also means 27x132).") String model,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "terminal_type", type = OoaType.STRING, required = false, defaultValue = "\"tn3270e\"", enumValues = {"tn3270e", "tn3270", "vt-ssh"},
-                    description = "tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, or vt-ssh for a VT100/ANSI host reached over SSH.") String terminalType,
+            @Input(name = "terminal_type", type = OoaType.STRING, required = false, defaultValue = "\"tn3270e\"", enumValues = {"tn3270e", "tn3270", "tn5250", "vt-ssh"},
+                    description = "tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, tn5250 for IBM i (AS/400) hosts, or vt-ssh for a VT100/ANSI host reached over SSH.") String terminalType,
             @Input(name = "connect_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds to wait for the connection and the first screen.") int connectTimeout,
-            @Input(name = "lu_name", type = OoaType.STRING, required = false, visibleWhen = TN3270, description = "Logical unit (device) name to request from the host; any free one when empty.") String luName,
-            @Input(name = "code_page", type = OoaType.STRING, required = false, example = "cp037", visibleWhen = TN3270, description = "Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default when empty.") String codePage,
+            @Input(name = "lu_name", type = OoaType.STRING, required = false, visibleWhen = TN3270, description = "Device name to request from the host (3270 logical unit, or 5250 display device); any free one when empty.") String luName,
+            @Input(name = "code_page", type = OoaType.STRING, required = false, example = "cp037", visibleWhen = TN3270, description = "Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default (5250: cp037) when empty.") String codePage,
             @Input(name = "wait_for_input_field", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the first screen has a field to type into (on SSH: until the host stops sending); turn off for hosts that show a read-only banner first.") boolean waitForInput,
             @Input(name = "wait_for_text", type = OoaType.STRING, required = false, example = "USERID", description = "Text the first screen must show (e.g. a logon prompt) before the agent continues; no check when empty.") String waitText,
             @Input(name = "user", type = OoaType.STRING, required = false, visibleWhen = VT, description = "SSH user name.") String user,
@@ -100,14 +101,19 @@ public final class TerminalPackage {
             @Input(name = "screen_columns", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 20, max = 255, visibleWhen = VT, description = "Screen width in columns for SSH hosts.") int screenCols) {
         if (host == null || !host.matches("^[A-Za-z0-9.-]{1,253}$")) throw new ActionException("TERMINAL.BAD_HOST", "Invalid host '" + host + "'");
         String type = terminalType == null || terminalType.isBlank() ? "tn3270e" : terminalType.trim().toLowerCase(Locale.ROOT);
-        if (!type.equals("tn3270e") && !type.equals("tn3270") && !type.equals("vt-ssh"))
-            throw new ActionException("TERMINAL.UNSUPPORTED_TYPE", "Terminal type '" + terminalType + "' is not supported", "Use tn3270e or tn3270 for IBM 3270 hosts, or vt-ssh for VT100/ANSI hosts over SSH.");
+        if (!List.of("tn3270e", "tn3270", "tn5250", "vt-ssh").contains(type))
+            throw new ActionException("TERMINAL.UNSUPPORTED_TYPE", "Terminal type '" + terminalType + "' is not supported", "Use tn3270e or tn3270 for IBM 3270 hosts, tn5250 for IBM i hosts, or vt-ssh for VT100/ANSI hosts over SSH.");
         int p = port == null ? (type.equals("vt-ssh") ? 22 : 23) : port;
         if (p < 1 || p > 65535) throw new ActionException("TERMINAL.BAD_PORT", "Invalid port " + p, "Use 23 for telnet, 992 for TLS or 22 for SSH.");
         if (type.equals("vt-ssh")) return connectVt(ctx, host, p, session, connectTimeout, waitForInput, waitText, user, password, keyFile, keyPassphrase, fingerprint, emulation, screenRows, screenCols);
         if (luName != null && !luName.isBlank() && !luName.matches("^[A-Za-z0-9#@$._-]{1,16}$")) throw new ActionException("TERMINAL.BAD_LU", "Invalid LU name '" + luName + "'");
         if (codePage != null && !codePage.isBlank() && !codePage.matches("^[A-Za-z0-9_-]{1,32}$")) throw new ActionException("TERMINAL.BAD_CODE_PAGE", "Invalid code page '" + codePage + "'", "Example: cp037.");
         int wait = Math.max(1, connectTimeout <= 0 ? 30 : connectTimeout);
+        if (type.equals("tn5250")) {
+            Session t = Tn5250Session.open(host, p, tls, Tn5250Session.termType(model), luName == null || luName.isBlank() ? null : luName.trim(),
+                    Tn5250Session.charset(codePage), (int) Math.min(600_000L, wait * 1000L));
+            return started(ctx, t, session, wait, waitForInput ? "InputField" : "3270Mode", waitText);
+        }
         List<String> command = new ArrayList<>(List.of(exe(), "-model", model == null || model.isBlank() ? "3279-2" : model));
         if (codePage != null && !codePage.isBlank()) { command.add("-codepage"); command.add(codePage.trim()); }
         Session t;
@@ -152,7 +158,12 @@ public final class TerminalPackage {
         String kp = keyPassphrase instanceof SecureString ks ? ks.reveal() : null;
         Session t = VtSshSession.open(host, port, user.strip(), pw == null || pw.isEmpty() ? null : pw, hasKey ? ctx.resolvePath(keyFile) : null, kp, fingerprint,
                 VtSshSession.termName(emulation), screenRows, screenCols, (int) Math.min(600_000L, wait * 1000L), ctx::warn);
-        try { if (waitForInput) t.cmd("Wait(" + wait + ",InputField)"); }
+        return started(ctx, t, session, wait, waitForInput ? "InputField" : null, waitText);
+    }
+
+    /** After an SSH or 5250 connection: wait for the first screen (what: an engine Wait condition, or null), and its text when asked, then keep the session. */
+    private Map<String, Object> started(ActionContext ctx, Session t, String session, int wait, String what, String waitText) {
+        try { if (what != null) t.cmd("Wait(" + wait + "," + what + ")"); }
         catch (RuntimeException e) { t.close(); throw e; }
         ctx.sessions().put(session, t);
         if (waitText != null && !waitText.isEmpty()) {
@@ -165,7 +176,7 @@ public final class TerminalPackage {
     /** Presses a key (alias, Enter, PF3...) and, for keys that go to the host, waits for the keyboard to unlock (VT: for the host to answer). */
     private static void press(Session t, String key, boolean waitForHost, int timeout) {
         boolean vt = t instanceof VtSshSession;
-        String action = keyAction(t.keyAliases.getOrDefault(key.trim().toUpperCase(Locale.ROOT), key), vt);
+        String action = keyAction(t.keyAliases.getOrDefault(key.trim().toUpperCase(Locale.ROOT), key), t);
         t.cmd(action);
         if (waitForHost && (vt || !LOCAL_KEYS.contains(action))) t.cmd("Wait(" + Math.max(1, timeout) + ",InputField)");
     }
@@ -203,7 +214,7 @@ public final class TerminalPackage {
     @Action(id = "send_key", name = "Press key", category = "Terminal", timeoutSeconds = 120, description = "Press Enter, Tab, Clear, a PF or PA key, and wait for the host to answer.",
             panel = "session, key, delay_after_ms, [Wait for text afterwards: wait_for_text] | wait_for_host, timeout_seconds, repeat")
     public Map<String, Object> sendKey(ActionContext ctx,
-            @Input(name = "key", type = OoaType.STRING, example = "Enter", description = "Enter, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Newline, Up, Down, Left, Right, BackSpace, Delete, Insert, FieldEnd, Dup, FieldMark, Attn, SysReq, PF1 to PF24 or PA1 to PA3. VT (SSH) hosts also take Escape, End, PageUp, PageDown and Ctrl+letter, e.g. Ctrl+C.") String key,
+            @Input(name = "key", type = OoaType.STRING, example = "Enter", description = "Enter, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Newline, Up, Down, Left, Right, BackSpace, Delete, Insert, FieldEnd, Dup, FieldMark, Attn, SysReq, PF1 to PF24 or PA1 to PA3. 5250 (IBM i) hosts also take FieldExit, Help, Print, PageUp and PageDown (Roll Down and Roll Up), but not PA keys or FieldMark. VT (SSH) hosts also take Escape, End, PageUp, PageDown and Ctrl+letter, e.g. Ctrl+C.") String key,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
             @Input(name = "wait_for_host", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "After keys that go to the host (Enter, PF, PA, Clear...), wait until it unlocks the keyboard.") boolean waitForHost,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout,
@@ -369,6 +380,11 @@ public final class TerminalPackage {
     /** Turns a key name (Enter, PF3, PA1, ...) into the engine action. */
     static String keyAction(String key) { return keyAction(key, false); }
 
+    /** As above, for the kind of host the session talks to. */
+    static String keyAction(String key, Session t) {
+        return t instanceof Tn5250Session ? Tn5250Session.keyAction(key) : keyAction(key, t instanceof VtSshSession);
+    }
+
     /** As above; VT hosts also take Escape, End, PageUp, PageDown and Ctrl+letter (e.g. Ctrl+C), but not the 3270-only keys. */
     static String keyAction(String key, boolean vt) {
         String k = key.trim().toUpperCase(Locale.ROOT);
@@ -402,7 +418,7 @@ public final class TerminalPackage {
 
     /** Keys handled by the terminal itself; nothing is sent to the host, so there is nothing to wait for. */
     static final Set<String> LOCAL_KEYS = Set.of("Tab", "BackTab", "Home", "EraseEOF", "EraseInput", "Newline", "Up", "Down", "Left", "Right",
-            "BackSpace", "Delete", "Insert", "FieldEnd", "Dup", "FieldMark");
+            "BackSpace", "Delete", "Insert", "FieldEnd", "FieldExit", "Dup", "FieldMark");
 
     /** One 3270 field: position of its first character (1-based), length and attribute flags. */
     record Field(int index, int row, int column, int length, boolean isProtected, boolean numeric, boolean hidden, String text) {
@@ -497,6 +513,7 @@ public final class TerminalPackage {
 
     static Fields fields(Session t) {
         if (t instanceof VtSshSession v) return new Fields(vtFields(v.screen.lines()), v.screen.cols, v.screen.rows);
+        if (t instanceof Tn5250Session f) return new Fields(f.fieldList(), f.cols(), f.rows());
         List<String> buf = buffer(t);
         return new Fields(parseFields(buf), columns(buf), buf.size());
     }
@@ -711,7 +728,7 @@ public final class TerminalPackage {
             String alias = e.getKey().trim().toUpperCase(Locale.ROOT);
             String target = e.getValue() == null ? "" : com.oneofficeautomation.runner.Values.text(e.getValue()).trim();
             if (target.isEmpty()) { t.keyAliases.remove(alias); continue; }
-            keyAction(target, t instanceof VtSshSession);
+            keyAction(target, t);
             t.keyAliases.put(alias, target);
         }
         return Map.of("mappings", new LinkedHashMap<String, Object>(new TreeMap<>(t.keyAliases)));

@@ -118,15 +118,21 @@ public final class PowerPointPackage {
         return Map.of();
     }
 
+    public Map<String, Object> createPresentation(ActionContext ctx, String path, boolean overwrite, String session, Object password, String template) {
+        return createPresentation(ctx, path, overwrite, session, password, template, null);
+    }
+
     @Action(id = "create_presentation", name = "Create presentation", category = "Presentation", capabilities = "filesystem",
             description = "Create a new .pptx file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.",
-            panel = "path, [Require a password to open the file: password] | overwrite, template, session")
+            panel = "path, [Require a password to open the file: password], [Require a password to edit the file: edit_password] | overwrite, template, session")
     public Map<String, Object> createPresentation(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new presentation.") String path,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Session name used by later steps.") String session,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new file with this password; later saves keep it.") Object password,
-            @Input(name = "template", type = OoaType.FILE, required = false, description = "Existing .pptx whose slide masters, layouts and slides the new file starts from; empty when empty.") String template) {
+            @Input(name = "template", type = OoaType.FILE, required = false, description = "Existing .pptx whose slide masters, layouts and slides the new file starts from; empty when empty.") String template,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password to modify: PowerPoint asks for it, or offers to open the file read-only.") Object editPassword) {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("PPT.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XMLSlideShow ppt;
@@ -136,12 +142,36 @@ public final class PowerPointPackage {
             try (InputStream in = Files.newInputStream(t)) { ppt = new XMLSlideShow(in); }
             catch (IOException | RuntimeException e) { throw new ActionException("PPT.OPEN_FAILED", "Cannot open template " + t + ": " + e.getMessage(), "Use a .pptx template.", true); }
         } else ppt = new XMLSlideShow();
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null) modifyPassword(ppt, edit);
         DeckSession d = new DeckSession(p, ppt);
         d.password = OfficeCrypto.secret(password);
         write(d, p);
         Object old = ctx.sessions().put(session, d);
         if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
         return Map.of();
+    }
+
+    /**
+     * Sets PowerPoint's "password to modify": a p:modifyVerifier in presentation.xml with a salted, 100,000 times
+     * repeated SHA-512 hash of the password (ECMA-376 agile hashing, as Word's editing restriction uses).
+     */
+    static void modifyPassword(XMLSlideShow ppt, String password) {
+        byte[] salt = new byte[16];
+        new java.security.SecureRandom().nextBytes(salt);
+        int spin = 100_000;
+        byte[] hash = org.apache.poi.poifs.crypt.CryptoFunctions.hashPassword(password, org.apache.poi.poifs.crypt.HashAlgorithm.sha512, salt, spin, false);
+        String ns = "http://schemas.openxmlformats.org/presentationml/2006/main";
+        try (org.apache.xmlbeans.XmlCursor c = ppt.getCTPresentation().newCursor()) {
+            // modifyVerifier goes before extLst, the last element of the presentation; it replaces one the template had
+            if (c.toChild(ns, "modifyVerifier")) { c.removeXml(); c.toParent(); }
+            if (!c.toChild(ns, "extLst")) c.toEndToken();
+            c.beginElement("modifyVerifier", ns);
+            c.insertAttributeWithValue("algorithmName", "SHA-512");
+            c.insertAttributeWithValue("hashValue", Base64.getEncoder().encodeToString(hash));
+            c.insertAttributeWithValue("saltValue", Base64.getEncoder().encodeToString(salt));
+            c.insertAttributeWithValue("spinValue", String.valueOf(spin));
+        }
     }
 
     public Map<String, Object> save(ActionContext ctx, String path, String session) { return save(ctx, path, session, null); }

@@ -1,11 +1,11 @@
-"""Lists the interface texts of the console and Agent Studio for translation (K3).
+"""Lists the interface texts of the Command Center console for translation (K3).
 
     python scripts/i18n-extract.py
 
-Writes control-room/src/main/resources/ooa-ui/ooa-i18n-keys.json: every visible text found in cr.js, studio.js and
-both index.html files. A text built as "Delete " + name + "?" becomes the key "Delete {}?". Translations live
-beside it in ooa-i18n-<language>.json ({"key": "translation"}); missing keys show in English. The I18nCatalogsTest
-checks the catalogs against this list.
+Writes control-room/src/main/resources/ooa-ui/ooa-i18n-keys.json: every visible text found in cr.js and its
+index.html (Agent Studio, platform/ui, is not translated yet). A text built as "Delete " + name + "?" becomes
+the key "Delete {}?". Translations live beside it in ooa-i18n-<language>.json ({"key": "translation"}); missing
+keys show in English. The I18nCatalogsTest checks the catalogs against this list.
 """
 import json
 import os
@@ -13,8 +13,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOURCES = ["control-room/src/main/resources/console/cr.js", "control-room/src/main/resources/console/index.html",
-           "cli/src/main/resources/studio/studio.js", "cli/src/main/resources/studio/index.html"]
+SOURCES = ["control-room/src/main/resources/console/cr.js", "control-room/src/main/resources/console/index.html"]
 OUT = os.path.join(ROOT, "control-room/src/main/resources/ooa-ui/ooa-i18n-keys.json")
 
 LIT = re.compile(r'"((?:[^"\\\n]|\\.)*)"')

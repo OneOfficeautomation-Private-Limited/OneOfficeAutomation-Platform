@@ -1116,9 +1116,13 @@ public final class Microsoft365Package {
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
 
+    public Map<String, Object> renameItem(ActionContext ctx, Object token, String ref, String newName, String drive, String base) {
+        return renameItem(ctx, token, ref, newName, drive, base, null);
+    }
+
     @Action(id = "rename_item", name = "Rename file or folder (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
             description = "Give a file or folder a new name in the same folder.",
-            panel = "access_token, item, new_name | drive, base_url")
+            panel = "access_token, item, new_name | if_exists, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Item id.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to the renamed item.")
     public Map<String, Object> renameItem(ActionContext ctx,
@@ -1126,8 +1130,9 @@ public final class Microsoft365Package {
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "new_name", type = OoaType.STRING, description = "New name, including the extension for files.") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        Map<String, Object> r = HttpJson.req(P, "PATCH", item(drive, base, ref, "")).bearer(token).json(Map.of("name", newName)).send(ctx).map();
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the new name is taken in the folder: fail, rename (add a number) or replace.") String ifExists) {
+        Map<String, Object> r = HttpJson.req(P, "PATCH", item(drive, base, ref, "") + conflict(ifExists, "fail")).bearer(token).json(Map.of("name", newName)).send(ctx).map();
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
 
@@ -1304,18 +1309,25 @@ public final class Microsoft365Package {
         return Out.of("link", at(r, "link", "webUrl"), "permission_id", r.get("id"));
     }
 
+    public Map<String, Object> exportPdf(ActionContext ctx, Object token, String ref, String local, String drive, String base) {
+        return exportPdf(ctx, token, ref, local, drive, base, true);
+    }
+
     @Action(id = "export_to_pdf", name = "Export file to PDF (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Convert a Word, Excel, PowerPoint or other supported file in the drive to PDF and save it locally.",
-            panel = "access_token, item, local_path | drive, base_url")
+            panel = "access_token, item, local_path, overwrite | drive, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved PDF path.")
     public Map<String, Object> exportPdf(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "local_path", type = OoaType.FILE, example = "out/report.pdf", description = "Where to save the PDF.") String local,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite) {
         byte[] data = HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
-        return Map.of("path", writeLocal(ctx, local, data).toString());
+        Path p = ctx.resolvePath(local);
+        if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
+        return Map.of("path", writeLocal(ctx, p.toString(), data).toString());
     }
 
     @Action(id = "restore_version", name = "Restore file version (OneDrive/SharePoint)", category = "Files", capabilities = "network",
@@ -1463,30 +1475,54 @@ public final class Microsoft365Package {
         return Out.of("sheet_name", r.get("name"), "sheet_id", r.get("id"));
     }
 
+    /** Name of the worksheet given by name, or by its 1-based position in the workbook's tab order. */
+    private static String sheetByNameOrPosition(ActionContext ctx, Object token, String drive, String base, String remote, String sheet, Integer position) {
+        boolean byName = sheet != null && !sheet.isBlank(), byPos = position != null;
+        if (byName == byPos) throw new ActionException(P + ".BAD_INPUT", byName ? "Give sheet or sheet_position, not both" : "A worksheet is required", "Set sheet or sheet_position.");
+        if (byName) return sheet;
+        List<Map<String, Object>> sheets = new ArrayList<>(pages(ctx, token, book(drive, base, remote, "/workbook/worksheets"), 0, null));
+        sheets.sort(Comparator.comparingInt(m -> m.get("position") instanceof Number n ? n.intValue() : 0));
+        if (position < 1 || position > sheets.size())
+            throw new ActionException(P + ".NOT_FOUND", "No worksheet at position " + position, "The workbook has " + sheets.size() + " worksheet(s); the first is 1.");
+        return s(sheets.get(position - 1).get("name"));
+    }
+
+    public Map<String, Object> excelDeleteSheet(ActionContext ctx, Object token, String remote, String sheet, String drive, String base) {
+        return excelDeleteSheet(ctx, token, remote, sheet, drive, base, null);
+    }
+
     @Action(id = "excel_delete_worksheet", name = "Delete worksheet (Excel online)", category = "Excel online", capabilities = "network",
             description = "Delete a worksheet and everything on it from a workbook in OneDrive or SharePoint.",
-            panel = "access_token, remote_path, sheet | drive, base_url")
+            panel = "access_token, remote_path, (Sheet by: Name = sheet / Position = sheet_position) | drive, base_url")
     public Map<String, Object> excelDeleteSheet(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Worksheet name; or give sheet_position instead.") String sheet,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        HttpJson.req(P, "DELETE", book(drive, base, remote, ws(sheet))).bearer(token).send(ctx);
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "sheet_position", type = OoaType.NUMBER, required = false, example = "2", description = "Position of the worksheet among the tabs, the first being 1; used instead of sheet.") Integer position) {
+        String name = sheetByNameOrPosition(ctx, token, drive, base, remote, sheet, position);
+        HttpJson.req(P, "DELETE", book(drive, base, remote, ws(name))).bearer(token).send(ctx);
         return Map.of();
+    }
+
+    public Map<String, Object> excelRenameSheet(ActionContext ctx, Object token, String remote, String sheet, String newName, String drive, String base) {
+        return excelRenameSheet(ctx, token, remote, sheet, newName, drive, base, null);
     }
 
     @Action(id = "excel_rename_worksheet", name = "Rename worksheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Give a worksheet in a OneDrive or SharePoint workbook a new name.",
-            panel = "access_token, remote_path, sheet, new_name | drive, base_url")
+            panel = "access_token, remote_path, (Sheet by: Name = sheet / Position = sheet_position), new_name | drive, base_url")
     public Map<String, Object> excelRenameSheet(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = "Current worksheet name.") String sheet,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Current worksheet name; or give sheet_position instead.") String sheet,
             @Input(name = "new_name", type = OoaType.STRING, description = "New worksheet name.") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet))).bearer(token).json(Map.of("name", newName)).send(ctx);
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "sheet_position", type = OoaType.NUMBER, required = false, example = "2", description = "Position of the worksheet among the tabs, the first being 1; used instead of sheet.") Integer position) {
+        String name = sheetByNameOrPosition(ctx, token, drive, base, remote, sheet, position);
+        HttpJson.req(P, "PATCH", book(drive, base, remote, ws(name))).bearer(token).json(Map.of("name", newName)).send(ctx);
         return Map.of();
     }
 
@@ -1821,10 +1857,16 @@ public final class Microsoft365Package {
         return Map.of("sheet_name", made, "address", cells.toUpperCase(Locale.ROOT));
     }
 
+    /** The signature before search_by was added. */
+    public Map<String, Object> excelFind(ActionContext ctx, Object token, String remote, String sheet, String text, String range, boolean matchCase, boolean whole,
+            String drive, String base) {
+        return excelFind(ctx, token, remote, sheet, text, range, matchCase, whole, drive, base, "rows");
+    }
+
     @Action(id = "excel_find", name = "Find in sheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Search the used cells of a sheet, or a range, for text and return the addresses of the matching cells.",
-            panel = "access_token, remote_path, sheet, [Search only a range: range], text, match_case, whole_cell | drive, base_url")
-    @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in reading order.")
+            panel = "access_token, remote_path, sheet, [Search only a range: range], text, search_by, match_case, whole_cell | drive, base_url")
+    @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in search order.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
     public Map<String, Object> excelFind(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -1835,8 +1877,11 @@ public final class Microsoft365Package {
             @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case must match.") boolean matchCase,
             @Input(name = "whole_cell", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The whole cell must equal the text.") boolean whole,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
+                    description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy) {
         if (text == null || text.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Give the text to find");
+        boolean byColumns = "columns".equals(choice(searchBy, "search_by", new LinkedHashSet<>(List.of("rows", "columns"))));
         String addr = range == null || range.isBlank() ? used(ctx, token, drive, base, remote, sheet) : range.trim();
         if (addr == null) return Map.of("cells", List.of(), "count", num(0));
         Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + rangePath(addr)) + "?$select=address,text").bearer(token).send(ctx).map();
@@ -1844,7 +1889,12 @@ public final class Microsoft365Package {
         String needle = matchCase ? text : text.toLowerCase(Locale.ROOT);
         List<Object> found = new ArrayList<>();
         List<List<Object>> grid = matrix(r.get("text"));
-        for (int i = 0; i < grid.size(); i++) for (int j = 0; j < grid.get(i).size(); j++) {
+        int width = 0;
+        for (List<Object> row : grid) width = Math.max(width, row.size());
+        // k walks the cells row by row, or column by column with search_by columns
+        for (int k = 0; k < grid.size() * width; k++) {
+            int i = byColumns ? k % grid.size() : k / width, j = byColumns ? k / grid.size() : k % width;
+            if (j >= grid.get(i).size()) continue;
             String v = matchCase ? s(grid.get(i).get(j)) : s(grid.get(i).get(j)).toLowerCase(Locale.ROOT);
             if (whole ? v.equals(needle) : v.contains(needle)) found.add(colName(origin[0] + j) + (origin[1] + i));
         }
@@ -2048,6 +2098,19 @@ public final class Microsoft365Package {
         List<Object> out = new ArrayList<>();
         for (List<Object> rr : matrix(r.get("values"))) out.add(rr.isEmpty() ? null : rr.get(0));
         return Map.of("values", out);
+    }
+
+    @Action(id = "excel_column_name", name = "Get column name (Excel online)", category = "Excel online", idempotent = true,
+            description = "Split a cell address such as AB7 into its column letters, column number and row number; nothing is read from the workbook.",
+            panel = "cell")
+    @Output(name = "column_name", type = OoaType.STRING, description = "Column letters, e.g. AB.")
+    @Output(name = "column", type = OoaType.NUMBER, description = "Column number, starting at 1 for A.")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Row number.")
+    public Map<String, Object> excelColumnName(ActionContext ctx,
+            @Input(name = "cell", type = OoaType.STRING, example = "AB7", description = "Cell address; a sheet name before ! and $ signs are ignored.") String address) {
+        if (address == null || address.isBlank()) throw new ActionException(P + ".BAD_RANGE", "Give a cell address", "Example: B2.");
+        int[] c = cell(address.substring(address.lastIndexOf('!') + 1));
+        return Map.of("column_name", colName(c[0]), "column", num(c[0]), "row", num(c[1]));
     }
 
     @Action(id = "excel_list_tables", name = "List tables (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
@@ -2356,6 +2419,41 @@ public final class Microsoft365Package {
         return Map.of("attendees", addresses(at));
     }
 
+    @Action(id = "clear_event_details", name = "Clear event details", category = "Calendar", idempotent = true, capabilities = "network",
+            description = "Blank the ticked details of an event: title, location, description, reminder, repeat pattern or all-day setting.",
+            panel = "access_token, event_id, clear_subject, clear_location, clear_body, clear_reminder, clear_recurrence, clear_all_day | mailbox, base_url")
+    @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
+    public Map<String, Object> clearEventDetails(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
+            @Input(name = "clear_subject", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the title.") boolean subject,
+            @Input(name = "clear_location", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the location.") boolean location,
+            @Input(name = "clear_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the description.") boolean body,
+            @Input(name = "clear_reminder", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Turn the reminder off.") boolean reminder,
+            @Input(name = "clear_recurrence", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop the series repeating; for one occurrence the whole series is changed.") boolean recurrence,
+            @Input(name = "clear_all_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Make an all-day event a timed one, keeping its dates.") boolean allDay,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        Map<String, Object> ev = new LinkedHashMap<>();
+        if (subject) ev.put("subject", "");
+        if (location) ev.put("location", Map.of("displayName", ""));
+        if (body) ev.put("body", Map.of("contentType", "Text", "content", ""));
+        if (reminder) ev.put("isReminderOn", false);
+        if (allDay) ev.put("isAllDay", false);
+        if (recurrence) ev.put("recurrence", null);
+        if (ev.isEmpty()) throw new ActionException(P + ".NOTHING_TO_DO", "Nothing was ticked to clear", "Tick at least one detail to clear.");
+        String url = event(base, mailbox, id);
+        if (recurrence) {
+            // the repeat pattern lives on the series master, as in update_event
+            Map<String, Object> current = HttpJson.req(P, "GET", url + "?$select=type,seriesMasterId").bearer(token).send(ctx).map();
+            String type = s(current.get("type"));
+            if ((type.equals("occurrence") || type.equals("exception")) && !s(current.get("seriesMasterId")).isEmpty())
+                url = event(base, mailbox, s(current.get("seriesMasterId")));
+        }
+        Map<String, Object> r = HttpJson.req(P, "PATCH", url).bearer(token).json(ev).send(ctx).map();
+        return Out.of("web_link", r.get("webLink"));
+    }
+
     @Action(id = "add_event_attachment", name = "Add event attachment", category = "Calendar", capabilities = {"network", "filesystem"},
             description = "Attach a local file of up to 3 MB to a calendar event.",
             panel = "access_token, event_id, file | mailbox, base_url")
@@ -2370,9 +2468,14 @@ public final class Microsoft365Package {
         return Out.of("attachment_id", r.get("id"));
     }
 
+    public Map<String, Object> findMeetingTimes(ActionContext ctx, Object token, Object attendees, LocalDateTime from, LocalDateTime to, int minutes, String tz, int max,
+            String mailbox, String base) {
+        return findMeetingTimes(ctx, token, attendees, from, to, minutes, tz, max, mailbox, base, false);
+    }
+
     @Action(id = "find_meeting_times", name = "Find free meeting times", category = "Calendar", idempotent = true, capabilities = "network",
             description = "Suggest time slots in a period when the attendees are free for a meeting of the given length.",
-            panel = "access_token, attendees, duration_minutes, from, to | time_zone, max_results, mailbox, base_url")
+            panel = "access_token, attendees, duration_minutes, from, to | include_outside_working_hours, time_zone, max_results, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: start, end, confidence, organizer_availability.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of suggestions.")
     @Output(name = "reason", type = OoaType.STRING, description = "Why there are no suggestions, when there are none.")
@@ -2385,13 +2488,14 @@ public final class Microsoft365Package {
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of from, to and the results.") String tz,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Most suggestions.") int max,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "include_outside_working_hours", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also suggest times outside the attendees' working hours.") boolean anyTime) {
         if (!to.isAfter(from)) throw new ActionException(P + ".BAD_TIMES", "The end of the period must be after its start");
         List<Object> at = new ArrayList<>();
         for (String a : HttpJson.addressList(attendees)) at.add(Map.of("emailAddress", Map.of("address", a), "type", "required"));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("attendees", at);
-        body.put("timeConstraint", Map.of("activityDomain", "work", "timeSlots", List.of(Map.of(
+        body.put("timeConstraint", Map.of("activityDomain", anyTime ? "unrestricted" : "work", "timeSlots", List.of(Map.of(
                 "start", Map.of("dateTime", from.toString(), "timeZone", tz), "end", Map.of("dateTime", to.toString(), "timeZone", tz)))));
         body.put("meetingDuration", "PT" + Math.max(1, minutes) + "M");
         body.put("maxCandidates", Math.max(1, max));
@@ -2461,16 +2565,24 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "name", "description", "membership_type"), rows));
     }
 
+    public Map<String, Object> channelByName(ActionContext ctx, Object token, String team, String name, String base) {
+        return channelByName(ctx, token, team, name, base, null);
+    }
+
     @Action(id = "get_channel_by_name", name = "Get channel by name (Teams)", category = "Teams", idempotent = true, capabilities = "network",
             description = "Find the id of a team's channel from its display name.",
-            panel = "access_token, team_id, name | base_url")
+            panel = "access_token, (Team: By id = team_id / By name = team_name), name | base_url")
     @Output(name = "channel_id", type = OoaType.STRING, description = "Channel id.")
     public Map<String, Object> channelByName(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Team id; or give team_name instead.") String team,
             @Input(name = "name", type = OoaType.STRING, description = "Channel display name (not case-sensitive), e.g. General.") String name,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        return Map.of("channel_id", s(byName(channels(ctx, token, base, team), name, "channel").get("id")));
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "team_name", type = OoaType.STRING, required = false, example = "Finance", description = "Team display name (not case-sensitive), among the teams the signed-in user belongs to; used instead of team_id.") String teamName) {
+        boolean byId = team != null && !team.isBlank(), byTeamName = teamName != null && !teamName.isBlank();
+        if (byId == byTeamName) throw new ActionException(P + ".BAD_INPUT", byId ? "Give team_id or team_name, not both" : "A team is required", "Set team_id or team_name.");
+        String t = byId ? team.trim() : s(byName(joinedTeams(ctx, token, base, "me"), teamName, "team").get("id"));
+        return Map.of("channel_id", s(byName(channels(ctx, token, base, t), name, "channel").get("id")));
     }
 
     @Action(id = "get_team_details", name = "Get team details (Teams)", category = "Teams", idempotent = true, capabilities = "network",

@@ -107,15 +107,22 @@ public final class LogPackage {
 
     @Action(id = "log_to_command_center", name = "Log to Command Center", category = "Logging",
             description = "Add a message, with optional details, to this run's log so it appears in Command Center with the run's activity.",
-            panel = "message, details, level")
+            panel = "message, details, level | source")
     public Map<String, Object> logToCommandCenter(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,
             @Input(name = "level", type = OoaType.STRING, required = false, defaultValue = "\"INFO\"", enumValues = {"DEBUG", "INFO", "WARN", "ERROR"}, description = "Level of the log entry.") String level,
-            @Input(name = "details", type = OoaType.DICTIONARY, required = false, description = "Extra name and value pairs added to the entry as JSON.") Map<String, Object> details) {
+            @Input(name = "details", type = OoaType.DICTIONARY, required = false, description = "Extra name and value pairs added to the entry as JSON.") Map<String, Object> details,
+            @Input(name = "source", type = OoaType.STRING, required = false, example = "invoice-check",
+                    description = "Short tag for where the entry comes from, shown in brackets before the message, e.g. [invoice-check].") String source) {
         String lvl = level(level);
         String text = message == null ? "" : message;
+        if (source != null && !source.isBlank()) text = "[" + source.strip().replaceAll("[\r\n]+", " ") + "] " + text;
         if (details != null && !details.isEmpty()) text += " " + JsonLite.write(com.oneofficeautomation.runner.Values.toJsonable(details));
         ctx.log(lvl, text);  // ActionContext masks every secret of the run before the line leaves the action
         return Map.of();
+    }
+
+    public Map<String, Object> logToCommandCenter(ActionContext ctx, String message, String level, Map<String, Object> details) {
+        return logToCommandCenter(ctx, message, level, details, null);
     }
 }

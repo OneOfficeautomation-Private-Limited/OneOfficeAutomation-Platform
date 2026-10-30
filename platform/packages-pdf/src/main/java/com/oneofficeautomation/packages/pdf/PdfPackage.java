@@ -318,18 +318,36 @@ public final class PdfPackage {
         }
     }
 
-    @Action(id = "read_form", name = "Read form fields", category = "Forms", idempotent = true, capabilities = "filesystem", description = "Read the names and values of all form fields.",
-            panel = "path, [The form has a password: password]")
+    @Action(id = "read_form", name = "Read form fields", category = "Forms", idempotent = true, capabilities = "filesystem", description = "Read the names and values of all form fields, or only of the fields named.",
+            panel = "path, [The form has a password: password], [Read only some fields: field_names]")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
     public Map<String, Object> readForm(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF form.") String path,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "field_names", type = OoaType.LIST, required = false, example = "[\"customer\", \"total\"]",
+                    description = "Read only these fields, in this order; every field when empty. A name the form does not have stops the step.") List<Object> fieldNames) {
+        List<String> wanted = new ArrayList<>();
+        if (fieldNames != null) for (Object o : fieldNames) if (o != null && !String.valueOf(o).isBlank()) wanted.add(String.valueOf(o).strip());
         try (PDDocument d = load(ctx, path, password)) {
             PDAcroForm form = d.getDocumentCatalog().getAcroForm();
             Map<String, Object> out = new LinkedHashMap<>();
-            if (form != null) for (PDField f : form.getFieldTree()) if (f.getFieldType() != null) out.put(f.getFullyQualifiedName(), f.getValueAsString());
+            if (wanted.isEmpty()) {
+                if (form != null) for (PDField f : form.getFieldTree()) if (f.getFieldType() != null) out.put(f.getFullyQualifiedName(), f.getValueAsString());
+                return Map.of("fields", out);
+            }
+            if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields");
+            List<String> missing = new ArrayList<>();
+            for (String name : wanted) {
+                PDField f = form.getField(name);
+                if (f == null) missing.add(name); else out.put(name, f.getValueAsString());
+            }
+            if (!missing.isEmpty()) throw new ActionException("PDF.NO_FIELD", "Fields not found: " + missing, "Use Read form fields without field names to see the exact names.");
             return Map.of("fields", out);
         } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
+    }
+
+    public Map<String, Object> readForm(ActionContext ctx, String path, Object password) {
+        return readForm(ctx, path, password, null);
     }
 
     public Map<String, Object> fillForm(ActionContext ctx, String path, Map<String, Object> values, String target, boolean flatten) {
@@ -486,13 +504,49 @@ public final class PdfPackage {
         return Map.of("files", out);
     }
 
+    @Action(id = "read_text_ocr", name = "Read text with OCR", category = "Document", idempotent = true, timeoutSeconds = 1800, capabilities = "filesystem",
+            description = "Read the text of a scanned PDF (pages that are pictures, with no text layer) with Tesseract OCR, from every page or chosen pages, optionally keeping only the text between two markers.",
+            panel = "path, [The file has a password: password], [Only some pages: pages], language | [Keep only part of the text: after_text, before_text], trim, dpi, page_mode")
+    @Output(name = "text", type = OoaType.STRING, description = "Recognised text of the pages, in page order.")
+    @Output(name = "pages", type = OoaType.LIST, description = "Recognised text of each page read, in page order.")
+    public Map<String, Object> readTextOcr(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Pages to read, e.g. 1,3,5-7; every page when empty.") String pages,
+            @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = "Tesseract language(s), e.g. eng, deu or eng+fra.") String lang,
+            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "3", min = 0, max = 13, description = "Page layout mode: 3 automatic, 6 single block, 7 single line, 11 sparse text.") int psm,
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 72, max = 600, description = "Resolution the pages are rendered at for OCR; 300 suits most scans.") int dpi,
+            @Input(name = "after_text", type = OoaType.STRING, required = false, description = "Keep only the text after the first occurrence of this marker, e.g. Invoice number:.") String after,
+            @Input(name = "before_text", type = OoaType.STRING, required = false, description = "Keep only the text before this marker (searched after the after_text marker).") String before,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces and line breaks at the start and end of the result.") boolean trim) {
+        List<Object> each = new ArrayList<>();
+        StringBuilder all = new StringBuilder();
+        try (PDDocument d = load(ctx, path, password)) {
+            PDFRenderer r = new PDFRenderer(d);
+            for (int pg : pages(pages, d.getNumberOfPages())) {
+                ctx.checkCancelled();
+                String t = com.oneofficeautomation.packages.OcrPackage.readText(ctx, r.renderImageWithDPI(pg - 1, Math.max(72, Math.min(600, dpi)), org.apache.pdfbox.rendering.ImageType.GRAY), lang, psm, null, null, false);
+                each.add(t);
+                if (all.length() > 0) all.append('\n');
+                all.append(t);
+            }
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
+        // the markers may sit on different pages, so they apply to the whole text
+        return Map.of("text", com.oneofficeautomation.packages.OcrPackage.filterText(all.toString(), after, before, trim), "pages", each);
+    }
+
     public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password) {
         return extractImages(ctx, path, folder, minSize, password, null, "png", null, "color");
     }
 
+    public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password,
+                                             String pages, String format, String prefix, String colour) {
+        return extractImages(ctx, path, folder, minSize, password, pages, format, prefix, colour, 0);
+    }
+
     @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.",
-            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color | min_size")
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color, [Resize to a resolution: dpi] | min_size")
     @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
     public Map<String, Object> extractImages(ActionContext ctx,
@@ -503,7 +557,9 @@ public final class PdfPackage {
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Only pages listed here, e.g. 1,3,5-7; every page when empty.") String pages,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp", "gif", "tiff"}, description = "Image file format.") String format,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty.") String prefix,
-            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour) {
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour,
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1200,
+                    description = "Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size.") int dpi) {
         List<Object> out = new ArrayList<>();
         String fmt = imageFormat(format);
         boolean gray = colour != null && (colour.equalsIgnoreCase("gray") || colour.equalsIgnoreCase("grey"));
@@ -516,9 +572,12 @@ public final class PdfPackage {
                 PDPage p = d.getPage(pageNo - 1);
                 ctx.checkCancelled();
                 int[] n = {0};
+                Map<org.apache.pdfbox.cos.COSBase, double[]> placed = dpi > 0 ? placedSizes(p) : Map.of();
                 collectImages(p.getResources(), seen, 0, img -> {
                     java.awt.image.BufferedImage bi = img.getImage();
                     if (bi == null || bi.getWidth() < minSize || bi.getHeight() < minSize) return;
+                    double[] size = placed.get(img.getCOSObject());
+                    if (size != null) bi = resize(bi, (int) Math.max(1, Math.round(size[0] / 72 * dpi)), (int) Math.max(1, Math.round(size[1] / 72 * dpi)));
                     if (gray) {
                         java.awt.image.BufferedImage g = new java.awt.image.BufferedImage(bi.getWidth(), bi.getHeight(), java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
                         var gr = g.createGraphics(); gr.drawImage(bi, 0, 0, null); gr.dispose();
@@ -535,6 +594,43 @@ public final class PdfPackage {
     }
 
     interface ImageSink { void accept(org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject img) throws IOException; }
+
+    /** Width and height in points at which each image XObject is first drawn on the page (content stream and form XObjects). */
+    static Map<org.apache.pdfbox.cos.COSBase, double[]> placedSizes(PDPage page) throws IOException {
+        Map<org.apache.pdfbox.cos.COSBase, double[]> sizes = new IdentityHashMap<>();
+        new org.apache.pdfbox.contentstream.PDFGraphicsStreamEngine(page) {
+            @Override public void drawImage(org.apache.pdfbox.pdmodel.graphics.image.PDImage image) {
+                if (!(image instanceof org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject x)) return;
+                org.apache.pdfbox.util.Matrix m = getGraphicsState().getCurrentTransformationMatrix();
+                sizes.putIfAbsent(x.getCOSObject(), new double[]{Math.abs(m.getScalingFactorX()), Math.abs(m.getScalingFactorY())});
+            }
+            @Override public void appendRectangle(java.awt.geom.Point2D p0, java.awt.geom.Point2D p1, java.awt.geom.Point2D p2, java.awt.geom.Point2D p3) { }
+            @Override public void clip(int windingRule) { }
+            @Override public void moveTo(float x, float y) { }
+            @Override public void lineTo(float x, float y) { }
+            @Override public void curveTo(float x1, float y1, float x2, float y2, float x3, float y3) { }
+            @Override public java.awt.geom.Point2D getCurrentPoint() { return new java.awt.geom.Point2D.Float(); }
+            @Override public void closePath() { }
+            @Override public void endPath() { }
+            @Override public void strokePath() { }
+            @Override public void fillPath(int windingRule) { }
+            @Override public void fillAndStrokePath(int windingRule) { }
+            @Override public void shadingFill(org.apache.pdfbox.cos.COSName shadingName) { }
+            void run() throws IOException { processPage(getPage()); }
+        }.run();
+        return sizes;
+    }
+
+    private static java.awt.image.BufferedImage resize(java.awt.image.BufferedImage bi, int w, int h) {
+        if (w == bi.getWidth() && h == bi.getHeight()) return bi;
+        int type = bi.getColorModel().hasAlpha() ? java.awt.image.BufferedImage.TYPE_INT_ARGB : java.awt.image.BufferedImage.TYPE_INT_RGB;
+        java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(w, h, type);
+        var g = out.createGraphics();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.drawImage(bi, 0, 0, w, h, null);
+        g.dispose();
+        return out;
+    }
 
     /** Visits image XObjects in a page's resources, including those nested in form XObjects; each image is visited once per document. */
     private static void collectImages(org.apache.pdfbox.pdmodel.PDResources res, Set<org.apache.pdfbox.cos.COSBase> seen, int depth, ImageSink sink) throws IOException {

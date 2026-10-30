@@ -35,10 +35,11 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | UI automation | Simulate keystrokes | ooa.desktop/type_text, press_keys | Built | Needs a desktop session |
 | UI automation | Screen | ooa.desktop/capture_screen | Built | Window capture comes with the Window package |
 | UI automation | Image recognition | ooa.image | Built |  |
+| UI automation | Interrupt handler | ooa.interrupts | Built | Rules that answer unexpected pop-ups, checked before each UI step |
 | UI automation | OCR | ooa.ocr | Built | Needs Tesseract installed; tested with real Tesseract |
 | UI automation | Application | ooa.application | Built |  |
 | UI automation | Legacy automation | - | Not needed | AA v11 compatibility |
-| UI automation | Terminal Emulator | ooa.terminal | Partial | TN3270 via x3270 (tested with the real engine); VT100/ANSI over SSH (password or key, tested against an in-process SSH host); TN5250 not yet (see docs/research/terminal-vt-ssh.md) |
+| UI automation | Terminal Emulator | ooa.terminal | Partial | TN3270 via x3270 (tested with the real engine); VT100/ANSI over SSH (password or key, tested against an in-process SSH host); TN5250 for IBM i with our own engine (tested against a fake host and the public PUB400 system; see docs/research/terminal-vt-ssh.md) |
 | UI automation | SAP | ooa.sap | Partial | SAP GUI Scripting built; BAPI/RFC needs SAP JCo from the customer |
 | UI automation | Citrix / remote desktop | ooa.image, ooa.ocr | Partial | Image + OCR built; in-session agent later |
 | UI automation | App-specific recorders | - | Planned | After the Recorder |
@@ -47,6 +48,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Office & files | Excel basic (no Excel needed) | ooa.excel | Built (library module, test on laptop) | Already verified on your laptop. Steps that keep the session name "excel" use the one open workbook, whatever it was opened as (Word and PowerPoint the same). A path such as onedrive:Reports/sales.xlsx (with a Graph token, and a SharePoint library as drive) is downloaded on open and saved back on save |
 | Office & files | Office 365 Excel / Google Sheets | ooa.microsoft365 (Excel online), ooa.google (Sheets) | Built |  |
 | Office & files | Microsoft Word | ooa.word | Built (library module, test on laptop) | Extract text also reads old .doc and .rtf files |
+| Office & files | PowerPoint | ooa.powerpoint | Built (library module, test on laptop) | Open, edit and save decks; no PowerPoint needed |
 | Office & files | CSV/TXT | ooa.csv | Built |  |
 | Office & files | PDF | ooa.pdf | Built (library module, test on laptop) |  |
 | Office & files | File | ooa.file | Built | Printing via ooa.printer |
@@ -83,6 +85,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | GitHub / Azure DevOps / Asana / Zendesk | ooa.github, ooa.azure_devops, ooa.asana, ooa.zendesk | Built | REST toolkits; base URL input for GitHub Enterprise, Azure DevOps Server and Zendesk subdomains |
 | Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |
 | Integration & system | Snowflake / Databricks / Kafka | ooa.snowflake, ooa.databricks, ooa.kafka | Built | REST only, no drivers: Snowflake SQL API v2, Databricks SQL/Jobs/Clusters/Files, Kafka REST Proxy |
+| Integration & system | AWS EC2 | ooa.aws_ec2 | Built | Connect (region, access keys from the vault, session token), describe, status, start, stop, reboot, terminate, monitoring on/off, launch, tags, wait for state; signed with AWS Signature V4, no AWS SDK |
 | AI, workload & process | Document Automation / IQ Bot | - | Excluded for now (your request) |  |
 | AI, workload & process | Knowledge Q&A | ooa.knowledge | Built | Index text, Markdown, HTML, CSV, JSON, XML, .docx and PDF files into one index file (embeddings optional: OpenAI, Azure OpenAI, OpenAI-compatible such as Ollama, Vertex AI, Bedrock Titan/Cohere); search by words (BM25) and meaning; answers that cite their passages and say when the documents do not say |
 | AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock (Converse, SigV4), Google Vertex AI (Gemini; service-account key or token), Hugging Face, Amazon SageMaker endpoints (SigV4), self-hosted; prompts and chats with pictures; picture generation (OpenAI, Azure OpenAI, Vertex AI Imagen, Bedrock); detect language, key phrases, named entities; PII masking; governance log |
@@ -96,10 +99,59 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 
 ## Summary
 
-- **Built**: 64 AA packages
+- **Built**: 83 AA packages
 - **Excluded for now (your request)**: 1 AA packages
 - **Not needed**: 2 AA packages
-- **Partial**: 7 AA packages
-- **Planned**: 3 AA packages
+- **Partial**: 4 AA packages
+- **Planned**: 2 AA packages
 
 Control Room features (users, roles, devices, schedules, queues, vault screens, audit) and the Windows Bot Agent are platform systems rather than commands and follow in their own phases, as described in the Technical Architecture.
+
+## AA packages not in the catalogue yet (X9)
+
+Checked on 2026-10-28 against the Packages page of a signed-in AA Community Edition Control Room, which lists 178
+packages (read only, nothing changed). In our own words. Most are in the table above, some under other names:
+
+- **Same toolkit, other name**: Logging (Log to file), Text file (CSV/TXT), Wait and Delay (Delay / Wait), Datetime
+  (DateTime), Credential and Credential Manager (Credential / Vault, Windows Credential Manager), Interactive forms
+  (ooa.forms), Process Composer, Process Any/Event/Form/Swimlane/Table/Tasks/UserGroup, Conditional and Process trigger
+  (One Workflow), Gmail and G-Suite Apps (ooa.google), Microsoft 365 Calendar/Excel/OneDrive/Outlook (ooa.microsoft365),
+  JSON utilities, JSON Object Manager and JSONParser (ooa.json), Word and MSWordPackage (ooa.word), Ping and SNMP
+  (ooa.network), Service (ooa.services), Image Recognition (ooa.image), OpenAI (ooa.genai model connection), API Task
+  and Python script for API Task (Command Center API tasks), SAP BAPI (ooa.sap, BAPI needs the customer's SAP JCo).
+- **Built but missing from the table above**: PowerPoint (ooa.powerpoint) and Interrupt handler (ooa.interrupts: a
+  block that answers unexpected pop-ups during UI steps). Both added below.
+- **Triggers** (Email, File Folder, Hot key, Interface, Service, Universal web, Window, Microsoft 365 Outlook, and the
+  app triggers in GitHub, Jira, ServiceNow, SharePoint, Teams, Google Calendar) are in Triggers (event) above.
+- **Old copies and samples**: the "(Beta)" and 2019-2020 versions (AWS Comprehend NLP (Beta), Google Calendar/Drive/
+  Sheets (Beta), G-Suite Apps (Beta), Microsoft LUI NLP (Beta), One Drive, SAP2, Office 365 Authentication and
+  Calendarv1.0, which are switched off), and demos (A2019DemoPackage, hello-aaaction, Metric To Imperial, Teknei,
+  Enterprise Claw Agent from an outside vendor, switched off). Not needed.
+
+The rest:
+
+| AA package | What it does in AA | OOA today | Proposal |
+| --- | --- | --- | --- |
+| PowerPoint | Open, edit and save slide decks | ooa.powerpoint | Built (catalogue row was missing) |
+| Interrupt handler | A block that watches for pop-ups and answers them | ooa.interrupts | Built (catalogue row was missing) |
+| AWS EC2 | Create, start, stop and end EC2 virtual machines (9 actions) | ooa.aws_ec2 (12 actions) | Built 2026-10-28 (row above) |
+| AWS Comprehend NLP, Microsoft LUIS NLP (Beta) | Sentiment, entities, language and intent from cloud language services | ooa.genai sentiment, entities, language and key phrases | Covered through an AI model; a direct AWS Comprehend action only if a customer asks |
+| ML - Microsoft Anomaly Detection | Finds unusual points in a series with an Azure service | Nothing | **Not needed now**: Azure retired the service; a REST call covers a replacement |
+| IBM Watson Authentication, Speech to Text (Beta) | Turns an audio file into text with IBM's service | Nothing | **Build later**: a speech-to-text action in ooa.genai (any provider) if customers ask |
+| Aisera | Sends content to Aisera and asks questions of it (2 actions) | ooa.knowledge does the same with our own store | Covered in purpose; a direct Aisera action only if a customer asks |
+| AI (4 actions) | Calls machine-learning and generative models | ooa.genai (Hugging Face, AWS Bedrock and other connections) | Covered |
+| AI Agent (Local) | Runs an AI agent on a chosen runner (1 action) | ooa.ai_agent on any runner | Covered |
+| EnterpriseClaw | Autonomous agents next to the data; on this Control Room only as an outside vendor's package, switched off | ooa.ai_agent and API tasks | Covered in purpose |
+| UI Agent - Web | Web automation from a plain-language goal (3 actions) | ooa.web_agent | Covered; a desktop version (Windows UI Automation) could follow |
+| AISense, Legacy AISense | Recording on remote and virtual desktops by screen analysis | ooa.image, ooa.ocr (Citrix / remote desktop row) | Partial, as in that row |
+| Process Discovery | Starts AA's process recorder and window capture for its discovery product | Nothing | **Not needed**: tied to AA's own discovery product |
+| Genesys | Contact-centre contacts and interactions (54 actions) | Nothing; REST toolkit or a custom connector works | **Build later** if customers ask; a connector (OpenAPI import) covers it today |
+| Google Application Integration | Runs Google Application Integration flows | Nothing; REST toolkit works | **Not needed now**: one REST call |
+| Google Document AI | Structured data from documents with Google's models | Nothing | With Document Automation, **excluded for now (your request)** |
+| Document Extraction, Document Extractor, IQ Bot, IQ Bot Extraction, Extraction360, Pre-processor, IQ Bot [Local Device] | AA's document automation | Nothing | **Excluded for now (your request)** |
+| App integration | Reads a window's text into a variable | ooa.desktop_ui (find objects, read text) | Covered |
+| FileUpload | Sends a file to a web API (1 action) | ooa.rest (multipart upload) | Covered |
+| Utils, NumberUtils, PDFUtils | Old helpers: copy a file, text to number or date, value type, keystrokes, PDF pages | ooa.file, ooa.string, ooa.number, ooa.datetime, ooa.pdf, ooa.desktop | Covered |
+| Pipeline Accelerator | Syncs AA CoE Manager data with other apps | Nothing | **Not needed**: AA-specific product |
+| Goto, V11 Task Bot, Legacy Support, Bot Migration | Moving bots from other tools or older AA versions | Nothing | **Not needed**: AA-specific migration |
+| Apple Calendar, Keynote, Mail, Numbers, Pages, AppleScript, Microsoft Outlook (macOS) | Mac desktop applications | macOS runners run headless agents only | **Later**: needs a macOS desktop runner first |

@@ -2,7 +2,7 @@
 #   1. msiexec /qn ROLE=CommandCenter SERVICE=1: the Command Center runs as a Windows service and answers
 #   2. msiexec /fa ROLE=Runner URL=.. REGISTRATION_KEY=..: a runner service registers and comes online
 #   3. msiexec /x /qn: both services, the files and the Start menu entry are gone; the data folder stays
-#   powershell -ExecutionPolicy Bypass -File scripts\test-msi.ps1 -Msi cli\build\distributions\ooa-0.1.1.msi
+#   powershell -ExecutionPolicy Bypass -File scripts\test-msi.ps1 -Msi cli\build\distributions\ooa-0.2.0.msi
 # Exit code: the number of failed checks. Logs go to -Logs (default %TEMP%\ooa-msi-test).
 param([Parameter(Mandatory = $true)] [string]$Msi, [string]$Logs = (Join-Path $env:TEMP "ooa-msi-test"), [int]$Port = 8720)
 $ErrorActionPreference = "Continue"
@@ -28,6 +28,17 @@ Check (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\ONEOFFI
 $svc = Get-Service "OOA Command Center" -ErrorAction SilentlyContinue
 Check ($svc -and $svc.StartType -eq "Automatic") "the service OOA Command Center starts with Windows"
 Check (WaitFor { (Health) -eq 200 } 150) "the Command Center answers on $base"
+$image = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\OOA Command Center" -ErrorAction SilentlyContinue).ImagePath
+Check ($image -match "--host 0\.0\.0\.0") "the service listens on every network card, not only this computer"
+$ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1).IPAddress
+if ($ip) {
+    $lan = 0; try { $lan = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://${ip}:$Port/api/health").StatusCode } catch { }
+    Check ($lan -eq 200) "the Command Center answers on this computer's network address $ip"
+}
+# the same command again, as an update or a repeated deployment does: the existing service is kept
+$p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/i `"$Msi`" /qn REINSTALL=ALL REINSTALLMODE=omus ROLE=CommandCenter SERVICE=1 PORT=$Port DATA_DIR=`"$data`" /l*v `"$Logs\again.log`""
+Check ($p.ExitCode -eq 0) "msiexec ROLE=CommandCenter a second time keeps the existing service (exit $($p.ExitCode))"
+Check (WaitFor { (Health) -eq 200 } 150) "the Command Center answers after the second install"
 
 # ---------- 2. a runner service registered with it ----------
 $serviceLog = Join-Path $data "logs\service-server.log"
@@ -66,5 +77,16 @@ Check (-not (Test-Path "$dir\lib")) "the program files are gone"
 Check (Test-Path "$data\logs") "the data folder is kept"
 Check ((Health) -ne 200) "nothing answers on $base any more"
 Copy-Item "$env:WINDIR\Temp\ooa-install.log" "$Logs\ooa-install-system.log" -ErrorAction SilentlyContinue
+
+# ---------- 4. without DATA_DIR: the data goes to ProgramData, not the system account's profile ----------
+$pd = Join-Path $env:ProgramData "OneOfficeAutomation\Command Center"
+Remove-Item -Recurse -Force $pd -ErrorAction SilentlyContinue
+$p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/i `"$Msi`" /qn ROLE=CommandCenter SERVICE=1 PORT=$Port /l*v `"$Logs\install-default.log`""
+Check ($p.ExitCode -eq 0) "msiexec installed without DATA_DIR (exit $($p.ExitCode))"
+Check (WaitFor { (Health) -eq 200 } 150) "the Command Center answers"
+Check (Test-Path (Join-Path $pd "logs")) "its data folder is $pd"
+Check (-not (Test-Path "$env:WINDIR\System32\config\systemprofile\OOA Command Center")) "nothing in the system account's profile"
+$p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/x `"$Msi`" /qn /l*v `"$Logs\uninstall-default.log`""
+Check ($p.ExitCode -eq 0) "removed again (exit $($p.ExitCode))"
 if ($failed -eq 0) { Write-Host "ALL PASSED" } else { Write-Host "$failed CHECK(S) FAILED; logs in $Logs" }
 exit $failed

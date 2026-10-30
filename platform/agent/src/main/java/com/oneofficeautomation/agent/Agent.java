@@ -18,7 +18,7 @@ import java.util.concurrent.*;
  * watches this machine for Command Center triggers (files and folders, windows, processes, services, hotkeys).
  */
 public final class Agent {
-    public static final String VERSION = "0.2.0";
+    public static final String VERSION = com.oneofficeautomation.sdk.BuildInfo.VERSION;
     private final Path configFile, workspace;
     private final Map<String, Object> config;
     private final AgentClient client;
@@ -67,7 +67,7 @@ public final class Agent {
             keptCa = configFile.resolveSibling("ca.cer");
             if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING);
         }
-        Network net = new Network(keptCa, proxy, proxyUser, proxyUser == null || proxyPassword == null ? null : Network.protect(proxyPassword));
+        Network net = new Network(keptCa, proxy, proxyUser, proxyUser == null || proxyPassword == null ? null : Network.protect(proxyPassword, configFile.toAbsolutePath().getParent()));
         Map<String, Object> r = new AgentClient(url, null, null, net).post("register",
                 Map.of("key", key, "name", name == null ? hostname() : name, "hostname", hostname(), "os", System.getProperty("os.name") + " " + System.getProperty("os.version"), "agent_version", VERSION));
         Map<String, Object> cfg = new LinkedHashMap<>();
@@ -80,6 +80,23 @@ public final class Agent {
         Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
         try { Files.setPosixFilePermissions(configFile, PosixFilePermissions.fromString("rw-------")); } catch (UnsupportedOperationException ignored) { /* Windows: user profile ACLs apply */ }
         return Map.of("device_id", r.get("device_id"), "name", r.get("name"), "config", configFile.toString());
+    }
+
+    /**
+     * The registration in {@code configFile} when it is for the Command Center at {@code url} and that Command Center
+     * still accepts it, else null: setup run again (an update or repair) keeps the runner instead of registering anew.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> existingRegistration(String url, Path configFile) {
+        try {
+            if (!Files.exists(configFile)) return null;
+            Map<String, Object> cfg = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
+            if (!url.replaceAll("/+$", "").equalsIgnoreCase(String.valueOf(cfg.get("url")))) return null;
+            new AgentClient(url, (String) cfg.get("device_id"), (String) cfg.get("secret"), Network.from(cfg)).post("heartbeat", Map.of("agent_version", VERSION, "diagnose", true));
+            return Map.of("device_id", cfg.get("device_id"), "name", String.valueOf(cfg.get("name")), "config", configFile.toString());
+        } catch (Exception e) {
+            return null;    // unreadable, deleted or disabled on the Command Center, or not reachable: register again
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -108,7 +125,7 @@ public final class Agent {
         Path keptCa = now.ca();
         if (ca != null) { keptCa = configFile.resolveSibling("ca.cer"); if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING); }
         String user = proxyUser == null ? now.proxyUser() : proxyUser.isBlank() ? null : proxyUser;
-        String pw = user == null ? null : proxyPassword != null ? Network.protect(proxyPassword) : now.proxyPassword();
+        String pw = user == null ? null : proxyPassword != null ? Network.protect(proxyPassword, configFile.toAbsolutePath().getParent()) : now.proxyPassword();
         Network next = new Network(keptCa, proxy == null ? now.proxy() : proxy, user, pw);
         next.into(cfg);
         Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);

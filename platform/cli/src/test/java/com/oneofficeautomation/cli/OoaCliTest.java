@@ -56,9 +56,13 @@ class OoaCliTest {
 
     @Test void wrongCommandLinesAreRefusedBeforeRunning() {
         assertThrows(CommandLine.UnmatchedArgumentException.class, () -> cli.parse("server", "--prot", "8720"));
-        assertThrows(CommandLine.MissingParameterException.class, () -> cli.parse("agent", "register", "--url", "https://cc:8720"));
+        assertThrows(CommandLine.MissingParameterException.class, () -> cli.parse("agent", "register", "--key", "ooareg_x"));
         assertThrows(CommandLine.ParameterException.class, () -> cli.parse("control-room", "--port", "eighty"));
         assertThrows(CommandLine.MissingParameterException.class, () -> cli.parse("run"));
+        String[] noKey = new String[1];
+        java.nio.file.Path conf = java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "ooa-cli-nokey-" + System.nanoTime(), "agent.json");
+        assertEquals(2, capture(() -> cli.execute("agent", "register", "--url", "http://127.0.0.1:1", "--keep-existing", "--config", conf.toString()), noKey));
+        assertTrue(noKey[0].contains("CLI.BAD_INPUT") && noKey[0].contains("registration key"), noKey[0]);
         String[] err = new String[1];
         assertEquals(1, capture(() -> cli.execute("tls", "configure"), err));
         assertTrue(err[0].contains("--pfx"), err[0]);
@@ -75,6 +79,19 @@ class OoaCliTest {
         assertTrue(out[0].startsWith("ONEOFFICEAUTOMATION "), out[0]);
         assertEquals(0, capture(() -> cli.execute("completion"), out));
         assertTrue(out[0].contains("complete -F") && out[0].contains("set-password"), "a bash completion script");
+    }
+
+    /** ooa run reads Credential inputs from OOA_SECRET_... variables (none is set here), as Agent Studio does. */
+    @Test void runReadsCredentialsFromTheEnvironment() throws Exception {
+        java.nio.file.Path flow = java.nio.file.Files.createTempFile("ooa-cred", ".flow.json");
+        java.nio.file.Files.writeString(flow, """
+                {"kind": "TaskBot", "id": "cred_check", "name": "Credential check",
+                 "variables": [{"name": "password", "type": "Credential", "direction": "input", "required": true}],
+                 "steps": [{"id": "s1", "action": "core/comment", "args": {"text": "nothing"}}]}
+                """);
+        String[] out = new String[1];
+        assertEquals(2, capture(() -> cli.execute("run", flow.toString(), "-i", "password={\"$credential\": \"ooa-cli-test/none/password\"}"), out));
+        assertTrue(out[0].contains("VAULT.NOT_FOUND") && out[0].contains("OOA_SECRET_OOA_CLI_TEST_NONE_PASSWORD"), out[0]);
     }
 
     /** Colours in the help, when the test runs where picocli thinks there is a terminal. */

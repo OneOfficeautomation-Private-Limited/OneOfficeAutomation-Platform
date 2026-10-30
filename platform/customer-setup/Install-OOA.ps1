@@ -9,7 +9,11 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   Command Center:
   -Service                     run it as a Windows service that starts with Windows (needs administrator)
   -Port N                      its port (default 8720)
-  -DataDir DIR                 its data folder (default: as the product chooses)
+  -ListenAddress ADDR          the address the service listens on (default 0.0.0.0, every network card, so runners on
+                               other machines reach it; 127.0.0.1 for this computer only). Set up HTTPS (bin\ooa.bat tls)
+                               before other machines use it.
+  -DataDir DIR                 its data folder (default: as the product chooses; for the MSI, which runs as the system
+                               account, %ProgramData%\OneOfficeAutomation\Command Center)
   -DbServer NAME               put its data on this SQL Server (host or host\instance); default: the built-in evaluation
                                database. With it: -DbName (ooa_command_center), -DbUser (ooa_app), -DbSetupUser (ooa_setup),
                                -DbPasswordEnv VAR and -DbSetupPasswordEnv VAR (environment variables holding the passwords;
@@ -17,7 +21,8 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -SkipCheck                   install even when the prerequisite check (ooa check) finds a problem
   Runner:
   -Url URL                     the Command Center address, for example https://ooa.example.com:8720
-  -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner
+  -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner (not needed
+                               when setup runs again on a registered runner: it keeps its registration)
   -RunnerName NAME             the runner's name in Command Center (default: the computer name)
   -CaFile FILE                 the Command Center certificate to trust (for a self-signed one)
   -Proxy system|none|URL       how the runner reaches the Command Center (default system: the Windows proxy)
@@ -39,6 +44,7 @@ param(
     [switch]$Silent,
     [switch]$Service,
     [int]$Port = 8720,
+    [string]$ListenAddress = "",
     [string]$DataDir = "",
     [string]$Url = "",
     [string]$RegistrationKey = "",
@@ -89,11 +95,14 @@ if ($ConfigureOnly) {
     $InstallDir = $source
     # the MSI runs this as the system account: a runner it sets up is a Windows service (there is no user to sign in)
     if ($Role -eq "Runner") { $Service = [switch]::Present }
+    # ...whose profile folder is under C:\Windows\System32: keep the Command Center's data in ProgramData instead
+    if ($Role -eq "CommandCenter" -and -not $DataDir) { $DataDir = Join-Path $env:ProgramData "OneOfficeAutomation\Command Center" }
 } else { $InstallDir = Ask "Install folder" $InstallDir }
 if ($Role -eq "Runner") {
     $Url = Ask "Command Center address (for example https://ooa.example.com:8720)" $Url
-    $RegistrationKey = Ask "Registration key (Command Center > Runners > Register a runner)" $RegistrationKey
-    if (-not $Url -or -not $RegistrationKey) { Fail 1 "A runner needs -Url and -RegistrationKey." }
+    # setup run again on a registered runner (an update or repair) keeps its registration: no key is needed then
+    $RegistrationKey = Ask "Registration key (Command Center > Runners > Register a runner; empty keeps this computer's registration)" $RegistrationKey
+    if (-not $Url) { Fail 1 "A runner needs -Url (and -RegistrationKey the first time)." }
     if ($Url -notmatch '^https?://') { Fail 1 "-Url starts with https:// or http://" }
     if ($CaFile -and -not (Test-Path $CaFile)) { Fail 1 "No such certificate file: $CaFile" }
 }
@@ -187,22 +196,34 @@ if ($Role -eq "CommandCenter") {
     } elseif ((Test-Path (Join-Path $(if ($DataDir) { $DataDir } else { Join-Path $env:USERPROFILE "OOA Command Center" }) "config\ooa-db.properties")) -and ((Ooa (@("db", "migrate") + $dataArgs)) -ne 0)) {
         Log "Warning: the database could not be upgraded now; the server upgrades it at its next start, or run: bin\ooa.bat db migrate"
     }
-    if ($Service) {
-        $a = @("service", "install", "--mode", "server", "--port", "$Port")
+    if ($Service -and (Get-Service -Name "OOA Command Center" -ErrorAction SilentlyContinue)) {
+        # an update (or the MSI run again with ROLE): the service is there already and keeps its settings
+        Log "The service 'OOA Command Center' exists already; it keeps its settings. To change them: bin\ooa.bat service uninstall, then install again."
+    } elseif ($Service) {
+        if (-not $ListenAddress) { $ListenAddress = "0.0.0.0" }
+        $a = @("service", "install", "--mode", "server", "--port", "$Port", "--host", $ListenAddress)
         if ($DataDir) { $a += @("--data", $DataDir) }
         if ($NoStart) { $a += "--no-start" }
         if ((Ooa $a) -ne 0) { Fail 2 "The Windows service could not be installed (see $log)." }
+        if ($ListenAddress -notin @("127.0.0.1", "localhost")) {
+            Log "The service listens on $ListenAddress, port $Port, so other machines can reach it. Set up HTTPS before they do: bin\ooa.bat tls (see docs\infrastructure\04-network-ports-proxies-and-certificates.md)."
+        }
     }
     Log "Command Center installed. $(if ($Service) { "It runs as the Windows service 'OOA Command Center' on port $Port." } else { "Start it from the Start menu (ONEOFFICEAUTOMATION) or with START-OOA.cmd." })"
 } else {
-    $a = @("agent", "register", "--url", $Url, "--key", $RegistrationKey)
+    $a = @("agent", "register", "--url", $Url, "--keep-existing")
+    if ($RegistrationKey) { $a += @("--key", $RegistrationKey) }
     if ($RunnerName) { $a += @("--name", $RunnerName) }
     if ($CaFile) { $a += @("--ca", (Resolve-Path $CaFile).Path) }
     if ($Proxy) { $a += @("--proxy", $Proxy) }
-    if ((Ooa $a) -ne 0) { Fail 2 "The runner could not register with $Url (see $log). Check the address and that the key is unused and not expired." }
+    if ((Ooa $a) -ne 0) { Fail 2 "The runner could not register with $Url (see $log). Check the address, and give a registration key that is unused and not expired." }
     if ($Service) {
-        $a = @("service", "install", "--mode", "agent"); if ($NoStart) { $a += "--no-start" }
-        if ((Ooa $a) -ne 0) { Fail 2 "The runner service could not be installed (see $log)." }
+        if (Get-Service -Name "OOA Runner" -ErrorAction SilentlyContinue) {
+            Log "The service 'OOA Runner' exists already; it keeps its settings."
+        } else {
+            $a = @("service", "install", "--mode", "agent"); if ($NoStart) { $a += "--no-start" }
+            if ((Ooa $a) -ne 0) { Fail 2 "The runner service could not be installed (see $log)." }
+        }
     } else {
         if ((Ooa @("agent", "install-task")) -ne 0) { Fail 2 "The runner could not be set to start at sign-in (see $log)." }
         if (-not $NoStart) { try { Start-ScheduledTask -TaskName "OOA Runner"; Log "Runner started." } catch { Log "Warning: start the runner by signing out and in again ($($_.Exception.Message))" } }

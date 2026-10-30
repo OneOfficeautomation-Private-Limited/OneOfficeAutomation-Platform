@@ -1,9 +1,11 @@
-// ONEOFFICEAUTOMATION Browser Connector: background service worker.
+// ONEOFFICEAUTOMATION Browser Connector: background service worker (Edge, Chrome), or background script (Firefox:
+// manifest.firefox.json, which has no debugger interface; see FIREFOX below).
 // Talks to the native-messaging host (com.oneofficeautomation.bridge), which relays requests from agents and Agent
 // Studio. Tab and window work happens here; element work is passed to the content script of the right frame.
 
 const HOST = "com.oneofficeautomation.bridge";
-const BROWSER = (navigator.userAgentData && navigator.userAgentData.brands || []).some((b) => /Edge/i.test(b.brand)) ? "edge"
+const FIREFOX = /Firefox\//.test(navigator.userAgent);
+const BROWSER = FIREFOX ? "firefox" : (navigator.userAgentData && navigator.userAgentData.brands || []).some((b) => /Edge/i.test(b.brand)) ? "edge"
   : /Edg\//.test(navigator.userAgent) ? "edge" : "chrome";
 let port = null;
 let status = { connected: false, error: null, since: null };
@@ -13,13 +15,28 @@ function connect() {
   try {
     port = chrome.runtime.connectNative(HOST);
   } catch (e) { status = { connected: false, error: String(e), since: Date.now() }; return; }
-  status = { connected: true, error: null, since: Date.now() };
+  // connected once the host is still there a moment later: a host that cannot start disconnects at once
+  const mine = port;
+  status = { connected: false, error: "Starting the connector on this computer...", since: Date.now() };
+  setTimeout(() => { if (port === mine) status = { connected: true, error: null, since: Date.now() }; }, 2000);
   port.onMessage.addListener(onRequest);
-  port.onDisconnect.addListener(() => {
-    status = { connected: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : "Disconnected", since: Date.now() };
+  port.onDisconnect.addListener((p) => {
+    // Chrome and Edge give the reason in runtime.lastError, Firefox in the port's error
+    const why = (p && p.error && p.error.message) || (chrome.runtime.lastError && chrome.runtime.lastError.message) || "Disconnected";
+    status = { connected: false, error: why, since: Date.now() };
     port = null;
   });
   send({ event: "hello", browser: BROWSER, version: chrome.runtime.getManifest().version });
+}
+
+/**
+ * scripting.executeScript that fails when the script fails. Chrome and Edge reject the call; Firefox resolves it and
+ * puts the error in the result's error, which would otherwise read as an empty result.
+ */
+async function executeScript(details) {
+  const results = await chrome.scripting.executeScript(details);
+  for (const r of results || []) if (r && r.error) throw (r.error instanceof Error ? r.error : new Error((r.error && r.error.message) || String(r.error)));
+  return results;
 }
 
 function send(msg) { if (port) { try { port.postMessage(msg); } catch (e) { /* reconnect on the next alarm */ } } }
@@ -36,8 +53,8 @@ async function injectIntoOpenTabs() {
   for (const t of await chrome.tabs.query({})) {
     if (!/^(https?|file):/.test(t.url || "")) continue;
     try {
-      const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => !!window.__ooaContent });
-      if (!result) await chrome.scripting.executeScript({ target: { tabId: t.id, allFrames: true }, files: ["ooa-page.js", "content.js"] });
+      const [{ result }] = await executeScript({ target: { tabId: t.id }, func: () => !!window.__ooaContent });
+      if (!result) await executeScript({ target: { tabId: t.id, allFrames: true }, files: ["ooa-page.js", "content.js"] });
     } catch (e) { /* pages the browser protects */ }
   }
 }
@@ -73,7 +90,7 @@ async function toFrames(tabId, msg) {
   try { return await chrome.tabs.sendMessage(tabId, msg); }
   catch (e) {
     // the page was loaded before the extension: add the scripts and try once more
-    await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["ooa-page.js", "content.js"] }).catch(() => {});
+    await executeScript({ target: { tabId, allFrames: true }, files: ["ooa-page.js", "content.js"] }).catch(() => {});
     return chrome.tabs.sendMessage(tabId, msg);
   }
 }
@@ -94,6 +111,8 @@ async function visibleTab(windowId) {
  * "being debugged" bar for a moment). Returns a data URL like captureVisibleTab.
  */
 async function renderedTab(tabId) {
+  // Firefox: tabs.captureTab pictures any tab, shown or not
+  if (FIREFOX) return browser.tabs.captureTab(tabId, { format: "png" });
   const target = { tabId };
   await chrome.debugger.attach(target, "1.3");
   try {
@@ -106,25 +125,44 @@ async function tabPicture(tab) {
   try { return await visibleTab(tab.windowId); } catch (e) { return renderedTab(tab.id); }
 }
 
+async function toBase64(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+async function tabBitmap(tab) { return createImageBitmap(await (await fetch(await tabPicture(tab))).blob()); }
+
 /** Element screenshot: the visible tab, cut to the element's rectangle. */
-async function crop(tab, rect, ratio) {
-  const url = await tabPicture(tab);
-  const blob = await (await fetch(url)).blob();
-  const bmp = await createImageBitmap(blob);
+async function crop(tab, rect, ratio) { return cropOf(await tabBitmap(tab), rect, ratio); }
+
+/**
+ * A picked or recorded element's pictures, from one picture of the tab: the element, and the whole tab with where the
+ * element sits in it (a JPEG at most 960 px wide, the box as fractions), as AA shows a capture.
+ */
+async function shots(tab, rect, ratio) {
+  const bmp = await tabBitmap(tab);
+  const r = ratio || 1, k = Math.min(1, 960 / bmp.width);
+  const canvas = new OffscreenCanvas(Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k)));
+  canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const frac = (v) => Math.round(Math.max(0, Math.min(1, v)) * 10000) / 10000;
+  return { screenshot: await cropOf(bmp, rect, ratio), window_shot: { image: await toBase64(await canvas.convertToBlob({ type: "image/jpeg", quality: 0.7 })),
+    left: frac(rect.x * r / bmp.width), top: frac(rect.y * r / bmp.height), width: frac(rect.width * r / bmp.width), height: frac(rect.height * r / bmp.height) } };
+}
+
+async function cropOf(bmp, rect, ratio) {
   const r = ratio || 1, pad = 4;
   const x = Math.max(0, Math.floor((rect.x - pad) * r)), y = Math.max(0, Math.floor((rect.y - pad) * r));
   const w = Math.min(bmp.width - x, Math.ceil((rect.width + 2 * pad) * r)), h = Math.min(bmp.height - y, Math.ceil((rect.height + 2 * pad) * r));
   if (w < 2 || h < 2) return null;
   const canvas = new OffscreenCanvas(Math.min(w, 1200), Math.min(h, 600));
   canvas.getContext("2d").drawImage(bmp, x, y, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
-  const out = await canvas.convertToBlob({ type: "image/png" });
-  const bytes = new Uint8Array(await out.arrayBuffer());
-  let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
+  return toBase64(await canvas.convertToBlob({ type: "image/png" }));
 }
 
 /** run_js for pages with a strict content security policy: Runtime.evaluate through the debugger protocol. */
 async function runJsByDebugger(tabId, code, args) {
+  if (FIREFOX) throw new Error("This page's security policy blocks scripts, and Firefox has no other way in: run this step in Edge or Chrome");
   const target = { tabId };
   await chrome.debugger.attach(target, "1.3");
   try {
@@ -156,7 +194,7 @@ const OPS = {
   async navigate(a) { const t = await findTab(a); await chrome.tabs.update(t.id, { url: a.url }); await settled(t.id, a.timeout_ms || 60000); return tabRow(await chrome.tabs.get(t.id)); },
   async back(a) {
     const t = await findTab(a);
-    const [{ result: len }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => history.length });
+    const [{ result: len }] = await executeScript({ target: { tabId: t.id }, func: () => history.length });
     const steps = Math.max(1, Number(a.steps || 1));
     if (a.strict && steps >= len) throw new Error("The tab's history has only " + (len - 1) + " page(s) to go back to");
     for (let i = 0; i < steps; i++) { await chrome.tabs.goBack(t.id).catch(() => {}); await settled(t.id, 15000); }
@@ -178,7 +216,7 @@ const OPS = {
   async run_js(a) {
     const t = await findTab(a);
     try {
-      const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id, frameIds: a.frame_id != null ? [a.frame_id] : undefined }, world: "MAIN",
+      const [{ result }] = await executeScript({ target: { tabId: t.id, frameIds: a.frame_id != null ? [a.frame_id] : undefined }, world: "MAIN",
         func: (code, args) => {
           // An expression ("document.title"), a function ("() => ...") or statements with return.
           let fn;
@@ -198,7 +236,7 @@ const OPS = {
   },
   async call_function(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, world: "MAIN",
+    const [{ result }] = await executeScript({ target: { tabId: t.id }, world: "MAIN",
       func: (name, args) => {
         const f = name.split(".").reduce((o, k) => (o == null ? o : o[k]), window);
         if (typeof f !== "function") throw new Error("The page has no function " + name);
@@ -208,14 +246,14 @@ const OPS = {
   },
   async page_source(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => "<!DOCTYPE html>\n" + document.documentElement.outerHTML });
+    const [{ result }] = await executeScript({ target: { tabId: t.id }, func: () => "<!DOCTYPE html>\n" + document.documentElement.outerHTML });
     return result;
   },
   async info(a) { return tabRow(await findTab(a)); },
   /** Links on the page (no page script needed, so strict pages work too). */
   async links(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => ({ url: location.href, links: Array.from(document.querySelectorAll("a[href], area[href]")).map((x) => x.href) }) });
+    const [{ result }] = await executeScript({ target: { tabId: t.id }, func: () => ({ url: location.href, links: Array.from(document.querySelectorAll("a[href], area[href]")).map((x) => x.href) }) });
     return result;
   },
   /** Clicks the element that starts a download and waits for the file; returns where the browser saved it. */
@@ -258,7 +296,7 @@ const OPS = {
   async pick_cancel(a) { const t = await findTab(a); await toFrames(t.id, { ooa: "pick", on: false }); return true; },
   async record(a) {
     const t = await findTab(a);
-    await chrome.storage.session.set({ recording: { tab_id: t.id, token: a.token } });
+    await chrome.storage.session.set({ recording: { tab_id: t.id, token: a.token, page: { title: t.title, url: t.url } } });
     await chrome.tabs.update(t.id, { active: true }); await chrome.windows.update(t.windowId, { focused: true });
     await toFrames(t.id, { ooa: "record", on: true, token: a.token });
     return { tab_id: t.id };
@@ -279,21 +317,41 @@ async function onRequest(msg) {
   catch (e) { send({ id: msg.id, ok: false, code: e.code || "EXT.FAILED", error: String(e && e.message || e) }); }
 }
 
-// Events from content scripts: a picked element, recorded steps, the recording being stopped on the page.
+// Events from content scripts: a picked element, recorded steps, the recording being stopped on the page. A picked
+// element and each recorded step (in the top frame) get pictures (the element, the whole tab); events go out one after
+// another, in the order they happened, while pictures are taken.
+let events = Promise.resolve();
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.ooa === "status") { reply({ ...status, browser: BROWSER }); return; }
   if (!msg || !msg.event || !sender.tab) return;
-  (async () => {
-    const ev = Object.assign({}, msg, { tab_id: sender.tab.id, window_id: sender.tab.windowId, frame_id: sender.frameId, browser: BROWSER });
-    if (msg.event === "picked" && msg.rect && sender.frameId === 0) {
-      ev.screenshot = await crop(sender.tab, msg.rect, msg.ratio).catch(() => null);
-    }
-    send(ev);
-  })();
+  const ev = Object.assign({}, msg, { tab_id: sender.tab.id, window_id: sender.tab.windowId, frame_id: sender.frameId, browser: BROWSER });
+  const shot = (msg.event === "picked" || msg.event === "recorded") && msg.rect && sender.frameId === 0 ? shots(sender.tab, msg.rect, msg.ratio)
+    // the browser allows two pictures a second: typing ends as the next click starts, so the second one may wait
+    .catch(() => new Promise((r) => setTimeout(r, 600)).then(() => shots(sender.tab, msg.rect, msg.ratio))).catch(() => null) : null;
+  events = events.then(async () => { if (shot) Object.assign(ev, await shot); send(ev); }).catch(() => {});
+});
+
+// An address typed in the address bar (or a bookmark) while recording is a step of its own, naming the page it left;
+// links and forms are recorded by their click or key.
+chrome.webNavigation.onCommitted.addListener(async (d) => {
+  if (d.frameId !== 0) return;
+  const { recording } = await chrome.storage.session.get("recording");
+  if (!recording || recording.tab_id !== d.tabId) return;
+  const q = d.transitionQualifiers || [], left = recording.page || {};
+  const typed = (/^(typed|auto_bookmark|generated|keyword|keyword_generated)$/.test(d.transitionType) || q.includes("from_address_bar")) && !q.includes("forward_back");
+  if (typed && d.url !== left.url) {
+    const ev = { event: "recorded", token: recording.token, kind: "navigate", url: d.url, page: left, tab_id: d.tabId, browser: BROWSER };
+    events = events.then(() => send(ev)).catch(() => {});
+  }
+  await chrome.storage.session.set({ recording: { ...recording, page: { title: left.title, url: d.url } } });
 });
 
 // A recording follows the tab across page loads: new pages in it start recording again.
 chrome.webNavigation.onCompleted.addListener(async (d) => {
   const { recording } = await chrome.storage.session.get("recording");
-  if (recording && recording.tab_id === d.tabId) chrome.tabs.sendMessage(d.tabId, { ooa: "record", on: true, token: recording.token }, { frameId: d.frameId }).catch(() => {});
+  if (!recording || recording.tab_id !== d.tabId) return;
+  chrome.tabs.sendMessage(d.tabId, { ooa: "record", on: true, token: recording.token }, { frameId: d.frameId }).catch(() => {});
+  // the page now shown: an address typed later names it as the page it left
+  const t = d.frameId === 0 ? await chrome.tabs.get(d.tabId).catch(() => null) : null;
+  if (t) await chrome.storage.session.set({ recording: { ...recording, page: { title: t.title, url: t.url } } });
 });

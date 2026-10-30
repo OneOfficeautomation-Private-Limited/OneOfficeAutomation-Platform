@@ -17,7 +17,7 @@ import java.util.Locale;
  * on-premises install (no tenant) everything is allowed, as before.
  * <p>
  * The name is resolved here and again when connecting, so the region's network must also block those ranges for the
- * Command Center's outgoing traffic (docs/SAAS.md); this check gives the tenant a clear message first.
+ * Command Center's outgoing traffic (docs/infrastructure/09-saas-and-multi-region-operations.md); this check gives the tenant a clear message first.
  */
 final class NetGuard {
     private NetGuard() { }

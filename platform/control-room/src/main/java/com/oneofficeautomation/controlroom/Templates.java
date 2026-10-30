@@ -37,7 +37,7 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class Templates {
     static final String FORMAT = "ooa-templates-1";
-    static final String DEFAULT_URL = "https://virupakshaprabhu.github.io/OOA_Customer_Build/templates.json";
+    static final String DEFAULT_URL = "https://oneofficeautomation-private-limited.github.io/OOA_Customer_Build/templates.json";
     static final int MAX_FEED_BYTES = 20 * 1024 * 1024;
     static final List<String> CATEGORIES = List.of("Finance", "Human resources", "Sales", "Customer service", "IT", "Operations", "Documents", "Other");
 
