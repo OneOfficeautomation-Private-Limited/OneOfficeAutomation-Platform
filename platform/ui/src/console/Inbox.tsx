@@ -122,7 +122,7 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
 }
 
 /** One field of a task form: text, multi-line, number, date, e-mail, drop-down, choice, tick box, heading or paragraph. */
-function FormField({ field: x, value, disabled, onChange }: { field: TaskFormField; value: unknown; disabled: boolean; onChange: (v: unknown) => void }) {
+export function FormField({ field: x, value, disabled, onChange }: { field: TaskFormField; value: unknown; disabled: boolean; onChange: (v: unknown) => void }) {
   if (x.type === "heading") return <h3 className="cc-log-title">{x.label}</h3>;
   if (x.type === "paragraph") return <p className="st-muted">{x.text}</p>;
   const label = (x.label || x.id) + (x.required ? " *" : "");

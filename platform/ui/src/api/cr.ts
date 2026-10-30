@@ -87,6 +87,11 @@ export type WorkItem = { id: string; reference?: string | null; status: string; 
   data: unknown; result?: unknown; error?: unknown; run_id?: string | null };
 /** The fields every item of a queue has (AA's work item template). */
 export type ItemModel = { id: string; name: string; description?: string | null; queues?: number; fields: { name: string; type: "text" | "number" | "boolean" | "date"; required?: boolean; display?: boolean }[] };
+/** A run of a workflow: its stage, data and the timeline of what happened. */
+export type WorkflowRun = { id: string; path: string; version: number; status: string; stage?: string | null; reference?: string | null; started_by?: string; created: string;
+  updated?: string; finished?: string | null; error?: { code?: string; message?: string } | null; data?: Record<string, unknown>;
+  history?: { event: string; stage?: string; ts: string; detail?: Record<string, unknown> | null }[];
+  tasks?: { id: string; stage?: string; kind: string; title: string; assignee?: string; status: string; claimed_by?: string | null; outcome?: string | null; created?: string; completed?: string | null }[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -293,6 +298,13 @@ export class CrApi {
   async itemModels() { return (await this.call<{ models?: ItemModel[] }>("GET", "queue-models")).models ?? []; }
   async saveItemModel(id: string | null, b: { name: string; description: string; fields: ItemModel["fields"] }) { await this.call(id ? "PUT" : "POST", "queue-models" + (id ? "/" + encodeURIComponent(id) : ""), b); }
   async deleteItemModel(id: string) { await this.call("DELETE", "queue-models/" + encodeURIComponent(id)); }
+  // ---- Workflows: processes chaining agents, people and decisions; their runs ----
+  async liveWorkflows() { return ((await this.call<{ bots?: { path: string; production_version?: number | null }[] }>("GET", "repo")).bots ?? []).filter((b) => b.production_version && b.path.endsWith(".process.json")); }
+  async workflowRuns(status?: string) { return (await this.call<{ runs?: WorkflowRun[] }>("GET", "workflows/runs" + (status ? "?status=" + encodeURIComponent(status) : ""))).runs ?? []; }
+  workflowRun(id: string) { return this.call<WorkflowRun>("GET", "workflows/runs/" + encodeURIComponent(id)); }
+  workflowForm(path: string) { return this.call<{ form?: { fields?: TaskFormField[] } | null }>("GET", "workflows/form?path=" + encodeURIComponent(path)); }
+  startWorkflow(path: string, data: Record<string, unknown>, reference: string | null) { return this.call<{ id: string; reference?: string }>("POST", "workflows/start", { path, data, reference }); }
+  async cancelWorkflow(id: string) { await this.call("POST", "workflows/runs/" + encodeURIComponent(id) + "/cancel"); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

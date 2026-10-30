@@ -58,7 +58,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     }
     if (route === "dashboard") return ok(dashboard);
     if (route === "plugins") return ok({ plugins });
-    if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json", production_version: 3 }, { path: "HR/Onboard.flow.json", production_version: 1 }] });
+    if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json", production_version: 3 }, { path: "HR/Onboard.flow.json", production_version: 1 },
+      { path: "Finance/Purchase approval.process.json", production_version: 2 }] });
     if (route === "devices" && init.method === "PATCH") return ok({ updated: (body.ids as string[]).length, changes: 1 });
     if (route === "devices") return ok({ devices: [
       { id: "d1", name: "Runner A", hostname: "PC-A", os: "Windows 11", enabled: true, status: "online", device_type: "single_user", lifespan: "persistent", log_level: "info",
@@ -93,6 +94,15 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "workflows/runs") return ok({ runs: [
+      { id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42", started_by: "vic", created: "2026-10-31T08:00:00Z", updated: "2026-10-31T08:01:00Z" },
+      { id: "w2", path: "Finance/Purchase approval.process.json", version: 2, status: "completed", stage: "Pay", reference: "PO-41", started_by: "vic", created: "2026-10-30T08:00:00Z", finished: "2026-10-30T09:00:00Z" }] });
+    if (route === "workflows/runs/w1") return ok({ id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42",
+      created: "2026-10-31T08:00:00Z", data: { amount: 1200 }, history: [{ event: "agent_finished", stage: "Check budget", ts: "2026-10-31T08:00:30Z" }, { event: "task_created", stage: "Manager approval", ts: "2026-10-31T08:01:00Z" }],
+      tasks: [{ id: "k1", stage: "Manager approval", kind: "approval", title: "Approve PO-42", assignee: "role:admin", status: "open" }] });
+    if (route === "workflows/runs/w1/cancel") return ok({ ok: true });
+    if (route === "workflows/form") return ok({ form: { fields: [{ id: "amount", type: "number", label: "Amount", required: true }] } });
+    if (route === "workflows/start") return ok({ id: "w1", reference: body.reference });
     if (route === "queues") return ok({ queues: [{ id: "q1", name: "Vendor invoices", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", max_attempts: 2, sla_minutes: 240,
       processing: false, counts: { new: 3, retry: 1, in_progress: 0, success: 10, failed: 2, review: 1 }, overdue: 1 }] });
     if (route === "queues/q1") return ok({ id: "q1", name: "Vendor invoices", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", max_attempts: 2, sla_minutes: 240, processing: false,
@@ -203,7 +213,7 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Workflow" }).getAttribute("href")).toBe("../?page=workflows");
+    expect(within(menu).getByRole("link", { name: "Connections" }).getAttribute("href")).toBe("../?page=savedconn");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -643,6 +653,29 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/i2/validate", body: { fields: { total: "125" } } }));
     await act(async () => { fireEvent.click(within(view).getByRole("button", { name: "Start processing" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/start" }));
+  });
+
+  it("shows Workflow as UiPath Maestro's instances: in progress and finished, a run's timeline and tasks, cancel, start with the start form", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Workflow" }));
+    const list = await screen.findByRole("table", { name: "Workflow runs in progress" });
+    expect(await within(list).findByText("Waiting for a person")).toBeTruthy();
+    expect(within(list).queryByText("PO-41")).toBeNull();
+    fireEvent.click(within(list).getByText("PO-42"));
+    const run = await screen.findByRole("dialog", { name: "Workflow run PO-42" });
+    expect(await within(run).findByText("Approve PO-42")).toBeTruthy();
+    expect(within(run).getByText("Task given")).toBeTruthy();
+    fireEvent.click(within(run).getByRole("button", { name: "Cancel run" }));
+    await act(async () => { fireEvent.click(within(run).getAllByRole("button", { name: "Cancel run" }).at(-1)!); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/runs/w1/cancel" }));
+    fireEvent.click(within(run).getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start a workflow" }));
+    const st = await screen.findByRole("dialog", { name: "Start a workflow" });
+    fireEvent.change(await within(st).findByLabelText("Amount *"), { target: { value: "500" } });
+    fireEvent.change(within(st).getByLabelText(/^Reference/), { target: { value: "PO-43" } });
+    await act(async () => { fireEvent.click(within(st).getByRole("button", { name: "Start" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/start", body: { path: "Finance/Purchase approval.process.json", data: { amount: 500 }, reference: "PO-43" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
