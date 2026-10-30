@@ -1431,7 +1431,8 @@ public final class BrowserPackage {
     }
 
     // ---------- Web recorder ----------
-    private static final String RECORDER_JS = """
+    // package-private for RecorderOutlineTest
+    static final String RECORDER_JS = """
         (() => {
           // a page recorded before (and left open) starts reporting again and gets its bar back
           if (window.__ooaRec) { window.__ooaRecOff = false; if (window.__ooaBar) window.__ooaBar(); return; }
@@ -1461,19 +1462,42 @@ public final class BrowserPackage {
             return parts.join(' > ');
           };
           const textInput = (t) => (t.tagName === 'TEXTAREA') || (t.tagName === 'INPUT' && !/^(checkbox|radio|submit|button|file|image|reset)$/.test(t.type));
+          // the element a click would record, outlined under the pointer (as Capture does); it turns green when recorded
+          const target = (el) => (el.closest && el.closest('button,a,input,select,textarea,[role=button],[onclick],label')) || el;
+          const box = () => {
+            let h = document.getElementById('__ooa_hl');
+            if (!h && document.body) {
+              h = document.createElement('div'); h.id = '__ooa_hl';
+              h.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #a371ed;background:rgba(163,113,237,.12);border-radius:3px;display:none';
+              document.body.appendChild(h);
+            }
+            return h;
+          };
+          // drawn at once on each move (not on an animation frame, which a covered window holds back); nothing over the
+          // page itself (html, body) or the bar
+          document.addEventListener('mousemove', (e) => {
+            const h = box(), over = e.target; if (!h) return;
+            if (window.__ooaRecOff || !over || over.nodeType !== 1 || over === document.documentElement || over === document.body || over.id === '__ooa_hl'
+                || (over.closest && over.closest('#__ooa_bar'))) { h.style.display = 'none'; return; }
+            const r = target(over).getBoundingClientRect();
+            Object.assign(h.style, { display: 'block', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+          }, true);
+          addEventListener('scroll', () => { const h = document.getElementById('__ooa_hl'); if (h) h.style.display = 'none'; }, true);
+          const flash = () => { const h = document.getElementById('__ooa_hl'); if (!h) return; h.style.borderColor = '#1d7a46'; setTimeout(() => { h.style.borderColor = '#a371ed'; }, 400); };
           document.addEventListener('click', (e) => {
             if (window.__ooaRecOff) return;
             if (e.target.closest && e.target.closest('#__ooa_bar')) return;
-            const t = (e.target.closest && e.target.closest('button,a,input,select,textarea,[role=button],[onclick],label')) || e.target;
+            const t = target(e.target);
             if (textInput(t) || t.tagName === 'SELECT') return;
             window.__ooaRecord(Object.assign({ kind: 'click', selector: sel(t), label: (t.innerText || t.value || '').trim().slice(0, 40) }, cap(t)));
+            flash();
           }, true);
           document.addEventListener('change', (e) => {
             if (window.__ooaRecOff) return;
             const t = e.target;
-            if (t.tagName === 'SELECT') window.__ooaRecord(Object.assign({ kind: 'select', selector: sel(t), value: t.value,
-              option: t.selectedIndex >= 0 ? (t.options[t.selectedIndex].text || '').trim() : null }, cap(t)));
-            else if (textInput(t)) window.__ooaRecord(Object.assign({ kind: 'type', selector: sel(t), value: t.type === 'password' ? null : t.value, password: t.type === 'password' }, cap(t)));
+            if (t.tagName === 'SELECT') { window.__ooaRecord(Object.assign({ kind: 'select', selector: sel(t), value: t.value,
+              option: t.selectedIndex >= 0 ? (t.options[t.selectedIndex].text || '').trim() : null }, cap(t))); flash(); }
+            else if (textInput(t)) { window.__ooaRecord(Object.assign({ kind: 'type', selector: sel(t), value: t.type === 'password' ? null : t.value, password: t.type === 'password' }, cap(t))); flash(); }
           }, true);
           const bar = () => {
             if (document.getElementById('__ooa_bar') || !document.body) return;
@@ -1605,7 +1629,7 @@ public final class BrowserPackage {
             }
             // the page stays as it is: the recording bar goes and the page stops reporting
             if (!page.isClosed()) for (Frame f : page.frames()) {
-                try { f.evaluate("() => { window.__ooaRecOff = true; const b = document.getElementById('__ooa_bar'); if (b) b.remove(); }"); } catch (PlaywrightException ignored) { }
+                try { f.evaluate("() => { window.__ooaRecOff = true; for (const id of ['__ooa_bar', '__ooa_hl']) { const b = document.getElementById(id); if (b) b.remove(); } }"); } catch (PlaywrightException ignored) { }
             }
         } catch (PlaywrightException e) { throw pw(e, "Recording"); }
         finally {

@@ -163,6 +163,34 @@ public class RecordBar : System.Windows.Forms.Form {
     }
     public void SetCount(int n) { count.Text = n + (n == 1 ? " step" : " steps"); }
     public bool Contains(int x, int y) { return Bounds.Contains(x, y); }
+
+    // the control under the pointer, framed in red as desktop Capture does (click-through, never takes the focus);
+    // green for a moment when a step is recorded
+    readonly Frame[] edges = new Frame[4];
+    protected override void OnShown(EventArgs e) {
+        base.OnShown(e);
+        for (int i = 0; i < 4; i++) { edges[i] = new Frame(); edges[i].Bounds = new System.Drawing.Rectangle(-10, -10, 1, 1); edges[i].Show(); }
+    }
+    protected override void OnFormClosed(System.Windows.Forms.FormClosedEventArgs e) {
+        foreach (Frame f in edges) if (f != null) f.Close();
+        base.OnFormClosed(e);
+    }
+    public void Outline(System.Drawing.Rectangle r) {
+        if (edges[0] == null) return;
+        if (r.IsEmpty) { foreach (Frame f in edges) f.Bounds = new System.Drawing.Rectangle(-10, -10, 1, 1); return; }
+        int t = 2, x = r.X, y = r.Y, w = Math.Max(1, r.Width), h = Math.Max(1, r.Height);
+        edges[0].Bounds = new System.Drawing.Rectangle(x - t, y - t, w + 2 * t, t);
+        edges[1].Bounds = new System.Drawing.Rectangle(x - t, y + h, w + 2 * t, t);
+        edges[2].Bounds = new System.Drawing.Rectangle(x - t, y, t, h);
+        edges[3].Bounds = new System.Drawing.Rectangle(x + w, y, t, h);
+    }
+    public void Flash() {
+        if (edges[0] == null) return;
+        foreach (Frame f in edges) f.BackColor = System.Drawing.Color.FromArgb(29, 122, 70);
+        System.Windows.Forms.Timer back = new System.Windows.Forms.Timer { Interval = 400 };
+        back.Tick += (o, e) => { back.Stop(); back.Dispose(); foreach (Frame f in edges) f.BackColor = System.Drawing.Color.Red; };
+        back.Start();
+    }
 }
 
 public static class Bridge {
@@ -906,7 +934,9 @@ public static class Bridge {
         ui.IsBackground = true;
         ui.Start();
         shown.WaitOne(10000);
-        Action<int> setCount = n => { try { bar.BeginInvoke((Action)(() => bar.SetCount(n))); } catch (Exception) { } };
+        Action<int> setCount = n => { try { bar.BeginInvoke((Action)(() => { bar.SetCount(n); bar.Flash(); })); } catch (Exception) { } };
+        Action<System.Drawing.Rectangle> outline = r => { try { bar.BeginInvoke((Action)(() => bar.Outline(r))); } catch (Exception) { } };
+        DateTime nextHover = DateTime.MinValue; string lastRect = null; int me = Process.GetCurrentProcess().Id;
 
         AutomationElement typingIn = null; Dictionary<string, object> typingCapture = null;
         Dictionary<string, object> lastClick = null; Click last = default(Click);
@@ -954,6 +984,25 @@ public static class Bridge {
                     } catch (Exception) { }
                 }
                 if (KeyFlush) { KeyFlush = false; Thread.Sleep(80); flushTyping(); }
+                if (DateTime.UtcNow >= nextHover) {
+                    // the frame follows the pointer over the recorded application only (nothing over other windows or the bar)
+                    nextHover = DateTime.UtcNow.AddMilliseconds(150);
+                    Native.POINT pt; Native.GetCursorPos(out pt);
+                    System.Drawing.Rectangle r = System.Drawing.Rectangle.Empty;
+                    try {
+                        if (!bar.Contains(pt.X, pt.Y)) {
+                            AutomationElement under = AutomationElement.FromPoint(new System.Windows.Point(pt.X, pt.Y));
+                            int pid = under.Current.ProcessId;
+                            if (pid == me) continue;   // the frame itself: keep it where it is
+                            if (pids == null || pids.Contains(pid)) {
+                                System.Windows.Rect b = under.Current.BoundingRectangle;
+                                if (!b.IsEmpty) r = new System.Drawing.Rectangle((int)b.X, (int)b.Y, (int)b.Width, (int)b.Height);
+                            }
+                        }
+                    } catch (Exception) { }
+                    string key = r.ToString();
+                    if (key != lastRect) { lastRect = key; outline(r); }
+                }
                 if (!has) Thread.Sleep(20);
             }
             flushTyping();

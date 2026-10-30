@@ -310,10 +310,26 @@
   const textInput = (t) => t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && !/^(checkbox|radio|submit|button|file|image|reset)$/.test(t.type)) || t.isContentEditable;
   function recordOn(token) {
     if (rec) return;
-    const send = (kind, t, extra) => chrome.runtime.sendMessage(Object.assign({ event: "recorded", token, kind }, pickData(t), extra || {}));
+    // the element a click would record, outlined under the pointer as Capture does; it turns green when recorded
+    const { box } = overlay();
+    const target = (el) => (el.closest && el.closest("button,a,input,select,textarea,[role=button],[onclick],label")) || el;
+    // drawn at once on each move (an animation frame waits while the window is covered); nothing over html, body or the bar
+    const move = (e) => {
+      const over = e.target;
+      if (!over || over.nodeType !== 1 || over === box || over === document.documentElement || over === document.body || (over.closest && over.closest("#__ooa_rec_bar"))) { box.style.display = "none"; return; }
+      const r = target(over).getBoundingClientRect();
+      Object.assign(box.style, { display: "block", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+    };
+    const scroll = () => { box.style.display = "none"; };
+    document.documentElement.append(box);
+    document.addEventListener("mousemove", move, true); addEventListener("scroll", scroll, true);
+    const send = (kind, t, extra) => {
+      chrome.runtime.sendMessage(Object.assign({ event: "recorded", token, kind }, pickData(t), extra || {}));
+      box.style.borderColor = "#1d7a46"; setTimeout(() => { box.style.borderColor = "#a371ed"; }, 400);
+    };
     const click = (e) => {
       if (e.target.closest && e.target.closest("#__ooa_rec_bar")) return;
-      const t = (e.target.closest && e.target.closest("button,a,input,select,textarea,[role=button],[onclick],label")) || e.target;
+      const t = target(e.target);
       if (textInput(t) || t.tagName === "SELECT") return;
       send("click", t, { label: (t.innerText || t.value || "").trim().slice(0, 40), checked: t.checked });
     };
@@ -334,11 +350,13 @@
       stop.onclick = () => chrome.runtime.sendMessage({ event: "record_stopped", token });
       bar.append(dot, label, stop); document.documentElement.append(bar);
     }
-    rec = { click, change, bar };
+    rec = { click, change, bar, box, move, scroll };
   }
   function recordOff() {
     if (!rec) return;
     document.removeEventListener("click", rec.click, true); document.removeEventListener("change", rec.change, true);
+    document.removeEventListener("mousemove", rec.move, true); removeEventListener("scroll", rec.scroll, true);
+    rec.box.remove();
     if (rec.bar) rec.bar.remove();
     rec = null;
   }
