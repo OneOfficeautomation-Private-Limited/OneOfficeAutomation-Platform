@@ -21,9 +21,9 @@ function restoreWorkspace() {
 }
 
 (async () => {
-  const dom = new JSDOM(fs.readFileSync(S + "/index.html", "utf8").replace('<script src="studio.js"></script>', ""), { url: BASE + "/", runScripts: "dangerously", pretendToBeVisual: true });
+  const dom = new JSDOM(fs.readFileSync(S + "/index.html", "utf8").replace('<script src="studio.js"></script>', ""), { url: BASE + "/classic/", runScripts: "dangerously", pretendToBeVisual: true });
   const w = dom.window, d = w.document;
-  w.fetch = (u, o) => fetch(new URL(u, BASE), o);
+  w.fetch = (u, o) => fetch(new URL(u, BASE + "/classic/"), o);   // Classic Studio is at /classic/ since the new Studio became the default
   w.CSS = w.CSS || {}; w.CSS.escape = w.CSS.escape || ((s) => s);
   w.HTMLElement.prototype.scrollIntoView = () => {};
   const answers = [];
@@ -52,7 +52,7 @@ function restoreWorkspace() {
   click(d.getElementById("btn-fold-groups"));
   // ---- branding and explorer ----
   check("logo shown in header", d.querySelector(".topbar img.logo").getAttribute("src") === "logo-mark.png");
-  const logoRes = await fetch(BASE + "/logo-mark.png");
+  const logoRes = await fetch(BASE + "/classic/logo-mark.png");
   check("logo served as PNG", logoRes.status === 200 && logoRes.headers.get("content-type") === "image/png");
   check("explorer shows seeded workspace", await until(() => node("Examples") && node("My Agents") && node("data")));
   check("welcome screen until a bot is opened", !d.getElementById("welcome").hidden);
