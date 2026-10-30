@@ -49,7 +49,7 @@ The details are in [research/use-case-gaps.md](research/use-case-gaps.md).
 | --- | --- |
 | O23 | The use-case samples still use the long forms (Assign for counters, Replace + `toNumber`, Read text + Parse). Switch them to Number Increment, Text to number, Read JSON file and Extract text |
 | O25 / F2 | Excel: SharePoint and OneDrive paths |
-| O11 | Desktop objects still give the window title in each step; a window chosen once and reused is missing (Window commands now take a process id) |
+| O11 | **Done 2026-10-30**: a desktop capture or recording puts the window in a numbered window variable (`$Window_1`), shared by every step in that window |
 | Sessions | Excel and Word steps should fill in the open session by themselves, instead of custom session names |
 | AA side | 9 of 16 web cases pass with Capture in AA. P2–P6, W4 and W9 fail on AA limits (id-only DOM XPaths, tables, off-screen elements, password boxes). A real recording of the failing elements would finish them |
 
