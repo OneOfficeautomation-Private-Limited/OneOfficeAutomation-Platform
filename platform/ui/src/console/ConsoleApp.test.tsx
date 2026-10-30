@@ -94,6 +94,11 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "saved-connections") return ok({ connections: [{ name: "SNOW prod", package: "servicenow", description: "Incidents", values: { instance_url: "https://acme.service-now.com" },
+      credentials: { password: "snow/api/password" }, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
+    if (route === "connection-kinds") return ok({ kinds: [{ package: "servicenow", name: "ServiceNow", inputs: [{ name: "instance_url" }, { name: "username" }, { name: "password", credential: true }] },
+      { package: "salesforce", name: "Salesforce", inputs: [{ name: "domain" }, { name: "token", credential: true }] }] });
+    if (/^saved-connections\//.test(route)) return ok({ ok: true });
     if (route === "globals") return ok({ globals: [
       { name: "reports_folder", value: "D:/Reports", changeable: true, my_value: "C:/Mine", updated: "2026-10-30T08:00:00Z", updated_by: "admin" },
       { name: "max_amount", value: 1000, changeable: false, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
@@ -217,7 +222,7 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Connections" }).getAttribute("href")).toBe("../?page=savedconn");
+    expect(within(menu).getByRole("link", { name: "Agent ToolKits" }).getAttribute("href")).toBe("../?page=toolkits");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -703,6 +708,23 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(c).getByLabelText("Value"), { target: { value: "3" } });
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create value" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "globals/retries", body: { value: 3, changeable: false } }));
+  });
+
+  it("shows Connections with settings and vault references, and creates one by its toolkit's inputs", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Connections" }));
+    const list = await screen.findByRole("table", { name: "Connections list" });
+    expect(await within(list).findByText("password → snow/api/password")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create connection" }));
+    const c = await screen.findByRole("dialog", { name: "Create connection" });
+    fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "SF" } });
+    fireEvent.change(within(c).getByLabelText("Toolkit"), { target: { value: "salesforce" } });
+    fireEvent.change(within(c).getByLabelText("domain"), { target: { value: "acme.my.salesforce.com" } });
+    fireEvent.change(within(c).getByLabelText("token (vault reference)"), { target: { value: "sf/api/token" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create connection" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "saved-connections/SF",
+      body: { package: "salesforce", description: "", values: { domain: "acme.my.salesforce.com" }, credentials: { token: "sf/api/token" } } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

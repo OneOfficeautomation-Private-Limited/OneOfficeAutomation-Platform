@@ -5,6 +5,7 @@ import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { Activity } from "./Activity";
 import { Audit } from "./Audit";
+import { Connections } from "./Connections";
 import { Devices } from "./Devices";
 import { DocumentAutomation } from "./DocumentAutomation";
 import { Globals } from "./Globals";
@@ -22,7 +23,7 @@ import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "audit", "credentials", "devices", "docautomation", "globals", "inbox", "licenses", "queues", "roles", "schedules", "settings", "teams", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["activity", "audit", "credentials", "devices", "docautomation", "globals", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "teams", "triggers", "workflows", "users"]);
 /** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -95,6 +96,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "queues" && <Queues api={api} user={user} onNotice={setNotice} />}
           {page === "workflows" && <Workflows api={api} user={user} onNotice={setNotice} />}
           {page === "globals" && <Globals api={api} user={user} onNotice={setNotice} />}
+          {page === "savedconn" && <Connections api={api} user={user} onNotice={setNotice} />}
         </main>
       </div>
     </div>

@@ -93,6 +93,9 @@ export type WorkflowRun = { id: string; path: string; version: number; status: s
   history?: { event: string; stage?: string; ts: string; detail?: Record<string, unknown> | null }[];
   tasks?: { id: string; stage?: string; kind: string; title: string; assignee?: string; status: string; claimed_by?: string | null; outcome?: string | null; created?: string; completed?: string | null }[] };
 export type GlobalValue = { name: string; value: unknown; changeable: boolean; my_value?: unknown; updated?: string; updated_by?: string };
+export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
+/** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
+export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -312,6 +315,13 @@ export class CrApi {
   async deleteGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name)); }
   async setMyGlobal(name: string, value: unknown) { await this.call("PUT", "globals/" + encodeURIComponent(name) + "/mine", { value }); }
   async clearMyGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name) + "/mine"); }
+  // ---- Saved connections: a connector's address and sign-in kept once; secrets are vault references ----
+  async savedConnections() { return (await this.call<{ connections?: SavedConnection[] }>("GET", "saved-connections")).connections ?? []; }
+  async connectionKinds() { return (await this.call<{ kinds?: ConnectionKind[] }>("GET", "connection-kinds")).kinds ?? []; }
+  async saveConnection(name: string, b: { package: string; description: string; values: Record<string, string>; credentials: Record<string, string> }) {
+    await this.call("PUT", "saved-connections/" + encodeURIComponent(name), b);
+  }
+  async deleteConnection(name: string) { await this.call("DELETE", "saved-connections/" + encodeURIComponent(name)); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);
