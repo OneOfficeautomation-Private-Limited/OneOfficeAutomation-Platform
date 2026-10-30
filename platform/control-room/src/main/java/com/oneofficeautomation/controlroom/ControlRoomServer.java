@@ -712,6 +712,7 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) { cr.updateUser(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-password")) sendJson(ex, 200, cr.resetPassword(u, seg[1], ip));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("unlock")) { cr.unlockUser(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-mfa")) { cr.mfa.reset(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("default-device")) { cr.setDefaultDevice(u, seg[1], (String) map(body(ex)).get("device_id"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);

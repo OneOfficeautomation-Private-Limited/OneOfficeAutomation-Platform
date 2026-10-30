@@ -71,6 +71,19 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^devices\/d\d\/logs$/.test(route) && init.method === "POST") { logsAsked = true; return ok({ requested: true }); }
     if (/^devices\/d\d\/(logs|screen)$/.test(route)) return ok(logsAsked && route.endsWith("logs") ? { taken: "2026-10-30T09:00:00Z", requested_by: "admin", content: "== Runner log ==\nstarted" } : {});
     if (route === "pools" && init.method === "POST") return ok({ id: "p2" });
+    if (route === "users" && init.method === "POST") return ok({ username: body.username, temporary_password: "Temp-9x7" });
+    if (route === "users") return ok({ users: [
+      { id: "u1", username: "admin", display_name: "Asha Admin", role: "admin", roles: ["admin"], enabled: true, mfa_enabled: true, last_login: new Date().toISOString(), email: "asha@example.com" },
+      { id: "u2", username: "vic", display_name: "Vic Viewer", first_name: "Vic", last_name: "Rao", role: "viewer", roles: ["viewer", "bot_runner"], enabled: true,
+        locked_until: new Date(Date.now() + 600_000).toISOString() },
+      { id: "u3", username: "old", display_name: "Old Hand", role: "bot_runner", roles: ["bot_runner"], enabled: false }] });
+    if (route === "users/u2" && (init.method ?? "GET") === "GET") return ok({ id: "u2", username: "vic", display_name: "Vic Viewer", first_name: "Vic", last_name: "Rao", role: "viewer",
+      enabled: true, locked_until: new Date(Date.now() + 600_000).toISOString(), further_roles: ["bot_runner"], teams: [{ name: "finance", team_role: "member" }], default_device: null });
+    if (/^users\/u\d$/.test(route)) return ok({ ok: true });
+    if (/^users\/u\d\/reset-password$/.test(route)) return ok({ temporary_password: "Reset-4k2" });
+    if (/^users\/u\d\/(unlock|reset-mfa|default-device)$/.test(route)) return ok({ ok: true });
+    if (route === "devices/runasusers") return ok({ users: [{ username: "admin", device_id: "d1", device_name: "Runner A" }] });
+    if (route === "roles") return ok({ roles: [{ name: "admin", builtin: true }, { name: "bot_creator", builtin: true }, { name: "bot_runner", builtin: true }, { name: "viewer", builtin: true }] });
     if (route === "pools") return ok({ pools: [{ id: "p1", name: "Finance pool", description: "Month end", devices: ["d1"], created_by: "admin" }] });
     if (route === "runs") {
       const q = new URLSearchParams(url.split("?")[1]);
@@ -265,6 +278,44 @@ describe("rebuilt Command Center console", () => {
       expect(calls.filter((c) => c.route === "auth/me").length).toBe(1);
       expect(calls.filter((c) => c.route === "dashboard").length).toBeLessThanOrEqual(1);
     } finally { globalThis.fetch = real; }
+  });
+
+  it("shows Users as AA's Users page: filters, enable or disable selected, details in AA's order with Unlock, create with a one-time password", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Users" }));
+    const list = await screen.findByRole("table", { name: "Users list" });
+    expect(await within(list).findByText("Locked")).toBeTruthy();
+    expect(within(list).getByText("Agent runner")).toBeTruthy();          // roles by their names
+    expect(within(list).getByText("Runner A")).toBeTruthy();              // the default runner
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "disabled" } });
+    await waitFor(() => expect(within(list).queryByText("vic")).toBeNull());
+    fireEvent.click(within(list).getByLabelText("Select old"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enable" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "users/u3", body: { enabled: true } }));
+    expect(await screen.findByText("Enabled 1 user.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    // details: general details, roles, then sign-in and security with Unlock
+    fireEvent.click(await within(list).findByText("vic"));
+    const d = await screen.findByRole("dialog", { name: "User vic" });
+    expect(await within(d).findByText(/finance/)).toBeTruthy();
+    fireEvent.change(within(d).getByLabelText("E-mail"), { target: { value: "vic@example.com" } });
+    fireEvent.click(within(d).getByLabelText("Agent builder"));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "users/u2", body: { email: "vic@example.com", further_roles: ["bot_runner", "bot_creator"] } }));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Unlock" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users/u2/unlock" }));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Reset password" })); });
+    expect(within(await screen.findByRole("dialog", { name: "Temporary password for vic" })).getByText("Reset-4k2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    // create a user: the temporary password is shown once
+    fireEvent.click(screen.getByRole("button", { name: "Create user" }));
+    const c = await screen.findByRole("dialog", { name: "Create user" });
+    fireEvent.change(within(c).getByLabelText(/User name/), { target: { value: "ravi" } });
+    fireEvent.change(within(c).getByLabelText("Main role"), { target: { value: "bot_creator" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create user" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users", body: { username: "ravi", display_name: "", role: "bot_creator" } }));
+    expect(within(await screen.findByRole("dialog", { name: "Temporary password for ravi" })).getByText("Temp-9x7")).toBeTruthy();
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

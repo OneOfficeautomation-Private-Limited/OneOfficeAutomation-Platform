@@ -33,6 +33,10 @@ export type Runner = { id: string; name: string; hostname?: string; os?: string;
   cpu_pct?: number | null; mem_pct?: number | null; cpu_max?: number | null; mem_max?: number | null; cpu_limit?: number; mem_limit?: number; over_limit?: string };
 /** Logs or a screen picture a runner sent when asked: waiting while asked and not answered, unanswered after 2 minutes. */
 export type RunnerFile = { taken?: string; requested_by?: string | null; error?: string | null; content?: string | null; asked?: string; waiting?: boolean; unanswered?: boolean };
+/** A user as the Users page lists them. */
+export type CrPerson = { id: string; username: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; description?: string | null;
+  email?: string | null; role: string; roles?: string[]; enabled: boolean; must_change?: boolean; last_login?: string | null; created?: string | null;
+  locked_until?: string | null; mfa_enabled?: boolean };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -106,6 +110,22 @@ export class CrApi {
   runnerProgram() { return this.call<{ available: boolean; version?: string; auto?: boolean }>("GET", "devices/update"); }
   /** A one-time key to register a runner (shown once). */
   registrationKey(temporary: boolean) { return this.call<{ key: string; temporary?: boolean }>("POST", "devices/registration-key", { hours: 24, temporary }); }
+  /** People who can sign in (users.manage), with their roles (main role first). */
+  async users() { return (await this.call<{ users?: CrPerson[] }>("GET", "users")).users ?? []; }
+  userDetail(id: string) { return this.call<CrPerson & { further_roles: string[]; teams?: { name: string; team_role?: string }[]; default_device?: string | null }>("GET", "users/" + encodeURIComponent(id)); }
+  /** Creates a user; the temporary password is shown once, and they choose their own at the first sign-in. */
+  createUser(username: string, displayName: string, role: string) { return this.call<{ username: string; temporary_password: string }>("POST", "users", { username, display_name: displayName, role }); }
+  async updateUser(id: string, changes: Partial<{ role: string; enabled: boolean; display_name: string; first_name: string; last_name: string; description: string; email: string; further_roles: string[] }>) {
+    await this.call("PATCH", "users/" + encodeURIComponent(id), changes);
+  }
+  async deleteUser(id: string) { await this.call("DELETE", "users/" + encodeURIComponent(id)); }
+  resetPassword(id: string) { return this.call<{ temporary_password: string }>("POST", "users/" + encodeURIComponent(id) + "/reset-password"); }
+  async resetTwoStep(id: string) { await this.call("POST", "users/" + encodeURIComponent(id) + "/reset-mfa"); }
+  async unlockUser(id: string) { await this.call("POST", "users/" + encodeURIComponent(id) + "/unlock"); }
+  async setDefaultRunner(id: string, deviceId: string | null) { await this.call("PUT", "users/" + encodeURIComponent(id) + "/default-device", { device_id: deviceId }); }
+  /** Each person's default runner (where their runs go as a run-as user). */
+  async defaultRunners() { return (await this.call<{ users?: { username: string; device_id?: string | null; device_name?: string | null }[] }>("GET", "devices/runasusers")).users ?? []; }
+  async roles() { return (await this.call<{ roles?: { name: string; builtin: boolean; description?: string; switched_off?: boolean }[] }>("GET", "roles")).roles ?? []; }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

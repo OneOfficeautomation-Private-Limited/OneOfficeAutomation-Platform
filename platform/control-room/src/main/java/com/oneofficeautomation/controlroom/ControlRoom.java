@@ -670,6 +670,14 @@ public final class ControlRoom {
                 if (!en) db.update("DELETE FROM sessions WHERE user_id = ?", userId);
             }
             if (changes.get("display_name") instanceof String d) db.update("UPDATE users SET display_name = ? WHERE id = ?", d, userId);
+            if (changes.containsKey("email")) {
+                // used to link single sign-on accounts, so one address belongs to one person
+                String e = changes.get("email") == null ? "" : String.valueOf(changes.get("email")).strip().toLowerCase(Locale.ROOT);
+                if (!e.isEmpty() && (e.length() > 200 || !e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) throw new OoaException("CR.BAD_INPUT", "Not an e-mail address: " + e);
+                if (!e.isEmpty() && db.one("SELECT id FROM users WHERE LOWER(email) = ? AND id <> ?", e, userId) != null)
+                    throw new OoaException("CR.CONFLICT", "Another user has the e-mail address " + e);
+                db.update("UPDATE users SET email = ? WHERE id = ?", e.isEmpty() ? null : e, userId);
+            }
             for (String f : List.of("first_name", "last_name", "description")) {
                 if (!changes.containsKey(f)) continue;
                 String v = changes.get(f) == null ? null : String.valueOf(changes.get(f)).strip();
@@ -695,6 +703,15 @@ public final class ControlRoom {
         });
         loadUserRoles();
         audit.record(by.username(), "user.update", "user", (String) r.get("username"), changes, "ok", ip);
+    }
+
+    /** Unlocks an account locked after failed sign-ins (as Blue Prism's Unlock); the password stays as it is. */
+    public void unlockUser(User by, String userId, String ip) {
+        require(by, "users.manage", "manage users");
+        Map<String, Object> r = db.one("SELECT username FROM users WHERE id = ?", userId);
+        if (r == null) throw notFound("User");
+        db.update("UPDATE users SET failed = 0, locked_until = NULL WHERE id = ?", userId);
+        audit.record(by.username(), "user.unlock", "user", (String) r.get("username"), null, "ok", ip);
     }
 
     public Map<String, Object> resetPassword(User by, String userId, String ip) {
