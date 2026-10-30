@@ -76,6 +76,15 @@ public final class ControlRoomServer {
 
     private static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
 
+    /**
+     * After a single sign-on: a same-site page that moves on, so the browser sends the new SameSite=Strict cookie, to
+     * the page the sign-in started from (the new console comes back to /next/), never another site (safeReturn).
+     */
+    private static String continuePage(Map<String, Object> r) {
+        String to = esc(ControlRoom.safeReturn(r.get("return") instanceof String s ? s : "/"));
+        return "<meta http-equiv=\"refresh\" content=\"0;url=" + to + "\"></head><body><p>Signed in. <a href=\"" + to + "\">Continue to One Command Center</a></p></body></html>";
+    }
+
     /** Serves another application under a path prefix on the same port (used by `ooa server` for Studio at /studio). Call before start(). */
     public ControlRoomServer mount(String prefix, HttpHandler handler) { mounts.put(prefix, handler); return this; }
 
@@ -347,7 +356,7 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/saml/start")) {
-            ex.getResponseHeaders().set("Location", cr.saml.start(origin(ex)));
+            ex.getResponseHeaders().set("Location", cr.saml.start(origin(ex), q.get("return")));
             ex.sendResponseHeaders(302, -1); ex.close();
             return;
         }
@@ -361,7 +370,7 @@ public final class ControlRoomServer {
             try {
                 Map<String, Object> r = cr.saml.acs(form.get("SAMLResponse"), origin(ex), ip);
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
-                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+                html(ex, 200, continuePage(r));
             } catch (OoaException e) {
                 html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
                         + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");
@@ -369,7 +378,7 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/sso/start")) {
-            ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback"));
+            ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback", q.get("return")));
             ex.getResponseHeaders().set("Cache-Control", "no-store");
             ex.sendResponseHeaders(302, -1);
             return;
@@ -380,7 +389,7 @@ public final class ControlRoomServer {
                 Map<String, Object> r = sso.callback(q.get("code"), q.get("state"), origin(ex) + "/api/auth/sso/callback", ip);
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
                 // A same-site page moves on to the console, so the browser sends the new SameSite=Strict cookie.
-                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+                html(ex, 200, continuePage(r));
             } catch (OoaException e) {
                 html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
                         + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");

@@ -32,7 +32,7 @@ export class CrFailure extends Error {
 
 export class CrApi {
   /** base: where the API is, "/api/" when the console is served by the Command Center. */
-  constructor(private readonly base = "/api/", private readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
+  constructor(readonly base = "/api/", private readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
 
   private async call<T>(method: string, route: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {};
@@ -50,6 +50,17 @@ export class CrApi {
   login(username: string, password: string) { return this.call<SignIn>("POST", "auth/login", { username, password }); }
   loginCode(mfaToken: string, code: string) { return this.call<SignIn>("POST", "auth/mfa", { mfa_token: mfaToken, code }); }
   async logout() { await this.call("POST", "auth/logout"); }
+  /** Single sign-on offered on the sign-in page: OpenID Connect and SAML, each with its button text. */
+  async ssoInfo() {
+    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string } }>("GET", "auth/sso");
+    return { oidc: r.enabled ? r.label || "Sign in with your organisation account" : null, saml: r.saml?.enabled ? r.saml.label || "Sign in with SAML" : null };
+  }
+  /** Where a single sign-on starts; the person comes back to `back`, a page of this Command Center. */
+  ssoStart(kind: "oidc" | "saml", back: string) { return this.base + (kind === "oidc" ? "auth/sso/start" : "auth/saml/start") + "?return=" + encodeURIComponent(back); }
+  async changePassword(current: string, next: string) { await this.call("POST", "auth/password", { current, new: next }); }
+  /** Two-step sign-in: a new key for an authenticator app, then turning it on with a code (gives recovery codes once). */
+  mfaSetup() { return this.call<{ secret: string; otpauth_uri: string }>("POST", "auth/mfa/setup"); }
+  mfaEnable(code: string) { return this.call<{ recovery_codes: string[] }>("POST", "auth/mfa/enable", { code }); }
   /** Whether Agent Studio is offered on this computer (it lives beside the Command Center under ooa server). */
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */

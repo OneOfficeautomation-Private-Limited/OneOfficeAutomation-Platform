@@ -87,7 +87,10 @@ flowchart LR
 | OpenID Connect | `Sso` | Authorization code flow with PKCE; ID token signature (RS256/384/512, ES256) against the provider's JWKS; issuer, audience, expiry, nonce |
 | SAML 2.0 | `Saml` | HTTP-Redirect out, HTTP-POST back; DTDs and external entities off; exactly one assertion, a direct child of the response; a valid signature by the configured certificate whose single reference points at that element (enveloped and exclusive canonicalisation only, JDK secure validation on); status Success; issuer, audience, recipient, destination; validity window with 2 minutes of skew; `InResponseTo` must match a sign-in this Command Center started; each assertion used once |
 
-New SSO users get `sso_default_role`; when it is empty only existing users may sign in. Encrypted SAML assertions and
+New SSO users get `sso_default_role`; when it is empty only existing users may sign in. `sso_group_roles` maps
+identity-provider groups to roles (first match wins), applied at every SSO sign-in and audited. The return path carried
+through a sign-in (OIDC `state`, SAML request id) is checked by `ControlRoom.safeReturn`: a single leading `/`, no
+scheme, no backslash, a fixed character set; anything else becomes `/`. Encrypted SAML assertions and
 sign-ins started at the identity provider are refused. Sign-in state is kept in `auth_pending`, so any cluster node can
 complete it.
 

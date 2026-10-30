@@ -352,8 +352,49 @@ public final class ControlRoom {
      * sign-in an existing account with the same (verified) e-mail or user name is linked, or a new one is created with the
      * default role. Without a default role only existing accounts may sign in.
      */
+    /**
+     * Where to go after a single sign-on: a page of this Command Center (a path starting with one "/", no scheme, host
+     * or backslash), else its start page, so a sign-in link can never send people to another site.
+     */
+    static String safeReturn(String to) {
+        if (to == null || to.isBlank() || to.length() > 200 || !to.startsWith("/") || to.startsWith("//") || to.contains("\\") || to.contains(":")
+                || !to.matches("[A-Za-z0-9/._#?=&-]*")) return "/";
+        return to;
+    }
+
+    /**
+     * The role an identity provider's groups give (setting sso_group_roles, one "group = role" a line, first match
+     * wins; group names compared without case), or null when no group matches or nothing is set. As UiPath's and AA's
+     * group rules do, the mapping decides the role at every sign-in, so a change of group in the identity provider
+     * reaches the Command Center the next time the person signs in.
+     */
+    String roleFromGroups(Object groups) {
+        String rules = String.valueOf(platform.setting("sso_group_roles")).trim();
+        if (rules.isEmpty() || groups == null) return null;
+        Set<String> have = new HashSet<>();
+        if (groups instanceof Collection<?> c) for (Object g : c) have.add(String.valueOf(g).trim().toLowerCase(Locale.ROOT));
+        else for (String g : String.valueOf(groups).split(",")) have.add(g.trim().toLowerCase(Locale.ROOT));
+        for (Map.Entry<String, String> e : parseGroupRoles(rules).entrySet())
+            if (have.contains(e.getKey()) && roleExists(e.getValue()) && !roleSwitchedOff(e.getValue())) return e.getValue();
+        return null;
+    }
+
+    /** "group = role" lines, in order, groups in lower case; anything else is refused. */
+    static LinkedHashMap<String, String> parseGroupRoles(String text) {
+        LinkedHashMap<String, String> m = new LinkedHashMap<>();
+        for (String line : text.split("\\R")) {
+            if (line.isBlank() || line.trim().startsWith("#")) continue;
+            int i = line.lastIndexOf('=');
+            if (i <= 0 || i == line.length() - 1) throw new OoaException("CR.BAD_INPUT", "Each line of the groups-to-roles list is: group = role (got '" + line.trim() + "')",
+                    "Example: Finance Automation = bot_runner");
+            m.putIfAbsent(line.substring(0, i).trim().toLowerCase(Locale.ROOT), line.substring(i + 1).trim());
+        }
+        return m;
+    }
+
     Map<String, Object> ssoLogin(Map<String, Object> claims, String defaultRole, String ip) {
         String subject = claims.get("iss") + "|" + claims.get("sub");
+        String mapped = roleFromGroups(claims.get("groups") != null ? claims.get("groups") : claims.get("roles"));
         String email = claims.get("email") instanceof String e && !Boolean.FALSE.equals(claims.get("email_verified")) ? e.trim().toLowerCase(Locale.ROOT) : null;
         String preferred = claims.get("preferred_username") instanceof String pu ? pu.trim().toLowerCase(Locale.ROOT) : null;
         Map<String, Object> r = db.one("SELECT * FROM users WHERE sso_subject = ?", subject);
@@ -363,6 +404,7 @@ public final class ControlRoom {
                 r = db.one("SELECT * FROM users WHERE LOWER(username) = ? AND sso_subject IS NULL", candidate);
             }
             if (r == null) {
+                if (mapped != null) defaultRole = mapped;
                 if (defaultRole.isEmpty() || !roleExists(defaultRole) || roleSwitchedOff(defaultRole)) {
                     audit.record(String.valueOf(email != null ? email : preferred), "auth.sso", "user", null, "no account", "failed", ip);
                     throw new OoaException("SSO.NO_ACCOUNT", "There is no Command Center account for " + (email != null ? email : preferred), "Ask an administrator to create your account.");
@@ -380,6 +422,11 @@ public final class ControlRoom {
             r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));
         }
         if (!Boolean.TRUE.equals(r.get("enabled"))) { audit.record((String) r.get("username"), "auth.sso", "user", (String) r.get("username"), "disabled", "failed", ip); throw new OoaException("CR.USER_DISABLED", "This account is disabled", "Contact your administrator."); }
+        // the identity provider's groups decide the role (when the mapping gives one)
+        if (mapped != null && !mapped.equals(r.get("role"))) {
+            db.update("UPDATE users SET role = ? WHERE id = ?", mapped, r.get("id"));
+            audit.record((String) r.get("username"), "user.role", "user", (String) r.get("username"), Map.of("from", String.valueOf(r.get("role")), "to", mapped, "via", "sso groups"), "ok", ip);
+        }
         // A person signing in through the identity provider never needs the local first-time password change.
         db.update("UPDATE users SET must_change = FALSE WHERE id = ?", r.get("id"));
         r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));

@@ -40,6 +40,7 @@ public final class Platform {
         DEFAULTS.put("sso_client_id", "");
         DEFAULTS.put("sso_client_secret_ref", "");
         DEFAULTS.put("sso_default_role", "");
+        DEFAULTS.put("sso_group_roles", "");
         DEFAULTS.put("sso_label", "");
         DEFAULTS.put("mcp_agents", "");
         DEFAULTS.put("mcp_runner", "");
@@ -235,6 +236,10 @@ public final class Platform {
                     boolean local = ip == null || ip.startsWith("127.") || ip.equals("0:0:0:0:0:0:0:1") || ip.equals("::1");
                     if (!l.isEmpty() && !local && !l.allows(ip)) throw new OoaException("CR.BAD_INPUT", "Your own address " + ip + " is not on the list; saving it would lock you out", "Add your address or its range to the list");
                 }
+                if (k.equals("sso_group_roles") && !s.isEmpty())
+                    for (String role : ControlRoom.parseGroupRoles(s).values())
+                        if (!Rbac.ROLES.contains(role) && db.one("SELECT name FROM roles WHERE name = ?", role) == null)
+                            throw new OoaException("CR.BAD_INPUT", "The groups-to-roles list names a role that does not exist: " + role);
                 if (k.equals("sso_default_role") && !s.isEmpty() && !Rbac.ROLES.contains(s) && db.one("SELECT name FROM roles WHERE name = ?", s) == null)
                     throw new OoaException("CR.BAD_INPUT", "Setting 'sso_default_role' names a role that does not exist: " + s);
                 v = s;

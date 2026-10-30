@@ -76,13 +76,16 @@ final class Sso {
     }
 
     /** Builds the provider's sign-in URL and remembers the PKCE verifier and nonce for the state. */
-    String start(String redirectUri) {
+    String start(String redirectUri) { return start(redirectUri, "/"); }
+
+    /** As above, coming back to returnTo (a page of this Command Center, from {@link ControlRoom#safeReturn}) after sign-in. */
+    String start(String redirectUri, String returnTo) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "Single sign-on is not set up", "An administrator sets it up in Administration > Settings.");
         SecureRandom rnd = new SecureRandom();
         byte[] v = new byte[32], s = new byte[24], n = new byte[24];
         rnd.nextBytes(v); rnd.nextBytes(s); rnd.nextBytes(n);
         String verifier = b64u(v), state = b64u(s), nonce = b64u(n);
-        cr.cluster.put("oidc", state, verifier + "|" + nonce, Duration.ofMinutes(10));
+        cr.cluster.put("oidc", state, verifier + "|" + nonce + "|" + ControlRoom.safeReturn(returnTo), Duration.ofMinutes(10));
         String challenge;
         try { challenge = b64u(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII))); }
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
@@ -94,7 +97,7 @@ final class Sso {
     @SuppressWarnings("unchecked")
     Map<String, Object> callback(String code, String state, String redirectUri, String ip) {
         String held = cr.cluster.take("oidc", state);
-        String[] p = held == null ? null : held.split("\\|", 2);
+        String[] p = held == null ? null : held.split("\\|", 3);
         if (p == null || code == null) throw new OoaException("SSO.BAD_STATE", "The sign-in link expired or was already used", "Start the sign-in again.");
         String clientId = String.valueOf(cr.platform.setting("sso_client_id"));
         String secretRef = String.valueOf(cr.platform.setting("sso_client_secret_ref")).trim();
@@ -113,7 +116,9 @@ final class Sso {
             throw new OoaException("SSO.PROVIDER", "Interrupted");
         }
         Map<String, Object> claims = verify(String.valueOf(tok.get("id_token")), clientId, p[1]);
-        return cr.ssoLogin(claims, String.valueOf(cr.platform.setting("sso_default_role")).trim(), ip);
+        Map<String, Object> out = new LinkedHashMap<>(cr.ssoLogin(claims, String.valueOf(cr.platform.setting("sso_default_role")).trim(), ip));
+        out.put("return", p.length > 2 ? ControlRoom.safeReturn(p[2]) : "/");
+        return out;
     }
 
     /** Verifies an ID token and returns its claims. */

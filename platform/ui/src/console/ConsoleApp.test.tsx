@@ -26,7 +26,7 @@ const runs = [
   { id: "r4", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "success", requested_by: "vic", source: "trigger:t1",
     created: "2026-10-29T07:00:00Z", started: "2026-10-29T07:00:02Z", finished: "2026-10-29T07:00:32Z", duration_ms: 30000, steps: 5 }];
 
-function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[] } = {}) {
+function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[], sso = false } = {}) {
   let user = signedIn;
   const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
   const f = (async (url: string, init: RequestInit) => {
@@ -36,6 +36,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     const ok = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
     const no = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: { code, message } }), { status });
     if (route === "health") return ok(studio ? { status: "ok", studio: "/studio/" } : { status: "ok" });
+    if (route === "auth/sso") return ok(sso ? { enabled: true, label: "Sign in with Contoso", saml: { enabled: true, label: "Sign in with SAML" } } : { enabled: false, saml: { enabled: false } });
     if (route === "auth/login") {
       if (body.password !== "right") return no(401, "CR.LOGIN_FAILED", "Wrong user name or password");
       if (mfa) return ok({ mfa_required: true, mfa_token: "m1" });
@@ -45,6 +46,15 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (!user) return no(401, "CR.UNAUTHENTICATED", "Sign in first");
     if (route === "auth/me") return ok(user);
     if (route === "auth/logout") { user = null; return ok({ ok: true }); }
+    if (route === "auth/password") {
+      if (body.current !== "temp-1") return no(400, "CR.BAD_PASSWORD", "The current password is wrong");
+      user = { ...user, must_change: false } as typeof user; return ok({ ok: true });
+    }
+    if (route === "auth/mfa/setup") return ok({ secret: "JBSWY3DPEHPK3PXP", otpauth_uri: "otpauth://totp/OOA:admin?secret=JBSWY3DPEHPK3PXP" });
+    if (route === "auth/mfa/enable") {
+      if (body.code !== "123456") return no(400, "CR.MFA_WRONG_CODE", "Wrong code");
+      user = { ...user, mfa_setup_required: false } as typeof user; return ok({ recovery_codes: ["aaaa-1111", "bbbb-2222"] });
+    }
     if (route === "dashboard") return ok(dashboard);
     if (route === "plugins") return ok({ plugins });
     if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json" }, { path: "HR/Onboard.flow.json" }] });
@@ -164,9 +174,36 @@ describe("rebuilt Command Center console", () => {
     expect(await screen.findByText("Exported 1 run.")).toBeTruthy();
   });
 
-  it("names a step sign-in still needs, done in today's console", async () => {
-    render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, must_change: true } as typeof admin }).api} />);
-    expect(await screen.findByText("Change your password before you go on.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open today's console" }).getAttribute("href")).toBe("../");
+  it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
+    const { calls, api } = fakeServer({ signedIn: { ...admin, must_change: true, mfa_setup_required: true } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    const form = await screen.findByRole("form", { name: "Choose your password" });
+    expect(screen.queryByRole("navigation", { name: "Command Center" })).toBeNull();
+    fireEvent.change(within(form).getByLabelText("Current password"), { target: { value: "temp-1" } });
+    fireEvent.change(within(form).getByLabelText("New password"), { target: { value: "Own-Passw0rd-1" } });
+    fireEvent.change(within(form).getByLabelText("New password again"), { target: { value: "Own-Passw0rd-2" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save and continue" }));
+    expect(await within(form).findByText("The new passwords do not match.")).toBeTruthy();
+    fireEvent.change(within(form).getByLabelText("New password again"), { target: { value: "Own-Passw0rd-1" } });
+    await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Save and continue" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ route: "auth/password", body: { current: "temp-1", new: "Own-Passw0rd-1" } }));
+    // then two-step sign-in, required by the administrator
+    const setup = await screen.findByRole("form", { name: "Set up two-step sign-in" });
+    expect(await within(setup).findByText("JBSWY3DPEHPK3PXP")).toBeTruthy();
+    fireEvent.change(within(setup).getByLabelText("2. The 6-digit code the app shows"), { target: { value: "123456" } });
+    await act(async () => { fireEvent.click(within(setup).getByRole("button", { name: "Turn on" })); });
+    const codes = await screen.findByRole("region", { name: "Recovery codes" });
+    expect(within(codes).getByText(/aaaa-1111/)).toBeTruthy();
+    await act(async () => { fireEvent.click(within(codes).getByRole("button", { name: "I have saved them" })); });
+    expect(await screen.findByRole("navigation", { name: "Command Center" })).toBeTruthy();
+  });
+
+  it("offers single sign-on on the sign-in page, coming back to the page the person was on", async () => {
+    render(<ConsoleApp api={fakeServer({ sso: true }).api} />);
+    const form = await screen.findByRole("form", { name: "Sign in" });
+    const oidc = await within(form).findByRole("link", { name: "Sign in with Contoso" });
+    expect(oidc.getAttribute("href")).toBe("/api/auth/sso/start?return=" + encodeURIComponent(location.pathname + location.hash));
+    expect(within(form).getByRole("link", { name: "Sign in with SAML" }).getAttribute("href")).toContain("/api/auth/saml/start?return=");
+    expect(within(form).getByLabelText("Password")).toBeTruthy();   // local accounts still sign in with a password
   });
 });

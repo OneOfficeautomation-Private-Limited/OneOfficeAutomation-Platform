@@ -79,3 +79,10 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-log li { padding: 1px 0; }
 .cc-log li.is-bad { color: var(--ui-error-text); font-weight: 600; }
 .cc-log-step { display: inline-block; min-width: 60px; color: var(--ui-text-2); }
+
+/* Sign-in: single sign-on, a new password, two-step setup */
+.cc-or { display: flex; align-items: center; gap: 8px; color: var(--ui-text-2); font-size: 12px; }
+.cc-or::before, .cc-or::after { content: ""; flex: 1; border-top: 1px solid var(--ui-divider); }
+.cc-sso { display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
+.cc-key, .cc-codes { display: block; padding: 8px 10px; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); background: var(--ui-soft);
+  font-family: var(--ui-mono); word-break: break-all; margin: 0; }

@@ -61,8 +61,11 @@ class SamlTest {
     }
 
     /** Starts a sign-in and returns the request id the identity provider must answer. */
-    String startSignIn() throws Exception {
-        String url = cr.saml.start(ORIGIN);
+    String startSignIn() throws Exception { return startSignIn("/"); }
+
+    /** The same, coming back to a page of the Command Center after sign-in. */
+    String startSignIn(String back) throws Exception {
+        String url = cr.saml.start(ORIGIN, back);
         assertTrue(url.startsWith(IDP + "/sso?SAMLRequest="));
         byte[] deflated = Base64.getDecoder().decode(URLDecoder.decode(url.substring(url.indexOf('=') + 1), StandardCharsets.UTF_8));
         Inflater inf = new Inflater(true); inf.setInput(deflated);
@@ -83,7 +86,10 @@ class SamlTest {
             + "<saml:SubjectConfirmation Method=\"urn:oasis:names:tc:SAML:2.0:cm:bearer\"><saml:SubjectConfirmationData InResponseTo=\"" + inResponseTo + "\" NotOnOrAfter=\"" + notAfter
             + "\" Recipient=\"" + ORIGIN + "/api/auth/saml/acs\"/></saml:SubjectConfirmation></saml:Subject>"
             + "<saml:Conditions NotBefore=\"" + now.minusSeconds(60) + "\" NotOnOrAfter=\"" + notAfter + "\"><saml:AudienceRestriction><saml:Audience>" + audience + "</saml:Audience></saml:AudienceRestriction></saml:Conditions>"
-            + "<saml:AttributeStatement><saml:Attribute Name=\"http://schemas.microsoft.com/identity/claims/displayname\"><saml:AttributeValue>Sam Lee</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>"
+            + "<saml:AttributeStatement><saml:Attribute Name=\"http://schemas.microsoft.com/identity/claims/displayname\"><saml:AttributeValue>Sam Lee</saml:AttributeValue></saml:Attribute>"
+            + (o.get("groups") instanceof List<?> groups ? "<saml:Attribute Name=\"http://schemas.microsoft.com/ws/2008/06/identity/claims/groups\">"
+                + groups.stream().map(g -> "<saml:AttributeValue>" + g + "</saml:AttributeValue>").collect(java.util.stream.Collectors.joining()) + "</saml:Attribute>" : "")
+            + "</saml:AttributeStatement>"
             + "</saml:Assertion>";
         String xml = "<samlp:Response xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" ID=\"_r" + UUID.randomUUID().toString().replace("-", "") + "\" Version=\"2.0\" IssueInstant=\"" + now
             + "\" Destination=\"" + ORIGIN + "/api/auth/saml/acs\" InResponseTo=\"" + inResponseTo + "\"><samlp:Status><samlp:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\"/></samlp:Status>"
@@ -129,6 +135,31 @@ class SamlTest {
         assertEquals("Sam Lee", user.get("display_name"));
         assertEquals("viewer", user.get("role"), "new people get the default role");
         assertNotNull(db.one("SELECT sso_subject FROM users WHERE username = 'sam@example.com'").get("sso_subject"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void groupsChooseTheRoleAndSignInComesBackWhereItStarted() throws Exception {
+        assertEquals("CR.BAD_INPUT", code(() -> cr.platform.updateSettings(admin, Map.of("sso_group_roles", "just a group"), null)), "each line is group = role");
+        assertEquals("CR.BAD_INPUT", code(() -> cr.platform.updateSettings(admin, Map.of("sso_group_roles", "OOA Builders = no_such_role"), null)), "only roles that exist");
+        cr.platform.updateSettings(admin, Map.of("sso_group_roles", "# from the identity provider\nOOA Admins = admin\nOOA Builders = bot_creator"), null);
+        try {
+            // a new person: the role their groups give, not the default; back on the page the sign-in started from
+            Map<String, Object> r = cr.saml.acs(response(startSignIn("/next/#/activity"), "gail@example.com", Map.of("groups", List.of("Everyone", "ooa builders"))), ORIGIN, null);
+            assertEquals("bot_creator", ((Map<String, Object>) r.get("user")).get("role"));
+            assertEquals("/next/#/activity", r.get("return"));
+            // moved to another group in the identity provider: the role follows at the next sign-in, and it is audited
+            r = cr.saml.acs(response(startSignIn("/next/"), "gail@example.com", Map.of("groups", List.of("OOA Admins", "OOA Builders"))), ORIGIN, null);
+            assertEquals("admin", ((Map<String, Object>) r.get("user")).get("role"), "the first matching line wins");
+            assertNotNull(db.one("SELECT seq FROM audit WHERE action = 'user.role' AND object_id = 'gail@example.com'"));
+            // no matching group: the role stays; a link to another site is never followed
+            r = cr.saml.acs(response(startSignIn("https://evil.example/steal"), "gail@example.com", Map.of("groups", List.of("Sales"))), ORIGIN, null);
+            assertEquals("admin", ((Map<String, Object>) r.get("user")).get("role"));
+            assertEquals("/", r.get("return"));
+            for (String bad : List.of("//evil.example", "/\\evil","javascript:alert(1)", "/next/\"><script>", ""))
+                assertEquals("/", ControlRoom.safeReturn(bad), bad);
+            // local accounts still sign in with their password while single sign-on is on (no one-way switch)
+            assertNotNull(cr.login("admin", "Admin-Passw0rd-2026", null).get("token"));
+        } finally { cr.platform.updateSettings(admin, Map.of("sso_group_roles", ""), null); }
     }
 
     @Test void everyRuleIsChecked() throws Exception {

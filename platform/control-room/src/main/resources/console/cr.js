@@ -940,7 +940,7 @@ const VIEWS = {
       const num = (k, min, max) => h("input", { type: "number", min: String(min), max: String(max), value: String(st[k] === undefined ? "" : st[k]) });
       const txt = (k, ph) => h("input", { type: "text", value: String(st[k] || ""), placeholder: ph || "" });
       const pub = txt("public_url", location.origin), ssoIssuer = txt("sso_issuer", "https://login.microsoftonline.com/<tenant>/v2.0"), ssoClient = txt("sso_client_id"),
-        ssoSecret = txt("sso_client_secret_ref", "sso/oidc/client_secret"), ssoRole = txt("sso_default_role", "viewer"), ssoLabel = txt("sso_label", "Sign in with your organisation account"),
+        ssoSecret = txt("sso_client_secret_ref", "sso/oidc/client_secret"), ssoRole = txt("sso_default_role", "viewer"), ssoGroups = h("textarea", { rows: 3, value: st.sso_group_roles || "", placeholder: "OOA Admins = admin\nFinance Automation = bot_runner" }), ssoLabel = txt("sso_label", "Sign in with your organisation account"),
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600),
         mcpAud = txt("mcp_oauth_audience", "api://ooa-mcp (empty = API keys only)"), mcpScope = txt("mcp_oauth_scope", "mcp.use (optional)");
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
@@ -1002,6 +1002,9 @@ const VIEWS = {
         h("div", { class: "grid2" }, h("label", {}, "Identity provider sign-in address (SAML SSO URL)", samlUrl), h("label", {}, "Identity provider entity id (issuer)", samlIdp),
           h("label", {}, "This Command Center's entity id (empty = the metadata address)", samlSp), h("label", {}, "Button text", samlLabel)),
         h("label", {}, "Identity provider signing certificate (PEM)", samlCert),
+        h("h4", { text: "Groups to roles (both kinds of single sign-on)" }),
+        h("p", { class: "muted", text: "One line per group: group = role (for example: Finance Automation = bot_runner). At every sign-in the first group the person is in decides their role, so a change in the identity provider reaches here the next time they sign in. People in none of these groups keep their role; new ones get the role for new people. Local accounts, such as the administrator, always sign in with their password." }),
+        h("label", {}, "Groups to roles", ssoGroups),
         h("h3", {}, ic("code", "#475569", "sm"), "Git sync of the agent repository"),
         h("p", { class: "muted", text: "Mirrors the agent repository to a Git branch (GitHub, GitLab, Azure DevOps): the latest version of every agent as JSON, and which version is live. The Command Center stays the source of truth; changes made in Git are overwritten. Keep the access token in the vault." }),
         h("div", { class: "grid2" }, h("label", {}, "Remote (https://...git)", gitUrl), h("label", {}, "Branch", gitBranch),
@@ -1087,7 +1090,7 @@ const VIEWS = {
           try {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
-              sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
+              sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_group_roles: ssoGroups.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),

@@ -493,6 +493,8 @@
 "Google Vertex AI",
 "Grace period",
 "Graph access token (vault reference)",
+"Groups to roles",
+"Groups to roles (both kinds of single sign-on)",
 "Had a value",
 "HashiCorp Vault",
 "Headless (no desktop)",

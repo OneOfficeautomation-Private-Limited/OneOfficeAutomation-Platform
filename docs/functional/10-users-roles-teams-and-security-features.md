@@ -183,6 +183,23 @@ On the first sign-in an existing account with the same verified e-mail address o
 account is made with the role for new people (`sso_default_role`). With no default role, only existing accounts may sign
 in (`SSO.NO_ACCOUNT`). A provider refusal shows as `SSO.DENIED`.
 
+**Groups to roles.** Settings > Single sign-on > Groups to roles takes one `group = role` line per mapping (`#` starts a
+comment). At every single sign-on the person's groups (the OpenID Connect `groups` or `roles` claim; the SAML `groups`,
+`memberOf` or `role` attributes, including the Microsoft Entra claim names) are compared with the lines in order, and the
+first match sets the person's role. A role change is audited as `user.role`. With no match, new people get the default
+role and existing people keep theirs. Every role named must exist.
+
+**Coming back.** A single sign-on started from a page of the new console returns to that page afterwards. Only a path
+on this Command Center is accepted as the place to return to; anything else returns to the home page.
+
+**Local accounts.** Accounts with a password, such as the first administrator, can always sign in with it, even with
+single sign-on on, so a broken identity provider never locks everyone out.
+
+**In the new console** (`/next/`): the sign-in page shows a button for each provider set up; a person whose password an
+administrator set chooses their own before going on; and when two-step sign-in is required, the person sets it up there
+(a key for an authenticator app, a code, then recovery codes shown once). A forgotten password is reset by an
+administrator.
+
 ## 11. Sessions, API keys and tokens
 
 | Item | Rule |

@@ -51,10 +51,13 @@ final class Saml {
     String spEntityId(String origin) { return s("saml_sp_entity_id").isEmpty() ? origin + "/api/auth/saml/metadata" : s("saml_sp_entity_id"); }
 
     /** The address to send the person to: the identity provider with a deflated, Base64 AuthnRequest. */
-    String start(String origin) {
+    String start(String origin) { return start(origin, "/"); }
+
+    /** As above, coming back to returnTo (a page of this Command Center) after sign-in. */
+    String start(String origin, String returnTo) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets it up in Administration > Settings.");
         String id = "_" + Security.token(18).replace('-', 'a').replace('_', 'b');
-        cr.cluster.put("saml", id, "", java.time.Duration.ofMinutes(10));
+        cr.cluster.put("saml", id, ControlRoom.safeReturn(returnTo), java.time.Duration.ofMinutes(10));
         String req = "<samlp:AuthnRequest xmlns:samlp=\"" + P + "\" xmlns:saml=\"" + A + "\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + clock.instant() + "\""
             + " Destination=\"" + xml(s("saml_idp_sso_url")) + "\" AssertionConsumerServiceURL=\"" + xml(origin + "/api/auth/saml/acs") + "\""
             + " ProtocolBinding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\"><saml:Issuer>" + xml(spEntityId(origin)) + "</saml:Issuer>"
@@ -80,8 +83,11 @@ final class Saml {
     /** Checks a SAMLResponse posted back by the identity provider and signs the person in. */
     Map<String, Object> acs(String samlResponse, String origin, String ip) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up");
-        Map<String, Object> claims = validate(samlResponse, origin);
-        return cr.ssoLogin(claims, s("sso_default_role"), ip);
+        Map<String, Object> claims = new LinkedHashMap<>(validate(samlResponse, origin));
+        String back = ControlRoom.safeReturn((String) claims.remove("_return"));
+        Map<String, Object> out = new LinkedHashMap<>(cr.ssoLogin(claims, s("sso_default_role"), ip));
+        out.put("return", back);
+        return out;
     }
 
     /** Everything but the sign-in: returns the person's claims (iss, sub, email, name) or refuses with SSO.INVALID. */
@@ -142,8 +148,8 @@ final class Saml {
         if (!acs.equals(scd.getAttribute("Recipient"))) throw bad("The assertion is for another address (recipient)");
         if (!scd.hasAttribute("NotOnOrAfter") || !now.minusSeconds(SKEW_SECONDS).isBefore(Instant.parse(scd.getAttribute("NotOnOrAfter")))) throw bad("The sign-in has expired");
         String inResponseTo = scd.hasAttribute("InResponseTo") ? scd.getAttribute("InResponseTo") : resp.getAttribute("InResponseTo");
-        if (inResponseTo.isEmpty() || cr.cluster.take("saml", inResponseTo) == null)
-            throw bad("This sign-in was not started here, or was used already", "Start the sign-in from the Command Center's sign-in page.");
+        String started = inResponseTo.isEmpty() ? null : cr.cluster.take("saml", inResponseTo);
+        if (started == null) throw bad("This sign-in was not started here, or was used already", "Start the sign-in from the Command Center's sign-in page.");
         // once only
         String aid = as.getAttribute("ID");
         java.time.Duration keep = java.time.Duration.between(now, Instant.parse(scd.getAttribute("NotOnOrAfter")).plusSeconds(SKEW_SECONDS));
@@ -163,6 +169,10 @@ final class Saml {
         if (name == null && given != null) name = family == null ? given : given + " " + family;
         if (name != null) claims.put("name", name);
         claims.put("preferred_username", sub);
+        List<String> groups = values(as, "groups", "group", "memberof", "role", "roles", "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+                "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        if (!groups.isEmpty()) claims.put("groups", groups);
+        claims.put("_return", started);
         return claims;
     }
 
@@ -219,6 +229,20 @@ final class Saml {
             if (v != null) { m.put(a.getAttribute("Name").toLowerCase(Locale.ROOT), v.getTextContent().trim()); if (a.hasAttribute("FriendlyName")) m.put(a.getAttribute("FriendlyName").toLowerCase(Locale.ROOT), v.getTextContent().trim()); }
         }
         return m;
+    }
+
+    /** Every value of the named attributes (groups and roles come as several values of one attribute). */
+    private static List<String> values(Element as, String... names) {
+        List<String> out = new ArrayList<>();
+        Element st = child(as, A, "AttributeStatement");
+        if (st == null) return out;
+        Set<String> wanted = new HashSet<>();
+        for (String n : names) wanted.add(n.toLowerCase(Locale.ROOT));
+        for (Element a : children(st, A, "Attribute")) {
+            if (!wanted.contains(a.getAttribute("Name").toLowerCase(Locale.ROOT)) && !wanted.contains(a.getAttribute("FriendlyName").toLowerCase(Locale.ROOT))) continue;
+            for (Element v : children(a, A, "AttributeValue")) { String t = v.getTextContent().trim(); if (!t.isEmpty() && !out.contains(t)) out.add(t); }
+        }
+        return out;
     }
 
     private static String first(Map<String, String> m, String... names) {
