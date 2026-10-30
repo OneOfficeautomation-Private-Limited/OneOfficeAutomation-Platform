@@ -96,6 +96,8 @@ export type GlobalValue = { name: string; value: unknown; changeable: boolean; m
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
 export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
+export type Toolkit = { id: string; name: string; version?: string; versions?: string[]; description?: string | null; publisher?: string | null; actions: number; conditions?: number;
+  enabled: boolean; used_by: number; custom?: boolean };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -322,6 +324,27 @@ export class CrApi {
     await this.call("PUT", "saved-connections/" + encodeURIComponent(name), b);
   }
   async deleteConnection(name: string) { await this.call("DELETE", "saved-connections/" + encodeURIComponent(name)); }
+  // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----
+  async toolkits() { return (await this.call<{ toolkits?: Toolkit[] }>("GET", "toolkits")).toolkits ?? []; }
+  async setToolkitEnabled(id: string, enabled: boolean) { await this.call("PATCH", "toolkits/" + encodeURIComponent(id), { enabled }); }
+  async toolkitUsers(id: string) { return (await this.call<{ agents?: string[] }>("GET", "toolkits/" + encodeURIComponent(id) + "/used-by")).agents ?? []; }
+  toolkitVersions(id: string) { return this.call<{ installed: string; agents: { path: string; version: number; required?: string | null; satisfied: boolean }[] }>("GET", "toolkits/" + encodeURIComponent(id) + "/versions"); }
+  updateToolkitRange(id: string, range: string) {
+    return this.call<{ results: { path: string; status: string; version?: number; error?: { message?: string } }[] }>("POST", "toolkits/" + encodeURIComponent(id) + "/update-agents", { range });
+  }
+  async customToolkits() { return (await this.call<{ versions?: { id: string; toolkit_id: string; version: string; name?: string; publisher: string; sha256: string; uploaded?: string; uploaded_by?: string }[] }>("GET", "toolkits/custom")).versions ?? []; }
+  async deleteCustomToolkit(id: string) { await this.call("DELETE", "toolkits/custom/" + encodeURIComponent(id)); }
+  /** Uploads a signed toolkit jar; its publisher must be trusted. */
+  async uploadToolkit(jar: ArrayBuffer) {
+    const res = await this.fetcher(this.base + "toolkits/custom", { method: "POST", credentials: "same-origin", headers: { "X-OOA-Request": "1", "Content-Type": "application/java-archive" }, body: jar });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new CrFailure(res.status, data.error ?? { code: "HTTP." + res.status, message: res.statusText || "Upload failed" });
+    return data as { toolkit_id?: string; version?: string; name?: string };
+  }
+  async publishers() { return (await this.call<{ publishers?: { publisher: string; public_key: string; added_by?: string; added?: string }[] }>("GET", "toolkits/publishers")).publishers ?? []; }
+  async trustPublisher(publisher: string, publicKey: string) { await this.call("POST", "toolkits/publishers", { publisher, public_key: publicKey }); }
+  async untrustPublisher(publisher: string) { await this.call("DELETE", "toolkits/publishers/" + encodeURIComponent(publisher)); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

@@ -94,6 +94,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "toolkits") return ok({ toolkits: [
+      { id: "core", name: "Core", version: "1.0.0", actions: 40, enabled: true, used_by: 9 },
+      { id: "excel", name: "Excel", version: "2.1.0", versions: ["2.1.0", "1.4.0"], actions: 30, enabled: true, used_by: 3, publisher: "ONEOFFICEAUTOMATION" },
+      { id: "acme.sap", name: "Acme SAP", version: "0.3.0", actions: 5, enabled: false, used_by: 0, custom: true, publisher: "acme" }] });
+    if (route === "toolkits/excel/versions") return ok({ installed: "2.1.0", agents: [{ path: "Finance/Invoice intake.flow.json", version: 3, required: "^1.0.0", satisfied: false }] });
+    if (route === "toolkits/excel/update-agents") return ok({ results: [{ path: "Finance/Invoice intake.flow.json", status: "updated", version: 4 }] });
+    if (/^toolkits\/[\w.]+$/.test(route)) return ok({ ok: true });
     if (route === "saved-connections") return ok({ connections: [{ name: "SNOW prod", package: "servicenow", description: "Incidents", values: { instance_url: "https://acme.service-now.com" },
       credentials: { password: "snow/api/password" }, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
     if (route === "connection-kinds") return ok({ kinds: [{ package: "servicenow", name: "ServiceNow", inputs: [{ name: "instance_url" }, { name: "username" }, { name: "password", credential: true }] },
@@ -222,7 +229,7 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Agent ToolKits" }).getAttribute("href")).toBe("../?page=toolkits");
+    expect(within(menu).getByRole("link", { name: "Agent Repository" }).getAttribute("href")).toBe("../?page=automation");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -725,6 +732,28 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create connection" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "saved-connections/SF",
       body: { package: "salesforce", description: "", values: { domain: "acme.my.salesforce.com" }, credentials: { token: "sf/api/token" } } }));
+  });
+
+  it("shows Agent ToolKits as AA's Packages: versions and usage, a warning before switching off, agents updated to a new version range", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent ToolKits" }));
+    const list = await screen.findByRole("table", { name: "Toolkits list" });
+    expect(await within(list).findByText("2.1.0, 1.4.0 (default 2.1.0)")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "own" } });
+    await waitFor(() => expect(within(list).queryByText("Excel")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    const excel = (await within(list).findByText("Excel")).closest("tr")!;
+    fireEvent.click(within(excel as HTMLElement).getByRole("button", { name: "Switch off" }));
+    const off = await screen.findByRole("dialog", { name: "Switch off Excel" });
+    expect(within(off).getByText(/3 agents use Excel/)).toBeTruthy();
+    await act(async () => { fireEvent.click(within(off).getByRole("button", { name: "Switch off" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "toolkits/excel", body: { enabled: false } }));
+    fireEvent.click(within(list).getByText("Excel"));
+    const v = await screen.findByRole("dialog", { name: "Toolkit Excel" });
+    expect(await within(v).findByText("^1.0.0")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(v).getByRole("button", { name: "Update agents" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "toolkits/excel/update-agents", body: { range: "^2.0.0" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
