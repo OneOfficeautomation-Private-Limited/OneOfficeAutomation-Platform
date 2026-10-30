@@ -86,3 +86,9 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-sso { display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
 .cc-key, .cc-codes { display: block; padding: 8px 10px; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); background: var(--ui-soft);
   font-family: var(--ui-mono); word-break: break-all; margin: 0; }
+
+/* Runners */
+.cc-status.is-online { color: var(--ui-success); }
+.cc-status.is-disabled { color: var(--ui-error-text); }
+.cc-inline { display: inline-flex; align-items: center; gap: 6px; }
+.cc-table tr.is-static { cursor: default; }

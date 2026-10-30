@@ -58,7 +58,15 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "dashboard") return ok(dashboard);
     if (route === "plugins") return ok({ plugins });
     if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json" }, { path: "HR/Onboard.flow.json" }] });
-    if (route === "devices") return ok({ devices: [{ id: "d1", name: "Runner A" }] });
+    if (route === "devices" && init.method === "PATCH") return ok({ updated: (body.ids as string[]).length, changes: 1 });
+    if (route === "devices") return ok({ devices: [
+      { id: "d1", name: "Runner A", hostname: "PC-A", os: "Windows 11", enabled: true, status: "online", device_type: "single_user", lifespan: "persistent", log_level: "info",
+        default_users: ["admin"], running: 1, agent_version: "1.4.0", up_to_date: true, last_seen: new Date().toISOString(), registered: "2026-10-01T08:00:00Z", registered_by: "admin" },
+      { id: "d2", name: "Runner B", hostname: "VDI-7", os: "Windows Server 2022", enabled: true, status: "offline", device_type: "multi_user", lifespan: "temporary", log_level: "debug",
+        default_users: [], running: 0, agent_version: "1.3.0", up_to_date: false, registered: "2026-10-02T08:00:00Z" }] });
+    if (/^devices\/d\d$/.test(route)) return ok({ ok: true });
+    if (route === "pools" && init.method === "POST") return ok({ id: "p2" });
+    if (route === "pools") return ok({ pools: [{ id: "p1", name: "Finance pool", description: "Month end", devices: ["d1"], created_by: "admin" }] });
     if (route === "runs") {
       const q = new URLSearchParams(url.split("?")[1]);
       calls.push({ method: "GET", route: "runs?" + q.toString() });
@@ -116,7 +124,7 @@ describe("rebuilt Command Center console", () => {
     const { api } = fakeServer({ signedIn: viewer });
     render(<ConsoleApp api={api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    expect(within(menu).getByRole("link", { name: "Runners" })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: "Runners" })).toBeTruthy();
     expect(within(menu).queryByText("ADMINISTRATION")).not.toBeNull();   // the vault is for everyone
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
     expect(within(menu).queryByText("INSIGHTS")).toBeNull();   // no page in it is open to a viewer
@@ -172,6 +180,52 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
     expect(made).toEqual(["csv"]);
     expect(await screen.findByText("Exported 1 run.")).toBeTruthy();
+  });
+
+  it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "devices.manage", "pools.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Runners" }));
+    const list = await screen.findByRole("table", { name: "Runners list" });
+    expect(await within(list).findByText("Runner B")).toBeTruthy();
+    expect(within(list).getByText("Finance pool")).toBeTruthy();
+    expect(screen.getByText(/1 of 2 online/)).toBeTruthy();
+    // search in a chosen field (AA's search chooser), then a status filter
+    fireEvent.change(screen.getByLabelText("Search in"), { target: { value: "os" } });
+    fireEvent.change(screen.getByLabelText("Search runners"), { target: { value: "server" } });
+    await waitFor(() => expect(within(list).queryByText("Runner A")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "online" } });
+    await waitFor(() => expect(within(list).queryByText("Runner B")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    // settings for the selected runners: only what is chosen changes
+    fireEvent.click(await within(list).findByLabelText("Select Runner B"));
+    fireEvent.click(screen.getByRole("button", { name: "Update settings" }));
+    const settings = await screen.findByRole("dialog", { name: "Update 1 runner" });
+    fireEvent.change(within(settings).getByLabelText("Log level"), { target: { value: "warning" } });
+    await act(async () => { fireEvent.click(within(settings).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "devices", body: { ids: ["d2"], log_level: "warning" } }));
+    // out of service: no new work, as AA's maintenance and Blue Prism's retire
+    fireEvent.click(await within(list).findByLabelText("Select Runner B"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Take out of service" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "devices/d2", body: { enabled: false } }));
+    expect(await screen.findByText("Took out of service 1 runner.")).toBeTruthy();
+    // a runner's details by topic
+    fireEvent.click(within(list).getByText("Runner B"));
+    const details = await screen.findByRole("dialog", { name: "Runner Runner B" });
+    expect(within(details).getByText(/Temporary: removed by itself/)).toBeTruthy();
+    expect(within(details).getByText("Update available")).toBeTruthy();
+    fireEvent.click(within(details).getByRole("button", { name: "Close" }));
+    // a pool made from the selected runners
+    fireEvent.click(await within(list).findByLabelText("Select Runner A"));
+    fireEvent.click(screen.getByRole("button", { name: "Make a pool" }));
+    const pool = await screen.findByRole("dialog", { name: "New runner pool" });
+    expect((within(pool).getByLabelText(/Runner A/) as HTMLInputElement).checked).toBe(true);
+    fireEvent.change(within(pool).getByLabelText("Name"), { target: { value: "HR pool" } });
+    await act(async () => { fireEvent.click(within(pool).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "pools", body: { name: "HR pool", description: "", devices: ["d1"] } }));
+    fireEvent.click(screen.getByRole("tab", { name: /Runner pools/ }));
+    expect(within(await screen.findByRole("table", { name: "Runner pools list" })).getByText("1 of 1")).toBeTruthy();
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

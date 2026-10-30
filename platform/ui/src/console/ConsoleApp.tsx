@@ -4,11 +4,12 @@ import { Button, Field, Icon, Menu, TextInput, usePersistent } from "../componen
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { Activity } from "./Activity";
+import { Devices } from "./Devices";
 import { DocumentAutomation } from "./DocumentAutomation";
 import { Home } from "./Home";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "docautomation"]);
+const LOCAL = new Set<string>(["activity", "devices", "docautomation"]);
 /** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -65,6 +66,7 @@ export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
+          {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}
           {page === "docautomation" && <DocumentAutomation api={api} />}
         </main>
       </div>

@@ -24,6 +24,13 @@ export type Run = { id: string; bot_path: string; version?: number; device_id?: 
 export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
 export type ConsolePlugin = { id: string; name: string; description: string; path: string };
+/** A machine running the One Runner (AA: a device), as GET devices gives it. */
+export type Runner = { id: string; name: string; hostname?: string; os?: string; agent_version?: string; enabled: boolean;
+  status: "online" | "offline" | "disabled"; last_seen?: string | null; registered?: string; registered_by?: string; log_level?: string;
+  device_type?: string; session_state?: string | null; after_run?: string; lifespan?: string; up_to_date?: boolean; update_requested?: boolean | string | null;
+  version_status?: string; default_users?: string[]; running?: number; toolkits?: string | null };
+/** Runners that share work: a run sent to a pool goes to its least busy online runner. */
+export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string };
 
 export class CrFailure extends Error {
   constructor(readonly status: number, readonly error: CrError) { super(error.message); }
@@ -75,6 +82,25 @@ export class CrApi {
   /** The agents in the repository and the runners, for the filters. */
   async agents() { return (await this.call<{ bots?: { path: string }[] }>("GET", "repo")).bots ?? []; }
   async runners() { return (await this.call<{ devices?: { id: string; name: string }[] }>("GET", "devices")).devices ?? []; }
+  /** Runners with everything the Runners page shows. */
+  async devices() { return (await this.call<{ devices?: Runner[] }>("GET", "devices")).devices ?? []; }
+  /** Settings for several runners at once: log_level, device_type, after_run (only those given change). */
+  async updateDevices(ids: string[], changes: { log_level?: string; device_type?: string; after_run?: string }) {
+    return this.call<{ updated: number }>("PATCH", "devices", { ids, ...changes });
+  }
+  /** Rename, or take out of service (enabled false: gets no work, cannot sign in) and back. */
+  async patchDevice(id: string, b: { name?: string; enabled?: boolean }) { await this.call("PATCH", "devices/" + encodeURIComponent(id), b); }
+  async deleteDevice(id: string) { await this.call("DELETE", "devices/" + encodeURIComponent(id)); }
+  /** Ask runners to update their program when idle; and whether an update is available. */
+  updateRunnerProgram(ids: string[]) { return this.call<{ version?: string }>("POST", "devices/update", { ids }); }
+  runnerProgram() { return this.call<{ available: boolean; version?: string; auto?: boolean }>("GET", "devices/update"); }
+  /** A one-time key to register a runner (shown once). */
+  registrationKey(temporary: boolean) { return this.call<{ key: string; temporary?: boolean }>("POST", "devices/registration-key", { hours: 24, temporary }); }
+  async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
+  savePool(id: string | null, b: { name: string; description: string; devices: string[] }) {
+    return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);
+  }
+  async deletePool(id: string) { await this.call("DELETE", "pools/" + encodeURIComponent(id)); }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }

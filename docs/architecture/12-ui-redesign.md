@@ -133,7 +133,7 @@ Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6
 
 | Step | What | Size |
 | --- | --- | --- |
-| C0 | The console's shell beside today's, at `/next/`: sign-in (with the two-step code), the menu by task shared with Studio (`ui/src/shell`), Home. **Done 2026-10-30**: `console.html` is a second page of the same build; the Command Center serves it with its own style nonce; pages not rebuilt yet open in today's console from the menu, so nothing is a placeholder; a new password, two-step setup and single sign-on are still done in today's console | M |
+| C0 | The console's shell beside today's, at `/next/`: sign-in (with the two-step code), the menu by task shared with Studio (`ui/src/shell`), Home. **Done 2026-10-30**: `console.html` is a second page of the same build; the Command Center serves it with its own style nonce; pages not rebuilt yet open in today's console from the menu, so nothing is a placeholder. Rebuilt since (2026-10-30, the five changes of the AA comparison): AI > Document Automation (a plug-in page), Agent Runs (AA's Activity: In progress, Completed), sign-in (single sign-on coming back to the page, groups to roles, a new password and two-step setup in the console), and Runners (AA's Devices: search in a chosen field, status and pool filters, columns, settings, program update, out of service and back, delete, details, pools made from selected runners) | M |
 | C1 | One table for every list, with column filters and saved views (V6.7): runs, runners, queues, tasks | M |
 | C2 | Work for people (V6.2) and bulk approve and reject (V6.8) | L |
 | C3 | Roles in plain words (V6.3) and settings in short pages with search (V6.4) | M |
