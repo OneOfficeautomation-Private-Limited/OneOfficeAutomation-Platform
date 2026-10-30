@@ -80,6 +80,13 @@ export type Schedule = { id: string; name: string; bot_path: string; device_id?:
 export type Trigger = { id: string; name: string; kind: string; bot_path: string; device_id?: string | null; run_as?: string | null; created_by?: string; enabled: boolean;
   status?: string | null; evaluated_on?: "runner" | "server" | null; windows_only?: boolean; fire_count?: number; last_fired?: string | null; last_error?: string | null;
   folder?: string | null; pattern?: string | null; config?: Record<string, unknown> | null };
+/** A work queue: items an agent works one by one on a runner pool, with a service level and attempts per item. */
+export type WorkQueue = { id: string; name: string; description?: string | null; bot_path?: string | null; pool_id?: string | null; sla_minutes?: number | null; max_attempts: number;
+  model_id?: string | null; processing: boolean; run_as?: string | null; counts: Record<string, number>; overdue?: number };
+export type WorkItem = { id: string; reference?: string | null; status: string; attempts: number; priority: number; created?: string; finished?: string | null; defer_until?: string | null;
+  data: unknown; result?: unknown; error?: unknown; run_id?: string | null };
+/** The fields every item of a queue has (AA's work item template). */
+export type ItemModel = { id: string; name: string; description?: string | null; queues?: number; fields: { name: string; type: "text" | "number" | "boolean" | "date"; required?: boolean; display?: boolean }[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -259,6 +266,33 @@ export class CrApi {
   /** Checks a Command Center trigger now instead of waiting for its interval. */
   pollTrigger(id: string) { return this.call<{ fired?: number; error?: string }>("POST", "triggers/" + encodeURIComponent(id) + "/poll"); }
   async deleteTrigger(id: string) { await this.call("DELETE", "triggers/" + encodeURIComponent(id)); }
+  // ---- Work queues: queues, their items, item models (AA's work item templates), members ----
+  async queues() { return (await this.call<{ queues?: WorkQueue[] }>("GET", "queues")).queues ?? []; }
+  queue(id: string) { return this.call<WorkQueue & { members: { principal: string; member_role: string }[]; model?: ItemModel | null }>("GET", "queues/" + encodeURIComponent(id)); }
+  saveQueue(id: string | null, b: Record<string, unknown>) { return this.call<{ id: string }>(id ? "PUT" : "POST", "queues" + (id ? "/" + encodeURIComponent(id) : ""), b); }
+  async deleteQueue(id: string) { await this.call("DELETE", "queues/" + encodeURIComponent(id)); }
+  async setProcessing(id: string, on: boolean) { await this.call("POST", "queues/" + encodeURIComponent(id) + (on ? "/start" : "/stop")); }
+  async setQueueMembers(id: string, members: { principal: string; role: string }[]) { await this.call("PUT", "queues/" + encodeURIComponent(id) + "/members", { members }); }
+  queueItems(id: string, status: string, q: string, limit = 200) { return this.call<{ items: WorkItem[]; total: number }>("GET", "queues/" + encodeURIComponent(id) + "/items?" + new URLSearchParams({ status, q, limit: String(limit) })); }
+  queueItem(id: string, itemId: string) { return this.call<WorkItem>("GET", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId)); }
+  async updateQueueItem(id: string, itemId: string, b: { data: unknown; reference: string | null; priority: number }) { await this.call("PUT", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId), b); }
+  /** retry, defer (until a time, or until someone presses Retry) or delete several items. */
+  async itemsAction(id: string, action: "retry" | "defer" | "delete", ids: string[], until?: string) { await this.call("POST", "queues/" + encodeURIComponent(id) + "/items/" + action, { ids, ...(until ? { until } : {}) }); }
+  addItems(id: string, items: unknown[]) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items", { items }); }
+  addItemsCsv(id: string, csv: string) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/csv", { csv }); }
+  addItemsXlsx(id: string, file: string, sheet: string | null) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/xlsx", { file, sheet }); }
+  validateItem(id: string, itemId: string, b: { fields?: Record<string, unknown>; reject?: boolean; reason?: string }) { return this.call<{ changed?: string[] }>("POST", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId) + "/validate", b); }
+  async itemsCsv(id: string, status: string) {
+    const res = await this.fetcher(this.base + "queues/" + encodeURIComponent(id) + "/items/export" + (status ? "?status=" + encodeURIComponent(status) : ""), { method: "GET", credentials: "same-origin" });
+    const text = await res.text();
+    if (!res.ok) throw new CrFailure(res.status, { code: "HTTP." + res.status, message: res.statusText || "Export failed" });
+    return text;
+  }
+  exportQueue(id: string, items: boolean) { return this.call<Record<string, unknown>>("GET", "queues/" + encodeURIComponent(id) + "/export" + (items ? "?items=true" : "")); }
+  importQueue(definition: unknown, name: string | null) { return this.call<{ name: string; items: number; notes?: string[] }>("POST", "queues/import", { definition, name }); }
+  async itemModels() { return (await this.call<{ models?: ItemModel[] }>("GET", "queue-models")).models ?? []; }
+  async saveItemModel(id: string | null, b: { name: string; description: string; fields: ItemModel["fields"] }) { await this.call(id ? "PUT" : "POST", "queue-models" + (id ? "/" + encodeURIComponent(id) : ""), b); }
+  async deleteItemModel(id: string) { await this.call("DELETE", "queue-models/" + encodeURIComponent(id)); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

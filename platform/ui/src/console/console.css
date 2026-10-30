@@ -126,3 +126,7 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-roles-off legend { padding: 0; margin-bottom: 4px; }
 .cc-taskform { display: grid; gap: 4px; margin: 8px 0; }
 .cc-radio { border: 0; padding: 0; margin: 4px 0; }
+.cc-facts-wide { grid-template-columns: 130px 1fr 130px 1fr; }
+.cc-counts { flex-wrap: wrap; margin: 8px 0; }
+.cc-unsure input { border-color: var(--ui-error-text); }
+@media (max-width: 760px) { .cc-facts-wide { grid-template-columns: 110px 1fr; } }

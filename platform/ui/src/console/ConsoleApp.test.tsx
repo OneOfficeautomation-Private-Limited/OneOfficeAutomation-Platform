@@ -93,6 +93,15 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "queues") return ok({ queues: [{ id: "q1", name: "Vendor invoices", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", max_attempts: 2, sla_minutes: 240,
+      processing: false, counts: { new: 3, retry: 1, in_progress: 0, success: 10, failed: 2, review: 1 }, overdue: 1 }] });
+    if (route === "queues/q1") return ok({ id: "q1", name: "Vendor invoices", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", max_attempts: 2, sla_minutes: 240, processing: false,
+      counts: { new: 3, retry: 1, success: 10, failed: 2, review: 1 }, overdue: 1, members: [], model: null });
+    if (route === "queues/q1/items") return ok({ total: 2, items: [
+      { id: "i1", reference: "INV-1", status: "failed", attempts: 2, priority: 0, created: "2026-10-31T08:00:00Z", data: JSON.stringify({ vendor: "Acme" }), error: JSON.stringify({ code: "PDF.UNREADABLE" }) },
+      { id: "i2", reference: "INV-2", status: "review", attempts: 1, priority: 0, created: "2026-10-31T08:05:00Z", data: "{}",
+        result: JSON.stringify({ validation: { fields: { total: "120" }, confidence: { total: 0.4 }, min_confidence: 0.8 } }) }] });
+    if (/^queues\/q1\/(start|stop|items\/(retry|defer|delete)|items\/i\d\/validate)$/.test(route)) return ok({ ok: true, changed: ["total"] });
     if (route === "triggers" && init.method === "POST") return ok(body.kind === "webhook" ? { id: "t9", url: "/api/hooks/t9", secret: "whsec-1" } : { id: "t8" });
     if (route === "triggers") return ok({ triggers: [
       { id: "g1", name: "New invoices", kind: "file", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", enabled: true, evaluated_on: "runner", folder: "C:\\In", pattern: "*.pdf", fire_count: 3, last_fired: "2026-10-31T08:00:00Z", created_by: "admin" },
@@ -182,7 +191,7 @@ describe("rebuilt Command Center console", () => {
     expect(screen.getByText("Welcome, Asha Admin. Here is what your agents have been doing.")).toBeTruthy();
     const figures = await screen.findByRole("list", { name: "Figures" });
     expect(within(figures).getByText("93%")).toBeTruthy();
-    expect(within(figures).getByText("Work items waiting").closest("a")!.getAttribute("href")).toBe("../?page=queues");
+    expect(within(figures).getByText("Work items waiting").closest("a")!.getAttribute("href")).toBe("#/queues");
     expect(within(figures).getByText("Succeeded (24 h)").closest("a")).toBeNull();   // no page for it
     expect(screen.getAllByText("Invoice intake", { selector: "li strong" })).toHaveLength(2);   // an agent and a run
     expect(screen.getByRole("img", { name: "Runs per day for the last 7 days" })).toBeTruthy();
@@ -194,8 +203,7 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
+    expect(within(menu).getByRole("link", { name: "Workflow" }).getAttribute("href")).toBe("../?page=workflows");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -611,6 +619,30 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "triggers", body: { name: "Orders hook", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "webhook" } }));
     const hook = await screen.findByRole("dialog", { name: "Webhook created" });
     expect(within(hook).getByText("whsec-1")).toBeTruthy();
+  });
+
+  it("shows Work queues as AA's: counts, items past the service level, retry failed items, validate an unsure item, start processing", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "queues.work", "queues.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Work queues" }));
+    const list = await screen.findByRole("table", { name: "Work queues list" });
+    expect(await within(list).findByText("1 past it")).toBeTruthy();
+    expect(within(list).getByText("4")).toBeTruthy();   // waiting: new and retry
+    fireEvent.click(within(list).getByText("Vendor invoices"));
+    const view = await screen.findByRole("dialog", { name: "Work queue Vendor invoices" });
+    const items = await within(view).findByRole("table", { name: "Work items" });
+    expect(await within(items).findByText(/PDF.UNREADABLE/)).toBeTruthy();
+    fireEvent.click(within(items).getByLabelText("Select INV-1"));
+    await act(async () => { fireEvent.click(within(view).getByRole("button", { name: "Retry" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/retry", body: { ids: ["i1"] } }));
+    // an item the agent was unsure of: correct and approve
+    fireEvent.click(within(items).getByText("INV-2"));
+    const v = await screen.findByRole("dialog", { name: "Validate INV-2" });
+    fireEvent.change(within(v).getByLabelText(/total \(40 %, unsure\)/), { target: { value: "125" } });
+    await act(async () => { fireEvent.click(within(v).getByRole("button", { name: "Approve" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/i2/validate", body: { fields: { total: "125" } } }));
+    await act(async () => { fireEvent.click(within(view).getByRole("button", { name: "Start processing" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/start" }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
