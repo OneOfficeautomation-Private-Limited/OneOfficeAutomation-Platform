@@ -157,8 +157,20 @@ function fakeServer() {
   routes["GET model-connections"] = () => connections;
   routes["PUT model-connections"] = (b) => { connections = b; return b; };
   routes["PUT triggers"] = (b) => { triggers = b.map((t: any) => ({ enabled: true, ...t })); return { triggers }; };
+  // saved connections, custom connectors, checking without saving, testing a condition, files
+  routes["PUT connections/snow-test"] = (b) => { created.push({ connection: b }); return { ok: true }; };
+  routes["DELETE connections/sf"] = () => { created.push({ deletedConnection: "sf" }); return { ok: true }; };
+  const pets = { name: "petstore", title: "Pet store", server: "https://pets.test", operations: [
+    { id: "listPets", name: "List pets", method: "GET", path: "/pets", parameters: [{ name: "limit", required: true, default: 10 }] },
+    { id: "addPet", name: "Add a pet", method: "POST", path: "/pets", body: { example: { name: "Rex" } } }] };
+  routes["GET connectors"] = () => ({ connectors: [{ name: "petstore", title: "Pet store", operations: 2, server: "https://pets.test" }] });
+  routes["GET connectors/petstore"] = () => ({ connector: pets });
+  routes["POST validate"] = () => ({ problems: [{ stepId: "open", message: "Choose the workbook to open" }] });
+  routes["POST condition/test"] = (b) => { created.push({ conditionTest: b }); return { result: b.variables[0]?.value === "a.xlsx" }; };
+  routes["POST files/reveal"] = (b) => { created.push({ revealed: b.path }); return { path: b.path }; };
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
+    if (route === "files/upload") { created.push({ uploaded: decodeURIComponent(url.replace(/^.*\?/, "")) }); return new Response(JSON.stringify({ path: "Finance/Invoices/notes.txt" }), { status: 200 }); }
     if (route === "item") {
       const path = decodeURIComponent(url.replace(/^.*[?&]path=/, ""));
       if (init.method === "GET") return new Response(JSON.stringify({ path, ...items[path] }), { status: 200 });
@@ -749,6 +761,22 @@ describe("new Studio", () => {
     expect(created).toContainEqual({ deleted: "Finance" });
   });
 
+  it("uploads files into a folder, and shows an item in File Explorer", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    await goToFolder("Finance", "Invoices");
+    fireEvent.contextMenu(await waitFor(() => row("clean.py")));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Download" })).toBeTruthy();
+    await act(async () => { fireEvent.click(within(menu).getByRole("menuitem", { name: "Show in File Explorer" })); });
+    expect(created).toContainEqual({ revealed: "Finance/Invoices/clean.py" });
+    fireEvent.click(within(await openMenu("Folder actions for Invoices")).getByRole("menuitem", { name: /^Upload files/ }));
+    const input = screen.getByLabelText("Files to upload") as HTMLInputElement;
+    await act(async () => { fireEvent.change(input, { target: { files: [new File(["hello"], "notes.txt", { type: "text/plain" })] } }); });
+    expect(created).toContainEqual({ uploaded: "parent=Finance/Invoices&name=notes.txt" });
+    expect(await screen.findByText("Uploaded 1 item to Finance/Invoices.")).toBeTruthy();
+  });
+
   it("renames an open agent from its menu, keeping its type, and the open tab follows it", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
@@ -1070,6 +1098,66 @@ describe("new Studio", () => {
     expect(screen.getByLabelText("instance")).toBeTruthy();
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.servicenow/create_record", connection: "snow-prod" });
+  });
+
+  it("checks the agent without saving, adds a step for a custom connector's operation, and manages saved connections", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    const more = async (item: string) => {
+      fireEvent.keyDown(within(steps).getByRole("button", { name: /More/ }), { key: "Enter" });
+      await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: new RegExp("^" + item) })); });
+    };
+    await more("Check the agent");
+    expect(await screen.findByText(/Choose the workbook to open/)).toBeTruthy();
+    expect(created.some((c: any) => c.saved)).toBe(false);   // not saved
+
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    await more("Custom connectors");
+    const dlg = await screen.findByRole("dialog", { name: "Custom connectors" });
+    expect(within(dlg).getByText("Pet store")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Operations" })); });
+    fireEvent.change(within(dlg).getByLabelText("Filter operations"), { target: { value: "list" } });
+    expect(within(dlg).queryByText("Add a pet")).toBeNull();
+    fireEvent.click(within(dlg).getByRole("button", { name: "Add step" }));
+    expect(screen.queryByRole("dialog", { name: "Custom connectors" })).toBeNull();
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.connector/call_operation", args: { connector: "petstore", operation: "listPets", parameters: { limit: 10 } } });
+
+    // saved connections: from a connector step, or the More menu
+    addFromLibrary(/^ServiceNow/, "create record");
+    fireEvent.click(await screen.findByRole("button", { name: "Manage connections…" }));
+    const sc = await screen.findByRole("dialog", { name: "Saved connections" });
+    expect(await within(sc).findByText("snow-prod")).toBeTruthy();
+    fireEvent.click(within(sc).getByRole("button", { name: "Delete sf" }));
+    await act(async () => { fireEvent.click(within(sc).getByRole("button", { name: "Delete" })); });
+    expect(created).toContainEqual({ deletedConnection: "sf" });
+    fireEvent.click(within(sc).getByRole("button", { name: "New connection" }));
+    fireEvent.change(within(sc).getByLabelText("Name"), { target: { value: "snow-test" } });
+    expect((within(sc).getByLabelText("Toolkit") as HTMLSelectElement).value).toBe("ooa.servicenow");
+    fireEvent.change(within(sc).getByLabelText("instance"), { target: { value: "https://dev.service-now.test" } });
+    fireEvent.change(within(sc).getByLabelText("password"), { target: { value: "IT/snow/password" } });
+    await act(async () => { fireEvent.click(within(sc).getByRole("button", { name: "Save" })); });
+    expect(created).toContainEqual({ connection: { package: "ooa.servicenow", values: { instance: "https://dev.service-now.test" }, credentials: { password: "IT/snow/password" } } });
+  });
+
+  it("tests a condition with values for the variables it uses", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Write to log"));
+    fireEvent.click(screen.getByRole("button", { name: /^Core/ }));
+    fireEvent.click(screen.getByRole("button", { name: "If" }));
+    const check1 = await screen.findByRole("group", { name: "Check 1" });
+    fireEvent.change(within(check1).getByLabelText("Value"), { target: { value: "$workbook" } });
+    fireEvent.blur(within(check1).getByLabelText("Value"));
+    fireEvent.change(within(screen.getByRole("group", { name: "Check 1" })).getByLabelText("Compared with"), { target: { value: "a.xlsx" } });
+    fireEvent.blur(within(screen.getByRole("group", { name: "Check 1" })).getByLabelText("Compared with"));
+    fireEvent.click(screen.getByText("Test the condition"));
+    fireEvent.change(screen.getByLabelText("Value of workbook"), { target: { value: "a.xlsx" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Test" })); });
+    expect(await screen.findByText("True: the step runs its first part.")).toBeTruthy();
+    expect(created).toContainEqual({ conditionTest: { condition: { op: "eq", left: "$workbook", right: "a.xlsx" }, variables: [{ name: "workbook", type: "File", value: "a.xlsx" }] } });
   });
 
   it("runs from a step, from a step with default values, or only one step, from the step menu", async () => {

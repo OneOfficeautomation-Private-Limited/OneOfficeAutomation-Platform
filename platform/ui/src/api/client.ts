@@ -32,7 +32,13 @@ export type PackageManifest = { id: string; name: string; version: string; descr
 /** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */
 export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "in_out" | "local"; default?: unknown; description?: string;
   required?: boolean; enum?: unknown[]; kpi?: boolean };
-export type SavedConnection = { name: string; package: string; description?: string };
+/** A saved connection: a connector's address and settings, with vault references (folder/credential/attribute) for its secrets. */
+export type SavedConnection = { name: string; package: string; description?: string; values?: Record<string, unknown>; credentials?: Record<string, string> };
+/** A custom connector made from an OpenAPI, Swagger or Postman file (in the workspace's connectors folder). */
+export type ConnectorSummary = { name: string; title?: string; operations?: number; server?: string; error?: string };
+export type ConnectorOperation = { id: string; name: string; method: string; path: string; tags?: string[];
+  parameters?: { name: string; required?: boolean; default?: unknown }[]; body?: { example?: unknown }; result?: { binary?: boolean } };
+export type ConnectorDef = { name: string; title?: string; server?: string; operations: ConnectorOperation[] };
 /** An open window: a browser tab (with the extension's tab id, or a debugging endpoint) or an application window. */
 export type OpenWindow = { title?: string; url?: string; browser?: string; source?: "browser" | "application"; process?: string;
   tab_id?: number; connector?: boolean; endpoint?: string };
@@ -153,6 +159,37 @@ export class StudioApi {
   async putSharedClipboard(steps: FlowStep[], variables: FlowVariable[]) { await this.call("PUT", "clipboard", { steps, variables }); }
   /** Saved connections of the workspace (the address and vault references a connector uses). */
   async connections() { return (await this.call<{ connections?: SavedConnection[] }>("GET", "connections")).connections ?? []; }
+  /** Saves a connection (a new one, or the same name again); secrets are only vault references, never values. */
+  async saveConnection(c: SavedConnection) {
+    await this.call("PUT", "connections/" + encodeURIComponent(c.name), { package: c.package, description: c.description, values: c.values ?? {}, credentials: c.credentials ?? {} });
+  }
+  async deleteConnection(name: string) { await this.call("DELETE", "connections/" + encodeURIComponent(name)); }
+  /** Custom connectors: list, one with its operations, import from an API description file, delete. */
+  async customConnectors() { return (await this.call<{ connectors?: ConnectorSummary[] }>("GET", "connectors")).connectors ?? []; }
+  async customConnector(name: string) { return (await this.call<{ connector: ConnectorDef }>("GET", "connectors/" + encodeURIComponent(name))).connector; }
+  async importConnector(text: string, name?: string, server?: string) {
+    return (await this.call<{ connector: ConnectorDef }>("POST", "connectors/import", { text, name: name || undefined, server: server || undefined })).connector;
+  }
+  async deleteConnector(name: string) { await this.call("DELETE", "connectors/" + encodeURIComponent(name)); }
+  /** Checks a condition with the given values for the variables it uses: true or false, or why it could not be checked. */
+  testCondition(condition: unknown, variables: { name: string; type: string; value?: unknown }[]) {
+    return this.call<{ result?: boolean; error?: { message?: string } | string }>("POST", "condition/test", { condition, variables });
+  }
+  /** The problems the server finds in an agent, without saving it. */
+  async validate(flow: Flow) { return (await this.call<{ problems?: Problem[] }>("POST", "validate", flow)).problems ?? []; }
+  /** Shows the file or folder in File Explorer (Windows). */
+  async reveal(path: string) { await this.call("POST", "files/reveal", { path }); }
+  /** Uploads a file into a folder as it is (a taken name gets " (2)"); gives where it went. */
+  async upload(parent: string, name: string, data: Blob) {
+    const res = await this.fetcher(this.base + "files/upload?parent=" + encodeURIComponent(parent) + "&name=" + encodeURIComponent(name),
+      { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/octet-stream" }, body: data });
+    const text = await res.text();
+    const r = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new ApiFailure(res.status, r.error ?? { code: "HTTP." + res.status, message: res.statusText || "Upload failed" });
+    return String(r.path ?? "");
+  }
+  /** Where a file downloads from (a folder comes as a zip). */
+  downloadUrl(path: string) { return this.base + "files/download?path=" + encodeURIComponent(path); }
   /** Windows open on this computer now, for the window editor. */
   async windows() { return (await this.call<{ windows?: OpenWindow[] }>("GET", "windows")).windows ?? []; }
   /** Capture: the person clicks an element in a browser (a new page at url, or an open tab); gives its object and selector. */

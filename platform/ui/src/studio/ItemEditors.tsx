@@ -4,8 +4,8 @@ import { Button, Field, IconTile, Select, TextInput, type IconName } from "../co
 
 /**
  * Editors for the items other than agents: forms, workflows, document types, Prompt Skills and scripts. Each works on
- * the item's own file format, the one Classic Studio and the runtime use (studio.js formDesigner, processDesigner,
- * documentDesigner, skillDesigner), and hands every change up as a whole new copy, so Undo is keeping the old one.
+ * the item's own file format, the one the runtime uses, and hands every change up as a whole new copy, so Undo
+ * is keeping the old one.
  * A text field reports its change when it loses focus or on Enter, so typing a word is one undo step.
  */
 

@@ -14,6 +14,7 @@ import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
 import { TriggersPanel } from "./TriggersPanel";
 import { lastValues } from "./variables";
+import { ConnectorsDialog, SavedConnectionsDialog } from "./WorkspaceTools";
 import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
 
 /** The address of the agent's first Open page step, to suggest when a capture opens a new page. */
@@ -98,14 +99,16 @@ export type StepsClipboard = Clip & { system: boolean };
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
 export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
-  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, dirty }:
+  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, onChecked, dirty }:
   { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
     onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
-    onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void; dirty: boolean }) {
+    onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void;
+    /** The problems a check without saving found. */
+    onChecked: (problems: Problem[]) => void; dirty: boolean }) {
   const folded = useMemo(() => foldedSet(flow), [flow]);
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
@@ -135,6 +138,19 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const rightPanel = useRef<HTMLElement | null>(null);
   const [drop, setDrop] = useState<{ key: string | null; where: Place } | null>(null);
   const [bottomTab, setBottomTab] = useState("problems");
+  const [tool, setTool] = useState<"connections" | "connectors" | null>(null);
+  const [checking, setChecking] = useState(false);
+  /** Checks the agent as it is in the editor, without saving it. */
+  const checkNow = async () => {
+    setChecking(true);
+    try {
+      const found = await api.validate(flow);
+      onChecked(found);
+      setBottomTab("problems");
+      onNotice(found.length ? found.length + " problem" + (found.length > 1 ? "s" : "") + " to check." : "No problems found.");
+    } catch (e) { onError(e); }
+    finally { setChecking(false); }
+  };
   const [anchor, setAnchor] = useState<string | null>(null);   // where a Shift range starts
   const [cursor, setCursor] = useState<string | null>(null);   // the end of it that Shift+Up/Down moves
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -253,7 +269,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       if (!clip) return false;
       const keep = (system: boolean) => onClipboard({ ...clip, system });
       keep(false);
-      // the computer's clipboard too, in the shape Classic Studio uses, so either Studio pastes it
+      // the computer's clipboard too, in the shape Classic Studio used, so older copies paste too
       navigator.clipboard?.writeText(JSON.stringify({ [CLIP_KEY]: clip })).then(() => keep(true), () => {});
       return true;
     },
@@ -303,7 +319,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     else if (ctrl && k === "c") act.copy();
     else if (ctrl && k === "x") act.cut();
     else if (ctrl && k === "v") {
-      // a paste event follows when the browser gives one (it carries steps copied in Classic Studio); on a step
+      // a paste event follows when the browser gives one (it carries steps copied in another Studio window); on a step
       // Chrome gives none, so then the Studio's own clipboard is pasted
       pasted.current = false;
       setTimeout(() => { if (!pasted.current) act.paste(); }, 0);
@@ -387,6 +403,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               { key: "all", label: "Select all", shortcut: "Ctrl+A", onSelect: () => onSelect(ids) },
               ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
               ...(folded.size ? [{ key: "unfold", label: "Unfold all", onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
+              { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
+              { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
+              { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
             ]} trigger={<Button kind="plain" icon="chevronDown">More</Button>} />
             <span className="st-bar-gap" />
             <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
@@ -532,8 +551,10 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
             { value: "run", label: "Run output" }, { value: "values", label: "Debug values" }]}>
           <TabPanel value="problems">
             <div role="region" aria-label="Problems">
-              {!checked ? <p className="st-muted st-pad">Save to check the agent.</p>
-                : problems.length === 0 ? <p className="st-pad">No problems found at the last save.</p>
+              <div className="st-pad st-row-tight"><Button kind="secondary" onClick={checkNow} disabled={checking}>{checking ? "Checking…" : "Check now"}</Button>
+                <span className="st-muted">Finds problems without saving; Save checks too.</span></div>
+              {!checked ? <p className="st-muted st-pad">Not checked yet.</p>
+                : problems.length === 0 ? <p className="st-pad">No problems found at the last check.</p>
                 : <ul className="st-problem-list">{problems.map((p, i) => {
                     const row = rows.find((r) => r.kind === "step" && r.step.id === p.stepId);
                     return (
@@ -560,6 +581,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
         }} />}
       {whereAsk && <WhereDialog mode={whereAsk.mode} tabs={whereAsk.tabs} url={whereAsk.url} onRefresh={openWindows}
         onChoose={(c) => { whereAsk.resolve(c); setWhereAsk(null); }} onClose={() => { whereAsk.resolve(null); setWhereAsk(null); }} />}
+      {tool === "connections" && <SavedConnectionsDialog api={api} packages={packages} onClose={() => setTool(null)} onNotice={onNotice} onError={onError} />}
+      {tool === "connectors" && <ConnectorsDialog api={api} onClose={() => setTool(null)} onNotice={onNotice} onError={onError}
+        onInsert={(step) => { insertSteps(flow, [step]); onNotice("Added a Call operation step for " + String(step.note ?? "the operation") + "."); }} />}
       {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}
         footer={<Button kind="secondary" onClick={() => { api.recordCancel().catch(() => {}); }}>Cancel</Button>}>
         <p role="status">Recording actions (<strong>{recording.count}</strong>)…</p>

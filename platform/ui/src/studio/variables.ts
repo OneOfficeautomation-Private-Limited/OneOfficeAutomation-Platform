@@ -3,8 +3,8 @@ import { innerLists } from "./flowEdit";
 
 /**
  * Variables, as pure functions: their types and colours, how they are used (input, output, both, inside), which
- * variable fits which field or result, renaming everywhere, and the values a run left. Matches Classic Studio's
- * rules (studio.js compatible, holds, renameVariableRefs), so both Studios offer the same choices.
+ * variable fits which field or result, renaming everywhere, and the values a run left. The rules Classic Studio
+ * used, so the same choices are offered as before.
  */
 
 export const TYPES = ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"] as const;

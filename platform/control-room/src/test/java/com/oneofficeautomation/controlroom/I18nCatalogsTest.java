@@ -27,7 +27,7 @@ class I18nCatalogsTest {
     @Test @SuppressWarnings("unchecked")
     void catalogsMatchTheInterfaceTexts() throws Exception {
         Set<String> keys = new HashSet<>((List<String>) resource("ooa-i18n-keys.json"));
-        assertTrue(keys.size() > 2000, "the extractor found the interface texts");
+        assertTrue(keys.size() > 1500, "the extractor found the console's interface texts");
         String layer;
         try (InputStream in = I18nCatalogsTest.class.getResourceAsStream("/ooa-ui/ooa-i18n.js")) { layer = new String(in.readAllBytes(), StandardCharsets.UTF_8); }
         for (String lang : LANGUAGES) {

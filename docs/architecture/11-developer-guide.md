@@ -35,7 +35,7 @@ All commands run from `platform/` in PowerShell (`gradlew` on Linux and macOS).
 | Customer zip, setup package, MSI, native executable, SBOM | See [02-components-and-modules.md](02-components-and-modules.md#8-builds-and-distributions) |
 | Leave out an optional toolkit module | Remove it from `ooa.optionalModules` in `gradle.properties` |
 | A forgotten administrator password (server stopped) | `ooa reset-admin [--user NAME] [--data DIR]`; it is audited |
-| The new Studio (platform/ui) | Built by every Gradle build (`:cli:uiBuild`, needs Node.js 22); served at Studio's root (`/studio/` under `ooa server`), Classic Studio at `/classic/`. See 7.3 |
+| The new Studio (platform/ui) | Built by every Gradle build (`:cli:uiBuild`, needs Node.js 22); served at Studio's root (`/studio/` under `ooa server`). See 7.2 |
 
 `ooa server` stores its data in `%USERPROFILE%\OOA Command Center` and Studio files in `%USERPROFILE%\OOA Workspace`
 unless `--data` and `--workspace` say otherwise. The vault key comes from `OOA_MASTER_KEY`, `OOA_MASTER_KEY_SOURCE`
@@ -55,8 +55,8 @@ or `master.key` in the data folder. The other folders and settings are listed in
 | Load test | `.\gradlew.bat :cli:loadTest "-Pooa.load.runners=20" "-Pooa.load.items=300" "-Pooa.load.audit=2000"` | Many runners, a work queue and the audit trail; tests tagged `load` run only here |
 | Conformance cases | `.\gradlew.bat :cli:run --args="conformance ../contracts/conformance/cases"` | The shared runner cases (see [03-agent-model-and-runner.md](03-agent-model-and-runner.md#16-python-reference-runner-and-conformance)) |
 | Console UI | `node console.ui.test.js` in `control-room/src/test/ui`, against a running `ooa control-room`; variables `CONSOLE_DIR`, `CR_URL`, `CR_ADMIN_PASSWORD` | The console in jsdom |
-| Studio UI | `node studio.ui.test.js` in `cli/src/test/ui`, against a running `ooa studio`; variables `STUDIO_DIR`, `OOA_WS`, `OOA_STUDIO_URL` (default `http://localhost:8710`) | Studio in jsdom |
-| Command panels | `node panels.ui.test.js` in `cli/src/test/ui`; `PANEL_FILTER` limits it to action ids that start with a prefix, for example `ooa.excel/` | Every action's settings panel that declares a layout: field order, More options, tick boxes, required markers |
+| Studio screens | `npm run check` in `platform/ui` (also run by `:cli:uiBuild`) | Studio's screens in jsdom against a fake server (`src/studio/App.test.tsx`), panel layouts, the contrast of every colour pair |
+| Studio server | `.\gradlew.bat :cli:test --tests "*Studio*" --tests "*UnifiedServerTest*"` | Studio's API as the page uses it: files and the trash, paths that leave the workspace, items, triggers and webhook secrets, runs, Command Center check-in |
 
 The UI tests need Node.js with `jsdom` on the module path.
 
@@ -98,9 +98,8 @@ The UI tests need Node.js with `jsdom` on the module path.
 4. Write `<Name>PackageTest` against the fake server. Run `.\gradlew.bat :packages:test --tests "*<Name>*"` and
    `ArchitectureTest`.
 5. Regenerate the toolkit reference (`docs/reference/toolkits/`, made from the manifests by
-   `docs/research/tools/make-reference.py`; never edited by hand). Give it a row in `GROUP_LIST` in `studio.js` (group
-   name, icon, colour and section). Without one it gets a group of its own, named after the toolkit, under "More
-   toolkits". A toolkit that covers several technologies is split by action id in `groupOf()`.
+   `docs/research/tools/make-reference.py`; never edited by hand). Give it a row in `BY_TOOLKIT` in
+   `platform/ui/src/studio/toolkits.ts` (colour and icon of its family). Without one it gets the plain default mark.
 6. Nothing else is needed. Studio's action list and panels, validation, the AI assistant and the Command Center's
    Toolkits page all read the manifest.
 
@@ -123,10 +122,12 @@ The UI tests need Node.js with `jsdom` on the module path.
 ## 5. Adding a Studio capability
 
 - **API:** add a route in `StudioServer.api(...)`. Studio already refuses callers that are not on this computer.
-- **UI:** add it to `studio.js`, using the same `h()` helper, dialogs and `api()` wrapper.
+- **UI:** add a method for the route to `platform/ui/src/api/client.ts`, then the screen in `platform/ui/src/studio`, built
+  from the components in `src/components` (see 7.2).
 - **Engine changes:** add an interface or hook in `runner` (as `Runner.Debugger` and `ValueTrail` were added), never
   Studio code in the runner.
-- **Tests:** checks in `studio.ui.test.js`; for a panel change, `panels.ui.test.js`.
+- **Tests:** a check in `src/studio/App.test.tsx` (with the route in its `fakeServer`), and a Java test of the route
+  (as `StudioServerRoutesTest`).
 
 ## 6. Adding a trigger kind or a model provider
 
@@ -161,24 +162,23 @@ Run limits: at most four background runs at once (`STUDIO.TOO_MANY_RUNS`); a run
 day. Finished runs are forgotten after 10 minutes. Every path goes through `Workspace.resolve`, so nothing outside My
 Workspace and nothing hidden is reachable.
 
-### 7.2 Studio UI building blocks (`studio.js`)
+### 7.2 Studio's screens (`platform/ui`)
+
+Studio is built in TypeScript and React ([12-ui-redesign.md](12-ui-redesign.md)) and served at Studio's root
+(`/studio/` under `ooa server`); the preview's old address `/next/` redirects there. Classic Studio was removed on
+2026-10-30. A build made without Node.js has no page: Studio then answers 503 and says how to build it.
 
 | Piece | Role |
 | --- | --- |
-| `GROUP_LIST`, `groupOf()` | Action groups, one per technology under a section heading; `groupOf()` splits a toolkit that holds several technologies |
-| `state.multi`, `state.anchorId` | The canvas selection; Shift extends a range from the anchor step |
-| `openMenu()` | Keyboard-accessible pop-up menus (step menu, Explorer menu) |
-| `renderRunWindow()` | The floating Run window; the Run dock shows the same run |
-| `windowEditor()` | Edits a step's `window` input; still works when `GET windows` is not available |
-| `captureEditor()` | Edits a captured object (see [07-toolkit-architecture.md](07-toolkit-architecture.md#14-captured-objects-and-window-choice)) |
+| `src/api/client.ts` | The only way screens reach the server (`StudioApi`, one method per route) |
+| `src/studio/App.tsx` | The top bar, the Automation page, open tabs, save, run and check-in |
+| `src/studio/Automation.tsx` | Folders and items: create, open, rename, copy, move, upload, download, the trash; Private and Public |
+| `src/studio/Editor.tsx` | An agent: the steps (list or flow), the step menu, drag and drop, capture and record, the output panel |
+| `src/studio/StepForm.tsx`, `KindFields.tsx` | A step's settings by the toolkit's panel layout; windows, saved connections, element actions |
+| `src/studio/CaptureEditor.tsx` | A captured object, its picture and window (see [07-toolkit-architecture.md](07-toolkit-architecture.md#14-captured-objects-and-window-choice)) |
+| `src/studio/WorkspaceTools.tsx` | Saved connections and custom connectors |
+| `src/components` | Buttons, fields, dialogs, menus, tabs, trees, splitters (Radix for behaviour, our CSS for the look) |
 | `StudioDebugger` (Java) | Pauses the runner thread before a step and resumes it on the UI's commands |
-
-### 7.3 The new Studio (`platform/ui`)
-
-The redesign ([12-ui-redesign.md](12-ui-redesign.md)) is built in TypeScript and React. Since 2026-10-30 it is the
-default: served at Studio's root (`/studio/` under `ooa server`); the preview's old address `/next/` redirects there.
-Classic Studio stays at `/classic/` (its relative API calls reach the same API) for one release, then is removed. A build
-without the new Studio (no Node.js) opens Classic instead.
 
 | Task | Command (in `platform/ui`) |
 | --- | --- |
@@ -207,11 +207,11 @@ to `cli/build/generated/ui/studio-next` and into the jar; the npm packages that 
 
 ### Interface languages
 
-The console and Studio show their texts in English, German, French, Spanish and Japanese. After a change to visible
-texts:
+The Command Center console shows its texts in English, German, French, Spanish and Japanese (Agent Studio is in
+English for now). After a change to visible texts:
 
 1. `python scripts/i18n-extract.py` (in `platform`) refreshes the list of texts,
-   `control-room/src/main/resources/ooa-ui/ooa-i18n-keys.json`, from `cr.js`, `studio.js` and both `index.html` files.
+   `control-room/src/main/resources/ooa-ui/ooa-i18n-keys.json`, from `cr.js` and the console's `index.html`.
    A text built from parts, such as `"Delete " + name + "?"`, becomes one key with a place: `Delete {}?`.
 2. Translate the new texts and merge them: `python scripts/i18n-merge.py de translations.txt` (each line is the text's
    number in the key list, a tab, and the translation; every `{}` must stay).

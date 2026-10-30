@@ -35,7 +35,7 @@ application {
 }
 
 // The new Studio screens (docs/architecture/12-ui-redesign.md): platform/ui, TypeScript and React, built by npm into
-// the resources and served by Studio at its root (Classic Studio at /classic/ until it is removed). uiInstall installs the locked packages (npm ci, no install scripts);
+// the resources and served by Studio at its root. uiInstall installs the locked packages (npm ci, no install scripts);
 // uiBuild type-checks, tests, checks licences and the audit, then builds. Customers get only the built files.
 val uiDir = rootProject.file("ui")
 val uiOut = layout.buildDirectory.dir("generated/ui")

@@ -12,7 +12,6 @@
   background: var(--ui-bg); color: var(--ui-text-2); }
 .st-search input { flex: 1; border: 0; outline: none; background: transparent; color: var(--ui-text); }
 .st-top-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
-.st-classic { color: var(--ui-frame-text); font-weight: 600; padding: 0 6px; }
 
 .st-alert { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--ui-debug); color: var(--ui-on-debug); font-weight: 600; }
 .st-alert span { flex: 1; }
@@ -185,6 +184,20 @@ button.st-marker-row { cursor: pointer; }
 .st-cond-row .ui-btn { align-self: flex-start; }
 .st-cond-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .st-cond-sentence { margin: 0; padding: 6px 8px; border-radius: var(--ui-radius); background: var(--ui-selected); color: var(--ui-text); }
+/* Test the condition: a value per variable it uses, then true or false */
+.st-cond-test { padding: 4px 0; }
+.st-cond-test summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+.st-cond-test > * + * { margin-top: 6px; }
+.st-cond-test-row { display: flex; align-items: center; gap: 6px; }
+.st-cond-var { min-width: 110px; font-family: var(--ui-mono); }
+.st-cond-answer { color: var(--ui-ok-text); font-weight: 600; }
+/* saved connections and custom connectors */
+.st-conn-list, .st-conn-edit { display: flex; flex-direction: column; gap: 8px; }
+.st-conn-import { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.st-conn-import .st-row-tight > * { flex: 1; }
+.st-op-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; }
+.st-op { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--ui-divider); }
+.st-op-main { flex: 1; min-width: 0; }
 
 /* P3: the bottom panel (Problems, Run output, Debug values), running and debugging */
 .st-bottom { border-top: 1px solid var(--ui-border); height: 34%; min-height: 150px; flex: none; display: flex; flex-direction: column; }

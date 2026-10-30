@@ -3,7 +3,7 @@ import type { FieldSpec, FlowStep, PackageManifest } from "../api/client";
 /**
  * Settings that depend on what a step does: which fields an element action uses, the actions that suit a captured
  * control, the variable an action's result goes to, the kinds of loop, and the inputs a saved connection supplies.
- * The same rules as Classic Studio, so both Studios show a step the same way.
+ * The same rules Classic Studio used, so a step shows the same as before.
  */
 
 /** Is a field shown for the step's other settings? { iterator: ["while"] } or, with "!" first, { iterator: ["!", "times"] }. */

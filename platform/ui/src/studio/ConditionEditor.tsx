@@ -2,6 +2,46 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Select, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { OPS, conditionText } from "./toolkits";
+import { useVars } from "./VariablesPanel";
+
+/**
+ * Try the condition: a value for each of the agent's variables it uses (their defaults to start with), then whether
+ * it is true or false, worked out by the server as a run would.
+ */
+function ConditionTest({ value }: { value: unknown }) {
+  const vars = useVars();
+  const used = vars ? (vars.flow.variables ?? []).filter((v) => new RegExp("\\$\\{?" + v.name + "\\b").test(JSON.stringify(value ?? ""))) : [];
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [answer, setAnswer] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!vars || value === undefined) return null;
+  const valueOf = (name: string, fallback: unknown) => name in values ? values[name] : showValue(fallback);
+  const test = async () => {
+    setBusy(true);
+    try {
+      const r = await vars.api.testCondition(value, used.map((v) => {
+        const text = valueOf(v.name, v.default);
+        return text === "" ? { name: v.name, type: v.type } : { name: v.name, type: v.type, value: parseLoose(text) };
+      }));
+      setAnswer(r.error !== undefined ? { ok: false, text: "Could not be checked: " + (typeof r.error === "string" ? r.error : r.error?.message ?? "unknown error") }
+        : { ok: true, text: r.result ? "True: the step runs its first part." : "False." });
+    } catch (e) { setAnswer({ ok: false, text: "Could not be checked: " + (e instanceof Error ? e.message : String(e)) }); }
+    finally { setBusy(false); }
+  };
+  return (
+    <details className="st-cond-test">
+      <summary>Test the condition</summary>
+      {used.length > 0 ? used.map((v) => (
+        <div key={v.name} className="st-cond-test-row">
+          <label className="st-cond-var" htmlFor={"cond-test-" + v.name}>${v.name}</label>
+          <TextInput id={"cond-test-" + v.name} aria-label={"Value of " + v.name} value={valueOf(v.name, v.default)}
+            onChange={(e) => { setValues({ ...values, [v.name]: e.target.value }); setAnswer(null); }} />
+        </div>)) : <p className="st-muted">It uses none of the agent's variables.</p>}
+      <div className="st-row-tight"><Button kind="secondary" onClick={test} disabled={busy}>{busy ? "Testing…" : "Test"}</Button>
+        {answer && <span role="status" className={answer.ok ? "st-cond-answer" : "st-check"}>{answer.text}</span>}</div>
+    </details>
+  );
+}
 
 /** One check: a value, a comparison, and (for most comparisons) a second value. */
 type Check = { left: string; op: string; right: string };
@@ -57,6 +97,7 @@ export function ConditionEditor({ value, onCommit }: { value: unknown; onCommit:
         <TextInput aria-label="Condition as an expression" mono defaultValue={model.text} onBlur={(e) => commit({ mode: "advanced", text: e.currentTarget.value })} />
         <p className="st-cond-sentence">{value === undefined ? "No condition yet." : conditionText(value)}</p>
         <Button kind="plain" onClick={() => setModel(toModel(undefined))}>Build it with checks instead</Button>
+        <ConditionTest value={value} />
       </div>
     );
   }
@@ -86,6 +127,7 @@ export function ConditionEditor({ value, onCommit }: { value: unknown; onCommit:
         <Button kind="plain" onClick={() => setModel({ mode: "advanced", text: showValue(value) })}>Write it as an expression</Button>
       </div>
       <p className="st-cond-sentence">{value === undefined ? "No condition yet." : "Reads: " + conditionText(value)}</p>
+      <ConditionTest value={value} />
     </div>
   );
 }

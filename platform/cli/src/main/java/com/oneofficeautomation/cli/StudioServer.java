@@ -116,13 +116,7 @@ public final class StudioServer {
                 path = path.substring(base.length());
             }
             String method = "HEAD".equals(ex.getRequestMethod()) ? "GET" : ex.getRequestMethod();   // HEAD is answered like GET, without the body
-            // Classic Studio, until it is removed one release after the new Studio became the default (2026-10-30): its
-            // page and files under /classic/, and its relative API calls (classic/api/...) reach the same API
-            boolean classic = false;
-            if (path.equals("/classic")) { ex.getResponseHeaders().set("Location", base + "/classic/"); send(ex, 302, "text/plain", "Moved"); return; }
-            if (path.startsWith("/classic/")) { path = path.substring(8); classic = true; }
             if (path.startsWith("/api/")) api(ex, method, path.substring(5));
-            else if (classic) classicAsset(ex, path);
             else asset(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
@@ -141,34 +135,16 @@ public final class StudioServer {
     }
 
     /**
-     * The new Studio (platform/ui) is the default, at the root. The preview's old address /next/ goes there, and a build
-     * without the new Studio (no Node.js when it was built) opens Classic instead.
+     * Studio's page and files (platform/ui, built into /studio-next/), at the root. The preview's old address /next/
+     * goes there. A build made without Node.js has no page, and says how to build one.
      */
     private void asset(HttpExchange ex, String path) throws IOException {
         if (path.equals("/next") || path.startsWith("/next/")) { ex.getResponseHeaders().set("Location", base + "/"); send(ex, 302, "text/plain", "Moved"); return; }
         if ((path.equals("/") || path.equals("/index.html")) && StudioServer.class.getResource("/studio-next/index.html") == null) {
-            ex.getResponseHeaders().set("Location", base + "/classic/"); send(ex, 302, "text/plain", "Moved"); return;
+            send(ex, 503, "text/plain; charset=utf-8", "Agent Studio's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist");
+            return;
         }
         nextAsset(ex, path.substring(1));
-    }
-
-    /** Classic Studio's files (studio/ in the resources, the shared design system from ooa-ui/), served under /classic/. */
-    private void classicAsset(HttpExchange ex, String path) throws IOException {
-        String name = switch (path) {
-            case "/", "/index.html" -> "index.html";
-            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css", "/ooa-i18n.js" -> path.substring(1);
-            // interface language catalogs
-            default -> path.matches("^/ooa-i18n-[a-z]{2}\\.json$") ? path.substring(1) : null;
-        };
-        if (name == null) { send(ex, 404, "text/plain", "Not found"); return; }
-        // The shared design system comes from the Command Center module, so both applications use the same files.
-        String folder = name.startsWith("ooa-") ? "/ooa-ui/" : "/studio/";
-        try (InputStream in = StudioServer.class.getResourceAsStream(folder + name)) {
-            if (in == null) { send(ex, 404, "text/plain", "Missing asset " + name); return; }
-            String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".json") ? "application/json; charset=utf-8"
-                    : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
-            sendBytes(ex, 200, type, in.readAllBytes());
-        }
     }
 
     /** Files of the new Studio (platform/ui, built by :cli:uiBuild into /studio-next/), served at the root. */

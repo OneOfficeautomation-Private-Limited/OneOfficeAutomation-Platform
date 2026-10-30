@@ -47,31 +47,18 @@ class UnifiedServerTest {
         server.start();
         com.oneofficeautomation.agent.Agent agent = null;
         try {
-            // ---- one URL: Control Room at /, Studio at /studio/ (the new Studio), Classic Studio at /studio/classic/ ----
+            // ---- one URL: Control Room at /, Studio at /studio/ ----
             Res redirect = call(base, "GET", "/studio", null, null, null);
             assertEquals(302, redirect.status());
             assertEquals("/studio/", redirect.headers().firstValue("Location").orElse(""));
-            assertEquals("/studio/classic/", call(base, "GET", "/studio/classic", null, null, null).headers().firstValue("Location").orElse(""));
-            Res page = call(base, "GET", "/studio/classic/", null, null, null);
-            assertEquals(200, page.status());
-            assertTrue(page.body().contains("<script src=\"studio.js\">"), "Classic Studio's page uses relative paths so it works under /studio/classic/");
-            assertEquals(200, call(base, "GET", "/studio/classic/studio.js", null, null, null).status());
-            assertEquals("/", call(base, "GET", "/studio/classic/api/info", null, null, null).json().get("controlRoom"), "Classic's relative API calls reach the same API");
-            assertEquals(404, call(base, "GET", "/studio/studio.js", null, null, null).status(), "Classic's files are only under /classic/");
+            assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"), "Studio's API is under /studio/api/");
+            for (String gone : List.of("/studio/classic/", "/studio/classic/studio.js", "/studio/studio.js"))
+                assertEquals(404, call(base, "GET", gone, null, null, null).status(), gone + ": Classic Studio was removed");
             // HEAD (used by uptime checks and some proxies): same status, no body, and no server warning
-            for (String p : List.of("/", "/studio/", "/studio/classic/", "/api/health")) {
+            for (String p : List.of("/", "/studio/", "/api/health")) {
                 Res head = call(base, "HEAD", p, null, null, null);
                 assertEquals(200, head.status(), "HEAD " + p);
                 assertEquals("", head.body(), "HEAD " + p + " has no body");
-            }
-            // ---- one design system: both applications serve the same token and component sheets ----
-            for (String css : List.of("ooa-tokens.css", "ooa-components.css")) {
-                Res fromStudio = call(base, "GET", "/studio/classic/" + css, null, null, null), fromConsole = call(base, "GET", "/" + css, null, null, null);
-                assertEquals(200, fromStudio.status(), css);
-                assertEquals(200, fromConsole.status(), css);
-                assertTrue(fromStudio.headers().firstValue("Content-Type").orElse("").startsWith("text/css"), css);
-                assertEquals(fromConsole.body(), fromStudio.body(), css + " is the same file in both applications");
-                assertTrue(page.body().contains("href=\"" + css + "\""), "Studio's page loads " + css);
             }
             assertTrue(call(base, "GET", "/ooa-tokens.css", null, null, null).body().contains("--surface-canvas"));
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));

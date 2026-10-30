@@ -32,7 +32,7 @@ platform/ui/                one npm project, built by Gradle (:cli:uiBuild)
     api/          typed client for the Studio API; one base URL (local now, Command Center later)
     studio/       the Studio application
     console/      the Command Center application (after Studio)
-  built into cli/build/generated/ui/studio-next, served by Studio at /next/ (classic Studio stays at /)
+  built into cli/build/generated/ui/studio-next, served by Studio at its root
 ```
 
 One project instead of several packages keeps the build simple; the folders keep the same boundaries, and can
@@ -126,13 +126,13 @@ one at `/studio/` behind a "Try the new Studio" switch, the old one as "Classic"
 | P3 | Action library, variables, triggers, run, debug, bottom panel. **Done 2026-10-29**: Run (asking for the agent's inputs), live run output and outputs, Debug with breakpoints (F9), Continue, Step over, into and out, values at the stopped step, the running step highlighted; schedule, folder and webhook triggers per agent; Problems, Run output and Debug values in the bottom panel | L |
 | P4 | Other editors: form, workflow, document type, Prompt Skill, script. **Done 2026-10-29**: forms (13 field kinds, ids, options, limits), workflows (agent tasks, human tasks, approvals, decisions, notifications), document types (provider, model, accepted files, fields to extract), Prompt Skills and scripts, each with undo, save and the unsaved check; new items open in their editor; a JSON file that does not parse opens as text to repair. Still in Classic: Create extraction agent from a document type, and running a script on its own | L |
 | P5 | AI agent editor (new, V6.6) and model connections (V6.5). **Done 2026-10-29**: Create → AI agent makes an agent with one AI step and opens it in its own editor: a plain brief that can write the role, instructions and plan through the default connection; tabs for instructions, tools (other agents, with approval before sensitive ones), model, outputs and limits; a Try it panel with the answer, status and each step it took; Show as steps for the ordinary view. New connection is a four-step wizard (service, model and address, sign-in from the vault or an environment variable, never the key itself; save, then a one-prompt test) | M |
-| P6 | Parity with Classic (section 5.1, groups E1 to E8); make it the default; remove Classic one release later | L |
+| P6 | Parity with Classic (section 5.1, groups E1 to E8); make it the default; remove Classic. **Done 2026-10-30**: default, then Classic removed once real capture, recording and Command Center check-in had been tried in the new Studio | L |
 
 Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6.7 to V6.10).
 
 ### 5.1 Parity with Classic (P6)
 
-The 277 Classic checks (`cli/src/test/ui/studio.ui.test.js`) drive Classic's own page by its element ids, so they cannot
+The 277 Classic checks (`cli/src/test/ui/studio.ui.test.js`, removed with Classic) drove Classic's own page by its element ids, so they could not
 run on the new Studio as they are. Parity means: each behaviour they check works in the new Studio and has its own
 test there. Checks 1 to 277 fall into these groups (counts are approximate; the server-side ones, such as paths
 outside the workspace and webhook secrets, keep passing whatever the screen):
@@ -155,7 +155,9 @@ outside the workspace and webhook secrets, keep passing whatever the screen):
 
 The new Studio becomes the default when E1 to E8 and the kept Classic options are done. Order: E1 first.
 
-**Default since 2026-10-30.** E1 to E8 and the kept options are done, so the new Studio is served at Studio's root (`/studio/` under `ooa server`), the preview's address `/next/` redirects there, and Classic Studio is at `/classic/` with a link back to the new one. Classic is removed one release later.
+**Default since 2026-10-30.** E1 to E8 and the kept options are done, so the new Studio is served at Studio's root (`/studio/` under `ooa server`), and the preview's address `/next/` redirects there.
+
+**Classic removed 2026-10-30**, after the new Studio's capture, recording and Command Center sign-in and check-in were tried for real. A last comparison of the server routes each Studio called found five things only Classic still did; they were added first: saved connections (list, new, edit, delete, from the More menu or a connector step's Manage connections…), custom connectors (import an OpenAPI, Swagger or Postman file, browse its operations, add a Call operation step, delete), Test the condition in the condition builder, Upload files, Download and Show in File Explorer on the Automation page, and Check the agent without saving. Classic's page, files and `/classic/` route are gone (Studio answers 404 there). The server checks of its page test now live in `StudioServerRoutesTest` (the seeded workspace and a run, folders and agents, the trash, names and paths that leave the workspace, items, the shared clipboard, search, dependencies, file, schedule and webhook triggers with their secrets). Its texts left the translation key list.
 
 ## 6. Quality bar (checked at every step)
 

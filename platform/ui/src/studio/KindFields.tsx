@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import type { FlowStep, OpenWindow, SavedConnection } from "../api/client";
+import type { FlowStep, OpenWindow, PackageManifest, SavedConnection } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { locate } from "./flowEdit";
 import { CommitInput } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
+import { SavedConnectionsDialog } from "./WorkspaceTools";
 import { actionGroups, DESKTOP_ACTION, DESKTOP_NAMES, outcomeOf, WEB_NAMES } from "./stepKinds";
 import { uniqueName } from "./variables";
 
@@ -130,12 +131,14 @@ export function ElementActionSelect({ step, all, id }: { step: FlowStep; all: st
  * Connection at the top of a connector step: a saved connection supplies the address and sign-in, so they are kept
  * in one place; its inputs are then hidden here unless one is set on this step on purpose.
  */
-export function ConnectionField({ step, pkgName, pkgId, names, showing, onShow }:
-  { step: FlowStep; pkgName: string; pkgId: string; names: string[]; showing: boolean; onShow: (show: boolean) => void }) {
+export function ConnectionField({ step, pkgName, pkgId, names, showing, onShow, packages }:
+  { step: FlowStep; pkgName: string; pkgId: string; names: string[]; showing: boolean; onShow: (show: boolean) => void; packages: PackageManifest[] }) {
   const vars = useVars();
   const api = vars?.api;
   const [list, setList] = useState<SavedConnection[] | null>(null);
-  useEffect(() => { api?.connections().then(setList, () => setList([])); }, [api]);
+  const [managing, setManaging] = useState(false);
+  const load = () => { api?.connections().then(setList, () => setList([])); };
+  useEffect(load, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   if (!vars) return null;
   const mine = (list ?? []).filter((c) => c.package === pkgId);
   const set = (name: string) => {
@@ -154,7 +157,10 @@ export function ConnectionField({ step, pkgName, pkgId, names, showing, onShow }
       <div className="ui-field-hint">{step.connection
         ? <>Comes from the connection: {names.join(", ")}. <button type="button" className="st-link" onClick={() => onShow(!showing)}>{showing ? "Hide these settings" : "Set one of them on this step instead"}</button></>
         : mine.length ? "Or choose a saved connection, so the address and sign-in are kept in one place."
-        : "Save the address and sign-in once as a connection (Command Center, or Classic Studio for now) and choose it on every " + pkgName + " step."}</div>
+        : "Save the address and sign-in once as a connection and choose it on every " + pkgName + " step."}
+        {" "}<button type="button" className="st-link" onClick={() => setManaging(true)}>Manage connections…</button></div>
+      {managing && <SavedConnectionsDialog api={vars.api} packages={packages} pkgId={pkgId} onClose={() => setManaging(false)} onChanged={load}
+        onNotice={(t) => vars.notice?.(t)} onError={(e) => vars.fail?.(e)} />}
     </>}</Field>
   );
 }

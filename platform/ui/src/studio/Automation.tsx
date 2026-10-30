@@ -52,6 +52,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [folderMenu, setFolderMenu] = useState(false);
   const [renaming, setRenaming] = useState<WorkspaceNode | null>(null);
+  const uploadInput = useRef<HTMLInputElement | null>(null);
+  const uploadTo = useRef("");
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
@@ -105,6 +107,20 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       if (moving.length) await each(moving, async (p) => { const n = await api.move(p, to); onMoved(p, n); return n; }, (m) => "Moved " + count(m.length) + " to " + (to || "the workspace") + ".");
     },
     remove: (list = chosenNodes) => { if (list.length) onDelete(list); },
+    /** Files from this computer into a folder, as they are (a taken name gets " (2)"). */
+    upload: (to: string) => { uploadTo.current = to; uploadInput.current?.click(); },
+    /** A file, or a folder as a zip, saved by the browser. */
+    download: (path: string) => { const a = document.createElement("a"); a.href = api.downloadUrl(path); a.download = ""; document.body.appendChild(a); a.click(); a.remove(); },
+    reveal: async (path: string) => { try { await api.reveal(path); } catch (e) { onError(e); } },
+  };
+  const uploaded = async (files: FileList | null) => {
+    const to = uploadTo.current;
+    if (!files?.length) return;
+    const made: string[] = [];
+    try { for (const f of [...files]) made.push(await api.upload(to, f.name, f)); }
+    catch (e) { onError(e); }
+    if (made.length) { onNotice("Uploaded " + count(made.length) + " to " + (to || "the workspace") + "."); await onChanged(); setSelected(made); }
+    if (uploadInput.current) uploadInput.current.value = "";
   };
   const click = (e: MouseEvent, path: string) => {
     if (e.ctrlKey || e.metaKey) { setSelected(selected.includes(path) ? selected.filter((x) => x !== path) : [...selected, path]); setAnchor(path); }
@@ -143,13 +159,20 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     if (!many && n.type === "folder") {
       if (clip) items.push({ key: "paste", label: "Paste into this folder", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => act.paste(n.path) });
       items.push({ key: "folder", label: "New folder in it", separatorBefore: true, onSelect: () => onNewFolder(n.path) });
+      items.push({ key: "upload", label: "Upload files…", description: "From this computer into this folder", onSelect: () => act.upload(n.path) });
     }
+    if (!many) items.push(
+      { key: "download", label: n.type === "folder" ? "Download as zip" : "Download", separatorBefore: n.type !== "folder", onSelect: () => act.download(n.path) },
+      { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(n.path) });
     items.push({ key: "delete", label: many ? "Delete " + list.length + " items" : "Delete", shortcut: "Del", separatorBefore: true,
       onSelect: () => act.remove(list.map((p) => find(tree, p)!).filter(Boolean)) });
     return items;
   };
   const folderItems: MenuItem[] = [
     { key: "new", label: "New folder in it", onSelect: () => onNewFolder(folder) },
+    { key: "upload", label: "Upload files…", description: "From this computer into this folder", onSelect: () => act.upload(folder) },
+    { key: "download", label: "Download as zip", onSelect: () => act.download(folder) },
+    { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(folder) },
     ...(clip ? [{ key: "paste", label: "Paste here", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => { act.paste(folder); } }] : []),
     ...(folder ? [
       { key: "rename", label: "Rename…", onSelect: () => setRenaming(folderNode) },
@@ -162,6 +185,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
 
   return (
     <section className="st-page" aria-labelledby="st-page-title" onKeyDown={keys}>
+      <input ref={uploadInput} type="file" multiple hidden aria-label="Files to upload" onChange={(e) => uploaded(e.target.files)} />
       <header className="st-page-head">
         <div>
           <h1 id="st-page-title">{title}</h1>

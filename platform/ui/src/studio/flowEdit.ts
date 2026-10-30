@@ -2,7 +2,7 @@ import type { ActionManifest, Flow, FlowStep, FlowVariable, PackageManifest } fr
 
 /**
  * Editing an agent, as pure functions: each takes a flow and returns a changed copy, so undo is keeping the old one.
- * New steps are built the way Classic Studio builds them (studio.js addStep), so both Studios write the same files.
+ * New steps are built the way Classic Studio built them, so agents made there and here are alike.
  */
 
 type Lists = { list: FlowStep[]; index: number; step: FlowStep };

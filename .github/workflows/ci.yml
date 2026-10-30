@@ -407,14 +407,15 @@ jobs:
           test -n "$PW" || { cat "$RUNNER_TEMP/cr.log"; exit 1; }
           cd control-room/src/test/ui
           CONSOLE_DIR=../../main/resources/console CR_URL=http://localhost:8763 CR_ADMIN_PASSWORD="$PW" node console.ui.test.js
-      - name: Studio UI test
+      - name: Studio serves its page
         run: |
           OOA=cli/build/install/ooa/bin/ooa
           mkdir -p "$RUNNER_TEMP/ws"
           nohup "$OOA" studio --workspace "$RUNNER_TEMP/ws" --port 8746 > "$RUNNER_TEMP/studio.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8746/ >/dev/null && break; sleep 2; done
-          cd cli/src/test/ui
-          STUDIO_DIR=../../main/resources/studio OOA_WS="$RUNNER_TEMP/ws" OOA_STUDIO_URL=http://localhost:8746 node studio.ui.test.js
+          # the installed Studio serves the page (the new Studio's own tests run with npm run check, its server in :cli:test)
+          curl -sf http://localhost:8746/ | grep -q 'id="root"'
+          curl -sf http://localhost:8746/api/tree | grep -q '"tree"'
       - name: Server logs
         if: failure()
         run: tail -n 100 "$RUNNER_TEMP"/*.log || true

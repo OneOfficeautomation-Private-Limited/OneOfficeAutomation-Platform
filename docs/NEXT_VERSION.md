@@ -62,14 +62,14 @@ The details are in [research/use-case-gaps.md](research/use-case-gaps.md).
 - **Tests:** `.\gradlew.bat :runner:test :packages:test :packages-email:test :packages-windows:test :packages-browser:test :cli:test`.
   - Command samples (JSON integration tests) are in `platform/cli/src/test/resources/command-samples/`.
   - Known failure: `ooa.datetime/is_business_hours - 24h window always true` fails at weekends.
-- **Studio UI test:** jsdom against a running Studio. See `platform/cli/src/test/ui/README.md`.
+- **Studio tests:** `npm run check` in `platform/ui` for the screens; `StudioServerRoutesTest` and the other Studio tests in `:cli:test` for its server. Classic Studio and its jsdom page test were removed on 2026-10-30.
 
 ## Things to know
 
 - **Line endings:** files keep their own line endings (many Java and Studio files are CRLF). Check
   `git diff --stat` before committing; a whole file showing as changed means its line endings were rewritten.
-- **Studio is one file:** `platform/cli/src/main/resources/studio/studio.js` (about 5,800 lines), plus `studio.css`
-  and `index.html`.
+- **Studio's screens:** TypeScript and React in `platform/ui` (see `docs/architecture/11-developer-guide.md` 7.2);
+  Classic Studio's `studio.js` was removed on 2026-10-30.
 - **Java signatures:** new action inputs go at the end of the Java method, with an unannotated overload keeping the
   old signature for existing callers.
 - **AA:** the user signs in. Only the use-case bots in **Bots\Use cases** may be changed, and AA behaviour is

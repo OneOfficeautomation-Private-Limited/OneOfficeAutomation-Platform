@@ -5,7 +5,7 @@ import { renameRefs } from "./variables";
 /**
  * Captured objects and recordings, as pure functions: how a property must match, readable property names, the
  * numbered window and value variables a capture or a recording makes (Window_1, Text_1, Choice_1), and the anchor's
- * offset. The same rules as Classic Studio (studio.js), so both Studios write the same agents.
+ * offset. The same rules Classic Studio used, so agents made there and here are alike.
  */
 
 export type CapturedProperty = { name: string; value?: unknown; match?: string; use?: boolean; custom?: boolean };

@@ -113,7 +113,7 @@ export function StepForm({ step, packages, onArg, onNote }:
     <div className="st-step-form">
       <h3 className="st-prop-section">Settings</h3>
       <div className="st-prop-fields">
-        {connNames.length > 0 && pkg && <ConnectionField step={step} pkgName={pkg.name} pkgId={pkg.id} names={connNames} showing={showConn} onShow={setShowConn} />}
+        {connNames.length > 0 && pkg && <ConnectionField step={step} pkgName={pkg.name} pkgId={pkg.id} names={connNames} showing={showConn} onShow={setShowConn} packages={packages} />}
         {isLoop && <>
           <Field label="Kind of loop" layout="beside">{() => <div className="st-seg" role="radiogroup" aria-label="Kind of loop">
             {([["times", "N times"], ["each", "For each"], ["while", "While"]] as const).map(([m, t]) =>

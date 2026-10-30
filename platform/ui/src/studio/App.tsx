@@ -396,8 +396,7 @@ export function App({ api: given }: { api?: StudioApi }) {
           trigger={<button type="button" className="st-top-icon" aria-label="Display: theme and density" title="Display: theme and density"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
-          {current
-            ? <>
+          {current && <>
                 <Button kind="primary" icon="save" onClick={() => save(current.path)} title="Save (Ctrl+S)">Save</Button>
                 {!agent ? null : running
                   ? <Button kind="light" onClick={stopRun}>Stop run</Button>
@@ -407,8 +406,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                     </>}
                 {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to the Command Center agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
-              </>
-            : <a className="st-classic" href="classic/" title="The previous Studio, until it is removed in the next release">Classic Studio</a>}
+              </>}
         </div>
       </header>
 
@@ -444,7 +442,8 @@ export function App({ api: given }: { api?: StudioApi }) {
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
                 canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo}
                 clipboard={clipboard} onClipboard={setClipboard} onRunFrom={runFrom} onNotice={setNotice} onError={fail}
-                onOpenChild={openChild} onOpenPath={openPath} onNewConnection={() => setWizard(true)} dirty={isDirty(agent)} /></>
+                onOpenChild={openChild} onOpenPath={openPath} onNewConnection={() => setWizard(true)} dirty={isDirty(agent)}
+                onChecked={(found) => patch(agent.path, (t) => ({ ...t, problems: found, checked: true }))} /></>
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo}
                 api={api} packages={packages} onSave={() => save(item.path)} onExtraction={() => makeExtraction(item)}
