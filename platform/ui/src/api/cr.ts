@@ -106,6 +106,11 @@ export type SkillDefinition = { prompt: string; system?: string; output: "text" 
 export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; output_tokens?: number; masked_calls?: number; tool_calls?: number; avg_latency_ms?: number | null };
   by_model?: { provider: string; model?: string; calls: number; input_tokens: number; output_tokens: number }[]; by_agent?: { bot_path: string; calls: number; tokens: number }[];
   recent?: { ts: string; bot_path: string; requested_by?: string; purpose?: string; provider?: string; model?: string; input_tokens?: number; output_tokens?: number; masked?: string; tool_calls?: string; prompt_sha256?: string; run_id?: string }[] };
+export type AgentApi = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; serverless?: boolean; timeout_seconds: number; enabled: boolean;
+  created_by?: string; created?: string; last_used?: string | null; calls: number; url: string };
+export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number };
+export type TestSet = { id: string; name: string; description?: string | null; bot_path: string; cases: { name: string; inputs?: Record<string, unknown>; expect?: Record<string, unknown> }[]; last_run?: TestRunSummary | null };
+export type AgentTemplate = { id: string; source: string; name: string; description?: string; category: string; publisher: string; agents: string[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -366,6 +371,26 @@ export class CrApi {
   async skillTemplates() { return (await this.call<{ templates?: { name: string; description?: string }[] }>("GET", "skills/templates")).templates ?? []; }
   skillFromTemplate(template: string, name: string) { return this.call<{ name: string }>("POST", "skills/from-template", { template, name }); }
   governance(days: number) { return this.call<AiGovernance>("GET", "governance?days=" + days); }
+  // ---- Agent APIs: an agent behind its own address and token ----
+  async agentApis() { return (await this.call<{ tasks?: AgentApi[] }>("GET", "apitasks")).tasks ?? []; }
+  createAgentApi(b: Record<string, unknown>) { return this.call<{ id: string; name?: string; url: string; token: string }>("POST", "apitasks", b); }
+  newAgentApiToken(id: string) { return this.call<{ token: string }>("POST", "apitasks/" + encodeURIComponent(id) + "/token"); }
+  async setAgentApiEnabled(id: string, enabled: boolean) { await this.call("PATCH", "apitasks/" + encodeURIComponent(id), { enabled }); }
+  async deleteAgentApi(id: string) { await this.call("DELETE", "apitasks/" + encodeURIComponent(id)); }
+  // ---- Agent tests: test sets of cases, runs scored per case ----
+  async testSets() { return (await this.call<{ sets?: TestSet[] }>("GET", "test-sets")).sets ?? []; }
+  saveTestSet(id: string | null, b: { name: string; description: string; bot_path: string; cases: unknown[] }) { return this.call<{ id: string }>(id ? "PUT" : "POST", "test-sets" + (id ? "/" + encodeURIComponent(id) : ""), b); }
+  async deleteTestSet(id: string) { await this.call("DELETE", "test-sets/" + encodeURIComponent(id)); }
+  runTestSet(id: string, where: { device_id?: string; pool_id?: string }) { return this.call<{ test_run_id: string; started: number; cases: number }>("POST", "test-sets/" + encodeURIComponent(id) + "/run", where); }
+  async testHistory(id: string) { return (await this.call<{ runs?: TestRunSummary[] }>("GET", "test-sets/" + encodeURIComponent(id) + "/history")).runs ?? []; }
+  testRun(id: string) { return this.call<TestRunSummary & { bot_path: string; version: number; started_by?: string; results: { case_name: string; status: string; passed: boolean; detail?: string; run_id?: string }[] }>("GET", "test-sets/runs/" + encodeURIComponent(id)); }
+  // ---- Agent Templates: ready-made agents to install, share to the region, or load from a signed catalogue file ----
+  templates() { return this.call<{ templates: AgentTemplate[]; categories: string[]; can_share?: boolean; problem?: string | null }>("GET", "templates"); }
+  installTemplate(source: string, id: string, folder: string) {
+    return this.call<{ ok: boolean; folder: string; results: { path: string; status: string; error?: { message?: string } }[] }>("POST", "templates/install", { source, id, folder });
+  }
+  async shareTemplate(b: { path: string; name: string; description: string; category: string }) { await this.call("POST", "templates/share", b); }
+  uploadCatalogue(text: string) { return this.call<{ templates: number }>("POST", "templates/catalogue", { text }); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

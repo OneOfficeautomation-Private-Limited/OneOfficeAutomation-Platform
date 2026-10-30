@@ -193,6 +193,25 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       { name: "bot_runner", builtin: true, permissions: ["repo.view", "runs.view", "runs.start"], members: ["vic", "old"], users: 2 },
       { name: "viewer", builtin: true, permissions: ["repo.view", "runs.view"], members: ["vic"], users: 1, switched_off: false },
       { name: "auditor", builtin: false, description: "Reads the audit trail", permissions: ["audit.view", "runs.view"], members: [], users: 0, created_by: "admin" }] });
+    if (route === "apitasks" && init.method === "POST") return ok({ id: "a2", url: "/api/apitasks/a2/run", token: "tok-new" });
+    if (route === "apitasks") return ok({ tasks: [{ id: "a1", name: "Invoice lookup", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", timeout_seconds: 60, enabled: true,
+      calls: 7, last_used: "2026-10-31T08:00:00Z", url: "/api/apitasks/a1/run", created_by: "admin", created: "2026-10-01T08:00:00Z" }] });
+    if (route === "apitasks/a1/token") return ok({ token: "tok-again" });
+    if (/^apitasks\/a\d$/.test(route)) return ok({ ok: true });
+    if (route === "test-sets" && init.method === "POST") return ok({ id: "x2" });
+    if (route === "test-sets") return ok({ sets: [
+      { id: "x1", name: "Triage checks", bot_path: "Finance/Invoice intake.flow.json", cases: [{ name: "urgent", inputs: { text: "Down!" }, expect: { status: "success" } }, { name: "calm" }],
+        last_run: { id: "tr0", started: "2026-10-30T08:00:00Z", total: 2, passed: 1, status: "done", version: 3 } },
+      { id: "x3", name: "Onboarding checks", bot_path: "HR/Onboard.flow.json", cases: [{ name: "new hire" }], last_run: null }] });
+    if (route === "test-sets/x1/history") return ok({ runs: [{ id: "tr0", started: "2026-10-30T08:00:00Z", total: 2, passed: 1, status: "done", version: 3 }] });
+    if (route === "test-sets/x1/run") return ok({ test_run_id: "tr1", started: 2, cases: 2 });
+    if (route === "test-sets/runs/tr1") return ok({ id: "tr1", bot_path: "Finance/Invoice intake.flow.json", version: 3, started: "2026-10-31T09:00:00Z", started_by: "admin", total: 2, passed: 1, status: "done",
+      results: [{ case_name: "urgent", status: "done", passed: true }, { case_name: "calm", status: "done", passed: false, detail: "label was high, expected low" }] });
+    if (route === "templates") return ok({ can_share: true, categories: ["Finance", "IT"], problem: null, templates: [
+      { id: "inv", source: "vendor", name: "Invoice intake", description: "Reads invoices into the ERP", category: "Finance", publisher: "ONEOFFICEAUTOMATION", agents: ["Invoice intake.flow.json", "Read PDF.flow.json"] },
+      { id: "pw", source: "region", name: "Password reset", description: "Resets a user's password", category: "IT", publisher: "Contoso", agents: ["Password reset.flow.json"] }] });
+    if (route === "templates/install") return ok({ ok: true, folder: body.folder, results: [{ path: body.folder + "/Invoice intake.flow.json", status: "installed" }] });
+    if (route === "templates/share") return ok({ ok: true });
     if (route === "pools") return ok({ pools: [{ id: "p1", name: "Finance pool", description: "Month end", devices: ["d1"], created_by: "admin" }] });
     if (route === "runs") {
       const q = new URLSearchParams(url.split("?")[1]);
@@ -791,6 +810,67 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(nav).getByRole("button", { name: "AI governance" }));
     expect(await screen.findByText("Calls with personal data masked")).toBeTruthy();
     expect(within(screen.getByRole("table", { name: "Recent AI calls" })).getByText("PERSON")).toBeTruthy();
+  });
+
+  it("shows Agent APIs as AA's API tasks: where each runs and its calls; a new one shows its token once with an example call", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent APIs" }));
+    const list = await screen.findByRole("table", { name: "Agent APIs list" });
+    expect(await within(list).findByText("Pool Finance pool")).toBeTruthy();
+    fireEvent.click(within(list).getByText("Invoice lookup"));
+    const d = await screen.findByRole("dialog", { name: "Agent API Invoice lookup" });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Switch off" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "apitasks/a1", body: { enabled: false } }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Agent API" }));
+    const n = await screen.findByRole("dialog", { name: "Create Agent API" });
+    fireEvent.change(within(n).getByLabelText("Name"), { target: { value: "Lookup" } });
+    await waitFor(() => expect((within(n).getByLabelText("Agent (its live version)") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
+    fireEvent.click(within(n).getByLabelText("The Command Center (serverless)"));
+    await act(async () => { fireEvent.click(within(n).getByRole("button", { name: "Create Agent API" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "apitasks", body: expect.objectContaining({ name: "Lookup", serverless: true, timeout_seconds: 60 }) }));
+    const t = await screen.findByRole("dialog", { name: "Agent API Lookup: its token" });
+    expect(within(t).getByLabelText("Token").textContent).toBe("tok-new");
+    expect(within(t).getByText(/curl -X POST/).textContent).not.toContain("tok-new");   // the example never repeats the token
+  });
+
+  it("shows Agent tests as test sets: last score, failing ones, a run on a pool scored case by case", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "repo.checkin"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent tests" }));
+    const list = await screen.findByRole("table", { name: "Test sets list" });
+    expect(await within(list).findByText("1 of 2 passed")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "never" } });
+    await waitFor(() => expect(within(list).queryByText("Triage checks")).toBeNull());
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "failing" } });
+    fireEvent.click(await within(list).findByText("Triage checks"));
+    const d = await screen.findByRole("dialog", { name: "Test set Triage checks" });
+    expect(await within(within(d).getByRole("table", { name: "History" })).findByText("v3")).toBeTruthy();
+    fireEvent.change(within(d).getByLabelText("Run on"), { target: { value: "p:p1" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Run" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "test-sets/x1/run", body: { pool_id: "p1" } }));
+    const r = await screen.findByRole("dialog", { name: "Test run" });
+    expect(await within(r).findByText("label was high, expected low")).toBeTruthy();
+  });
+
+  it("shows Agent Templates as AA's Bot Store: cards by category, install into a folder, an agent shared for approval", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Templates" }));
+    const cards = await screen.findByRole("list", { name: "Templates" });
+    expect(await within(cards).findByText("IT · shared by Contoso")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Finance" } });
+    await waitFor(() => expect(within(cards).queryByText("Password reset")).toBeNull());
+    fireEvent.click(within(within(cards).getByRole("listitem", { name: "Invoice intake" })).getByRole("button", { name: "Install" }));
+    const i = await screen.findByRole("dialog", { name: "Install Invoice intake" });
+    fireEvent.change(within(i).getByLabelText("Folder"), { target: { value: "Finance/From templates" } });
+    await act(async () => { fireEvent.click(within(i).getByRole("button", { name: "Install" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/install", body: { source: "vendor", id: "inv", folder: "Finance/From templates" } }));
+    fireEvent.click(screen.getByRole("button", { name: "Share an agent" }));
+    const sh = await screen.findByRole("dialog", { name: "Share an agent as a template" });
+    await waitFor(() => expect((within(sh).getByLabelText("Agent") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
+    await act(async () => { fireEvent.click(within(sh).getByRole("button", { name: "Share" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/share", body: { path: "Finance/Invoice intake.flow.json", name: "Invoice intake", description: "", category: "Finance" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

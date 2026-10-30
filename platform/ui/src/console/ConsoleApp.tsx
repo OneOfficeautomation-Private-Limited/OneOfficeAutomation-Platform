@@ -4,6 +4,7 @@ import { Button, Field, Icon, Menu, TextInput, usePersistent } from "../componen
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { Activity } from "./Activity";
+import { AgentApis } from "./AgentApis";
 import { Audit } from "./Audit";
 import { Connections } from "./Connections";
 import { Devices } from "./Devices";
@@ -20,6 +21,8 @@ import { Schedules } from "./Schedules";
 import { Settings } from "./Settings";
 import { Skills } from "./Skills";
 import { Teams } from "./Teams";
+import { Templates } from "./Templates";
+import { Tests } from "./Tests";
 import { Toolkits } from "./Toolkits";
 import { Triggers } from "./Triggers";
 import { Users } from "./Users";
@@ -27,7 +30,7 @@ import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "audit", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "toolkits", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["activity", "apitasks", "audit", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
 /** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -105,6 +108,9 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "connections" && <ModelConnections api={api} user={user} onNotice={setNotice} />}
           {page === "skills" && <Skills api={api} user={user} onNotice={setNotice} />}
           {page === "governance" && <Governance api={api} onNotice={setNotice} />}
+          {page === "apitasks" && <AgentApis api={api} user={user} onNotice={setNotice} />}
+          {page === "tests" && <Tests api={api} user={user} onNotice={setNotice} />}
+          {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
         </main>
       </div>
     </div>

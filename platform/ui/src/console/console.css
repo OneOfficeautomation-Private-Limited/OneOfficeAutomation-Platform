@@ -130,3 +130,9 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-counts { flex-wrap: wrap; margin: 8px 0; }
 .cc-unsure input { border-color: var(--ui-error-text); }
 @media (max-width: 760px) { .cc-facts-wide { grid-template-columns: 110px 1fr; } }
+/* Agent Templates: one card per template */
+.cc-tpls { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 12px 20px 0; }
+.cc-tpl { display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
+.cc-tpl h3 { margin: 0; font-size: 15px; }
+.cc-tpl p { margin: 0; }
+.cc-tpl button { justify-self: start; }
