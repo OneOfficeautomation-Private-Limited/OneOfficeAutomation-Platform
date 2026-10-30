@@ -95,6 +95,21 @@ class UnifiedServerTest {
             for (String bad : List.of("/studio/assets/../classic/studio.js", "/studio/..%2fstudio.js", "/studio/assets/x.exe", "/studio/secret.txt"))
                 assertEquals(404, call(base, "GET", bad, null, null, null).status(), bad);
 
+            // ---- the rebuilt console beside today's, at /next/ (C0): its own page with a fresh style nonce, its files, nothing else ----
+            assertEquals("/next/", call(base, "GET", "/next", null, null, null).headers().firstValue("Location").orElse(""));
+            Res console = call(base, "GET", "/next/", null, null, null);
+            assertEquals(200, console.status());
+            assertTrue(console.body().contains("<title>One Command Center</title>"), "the console's own page, not Studio's");
+            java.util.regex.Matcher cnonce = java.util.regex.Pattern.compile("style-src 'self' 'nonce-([A-Za-z0-9+/=]{24})'").matcher(console.headers().firstValue("Content-Security-Policy").orElse(""));
+            assertTrue(cnonce.find(), console.headers().toString());
+            assertTrue(console.body().contains("content=\"" + cnonce.group(1) + "\""), "the page carries the same nonce");
+            assertTrue(console.headers().firstValue("Content-Security-Policy").orElse("").contains("script-src 'self'"));
+            java.util.regex.Matcher cscript = java.util.regex.Pattern.compile("src=\"\\./(assets/[^\"]+\\.js)\"").matcher(console.body());
+            assertTrue(cscript.find(), "the page loads its script by a relative path");
+            assertEquals(200, call(base, "GET", "/next/" + cscript.group(1), null, null, null).status());
+            for (String bad : List.of("/next/assets/../console.html", "/next/assets/x.exe", "/next/secret.txt", "/next/console.html"))
+                assertEquals(404, call(base, "GET", bad, null, null, null).status(), bad);
+
             // ---- Studio reuses the browser's Control Room sign-in ----
             String token = (String) call(base, "POST", "/api/auth/login", Map.of("username", "admin", "password", pw), null, null).json().get("token");
             Map<String, Object> pending = call(base, "GET", "/studio/api/cr/status", null, null, token).json();

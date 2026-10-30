@@ -153,6 +153,8 @@ public final class ControlRoomServer {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
+            else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
+            else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
             else serveStatic(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
@@ -932,6 +934,41 @@ public final class ControlRoomServer {
 
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml",
         "json", "application/json; charset=utf-8");
+
+    /** Files of the rebuilt console (platform/ui's console.html and its assets, built into /studio-next/ with Studio's). */
+    private static final java.util.regex.Pattern NEXT_FILE = java.util.regex.Pattern.compile("^assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png)$");
+    private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
+
+    /**
+     * The rebuilt console, served beside today's at /next/ while it is built (docs/architecture/12-ui-redesign.md, C0).
+     * Its page gets a fresh style nonce each time: the dialogs' one style element carries it, every other inline style
+     * is still refused. A copy built without Node.js has no page and says how to build one.
+     */
+    private void nextConsole(HttpExchange ex, String file) throws IOException {
+        boolean page = file.isEmpty() || file.equals("index.html");
+        if (!page && !NEXT_FILE.matcher(file).matches()) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/" + (page ? "console.html" : file))) {
+            if (in == null) {
+                if (!page) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+                securityHeaders(ex);
+                ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+                writeBody(ex, 503, "The new console was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            byte[] b = in.readAllBytes();
+            securityHeaders(ex);
+            if (page) {
+                byte[] r = new byte[16];
+                NONCES.nextBytes(r);
+                String nonce = Base64.getEncoder().encodeToString(r);
+                b = new String(b, StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce
+                        + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+            }
+            ex.getResponseHeaders().set("Content-Type", page ? "text/html; charset=utf-8" : TYPES.getOrDefault(file.substring(file.lastIndexOf('.') + 1), "application/octet-stream"));
+            writeBody(ex, 200, b);
+        }
+    }
 
     private void serveStatic(HttpExchange ex, String path) throws IOException {
         String name = path.equals("/") ? "index.html" : path.substring(1);

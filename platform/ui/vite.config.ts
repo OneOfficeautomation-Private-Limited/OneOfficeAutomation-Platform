@@ -1,8 +1,10 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
-// The new Studio (docs/architecture/12-ui-redesign.md). It is built into the CLI's resources and served by Studio at
-// <base>/ (the root, or /studio/ under ooa server), so asset paths are relative and nothing is inlined: Studio's security policy allows only its own files.
+// Studio and the rebuilt Command Center console (docs/architecture/12-ui-redesign.md), one build with two pages that
+// share their files: index.html is Studio, served at <base>/ (the root, or /studio/ under ooa server); console.html is
+// the console, served by the Command Center at /next/. Asset paths are relative and nothing is inlined: the security
+// policy allows only the servers' own files.
 export default defineConfig({
   plugins: [react()],
   base: "./",
@@ -11,6 +13,7 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     sourcemap: false,
+    rollupOptions: { input: { studio: "index.html", console: "console.html" } },
   },
   test: {
     environment: "jsdom",

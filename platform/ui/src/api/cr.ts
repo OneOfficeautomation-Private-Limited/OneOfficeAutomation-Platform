@@ -1,0 +1,48 @@
+/**
+ * The typed client for the Command Center API (the same routes today's console uses). The browser keeps the session
+ * in an HttpOnly cookie; every change carries X-OOA-Request, which the server needs against cross-site requests.
+ */
+export type CrUser = { id: string; username: string; display_name: string; role: string; permissions: string[]; roles?: string[];
+  must_change?: boolean; mfa_enabled?: boolean; mfa_setup_required?: boolean; leads_team?: boolean; announcement?: string; license_banner?: string };
+/** Signing in: the person, or (two-step sign-in) a token to send with the code. */
+export type SignIn = { user?: CrUser; token?: string; mfa_required?: boolean; mfa_token?: string };
+/** The Home page's figures (GET dashboard). */
+export type Dashboard = {
+  running: number; queued: number; success_24h: number; failed_24h: number; success_rate_24h?: number | null; avg_duration_ms_24h?: number | null;
+  devices_online: number; devices_total: number; bots: number; schedules: number; queue_items_waiting?: number; hours_saved_30d?: number; open_tasks?: number;
+  my_recent_agents?: { path: string; latest_version: number; locked_by?: string | null; updated?: string }[];
+  my_recent_runs?: { id: string; bot_path: string; status: string; created?: string; finished?: string }[];
+  days?: { date: string; success: number; failed: number; stopped: number; active: number }[];
+};
+export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
+
+export class CrFailure extends Error {
+  constructor(readonly status: number, readonly error: CrError) { super(error.message); }
+  get code() { return this.error.code; }
+}
+
+export class CrApi {
+  /** base: where the API is, "/api/" when the console is served by the Command Center. */
+  constructor(private readonly base = "/api/", private readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
+
+  private async call<T>(method: string, route: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (method !== "GET") headers["X-OOA-Request"] = "1";
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const res = await this.fetcher(this.base + route, { method, credentials: "same-origin", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new CrFailure(res.status, data.error ?? { code: "HTTP." + res.status, message: res.statusText || "Request failed" });
+    return data as T;
+  }
+
+  /** The signed-in person (CR.UNAUTHENTICATED when there is no session). */
+  me() { return this.call<CrUser>("GET", "auth/me"); }
+  login(username: string, password: string) { return this.call<SignIn>("POST", "auth/login", { username, password }); }
+  loginCode(mfaToken: string, code: string) { return this.call<SignIn>("POST", "auth/mfa", { mfa_token: mfaToken, code }); }
+  async logout() { await this.call("POST", "auth/logout"); }
+  /** Whether Agent Studio is offered on this computer (it lives beside the Command Center under ooa server). */
+  async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
+  /** Home's figures; the runs-per-day chart counts days in the given time zone. */
+  dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
+}

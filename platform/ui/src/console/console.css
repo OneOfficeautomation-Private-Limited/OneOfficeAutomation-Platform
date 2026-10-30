@@ -1,0 +1,52 @@
+/* The rebuilt Command Center console (C0). Layout and menu come from studio.css; colours from theme.css. */
+
+.cc-loading { padding: 24px; color: var(--ui-text-2); }
+.cc-preview { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--ui-frame-2); color: var(--ui-frame-text); }
+.cc-main { overflow-y: auto; background: var(--ui-soft); }
+.st-menu-home.is-current { background: var(--ui-accent); color: #fff; }
+button.st-menu-home { border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; }
+
+/* Sign-in */
+.cc-signin { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--ui-soft); }
+.cc-signin-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
+.cc-signin-brand { font-size: 16px; margin-bottom: 4px; }
+.cc-error { margin: 0; color: var(--ui-error-text); font-weight: 600; }
+.cc-signin-alt { font-size: 12px; color: var(--ui-text-2); }
+
+/* Home */
+.cc-home { padding-bottom: 20px; }
+.cc-home .st-page-head { background: var(--ui-bg); }
+.cc-tiles { list-style: none; margin: 16px 20px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.cc-tile { display: flex; align-items: center; gap: 10px; height: 100%; padding: 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+  background: var(--ui-bg); color: var(--ui-text); text-decoration: none; }
+.cc-tile.is-link:hover { border-color: var(--ui-accent); }
+.cc-tile.is-link:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.cc-tile-text { display: flex; flex-direction: column; min-width: 0; }
+.cc-tile-text strong { font-size: 20px; line-height: 1.2; }
+.cc-tile-text span { color: var(--ui-text-2); font-size: 12.5px; }
+.cc-card { margin: 16px 20px 0; padding: 14px 16px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
+.cc-card h2 { margin: 0 0 10px; font-size: 15px; }
+.cc-card h3 { margin: 0 0 6px; font-size: 13px; }
+.cc-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.cc-list { list-style: none; margin: 0; padding: 0; }
+.cc-list li { display: flex; align-items: center; gap: 8px; min-height: var(--ui-row); border-bottom: 1px solid var(--ui-divider); }
+.cc-when { margin-left: auto; white-space: nowrap; }
+.cc-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.cc-dot.is-ok { background: var(--ui-success); }
+.cc-dot.is-bad { background: #d14343; }
+.cc-dot.is-busy { background: #b45309; }
+
+/* Runs per day: stacked bars. Their colours are fixed, and each has 3:1 or more on the card in both themes (white #ffffff and dark #1b2230), checked by calculation */
+.cc-chart { display: flex; align-items: flex-end; gap: 10px; height: 150px; padding-top: 4px; }
+.cc-chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
+.cc-chart-bar { flex: 1; width: 100%; max-width: 44px; display: flex; flex-direction: column-reverse; border-bottom: 1px solid var(--ui-border); }
+.cc-seg { display: block; width: 100%; }
+.cc-seg.is-success { background: #2e8b57; }
+.cc-seg.is-failed { background: #d14343; }
+.cc-seg.is-stopped { background: #8a94a3; }
+.cc-seg.is-active { background: #bd7a1c; }
+.cc-chart-n { font-size: 12px; font-weight: 600; }
+.cc-chart-day { font-size: 11.5px; color: var(--ui-text-2); }
+.cc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; color: var(--ui-text-2); }
+.cc-legend .cc-seg { width: 10px; height: 10px; border-radius: 2px; }

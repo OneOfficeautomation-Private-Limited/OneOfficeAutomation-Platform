@@ -128,7 +128,20 @@ one at `/studio/` behind a "Try the new Studio" switch, the old one as "Classic"
 | P5 | AI agent editor (new, V6.6) and model connections (V6.5). **Done 2026-10-29**: Create → AI agent makes an agent with one AI step and opens it in its own editor: a plain brief that can write the role, instructions and plan through the default connection; tabs for instructions, tools (other agents, with approval before sensitive ones), model, outputs and limits; a Try it panel with the answer, status and each step it took; Show as steps for the ordinary view. New connection is a four-step wizard (service, model and address, sign-in from the vault or an environment variable, never the key itself; save, then a one-prompt test) | M |
 | P6 | Parity with Classic (section 5.1, groups E1 to E8); make it the default; remove Classic. **Done 2026-10-30**: default, then Classic removed once real capture, recording and Command Center check-in had been tried in the new Studio | L |
 
-Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6.7 to V6.10).
+Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6.7 to V6.10), in these steps (agreed
+2026-10-30):
+
+| Step | What | Size |
+| --- | --- | --- |
+| C0 | The console's shell beside today's, at `/next/`: sign-in (with the two-step code), the menu by task shared with Studio (`ui/src/shell`), Home. **Done 2026-10-30**: `console.html` is a second page of the same build; the Command Center serves it with its own style nonce; pages not rebuilt yet open in today's console from the menu, so nothing is a placeholder; a new password, two-step setup and single sign-on are still done in today's console | M |
+| C1 | One table for every list, with column filters and saved views (V6.7): runs, runners, queues, tasks | M |
+| C2 | Work for people (V6.2) and bulk approve and reject (V6.8) | L |
+| C3 | Roles in plain words (V6.3) and settings in short pages with search (V6.4) | M |
+| C4 | Queue service levels (V6.10) and one Insights area (V6.9) | L |
+| C5 | Wizards with drafts (V6.11) | M |
+| C6 | Parity with today's console (each page, and every server route it calls, compared first), then the default; today's console removed after the user's own checks | L |
+
+The menu by task (V6.1) is already in today's console (2026-10-30): Build, Manage, Insights, Administration and AI.
 
 ### 5.1 Parity with Classic (P6)
 

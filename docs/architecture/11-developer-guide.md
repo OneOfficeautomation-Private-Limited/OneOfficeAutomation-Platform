@@ -178,6 +178,8 @@ Studio is built in TypeScript and React ([12-ui-redesign.md](12-ui-redesign.md))
 | `src/studio/CaptureEditor.tsx` | A captured object, its picture and window (see [07-toolkit-architecture.md](07-toolkit-architecture.md#14-captured-objects-and-window-choice)) |
 | `src/studio/WorkspaceTools.tsx` | Saved connections and custom connectors |
 | `src/components` | Buttons, fields, dialogs, menus, tabs, trees, splitters (Radix for behaviour, our CSS for the look) |
+| `src/shell` | The Command Center menu (sections, pages, who may see each), shared by Studio and the console |
+| `console.html`, `src/console` | The rebuilt Command Center console, a second page of the same build, served by the Command Center at `/next/` (C0: sign-in, menu, Home); `src/api/cr.ts` is its API client |
 | `StudioDebugger` (Java) | Pauses the runner thread before a step and resumes it on the UI's commands |
 
 | Task | Command (in `platform/ui`) |
