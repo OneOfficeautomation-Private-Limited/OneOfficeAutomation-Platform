@@ -58,6 +58,13 @@ export type VaultStatus = { key_source: string; key_source_detail?: string; key_
 /** One audit record: who did what to which object, with what result, from where; hash-chained. */
 export type AuditRecord = { seq: number; ts: string; actor: string; action: string; object_type?: string | null; object_id?: string | null;
   details?: string | null; result: string; ip?: string | null };
+/** The licence of this Command Center (unlicensed, evaluation, active, expiring, grace, expired …) and its seats. */
+export type LicenseInfo = { state: string; customer?: string; edition?: string; id?: string; issued?: string; expires?: string; days_left?: number; evaluation_ends?: string;
+  grace_days?: number; grace_until?: string; bound_to?: string; problem?: string; install_id?: string; requires_server_database?: boolean; database_steps?: string;
+  seats?: Record<string, { total: number; used: number }> };
+export type LicenseUsage = { seats: Record<string, { label: string; total: number; used: number; idle: number }>;
+  holders: { name: string; principal: string; license_type: string; assigned?: string; last_active?: string | null; runs_30_days: number; idle: boolean }[];
+  trend: { snap_day: string; license_type: string; used: number; total: number }[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -192,6 +199,13 @@ export class CrApi {
   }
   /** Checks the hash chain: valid, how many records, and where it breaks when it does. */
   auditVerify() { return this.call<{ valid: boolean; records: number; broken_at?: number }>("GET", "audit/verify"); }
+  // ---- Licenses: the signed licence, seats given to people and runners, usage over time ----
+  async license() { return (await this.call<{ license?: LicenseInfo }>("GET", "license")).license ?? { state: "unlicensed" }; }
+  async licenseAssignments() { return (await this.call<{ assignments?: { principal_type: "user" | "device"; principal: string; license_type: string }[] }>("GET", "license/assignments")).assignments ?? []; }
+  licenseUsage(days = 90) { return this.call<LicenseUsage>("GET", "license/usage?days=" + days); }
+  async installLicense(content: string) { await this.call("POST", "license", { content }); }
+  /** Gives a seat to a person (user name) or a runner (device id), or takes it back. */
+  async assignSeat(licenseType: string, principal: string, assigned: boolean) { await this.call("PUT", "license/assignments", { license_type: licenseType, principal, assigned }); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

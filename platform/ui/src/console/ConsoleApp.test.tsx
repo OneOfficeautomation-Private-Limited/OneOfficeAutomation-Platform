@@ -84,6 +84,15 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^users\/u\d\/(unlock|reset-mfa|default-device)$/.test(route)) return ok({ ok: true });
     if (route === "devices/runasusers") return ok({ users: [{ username: "admin", device_id: "d1", device_name: "Runner A" }] });
     if (/^roles\/[a-z_]+$/.test(route)) return ok({ ok: true });
+    if (route === "license" && (init.method ?? "GET") === "GET") return ok({ license: { state: "active", customer: "Acme", edition: "Enterprise", id: "LIC-1", issued: "2026-01-01", expires: "2027-01-01",
+      days_left: 62, install_id: "inst-9", seats: { developer: { total: 5, used: 4 }, citizen_developer: { total: 0, used: 0 }, attended_runner: { total: 10, used: 2 }, unattended_runner: { total: 2, used: 1 } } } });
+    if (route === "license" && init.method === "POST") return ok({ ok: true });
+    if (route === "license/assignments" && init.method === "PUT") return ok({ ok: true });
+    if (route === "license/assignments") return ok({ assignments: [{ principal_type: "user", principal: "admin", license_type: "developer" }, { principal_type: "device", principal: "d1", license_type: "unattended_runner" }] });
+    if (route === "license/usage") return ok({ seats: { developer: { label: "Developer", total: 5, used: 4, idle: 1 }, unattended_runner: { label: "Unattended Runner", total: 2, used: 1, idle: 0 } },
+      holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
+        { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
+      trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
     if (route === "audit") {
       const q = new URLSearchParams(url.split("?")[1]);
       calls.push({ method: "GET", route: "audit?" + q.toString() });
@@ -162,7 +171,7 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Licenses" }).getAttribute("href")).toBe("../?page=licenses");
+    expect(within(menu).getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("../?page=settings");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -461,6 +470,27 @@ describe("rebuilt Command Center console", () => {
     URL.createObjectURL = (() => "blob:x") as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
     expect(calls.some((c) => c.route === "audit/export")).toBe(true);
+  });
+
+  it("shows Licenses as AA's: the licence and seats with a nearly-full alert, allocation to people and runners, idle seats taken back", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Licenses" }));
+    expect(await screen.findByText("Acme")).toBeTruthy();
+    expect(screen.getByText(/Nearly full: Developer \(4 of 5\)/)).toBeTruthy();
+    // allocation: a seat for a person; the runner already holds one
+    fireEvent.click(screen.getByRole("tab", { name: "Allocation" }));
+    const people = await screen.findByRole("table", { name: "People seats" });
+    await act(async () => { fireEvent.click(within(people).getByLabelText("Attended Runner seat for vic")); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "license/assignments", body: { license_type: "attended_runner", principal: "vic", assigned: true } }));
+    expect((within(screen.getByRole("table", { name: "Runner seats" })).getByLabelText("Unattended Runner seat for Runner A") as HTMLInputElement).checked).toBe(true);
+    // usage: idle seats only, and take one back
+    fireEvent.click(screen.getByRole("tab", { name: "Usage" }));
+    fireEvent.click(await screen.findByLabelText("Idle seats only"));
+    const holders = screen.getByRole("table", { name: "Seat holders" });
+    await waitFor(() => expect(within(holders).queryByText("Asha Admin")).toBeNull());
+    await act(async () => { fireEvent.click(within(holders).getByRole("button", { name: "Take back" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "license/assignments", body: { license_type: "developer", principal: "old", assigned: false } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
