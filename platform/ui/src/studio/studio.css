@@ -421,3 +421,17 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 /* four tabs in the Details panel stay on one line */
 .st-right .ui-tab-list { flex-wrap: nowrap; overflow-x: auto; }
 .st-right .ui-tab { flex: 1 1 auto; padding: 0 8px; white-space: nowrap; }
+
+/* Automation page: Private (the workspace) and Public (the Command Center agent repository) */
+.st-page-tabs { display: flex; gap: 0; padding: 0 16px; border-bottom: 1px solid var(--ui-border); background: #ffffff; }
+.st-page-tab { height: 34px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ui-text); font: inherit; font-weight: 600; cursor: pointer; }
+.st-page-tab[aria-selected="true"] { border-bottom-color: var(--ui-accent); color: var(--ui-accent); }
+.st-cr { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; }
+.st-cr > .st-items-bar { padding: 0; }
+.st-cr-form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
+.st-cr-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.st-cr-acts a.ui-btn { text-decoration: none; }
+.st-cr-error { margin: 0; padding: 6px 10px; border-radius: var(--ui-radius); background: #fdecec; color: #9b1c1c; border: 1px solid #f3b4b4; }
+.st-cr-search { width: 260px; height: 28px; }
+.st-cr-row-acts { white-space: nowrap; text-align: right; }
+.st-cr-row-acts .ui-btn + .ui-btn { margin-left: 6px; }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, StudioApi, WorkspaceNode } from "../api/client";
 import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, TextInput, Tree, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
@@ -33,9 +33,10 @@ const foundBy = (m: string[]) => m.map((x) => x.replace(/^uses [^/]+\/(.+)$/, (_
  * folder's sub-folders and items; they can be selected (Ctrl+click, Shift+click), opened, renamed, copied, cut and
  * pasted, duplicated, dragged onto a folder to move them, and moved to the trash, from the ⋮ menu, a right-click or
  * the keyboard. A search finds items by name, and agents by their description, id, actions and variables too.
+ * As in AA, Private is the workspace and Public is the Command Center agent repository (publicView).
  */
-export function Automation({ api, view, tree, search = "", blueprints = [], onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
-  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; onOpen: (n: WorkspaceNode) => void;
+export function Automation({ api, view, tree, search = "", blueprints = [], publicView, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
+  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void; onMoved: (from: string, to: string) => void; onChanged: () => Promise<unknown>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
@@ -50,6 +51,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], onOp
   const [folderMenu, setFolderMenu] = useState(false);
   const [renaming, setRenaming] = useState<WorkspaceNode | null>(null);
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
+  const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
+  const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
   const folderNode = find(tree, folder) ?? tree;
   const folderName = folderNode.path ? folderNode.name : "Workspace";
@@ -107,7 +110,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], onOp
     else { setSelected([path]); setAnchor(path); }
   };
   const keys = (e: KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;
+    if (isPublic || (e.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;   // the workspace keys do nothing on Public
     const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (ctrl && k === "c") act.copy();
     else if (ctrl && k === "x") act.cut();
@@ -160,17 +163,21 @@ export function Automation({ api, view, tree, search = "", blueprints = [], onOp
       <header className="st-page-head">
         <div>
           <h1 id="st-page-title">{title}</h1>
-          <p>{q ? `Items matching “${search.trim()}” in the whole workspace` : "Pick a folder, then press Create."}</p>
+          <p>{isPublic ? "Agents shared through Command Center. Check one out to work on it here." : q ? `Items matching “${search.trim()}” in the whole workspace` : "Pick a folder, then press Create."}</p>
         </div>
-        <div className="st-page-actions">
+        {!isPublic && <div className="st-page-actions">
           <Button kind="secondary" icon="plus" onClick={() => onNewFolder(folder)}>New folder</Button>
           <Menu label="Create" title={"Create in " + folderName}
             trigger={<Button kind="primary">Create ▾</Button>}
             items={ITEM_TYPES.map((t) => ({ key: t.kind, label: t.name, description: t.description, icon: <IconTile name={t.icon} color={t.color} size={28} />,
               onSelect: () => setCreating(t) }))} />
-        </div>
+        </div>}
       </header>
-      <div className="st-page-body">
+      {publicView && <div className="st-page-tabs" role="tablist" aria-label="Where">
+        {([["private", "Private", "Your workspace on this computer"], ["public", "Public", "The Command Center agent repository"]] as const).map(([k, t, tip]) =>
+          <button key={k} type="button" role="tab" className="st-page-tab" aria-selected={(k === "public") === isPublic} title={tip} onClick={() => setPlace(k)}>{t}</button>)}
+      </div>}
+      {isPublic ? publicView : <div className="st-page-body">
         <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"
           actions={<>
             <button type="button" className="ui-panel-toggle" aria-label={"New folder in " + folderName} title={"New folder in " + folderName}
@@ -227,7 +234,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], onOp
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
       <CreateDialog type={creating} folderPath={folder} blueprints={blueprints} onClose={() => setCreating(null)} onChangeFolder={() => setCreating(null)}
         onCreate={async (kind, name, from) => { await onCreated(kind, folder, name, from); setCreating(null); }} />
       {renaming && <RenameDialog node={renaming} onClose={() => setRenaming(null)} onRename={async (name) => {

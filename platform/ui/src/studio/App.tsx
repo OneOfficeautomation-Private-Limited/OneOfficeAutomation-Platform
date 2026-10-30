@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
+  ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
+import { CheckInDialog, PublicRepository } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
@@ -61,7 +62,9 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [agents, setAgents] = useState<AgentSummary[]>([]);   // for AI agents' tools
   const [connections, setConnections] = useState<ModelConnections | null>(null);
   const [wizard, setWizard] = useState(false);
-  const [asSteps, setAsSteps] = useState<string[]>([]);   // AI agents shown as plain steps instead of in the AI agent editor
+  const [asSteps, setAsSteps] = useState<string[]>([]);
+  const [cr, setCr] = useState<CrStatus>({ connected: false });   // the Command Center sign-in, for the Public tab and Check in
+  const [checkingIn, setCheckingIn] = useState(false);   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => {
@@ -72,6 +75,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   useEffect(() => {
     api.info().then(setInfo).catch(fail);
     api.packages().then(setPackages).catch(fail);
+    api.crStatus().then(setCr).catch(() => setCr({ connected: false }));
     api.blueprints().then((b) => setBlueprints(b ?? [])).catch(() => setBlueprints([]));   // without them Create offers a blank agent only
     reloadTree();
   }, [api, reloadTree]);
@@ -255,6 +259,37 @@ export function App({ api: given }: { api?: StudioApi }) {
     setTabs(rest);
     if (active === path) setActive(rest.length ? rest[rest.length - 1].path : null);
   };
+  // ---- the Command Center agent repository ----
+  const crHome = info?.controlRoom ?? "../../";
+  /** Check out (or open my copy): the repository's version becomes the private copy in the workspace, and opens. */
+  const checkOut = async (repoPath: string, local?: string) => {
+    const open1 = local ? tabsRef.current.find((t) => t.path === local) : undefined;
+    if (open1 && isDirty(open1)) { setError(open1.name + " has unsaved changes. Save or close it before checking out again."); return; }
+    const r = await api.crCheckout(repoPath);
+    await reloadTree();
+    const flow = await api.bot(r.local);
+    if (tabsRef.current.some((t) => t.path === r.local))
+      patch(r.local, (t) => ({ ...t, name: flow.name || t.name, flow, saved: JSON.stringify(flow), past: [], future: [], problems: [], checked: false }));
+    else {
+      if (tabsRef.current.length >= MAX_TABS) { setNotice(`Checked out v${r.version} into ${r.local}. Close an item to open it.`); return; }
+      setTabs((t) => [...t, { kind: "agent", path: r.local, name: flow.name || r.local.split("/").pop()!, flow, saved: JSON.stringify(flow), past: [], future: [],
+        selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
+    }
+    setActive(r.local);
+    setNotice(`Checked out v${r.version} into your workspace: ${r.local}.`);
+  };
+  /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
+  const checkIn = async (comment: string, live: boolean) => {
+    if (!agent) return;
+    if (isDirty(agent) && !(await save(agent.path))) { setCheckingIn(false); return; }
+    try {
+      const r = await api.crCheckin(agent.path, comment, live);
+      setNotice(`Checked in ${r.path} as version ${r.version}` + (r.production_request ? "; it waits for approval before it goes live."
+        : r.production ? "; it is now the live version." : "; the live version is unchanged."));
+    } catch (e) { fail(e); }
+    setCheckingIn(false);
+  };
+
   const close = (path: string) => {
     const tab = tabs.find((t) => t.path === path);
     if (tab && isDirty(tab)) setClosing(path); else forceClose(path);
@@ -357,6 +392,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                       <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer">Run</Button>
                       <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints (or at the first step)">Debug</Button>
                     </>}
+                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to the Command Center agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>
             : <a className="st-classic" href="../">Classic Studio</a>}
@@ -401,12 +437,14 @@ export function App({ api: given }: { api?: StudioApi }) {
                 api={api} packages={packages} onSave={() => save(item.path)} onExtraction={() => makeExtraction(item)}
                 onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
-              ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
+              ? <Automation view={view} tree={tree}
+                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   api={api} onMoved={moved} onChanged={reloadTree} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
       </div>
 
+      {checkingIn && agent && <CheckInDialog api={api} name={agent.name} status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(false)} onCheckIn={checkIn} />}
       <NewFolderDialog parent={newFolderIn} onClose={() => setNewFolderIn(null)}
         onCreate={async (name) => { await api.createFolder(newFolderIn ?? "", name); await reloadTree(); setNewFolderIn(null); }} />
 

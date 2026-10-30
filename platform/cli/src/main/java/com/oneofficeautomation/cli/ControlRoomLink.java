@@ -56,7 +56,7 @@ final class ControlRoomLink {
         if (auth) b.header("Authorization", "Bearer " + token);
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach Command Center at " + url + ": " + e.getMessage(), "Check the address and that Command Center is running."); }
+        catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach Command Center at " + url + (e.getMessage() == null ? "" : ": " + e.getMessage()), "Check the address and that Command Center is running."); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted"); }
         Object parsed;
         try { parsed = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("STUDIO.CR_BAD_RESPONSE", "Unexpected answer from " + url + " (HTTP " + r.statusCode() + ")", "Check the Command Center address."); }

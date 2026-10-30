@@ -135,6 +135,21 @@ function fakeServer() {
     usedBy: [{ path: "Finance/lookup.flow.json" }] });
   routes["POST assistant/build"] = (b) => { created.push({ assistant: b.prompt, connection: b.connection });
     return { notes: "Logs a greeting.", steps: [{ id: "x1", action: "core/log", args: { message: "Hello $who" } }], variables: [{ name: "who", type: "String" }] }; };
+  // the Command Center agent repository: one agent, checked out by nobody; the fake account's password is "letmein"
+  let cr: any = { connected: false, url: "http://cc.example:8720", user: null };
+  let locked: string | null = null;
+  const apiError = (message: string) => Object.assign(new Error(message), { api: { code: "STUDIO.CR", message } });
+  routes["GET cr/status"] = () => cr;
+  routes["POST cr/connect"] = (b) => { if (b.password !== "letmein") throw apiError("Wrong user name or password");
+    created.push({ connect: b.url, user: b.username }); cr = { connected: true, url: b.url, user: { username: b.username } }; return cr; };
+  routes["POST cr/disconnect"] = () => (cr = { connected: false, url: cr.url, user: null });
+  routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked }],
+    mapping: locked ? { "Command Center/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
+  routes["GET cr/versions"] = () => ({ versions: [{ version: 2, author: "asha", created: "2026-10-29T10:00:00Z", comment: "Reads the totals" },
+    { version: 1, author: "asha", created: "2026-10-28T10:00:00Z", comment: "First version" }] });
+  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: "Command Center/Invoice intake.flow.json", path: b.path, version: 2 }; };
+  routes["POST cr/undo-checkout"] = (b) => { created.push({ undo: b.path }); locked = null; return { ok: true }; };
+  routes["POST cr/checkin"] = (b) => { created.push({ checkin: b }); return { path: "Finance/Invoice intake.flow.json", version: 3, local: b.local, production: b.production }; };
   routes["GET windows"] = () => ({ windows: [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }] });
   routes["GET connections"] = () => ({ connections: [{ name: "snow-prod", package: "ooa.servicenow" }, { name: "sf", package: "ooa.salesforce" }] });
   routes["GET builtins"] = () => ({ sys: { today: "2026-10-30" }, global: { company: "One Office" } });
@@ -1258,5 +1273,73 @@ describe("new Studio", () => {
     expect(saved.steps.map((x: any) => x.action)).toEqual(["ooa.file/read_text", "ooa.genai/extract"]);   // no PDF toolkit here: text only
     expect(saved.steps[1].args.fields).toEqual({ number: "Invoice number", total: "Total amount (Number) (may be missing)" });
     expect(saved.variables.map((v: any) => v.name)).toEqual(["document", "api_key", "text", "fields"]);
+  });
+
+  it("signs in to Command Center on the Public tab, lists the agent repository, and checks an agent out", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
+    const form = await screen.findByRole("form", { name: "Sign in to Command Center" });
+    expect((within(form).getByLabelText("Command Center address") as HTMLInputElement).value).toBe("http://cc.example:8720");
+    fireEvent.change(within(form).getByLabelText("User name"), { target: { value: "ravi" } });
+    fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "wrong" } });
+    await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Sign in" })); });
+    expect(within(form).getByRole("alert").textContent).toBe("Wrong user name or password");
+    fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "letmein" } });
+    await act(async () => { fireEvent.submit(form); });
+    expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
+    const row = (await screen.findByText("Finance/Invoice intake")).closest("tr")!;
+    expect(row.textContent).toContain("v2");
+    expect(screen.queryByRole("button", { name: "Create ▾" })).toBeNull();   // Create belongs to the workspace
+    fireEvent.click(within(row).getByRole("button", { name: "Versions" }));
+    const versions = await screen.findByRole("dialog", { name: "Versions of Finance/Invoice intake" });
+    expect(within(versions).getByText("Reads the totals")).toBeTruthy();
+    expect(within(versions).getByText(/live/).closest("tr")!.textContent).toContain("v1");
+    fireEvent.click(within(versions).getAllByRole("button", { name: "Close" }).pop()!);
+    await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "Check out" })); });
+    expect(created).toContainEqual({ checkout: "Finance/Invoice intake.flow.json" });
+    expect(await screen.findByText(/Checked out v2 into your workspace: Command Center\/Invoice intake.flow.json/)).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Invoice intake/, selected: true })).toBeTruthy();
+  });
+
+  it("undoes a check-out after asking, and signs out", async () => {
+    const { api, created } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
+    const row = (await screen.findByText("Finance/Invoice intake")).closest("tr")!;
+    expect(row.textContent).toContain("By you");
+    expect(row.textContent).toContain("Private copy: Command Center/Invoice intake.flow.json");
+    expect(within(row).getByRole("button", { name: "Open my copy" })).toBeTruthy();
+    fireEvent.click(within(row).getByRole("button", { name: "Undo check-out" }));
+    const ask = await screen.findByRole("dialog", { name: "Undo check-out of Finance/Invoice intake?" });
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Undo check-out" })); });
+    expect(created).toContainEqual({ undo: "Finance/Invoice intake.flow.json" });
+    await waitFor(() => expect(screen.getByText("Finance/Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
+    expect(await screen.findByRole("form", { name: "Sign in to Command Center" })).toBeTruthy();
+  });
+
+  it("checks the open agent in, signing in first and saving unsaved changes", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Core/, "Comment");
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
+    let dialog = await screen.findByRole("dialog", { name: "Check in Invoice intake" });
+    fireEvent.change(within(dialog).getByLabelText("User name"), { target: { value: "ravi" } });
+    fireEvent.change(within(dialog).getByLabelText("Password"), { target: { value: "letmein" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Sign in" })); });
+    dialog = screen.getByRole("dialog", { name: "Check in Invoice intake" });
+    expect(within(dialog).getByText(/as ravi/)).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText("What changed"), { target: { value: "Adds a note" } });
+    fireEvent.click(within(dialog).getByRole("checkbox"));
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Check in" })); });
+    const order = created.map((c: any) => c.saved ? "saved" : c.checkin ? "checkin" : "").filter(Boolean);
+    expect(order).toEqual(["saved", "checkin"]);   // saved first, so the new version has the change
+    expect(created).toContainEqual({ checkin: { local: "Finance/Invoices/Invoice intake.flow.json", comment: "Adds a note", production: true } });
+    expect(await screen.findByText(/Checked in Finance\/Invoice intake.flow.json as version 3; it is now the live version/)).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
