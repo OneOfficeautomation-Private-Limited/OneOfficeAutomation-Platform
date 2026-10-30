@@ -35,6 +35,19 @@ class UsersPageTest {
         assertNull(cr.userDetail(admin, "mia").get("email"), "an empty address removes it");
     }
 
+    @Test void rolesListWhoHoldsThemAndARoleSomeoneHoldsAsAFurtherRoleIsNotDeleted() {
+        cr.platform.saveRole(admin, "auditor", "Reads the audit trail", List.of("audit.view"), null);
+        cr.createUser(admin, "ola", "Ola", "viewer", null);
+        cr.updateUser(admin, idOf("ola"), Map.of("further_roles", List.of("auditor")), null);
+        Map<String, Object> auditor = cr.platform.roles(admin).stream().filter(r -> "auditor".equals(r.get("name"))).findFirst().orElseThrow();
+        assertEquals(List.of("ola"), auditor.get("members"));
+        Map<String, Object> viewer = cr.platform.roles(admin).stream().filter(r -> "viewer".equals(r.get("name"))).findFirst().orElseThrow();
+        assertTrue(((List<?>) viewer.get("members")).contains("ola"), "built-in roles list their holders too");
+        assertEquals("CR.CONFLICT", assertThrows(OoaException.class, () -> cr.platform.deleteRole(admin, "auditor", null)).code());
+        cr.updateUser(admin, idOf("ola"), Map.of("further_roles", List.of()), null);
+        cr.platform.deleteRole(admin, "auditor", null);
+    }
+
     @Test void unlockEndsALockoutAndIsAudited() {
         cr.createUser(admin, "lee", "Lee", "viewer", null);
         String id = idOf("lee");

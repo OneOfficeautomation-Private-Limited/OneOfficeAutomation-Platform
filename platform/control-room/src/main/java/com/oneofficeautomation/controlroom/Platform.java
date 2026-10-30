@@ -295,12 +295,22 @@ public final class Platform {
     public List<Map<String, Object>> roles(User by) {
         cr.require(by, "users.manage", "manage roles");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (String r : Rbac.ROLES) out.add(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role", "switched_off", cr.roleSwitchedOff(r)));
+        // who holds each role, as main role or further role
+        Map<String, Set<String>> holders = new HashMap<>();
+        for (Map<String, Object> u : db.query("SELECT username, role FROM users")) holders.computeIfAbsent((String) u.get("role"), k -> new TreeSet<>()).add((String) u.get("username"));
+        for (Map<String, Object> u : db.query("SELECT username, role FROM user_roles")) holders.computeIfAbsent((String) u.get("role"), k -> new TreeSet<>()).add((String) u.get("username"));
+        for (String r : Rbac.ROLES) {
+            Map<String, Object> m = new LinkedHashMap<>(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role", "switched_off", cr.roleSwitchedOff(r)));
+            m.put("members", new ArrayList<>(holders.getOrDefault(r, Set.of())));
+            m.put("users", holders.getOrDefault(r, Set.of()).size());
+            out.add(m);
+        }
         for (Map<String, Object> r : db.query("SELECT * FROM roles ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", r.get("name")); m.put("builtin", false); m.put("permissions", csv(r.get("permissions")));
-            m.put("description", r.get("description")); m.put("created_by", r.get("created_by"));
-            m.put("users", ((Number) db.one("SELECT COUNT(*) AS n FROM users WHERE role = ?", r.get("name")).get("n")).intValue());
+            m.put("description", r.get("description")); m.put("created_by", r.get("created_by")); m.put("created", r.get("created"));
+            m.put("members", new ArrayList<>(holders.getOrDefault((String) r.get("name"), Set.of())));
+            m.put("users", holders.getOrDefault((String) r.get("name"), Set.of()).size());
             out.add(m);
         }
         return out;
@@ -321,7 +331,8 @@ public final class Platform {
 
     public void deleteRole(User by, String name, String ip) {
         cr.require(by, "users.manage", "manage roles");
-        long users = ((Number) db.one("SELECT COUNT(*) AS n FROM users WHERE role = ?", name).get("n")).longValue();
+        long users = ((Number) db.one("SELECT COUNT(*) AS n FROM users WHERE role = ?", name).get("n")).longValue()
+            + ((Number) db.one("SELECT COUNT(*) AS n FROM user_roles WHERE role = ?", name).get("n")).longValue();
         if (users > 0) throw new OoaException("CR.CONFLICT", users + " user(s) still have the role '" + name + "'", "Give them another role first.");
         if (db.update("DELETE FROM roles WHERE name = ?", name) == 0) throw notFound("Role");
         cr.loadRoles();

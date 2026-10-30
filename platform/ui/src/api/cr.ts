@@ -37,6 +37,9 @@ export type RunnerFile = { taken?: string; requested_by?: string | null; error?:
 export type CrPerson = { id: string; username: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; description?: string | null;
   email?: string | null; role: string; roles?: string[]; enabled: boolean; must_change?: boolean; last_login?: string | null; created?: string | null;
   locked_until?: string | null; mfa_enabled?: boolean };
+/** A role: built-in (fixed, may be switched off in Settings) or custom; members hold it as main or further role. */
+export type CrRole = { name: string; builtin: boolean; description?: string | null; permissions: string[]; switched_off?: boolean;
+  members?: string[]; users?: number; created_by?: string | null; created?: string | null };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -126,6 +129,10 @@ export class CrApi {
   /** Each person's default runner (where their runs go as a run-as user). */
   async defaultRunners() { return (await this.call<{ users?: { username: string; device_id?: string | null; device_name?: string | null }[] }>("GET", "devices/runasusers")).users ?? []; }
   async roles() { return (await this.call<{ roles?: { name: string; builtin: boolean; description?: string; switched_off?: boolean }[] }>("GET", "roles")).roles ?? []; }
+  /** Every role (built-in first) with its permissions and holders, and every permission there is. */
+  rolesPage() { return this.call<{ roles: CrRole[]; permissions: string[] }>("GET", "roles"); }
+  async saveRole(name: string, description: string, permissions: string[]) { await this.call("PUT", "roles/" + encodeURIComponent(name), { description, permissions }); }
+  async deleteRole(name: string) { await this.call("DELETE", "roles/" + encodeURIComponent(name)); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

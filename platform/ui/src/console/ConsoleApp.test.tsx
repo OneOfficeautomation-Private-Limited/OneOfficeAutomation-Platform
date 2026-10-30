@@ -83,7 +83,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^users\/u\d\/reset-password$/.test(route)) return ok({ temporary_password: "Reset-4k2" });
     if (/^users\/u\d\/(unlock|reset-mfa|default-device)$/.test(route)) return ok({ ok: true });
     if (route === "devices/runasusers") return ok({ users: [{ username: "admin", device_id: "d1", device_name: "Runner A" }] });
-    if (route === "roles") return ok({ roles: [{ name: "admin", builtin: true }, { name: "bot_creator", builtin: true }, { name: "bot_runner", builtin: true }, { name: "viewer", builtin: true }] });
+    if (/^roles\/[a-z_]+$/.test(route)) return ok({ ok: true });
+    if (route === "roles") return ok({ permissions: ["repo.view", "repo.checkin", "runs.view", "runs.start", "users.manage", "audit.view"], roles: [
+      { name: "admin", builtin: true, permissions: ["repo.view", "repo.checkin", "runs.view", "runs.start", "users.manage", "audit.view"], members: ["admin"], users: 1 },
+      { name: "bot_creator", builtin: true, permissions: ["repo.view", "repo.checkin", "runs.view", "runs.start"], members: [], users: 0 },
+      { name: "bot_runner", builtin: true, permissions: ["repo.view", "runs.view", "runs.start"], members: ["vic", "old"], users: 2 },
+      { name: "viewer", builtin: true, permissions: ["repo.view", "runs.view"], members: ["vic"], users: 1, switched_off: false },
+      { name: "auditor", builtin: false, description: "Reads the audit trail", permissions: ["audit.view", "runs.view"], members: [], users: 0, created_by: "admin" }] });
     if (route === "pools") return ok({ pools: [{ id: "p1", name: "Finance pool", description: "Month end", devices: ["d1"], created_by: "admin" }] });
     if (route === "runs") {
       const q = new URLSearchParams(url.split("?")[1]);
@@ -316,6 +322,36 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create user" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users", body: { username: "ravi", display_name: "", role: "bot_creator" } }));
     expect(within(await screen.findByRole("dialog", { name: "Temporary password for ravi" })).getByText("Temp-9x7")).toBeTruthy();
+  });
+
+  it("shows Roles as AA's Roles page: kinds, a permission matrix by area, built-in roles read-only and copied, custom roles saved and deleted", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Roles" }));
+    const list = await screen.findByRole("table", { name: "Roles list" });
+    expect(await within(list).findByText("Agent runner")).toBeTruthy();
+    expect(within(list).getAllByText("Built-in")).toHaveLength(4);
+    fireEvent.change(screen.getByLabelText("Grants"), { target: { value: "audit.view" } });
+    await waitFor(() => expect(within(list).queryByText("Agent runner")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    // a built-in role is read-only; copying it starts a new role with its permissions
+    fireEvent.click(await within(list).findByText("Agent runner"));
+    const b = await screen.findByRole("dialog", { name: "Built-in role Agent runner" });
+    expect((within(b).getByLabelText("Start runs") as HTMLInputElement).disabled).toBe(true);
+    expect(within(b).getByText("vic, old")).toBeTruthy();
+    fireEvent.click(within(b).getByRole("button", { name: "Copy as a new role" }));
+    const c = await screen.findByRole("dialog", { name: "Create role" });
+    expect((within(c).getByLabelText("Start runs") as HTMLInputElement).checked).toBe(true);
+    fireEvent.change(within(c).getByLabelText(/^Name/), { target: { value: "night_runner" } });
+    fireEvent.click(within(c).getByLabelText("Check in agents"));
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create role" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "roles/night_runner",
+      body: { description: "Copy of Agent runner", permissions: ["repo.view", "runs.view", "runs.start", "repo.checkin"] } }));
+    // custom roles can be selected and deleted
+    fireEvent.click(await within(list).findByLabelText("Select auditor"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await act(async () => { fireEvent.click(within(await screen.findByRole("dialog", { name: "Delete roles" })).getByRole("button", { name: "Delete" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "roles/auditor" }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

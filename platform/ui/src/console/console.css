@@ -100,3 +100,6 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-status.is-active { color: var(--ui-success); }
 .cc-status.is-locked { color: var(--ui-error-text); }
 .cc-status.is-pending { color: var(--ui-text-2); }
+.cc-matrix th[scope="row"] { white-space: nowrap; }
+.cc-matrix td { vertical-align: top; }
+.cc-risk { margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 11px; color: var(--ui-error-text); border: 1px solid currentColor; }
