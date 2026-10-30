@@ -116,7 +116,13 @@ public final class StudioServer {
                 path = path.substring(base.length());
             }
             String method = "HEAD".equals(ex.getRequestMethod()) ? "GET" : ex.getRequestMethod();   // HEAD is answered like GET, without the body
+            // Classic Studio, until it is removed one release after the new Studio became the default (2026-10-30): its
+            // page and files under /classic/, and its relative API calls (classic/api/...) reach the same API
+            boolean classic = false;
+            if (path.equals("/classic")) { ex.getResponseHeaders().set("Location", base + "/classic/"); send(ex, 302, "text/plain", "Moved"); return; }
+            if (path.startsWith("/classic/")) { path = path.substring(8); classic = true; }
             if (path.startsWith("/api/")) api(ex, method, path.substring(5));
+            else if (classic) classicAsset(ex, path);
             else asset(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
@@ -134,9 +140,20 @@ public final class StudioServer {
         }
     }
 
+    /**
+     * The new Studio (platform/ui) is the default, at the root. The preview's old address /next/ goes there, and a build
+     * without the new Studio (no Node.js when it was built) opens Classic instead.
+     */
     private void asset(HttpExchange ex, String path) throws IOException {
-        if (path.equals("/next")) { ex.getResponseHeaders().set("Location", base + "/next/"); send(ex, 302, "text/plain", "Moved"); return; }
-        if (path.startsWith("/next/")) { nextAsset(ex, path.substring(6)); return; }
+        if (path.equals("/next") || path.startsWith("/next/")) { ex.getResponseHeaders().set("Location", base + "/"); send(ex, 302, "text/plain", "Moved"); return; }
+        if ((path.equals("/") || path.equals("/index.html")) && StudioServer.class.getResource("/studio-next/index.html") == null) {
+            ex.getResponseHeaders().set("Location", base + "/classic/"); send(ex, 302, "text/plain", "Moved"); return;
+        }
+        nextAsset(ex, path.substring(1));
+    }
+
+    /** Classic Studio's files (studio/ in the resources, the shared design system from ooa-ui/), served under /classic/. */
+    private void classicAsset(HttpExchange ex, String path) throws IOException {
         String name = switch (path) {
             case "/", "/index.html" -> "index.html";
             case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css", "/ooa-i18n.js" -> path.substring(1);
@@ -154,7 +171,7 @@ public final class StudioServer {
         }
     }
 
-    /** Files of the new Studio preview (platform/ui, built by :cli:uiBuild into /studio-next/), served at /next/. */
+    /** Files of the new Studio (platform/ui, built by :cli:uiBuild into /studio-next/), served at the root. */
     private static final java.util.regex.Pattern NEXT_FILE = java.util.regex.Pattern.compile("^(index\\.html|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
     private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
 
@@ -162,7 +179,7 @@ public final class StudioServer {
         String name = file.isEmpty() ? "index.html" : file;
         if (!NEXT_FILE.matcher(name).matches()) { send(ex, 404, "text/plain", "Not found"); return; }
         try (InputStream in = StudioServer.class.getResourceAsStream("/studio-next/" + name)) {
-            if (in == null) { send(ex, 404, "text/plain", name.equals("index.html") ? "The new Studio preview is not in this build (gradlew :cli:uiBuild)" : "Not found"); return; }
+            if (in == null) { send(ex, 404, "text/plain", "Not found"); return; }
             if (name.equals("index.html")) {
                 // a fresh nonce per page: the one style element the dialogs add (to stop the page scrolling behind them)
                 // carries it, so the policy still refuses every other inline style

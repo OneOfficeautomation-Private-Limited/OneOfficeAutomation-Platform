@@ -35,7 +35,7 @@ All commands run from `platform/` in PowerShell (`gradlew` on Linux and macOS).
 | Customer zip, setup package, MSI, native executable, SBOM | See [02-components-and-modules.md](02-components-and-modules.md#8-builds-and-distributions) |
 | Leave out an optional toolkit module | Remove it from `ooa.optionalModules` in `gradle.properties` |
 | A forgotten administrator password (server stopped) | `ooa reset-admin [--user NAME] [--data DIR]`; it is audited |
-| The new Studio preview (platform/ui) | Built by every Gradle build (`:cli:uiBuild`, needs Node.js 22); served at `/studio/next/`. See 7.3 |
+| The new Studio (platform/ui) | Built by every Gradle build (`:cli:uiBuild`, needs Node.js 22); served at Studio's root (`/studio/` under `ooa server`), Classic Studio at `/classic/`. See 7.3 |
 
 `ooa server` stores its data in `%USERPROFILE%\OOA Command Center` and Studio files in `%USERPROFILE%\OOA Workspace`
 unless `--data` and `--workspace` say otherwise. The vault key comes from `OOA_MASTER_KEY`, `OOA_MASTER_KEY_SOURCE`
@@ -175,8 +175,10 @@ Workspace and nothing hidden is reachable.
 
 ### 7.3 The new Studio (`platform/ui`)
 
-The redesign ([12-ui-redesign.md](12-ui-redesign.md)) is built in TypeScript and React next to the classic Studio and
-served at `/next/` (`/studio/next/` under `ooa server`) until it replaces it.
+The redesign ([12-ui-redesign.md](12-ui-redesign.md)) is built in TypeScript and React. Since 2026-10-30 it is the
+default: served at Studio's root (`/studio/` under `ooa server`); the preview's old address `/next/` redirects there.
+Classic Studio stays at `/classic/` (its relative API calls reach the same API) for one release, then is removed. A build
+without the new Studio (no Node.js) opens Classic instead.
 
 | Task | Command (in `platform/ui`) |
 | --- | --- |

@@ -155,6 +155,8 @@ outside the workspace and webhook secrets, keep passing whatever the screen):
 
 The new Studio becomes the default when E1 to E8 and the kept Classic options are done. Order: E1 first.
 
+**Default since 2026-10-30.** E1 to E8 and the kept options are done, so the new Studio is served at Studio's root (`/studio/` under `ooa server`), the preview's address `/next/` redirects there, and Classic Studio is at `/classic/` with a link back to the new one. Classic is removed one release later.
+
 ## 6. Quality bar (checked at every step)
 
 - **Architecture**: no screen calls the server except through the API client (`src/api`); no business rules in the screens; no new

@@ -104,8 +104,9 @@ export type StudioInfo = { product: string; edition: string; workspace: string; 
 export type NewItemKind = "TaskBot" | "AiAgent" | "ApiTask" | "form" | "process" | "document" | "skill" | "script-python" | "script-powershell";
 
 export function defaultBase(href = location.href): string {
-  // the new Studio is served at <base>/next/, its API at <base>/api/
-  return new URL("../api/", href).toString();
+  // the new Studio is served at <base>/ (the preview was at <base>/next/), its API at <base>/api/
+  const folder = new URL(".", href);
+  return new URL(folder.pathname.endsWith("/next/") ? "../api/" : "api/", folder).toString();
 }
 
 export class StudioApi {

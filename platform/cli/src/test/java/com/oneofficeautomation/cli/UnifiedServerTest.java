@@ -47,23 +47,26 @@ class UnifiedServerTest {
         server.start();
         com.oneofficeautomation.agent.Agent agent = null;
         try {
-            // ---- one URL: Control Room at /, Studio at /studio/ ----
+            // ---- one URL: Control Room at /, Studio at /studio/ (the new Studio), Classic Studio at /studio/classic/ ----
             Res redirect = call(base, "GET", "/studio", null, null, null);
             assertEquals(302, redirect.status());
             assertEquals("/studio/", redirect.headers().firstValue("Location").orElse(""));
-            Res page = call(base, "GET", "/studio/", null, null, null);
+            assertEquals("/studio/classic/", call(base, "GET", "/studio/classic", null, null, null).headers().firstValue("Location").orElse(""));
+            Res page = call(base, "GET", "/studio/classic/", null, null, null);
             assertEquals(200, page.status());
-            assertTrue(page.body().contains("<script src=\"studio.js\">"), "Studio's page uses relative paths so it works under /studio/");
-            assertEquals(200, call(base, "GET", "/studio/studio.js", null, null, null).status());
+            assertTrue(page.body().contains("<script src=\"studio.js\">"), "Classic Studio's page uses relative paths so it works under /studio/classic/");
+            assertEquals(200, call(base, "GET", "/studio/classic/studio.js", null, null, null).status());
+            assertEquals("/", call(base, "GET", "/studio/classic/api/info", null, null, null).json().get("controlRoom"), "Classic's relative API calls reach the same API");
+            assertEquals(404, call(base, "GET", "/studio/studio.js", null, null, null).status(), "Classic's files are only under /classic/");
             // HEAD (used by uptime checks and some proxies): same status, no body, and no server warning
-            for (String p : List.of("/", "/studio/", "/api/health")) {
+            for (String p : List.of("/", "/studio/", "/studio/classic/", "/api/health")) {
                 Res head = call(base, "HEAD", p, null, null, null);
                 assertEquals(200, head.status(), "HEAD " + p);
                 assertEquals("", head.body(), "HEAD " + p + " has no body");
             }
             // ---- one design system: both applications serve the same token and component sheets ----
             for (String css : List.of("ooa-tokens.css", "ooa-components.css")) {
-                Res fromStudio = call(base, "GET", "/studio/" + css, null, null, null), fromConsole = call(base, "GET", "/" + css, null, null, null);
+                Res fromStudio = call(base, "GET", "/studio/classic/" + css, null, null, null), fromConsole = call(base, "GET", "/" + css, null, null, null);
                 assertEquals(200, fromStudio.status(), css);
                 assertEquals(200, fromConsole.status(), css);
                 assertTrue(fromStudio.headers().firstValue("Content-Type").orElse("").startsWith("text/css"), css);
@@ -84,13 +87,14 @@ class UnifiedServerTest {
                 assertTrue(bp.get("id") instanceof String && bp.get("name") instanceof String && bp.get("steps") instanceof List<?>, String.valueOf(bp.get("id")));
             }
 
-            // ---- the new Studio preview (platform/ui) at /studio/next/, its own files only ----
-            assertEquals("/studio/next/", call(base, "GET", "/studio/next", null, null, null).headers().firstValue("Location").orElse(""));
-            Res next = call(base, "GET", "/studio/next/", null, null, null);
+            // ---- the new Studio (platform/ui) at /studio/, its own files only; the preview's old address goes there ----
+            for (String old : List.of("/studio/next", "/studio/next/", "/studio/next/index.html"))
+                assertEquals("/studio/", call(base, "GET", old, null, null, null).headers().firstValue("Location").orElse(""), old);
+            Res next = call(base, "GET", "/studio/", null, null, null);
             assertEquals(200, next.status());
             java.util.regex.Matcher script = java.util.regex.Pattern.compile("src=\"\\./(assets/[^\"]+\\.js)\"").matcher(next.body());
-            assertTrue(script.find(), "the page loads its script by a relative path, so it works under /studio/next/");
-            Res js = call(base, "GET", "/studio/next/" + script.group(1), null, null, null);
+            assertTrue(script.find(), "the page loads its script by a relative path, so it works under /studio/");
+            Res js = call(base, "GET", "/studio/" + script.group(1), null, null, null);
             assertEquals(200, js.status());
             assertTrue(js.headers().firstValue("Content-Type").orElse("").startsWith("text/javascript"));
             assertTrue(js.headers().firstValue("Content-Security-Policy").orElse("").contains("script-src 'self'"), "the same security policy as the classic Studio");
@@ -99,8 +103,8 @@ class UnifiedServerTest {
             assertTrue(nonce.find(), next.headers().toString());
             assertTrue(next.body().contains("content=\"" + nonce.group(1) + "\""), "the page carries the same nonce");
             assertFalse(next.body().contains("__CSP_NONCE__"));
-            assertNotEquals(nonce.group(1), call(base, "GET", "/studio/next/", null, null, null).headers().firstValue("Content-Security-Policy").orElse("").replaceAll(".*'nonce-([^']+)'.*", "$1"), "a new nonce per page");
-            for (String bad : List.of("/studio/next/assets/../../studio.js", "/studio/next/..%2fstudio.js", "/studio/next/assets/x.exe", "/studio/next/secret.txt"))
+            assertNotEquals(nonce.group(1), call(base, "GET", "/studio/", null, null, null).headers().firstValue("Content-Security-Policy").orElse("").replaceAll(".*'nonce-([^']+)'.*", "$1"), "a new nonce per page");
+            for (String bad : List.of("/studio/assets/../classic/studio.js", "/studio/..%2fstudio.js", "/studio/assets/x.exe", "/studio/secret.txt"))
                 assertEquals(404, call(base, "GET", bad, null, null, null).status(), bad);
 
             // ---- Studio reuses the browser's Control Room sign-in ----

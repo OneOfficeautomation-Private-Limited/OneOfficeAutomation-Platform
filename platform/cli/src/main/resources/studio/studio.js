@@ -4237,7 +4237,7 @@ function renderCr() {
   if (!cr.connected && cr.sameServer) {
     body.replaceChildren(h("div", { class: "cr-form" },
       h("div", { class: "hint", text: "Agent Studio and Command Center run together here. Sign in to Command Center in this browser and Agent Studio uses that sign-in for check-in and check-out." }),
-      h("a", { class: "button-link", href: "../", target: "ooa-control-room" }, "Open Command Center to sign in"),
+      h("a", { class: "button-link", href: "../../", target: "ooa-control-room" }, "Open Command Center to sign in"),
       h("button", { type: "button", onclick: crRefresh }, "I have signed in")));
     return;
   }

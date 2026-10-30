@@ -8,7 +8,6 @@
 .st-logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #2f6fde, #7c3aed); }
 .st-crumbs { color: var(--ui-frame-text-2); display: flex; align-items: center; gap: 4px; }
 .st-crumb-current { color: var(--ui-frame-text); font-weight: 600; }
-.st-preview-tag { margin-left: 8px; padding: 1px 7px; border-radius: 4px; background: var(--ui-debug); color: var(--ui-on-debug); font-size: 11px; font-weight: 700; }
 .st-search { flex: 1 1 240px; max-width: 460px; display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 10px; border-radius: var(--ui-radius);
   background: var(--ui-bg); color: var(--ui-text-2); }
 .st-search input { flex: 1; border: 0; outline: none; background: transparent; color: var(--ui-text); }

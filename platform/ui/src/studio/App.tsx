@@ -272,7 +272,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (active === path) setActive(rest.length ? rest[rest.length - 1].path : null);
   };
   // ---- the Command Center agent repository ----
-  const crHome = info?.controlRoom ?? "../../";
+  const crHome = info?.controlRoom ?? "../";
   /** Check out (or open my copy): the repository's version becomes the private copy in the workspace, and opens. */
   const checkOut = async (repoPath: string, local?: string) => {
     const open1 = local ? tabsRef.current.find((t) => t.path === local) : undefined;
@@ -389,7 +389,6 @@ export function App({ api: given }: { api?: StudioApi }) {
               <span key={a.path}>{i ? ", " : ""}<button type="button" className="st-crumb-link" onClick={() => openCaller(a.path)}>{a.name || a.id}</button></span>)}</span> : null;
           })()}
           {current && dirty && <span className="st-unsaved">Unsaved</span>}
-          <span className="st-preview-tag">New Studio preview</span>
         </nav>
         <label className="st-search"><Icon name="search" size={14} /><input aria-label="Search items" placeholder="Search items in the workspace" value={search}
           onChange={(e) => { setSearch(e.target.value); setActive(null); }} /></label>
@@ -409,7 +408,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                 {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to the Command Center agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>
-            : <a className="st-classic" href="../">Classic Studio</a>}
+            : <a className="st-classic" href="classic/" title="The previous Studio, until it is removed in the next release">Classic Studio</a>}
         </div>
       </header>
 

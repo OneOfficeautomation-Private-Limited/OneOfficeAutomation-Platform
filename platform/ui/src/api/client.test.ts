@@ -15,7 +15,10 @@ function fakeFetch(answer: (c: Call) => [number, unknown]) {
 }
 
 describe("StudioApi", () => {
-  it("finds the API next to the new Studio's folder", () => {
+  it("finds the API in the new Studio's folder (and next to the preview's old folder)", () => {
+    expect(defaultBase("http://localhost:8730/")).toBe("http://localhost:8730/api/");
+    expect(defaultBase("http://localhost:8720/studio/")).toBe("http://localhost:8720/studio/api/");
+    expect(defaultBase("http://localhost:8720/studio/index.html")).toBe("http://localhost:8720/studio/api/");
     expect(defaultBase("http://localhost:8730/next/")).toBe("http://localhost:8730/api/");
     expect(defaultBase("http://localhost:8720/studio/next/index.html")).toBe("http://localhost:8720/studio/api/");
   });
