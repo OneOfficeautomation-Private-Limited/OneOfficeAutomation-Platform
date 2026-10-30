@@ -40,6 +40,9 @@ export type CrPerson = { id: string; username: string; display_name?: string | n
 /** A role: built-in (fixed, may be switched off in Settings) or custom; members hold it as main or further role. */
 export type CrRole = { name: string; builtin: boolean; description?: string | null; permissions: string[]; switched_off?: boolean;
   members?: string[]; users?: number; created_by?: string | null; created?: string | null };
+/** A team: named team:NAME in folder permissions, vault folders and work queues. */
+export type CrTeam = { id: string; name: string; description?: string | null; created?: string; created_by?: string;
+  members: { username: string; team_role: "member" | "lead" }[]; used_in?: string[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -133,6 +136,11 @@ export class CrApi {
   rolesPage() { return this.call<{ roles: CrRole[]; permissions: string[] }>("GET", "roles"); }
   async saveRole(name: string, description: string, permissions: string[]) { await this.call("PUT", "roles/" + encodeURIComponent(name), { description, permissions }); }
   async deleteRole(name: string) { await this.call("DELETE", "roles/" + encodeURIComponent(name)); }
+  /** Teams with members (leads first) and where rules name them; people without teams.manage see their own teams. */
+  async teams() { return (await this.call<{ teams?: CrTeam[] }>("GET", "teams")).teams ?? []; }
+  saveTeam(id: string | null, name: string, description: string) { return this.call<{ id: string; name: string }>(id ? "PUT" : "POST", "teams" + (id ? "/" + encodeURIComponent(id) : ""), { name, description }); }
+  async deleteTeam(id: string) { await this.call("DELETE", "teams/" + encodeURIComponent(id)); }
+  async setTeamMembers(id: string, members: { username: string; role: "member" | "lead" }[]) { await this.call("PUT", "teams/" + encodeURIComponent(id) + "/members", { members }); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

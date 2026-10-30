@@ -84,6 +84,11 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^users\/u\d\/(unlock|reset-mfa|default-device)$/.test(route)) return ok({ ok: true });
     if (route === "devices/runasusers") return ok({ users: [{ username: "admin", device_id: "d1", device_name: "Runner A" }] });
     if (/^roles\/[a-z_]+$/.test(route)) return ok({ ok: true });
+    if (route === "teams" && init.method === "POST") return ok({ id: "t2", name: body.name });
+    if (route === "teams") return ok({ teams: [
+      { id: "t1", name: "finance", description: "Finance people", members: [{ username: "vic", team_role: "lead" }, { username: "old", team_role: "member" }], used_in: ["agent folder Finance", "vault folder Bank"] },
+      { id: "t2", name: "ops", description: "", members: [], used_in: [] }] });
+    if (/^teams\/t\d(\/members)?$/.test(route)) return ok({ ok: true });
     if (route === "roles") return ok({ permissions: ["repo.view", "repo.checkin", "runs.view", "runs.start", "users.manage", "audit.view"], roles: [
       { name: "admin", builtin: true, permissions: ["repo.view", "repo.checkin", "runs.view", "runs.start", "users.manage", "audit.view"], members: ["admin"], users: 1 },
       { name: "bot_creator", builtin: true, permissions: ["repo.view", "repo.checkin", "runs.view", "runs.start"], members: [], users: 0 },
@@ -352,6 +357,27 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await act(async () => { fireEvent.click(within(await screen.findByRole("dialog", { name: "Delete roles" })).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "roles/auditor" }));
+  });
+
+  it("shows Teams as UiPath's groups: leads, members and where each team is used; members changed, a team created", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Teams" }));
+    const list = await screen.findByRole("table", { name: "Teams list" });
+    expect(await within(list).findByText("agent folder Finance, vault folder Bank")).toBeTruthy();
+    expect(within(list).getByText("team:finance")).toBeTruthy();
+    fireEvent.click(within(list).getByText("finance"));
+    const d = await screen.findByRole("dialog", { name: "Team finance" });
+    fireEvent.change(within(d).getByLabelText("Person to add"), { target: { value: "admin" } });
+    fireEvent.click(within(d).getByRole("button", { name: "Add" }));
+    fireEvent.click(within(within(d).getByRole("table", { name: "Members" }).querySelectorAll("tr")[2] as HTMLElement).getByRole("button", { name: "Remove" }));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "teams/t1/members", body: { members: [{ username: "vic", role: "lead" }, { username: "admin", role: "member" }] } }));
+    fireEvent.click(screen.getByRole("button", { name: "Create team" }));
+    const c = await screen.findByRole("dialog", { name: "Create team" });
+    fireEvent.change(within(c).getByLabelText(/^Name/), { target: { value: "hr" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create team" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "teams", body: { name: "hr", description: "" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

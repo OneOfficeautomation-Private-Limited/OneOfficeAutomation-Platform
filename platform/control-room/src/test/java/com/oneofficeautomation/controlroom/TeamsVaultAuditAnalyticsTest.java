@@ -55,6 +55,8 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals("CR.FORBIDDEN", code(() -> cr.teams.setMembers(bob, teamId, List.of(), null)));
         assertEquals("CR.BAD_INPUT", code(() -> cr.teams.setMembers(jane, teamId, List.of(Map.of("username", "bob")), null)));
         cr.teams.setMembers(jane, teamId, List.of(Map.of("username", "jane", "role", "lead"), Map.of("username", "bob")), null);
+        // only an administrator appoints leads
+        assertEquals("CR.FORBIDDEN", code(() -> cr.teams.setMembers(jane, teamId, List.of(Map.of("username", "jane", "role", "lead"), Map.of("username", "bob", "role", "lead")), null)));
         // a folder for the team only: carl (not in it) no longer sees Finance
         cr.folders.setPermissions(admin, "Finance", List.of(Map.of("principal", "team:finance", "access", "run")), null);
         assertEquals("run", cr.folders.access("bob", "bot_runner", "Finance/Pay.flow.json"));
@@ -62,6 +64,7 @@ class TeamsVaultAuditAnalyticsTest {
         assertTrue(cr.repoList(carl, null).stream().noneMatch(b -> String.valueOf(b.get("path")).startsWith("Finance/")));
         // a team still named in a rule is not deleted; people see the teams they are in
         assertEquals("CR.IN_USE", code(() -> cr.teams.delete(admin, teamId, null)));
+        assertEquals(List.of("agent folder Finance"), cr.teams.list(admin).get(0).get("used_in"), "where the team is used");
         assertEquals(1, cr.teams.list(bob).size());
         assertEquals(0, cr.teams.list(carl).size());
         assertEquals("CR.NOT_FOUND", code(() -> cr.folders.setPermissions(admin, "Ops", List.of(Map.of("principal", "team:nope", "access", "view")), null)));

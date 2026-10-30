@@ -54,6 +54,7 @@ public final class Teams {
             if (!all && members.stream().noneMatch(m -> by.username().equals(m.get("username")))) continue;
             Map<String, Object> m = new LinkedHashMap<>(t);
             m.put("members", members);
+            m.put("used_in", usedIn((String) t.get("name")));
             out.add(m);
         }
         return out;
@@ -75,17 +76,23 @@ public final class Teams {
         return Map.of("id", id, "name", n);
     }
 
+    /** Where rules name the team: agent folders, work queues and vault folders (an access review, as UiPath and Blue Prism offer). */
+    List<String> usedIn(String name) {
+        String p = "team:" + name;
+        List<String> used = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT DISTINCT folder FROM folder_permissions WHERE principal = ? ORDER BY folder", p)) used.add("agent folder " + (String.valueOf(r.get("folder")).isEmpty() ? "(top)" : r.get("folder")));
+        for (Map<String, Object> r : db.query("SELECT q.name FROM queue_members m JOIN queues q ON q.id = m.queue_id WHERE m.principal = ? ORDER BY q.name", p)) used.add("work queue " + r.get("name"));
+        for (Map<String, Object> l : db.query("SELECT name, consumers, managers, participants FROM lockers ORDER BY name"))
+            for (String k : List.of("consumers", "managers", "participants")) if (csv(l.get(k)).contains(p)) { used.add("vault folder " + l.get("name")); break; }
+        return used;
+    }
+
     /** Deletes a team that no rule names any more (folder permissions, vault folders, queue members). */
     public void delete(User by, String teamId, String ip) {
         cr.require(by, "teams.manage", "manage teams");
         Map<String, Object> t = db.one("SELECT name FROM teams WHERE id = ?", teamId);
         if (t == null) throw notFound("Team");
-        String p = "team:" + t.get("name");
-        List<String> used = new ArrayList<>();
-        if (cr.count("SELECT COUNT(*) AS n FROM folder_permissions WHERE principal = ?", p) > 0) used.add("folder permissions");
-        if (cr.count("SELECT COUNT(*) AS n FROM queue_members WHERE principal = ?", p) > 0) used.add("work queue members");
-        for (Map<String, Object> l : db.query("SELECT name, consumers, managers, participants FROM lockers"))
-            for (String k : List.of("consumers", "managers", "participants")) if (csv(l.get(k)).contains(p)) { used.add("vault folder " + l.get("name")); break; }
+        List<String> used = usedIn((String) t.get("name"));
         if (!used.isEmpty()) throw new OoaException("CR.IN_USE", "The team is still named in " + String.join(", ", used), "Remove it there first.", false, Map.of("used_by", used));
         db.tx(() -> { db.update("DELETE FROM team_members WHERE team_id = ?", teamId); db.update("DELETE FROM teams WHERE id = ?", teamId); return null; });
         cr.audit.record(by.username(), "team.delete", "team", (String) t.get("name"), null, "ok", ip);
@@ -109,6 +116,14 @@ public final class Teams {
         }
         if (!admin && clean.stream().noneMatch(c -> c[0].equals(by.username()) && c[1].equals("lead")))
             throw new OoaException("CR.BAD_INPUT", "Keep yourself as a lead, or you could not change the team any more");
+        if (!admin) {
+            // a lead changes the members; only administrators appoint or remove leads (as GitHub's maintainers, Blue Prism's rights)
+            Set<String> before = new HashSet<>();
+            for (Map<String, Object> m : db.query("SELECT username FROM team_members WHERE team_id = ? AND team_role = 'lead'", teamId)) before.add((String) m.get("username"));
+            Set<String> after = new HashSet<>();
+            for (String[] c : clean) if (c[1].equals("lead")) after.add(c[0]);
+            if (!before.equals(after)) throw new OoaException("CR.FORBIDDEN", "Only an administrator appoints or removes team leads", "Change the members only, or ask an administrator.");
+        }
         db.tx(() -> {
             db.update("DELETE FROM team_members WHERE team_id = ?", teamId);
             for (String[] c : clean) db.update("INSERT INTO team_members (team_id, username, team_role) VALUES (?,?,?)", teamId, c[0], c[1]);
