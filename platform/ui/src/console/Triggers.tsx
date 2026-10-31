@@ -9,6 +9,8 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * UiPath-style, so no runner waits), its health (listening, paused, error) with the last firing, and Check now for the
  * Command Center ones. Create in sections: event, its settings, agent, runner and run-as. Refreshes every 30 seconds.
  * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count with errors, chips, a ⋯ menu per row.
+ * Review round 2 (31 Oct 2026): one line per trigger, the last problem and the last firing in columns of their own
+ * (Check now is in the row's menu), and the agent with its icon.
  */
 type F = [key: string, label: string, placeholder?: string, value?: string, type?: "number" | "check", checked?: boolean];
 const FOLDER: F[] = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
@@ -123,7 +125,8 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Triggers list">
             <thead><tr><th scope="col">Health</th><th scope="col">Trigger</th><th scope="col">Event</th><th scope="col">Listens on</th><th scope="col">Agent</th>
-              <th scope="col">Details</th><th scope="col">Fired</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+              <th scope="col">Details</th><th scope="col" className="cc-num">Fired</th><th scope="col">Last fired</th><th scope="col">Last problem</th>
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((t) => (
                 <tr key={t.id} onClick={rowClick(() => setDialog({ kind: "edit", t }))}>
@@ -131,15 +134,16 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                   <td><strong>{t.name}</strong>{t.run_as && <span className="cc-none"> · runs as {t.run_as}</span>}</td>
                   <td>{kindName(t.kind)}</td>
                   <td>{t.evaluated_on === "server" ? "The Command Center" : runnerName(t.device_id) + (t.windows_only ? " (Windows)" : "")}</td>
-                  <td>{agentName(t.bot_path)}</td>
-                  <td className="cc-clip ui-mono">{details(t)}</td>
-                  <td>{t.fire_count ?? 0}{t.last_fired ? ", last " + when(t.last_fired) : ", never"}{t.last_error && <div className="cc-err cc-clip">{t.last_error}</div>}
-                    {manage && t.evaluated_on === "server" && t.enabled && <> <Button kind="plain" onClick={() => checkNow(t)}>Check now</Button></>}</td>
+                  <td><span className="cc-aico" aria-hidden="true">A</span>{agentName(t.bot_path)}</td>
+                  <td className="cc-clip cc-trig-details ui-mono" title={details(t)}>{details(t)}</td>
+                  <td className="cc-num">{t.fire_count ?? 0}</td>
+                  <td>{t.last_fired ? when(t.last_fired) : <span className="cc-none">Never</span>}</td>
+                  <td>{t.last_error ? <span className="cc-err cc-clip cc-trig-problem" title={t.last_error}>{t.last_error}</span> : <span className="cc-none">–</span>}</td>
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + t.name} items={rowMenu(t)} /></td>
                 </tr>
               ))}
-              {list && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{list.length ? "No triggers match." : "No triggers yet."}</td></tr>}
-              {!list && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
+              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No triggers match." : "No triggers yet."}</td></tr>}
+              {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>
         </div>

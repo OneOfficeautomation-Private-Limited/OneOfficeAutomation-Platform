@@ -1248,16 +1248,22 @@ describe("rebuilt Command Center console", () => {
       name: "Nightly invoices (copy)", bot_path: "Finance/Invoice intake.flow.json", kind: "weekly", at_time: "02:00", days: "MON,TUE,WED,THU", device_id: "d1", pool_id: null, holiday_calendar: "India 2026" }) }));
   });
 
-  it("shows Triggers as AA's event triggers: where each listens, its health, Check now; a webhook created shows its secret once", async () => {
+  it("shows Triggers as AA's event triggers: one line each, where each listens, its health and last problem, Check now; a webhook created shows its secret once", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Triggers");
     const list = await screen.findByRole("table", { name: "Triggers list" });
     expect(await within(list).findByText("The Command Center")).toBeTruthy();
     expect(within(list).getByText("Error")).toBeTruthy();
+    // the last problem and the last firing in columns of their own
+    const mail = within(list).getByText("Support mail").closest("tr")!;
+    expect(within(mail).getByText("Sign-in failed").closest("td")).toBeTruthy();
+    expect(within(mail).getByText("Never")).toBeTruthy();
+    expect(within(within(list).getByText("New invoices").closest("tr")!).getByText("3")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Health"), { target: { value: "error" } });
     await waitFor(() => expect(within(list).queryByText("New invoices")).toBeNull());
-    await act(async () => { fireEvent.click(within(list).getByRole("button", { name: "Check now" })); });
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for Support mail" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Check now" })); });
     expect(await screen.findByText("Checked Support mail: 2 new.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     fireEvent.click(screen.getByRole("button", { name: "Create trigger" }));
