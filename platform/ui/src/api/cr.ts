@@ -170,7 +170,7 @@ export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; o
   recent?: { ts: string; bot_path: string; requested_by?: string; purpose?: string; provider?: string; model?: string; input_tokens?: number; output_tokens?: number; masked?: string; tool_calls?: string; prompt_sha256?: string; run_id?: string }[] };
 export type AgentApi = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; serverless?: boolean; timeout_seconds: number; enabled: boolean;
   created_by?: string; created?: string; last_used?: string | null; calls: number; url: string };
-export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number };
+export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number; started_by?: string | null };
 export type TestSet = { id: string; name: string; description?: string | null; bot_path: string; cases: { name: string; inputs?: Record<string, unknown>; expect?: Record<string, unknown> }[]; last_run?: TestRunSummary | null };
 export type RepoAgent = { path: string; bot_id?: string; name?: string; description?: string | null; latest_version: number; production_version?: number | null; locked_by?: string | null;
   updated?: string; updated_by?: string; folder?: string; access?: string; labels?: { label: string; version: number }[]; deleted_at?: string; deleted_by?: string };

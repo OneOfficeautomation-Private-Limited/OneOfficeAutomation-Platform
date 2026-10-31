@@ -709,3 +709,13 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-api-copy { height: 22px !important; padding: 0 6px !important; font-size: 12px; }
 .cc-api-empty { display: block; white-space: normal; max-width: 760px; color: var(--ui-text-2); line-height: 1.5; padding: 8px 0; }
 .cc-api-empty strong { color: var(--ui-text); }
+
+/* Agent tests (review round 2): a test set's page, its checks with a mark each */
+.cc-aico.is-test { background: #be185d; }
+.cc-tests-sub { border-top: 1px solid var(--ui-border); margin-top: 14px; }
+.cc-checks { list-style: none; margin: 0; padding: 0; }
+.cc-checks li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--ui-divider); }
+.cc-check-mark { font-weight: 700; text-align: center; }
+.cc-checks li.is-ok .cc-check-mark { color: var(--ui-ok-text); }
+.cc-checks li.is-bad .cc-check-mark, .cc-check-got { color: var(--ui-error-text); }
+.cc-check-got { display: block; font-family: var(--ui-mono, Consolas, monospace); font-size: 12px; word-break: break-word; }

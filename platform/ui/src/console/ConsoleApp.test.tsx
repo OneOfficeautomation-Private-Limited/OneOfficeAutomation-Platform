@@ -1418,23 +1418,37 @@ describe("rebuilt Command Center console", () => {
     location.hash = "";
   });
 
-  it("shows Agent tests as test sets: last score, failing ones, a run on a pool scored case by case", async () => {
+  it("shows Agent tests laid out as Automation: folders, the last result, a test set's page with its cases, a run on a pool and each case's checks", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "repo.checkin"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Agent tests");
     const list = await screen.findByRole("table", { name: "Test sets list" });
-    expect(await within(list).findByText("1 of 2 passed")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "never" } });
+    const row = (await within(list).findByText("Triage checks")).closest("tr")!;
+    expect(within(row).getByText("Failing")).toBeTruthy();
+    expect(within(row).getByText("v3")).toBeTruthy();
+    expect(within(within(list).getByText("Onboarding checks").closest("tr")!).getByText("Not run")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Last result"), { target: { value: "never" } });
     await waitFor(() => expect(within(list).queryByText("Triage checks")).toBeNull());
-    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "failing" } });
+    fireEvent.change(screen.getByLabelText("Last result"), { target: { value: "" } });
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^HR/ }));
+    await waitFor(() => expect(within(list).queryByText("Triage checks")).toBeNull());
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^All test sets/ }));
     fireEvent.click(await within(list).findByText("Triage checks"));
+    // its own page: the cases, a case's inputs and checks beside
     const d = await screen.findByRole("dialog", { name: "Test set Triage checks" });
-    expect(await within(within(d).getByRole("table", { name: "History" })).findByText("v3")).toBeTruthy();
+    fireEvent.click(within(within(d).getByRole("table", { name: "Cases" })).getByText("urgent"));
+    const side = within(d).getByRole("complementary", { name: "The selected case" });
+    expect(within(side).getByText("Down!")).toBeTruthy();
+    expect(within(within(side).getByRole("list", { name: "Checks" })).getByText(/finishes with success/)).toBeTruthy();
     fireEvent.change(within(d).getByLabelText("Run on"), { target: { value: "p:p1" } });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Run" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "test-sets/x1/run", body: { pool_id: "p1" } }));
-    const r = await screen.findByRole("dialog", { name: "Test run" });
-    expect(await within(r).findByText("label was high, expected low")).toBeTruthy();
+    // the run's cases, scored, with the reason a case failed
+    const results = await within(d).findByRole("table", { name: "Case results" });
+    expect(await within(results).findByText("label was high, expected low")).toBeTruthy();
+    expect(within(within(d).getByRole("table", { name: "Runs" })).getByText("v3")).toBeTruthy();
+    fireEvent.click(within(results).getByText("calm"));
+    expect(within(within(d).getByRole("complementary", { name: "The selected case" })).getByText("Failed")).toBeTruthy();
   });
 
   it("shows Agent Templates laid out as Automation: a folder tree, folders made and templates moved, install into a folder, an agent shared for approval", async () => {
