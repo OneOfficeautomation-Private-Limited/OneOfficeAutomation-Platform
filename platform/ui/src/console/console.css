@@ -550,3 +550,35 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-app .cc-list .cc-filters, .cc-app .cc-list .cc-bar { padding-left: 0; padding-right: 0; }
 .cc-app .cc-list .cc-table-wrap { margin: 0; }
 .cc-app .cc-list .st-page-tabs { padding: 0; }
+/* Agent Activity (design plan step 7, approved on the canvas 31 Oct 2026): summary figures as one strip, why each run ended,
+   and a run in a side panel beside the list */
+.cc-list > .cc-sums { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; padding: 0; background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); overflow: hidden; }
+.cc-list > .cc-sums .cc-sum { min-width: 0; border: 0; border-right: 1px solid var(--ui-col-line, var(--ui-divider)); border-radius: 0; background: transparent; }
+.cc-list > .cc-sums .cc-sum:last-child { border-right: 0; }
+.cc-list > .cc-sums .cc-sum:hover { background: var(--ui-row-hover); }
+.cc-list-table .cc-num { text-align: right; }
+.cc-list-table tr.is-open td { background: var(--ui-selected); }
+.cc-run-why { color: var(--ui-error-text); max-width: 340px; display: inline-block; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.cc-list.has-run { padding-right: 556px; }
+.cc-run-panel { position: fixed; top: 48px; right: 0; bottom: 0; width: 540px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
+  box-shadow: -10px 0 28px rgba(11, 26, 51, .16); display: flex; flex-direction: column; }
+.cc-run-head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
+.cc-run-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.cc-run-head .ui-btn { height: 28px; padding: 0 8px; }
+.cc-run-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; }
+.cc-run-panel .cc-errbox { background: var(--ui-error-bg); color: var(--ui-text); border-color: var(--ui-error-text); display: flex; flex-direction: column; gap: 6px; }
+.cc-run-code { color: var(--ui-error-text); font: 600 12.5px var(--ui-mono); }
+.cc-run-at { font-size: 12.5px; color: var(--ui-text-2); }
+.cc-run-panel .cc-facts-wide { grid-template-columns: 90px 1fr 90px 1fr; font-size: 12.5px; }
+.cc-run-steps { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); font-size: 12.5px; }
+.cc-run-steps li { display: grid; grid-template-columns: 20px 34px minmax(0, 1fr) 64px; gap: 8px; align-items: center; min-height: 30px; padding: 4px 10px; border-bottom: 1px solid var(--ui-divider); }
+.cc-run-steps li:last-child { border-bottom: 0; }
+.cc-run-steps li.is-failed { background: var(--ui-error-bg); }
+.cc-run-ic { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #ffffff; font-size: 11px; font-weight: 700; background: var(--ui-accent); }
+.cc-run-ic.is-done { background: var(--ui-success); }
+.cc-run-ic.is-failed { background: var(--ui-error-text); }
+.cc-run-step { min-width: 0; }
+.cc-run-err { display: block; margin-top: 2px; font: 11.5px var(--ui-mono); color: var(--ui-error-text); white-space: normal; }
+.cc-run-steps .cc-num { text-align: right; }
+.cc-run-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--ui-line, var(--ui-divider)); }
+@media (max-width: 1100px) { .cc-list.has-run { padding-right: 16px; } .cc-run-panel { width: min(540px, 100vw); } }

@@ -432,14 +432,15 @@ describe("rebuilt Command Center console", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Completed/ }));
     const done = await screen.findByRole("table", { name: "Completed runs" });
-    expect(await within(done).findByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();
+    expect(await within(done).findByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();   // why it ended, in the list
+    expect(within(done).getAllByRole("row").some((r) => r.classList.contains("cc-au-day"))).toBe(true);   // grouped by day
     expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("filter=history") && c.route.includes("from="))).toBe(true);   // the last 90 days
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "failed" } });
     await waitFor(() => expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Onboard v1")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
-    fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Duration"));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Took"));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Duration")).toBeNull();
+    expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Took")).toBeNull();
     const made: string[] = [];
     URL.createObjectURL = (() => { made.push("csv"); return "blob:x"; }) as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
@@ -475,7 +476,8 @@ describe("rebuilt Command Center console", () => {
     const d = await screen.findByRole("dialog", { name: "Run of Invoice intake" });
     const why = await within(d).findByRole("note", { name: "Why it ended" });
     expect(why.textContent).toContain("Fix: Check the file is in the folder.");
-    expect(within(within(d).getByRole("table", { name: "Steps" })).getByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();
+    expect(within(within(d).getByRole("list", { name: "Steps" })).getByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();
+    expect(await screen.findByRole("table", { name: /runs/i })).toBeTruthy();   // the run opens in a side panel; the list stays in view
     fireEvent.click(within(d).getByRole("tab", { name: /^Log/ }));
     expect(within(d).getByText("Failed Open workbook: EXCEL.NOT_FOUND No such file")).toBeTruthy();
     expect(within(d).getByText("+1.25s")).toBeTruthy();

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
 import { Button, Dialog, Select, TextInput, usePersistent } from "../components";
+import { RefreshButton } from "./ListParts";
 import { repeats } from "./Schedules";
 
 /**
@@ -11,6 +12,9 @@ import { repeats } from "./Schedules";
  * changed); filters; a column chooser; selected runs paused, resumed, stopped, run again or exported; a run's view
  * with its progress, steps, log, variables, inputs and outputs and AI calls, followed live while it runs.
  * A run opens from a link: #/activity?run=<id>.
+ * Laid out as the design plan's step 7 (approved on the canvas 31 Oct 2026): the list pattern with the summary as one
+ * strip of figures, completed runs grouped by day with why each ended, and a run in a side panel beside the list
+ * (Newer / Older; why it failed first, with its step and whether a retry helps; the steps as a nested list).
  */
 type Tab = "progress" | "scheduled" | "completed";
 type Names = Record<string, string>;
@@ -63,12 +67,17 @@ const COMPLETED_COLS: Col[] = [
   { key: "how", label: "How started", cell: (r) => howStarted(r.source) },
   { key: "started", label: "Started", cell: (r) => when(r.started ?? r.created) },
   { key: "ended", label: "Ended", cell: (r) => when(r.finished) },
-  { key: "duration", label: "Duration", cell: (r) => duration(r.duration_ms) },
+  { key: "duration", label: "Took", cell: (r) => duration(r.duration_ms) },
   { key: "steps", label: "Steps", cell: (r) => r.steps == null ? "" : String(r.steps) },
-  { key: "error", label: "Error", cell: (r) => errorText(r.error) },
+  { key: "error", label: "Why it ended", cell: (r) => errorText(r.error) },
 ];
 const PERIODS: [string, string, number][] = [["24h", "Last 24 hours", 1], ["7d", "Last 7 days", 7], ["", "Last 90 days", 90], ["dates", "Chosen dates", 0]];
 const PAGE = 25;
+const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
+const PILL: Record<string, string> = { queued: "pending", running: "active", paused: "pending", stopping: "pending", success: "success", failed: "failed", stopped: "stopped" };
+const pad = (n: number) => String(n).padStart(2, "0");
+const dayOf = (t?: string | null) => { if (!t) return ""; const d = new Date(t); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+const dayLabel = (t: string) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 const DAY = 86_400_000;
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 function save(fileName: string, text: string, type: string) {
@@ -98,6 +107,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const [runners, setRunners] = useState<{ id: string; name: string }[]>([]);
   const [names, setNames] = useState<Names>({});
   const [choosing, setChoosing] = useState(false);
+  const [more, setMore] = useState(false);
   const [details, setDetails] = useState<string | null>(linkedRun);
   const can = (p: string) => user.permissions.includes(p);
   const allCols = useMemo(() => tab === "progress" ? progressCols(names) : COMPLETED_COLS, [tab, names]);
@@ -194,9 +204,41 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const counts: Record<Tab, number | null> = { progress: summary ? summary.running + summary.queued : null, scheduled: summary?.schedulesOn ?? null, completed: null };
   const tabs: [Tab, string][] = [["progress", "In progress"], ...(can("schedules.view") ? [["scheduled", "Scheduled"] as [Tab, string]] : []), ["completed", "Completed"]];
 
+  const filtered = Object.values(f).some(Boolean);
+  const periodWords = (PERIODS.find(([k]) => k === (f.period ?? ""))?.[1] ?? "").toLowerCase();
+  const byOutcome = data && data.runs.length === data.total && tab === "completed"
+    ? ([["success", "completed"], ["failed", "failed"], ["stopped", "stopped"]] as const).map(([k, l]) => [runs.filter((r) => r.status === k).length, l] as const).filter(([n]) => n > 0) : [];
+  const cell = (c: Col, r: Run) => {
+    if (c.key === "status") { const st = runState(r); return <span className={"cc-pill is-" + (PILL[st] ?? "pending")}><span className="cc-pill-dot" />{STATUS[st] ?? r.status}</span>; }
+    if (c.key === "agent") return <><strong>{c.cell(r)}</strong>{folderOf(r.bot_path) && <span className="cc-list-sub">{folderOf(r.bot_path)}</span>}</>;
+    if (c.key === "error") { const e = parseError(r.error); return e ? <span className="cc-run-why" title={errorText(r.error)}>{errorText(r.error)}</span> : <span className="cc-none">–</span>; }
+    const v = c.cell(r);
+    return v || <span className="cc-none">–</span>;
+  };
+  const rows: ReactNode[] = [];
+  runs.forEach((r, i) => {
+    const t = r.started ?? r.created;
+    if (tab === "completed" && t && (i === 0 || dayOf(t) !== dayOf(runs[i - 1].started ?? runs[i - 1].created)))
+      rows.push(<tr key={"d" + r.id} className="cc-au-day is-static"><td colSpan={cols.length + 1}>{dayLabel(t)}</td></tr>);
+    rows.push(
+      <tr key={r.id} className={(selected.includes(r.id) ? "is-selected" : "") + (details === r.id ? " is-open" : "")} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) openRun(r.id); }}>
+        <td className="cc-check"><input type="checkbox" aria-label={"Select the run of " + name(r.bot_path)} checked={selected.includes(r.id)}
+          onChange={(e) => setSelected(e.target.checked ? [...selected, r.id] : selected.filter((x) => x !== r.id))} /></td>
+        {cols.map((c) => <td key={c.key} className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-clip" : undefined}>{cell(c, r)}</td>)}
+      </tr>);
+  });
+  const at = details ? runs.findIndex((r) => r.id === details) : -1;
+
   return (
-    <section className="st-page cc-home cc-list" aria-labelledby="cc-act-title">
-      <header className="st-page-head"><div><h1 id="cc-act-title">Agent Activity</h1><p>What is running now, what runs next on a schedule, and every run that has ended.</p></div></header>
+    <section className={"st-page cc-home cc-list" + (details ? " has-run" : "")} aria-labelledby="cc-act-title">
+      <header className="cc-list-head">
+        <h1 id="cc-act-title">Agent Activity</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="What is running now, what runs next on a schedule, and every run that has ended.">i</span>
+        {data && tab === "completed" && <span className="cc-list-count">{data.total} run{data.total === 1 ? "" : "s"} {f.period === "dates" ? "between the chosen dates" : "in the " + periodWords}
+          {byOutcome.map(([n, l]) => " · " + n + " " + l).join("")}</span>}
+        {summary && tab === "progress" && <span className="cc-list-count">{summary.running} running · {summary.queued} waiting for a runner</span>}
+        <span className="ov-fill" />
+      </header>
       {summary && <div className="cc-sums" role="group" aria-label="Summary">
         <button type="button" className="cc-sum" onClick={() => go("progress", { status: "running" })}><strong>{summary.running}</strong><span>Running now</span></button>
         <button type="button" className="cc-sum" onClick={() => go("progress", { status: "queued" })}><strong>{summary.queued}</strong><span>Waiting for a runner</span></button>
@@ -208,74 +250,74 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           <strong className="cc-sum-text">{summary.next ? new Date(summary.next.next_run!).toLocaleString() : "None"}</strong>
           <span>{summary.next ? "Next scheduled: " + name(summary.next.bot_path) : "No schedule is on"}</span></button>}
       </div>}
-      <div className="st-page-tabs" role="tablist" aria-label="Agent Activity">
-        {tabs.map(([t, label]) => <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={tab === t} onClick={() => go(t)}>
-          {label}{counts[t] != null && <span className="cc-count">{counts[t]}</span>}</button>)}
+      <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Agent Activity">
+        {tabs.map(([t, label]) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => go(t)}>
+          {label}{counts[t] != null && <span className="ov-cnt">{counts[t]}</span>}</button>)}
       </div>
       {tab === "scheduled" ? <Upcoming api={api} user={user} agents={agents} onNotice={onNotice} onStarted={(id) => { loadSummary(); openRun(id); }} /> : <>
         <div className="cc-list-tools">
-        <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="cc-list-search"><TextInput type="search" aria-label="Search runs" placeholder="Search agent, run id, user or error" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
-          <Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
-            options={[{ value: "", label: "Any status" }, ...(tab === "progress" ? [["queued", "Queued"], ["running", "Running"]] : [["success", "Completed"], ["failed", "Failed"], ["stopped", "Stopped"]]).map(([v, l]) => ({ value: v, label: l }))]} />
-          {agents.length > 0 && <Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setFilter("bot", e.target.value)}
-            options={[{ value: "", label: "Any agent" }, ...agents.map((p) => ({ value: p, label: name(p) }))]} />}
-          {runners.length > 0 && <Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setFilter("device", e.target.value)}
-            options={[{ value: "", label: "Any runner" }, ...runners.map((d) => ({ value: d.id, label: d.name }))]} />}
-          <Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
-            options={[{ value: "", label: "Started any way" }, ...SOURCES.map(([v, l]) => ({ value: v, label: l }))]} />
-          <TextInput aria-label="Started by" placeholder="Started by (user name)" value={f.user ?? ""} onChange={(e) => setFilter("user", e.target.value)} />
-          {tab === "completed" && <>
-            <span className="cc-chip"><Select aria-label="Period" value={f.period ?? ""} onChange={(e) => setFilter("period", e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
-            {f.period === "dates" && <>
-              <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>
-              <label className="cc-date">To <TextInput type="date" aria-label="To" value={f.to ?? ""} onChange={(e) => setFilter("to", e.target.value)} /></label>
-            </>}
-          </>}
-          {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
-        </div>
-        </div>
-        <div className="cc-bar" role="toolbar" aria-label="Runs actions">
-          {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
-          {tab === "progress" && can("runs.stop") && <>
-            <Button kind="secondary" disabled={!chosen.length} onClick={() => act("pause")}>Pause</Button>
-            <Button kind="secondary" disabled={!chosen.length} onClick={() => act("resume")}>Resume</Button>
-            <Button kind="danger" disabled={!chosen.length} onClick={() => act("stop")}>Stop</Button>
-          </>}
-          {tab === "completed" && can("runs.start") && <Button kind="secondary" disabled={!chosen.length} onClick={() => act("rerun")}>Run again</Button>}
-          <span className="st-bar-fill" />
-          <Button kind="plain" onClick={() => { load(); loadSummary(); }}>Refresh</Button>
-          <Button kind="plain" onClick={() => setChoosing(true)}>Columns</Button>
-          <Button kind="secondary" onClick={() => exportCsv().catch((e) => setError(message(e)))}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
-        </div>
-        {error && <p className="st-alert" role="alert">{error}</p>}
-        <div className="cc-list-panel"><div className="cc-list-scroll">
-          <table className="cc-list-table" aria-label={tab === "progress" ? "Runs in progress" : "Completed runs"}>
-            <thead><tr>
-              <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={runs.length > 0 && chosen.length === runs.length}
-                onChange={(e) => setSelected(e.target.checked ? runs.map((r) => r.id) : [])} /></th>
-              {cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
-            </tr></thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.id} className={selected.includes(r.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) openRun(r.id); }}>
-                  <td className="cc-check"><input type="checkbox" aria-label={"Select the run of " + name(r.bot_path)} checked={selected.includes(r.id)}
-                    onChange={(e) => setSelected(e.target.checked ? [...selected, r.id] : selected.filter((x) => x !== r.id))} /></td>
-                  {cols.map((c) => <td key={c.key} className={c.key === "status" ? "cc-status is-" + runState(r) : c.key === "error" ? "cc-err" : undefined}>{c.cell(r)}</td>)}
-                </tr>
-              ))}
-              {data && !runs.length && <tr><td colSpan={cols.length + 1} className="st-muted">{tab === "progress" ? "Nothing is running or waiting." : "No runs match these filters."}</td></tr>}
-              {!data && !error && <tr><td colSpan={cols.length + 1} className="st-muted" role="status">Loading…</td></tr>}
-            </tbody>
-          </table>
-        </div></div>
-        {tab === "completed" && data && data.total > PAGE && (
-          <div className="cc-pager">
-            <Button kind="plain" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</Button>
-            <span>{offset + 1}–{Math.min(offset + PAGE, data.total)} of {data.total}</span>
-            <Button kind="plain" disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>Next</Button>
+          <div className="cc-list-filters" role="group" aria-label="Filters">
+            <span className="cc-list-search"><TextInput type="search" aria-label="Search runs" placeholder="Search agent, run id, user or error" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
+            {tab === "completed" && <span className={"cc-chip" + (f.period ? " is-on" : "")}><Select aria-label="Period" value={f.period ?? ""} onChange={(e) => setFilter("period", e.target.value)}
+              options={PERIODS.map(([v, l]) => ({ value: v, label: "Period: " + l }))} /></span>}
+            <span className={"cc-chip" + (f.status ? " is-on" : "")}><Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
+              options={[{ value: "", label: "Status: Any" }, ...(tab === "progress" ? [["queued", "Queued"], ["running", "Running"]] : [["success", "Completed"], ["failed", "Failed"], ["stopped", "Stopped"]]).map(([v, l]) => ({ value: v, label: "Status: " + l }))]} /></span>
+            {agents.length > 0 && <span className={"cc-chip" + (f.bot ? " is-on" : "")}><Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setFilter("bot", e.target.value)}
+              options={[{ value: "", label: "Agent: Any" }, ...agents.map((p) => ({ value: p, label: "Agent: " + name(p) }))]} /></span>}
+            {runners.length > 0 && <span className={"cc-chip" + (f.device ? " is-on" : "")}><Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setFilter("device", e.target.value)}
+              options={[{ value: "", label: "Runner: Any" }, ...runners.map((d) => ({ value: d.id, label: "Runner: " + d.name }))]} /></span>}
+            <span className={"cc-chip" + (f.source ? " is-on" : "")}><Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
+              options={[{ value: "", label: "How started: Any" }, ...SOURCES.map(([v, l]) => ({ value: v, label: "How started: " + l }))]} /></span>
+            <Button kind="plain" aria-expanded={more || !!f.user || f.period === "dates"} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
+            {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
           </div>
-        )}
+          <div className="cc-list-right" role="toolbar" aria-label="Runs list tools">
+            <Button kind="plain" onClick={() => setChoosing(true)}>Columns</Button>
+            <Button kind="plain" onClick={() => exportCsv().catch((e) => setError(message(e)))}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
+            <RefreshButton onClick={() => { load(); loadSummary(); }} />
+          </div>
+        </div>
+        {(more || !!f.user || f.period === "dates") && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
+          <TextInput aria-label="Started by" placeholder="Started by (user name)" value={f.user ?? ""} onChange={(e) => setFilter("user", e.target.value)} />
+          {tab === "completed" && f.period === "dates" && <>
+            <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>
+            <label className="cc-date">To <TextInput type="date" aria-label="To" value={f.to ?? ""} onChange={(e) => setFilter("to", e.target.value)} /></label>
+          </>}
+        </div>}
+        {error && <p className="st-alert" role="alert">{error}</p>}
+        <div className="cc-list-panel">
+          {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Runs actions">
+            <strong>{chosen.length} selected</strong>
+            {tab === "progress" && can("runs.stop") && <>
+              <Button kind="secondary" onClick={() => act("pause")}>Pause</Button>
+              <Button kind="secondary" onClick={() => act("resume")}>Resume</Button>
+              <Button kind="danger" onClick={() => act("stop")}>Stop</Button>
+            </>}
+            {tab === "completed" && can("runs.start") && <Button kind="secondary" onClick={() => act("rerun")}>Run again</Button>}
+            <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+          </div>}
+          <div className="cc-list-scroll">
+            <table className="cc-list-table" aria-label={tab === "progress" ? "Runs in progress" : "Completed runs"}>
+              <thead><tr>
+                <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={runs.length > 0 && chosen.length === runs.length}
+                  onChange={(e) => setSelected(e.target.checked ? runs.map((r) => r.id) : [])} /></th>
+                {cols.map((c) => <th key={c.key} scope="col" className={c.key === "duration" || c.key === "steps" ? "cc-num" : undefined}>{c.label}</th>)}
+              </tr></thead>
+              <tbody>
+                {rows}
+                {data && !runs.length && <tr className="is-static"><td colSpan={cols.length + 1} className="cc-none">{tab === "progress" ? "Nothing is running or waiting." : "No runs match these filters."}</td></tr>}
+                {!data && !error && <tr className="is-static"><td colSpan={cols.length + 1} className="cc-none" role="status">Loading…</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {data && <div className="cc-list-pager">
+            <span>{tab === "progress" ? runs.length + " running or waiting · refreshes every 5 seconds"
+              : (data.total ? (offset + 1) + "–" + Math.min(offset + PAGE, data.total) + " of " + data.total : "0 of 0") + (filtered ? " matching" : "")}</span>
+            {tab === "completed" && <><span className="ov-fill" />
+              <button type="button" className="cc-list-icon" aria-label="Previous page" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>‹</button>
+              <button type="button" className="cc-list-icon" aria-label="Next page" disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>›</button></>}
+          </div>}
+        </div>
       </>}
       {choosing && (
         <Dialog open title="Columns" width={360} onClose={() => setChoosing(false)} footer={<Button kind="primary" onClick={() => setChoosing(false)}>Done</Button>}>
@@ -288,7 +330,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         </Dialog>
       )}
       {details && <RunView api={api} user={user} id={details} names={names} onClose={() => openRun(null)} onOpen={openRun} onNotice={onNotice}
-        onChanged={() => { load(); loadSummary(); }} />}
+        onChanged={() => { load(); loadSummary(); }} newer={at > 0 ? runs[at - 1].id : null} older={at >= 0 && at < runs.length - 1 ? runs[at + 1].id : null}
+        onSearch={(q) => { openRun(null); go("completed", { q }); }} />}
     </section>
   );
 }
@@ -370,7 +413,7 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
 }
 
 type RunTab = "steps" | "log" | "vars" | "io" | "ai";
-type Step = { id: string; action?: unknown; status: "running" | "done" | "failed"; ms?: number; retries: number; error?: string };
+type Step = { id: string; action?: unknown; status: "running" | "done" | "failed"; ms?: number; retries: number; error?: string; depth?: number };
 const seconds = (t?: number | string) => typeof t === "number" ? t : t ? Date.parse(t) / 1000 : 0;
 
 /**
@@ -378,8 +421,8 @@ const seconds = (t?: number | string) => typeof t === "number" ? t : t ? Date.pa
  * fix to try), then its steps, log, variables, inputs and outputs and AI calls. While the run goes on, new events are
  * read every 2 seconds and added (only those after the last one seen).
  */
-function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged }: { api: CrApi; user: CrUser; id: string; names: Names; onClose: () => void;
-  onOpen: (id: string) => void; onNotice: (t: string) => void; onChanged: () => void }) {
+function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, newer, older, onSearch }: { api: CrApi; user: CrUser; id: string; names: Names; onClose: () => void;
+  onOpen: (id: string) => void; onNotice: (t: string) => void; onChanged: () => void; newer: string | null; older: string | null; onSearch: (q: string) => void }) {
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [ai, setAi] = useState<AiCall[] | null>(null);
@@ -391,6 +434,10 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged }:
   const can = (p: string) => user.permissions.includes(p);
 
   useEffect(() => { after.current = 0; setEvents([]); setRun(null); setAi(null); }, [id]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
   useEffect(() => {
     let stop = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -412,13 +459,15 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged }:
   const x = useMemo(() => {
     const steps = new Map<string, Step>(), vars = new Map<string, string>();
     let total = 0, finished = 0, current: Step | null = null;
+    const open: string[] = [];
     for (const e of events) {
       const d = (e.data ?? {}) as Record<string, unknown>;
       if (e.type === "run.started" && !total && typeof d.totalSteps === "number" && !d.depth) total = d.totalSteps;
       if (e.stepId && e.type.startsWith("step.")) {
         const s = steps.get(e.stepId) ?? { id: e.stepId, action: d.action, status: "running", retries: 0 };
         if (d.action) s.action = d.action;
-        if (e.type === "step.started") { s.status = "running"; current = s; }
+        if (e.type === "step.started") { s.status = "running"; current = s; if (s.depth === undefined) s.depth = open.length; if (!open.includes(s.id)) open.push(s.id); }
+        if (e.type === "step.finished" || e.type === "step.failed") { const at = open.lastIndexOf(e.stepId); if (at >= 0) open.splice(at, 1); }
         if (e.type === "step.finished") { s.status = "done"; s.ms = Number(d.durationMs ?? 0); finished++; }
         if (e.type === "step.failed") { s.status = "failed"; s.error = (d.code ? d.code + ": " : "") + String(d.message ?? ""); }
         if (e.type === "step.retry") s.retries++;
@@ -460,29 +509,37 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged }:
     ...(ai?.length ? [["ai", "AI calls (" + ai.length + ")"] as [RunTab, string]] : [])];
   const open = tabs.some(([t]) => t === tab) ? tab : "steps";
 
+  const errStep = err?.stepId ? x.steps.find((st) => st.id === err.stepId) : undefined;
+  const retry = (run?.error ? (() => { try { return (JSON.parse(run.error) as { retryable?: boolean }).retryable; } catch { return undefined; } })() : undefined);
+  const title = run ? "Run of " + name(run.bot_path) : "Run";
+
   return (
-    <Dialog open title={run ? "Run of " + name(run.bot_path) : "Run"} width={860} onClose={onClose} footer={run ? <>
-      <Button kind="plain" onClick={download} disabled={!events.length}>Download log</Button>
-      <span className="st-bar-fill" />
-      {active && run.status === "running" && can("runs.stop") && (run.pause_requested
-        ? <Button kind="secondary" onClick={() => control("resume")}>Resume</Button> : <Button kind="secondary" onClick={() => control("pause")}>Pause</Button>)}
-      {active && can("runs.stop") && !run.cancel_requested && <Button kind="danger" onClick={() => control("stop")}>Stop</Button>}
-      {!active && can("runs.start") && <Button kind="primary" onClick={again}>Run again</Button>}
-    </> : null}>
+    <aside className="cc-run-panel" role="dialog" aria-modal="false" aria-label={title}>
+      <div className="cc-run-head">
+        {run && <span className={"cc-pill is-" + (PILL[state] ?? "pending")}><span className="cc-pill-dot" />{STATUS[state] ?? run.status}</span>}
+        <h2>{run ? name(run.bot_path) : "Run"}</h2>
+        <span className="ov-fill" />
+        <span className="cc-none ui-mono" title={id}>{id.length > 16 ? id.slice(0, 14) + "…" : id}</span>
+        <Button kind="plain" disabled={!newer} onClick={() => newer && onOpen(newer)}>‹ Newer</Button>
+        <Button kind="plain" disabled={!older} onClick={() => older && onOpen(older)}>Older ›</Button>
+        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+      </div>
+      <div className="cc-run-body">
       {error && <p className="st-alert" role="alert">{error}</p>}
-      {!run && !error && <p className="st-muted" role="status">Loading…</p>}
+      {!run && !error && <p className="cc-none" role="status">Loading…</p>}
       {run && <>
-        <p className="cc-run-state"><span className={"cc-status is-" + state}>{STATUS[state] ?? run.status}</span>
-          <span className="st-muted">{run.status === "queued" ? "Waiting for " + (run.device_name ?? run.device_id ?? "a runner")
+        {err && <div className="cc-errbox" role="note" aria-label="Why it ended">
+          <div><strong className="cc-run-code">{err.code ?? "Error"}</strong> {err.message}</div>
+          {err.stepId && <div className="cc-run-at">At step <strong>{err.stepId}{errStep ? " · " + actionLabel(names, errStep.action) : ""}</strong>.
+            {retry === false ? " Not retryable: the same input fails again until the agent changes." : retry ? " Retryable: running it again may work." : ""}</div>}
+          {err.suggestedFix && <div>Fix: {err.suggestedFix}</div>}
+          {err.code && <span><Button kind="secondary" onClick={() => onSearch(err.code!)}>Every run that failed this way</Button></span>}
+        </div>}
+        <p className="cc-run-state"><span className="cc-none">{run.status === "queued" ? "Waiting for " + (run.device_name ?? run.device_id ?? "a runner")
             : active ? "Running for " + duration(elapsed) : (run.status === "success" ? "Finished in " : "Ended after ") + duration(elapsed)}</span></p>
         {(active || x.total > 0) && <div className="cc-run-progress">
           <progress max={x.total || 1} value={x.total ? x.finished : run.status === "success" ? 1 : 0} aria-label="Steps done" />
-          <span className="st-muted">{x.finished}{x.total ? " of " + x.total : ""} steps{active && x.current ? " · now: " + actionLabel(names, x.current.action) + " [" + x.current.id + "]" : ""}</span>
-        </div>}
-        {err && <div className="cc-errbox" role="note" aria-label="Why it ended">
-          <strong>{err.code ?? "Error"}</strong> {err.message}
-          {err.stepId && <div>At step {err.stepId}</div>}
-          {err.suggestedFix && <div>Fix: {err.suggestedFix}</div>}
+          <span className="cc-none">{x.finished}{x.total ? " of " + x.total : ""} steps{active && x.current ? " · now: " + actionLabel(names, x.current.action) + " [" + x.current.id + "]" : ""}</span>
         </div>}
         <dl className="cc-facts cc-facts-wide">
           <dt>Agent</dt><dd>{run.bot_path}{run.version ? " (version " + run.version + ")" : ""}</dd>
@@ -494,15 +551,18 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged }:
           <dt>Steps run</dt><dd>{run.steps ?? x.finished}</dd>
           <dt>Run id</dt><dd className="ui-mono">{run.id}</dd>
         </dl>
-        <div className="st-page-tabs cc-run-tabs" role="tablist" aria-label="Run details">
-          {tabs.map(([t, l]) => <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={open === t} onClick={() => setTab(t)}>{l}</button>)}
+        <div className="ov-tabs cc-list-tabs cc-run-tabs" role="tablist" aria-label="Run details">
+          {tabs.map(([t, l]) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={open === t} onClick={() => setTab(t)}>{l}</button>)}
         </div>
-        {open === "steps" && (x.steps.length ? <table className="st-table" aria-label="Steps">
-          <thead><tr><th scope="col">Step</th><th scope="col">Action</th><th scope="col">State</th><th scope="col">Time</th><th scope="col">Problem</th></tr></thead>
-          <tbody>{x.steps.map((s) => <tr key={s.id}><td className="ui-mono">{s.id}</td><td>{actionLabel(names, s.action)}</td>
-            <td className={"cc-status is-" + (s.status === "done" ? "success" : s.status === "failed" ? "failed" : "running")}>{s.status === "done" ? "Done" : s.status === "failed" ? "Failed" : "Running"}{s.retries ? " · retried " + s.retries + "×" : ""}</td>
-            <td>{s.status === "running" ? "" : duration(s.ms)}</td><td className="cc-err">{s.error ?? ""}</td></tr>)}</tbody>
-        </table> : <p className="st-muted">{active ? "Waiting for the runner to start the agent…" : "No steps were recorded."}</p>)}
+        {open === "steps" && (x.steps.length ? <ol className="cc-run-steps" aria-label="Steps">
+          {x.steps.map((s) => <li key={s.id} className={"is-" + s.status} style={{ paddingLeft: 10 + 22 * (s.depth ?? 0) }}>
+            <span className={"cc-run-ic is-" + s.status} role="img" aria-label={s.status === "done" ? "Done" : s.status === "failed" ? "Failed" : "Running"}>{s.status === "done" ? "✓" : s.status === "failed" ? "!" : "…"}</span>
+            <span className="ui-mono cc-none">{s.id}</span>
+            <span className="cc-run-step">{actionLabel(names, s.action)}{s.retries ? <span className="cc-none"> · retried {s.retries}×</span> : null}
+              {s.error && <span className="cc-run-err">{s.error}</span>}</span>
+            <span className="cc-num cc-none">{s.status === "running" ? "" : duration(s.ms)}</span>
+          </li>)}
+        </ol> : <p className="cc-none">{active ? "Waiting for the runner to start the agent…" : "No steps were recorded."}</p>)}
         {open === "log" && <>
           <div className="cc-bar cc-bar-tight"><Select aria-label="Show in the log" value={show} onChange={(e) => setShow(e.target.value)}
             options={[{ value: "all", label: "Everything" }, { value: "errors", label: "Errors and retries" }, { value: "logs", label: "Log messages" }, { value: "vars", label: "Variables set" }]} /></div>
@@ -526,6 +586,15 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged }:
             <td>{(c.tool_calls ?? []).join(", ")}</td></tr>)}</tbody>
         </table>}
       </>}
-    </Dialog>
+      </div>
+      {run && <div className="cc-run-foot">
+        <Button kind="plain" onClick={download} disabled={!events.length}>Download log</Button>
+        <span className="ov-fill" />
+        {active && run.status === "running" && can("runs.stop") && (run.pause_requested
+          ? <Button kind="secondary" onClick={() => control("resume")}>Resume</Button> : <Button kind="secondary" onClick={() => control("pause")}>Pause</Button>)}
+        {active && can("runs.stop") && !run.cancel_requested && <Button kind="danger" onClick={() => control("stop")}>Stop</Button>}
+        {!active && can("runs.start") && <Button kind="primary" onClick={again}>Run again</Button>}
+      </div>}
+    </aside>
   );
 }
