@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it } from "vitest";
 import { CrApi } from "../api/cr";
 import { ConsoleApp } from "./ConsoleApp";
+import { MENU_SECTIONS } from "../shell/menu";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
@@ -335,6 +336,16 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
   return { api: new CrApi("/api/", f), calls };
 }
 
+/** Opens a page from the menu: the console keeps one section open, so its section is opened first when needed. */
+async function go(name: string) {
+  const nav = await screen.findByRole("navigation", { name: "Command Center" });
+  if (!within(nav).queryByRole("button", { name })) {
+    const sec = MENU_SECTIONS.find((x) => x.pages.some((pg) => pg.label === name));
+    if (sec) fireEvent.click(within(nav).getByRole("button", { name: sec.label }));
+  }
+  fireEvent.click(within(nav).getByRole("button", { name }));
+}
+
 describe("rebuilt Command Center console", () => {
   it("signs in with the two-step code, then shows Home with its figures and the person's recent work", async () => {
     const { api, calls } = fakeServer({ mfa: true });
@@ -364,21 +375,25 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("button", { name: "BUILD" }));
     expect(within(menu).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["../studio/"]);   // every other page is rebuilt here
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("link", { name: "Today's console" }).getAttribute("href")).toBe("../");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Help" }), { key: "Enter" });
+    expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Classic console/ })).toBeTruthy();   // today's console, until it is retired
   });
 
   it("shows only the pages a person may open, and signs out", async () => {
     const { api } = fakeServer({ signedIn: viewer });
     render(<ConsoleApp api={api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).getByRole("button", { name: "Runner Machines" })).toBeTruthy();
     expect(within(menu).queryByText("ADMINISTRATION")).not.toBeNull();   // the vault is for everyone
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
     expect(within(menu).queryByText("OPERATIONAL INSIGHTS")).toBeNull();   // no page in it is open to a viewer
+    fireEvent.click(within(menu).getByRole("button", { name: "AI" }));
     expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // AI shows only what a viewer may open
     expect(within(menu).queryByRole("link", { name: "Model Connections" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Account: Vic Viewer" }), { key: "Enter" });
@@ -389,19 +404,19 @@ describe("rebuilt Command Center console", () => {
   it("shows AI > Document Automation as a plug-in page: what it does when not installed, the module's page when it is", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    fireEvent.click(within(menu).getByRole("button", { name: "Document Automation" }));
+    await go("Document Automation");
     expect(await screen.findByRole("heading", { name: "Not installed on this Command Center" })).toBeTruthy();
     expect(within(menu).getByRole("button", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
     cleanup();
     render(<ConsoleApp api={fakeServer({ signedIn: admin, plugins: [{ id: "document-automation", name: "Document Automation", description: "Learning instances and validation.", path: "/plugins/document-automation/" }] }).api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Document Automation" }));
+    await go("Document Automation");
     expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
   });
 
   it("shows Agent Activity as AA's Activity: a summary, In progress and Completed, filters, selected runs stopped or run again, columns, CSV", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.stop", "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Activity" }));
+    await go("Agent Activity");
     const live = await screen.findByRole("table", { name: "Runs in progress" });
     expect(await within(live).findByText("Step 3 of 8: Open workbook")).toBeTruthy();   // the command's own name
     const sums = await screen.findByRole("group", { name: "Summary" });
@@ -435,7 +450,7 @@ describe("rebuilt Command Center console", () => {
   it("opens Scheduled from the summary: each schedule's next run, soonest first; selected ones turned off or run now", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "schedules.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Activity" }));
+    await go("Agent Activity");
     fireEvent.click(within(await screen.findByRole("group", { name: "Summary" })).getByText("Next scheduled: Invoice intake"));
     const list = await screen.findByRole("table", { name: "Scheduled runs" });
     await within(list).findByText("Nightly invoices");
@@ -482,7 +497,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Operational Insights > Overview: figures that open their page, why runs failed across agents, runners and queues needing attention, AI budget used", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Overview" }));
+    await go("Overview");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(await within(figs).findByText("1 of 2")).toBeTruthy();
     expect(within(figs).getByText("Runners online · 2 need attention")).toBeTruthy();
@@ -513,7 +528,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Alerts as UiPath's monitoring alerts: open alerts acknowledged, rules turned off, tested, made for a work queue and deleted", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "alerts.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Alerts" }));
+    await go("Alerts");
     const list = await screen.findByRole("table", { name: "Alerts list" });
     const alert = await within(list).findByRole("link", { name: "Invoice intake failed: EXCEL.NOT_FOUND No such file" });
     expect(alert.getAttribute("href")).toBe("#/activity?run=r3");
@@ -553,7 +568,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Operations as AA's operational dashboards: figures against the period before, when runs start, failure reasons, CSVs and an agent's statistics", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Operations" }));
+    await go("Operations");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(await within(figs).findByText("Runs · +150% on before")).toBeTruthy();
     expect(within(figs).getByText("Completed: 3 completed, 1 failed, 1 stopped · +25 points on before")).toBeTruthy();
@@ -578,7 +593,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Runner capacity as Blue Prism's utilisation views: time in use, waits, each runner with its pools, when runners are busy, advice when short", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Runner capacity" }));
+    await go("Runner capacity");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(await within(figs).findByText("1 of 2")).toBeTruthy();
     expect(within(figs).getByText("85%").className).toBe("cc-err");
@@ -601,7 +616,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Work queue insights as UiPath's queue monitoring: waiting, overdue and at risk, speed, runners needed against the pool, and advice", async () => {
     const { api } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Work queue insights" }));
+    await go("Work queue insights");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(within(figs).getByText("14")).toBeTruthy();
     expect(within(figs).getByText("3").className).toBe("cc-err");
@@ -620,7 +635,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by folder and agent, minutes saved changed in place", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.production"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Value" }));
+    await go("Value");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(within(figs).getByText("Hours saved · +25% on before")).toBeTruthy();
     expect(within(figs).getByText(/7,500/)).toBeTruthy();
@@ -638,7 +653,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Dashboards with widgets made in a form: ready-made ones, a pie of the largest parts, a CSV per widget, copies and deletes", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Dashboards" }));
+    await go("Dashboards");
     expect(await screen.findByText("Yours · shared with role:viewer")).toBeTruthy();
     expect(within(await screen.findByRole("article", { name: "Amount paid" })).getByText("1,200")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Runs per day: from 3 (2026-10-29) to 5 (2026-10-30)" })).toBeTruthy();
@@ -685,7 +700,7 @@ describe("rebuilt Command Center console", () => {
   it("exports, promotes and imports agents, keeps the code analysis policy and an agent's findings, and the files of a folder (AA's Bot Lifecycle Management)", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "lifecycle.export", "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Repository" }));
+    await go("Agent Repository");
     await screen.findByRole("table", { name: "Agents list" });
     const made: string[] = [];
     URL.createObjectURL = (() => { made.push("file"); return "blob:x"; }) as typeof URL.createObjectURL;
@@ -759,10 +774,45 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "repo/files" }));
   });
 
+  it("shows the frame of the design plan's step 1: where you are, one search, open alerts, help; a menu that finds a page, keeps one section open and collapses from the bottom", async () => {
+    location.hash = "";
+    render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
+    const here = await screen.findByRole("navigation", { name: "You are here" });
+    expect(here.textContent).toBe("Home");
+    expect((await screen.findByRole("link", { name: "Open alerts: 1" })).getAttribute("href")).toBe("#/alerts");
+    await go("Users");
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Users"));
+    const menu = screen.getByRole("navigation", { name: "Command Center" });
+    expect(within(menu).getByRole("button", { name: "ADMINISTRATION" }).getAttribute("aria-expanded")).toBe("true");
+    expect(within(menu).getByRole("button", { name: "MANAGE" }).getAttribute("aria-expanded")).toBe("false");   // one section open
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();   // opening another closes it
+    expect(within(menu).getByText("Pinned pages show here.")).toBeTruthy();
+    const buttons = within(menu).getAllByRole("button");
+    expect(buttons[buttons.length - 1].getAttribute("aria-label")).toBe("Collapse menu");   // at the bottom
+    fireEvent.change(within(menu).getByLabelText("Find a page"), { target: { value: "queue" } });
+    const found = within(menu).getByRole("list", { name: "Pages found" });
+    expect(within(found).getAllByRole("button").map((b) => b.textContent)).toEqual(["Work queuesMANAGE", "Work queue insightsOPERATIONAL INSIGHTS"]);
+    fireEvent.click(within(found).getByRole("button", { name: /^Work queues/ }));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Work queues"));
+
+    // one search: pages and agents; an agent opens the repository searched for it
+    const search = screen.getByLabelText("Search pages and agents");
+    fireEvent.focus(search);
+    fireEvent.change(search, { target: { value: "invoice" } });
+    const results = await screen.findByRole("group", { name: "Search results" });
+    const agent = await within(results).findByRole("link", { name: /^Invoice intake/ });
+    expect(agent.getAttribute("href")).toBe("#/automation?q=Invoice%20intake");
+    fireEvent.change(search, { target: { value: "audit" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Search results" })).getByRole("button", { name: /^Audit Trail/ }));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Audit Trail"));
+    location.hash = "";
+  });
+
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "devices.manage", "pools.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Runner Machines" }));
+    await go("Runner Machines");
     const list = await screen.findByRole("table", { name: "Runners list" });
     expect(await within(list).findByText("Runner B")).toBeTruthy();
     expect(within(list).getByText("Finance pool")).toBeTruthy();
@@ -841,7 +891,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Users as AA's Users page: filters, enable or disable selected, details in AA's order with Unlock, create with a one-time password", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Users" }));
+    await go("Users");
     const list = await screen.findByRole("table", { name: "Users list" });
     expect(await within(list).findByText("Locked")).toBeTruthy();
     expect(within(list).getByText("Agent runner")).toBeTruthy();          // roles by their names
@@ -879,7 +929,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Roles as AA's Roles page: kinds, a permission matrix by area, built-in roles read-only and copied, custom roles saved and deleted", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Roles" }));
+    await go("Roles");
     const list = await screen.findByRole("table", { name: "Roles list" });
     expect(await within(list).findByText("Agent runner")).toBeTruthy();
     expect(within(list).getAllByText("Built-in")).toHaveLength(4);
@@ -909,7 +959,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Teams as UiPath's groups: leads, members and where each team is used; members changed, a team created", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Teams" }));
+    await go("Teams");
     const list = await screen.findByRole("table", { name: "Teams list" });
     expect(await within(list).findByText("agent folder Finance, vault folder Bank")).toBeTruthy();
     expect(within(list).getByText("team:finance")).toBeTruthy();
@@ -930,7 +980,7 @@ describe("rebuilt Command Center console", () => {
   it("shows the Credential vault as AA's: credentials, vault folders, my requests; flags saved, a credential created, members changed", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lockers.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Credential vault" }));
+    await go("Credential vault");
     const list = await screen.findByRole("table", { name: "Credentials list" });
     expect(await within(list).findByText("pin (yours missing)")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Needs my own value"));
@@ -972,7 +1022,7 @@ describe("rebuilt Command Center console", () => {
   it("shows the Audit Trail as AA's audit log: last 24 hours first, filters, a record in full, related records, export, history check", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Audit Trail" }));
+    await go("Audit Trail");
     const list = await screen.findByRole("table", { name: "Audit records" });
     expect(await within(list).findByText("role: bot_creator")).toBeTruthy();
     expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from="))).toBe(true);   // the last 24 hours
@@ -994,7 +1044,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Licenses as AA's: the licence and seats with a nearly-full alert, allocation to people and runners, idle seats taken back", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Licenses" }));
+    await go("Licenses");
     expect(await screen.findByText("Acme")).toBeTruthy();
     expect(screen.getByText(/Nearly full: Developer \(4 of 5\)/)).toBeTruthy();
     // allocation: a seat for a person; the runner already holds one
@@ -1015,7 +1065,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Settings as AA's: sections, only the changed values saved, a search across settings, a section's own test", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Settings" }));
+    await go("Settings");
     const nav = await screen.findByRole("navigation", { name: "Settings sections" });
     fireEvent.click(within(nav).getByRole("button", { name: "Sign-in and security" }));
     const sec = screen.getByRole("region", { name: "Sign-in and security" });
@@ -1039,7 +1089,7 @@ describe("rebuilt Command Center console", () => {
   it("shows the Task inbox as UiPath's Action Center: to do and done, overdue filter, approve with a comment, a form with a required field", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Task inbox" }));
+    await go("Task inbox");
     const list = await screen.findByRole("table", { name: "Tasks to do" });
     expect(await within(list).findByText(/Overdue:/)).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Overdue only"));
@@ -1067,7 +1117,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Schedules as AA's: what runs where and when, enable selected, a schedule copied for new timing, a weekly one created in AA's order", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "schedules.manage", "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Schedules" }));
+    await go("Schedules");
     const list = await screen.findByRole("table", { name: "Schedules list" });
     expect(await within(list).findByText("Daily at 02:00 (Asia/Kolkata), not on India 2026")).toBeTruthy();
     expect(within(list).getByText("Pool Finance pool")).toBeTruthy();
@@ -1089,7 +1139,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Triggers as AA's event triggers: where each listens, its health, Check now; a webhook created shows its secret once", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Triggers" }));
+    await go("Triggers");
     const list = await screen.findByRole("table", { name: "Triggers list" });
     expect(await within(list).findByText("The Command Center")).toBeTruthy();
     expect(within(list).getByText("Error")).toBeTruthy();
@@ -1111,7 +1161,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Work queues as AA's: counts, items past the service level, retry failed items, validate an unsure item, start processing", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "queues.work", "queues.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Work queues" }));
+    await go("Work queues");
     const list = await screen.findByRole("table", { name: "Work queues list" });
     expect(await within(list).findByText("1 past it")).toBeTruthy();
     expect(within(list).getByText("4")).toBeTruthy();   // waiting: new and retry
@@ -1135,7 +1185,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Workflow as UiPath Maestro's instances: in progress and finished, a run's timeline and tasks, cancel, start with the start form", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Workflow" }));
+    await go("Workflow");
     const list = await screen.findByRole("table", { name: "Workflow runs in progress" });
     expect(await within(list).findByText("Waiting for a person")).toBeTruthy();
     expect(within(list).queryByText("PO-41")).toBeNull();
@@ -1158,7 +1208,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Shared Global values with types, your own value, and a typed value created", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Shared Global values" }));
+    await go("Shared Global values");
     const list = await screen.findByRole("table", { name: "Shared values list" });
     expect(await within(list).findByText("$global.max_amount")).toBeTruthy();
     expect(within(list).getByText("Number")).toBeTruthy();
@@ -1181,7 +1231,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Connections with settings and vault references, and creates one by its toolkit's inputs", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Connections" }));
+    await go("Connections");
     const list = await screen.findByRole("table", { name: "Connections list" });
     expect(await within(list).findByText("password → snow/api/password")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Create connection" }));
@@ -1198,7 +1248,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Agent ToolKits as AA's Packages: versions and usage, a warning before switching off, agents updated to a new version range", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent ToolKits" }));
+    await go("Agent ToolKits");
     const list = await screen.findByRole("table", { name: "Toolkits list" });
     expect(await within(list).findByText("2.1.0, 1.4.0 (default 2.1.0)")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Source"), { target: { value: "own" } });
@@ -1221,7 +1271,7 @@ describe("rebuilt Command Center console", () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "skills.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     const nav = await screen.findByRole("navigation", { name: "Command Center" });
-    fireEvent.click(within(nav).getByRole("button", { name: "Model Connections" }));
+    await go("Model Connections");
     const mc = await screen.findByRole("table", { name: "Model connections list" });
     expect(await within(mc).findByText("Masks personal data, Checks answers")).toBeTruthy();
     expect(within(mc).getByRole("img", { name: "90% of the budget" })).toBeTruthy();
@@ -1246,7 +1296,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Agent APIs as AA's API tasks: where each runs and its calls; a new one shows its token once with an example call", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent APIs" }));
+    await go("Agent APIs");
     const list = await screen.findByRole("table", { name: "Agent APIs list" });
     expect(await within(list).findByText("Pool Finance pool")).toBeTruthy();
     fireEvent.click(within(list).getByText("Invoice lookup"));
@@ -1268,7 +1318,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Agent tests as test sets: last score, failing ones, a run on a pool scored case by case", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "repo.checkin"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent tests" }));
+    await go("Agent tests");
     const list = await screen.findByRole("table", { name: "Test sets list" });
     expect(await within(list).findByText("1 of 2 passed")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Show"), { target: { value: "never" } });
@@ -1287,7 +1337,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Agent Templates as AA's Bot Store: cards by category, install into a folder, an agent shared for approval", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Templates" }));
+    await go("Agent Templates");
     const cards = await screen.findByRole("list", { name: "Templates" });
     expect(await within(cards).findByText("IT · shared by Contoso")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Finance" } });
@@ -1307,7 +1357,7 @@ describe("rebuilt Command Center console", () => {
   it("shows the Agent Repository as AA's public workspace: a folder tree, folder permissions, an agent's versions compared, a version asked to go live, a run, approvals, recovery", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "repo.permissions", "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Repository" }));
+    await go("Agent Repository");
     const list = await screen.findByRole("table", { name: "Agents list" });
     expect(await within(list).findByText("Checked out by vic")).toBeTruthy();
     expect(within(list).getByText("Workflow")).toBeTruthy();

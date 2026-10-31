@@ -231,3 +231,33 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-param { display: inline-flex; align-items: center; gap: 6px; margin: 2px 8px 2px 0; color: var(--ui-text-2); }
 .cc-param .ui-input { width: 160px; }
 .cc-files { margin: 12px 20px 0; }
+/* Design plan, step 1 (skeleton): the top bar, the menu's console mode, the page header. Today's colours. */
+.cc-top { gap: 12px; }
+.cc-crumbs { display: flex; align-items: center; gap: 6px; color: var(--ui-frame-text-2); min-width: 0; }
+.cc-crumb { border: 0; background: transparent; padding: 0; font: inherit; color: var(--ui-frame-text-2); cursor: pointer; }
+.cc-crumb:hover { color: var(--ui-frame-text); text-decoration: underline; }
+.cc-crumb-here { color: var(--ui-frame-text); font-weight: 600; }
+.cc-search { position: relative; flex: 1 1 260px; max-width: 460px; margin: 0 auto; display: flex; align-items: center; color: #353e4c; }
+.cc-search > svg { position: absolute; left: 9px; pointer-events: none; }
+.cc-search input { width: 100%; box-sizing: border-box; height: var(--ui-h); border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: #ffffff; color: #17202b; padding: 0 64px 0 30px; font: inherit; }
+.cc-kbd { position: absolute; right: 8px; font: 11px/18px var(--ui-font); padding: 0 6px; border: 1px solid #7d8797; border-radius: 4px; color: #353e4c; background: #ffffff; pointer-events: none; }
+.cc-search-results { position: absolute; top: calc(var(--ui-h) + 4px); left: 0; right: 0; z-index: 50; background: var(--ui-bg); color: var(--ui-text); border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius); box-shadow: 0 8px 24px rgba(15, 20, 29, .2); padding: 4px; display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+.cc-search-results > button, .cc-search-results > a { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent;
+  font: inherit; color: var(--ui-text); text-align: left; text-decoration: none; cursor: pointer; }
+.cc-search-results > button:hover, .cc-search-results > a:hover, .cc-search-results > button:focus-visible, .cc-search-results > a:focus-visible { background: var(--ui-row-hover); }
+.cc-search-results span { margin-left: auto; color: var(--ui-text-2); font-size: 12px; }
+.cc-search-head { padding: 6px 8px 2px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ui-text-2); }
+.cc-search-results p { margin: 0; padding: 8px; color: var(--ui-text-2); }
+.cc-bell { position: relative; color: var(--ui-frame-text); }
+.cc-badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: #d14343; color: #ffffff;
+  font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; }
+.st-menu.is-console .st-menu-find { margin: 0 2px 8px; box-sizing: border-box; height: 30px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: #ffffff; color: #17202b; padding: 0 10px; font: inherit; }
+.st-menu.is-console .st-menu-fold { margin: 8px 0 0; }
+.st-menu-fill { flex: 1; min-height: 8px; }
+.st-menu-hint { margin: 0 0 4px; padding: 0 10px 0 36px; font-size: 12px; color: var(--ui-frame-text-2); }
+.st-menu-heading.is-static { cursor: default; }
+.st-menu-star { display: inline-flex; width: 20px; justify-content: center; color: #f5b33d; }
+.st-menu-where { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-frame-text-2); }
+.st-menu-found { margin-top: 2px; }
+.cc-main .st-page-head > :first-child { flex: 1 1 320px; min-width: 0; }

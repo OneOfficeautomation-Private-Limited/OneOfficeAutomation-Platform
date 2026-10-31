@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser } from "../api/cr";
-import { Button, Field, Icon, Menu, TextInput, usePersistent } from "../components";
+import { Button, Field, Icon, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { Activity } from "./Activity";
@@ -32,6 +32,7 @@ import { Capacity } from "./Capacity";
 import { Dashboards } from "./Dashboards";
 import { Operations } from "./Operations";
 import { Overview } from "./Overview";
+import { TopBar } from "./TopBar";
 import { QueueInsights } from "./QueueInsights";
 import { Value } from "./Value";
 import { Vault } from "./Vault";
@@ -76,23 +77,14 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
 
   return (
     <div className="st-app">
-      <header className="st-top">
-        <div className="st-brand"><span className="st-logo" />One CommandCenter</div>
-        <span className="cc-preview">New console (preview)</span>
-        <div className="st-top-actions">
-          <a className="ui-btn ui-btn-light" href={TODAY}>Today's console</a>
-          <Menu label="Your account" align="end" title={user.display_name + " · " + (user.roles?.length ? user.roles.join(", ") : user.role)}
-            items={[{ key: "out", label: "Sign out", onSelect: signOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
-            <Icon name="person" size={16} /></button>} />
-        </div>
-      </header>
+      <TopBar api={api} user={user} page={page} classicHref={TODAY} onPage={setPage} onSignOut={signOut} />
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
       {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
       <div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }}
-          offTitle="Agent Studio runs beside the Command Center (ooa server), on the same computer" />
+          offTitle="Agent Studio runs beside the Command Center (ooa server), on the same computer" console />
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {page === "insights" && <Overview api={api} user={user} pageHref={hrefFor} />}
