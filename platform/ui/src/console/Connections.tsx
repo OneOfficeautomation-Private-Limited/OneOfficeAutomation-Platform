@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Connections, after UiPath's Integration Service connections (checked against its docs; AA keeps a connector's
  * sign-in in the Credential vault, which is how secrets are held here too; 31 Oct 2026): a connector's address and
  * settings kept once, chosen by name on agent steps. Each shows its toolkit, settings and which secrets come from the
  * vault, with a filter by toolkit. Secrets are never typed here: a connection keeps only vault references.
+ * Review round 2 (31 Oct 2026): one line per connection (its description on hover), a menu per connection (Edit, Copy the
+ * name, Delete asked first), and rows you cannot open shown as such.
  */
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -20,6 +22,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
   const [kind, setKind] = useState("");
   const [dialog, setDialog] = useState<null | { c: SavedConnection | null }>(null);
   const manage = user.permissions.includes("globals.manage");
+  const [ask, setAsk] = useState<SavedConnection | null>(null);   // a connection to delete, asked first
   const load = useCallback(async () => {
     try { const [c, k] = await Promise.all([api.savedConnections(), api.connectionKinds()]); setList(c); setKinds(k); setError(null); } catch (e) { setError(message(e)); }
   }, [api]);
@@ -27,6 +30,14 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
   const kindName = (p: string) => kinds.find((k) => k.package === p)?.name ?? p;
   const shown = useMemo(() => (list ?? []).filter((c) => (!kind || c.package === kind)
     && (!q.trim() || (c.name + " " + (c.description ?? "") + " " + kindName(c.package)).toLowerCase().includes(q.trim().toLowerCase()))), [list, q, kind, kinds]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const copy = (c: SavedConnection) => (navigator.clipboard?.writeText(c.name) ?? Promise.reject(new Error("no clipboard")))
+    .then(() => onNotice("Copied " + c.name + "."), () => setError("Copying is not allowed here: choose " + c.name + " on the agent step."));
+  const del = (c: SavedConnection) => api.deleteConnection(c.name).then(() => { onNotice("Deleted the connection " + c.name + "."); setAsk(null); load(); }, (e) => setError(message(e)));
+  const rowMenu = (c: SavedConnection) => [
+    ...(manage ? [{ key: "edit", label: "Edit", onSelect: () => setDialog({ c }) }] : []),
+    { key: "copy", label: "Copy the name", onSelect: () => { copy(c); } },
+    ...(manage ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsk(c) }] : []),
+  ];
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-conn-title">
@@ -45,21 +56,26 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
+      <div className="cc-list-panel">
+        {ask && <div className="cc-list-bulk" role="alert"><span>Delete the connection {ask.name}? Agent steps that use it fail until another is chosen.</span>
+          <Button kind="danger" onClick={() => del(ask)}>Delete</Button><Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
+        <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Connections list">
-          <thead><tr><th scope="col">Connection</th><th scope="col">Toolkit</th><th scope="col">Settings</th><th scope="col">Secrets from the vault</th><th scope="col">Updated</th></tr></thead>
+          <thead><tr><th scope="col">Connection</th><th scope="col">Toolkit</th><th scope="col">Settings</th><th scope="col">Secrets from the vault</th><th scope="col">Updated</th>
+            <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((c) => (
-              <tr key={c.name} onClick={() => manage && setDialog({ c })} className={manage ? undefined : "is-static"}>
-                <td>{c.name}{c.description && <div className="st-muted">{c.description}</div>}</td>
+              <tr key={c.name} onClick={rowClick(() => manage && setDialog({ c }))} className={manage ? undefined : "is-static"}>
+                <td className="cc-clip" title={c.description || undefined}>{c.name}</td>
                 <td>{kindName(c.package)}</td>
                 <td className="cc-clip">{Object.entries(c.values ?? {}).map(([n, v]) => n + ": " + String(v)).join("; ")}</td>
                 <td className="ui-mono cc-clip">{Object.entries(c.credentials ?? {}).map(([n, v]) => n + " → " + v).join("; ")}</td>
                 <td>{when(c.updated)}{c.updated_by ? " by " + c.updated_by : ""}</td>
+                <td className="cc-list-menu"><RowMenu label={"Actions for " + c.name} items={rowMenu(c)} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{list.length ? "No connections match." : "No connections yet. Create one so agent steps do not repeat an address and sign-in."}</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={6} className="cc-none">{list.length ? "No connections match." : "No connections yet. Create one so agent steps do not repeat an address and sign-in."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={6} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
       </div>

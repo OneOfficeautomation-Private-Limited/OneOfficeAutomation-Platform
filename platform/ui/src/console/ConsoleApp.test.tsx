@@ -1388,6 +1388,15 @@ describe("rebuilt Command Center console", () => {
     await go("Connections");
     const list = await screen.findByRole("table", { name: "Connections list" });
     expect(await within(list).findByText("password → snow/api/password")).toBeTruthy();
+    // one line per connection, its description on hover; a menu per connection with Delete asked first
+    expect(within(list).getByText("SNOW prod").getAttribute("title")).toBe("Incidents");
+    expect(within(list).queryByText("Incidents")).toBeNull();
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for SNOW prod" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Delete the connection SNOW prod?");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Create connection" }));
     const c = await screen.findByRole("dialog", { name: "Create connection" });
     fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "SF" } });
