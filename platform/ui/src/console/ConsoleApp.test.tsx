@@ -154,7 +154,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       { id: "q0", path: "Finance/Invoice intake.flow.json", version: 3, requested_by: "vic", status: "approved", decided_by: "admin", decided: "2026-10-30T08:00:00Z" }] });
     if (route === "repo/versions") return ok({ versions: [{ version: 3, labels: ["UAT"], comment: "Faster", author: "admin", created: "2026-10-30T08:00:00Z" },
       { version: 2, labels: [], comment: "First fix", author: "vic", created: "2026-10-20T08:00:00Z" }] });
-    if (route === "repo/bot") return ok({ flow: { id: "inv-1", kind: "agent", steps: url.includes("version=2") ? [{ id: "s1" }] : [{ id: "s1" }, { id: "s2" }],
+    if (route === "repo/bot") return ok({ flow: { id: "inv-1", kind: "agent", steps: url.includes("version=2") ? [{ id: "s1", action: "ooa.excel/open", args: { path: "march.xlsx" } }] : [{ id: "s1", action: "ooa.excel/open", args: { path: "march.xlsx" } },
+        { id: "s2", action: "core/if", args: { condition: { op: "gt", left: "$total", right: 1000 } }, children: [{ id: "s3", action: "core/log", args: { message: "big invoice" } }] }],
       variables: [{ name: "vendor", type: "String", direction: "input", required: true, description: "Who sent it" }, { name: "total", type: "Number", direction: "output" }] } });
     if (route === "repo/dependencies") return ok({ path: "Finance/Invoice intake.flow.json", agents: [{ bot_id: "pdf-1", path: "Shared/Read PDF.flow.json", found: true }], called_by: [], toolkits: ["ooa.excel"] });
     if (route === "repo/production") return ok({ production_request: { id: "q2" } });
@@ -768,6 +769,7 @@ describe("rebuilt Command Center console", () => {
     // an agent's own findings, analysed again
     fireEvent.click(within(screen.getByRole("table", { name: "Agents list" })).getByText("Invoice intake"));
     const d = await screen.findByRole("dialog", { name: "Invoice intake" });
+    fireEvent.click(within(d).getByRole("tab", { name: "Findings" }));
     expect(within(await within(d).findByRole("table", { name: "Findings" })).getByText("212 steps; the most allowed is 200")).toBeTruthy();
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Analyse again" })); });
     expect(within(d).getByText("No errors")).toBeTruthy();
@@ -1459,8 +1461,20 @@ describe("rebuilt Command Center console", () => {
 
     fireEvent.click(within(list).getByText("Invoice intake"));
     const d = await screen.findByRole("dialog", { name: "Invoice intake" });
+    // the agent line by line, as AA's View: numbered steps, a block that closes, the chosen line's settings
+    const steps = await within(d).findByRole("list", { name: "Steps" });
+    expect(within(steps).getByText("Open workbook")).toBeTruthy();
+    expect(within(steps).getByText("$total is greater than 1000")).toBeTruthy();
+    expect(within(steps).getAllByRole("listitem").map((li) => li.querySelector(".cc-code-n")?.textContent)).toEqual(["1", "2", "3"]);
+    fireEvent.click(within(steps).getByRole("button", { name: "Close line 2" }));
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(2);
+    fireEvent.click(within(steps).getByText("Open workbook"));
+    expect(within(within(d).getByRole("complementary", { name: "The selected line" })).getByText("march.xlsx")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("tab", { name: "Inputs and details" }));
     expect(await within(d).findByText("Who sent it")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("tab", { name: "Dependencies" }));
     expect(await within(d).findByText("ooa.excel")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("tab", { name: /^Versions/ }));
     const versions = within(d).getByRole("table", { name: "Versions" });
     fireEvent.click(await within(versions).findByLabelText("Select v2"));
     fireEvent.click(within(versions).getByLabelText("Select v3"));
@@ -1472,7 +1486,7 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Ask" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/production", body: { path: "Finance/Invoice intake.flow.json", version: 2, comment: "Roll back" } }));
 
-    fireEvent.click(within(list).getByText("Invoice intake"));
+    fireEvent.click(within(await screen.findByRole("table", { name: "Agents list" })).getByText("Invoice intake"));   // back in the folder: the list is drawn again
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Invoice intake" })).getByRole("button", { name: "Run" }));
     const run = await screen.findByRole("dialog", { name: "Run Invoice intake" });
     fireEvent.change(await within(run).findByLabelText(/^vendor/), { target: { value: "Acme" } });

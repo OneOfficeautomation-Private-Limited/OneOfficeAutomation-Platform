@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, Menu, Select, TextInput, usePersistent } from "../components";
+import type { FlowStep } from "../api/client";
+import { Button, Dialog, Field, IconTile, Menu, Select, TextInput, usePersistent } from "../components";
+import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 
@@ -28,7 +30,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and schedule"], ["edit", "Edit: also check out, check in, move, delete"], ["manage", "Manage: also live version and labels"]];
 
 type Dlg = null | { kind: "agent"; a: RepoAgent } | { kind: "folder"; parent: string } | { kind: "rename" } | { kind: "permissions" } | { kind: "deleted" } | { kind: "approvals" }
-  | { kind: "run"; a: RepoAgent } | { kind: "export" } | { kind: "import" } | { kind: "analysis" };
+  | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" } | { kind: "analysis" };
 
 export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [agents, setAgents] = useState<RepoAgent[] | null>(null);
@@ -99,6 +101,17 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
       { key: "rename", label: "Rename or move folder", onSelect: () => setDialog({ kind: "rename" }) }] : []),
     ...(can("repo.delete") && cur && inside === 0 ? [{ key: "delete", label: "Delete folder…", separatorBefore: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
+
+  if (dialog?.kind === "agent" || (dialog?.kind === "run" && dialog.from === "agent")) {
+    const a = dialog.a;
+    return (
+      <section className="st-page cc-home cc-explorer" aria-label={"Automation: " + agentName(a.path)}>
+        <AgentView key={a.path} api={api} user={user} a={a} folders={folders} approvalOn={requests.approval_on} onClose={() => setDialog(null)}
+          onFolder={(f) => { setDialog(null); setFolder(f); }} onRun={() => setDialog({ kind: "run", a, from: "agent" })} onDone={done} />
+        {dialog.kind === "run" && <RunAgent api={api} a={a} onClose={() => setDialog({ kind: "agent", a })} onDone={done} />}
+      </section>
+    );
+  }
 
   return (
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-repo-title">
@@ -178,8 +191,6 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
           <RepoFiles key={folder} api={api} user={user} folder={folder} onNotice={onNotice} />
         </div>
       </div>
-      {dialog?.kind === "agent" && <AgentView key={dialog.a.path} api={api} user={user} a={dialog.a} folders={folders} approvalOn={requests.approval_on} onClose={() => setDialog(null)}
-        onRun={() => setDialog({ kind: "run", a: dialog.a })} onDone={done} />}
       {dialog?.kind === "run" && <RunAgent api={api} a={dialog.a} onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.kind === "folder" && <NewFolder api={api} parent={dialog.parent} onClose={() => setDialog(null)} onDone={(p) => { done("Created the folder " + p + "."); setFolder(p); }} />}
       {dialog?.kind === "rename" && <RenameFolder api={api} folder={folder} onClose={() => setDialog(null)} onDone={(p, n) => { done("Moved " + n + " agent(s) to " + p + "."); setFolder(p); }} />}
@@ -194,8 +205,25 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
 }
 
 /** One agent: what it is, its inputs and outputs, what it calls and who calls it, recent runs, and its versions. */
-function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }: { api: CrApi; user: CrUser; a: RepoAgent; folders: RepoFolder[]; approvalOn: boolean;
-  onClose: () => void; onRun: () => void; onDone: (m: string) => void }) {
+function AgentView({ api, user, a, folders, approvalOn, onClose, onFolder, onRun, onDone }: { api: CrApi; user: CrUser; a: RepoAgent; folders: RepoFolder[]; approvalOn: boolean;
+  onClose: () => void; onFolder: (folder: string) => void; onRun: () => void; onDone: (m: string) => void }) {
+  const [tab, setTab] = useState<"steps" | "about" | "versions" | "runs" | "deps" | "findings">("steps");
+  const [shownVersion, setShownVersion] = useState<string>("latest");
+  const [flow, setFlow] = useState<FlowStep[] | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<string | null>(null);
+  const [find, setFind] = useState("");
+  useEffect(() => { api.actionNames().then(setNames, () => {}); }, [api]);
+  useEffect(() => {
+    setFlow(null);
+    api.agentFlow(a.path, shownVersion === "latest" || shownVersion === "production" ? shownVersion : Number(shownVersion))
+      .then((r) => setFlow((r.flow.steps ?? []) as FlowStep[]), () => setFlow([]));
+  }, [api, a.path, shownVersion]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target as HTMLElement).closest?.("[role=dialog] [role=dialog]")) onClose(); };
+    window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
   const can = (p: string) => user.permissions.includes(p);
   const editable = ["edit", "manage"].includes(a.access ?? "edit");
   const [vars, setVars] = useState<FlowVariable[] | null>(null);
@@ -236,16 +264,37 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
   const inputs = (vars ?? []).filter((v) => v.direction === "input" || v.direction === "in_out");
   const outputs = (vars ?? []).filter((v) => v.direction === "output" || v.direction === "in_out");
   const kind = kindOf(a.path);
+  const rows = flow ? stepRows(flow, folded) : [];
+  const nameOf = (action: string) => names[action] ?? describeAction(action, []).name;
+  const needle = find.trim().toLowerCase();
+  const hit = (st: FlowStep) => !!needle && (nameOf(st.action ?? "") + " " + summarize(st) + " " + st.id).toLowerCase().includes(needle);
+  const pick = picked ? rows.find((r) => r.kind === "step" && r.step.id === picked) : undefined;
+  const sel = pick?.kind === "step" ? pick.step : null;
+  const crumbs = folderOf(a.path) ? folderOf(a.path).split("/") : [];
+  const more = [
+    ...(can("repo.checkin") && editable ? [{ key: "move", label: "Move…", onSelect: () => { setText(folderOf(a.path)); setAsk({ kind: "move" }); } }] : []),
+    ...(can("repo.checkin") ? [{ key: "copy", label: "Copy…", onSelect: () => { setText((folderOf(a.path) ? folderOf(a.path) + "/" : "") + agentName(a.path) + " (copy)"); setAsk({ kind: "copy" }); } }] : []),
+    ...(a.locked_by && (a.locked_by === user.username || can("repo.production")) ? [{ key: "undo", label: "Undo check-out", onSelect: () => { api.undoCheckout(a.path).then(() => onDone("Undid the check-out of " + agentName(a.path) + "."), fail); } }] : []),
+    ...(can("repo.delete") && editable ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsk({ kind: "delete" }) }] : []),
+  ];
+  const TABS: [typeof tab, string][] = [["steps", "Steps" + (flow ? " (" + rows.filter((r) => r.kind === "step").length + ")" : "")], ["about", "Inputs and details"],
+    ["versions", "Versions" + (versions ? " (" + versions.length + ")" : "")], ["runs", "Runs" + (runs.length ? " (" + runs.length + ")" : "")], ["deps", "Dependencies"],
+    ...(kind !== "File" ? [["findings", "Findings"] as [typeof tab, string]] : [])];
   return (
-    <Dialog open title={agentName(a.path)} width={860} onClose={onClose} footer={<>
-      {can("repo.delete") && editable && <Button kind="danger" onClick={() => setAsk({ kind: "delete" })}>Delete</Button>}
-      {can("repo.checkin") && editable && <Button kind="secondary" onClick={() => { setText(folderOf(a.path)); setAsk({ kind: "move" }); }}>Move</Button>}
-      {can("repo.checkin") && <Button kind="secondary" onClick={() => { setText((folderOf(a.path) ? folderOf(a.path) + "/" : "") + agentName(a.path) + " (copy)"); setAsk({ kind: "copy" }); }}>Copy</Button>}
-      {a.locked_by && (a.locked_by === user.username || can("repo.production")) &&
-        <Button kind="secondary" onClick={() => api.undoCheckout(a.path).then(() => onDone("Undid the check-out of " + agentName(a.path) + "."), fail)}>Undo check-out</Button>}
-      <span className="st-bar-fill" />
-      {can("runs.start") && a.production_version && kind === "Agent" && <Button kind="primary" onClick={onRun}>Run</Button>}
-      {can("runs.start") && a.production_version && kind === "Workflow" && <a className="ui-btn ui-btn-primary" href="#/workflows">Start in Workflow</a>}</>}>
+    <div className="cc-agent" role="dialog" aria-modal="false" aria-label={agentName(a.path)}>
+      <div className="cc-agent-head">
+        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => onFolder("")}>Automation</button>
+          {crumbs.map((c, i) => <span key={i}> › <button type="button" className="cc-link" onClick={() => onFolder(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>)} ›</span>
+        <h1>{agentName(a.path)}</h1>
+        {a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-pill is-stopped"><span className="cc-pill-dot" />Not live</span>}
+        <span className="cc-none">{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"} · latest v{a.latest_version}</span>
+        <span className="ov-fill" />
+        {can("runs.start") && a.production_version && kind === "Workflow" && <a className="ui-btn ui-btn-secondary cc-btn-link" href="#/workflows">Start in Workflow</a>}
+        <a className="ui-btn ui-btn-secondary cc-btn-link" href="../studio/" title="One AgentStudio opens on the computer it is installed on">Edit in One AgentStudio</a>
+        {can("runs.start") && a.production_version && kind === "Agent" && <Button kind="primary" onClick={onRun}>Run</Button>}
+        {more.length > 0 && <RowMenu label={"More for " + agentName(a.path)} items={more} />}
+        <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the folder" onClick={onClose}>×</button>
+      </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {ask && <div className="st-alert cc-inline" role="alert">
         {ask.kind === "delete" && <span>Delete {agentName(a.path)}? It is no longer listed and cannot run; its versions are kept and it can be recovered from Deleted agents.</span>}
@@ -260,6 +309,61 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
           {{ delete: "Delete", label: "Save label", live: approvalOn ? "Ask" : "Make live", move: "Move", copy: "Copy" }[ask.kind]}</Button>
         <Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button>
       </div>}
+      <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this agent">
+        {TABS.map(([k, l]) => <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
+      </div>
+      {tab === "steps" && <div className="cc-agent-steps">
+        <div className="cc-agent-code">
+          <div className="cc-pane-tools cc-agent-tools">
+            <span className="cc-list-search"><TextInput type="search" aria-label="Find in the steps" placeholder="Find in the steps" value={find} onChange={(e) => setFind(e.target.value)} /></span>
+            <Button kind="plain" onClick={() => setFolded(new Set())}>Open all</Button>
+            <Button kind="plain" onClick={() => setFolded(new Set(rows.filter((r) => r.kind === "step" && (r.step.children || r.step.else || r.step.elseIf || r.step.catch)).map((r) => r.kind === "step" ? r.step.id : "")))}>Close all</Button>
+            <span className="ov-fill" />
+            <span className="cc-chip"><Select aria-label="Version shown" value={shownVersion} onChange={(e) => { setShownVersion(e.target.value); setPicked(null); }}
+              options={[{ value: "latest", label: "Latest (v" + a.latest_version + ")" }, ...(a.production_version ? [{ value: "production", label: "Live (v" + a.production_version + ")" }] : []),
+                ...(versions ?? []).map((v) => ({ value: String(v.version), label: "v" + v.version }))]} /></span>
+            <span className="cc-none">Read-only</span>
+          </div>
+          {flow === null ? <p className="cc-none cc-agent-pad" role="status">Loading the steps…</p> : !rows.length ? <p className="cc-none cc-agent-pad">This agent has no steps.</p>
+            : <ol className="cc-code" aria-label="Steps">{rows.map((r, i) => {
+              const guides = Array.from({ length: r.depth }, (_, g) => <span key={g} className="cc-code-guide" aria-hidden="true" />);
+              if (r.kind === "section") return <li key={"s" + i} className="cc-code-line is-section"><span className="cc-code-n" aria-hidden="true" />
+                <span className="cc-code-body">{guides.slice(1)}<span className="cc-code-tw" /><span className="cc-code-kw">{r.label}</span></span></li>;
+              const st = r.step, d = describeAction(st.action ?? "", []), block = !!(st.children || st.else || st.elseIf || st.catch || st.finally);
+              const cond = st.action === "core/if" && st.args?.condition !== undefined;
+              return <li key={st.id} className={"cc-code-line" + (picked === st.id ? " is-on" : "") + (hit(st) ? " is-hit" : "") + (st.disabled ? " is-off" : "")}
+                onClick={() => setPicked(st.id)}>
+                <span className="cc-code-n">{r.n}</span>
+                <span className="cc-code-body">{guides}
+                  {block ? <button type="button" className="cc-code-tw" aria-expanded={!r.folded} aria-label={(r.folded ? "Open " : "Close ") + "line " + r.n}
+                    onClick={(e) => { e.stopPropagation(); const n = new Set(folded); if (n.has(st.id)) n.delete(st.id); else n.add(st.id); setFolded(n); }}>{r.folded ? "▸" : "▾"}</button>
+                    : <span className="cc-code-tw" />}
+                  <IconTile name={d.mark.icon} color={d.mark.color} size={20} />
+                  <span className={cond ? "cc-code-kw" : "cc-code-name"}>{nameOf(st.action ?? "")}</span>
+                  <span className="cc-code-sum">{cond ? conditionText(st.args?.condition) : summarize({ ...st, args: Object.fromEntries(Object.entries(st.args ?? {}).filter(([k]) => k !== "condition")) })}
+                    {r.folded ? " · " + r.hidden + " step" + (r.hidden === 1 ? "" : "s") + " inside" : ""}{st.disabled ? " · switched off" : ""}</span>
+                  <span className="cc-code-id">{st.id}</span>
+                </span>
+              </li>;
+            })}</ol>}
+        </div>
+        <aside className="cc-agent-side" aria-label="The selected line">
+          {sel ? <>
+            <div className="cc-pane-head"><IconTile name={describeAction(sel.action ?? "", []).mark.icon} color={describeAction(sel.action ?? "", []).mark.color} size={20} />
+              <h2>Line {pick?.kind === "step" ? pick.n : ""} · {nameOf(sel.action ?? "")}</h2></div>
+            <div className="cc-agent-pad">
+              {Object.keys(sel.args ?? {}).length || Object.keys(sel.out ?? {}).length ? <table className="cc-au-kv"><tbody>
+                {Object.entries(sel.args ?? {}).map(([k, v]) => <tr key={k}><th scope="row">{k.replace(/_/g, " ")}</th><td className="ui-mono">{k === "condition" ? conditionText(v) : plainValue(v, 400)}</td></tr>)}
+                {Object.values(sel.out ?? {}).length > 0 && <tr><th scope="row">Result into</th><td className="ui-mono">{Object.values(sel.out ?? {}).map((x) => "$" + x).join(", ")}</td></tr>}
+              </tbody></table> : <p className="cc-none">No settings.</p>}
+              <p className="cc-none">Step <span className="ui-mono">{sel.id}</span> · {(sel.action ?? "").split("/")[0]}{sel.note ? " · note: " + sel.note : ""}</p>
+              {can("runs.view") && <a href={"#/activity?tab=completed&status=failed&q=" + encodeURIComponent(a.path.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, ""))}>Failed runs of this agent</a>}
+            </div>
+          </> : <p className="cc-none cc-agent-pad">Choose a line to see its settings.</p>}
+        </aside>
+      </div>}
+      <div className="cc-agent-tab" hidden={tab === "steps"}>
+      {tab === "about" && <>
       {a.description && <p>{a.description}</p>}
       <dl className="cc-facts cc-facts-wide">
         <dt>Kind</dt><dd>{kind}</dd><dt>Folder</dt><dd>{folderOf(a.path) || "(top)"}</dd>
@@ -274,15 +378,15 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
         {outputs.length > 0 && <><h3 className="cc-log-title">Outputs</h3>
           <table className="st-table" aria-label="Outputs"><tbody>{outputs.map((v) => <tr key={v.name}><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.description ?? ""}</td></tr>)}</tbody></table></>}
       </> : null}
-      {deps && <><h3 className="cc-log-title">Dependencies</h3><dl className="cc-facts">
+      </>}
+      {tab === "deps" && (deps ? <dl className="cc-facts">
         <dt>Calls</dt><dd>{deps.agents.length ? deps.agents.map((d) => <span key={d.bot_id} className={d.found ? "cc-tag" : "cc-risk"} title={d.found ? undefined : "Not in this Command Center"}>{d.path ? agentName(d.path) : d.bot_id}</span>) : "No other agent"}</dd>
         <dt>Called by</dt><dd>{deps.called_by.length ? deps.called_by.map((p) => <span key={p} className="cc-tag">{agentName(p)}</span>) : "No other agent"}</dd>
-        <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl></>}
-      {kind !== "File" && <AgentAnalysis api={api} path={a.path} />}
-      {runs.length > 0 && <><h3 className="cc-log-title">Recent runs</h3>
-        <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
-          <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table></>}
-      <h3 className="cc-log-title">Versions</h3>
+        <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl> : <p className="cc-none" role="status">Loading…</p>)}
+      {tab === "findings" && kind !== "File" && <AgentAnalysis api={api} path={a.path} />}
+      {tab === "runs" && (runs.length > 0 ? <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
+          <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table> : <p className="cc-none">No runs yet.</p>)}
+      {tab === "versions" && <>
       <div className="cc-bar"><span className="st-muted">Tick two versions to compare them.</span><Button kind="secondary" disabled={picks.length !== 2} onClick={compare}>Compare</Button></div>
       <table className="st-table" aria-label="Versions">
         <thead><tr><th scope="col" className="cc-check"></th><th scope="col">Version</th><th scope="col">Labels</th><th scope="col">Comment</th><th scope="col">By</th><th scope="col">When</th><th scope="col"></th></tr></thead>
@@ -295,6 +399,7 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
               onClick={() => api.removeLabel(a.path, l).then(loadVersions, fail)}>×</button>}</span>)}</td>
             <td>{v.comment ?? ""}</td><td>{v.author ?? ""}</td><td>{when(v.created)}</td>
             <td className="cc-inline">
+              <Button kind="plain" onClick={() => { setShownVersion(String(v.version)); setTab("steps"); }}>View steps</Button>
               {(approvalOn ? can("repo.checkin") : can("repo.production")) && v.version !== a.production_version &&
                 <Button kind="plain" onClick={() => { setText(""); setAsk({ kind: "live", version: v.version }); }}>{approvalOn ? "Ask to make live" : "Make live"}</Button>}
               {can("repo.checkin") && <Button kind="plain" onClick={() => { setText(""); setAsk({ kind: "label", version: v.version }); }}>Label</Button>}
@@ -303,11 +408,13 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
           {versions && !versions.length && <tr className="is-static"><td colSpan={7} className="st-muted">No versions.</td></tr>}
         </tbody>
       </table>
+      </>}
+      </div>
       {diff && <Dialog open title={"v" + diff.a + " to v" + diff.b + " of " + agentName(a.path)} width={860} onClose={() => setDiff(null)} footer={null}>
         <p className="st-muted">{diff.added} line(s) added, {diff.removed} removed.</p>
         <ol className="cc-log" aria-label="Changes">{diff.lines.length ? diff.lines.map(([k, l], i) => <li key={i} className={k === "+" ? "cc-add" : k === "-" ? "cc-del" : undefined}>{k} {l}</li>) : <li>The versions are the same.</li>}</ol>
       </Dialog>}
-    </Dialog>
+    </div>
   );
 }
 
