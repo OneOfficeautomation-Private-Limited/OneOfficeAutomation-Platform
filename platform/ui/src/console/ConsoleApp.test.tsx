@@ -1276,7 +1276,7 @@ describe("rebuilt Command Center console", () => {
     expect(within(hook).getByText("whsec-1")).toBeTruthy();
   });
 
-  it("shows Work queues as AA's: counts, items past the service level, retry failed items, validate an unsure item, start processing", async () => {
+  it("shows Work queues as AA's: counts, items past the service level; a queue's own page with status chips, one line per item, details and members; retry, validate, start processing", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "queues.work", "queues.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Work queues");
@@ -1286,8 +1286,22 @@ describe("rebuilt Command Center console", () => {
     expect(within(list).getByRole("button", { name: "Actions for Vendor invoices" })).toBeTruthy();
     fireEvent.click(within(list).getByText("Vendor invoices"));
     const view = await screen.findByRole("dialog", { name: "Work queue Vendor invoices" });
+    expect(screen.queryByRole("table", { name: "Work queues list" })).toBeNull();   // its own page, in place of the list
+    const first = await within(view).findByRole("table", { name: "Work items" });
+    expect(await within(first).findByText(/PDF.UNREADABLE/)).toBeTruthy();
+    expect(within(first).getByText('{"vendor":"Acme"}')).toBeTruthy();   // the data in a column of its own
+    expect(within(view).getByRole("tab", { name: "Work items (17)" })).toBeTruthy();
+    const failedChip = within(within(view).getByRole("group", { name: "Items by status" })).getByRole("button", { name: /^Failed/ });
+    fireEvent.click(failedChip);
+    expect(failedChip.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(view).getByRole("tab", { name: "Details" }));
+    expect(within(view).getByText("Attempts per item")).toBeTruthy();
+    fireEvent.click(within(view).getByRole("tab", { name: "Members (0)" }));
+    expect(within(view).getByText(/No members/)).toBeTruthy();
+    fireEvent.click(within(view).getByRole("tab", { name: "Work items (17)" }));
+    fireEvent.click(within(within(view).getByRole("group", { name: "Items by status" })).getByRole("button", { name: /^All/ }));
     const items = await within(view).findByRole("table", { name: "Work items" });
-    expect(await within(items).findByText(/PDF.UNREADABLE/)).toBeTruthy();
+    await within(items).findByText("INV-1");
     fireEvent.click(within(items).getByLabelText("Select INV-1"));
     await act(async () => { fireEvent.click(within(view).getByRole("button", { name: "Retry" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/retry", body: { ids: ["i1"] } }));

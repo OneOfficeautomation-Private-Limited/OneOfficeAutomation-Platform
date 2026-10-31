@@ -730,3 +730,7 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 /* Triggers (review round 2): one line per trigger; the watched place and the last problem cut, whole on hover */
 .cc-trig-details { max-width: 220px; }
 .cc-trig-problem { display: inline-block; max-width: 240px; vertical-align: bottom; }
+
+/* Work queues (review round 2): a queue's own page; the status chips on one row, an item's data cut, whole on hover */
+.cc-queue-chips { padding: 8px 16px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
+.cc-queue-data { max-width: 260px; }

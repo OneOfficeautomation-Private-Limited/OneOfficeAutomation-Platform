@@ -9,12 +9,15 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * it (UiPath's SLA), processing on or off. A queue opens with its items by status, retry, defer or delete selected,
  * add items (JSON, CSV or Excel), validate items an agent was unsure of, each item's data, result and error; members;
  * export and import of a queue's definition. Work item models are AA's work item templates. Refreshes every 10 seconds.
+ * Review round 2 (31 Oct 2026), as AA's View queue: one line per queue (its description on hover); a queue opens as its own
+ * page with Work items (status chips, one line per item, its data in a column of its own), Details and Members.
  */
 const STATUS: [string, string][] = [["new", "New"], ["in_progress", "In progress"], ["review", "To validate"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]];
 const statusName = (s: string) => STATUS.find(([k]) => k === s)?.[1] ?? s;
 const agentName = (p?: string | null) => p ? p.split("/").pop()!.replace(/\.flow\.json$/, "") : "Not chosen";
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+const MEMBER_ROLES: Record<string, string> = { owner: "Owner (manages the queue)", participant: "Participant (adds and changes items)", consumer: "Consumer (processes the items)" };
 const waiting = (q: WorkQueue) => (q.counts.new ?? 0) + (q.counts.retry ?? 0);
 const parsed = (v: unknown) => { if (typeof v !== "string") return v; try { return JSON.parse(v); } catch { return v; } };
 const short = (v: unknown) => { const p = parsed(v); return p === null || p === undefined ? "" : typeof p === "string" ? p : JSON.stringify(p); };
@@ -29,7 +32,9 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const [pools, setPools] = useState<RunnerPool[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [dialog, setDialog] = useState<null | { kind: "edit"; queue: WorkQueue | null } | { kind: "open"; id: string } | { kind: "models" } | { kind: "import" }>(null);
+  const [dialog, setDialog] = useState<null | { kind: "edit"; queue: WorkQueue | null } | { kind: "models" } | { kind: "import" }>(null);
+  const [openId, setOpenId] = useState<string | null>(null);   // a queue's own page, in place of the list
+  const [version, setVersion] = useState(0);   // read the open queue again after its settings change
   const can = (p: string) => user.permissions.includes(p);
 
   const load = useCallback(async () => {
@@ -37,17 +42,26 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     catch (e) { setError(message(e)); }
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { const t = setInterval(() => { if (!dialog) load(); }, 10_000); return () => clearInterval(t); }, [load, dialog]);
+  useEffect(() => { const t = setInterval(() => { if (!dialog && !openId) load(); }, 10_000); return () => clearInterval(t); }, [load, dialog, openId]);
   const poolName = (id?: string | null) => id ? pools.find((p) => p.id === id)?.name ?? id : "Not chosen";
   const shown = useMemo(() => (list ?? []).filter((x) => !q.trim() || (x.name + " " + (x.description ?? "") + " " + (x.bot_path ?? "")).toLowerCase().includes(q.trim().toLowerCase())), [list, q]);
 
   const totals = (list ?? []).reduce((t, x) => ({ waiting: t.waiting + waiting(x), failed: t.failed + (x.counts.failed ?? 0), overdue: t.overdue + (x.overdue ?? 0) }), { waiting: 0, failed: 0, overdue: 0 });
   const setOn = (x: WorkQueue) => api.setProcessing(x.id, !x.processing).then(() => { onNotice((x.processing ? "Stopped " : "Started ") + x.name + "."); load(); }, (e) => setError(message(e)));
   const rowMenu = (x: WorkQueue) => [
-    { key: "open", label: "Open its items", onSelect: () => setDialog({ kind: "open", id: x.id }) },
+    { key: "open", label: "Open its items", onSelect: () => setOpenId(x.id) },
     ...(can("queues.work") ? [{ key: "on", label: x.processing ? "Stop processing" : "Start processing", onSelect: () => { setOn(x); } }] : []),
     ...(can("queues.manage") ? [{ key: "edit", label: "Change settings…", onSelect: () => setDialog({ kind: "edit", queue: x }) }] : []),
   ];
+
+  const form = dialog?.kind === "edit" && <QueueForm api={api} queue={dialog.queue} pools={pools} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); setVersion((v) => v + 1); load(); }} />;
+  if (openId) return (
+    <section className="st-page cc-home cc-explorer" aria-label="Work queue">
+      <QueueView key={openId} api={api} id={openId} version={version} can={can} poolName={poolName} onClose={() => { setOpenId(null); load(); }} onNotice={onNotice}
+        onEdit={(x) => setDialog({ kind: "edit", queue: x })} />
+      {form}
+    </section>
+  );
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-queues-title">
@@ -71,31 +85,28 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Work queues list">
             <thead><tr><th scope="col">Processing</th><th scope="col">Queue</th><th scope="col">Agent</th><th scope="col">Runner pool</th><th scope="col">Waiting</th>
-              <th scope="col">In progress</th><th scope="col">Succeeded</th><th scope="col">Failed</th><th scope="col">Service level</th>{can("queues.work") && <th scope="col"><span className="st-sr">Start or stop</span></th>}
+              <th scope="col">In progress</th><th scope="col">Succeeded</th><th scope="col">Failed</th><th scope="col">Service level</th>
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((x) => (
-                <tr key={x.id} onClick={rowClick(() => setDialog({ kind: "open", id: x.id }))}>
+                <tr key={x.id} onClick={rowClick(() => setOpenId(x.id))}>
                   <td><span className={"cc-pill is-" + (x.processing ? "active" : "disabled")}><span className="cc-pill-dot" />{x.processing ? "On" : "Off"}</span></td>
-                  <td><strong>{x.name}</strong>{x.description && <div className="cc-list-sub">{x.description}</div>}</td>
-                  <td>{agentName(x.bot_path)}</td><td>{poolName(x.pool_id)}</td>
+                  <td title={x.description ?? undefined}><strong>{x.name}</strong></td>
+                  <td>{x.bot_path && <span className="cc-aico" aria-hidden="true">A</span>}{agentName(x.bot_path)}</td><td>{poolName(x.pool_id)}</td>
                   <td>{waiting(x)}{(x.counts.review ?? 0) > 0 && <span className="cc-tag">{x.counts.review} to validate</span>}</td>
                   <td>{x.counts.in_progress ?? 0}</td><td>{x.counts.success ?? 0}</td><td className={(x.counts.failed ?? 0) > 0 ? "cc-err" : undefined}>{x.counts.failed ?? 0}</td>
                   <td>{x.sla_minutes ? x.sla_minutes + " min" : <span className="cc-none">None</span>}{x.overdue ? <span className="cc-risk">{x.overdue} past it</span> : null}</td>
-                  {can("queues.work") && <td><Button kind="plain" onClick={() => setOn(x)}>{x.processing ? "Stop" : "Start"}</Button></td>}
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + x.name} items={rowMenu(x)} /></td>
                 </tr>
               ))}
-              {list && !shown.length && <tr className="is-static"><td colSpan={11} className="cc-none">{list.length ? "No queues match." : "No work queues yet. Create one, then add items by hand, from a CSV or Excel file, or from an agent."}</td></tr>}
-              {!list && !error && <tr className="is-static"><td colSpan={11} className="cc-none" role="status">Loading…</td></tr>}
+              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No queues match." : "No work queues yet. Create one, then add items by hand, from a CSV or Excel file, or from an agent."}</td></tr>}
+              {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>
         </div>
         {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{q.trim() ? " matching" : ""} · refreshes every 10 seconds</span></div>}
       </div>
-      {dialog?.kind === "edit" && <QueueForm api={api} queue={dialog.queue} pools={pools} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
-      {dialog?.kind === "open" && <QueueView key={dialog.id} api={api} id={dialog.id} can={can} poolName={poolName} onClose={() => { setDialog(null); load(); }} onNotice={onNotice}
-        onEdit={(x) => setDialog({ kind: "edit", queue: x })} />}
+      {form}
       {dialog?.kind === "models" && <Models api={api} manage={can("queues.manage")} onClose={() => setDialog(null)} onNotice={onNotice} />}
       {dialog?.kind === "import" && <ImportQueue api={api} onClose={() => setDialog(null)} onDone={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
@@ -134,75 +145,130 @@ function QueueForm({ api, queue: x, pools, onClose, onSaved }: { api: CrApi; que
   );
 }
 
-/** A queue: facts, counts by status, its items with actions, and the queue's own actions. */
-function QueueView({ api, id, can, poolName, onClose, onNotice, onEdit }: { api: CrApi; id: string; can: (p: string) => boolean; poolName: (id?: string | null) => string;
+/** A queue's own page, as AA's View queue: Work items (status chips, one line per item), Details and Members; its actions on top. */
+function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit }: { api: CrApi; id: string; version: number; can: (p: string) => boolean; poolName: (id?: string | null) => string;
   onClose: () => void; onNotice: (t: string) => void; onEdit: (q: WorkQueue) => void }) {
   type Full = Awaited<ReturnType<CrApi["queue"]>>;
   const [x, setX] = useState<Full | null>(null);
   const [items, setItems] = useState<{ items: WorkItem[]; total: number } | null>(null);
+  const [tab, setTab] = useState<"items" | "details" | "members">("items");
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
   const [sub, setSub] = useState<null | "add" | "members" | "defer" | "delete" | { item: string } | { validate: WorkItem }>(null);
   const load = useCallback(async () => {
     try { const [q, it] = await Promise.all([api.queue(id), api.queueItems(id, status, search.trim())]); setX(q); setItems(it); setError(null); setSelected((s) => s.filter((k) => it.items.some((i) => i.id === k))); }
     catch (e) { setError(message(e)); }
-  }, [api, id, status, search]);
+  }, [api, id, status, search, version]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t); }, [load]);
   useEffect(() => { const t = setInterval(() => { if (!sub) load(); }, 10_000); return () => clearInterval(t); }, [load, sub]);
   const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { onNotice(done); setSelected([]); setSub(null); load(); }, (e) => setError(message(e)));
-  if (!x) return <Dialog open title="Work queue" width={960} onClose={onClose} footer={null}>{error ? <p className="st-alert" role="alert">{error}</p> : <p className="st-muted" role="status">Loading…</p>}</Dialog>;
+  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the work queues" onClick={onClose}>×</button>;
+  if (!x) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="Work queue"><div className="cc-agent-head"><h1>Work queue</h1><span className="ov-fill" />{close}</div>
+    {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
   const work = can("queues.work"), manage = can("queues.manage");
+  const total = Object.values(x.counts).reduce((n, v) => n + (v ?? 0), 0);
+  const open = (it: WorkItem) => setSub(it.status === "review" && work ? { validate: it } : { item: it.id });
+  const more = [...(manage ? [{ key: "edit", label: "Edit settings", onSelect: () => onEdit(x) }] : []),
+    { key: "export", label: "Export definition", onSelect: () => { api.exportQueue(x.id, true).then((d) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + ".ooaqueue.json", JSON.stringify(d, null, 2), "application/json"), (e) => setError(message(e))); } },
+    ...(manage ? [{ key: "delete", label: "Delete queue…", separatorBefore: true, onSelect: () => setConfirm(true) }] : [])];
+  const itemMenu = (it: WorkItem) => [{ key: "open", label: it.status === "review" && work ? "Validate" : "Open", onSelect: () => open(it) },
+    ...(work && ["failed", "deferred"].includes(it.status) ? [{ key: "retry", label: "Retry", onSelect: () => { act(() => api.itemsAction(x.id, "retry", [it.id]), "Retrying " + (it.reference || it.id) + "."); } }] : [])];
+  const statusPill = (it: WorkItem) => {
+    const tone: Record<string, string> = { new: "stopped", in_progress: "pending", review: "pending", retry: "pending", success: "success", failed: "failed", deferred: "stopped" };
+    return <><span className={"cc-pill is-" + (tone[it.status] ?? "pending")}>{it.status === "success" || it.status === "failed" ? <span className="cc-pill-dot" /> : null}{statusName(it.status)}</span>
+      {it.status === "deferred" && <span className="cc-none"> {it.defer_until ? "until " + when(it.defer_until) : "until Retry"}</span>}</>;
+  };
   return (
-    <Dialog open title={"Work queue " + x.name} width={1000} onClose={onClose} footer={<>
-      {manage && <Button kind="danger" onClick={() => act(() => api.deleteQueue(x.id), "Deleted " + x.name + ".").then(onClose)}>Delete queue</Button>}
-      {manage && <Button kind="secondary" onClick={() => onEdit(x)}>Edit</Button>}
-      {manage && <Button kind="secondary" onClick={() => setSub("members")}>Members</Button>}
-      <Button kind="secondary" onClick={() => api.exportQueue(x.id, true).then((d) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + ".ooaqueue.json", JSON.stringify(d, null, 2), "application/json"), (e) => setError(message(e)))}>Export definition</Button>
-      <span className="st-bar-fill" />
-      {work && <Button kind="secondary" onClick={() => act(() => api.setProcessing(x.id, !x.processing), (x.processing ? "Stopped " : "Started ") + x.name + ".")}>{x.processing ? "Stop processing" : "Start processing"}</Button>}
-      {work && <Button kind="primary" onClick={() => setSub("add")}>Add items</Button>}</>}>
+    <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Work queue " + x.name}>
+      <div className="cc-agent-head">
+        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Work queues</button> ›</span>
+        <h1>{x.name}</h1>
+        <span className={"cc-pill is-" + (x.processing ? "active" : "disabled")}><span className="cc-pill-dot" />Processing {x.processing ? "on" : "off"}</span>
+        <span className="cc-none">{agentName(x.bot_path)} · pool {poolName(x.pool_id)} · {x.sla_minutes ? "service level " + x.sla_minutes + " min" : "no service level"}
+          {x.overdue ? <> · <span className="cc-risk">{x.overdue} past it</span></> : null}</span>
+        <span className="ov-fill" />
+        {work && <Button kind="secondary" onClick={() => act(() => api.setProcessing(x.id, !x.processing), (x.processing ? "Stopped " : "Started ") + x.name + ".")}>{x.processing ? "Stop processing" : "Start processing"}</Button>}
+        {work && <Button kind="primary" onClick={() => setSub("add")}>Add items</Button>}
+        <RowMenu label={"More for " + x.name} items={more} />
+        {close}
+      </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <dl className="cc-facts cc-facts-wide">
-        <dt>Agent</dt><dd>{agentName(x.bot_path)}</dd><dt>Runner pool</dt><dd>{poolName(x.pool_id)}</dd>
-        <dt>Attempts per item</dt><dd>{x.max_attempts}</dd><dt>Service level</dt><dd>{x.sla_minutes ? x.sla_minutes + " minutes" : "None"}</dd>
-        <dt>Processing</dt><dd>{x.processing ? "On" + (x.run_as ? " (as " + x.run_as + ")" : "") : "Off"}</dd>{x.model && <><dt>Item model</dt><dd>{x.model.name}</dd></>}
-      </dl>
-      <div className="cc-inline cc-counts" role="group" aria-label="Items by status">
-        {STATUS.filter(([k]) => k !== "review" || x.counts.review).map(([k, l]) => <button key={k} type="button" className="st-page-tab" aria-pressed={status === k} onClick={() => setStatus(status === k ? "" : k)}>
-          {l}<span className="cc-count">{x.counts[k] ?? 0}</span></button>)}
-        {x.overdue ? <span className="cc-risk">{x.overdue} past the service level</span> : null}
+      {confirm && <div className="st-alert cc-inline" role="alert"><span>Delete the queue {x.name} and all its items?</span>
+        <Button kind="danger" onClick={() => act(() => api.deleteQueue(x.id), "Deleted " + x.name + ".").then(onClose)}>Delete</Button><Button kind="plain" onClick={() => setConfirm(false)}>Cancel</Button></div>}
+      <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this queue">
+        {([["items", "Work items (" + total + ")"], ["details", "Details"], ["members", "Members (" + x.members.length + ")"]] as const).map(([k, l]) =>
+          <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
       </div>
-      <div className="cc-bar" role="toolbar" aria-label="Item actions">
-        <TextInput type="search" aria-label="Search items" placeholder="Search reference or data" value={search} onChange={(e) => setSearch(e.target.value)} />
-        {selected.length > 0 && <span className="cc-chosen">{selected.length} selected</span>}
-        {work && <>
-          <Button kind="secondary" disabled={!selected.length} onClick={() => act(() => api.itemsAction(x.id, "retry", selected), "Retrying " + selected.length + " item(s).")}>Retry</Button>
-          <Button kind="secondary" disabled={!selected.length} onClick={() => setSub("defer")}>Defer</Button>
-          <Button kind="danger" disabled={!selected.length} onClick={() => setSub("delete")}>Delete</Button>
-        </>}
-        <span className="st-bar-fill" />
-        <Button kind="secondary" onClick={() => api.itemsCsv(x.id, status).then((t) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + "-items.csv", t, "text/csv"), (e) => setError(message(e)))}>Export CSV</Button>
-      </div>
-      <table className="cc-list-table" aria-label="Work items">
-        <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all items" checked={!!items?.items.length && items.items.every((i) => selected.includes(i.id))}
-          onChange={(e) => setSelected(e.target.checked ? (items?.items ?? []).map((i) => i.id) : [])} /></th>
-          <th scope="col">Reference</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Priority</th><th scope="col">Added</th><th scope="col">Result or error</th></tr></thead>
-        <tbody>
-          {(items?.items ?? []).map((it) => (
-            <tr key={it.id} className={selected.includes(it.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input,button")) setSub(it.status === "review" && work ? { validate: it } : { item: it.id }); }}>
-              <td className="cc-check"><input type="checkbox" aria-label={"Select " + (it.reference || it.id)} checked={selected.includes(it.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, it.id] : selected.filter((k) => k !== it.id))} /></td>
-              <td>{it.reference || it.id}<div className="st-muted cc-clip">{short(it.data)}</div></td>
-              <td>{statusName(it.status)}{it.status === "deferred" && <div className="st-muted">{it.defer_until ? "until " + when(it.defer_until) : "until Retry"}</div>}</td>
-              <td>{it.attempts}</td><td>{it.priority}</td><td>{when(it.created)}</td>
-              <td className={it.error ? "cc-err cc-clip" : "cc-clip"}>{it.error ? short(it.error) : short(it.result)}</td>
-            </tr>
-          ))}
-          {items && !items.items.length && <tr className="is-static"><td colSpan={7} className="cc-none">No items{status ? " " + statusName(status).toLowerCase() : ""}.</td></tr>}
-        </tbody>
-      </table>
-      {items && items.total > items.items.length && <p className="st-muted">Showing {items.items.length} of {items.total}. Narrow the search to see more.</p>}
+      {tab === "items" && <>
+        <div className="cc-inline cc-counts cc-queue-chips" role="group" aria-label="Items by status">
+          <button type="button" className="st-page-tab" aria-pressed={status === ""} onClick={() => setStatus("")}>All<span className="cc-count">{total}</span></button>
+          {STATUS.filter(([k]) => k !== "review" || x.counts.review).map(([k, l]) => <button key={k} type="button" className="st-page-tab" aria-pressed={status === k} onClick={() => setStatus(status === k ? "" : k)}>
+            {l}<span className="cc-count">{x.counts[k] ?? 0}</span></button>)}
+        </div>
+        <div className="cc-list-tools cc-pane-tools">
+          <div className="cc-list-filters" role="group" aria-label="Filters">
+            <span className="cc-list-search"><TextInput type="search" aria-label="Search items" placeholder="Search reference or data" value={search} onChange={(e) => setSearch(e.target.value)} /></span>
+          </div>
+          <div className="cc-list-right" role="toolbar" aria-label="Work items tools">
+            <Button kind="plain" onClick={() => api.itemsCsv(x.id, status).then((t) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + "-items.csv", t, "text/csv"), (e) => setError(message(e)))}>Export CSV</Button>
+            <RefreshButton onClick={load} />
+          </div>
+        </div>
+        {selected.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Item actions">
+          <strong>{selected.length} selected</strong>
+          {work && <>
+            <Button kind="secondary" onClick={() => act(() => api.itemsAction(x.id, "retry", selected), "Retrying " + selected.length + " item(s).")}>Retry</Button>
+            <Button kind="secondary" onClick={() => setSub("defer")}>Defer</Button>
+            <Button kind="danger" onClick={() => setSub("delete")}>Delete</Button>
+          </>}
+          <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+        </div>}
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Work items">
+            <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all items" checked={!!items?.items.length && items.items.every((i) => selected.includes(i.id))}
+              onChange={(e) => setSelected(e.target.checked ? (items?.items ?? []).map((i) => i.id) : [])} /></th>
+              <th scope="col">Reference</th><th scope="col">Data</th><th scope="col">Status</th><th scope="col" className="cc-num">Attempts</th><th scope="col" className="cc-num">Priority</th>
+              <th scope="col">Added</th><th scope="col">Result or error</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+            <tbody>
+              {(items?.items ?? []).map((it) => (
+                <tr key={it.id} className={selected.includes(it.id) ? "is-selected" : ""} onClick={rowClick(() => open(it))}>
+                  <td className="cc-check"><input type="checkbox" aria-label={"Select " + (it.reference || it.id)} checked={selected.includes(it.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, it.id] : selected.filter((k) => k !== it.id))} /></td>
+                  <td><strong>{it.reference || it.id}</strong></td>
+                  <td className="ui-mono cc-clip cc-queue-data" title={short(it.data)}>{short(it.data)}</td>
+                  <td>{statusPill(it)}</td>
+                  <td className="cc-num">{it.attempts}</td><td className="cc-num">{it.priority}</td><td>{when(it.created)}</td>
+                  <td className={it.error ? "cc-err cc-clip" : "cc-clip"} title={it.error ? short(it.error) : short(it.result)}>{it.error ? short(it.error) : short(it.result) || <span className="cc-none">–</span>}</td>
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + (it.reference || it.id)} items={itemMenu(it)} /></td>
+                </tr>
+              ))}
+              {items && !items.items.length && <tr className="is-static"><td colSpan={9} className="cc-none">No items{status ? " " + statusName(status).toLowerCase() : ""}.</td></tr>}
+              {!items && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {items && <div className="cc-list-pager"><span>{items.items.length} of {items.total} item{items.total === 1 ? "" : "s"}{status ? ", " + statusName(status).toLowerCase() + " only" : ""}
+          {items.total > items.items.length ? " · narrow the search to see more" : ""}</span></div>}
+      </>}
+      {tab === "details" && <div className="cc-agent-tab">
+        {x.description && <p>{x.description}</p>}
+        <dl className="cc-facts cc-facts-wide">
+          <dt>Agent</dt><dd>{agentName(x.bot_path)}</dd><dt>Runner pool</dt><dd>{poolName(x.pool_id)}</dd>
+          <dt>Attempts per item</dt><dd>{x.max_attempts}</dd><dt>Service level</dt><dd>{x.sla_minutes ? x.sla_minutes + " minutes" : "None"}</dd>
+          <dt>Processing</dt><dd>{x.processing ? "On" + (x.run_as ? " (as " + x.run_as + ")" : "") : "Off"}</dd>{x.model && <><dt>Item model</dt><dd>{x.model.name}</dd></>}
+        </dl>
+        {manage && <span><Button kind="secondary" onClick={() => onEdit(x)}>Edit settings</Button></span>}
+      </div>}
+      {tab === "members" && <div className="cc-agent-tab">
+        <table className="cc-list-table" aria-label="Queue members">
+          <thead><tr><th scope="col">Member</th><th scope="col">As</th></tr></thead>
+          <tbody>{x.members.map((m) => <tr key={m.principal + m.member_role} className="is-static"><td>{m.principal}</td><td>{MEMBER_ROLES[m.member_role] ?? m.member_role}</td></tr>)}
+            {!x.members.length && <tr className="is-static"><td colSpan={2} className="cc-none">No members: everyone whose role allows it can use this queue.</td></tr>}</tbody>
+        </table>
+        {manage && <span><Button kind="secondary" onClick={() => setSub("members")}>Change members</Button></span>}
+      </div>}
 
       {sub === "add" && <AddItems api={api} queue={x} onClose={() => setSub(null)} onAdded={(n) => { onNotice("Added " + n + " item(s) to " + x.name + "."); setSub(null); load(); }} />}
       {sub === "members" && <Members api={api} queue={x} onClose={() => setSub(null)} onSaved={() => { onNotice("Saved the members of " + x.name + "."); setSub(null); load(); }} />}
@@ -212,7 +278,7 @@ function QueueView({ api, id, can, poolName, onClose, onNotice, onEdit }: { api:
         <p>Delete {selected.length} item(s)? Items being worked on are kept.</p></Dialog>}
       {sub && typeof sub === "object" && "item" in sub && <ItemDialog api={api} queue={x} itemId={sub.item} canWork={work} onClose={() => setSub(null)} onSaved={(t) => { onNotice(t); setSub(null); load(); }} />}
       {sub && typeof sub === "object" && "validate" in sub && <Validate api={api} queue={x} item={sub.validate} onClose={() => setSub(null)} onDone={(t) => { onNotice(t); setSub(null); load(); }} />}
-    </Dialog>
+    </div>
   );
 }
 
