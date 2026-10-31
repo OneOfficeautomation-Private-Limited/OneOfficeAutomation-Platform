@@ -707,7 +707,7 @@ describe("rebuilt Command Center console", () => {
     location.hash = "";
   });
 
-  it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by folder and agent, minutes saved changed in place", async () => {
+  it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by agent and folder in tabs, minutes saved changed in a dialog", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.production"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Value");
@@ -715,12 +715,20 @@ describe("rebuilt Command Center console", () => {
     expect(within(figs).getByText("Hours saved · +25% on before")).toBeTruthy();
     expect(within(figs).getByText(/7,500/)).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Advice" })).getByText(/1 agent has no minutes saved of its own and the default is 0/)).toBeTruthy();
-    expect(within(screen.getByRole("table", { name: "Value by folder" })).getByText("5×")).toBeTruthy();   // 12.5 hours saved for 2.5 hours run
+    // By agent and By folder in one tabbed panel; a folder row shows its agents
+    fireEvent.click(screen.getByRole("tab", { name: /^By folder/ }));
+    const folders = screen.getByRole("table", { name: "Value by folder" });
+    expect(within(folders).getByText("5×")).toBeTruthy();   // 12.5 hours saved for 2.5 hours run
+    fireEvent.click(within(folders).getByText("HR"));
     const agents = screen.getByRole("table", { name: "Value by agent" });
+    expect(within(agents).getAllByRole("row")).toHaveLength(2);   // the heading and Onboard
     expect(within(agents).getByText("0 (default)", { exact: false })).toBeTruthy();
-    fireEvent.click(within(agents).getByRole("button", { name: "Change minutes saved by Onboard" }));
-    fireEvent.change(within(agents).getByLabelText("Minutes saved a run by Onboard"), { target: { value: "15" } });
-    await act(async () => { fireEvent.click(within(agents).getByRole("button", { name: "Save" })); });
+    // minutes saved changed in a small dialog, from the agent's menu
+    fireEvent.keyDown(within(agents).getByRole("button", { name: "Actions for Onboard" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Change minutes saved…" }));
+    const d = await screen.findByRole("dialog", { name: "Minutes saved a run by Onboard" });
+    fireEvent.change(within(d).getByLabelText("Minutes of manual work one successful run saves"), { target: { value: "15" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/roi", body: { path: "HR/Onboard.flow.json", minutes_saved: 15 } }));
     expect(await screen.findByText("Onboard: 15 minutes saved a run.")).toBeTruthy();
   });
