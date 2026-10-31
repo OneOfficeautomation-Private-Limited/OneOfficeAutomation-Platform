@@ -58,7 +58,7 @@ export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   ];
   const nums = (r: ValueRow) => <><td className="cc-num">{r.hours} h</td><td className="cc-num">{money(r.money)}</td><td className="cc-num">{r.run_hours} h</td><td className="cc-num">{perRunHour(r)}</td></>;
   const numHeads = [["Hours saved", "Each successful run × its agent's minutes saved"], ["Money saved", "Hours saved × the cost of an hour (Settings)"],
-    ["Run time", "Hours the agents ran"], ["Saved per hour run", "Hours saved for each hour run"]].map(([h, tip]) => <th key={h} scope="col" className="cc-num" title={tip}>{h}</th>);
+    ["Run time", "Hours the agents ran"], ["Per hour run", "Hours saved for each hour the agents ran"]].map(([h, tip]) => <th key={h} scope="col" className="cc-num" title={tip}>{h}</th>);
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-val-title">
@@ -98,7 +98,7 @@ export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
           </div>
           <div className="cc-list-scroll">
             {tab === "agents" ? <table className="cc-list-table" aria-label="Value by agent">
-              <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col" className="cc-num">Successful runs</th><th scope="col" className="cc-num">Minutes saved a run</th>{numHeads}
+              <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col" className="cc-num" title="Successful runs counted">Runs</th><th scope="col" className="cc-num" title="Minutes of manual work one successful run saves">Minutes a run</th>{numHeads}
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>{agents.map((a) => <tr key={a.bot_path} className={canChange ? undefined : "is-static"} title={canChange ? "Change minutes saved a run" : undefined} onClick={rowClick(() => { if (canChange) setEditing(a); })}>
                 <td><span className="cc-aico" aria-hidden="true">A</span>{name(a.bot_path)}</td><td>{folderOf(a.bot_path)}</td><td className="cc-num">{a.runs}</td>
@@ -112,7 +112,7 @@ export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                 {!v.folders.length && <tr className="is-static"><td colSpan={6} className="cc-none">No successful runs in the period.</td></tr>}</tbody>
             </table>}
           </div>
-          <p className="cc-list-hint cc-qi-foot">Hours saved: each successful run × its agent's minutes saved. Money: hours × {v.hourly_cost ? money(v.hourly_cost) : "the cost of an hour"}. Saved per hour run: hours saved for each hour the agent ran.</p>
+          <p className="cc-list-hint cc-qi-foot">Hours saved: each successful run × its agent's minutes saved. Money: hours × {v.hourly_cost ? money(v.hourly_cost) : "the cost of an hour"}. Per hour run: hours saved for each hour the agent ran.</p>
         </div>
       </>}
       {editing && <MinutesSaved api={api} a={editing} onClose={() => setEditing(null)} onSaved={(t) => { onNotice(t); setEditing(null); load(); }} />}
