@@ -500,3 +500,5 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-agent-wrap.is-full:fullscreen { position: static; }
 .st-edit-bar { padding-right: 44px; }
 .st-edit-bar .st-full-btn { position: absolute; top: 4px; right: 6px; }   /* always the top right corner of the canvas */
+/* Column lines in every table of the product (31 Oct 2026), so cells line up by eye as in AA's and UiPath's grids */
+.st-table th + th, .st-table td + td, .st-cap-table th + th, .st-cap-table td + td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }

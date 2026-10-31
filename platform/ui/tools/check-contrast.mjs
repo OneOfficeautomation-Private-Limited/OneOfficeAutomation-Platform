@@ -44,6 +44,8 @@ const LINES = [
   [themes["console light"], "--ui-border", "--ui-bg", 3], [themes["console light"], "--ui-border", "--ui-soft", 2.5],
   [themes["console light"], "--ui-line", "--ui-bg", 2], [themes["console light"], "--ui-divider", "--ui-bg", 1.5],
   [frame, "--ui-frame-guide", "--ui-frame-2", 2.5], [frame, "--ui-frame-line", "--ui-frame-2", 2],
+  // column lines in every table, in both themes and the console
+  [themes.light, "--ui-col-line", "--ui-bg", 1.45], [themes.dark, "--ui-col-line", "--ui-bg", 1.45], [themes["console light"], "--ui-col-line", "--ui-bg", 1.45],
 ];
 for (const [t, fg, bg, need] of LINES) {
   if (!t[fg] || !t[bg]) { console.error(`console lines: ${fg} or ${bg} is missing`); failed++; continue; }
