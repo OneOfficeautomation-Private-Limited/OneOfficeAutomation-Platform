@@ -36,6 +36,11 @@ export type QueueInsight = { id: string; name: string; sla_minutes?: number | nu
   counts: Record<string, number>; waiting: number; oldest_waiting?: string | null; overdue?: number; at_risk?: number; added: number; finished: number; success: number; failed: number;
   success_rate: number | null; in_time_rate: number | null; per_hour: number; avg_handling_ms: number | null; avg_wait_ms: number | null; runners_needed: number | null;
   errors: { code: string; items: number }[]; by_day: { day: string; added: number; finished: number }[] };
+/** Value saved for a period (GET analytics/value): hours of manual work and money, per agent, folder and day, and the period before. */
+export type ValueRow = { runs: number; minutes: number; hours: number; money: number; run_hours: number };
+export type ValueReport = { currency: string; hourly_cost: number; default_minutes_saved: number; successful_runs: number; hours: number; money: number; full_time_people: number;
+  previous_hours: number; previous_money: number; agents: (ValueRow & { bot_path: string; minutes_each: number; own_value: boolean })[]; folders: (ValueRow & { folder: string })[];
+  by_day: (ValueRow & { day: string })[] };
 /** One agent's statistics for a period (GET analytics/agent). */
 export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
   last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
@@ -485,6 +490,9 @@ export class CrApi {
   async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
   testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
   async queueInsights(params: Record<string, string>) { return (await this.call<{ queues?: QueueInsight[] }>("GET", "analytics/queues?" + new URLSearchParams(params).toString())).queues ?? []; }
+  value(params: Record<string, string>) { return this.call<ValueReport>("GET", "analytics/value?" + new URLSearchParams(params).toString()); }
+  /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */
+  async setMinutesSaved(path: string, minutes: number | null) { await this.call("POST", "repo/roi", { path, minutes_saved: minutes }); }
   capacity(params: Record<string, string>) { return this.call<Capacity>("GET", "analytics/capacity?" + new URLSearchParams(params).toString()); }
   agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }
   agentVariables(path: string, days: string) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams({ path, days }).toString()); }

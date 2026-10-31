@@ -92,6 +92,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
         { ...base, id: "q1", name: "Vendor invoices", sla_minutes: 240, processing: false, pool_id: "p1", waiting: 4, oldest_waiting: new Date(Date.now() - 3 * 3_600_000).toISOString(), overdue: 1, at_risk: 1, runners_needed: 1 },
         { ...base, id: "q2", name: "Claims", sla_minutes: 60, processing: true, pool_id: "p1", waiting: 10, oldest_waiting: null, overdue: 2, at_risk: 0, runners_needed: 3, errors: [] }] });
     }
+    if (route === "analytics/value") return ok({ currency: "INR", hourly_cost: 600, default_minutes_saved: 0, successful_runs: 40, hours: 12.5, money: 7500, full_time_people: 0.3,
+      previous_hours: 10, previous_money: 6000,
+      agents: [{ bot_path: "Finance/Invoice intake.flow.json", runs: 30, minutes: 750, hours: 12.5, money: 7500, run_hours: 2.5, minutes_each: 25, own_value: true },
+        { bot_path: "HR/Onboard.flow.json", runs: 10, minutes: 0, hours: 0, money: 0, run_hours: 0.5, minutes_each: 0, own_value: false }],
+      folders: [{ folder: "Finance", runs: 30, minutes: 750, hours: 12.5, money: 7500, run_hours: 2.5 }, { folder: "HR", runs: 10, minutes: 0, hours: 0, money: 0, run_hours: 0.5 }],
+      by_day: [{ day: "2026-10-30", runs: 40, minutes: 750, hours: 12.5, money: 7500, run_hours: 3 }] });
+    if (route === "repo/roi") return ok({ ok: true });
     if (route === "analytics/agent") return ok({ bot_path: "Finance/Invoice intake.flow.json", totals: { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000,
       avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }, by_day: [], errors: [{ code: "EXCEL.NOT_FOUND", runs: 1 }], by_runner: [{ runner: "Runner A", runs: 5, success: 3, failed: 1, stopped: 1,
       active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }], last_run: { id: "r4", status: "success", created: "2026-10-30T08:00:00Z" },
@@ -579,6 +586,24 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(table).getByRole("button", { name: "Vendor invoices" }));
     expect(within(screen.getByRole("table", { name: "Why items failed in Vendor invoices" })).getByText("FILE.NOT_FOUND")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Added and finished per day in Vendor invoices" })).getByText("3 added · 2 finished")).toBeTruthy();
+  });
+
+  it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by folder and agent, minutes saved changed in place", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.production"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Value" }));
+    const figs = await screen.findByRole("group", { name: "Figures" });
+    expect(within(figs).getByText("Hours saved · +25% on before")).toBeTruthy();
+    expect(within(figs).getByText(/7,500/)).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Advice" })).getByText(/1 agent has no minutes saved of its own and the default is 0/)).toBeTruthy();
+    expect(within(screen.getByRole("table", { name: "Value by folder" })).getByText("5×")).toBeTruthy();   // 12.5 hours saved for 2.5 hours run
+    const agents = screen.getByRole("table", { name: "Value by agent" });
+    expect(within(agents).getByText("0 (default)", { exact: false })).toBeTruthy();
+    fireEvent.click(within(agents).getByRole("button", { name: "Change minutes saved by Onboard" }));
+    fireEvent.change(within(agents).getByLabelText("Minutes saved a run by Onboard"), { target: { value: "15" } });
+    await act(async () => { fireEvent.click(within(agents).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/roi", body: { path: "HR/Onboard.flow.json", minutes_saved: 15 } }));
+    expect(await screen.findByText("Onboard: 15 minutes saved a run.")).toBeTruthy();
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

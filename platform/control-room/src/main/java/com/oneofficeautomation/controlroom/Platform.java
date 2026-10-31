@@ -35,6 +35,8 @@ public final class Platform {
         DEFAULTS.put("max_upload_mb", 25);   // Excel work items and licence files travel inside JSON, as Base64
         DEFAULTS.put("queue_poll_seconds", 15);
         DEFAULTS.put("default_minutes_saved", 0);
+        DEFAULTS.put("hourly_cost", 0);   // what an hour of the manual work costs, for money saved (Value)
+        DEFAULTS.put("currency", "");     // its currency, ISO 4217 (INR, USD, EUR)
         DEFAULTS.put("public_url", "");
         DEFAULTS.put("sso_issuer", "");
         DEFAULTS.put("sso_client_id", "");
@@ -104,6 +106,7 @@ public final class Platform {
         Map.entry("max_upload_mb", new long[] { 1, 1024 }),
         Map.entry("queue_poll_seconds", new long[] { 3, 3600 }),
         Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
+        Map.entry("hourly_cost", new long[] { 0, 100000 }),
         Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),
         Map.entry("run_retention_days", new long[] { 0, 36500 }),
         Map.entry("run_log_retention_days", new long[] { 0, 36500 }),
@@ -211,6 +214,7 @@ public final class Platform {
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
                 if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))
                     throw new OoaException("CR.BAD_INPUT", "The Git remote is an https:// address, for example https://github.com/acme/agents.git");
+                if (k.equals("currency") && !s.isEmpty() && !s.matches("[A-Z]{3}")) throw new OoaException("CR.BAD_INPUT", "The currency is a three-letter code, for example INR, USD or EUR");
                 if (k.equals("git_branch") && !s.isEmpty() && !s.matches("[A-Za-z0-9._/-]{1,100}") ) throw new OoaException("CR.BAD_INPUT", "Not a branch name: " + s);
                 if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))

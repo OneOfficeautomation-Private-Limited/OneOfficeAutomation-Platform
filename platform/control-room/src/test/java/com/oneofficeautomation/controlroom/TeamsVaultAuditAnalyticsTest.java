@@ -261,4 +261,33 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals(1L, qi.get("runners_needed"));     // 3 waiting x 10 minutes within an hour
         assertEquals(List.of(Map.of("code", "FILE.NOT_FOUND", "items", 1L)), qi.get("errors"));
     }
+
+    @Test @Order(7)
+    @SuppressWarnings("unchecked")
+    void valueSaved() {
+        db.update("DELETE FROM runs");
+        assertEquals("CR.BAD_INPUT", code(() -> cr.platform.updateSettings(admin, Map.of("currency", "rupees"), null)));
+        cr.platform.updateSettings(admin, Map.of("default_minutes_saved", 10, "hourly_cost", 600, "currency", "INR"), null);
+        cr.platform.setMinutesSaved(admin, "Finance/Pay.flow.json", 30, null);
+        Instant t = Instant.now().minusSeconds(3600);
+        Object[][] rows = {{"Finance/Pay.flow.json", "success"}, {"Finance/Pay.flow.json", "success"}, {"Finance/Pay.flow.json", "failed"}, {"Ops/Backup.flow.json", "success"}};
+        int n = 0;
+        for (Object[] r : rows)
+            db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, duration_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "run_v" + (++n), r[0], 1, device, r[1], "{}", "admin", "manual", t.plusSeconds(n), false, false, 60_000L);
+        Map<String, Object> v = cr.analytics.value(admin, Map.of("days", "1"));
+        assertEquals("INR", v.get("currency"));
+        assertEquals(3L, v.get("successful_runs"));
+        assertEquals(1.2, v.get("hours"));   // 2 x 30 + 10 minutes
+        assertEquals(700L, v.get("money"));  // 70 minutes at 600 an hour
+        List<Map<String, Object>> agents = (List<Map<String, Object>>) v.get("agents");
+        assertEquals("Finance/Pay.flow.json", agents.get(0).get("bot_path"));
+        assertEquals(true, agents.get(0).get("own_value"));
+        assertEquals(false, agents.get(1).get("own_value"));   // Backup uses the default
+        assertEquals(List.of("Finance", "Ops"), ((List<Map<String, Object>>) v.get("folders")).stream().map(x -> x.get("folder")).toList());
+        assertEquals(0.0, v.get("previous_hours"));
+        // carl may not see Finance: only Backup's 10 minutes count for him
+        assertEquals(0.2, cr.analytics.value(carl, Map.of("days", "1")).get("hours"));
+        cr.platform.updateSettings(admin, Map.of("default_minutes_saved", 0, "hourly_cost", 0, "currency", ""), null);
+    }
 }

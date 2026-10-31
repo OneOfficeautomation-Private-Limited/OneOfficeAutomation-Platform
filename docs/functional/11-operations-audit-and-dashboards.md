@@ -30,7 +30,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 | --- | --- |
 | Build | Agent Repository (`repo.view`), Agent Templates (`repo.view`), One AgentStudio (new tab), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Agent ToolKits (`toolkits.manage`) |
-| Operational Insights | Overview, Alerts, Operations, Runner capacity, Dashboards (`analytics.view`); Work queue insights (`queues.view`) |
+| Operational Insights | Overview, Alerts, Operations, Runner capacity, Value, Dashboards (`analytics.view`); Work queue insights (`queues.view`) |
 | Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Credential vault (members), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Model Connections (`connections.manage`), Prompt Skills (`skills.view`), Document Automation (`repo.view`), AI governance (`audit.view`) |
 
@@ -142,6 +142,22 @@ when processing is off while items wait, when a queue needs more runners than it
 `GET /api/analytics/queues?days=&from=&to=&tz=` returns `queues`, each with `counts`, `waiting`, `oldest_waiting`,
 `overdue`, `at_risk`, `added`, `finished`, `success`, `failed`, `success_rate`, `in_time_rate`, `per_hour`,
 `avg_handling_ms`, `avg_wait_ms`, `runners_needed`, `errors` and `by_day`.
+
+### Value
+
+**Value** (`analytics.view`, new console) shows the manual work the agents' successful runs saved over the last 7 days
+to a year: hours (each successful run x its agent's minutes saved, or `default_minutes_saved`), money (hours x
+`hourly_cost`, in `currency`; both in Settings > General) and full-time people (40 hours a week), each compared with the
+period before; hours saved per day (per week for long periods); and per top folder and per agent the successful runs,
+hours, money, run time and hours saved per hour run. People with `repo.production` change an agent's minutes saved in
+place (or return it to the default). Advice is shown while agents count nothing (no minutes of their own and a default
+of 0) or no hourly cost is set. A run counts once, so a work queue's items are not counted twice. Only agents the
+viewer may see count.
+
+`GET /api/analytics/value?days=&from=&to=&tz=` returns `currency`, `hourly_cost`, `default_minutes_saved`,
+`successful_runs`, `hours`, `money`, `full_time_people`, `previous_hours`, `previous_money`, `agents` (with
+`minutes_each` and `own_value`), `folders` and `by_day`. `POST /api/repo/roi` `{path, minutes_saved}` (null for the
+default) sets an agent's minutes.
 
 ### Alerts
 

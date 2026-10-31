@@ -19,6 +19,8 @@ const SECTIONS: Section[] = [
     { key: "max_upload_mb", label: "Largest upload (MB)", kind: "number", min: 1, max: 1024 },
     { key: "queue_poll_seconds", label: "Work queue check interval (seconds)", kind: "number", min: 3, max: 3600 },
     { key: "default_minutes_saved", label: "Minutes saved per successful run (for agents without their own value)", kind: "number", min: 0, max: 100000 },
+    { key: "hourly_cost", label: "Cost of an hour of the manual work (for money saved in Value)", kind: "number", min: 0, max: 100000 },
+    { key: "currency", label: "Its currency (a three-letter code: INR, USD, EUR)", kind: "text", placeholder: "INR" },
     { key: "template_catalog_url", label: "Template catalogue (an https address of templates.json; off: none)", kind: "text" },
   ] },
   { id: "security", title: "Sign-in and security", about: "Sessions, passwords, two-step sign-in, and which addresses may connect. This computer is always allowed.", settings: [

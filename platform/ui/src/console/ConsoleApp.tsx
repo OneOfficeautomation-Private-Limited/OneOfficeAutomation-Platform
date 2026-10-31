@@ -32,11 +32,12 @@ import { Capacity } from "./Capacity";
 import { Operations } from "./Operations";
 import { Overview } from "./Overview";
 import { QueueInsights } from "./QueueInsights";
+import { Value } from "./Value";
 import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "alerts", "apitasks", "audit", "automation", "capacity", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "operations", "queueinsights", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["activity", "alerts", "apitasks", "audit", "automation", "capacity", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "operations", "queueinsights", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "value", "workflows", "users"]);
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, "").split("?")[0]; return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -98,6 +99,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "operations" && <Operations api={api} user={user} />}
           {page === "capacity" && <Capacity api={api} user={user} />}
           {page === "queueinsights" && <QueueInsights api={api} user={user} />}
+          {page === "value" && <Value api={api} user={user} onNotice={setNotice} />}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}
           {page === "docautomation" && <DocumentAutomation api={api} />}

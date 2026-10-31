@@ -208,7 +208,9 @@ checked first, nothing is installed unless all pass, and agents already there ar
 ## 15. Minutes saved
 
 Each agent can record the minutes of manual work one successful run saves (setting it needs `repo.production`). Home
-and Operations show the hours saved; agents without a value use `default_minutes_saved` from Settings.
+and Operations show the hours saved; agents without a value use `default_minutes_saved` from Settings. Operational
+Insights > **Value** shows the hours and money saved (with `hourly_cost` and `currency` from Settings) and changes the
+minutes in place ([document 11](11-operations-audit-and-dashboards.md)).
 
 ## 16. Permissions and audit
 

@@ -345,6 +345,80 @@ public final class Analytics {
         return Map.of("queues", out, "from", from.toString(), "to", to.toString(), "time_zone", zone.getId());
     }
 
+    /**
+     * Value (AA's Center of Excellence dashboard, UiPath Insights' Business ROI): for the period, the hours of manual work
+     * the agents' successful runs saved (each agent's minutes saved per run, or the default in Settings) and the money
+     * (hours x the hourly cost in Settings), per agent and per top folder, per day (in tz), the same totals for the period
+     * before, and the hours as full-time people (40 hours a week). A run counts once, so work queues are not counted
+     * again. Only agents the caller may see.
+     */
+    public Map<String, Object> value(User by, Map<String, String> q) {
+        List<Run> runs = runs(by, q);
+        int dflt = cr.platform.intSetting("default_minutes_saved"), cost = cr.platform.intSetting("hourly_cost");
+        Map<String, Integer> own = new HashMap<>();
+        for (Map<String, Object> b : db.query("SELECT path, minutes_saved FROM bots WHERE minutes_saved IS NOT NULL")) own.put((String) b.get("path"), ((Number) b.get("minutes_saved")).intValue());
+        ZoneId zone = zone(q.get("tz"));
+        Map<String, long[]> agents = new TreeMap<>(), folders = new TreeMap<>(), days = new TreeMap<>();   // successful runs, minutes saved, run ms
+        long minutes = 0, ok = 0;
+        for (Run r : runs) {
+            if (!"success".equals(r.status())) continue;
+            int per = own.getOrDefault(r.bot(), dflt);
+            ok++; minutes += per;
+            for (long[] c : List.of(agents.computeIfAbsent(r.bot(), k -> new long[3]), folders.computeIfAbsent(r.bot().contains("/") ? r.bot().substring(0, r.bot().indexOf('/')) : "(top)", k -> new long[3]),
+                    days.computeIfAbsent(dayIn(r.created(), zone), k -> new long[3]))) { c[0]++; c[1] += per; c[2] += r.ms() == null ? 0 : r.ms(); }
+        }
+        List<Map<String, Object>> perAgent = new ArrayList<>();
+        for (var e : agents.entrySet()) {
+            Map<String, Object> m = valueRow(e.getValue(), cost);
+            m.put("bot_path", e.getKey());
+            m.put("minutes_each", own.getOrDefault(e.getKey(), dflt));
+            m.put("own_value", own.containsKey(e.getKey()));
+            perAgent.add(m);
+        }
+        perAgent.sort(by("minutes"));
+        List<Map<String, Object>> perFolder = new ArrayList<>();
+        for (var e : folders.entrySet()) { Map<String, Object> m = valueRow(e.getValue(), cost); m.put("folder", e.getKey()); perFolder.add(m); }
+        perFolder.sort(by("minutes"));
+        List<Map<String, Object>> perDay = new ArrayList<>();
+        for (var e : days.entrySet()) { Map<String, Object> m = valueRow(e.getValue(), cost); m.put("day", e.getKey()); perDay.add(m); }
+        // the period before, as long as this one
+        Instant[] pd = period(q);
+        Map<String, String> before = new HashMap<>(q);
+        before.remove("days");
+        before.put("from", pd[0].minus(Duration.between(pd[0], pd[1])).toString());
+        before.put("to", pd[0].toString());
+        long prevMinutes = 0;
+        for (Run r : runs(by, before)) if ("success".equals(r.status())) prevMinutes += own.getOrDefault(r.bot(), dflt);
+        double periodHours = Math.max(1.0 / 60, Duration.between(pd[0], pd[1]).toMinutes() / 60.0);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("currency", String.valueOf(cr.platform.setting("currency")));
+        m.put("hourly_cost", cost);
+        m.put("default_minutes_saved", dflt);
+        m.put("successful_runs", ok);
+        m.put("hours", Math.round(minutes / 6.0) / 10.0);
+        m.put("money", Math.round(minutes / 60.0 * cost));
+        m.put("full_time_people", Math.round(10.0 * (minutes / 60.0) / (periodHours * 40.0 / 168.0)) / 10.0);
+        m.put("previous_hours", Math.round(prevMinutes / 6.0) / 10.0);
+        m.put("previous_money", Math.round(prevMinutes / 60.0 * cost));
+        m.put("agents", perAgent);
+        m.put("folders", perFolder);
+        m.put("by_day", perDay);
+        return m;
+    }
+
+    private static Map<String, Object> valueRow(long[] c, int cost) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("runs", c[0]); m.put("minutes", c[1]);
+        m.put("hours", Math.round(c[1] / 6.0) / 10.0);
+        m.put("money", Math.round(c[1] / 60.0 * cost));
+        m.put("run_hours", Math.round(c[2] / 360_000.0) / 10.0);
+        return m;
+    }
+
+    static String dayIn(String created, ZoneId zone) {
+        try { return Instant.parse(created).atZone(zone).toLocalDate().toString(); } catch (DateTimeException e) { return created.substring(0, Math.min(10, created.length())); }
+    }
+
     /** One agent: its totals and timing, runs per day, the errors it fails with, its runners and its last runs. */
     public Map<String, Object> agent(User by, String path, Map<String, String> q) {
         cr.folders.require(by, path, "view", "view agent statistics");
