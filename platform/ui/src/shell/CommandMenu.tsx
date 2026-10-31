@@ -89,8 +89,8 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
           }
           return (
             <div key={sec.label} className="st-menu-section">
-              <button type="button" className="st-menu-heading" aria-expanded={open} onClick={() => toggle(sec.label)}>
-                <IconTile name={sec.icon} color={sec.color} size={20} />{sec.label}
+              <button type="button" className="st-menu-heading" aria-expanded={open} title={sec.label} onClick={() => toggle(sec.label)}>
+                <IconTile name={sec.icon} color={sec.color} size={20} /><span className="st-menu-label">{sec.label}</span>
                 <span className="st-menu-caret"><Icon name={open ? "chevronDown" : "chevronRight"} size={12} stroke={2.6} /></span>
               </button>
               {open && <ul className="st-menu-items">{sec.pages.map((it) => <li key={it.id}>{item(it)}</li>)}</ul>}

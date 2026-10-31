@@ -254,7 +254,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
             {chosen.length > 0 ? <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button> : <Button kind="plain" onClick={() => setClip(null)}>Cancel</Button>}
           </div>}
           <table className="st-table">
-            <thead><tr><th scope="col" className="st-check"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
+            <thead><tr><th scope="col" className="st-tick"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
               onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {listed.map(({ node: n, why }) => {
@@ -264,7 +264,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                     onContextMenu={(e) => { e.preventDefault(); if (!isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(n.path); }}
                     draggable onDragStart={(e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify(dragPaths(n.path))); e.dataTransfer.effectAllowed = "move"; }}
                     onDragOver={n.type === "folder" ? (e) => e.preventDefault() : undefined} onDrop={n.type === "folder" ? (e) => { e.preventDefault(); dropOn(n.path, e); } : undefined}>
-                    <td className="st-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={"Select " + displayName(n)} checked={isSel}
+                    <td className="st-tick" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={"Select " + displayName(n)} checked={isSel}
                       onChange={(e) => { setSelected(e.target.checked ? [...selected, n.path] : selected.filter((x) => x !== n.path)); setAnchor(n.path); }} /></td>
                     <td><span className="st-name">{n.type === "folder"
                       ? <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="#f5c451" stroke="#a16207" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg>

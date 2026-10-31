@@ -757,7 +757,7 @@ describe("new Studio", () => {
     return tree;
   };
   // the name cell: the first one, or the second after a tick box
-  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td:not(.st-check)")?.textContent?.startsWith(name))!;
+  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td:not(.st-tick)")?.textContent?.startsWith(name))!;
 
   it("deletes an item and a folder to the trash after asking", async () => {
     const { api, created } = fakeServer();

@@ -531,7 +531,10 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-items-tools .ui-select { height: 30px; }
 .st-items-fill { flex: 1; }
 .st-items-bar.is-chosen { background: var(--ui-selected); }
-.st-items .st-check { width: 28px; }
+.st-items .st-tick { width: 28px; }
+.st-items-tools .ui-select, .st-items-tools select { width: auto; flex: none; }
+.st-menu.is-console { overflow-x: hidden; }
+.st-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-name { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
 .st-name .st-link, .st-name > span { color: var(--ui-text); font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-name .st-link:hover { text-decoration: underline; }
