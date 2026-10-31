@@ -1079,8 +1079,11 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(await within(list).findByText("Agent runner"));
     const b = await screen.findByRole("dialog", { name: "Built-in role Agent runner" });
     expect((within(b).getByLabelText("Start runs") as HTMLInputElement).disabled).toBe(true);
-    expect(within(within(b).getByRole("list", { name: "Held by" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["VIvic", "OLold"]);
+    expect(screen.queryByRole("table", { name: "Roles list" })).toBeNull();   // a role opens as its own page
     expect(within(b).queryByRole("group", { name: "All or none in Runs" })).toBeNull();
+    fireEvent.click(within(b).getByRole("tab", { name: "Held by (2)" }));
+    const held = within(b).getByRole("table", { name: "Held by" });
+    expect(within(held).getAllByRole("row").slice(1).map((tr) => tr.textContent)).toEqual(["VIvic", "OLold"]);
     fireEvent.click(within(b).getByRole("button", { name: "Copy as a new role" }));
     const c = await screen.findByRole("dialog", { name: "Create role" });
     expect((within(c).getByLabelText("Start runs") as HTMLInputElement).checked).toBe(true);
@@ -1100,12 +1103,22 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create role" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "roles/night_runner",
       body: { description: "Copy of Agent runner", permissions: ["repo.view", "runs.view", "runs.start", "repo.checkin"] } }));
-    // custom roles can be selected and deleted from the bar that shows while they are ticked
-    fireEvent.click(await within(list).findByLabelText("Select auditor"));
+    // custom roles can be selected and deleted from the bar that shows while they are ticked; deleting asks first
+    const roles = await screen.findByRole("table", { name: "Roles list" });
+    fireEvent.click(await within(roles).findByLabelText("Select auditor"));
     const bar = screen.getByRole("toolbar", { name: "Role actions" });
     fireEvent.click(within(bar).getByRole("button", { name: "Delete" }));
-    await act(async () => { fireEvent.click(within(await screen.findByRole("dialog", { name: "Delete roles" })).getByRole("button", { name: "Delete" })); });
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toContain("Delete auditor?");
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "roles/auditor" }));
+    // a person in Held by opens on their page in Users
+    fireEvent.click(await within(screen.getByRole("table", { name: "Roles list" })).findByText("Agent runner"));
+    fireEvent.click(await screen.findByRole("tab", { name: "Held by (2)" }));
+    await act(async () => { fireEvent.click(within(screen.getByRole("table", { name: "Held by" })).getByText("vic")); });
+    expect(await screen.findByRole("dialog", { name: "User vic" })).toBeTruthy();
+    expect(location.hash).toBe("#/users");
+    location.hash = "";
   });
 
   it("shows Teams as UiPath's groups: leads, members and where each team is used; members changed, a team created", async () => {

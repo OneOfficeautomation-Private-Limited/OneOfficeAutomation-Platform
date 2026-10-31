@@ -63,6 +63,8 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<null | { kind: "columns" | "create" | "delete" } | { kind: "password"; username: string; password: string }>(null);
   const [openId, setOpenId] = useState<string | null>(null);   // a person's own page, in place of the list
+  // #/users?user=<name> (a role's Held by) opens that person once the list is read
+  const [linked, setLinked] = useState(() => new URLSearchParams(location.hash.split("?")[1] ?? "").get("user"));
   const [ask, setAsk] = useState<Ask | null>(null);   // a reset, asked first
   const canRunners = user.permissions.includes("devices.view");
 
@@ -78,6 +80,13 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     } catch (e) { setError(message(e)); }
   }, [api, canRunners]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!linked || !people) return;
+    const p = people.find((x) => x.username === linked);
+    if (p) setOpenId(p.id);
+    setLinked(null);
+    if (location.hash.includes("?")) history.replaceState(null, "", "#/users");
+  }, [linked, people]);
 
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
