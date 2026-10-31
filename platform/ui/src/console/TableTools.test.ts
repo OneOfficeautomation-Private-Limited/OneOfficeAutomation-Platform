@@ -9,7 +9,7 @@ describe("column tools on every table", () => {
 
   it("adds a filter to each named column, filters by the values ticked, keeps day rows, and skips tick-box and menu columns", async () => {
     document.body.innerHTML = `<table class="cc-list-table" aria-label="Runs"><thead><tr><th class="cc-check"></th><th>Status</th><th>Agent</th><th class="cc-list-menu"><span class="st-sr">Actions</span></th></tr></thead>
-      <tbody><tr><td colspan="4">Wed 28 Oct</td></tr>
+      <tbody><tr class="cc-au-day is-static"><td colspan="4">Wed 28 Oct</td></tr>
       <tr><td></td><td>Failed</td><td>Sort tickets</td><td></td></tr><tr><td></td><td>Completed</td><td>Sort tickets</td><td></td></tr><tr><td></td><td>Failed</td><td>Collect emails</td><td></td></tr></tbody></table>`;
     stop = enableTableTools(document);
     await frame();
@@ -23,9 +23,11 @@ describe("column tools on every table", () => {
     expect(boxes.map((b) => b.value)).toEqual(["Completed", "Failed"]);
     boxes[0].click();   // untick Completed
     const rows = [...document.querySelectorAll("tbody tr")];
-    expect(rows.map((r) => (r as HTMLElement).hidden)).toEqual([false, false, true, false]);   // the day row stays
+    expect(rows.map((r) => (r as HTMLElement).hidden)).toEqual([false, false, true, false]);   // the day heading stays while a row under it shows
     expect(buttons[0].classList.contains("is-on")).toBe(true);
 
+    for (const b of boxes) if (b.checked) b.click();   // nothing ticked: the day heading goes too
+    expect(rows.map((r) => (r as HTMLElement).hidden)).toEqual([true, true, true, true]);
     (pop.querySelector("button") as HTMLButtonElement).click();   // Clear filter
     expect(rows.every((r) => !(r as HTMLElement).hidden)).toBe(true);
     expect(buttons[0].classList.contains("is-on")).toBe(false);

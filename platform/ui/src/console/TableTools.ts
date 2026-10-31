@@ -44,6 +44,14 @@ export function enableTableTools(root: Document | HTMLElement = document): () =>
       const hide = !!f && [...f.entries()].some(([i, allowed]) => !allowed.has(cellText(r.cells[i])));
       if (r.hidden !== hide) r.hidden = hide;
     }
+    // a day heading (a row across the table) shows only while a row under it does
+    let heading: HTMLTableRowElement | null = null, any = false;
+    const close = () => { if (heading && heading.hidden !== !any) heading.hidden = !any; };
+    for (const r of [...(t.tBodies[0]?.rows ?? [])]) {
+      if (r.classList.contains("cc-au-day")) { close(); heading = r; any = false; }
+      else if (r.cells.length === head.cells.length && !r.hidden) any = true;
+    }
+    close();
     for (const [i, th] of [...head.cells].entries()) th.querySelector(".cc-col-filter")?.classList.toggle("is-on", !!f?.has(i));
   };
 
