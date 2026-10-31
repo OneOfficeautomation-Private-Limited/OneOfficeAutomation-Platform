@@ -72,7 +72,7 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-log-t { display: inline-block; min-width: 64px; color: var(--ui-text-2); }
 pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-count { margin-left: 6px; padding: 0 6px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; }
-.cc-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 20px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
+.cc-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 20px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
 .cc-filters .ui-input { width: auto; min-width: 150px; }
 .cc-filters input[type="search"] { min-width: 260px; }
 .cc-date { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-text-2); }
@@ -272,22 +272,32 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
  * Design plan, step 2 (colours, option B chosen 31 Oct 2026): the console's light theme on a soft blue canvas with navy
  * text, so neither the page nor its text reads grey; cards and tables stay white. One AgentStudio keeps theme.css as it
  * is. tools/check-contrast.mjs checks this block too (every text colour at least 4.5:1 on every surface).
+ * Borders and lines, option B "strong" (chosen 31 Oct 2026 on the canvas): three steps, all checked by the same tool.
+ * --ui-border frames panels, dialogs and tab rows (3:1 on white); --ui-line sits under page titles and table headers;
+ * --ui-divider is the light line between rows.
  */
 :root:not([data-theme="dark"]) .cc-app {
   --ui-text: #14233d;
   --ui-text-2: #2e4366;
   --ui-text-3: #3f5478;
-  --ui-border: #c5d3e8;
-  --ui-divider: #dde5f2;
+  --ui-border: #7f95bb;
+  --ui-line: #9fb3d3;
+  --ui-divider: #c5d3e8;
   --ui-soft: #edf2fa;
   --ui-row-hover: #eef3fb;
   --ui-heading: #0b1a33;
 }
+/* The dark menu's section lines and guide line, lifted the same way (2.2:1 and 2.8:1 on the menu, were 1.5 and 1.8). */
+.st-app.cc-app {
+  --ui-frame-line: #46536b;
+  --ui-frame-guide: #56637b;
+}
 :root:not([data-theme="dark"]) .cc-app .cc-main h1, :root:not([data-theme="dark"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
-:root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: #d3deee; }
+:root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: var(--ui-line); }
+.cc-app .st-page-head, .cc-app .st-table th { border-bottom-color: var(--ui-line, var(--ui-border)); }
 /* Overview, dense and clean (design plan step 2b): one grid, four text styles (18 / 14 / 13 / 12, numbers 20), 12 px spacing, 32 px rows */
 .ov { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
-.ov-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
+.ov-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .ov-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .ov-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: help; }
 .ov-fill { flex: 1; }
@@ -314,10 +324,10 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .ov-main { grid-column: span 8; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ov-side { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 @media (max-width: 1100px) { .ov-main, .ov-side { grid-column: 1 / -1; } .ov-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
-.ov-ph { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
+.ov-ph { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
 .ov-ph h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .ov-more { margin-left: auto; font-size: 12px; }
-.ov-tabs { display: flex; align-items: stretch; height: 40px; padding: 0 4px; border-bottom: 1px solid var(--ui-divider); overflow-x: auto; }
+.ov-tabs { display: flex; align-items: stretch; height: 40px; padding: 0 4px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); overflow-x: auto; }
 .ov-tab { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ui-text); font: inherit; cursor: pointer; white-space: nowrap; }
 .ov-tab[aria-selected="true"] { border-bottom-color: var(--ui-accent); font-weight: 600; }
 .ov-cnt { min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 11px; font-weight: 700; text-align: center; }
@@ -330,7 +340,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .ov-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ui-success); flex: none; }
 .ov-dot.is-bad { background: #d14343; }
 .ov-t { width: 100%; border-collapse: collapse; }
-.ov-t th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
+.ov-t th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); white-space: nowrap; }
 .ov-t td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
 .ov-t tr:last-child td { border-bottom: 0; }
 .ov-t .n { text-align: right; }
@@ -342,7 +352,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 /* The list page pattern (design plan step 3, approved on the canvas; Users first): title row, one toolbar, a bulk bar only
    while rows are ticked, a compact table with one status pill style and a row menu, a pager. Same grid and type as Overview. */
 .cc-list { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px; }
-.cc-list-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
+.cc-list-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .cc-list-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .cc-list-count { color: var(--ui-text-2); }
 .cc-list-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -363,7 +373,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-bulk .ui-btn { height: 26px; }
 .cc-list-scroll { overflow-x: auto; }
 .cc-list-table { width: 100%; border-collapse: collapse; }
-.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
+.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); white-space: nowrap; }
 .cc-list-table td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
 .cc-list-table tbody tr { cursor: pointer; }
 .cc-list-table tbody tr:hover td { background: var(--ui-row-hover); }
@@ -371,7 +381,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-table tbody tr.is-static { cursor: default; }
 .cc-list-table .cc-check { width: 24px; padding-right: 0; }
 .cc-list-menu { width: 34px; text-align: right; padding-right: 8px !important; }
-.cc-list-pager { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-top: 1px solid var(--ui-divider); font-size: 12px; color: var(--ui-text-2); }
+.cc-list-pager { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-top: 1px solid var(--ui-line, var(--ui-divider)); font-size: 12px; color: var(--ui-text-2); }
 .cc-list-rows { display: inline-flex; align-items: center; gap: 6px; }
 .cc-list-rows select { height: 26px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: var(--ui-bg); color: var(--ui-text); font: inherit; }
 .cc-list-hint { margin: 0; color: var(--ui-text-2); }

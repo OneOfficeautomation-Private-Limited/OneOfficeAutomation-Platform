@@ -37,5 +37,18 @@ for (const [name, t] of Object.entries(themes)) {
     if (r < need) { console.error(`${name}: ${fg} ${t[fg]} on ${bg} ${t[bg]} is ${r.toFixed(2)}:1, needs ${need}:1`); failed++; }
   }
 }
+// The console's borders and lines (option B, "strong"): panel edges 3:1 on white, title and header lines 2:1, row lines
+// 1.5:1; the dark menu's guide line 2.5:1 and section lines 2:1 on the menu.
+const frame = { ...light, ...block(".st-app.cc-app", consoleCss, "console.css") };
+const LINES = [
+  [themes["console light"], "--ui-border", "--ui-bg", 3], [themes["console light"], "--ui-border", "--ui-soft", 2.5],
+  [themes["console light"], "--ui-line", "--ui-bg", 2], [themes["console light"], "--ui-divider", "--ui-bg", 1.5],
+  [frame, "--ui-frame-guide", "--ui-frame-2", 2.5], [frame, "--ui-frame-line", "--ui-frame-2", 2],
+];
+for (const [t, fg, bg, need] of LINES) {
+  if (!t[fg] || !t[bg]) { console.error(`console lines: ${fg} or ${bg} is missing`); failed++; continue; }
+  const r = ratio(t[fg], t[bg]);
+  if (r < need) { console.error(`console lines: ${fg} ${t[fg]} on ${bg} ${t[bg]} is ${r.toFixed(2)}:1, needs ${need}:1`); failed++; }
+}
 if (failed) { console.error(failed + " colour pair(s) below the contrast rule"); process.exit(1); }
-console.log(`Contrast: ${PAIRS.length} pairs pass in the light and the dark theme and the console's light colours.`);
+console.log(`Contrast: ${PAIRS.length} pairs pass in the light and the dark theme and the console's light colours; the console's ${LINES.length} border and line steps pass.`);
