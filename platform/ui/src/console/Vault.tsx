@@ -11,6 +11,8 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * from a company vault (HashiCorp, Azure Key Vault, AWS Secrets Manager, CyberArk), as UiPath's credential stores.
  * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count, tabs, one toolbar, Delete in a bar only
  * while rows are ticked, a ⋯ menu per row.
+ * Review round 2 (1 Nov 2026): a credential and a vault folder open as their own pages (Attributes, Details, Your values;
+ * Credentials, Members, Company vault), and deleting a credential or a folder and unlinking the company vault ask first.
  */
 type Tab = "credentials" | "folders" | "requests";
 const EXT: Record<string, string> = { hashicorp: "HashiCorp Vault", azure_keyvault: "Azure Key Vault", aws_secrets_manager: "AWS Secrets Manager", cyberark_ccp: "CyberArk Central Credential Provider" };
@@ -51,7 +53,10 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<string[]>([]);
-  const [dialog, setDialog] = useState<null | { kind: "create-credential" | "create-folder" | "key" | "delete" } | { kind: "credential"; folder: VaultFolder; name: string } | { kind: "folder"; folder: VaultFolder }>(null);
+  const [dialog, setDialog] = useState<null | { kind: "create-credential" | "create-folder" | "key" }>(null);
+  // a credential's or a vault folder's own page, in place of the list
+  const [page, setPage] = useState<null | { kind: "credential"; folder: string; name: string } | { kind: "folder"; folder: string }>(null);
+  const [asking, setAsking] = useState(false);   // deleting the ticked credentials, asked first
   const can = (p: string) => user.permissions.includes(p);
 
   const load = useCallback(async () => {
@@ -84,6 +89,16 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     onNotice("Exported " + shown.length + " credential" + (shown.length === 1 ? "" : "s") + " (names only, never values).");
   };
   const canCreateCredential = (folders ?? []).some((x) => writer(x) || x.my_role === "participant");
+  const folderOf = (n: string) => (folders ?? []).find((x) => x.name === n);
+  const pageFolder = page ? folderOf(page.folder) : undefined;
+  if (page && pageFolder) return (
+    <section className="st-page cc-home cc-explorer" aria-label="Credential vault">
+      {page.kind === "credential"
+        ? <CredentialPage key={page.folder + "/" + page.name} api={api} folder={pageFolder} name={page.name} onClose={() => { setPage(null); load(); }} onChanged={(t) => { onNotice(t); load(); }} />
+        : <FolderPage key={page.folder} api={api} folder={pageFolder} onClose={() => { setPage(null); load(); }} onOpen={(n) => setPage({ kind: "credential", folder: page.folder, name: n })}
+          onChanged={(t, close) => { onNotice(t); if (close) setPage(null); load(); }} />}
+    </section>
+  );
   const filtered = Object.values(f).some(Boolean);
   const missing = rows.filter((r) => r.userAttrs.some((a) => !r.mine.includes(a))).length;
 
@@ -119,9 +134,11 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
           </div>
         </div>
         <div className="cc-list-panel">
-          {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Credential actions">
+          {asking && chosen.length > 0 && <AskBar text={"Delete " + chosen.map(key).join(", ") + " with all their values, everyone's own values too? Agents that use them fail until they are made again."}
+            yes="Delete" onYes={() => { setAsking(false); removeChosen(); }} onNo={() => setAsking(false)} />}
+          {chosen.length > 0 && !asking && <div className="cc-list-bulk" role="toolbar" aria-label="Credential actions">
             <strong>{chosen.length} selected</strong>
-            <Button kind="danger" disabled={!chosen.every(canDelete)} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
+            <Button kind="danger" disabled={!chosen.every(canDelete)} onClick={() => setAsking(true)}>Delete</Button>
             {!chosen.every(canDelete) && <span>You may delete only credentials in folders you manage, or your own.</span>}
             <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
           </div>}
@@ -133,7 +150,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={key(r)} className={selected.includes(key(r)) ? "is-selected" : ""} onClick={rowClick(() => setDialog({ kind: "credential", folder: r.folder, name: r.name }))}>
+                  <tr key={key(r)} className={selected.includes(key(r)) ? "is-selected" : ""} onClick={rowClick(() => setPage({ kind: "credential", folder: r.folder.name, name: r.name }))}>
                     <td className="cc-check"><input type="checkbox" aria-label={"Select " + key(r)} checked={selected.includes(key(r))}
                       onChange={(e) => setSelected(e.target.checked ? [...selected, key(r)] : selected.filter((x) => x !== key(r)))} /></td>
                     <td><strong>{r.name}</strong></td>
@@ -144,8 +161,8 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                     <td>{r.owner || <span className="cc-none">–</span>}</td>
                     <td>{r.updated ? when(r.updated) + (r.updatedBy ? " by " + r.updatedBy : "") : <span className="cc-none">–</span>}</td>
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + key(r)} items={[
-                      { key: "open", label: "Open", onSelect: () => setDialog({ kind: "credential", folder: r.folder, name: r.name }) },
-                      { key: "delete", label: "Delete…", disabled: !canDelete(r), separatorBefore: true, onSelect: () => { setSelected([key(r)]); setDialog({ kind: "delete" }); } }]} /></td>
+                      { key: "open", label: "Open", onSelect: () => setPage({ kind: "credential", folder: r.folder.name, name: r.name }) },
+                      { key: "delete", label: "Delete…", disabled: !canDelete(r), separatorBefore: true, onSelect: () => { setSelected([key(r)]); setAsking(true); } }]} /></td>
                   </tr>
                 ))}
                 {folders && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{rows.length ? "No credentials match." : "No credentials you can see yet."}</td></tr>}
@@ -166,14 +183,14 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {(folders ?? []).map((x) => (
-                  <tr key={x.name} onClick={rowClick(() => setDialog({ kind: "folder", folder: x }))}>
+                  <tr key={x.name} onClick={rowClick(() => setPage({ kind: "folder", folder: x.name }))}>
                     <td><strong>{x.name}</strong></td><td>{x.description || <span className="cc-none">–</span>}</td>
                     <td><span className="cc-role">{PLACE[x.my_role]}</span></td><td>{list(x.owners).join(", ")}</td>
                     <td>{list(x.consumers).length ? list(x.consumers).map((c) => <code key={c} className="cc-code">{c}</code>) : <span className="cc-none">None</span>}</td>
                     <td>{new Set(x.credentials.map((c) => c.name)).size}</td>
                     <td>{x.external ? EXT[x.external.provider] ?? x.external.provider : <span className="cc-none">Not linked</span>}</td>
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + x.name} items={[
-                      { key: "open", label: "Open", onSelect: () => setDialog({ kind: "folder", folder: x }) },
+                      { key: "open", label: "Open", onSelect: () => setPage({ kind: "folder", folder: x.name }) },
                       { key: "show", label: "Show its credentials", onSelect: () => { setF({ folder: x.name }); setTab("credentials"); } }]} /></td>
                   </tr>
                 ))}
@@ -187,20 +204,9 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
       {tab === "requests" && <Requests api={api} requests={requests} onSaved={(t) => { onNotice(t); load(); }} />}
 
-      {dialog?.kind === "delete" && (
-        <Dialog open title="Delete credentials" width={460} onClose={() => setDialog(null)} footer={<>
-          <Button kind="plain" onClick={() => setDialog(null)}>Cancel</Button>
-          <Button kind="danger" onClick={() => { setDialog(null); removeChosen(); }}>Delete</Button></>}>
-          <p>Delete {chosen.map(key).join(", ")} with all their values, everyone's own values too? Agents that use them fail until they are made again.</p>
-        </Dialog>
-      )}
-      {dialog?.kind === "credential" && <CredentialDialog key={dialog.folder.name + "/" + dialog.name} api={api} folder={dialog.folder} name={dialog.name}
-        onClose={() => setDialog(null)} onChanged={(t) => { onNotice(t); load(); }} />}
       {dialog?.kind === "create-credential" && <CreateCredential api={api} folders={(folders ?? []).filter((x) => writer(x) || x.my_role === "participant")}
         onClose={() => setDialog(null)} onCreated={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "create-folder" && <CreateFolder api={api} onClose={() => setDialog(null)} onCreated={(t) => { onNotice(t); setDialog(null); setTab("folders"); load(); }} />}
-      {dialog?.kind === "folder" && <FolderDialog key={dialog.folder.name} api={api} folder={dialog.folder} onClose={() => setDialog(null)}
-        onChanged={(t, close) => { onNotice(t); if (close) setDialog(null); load(); }} />}
       {dialog?.kind === "key" && <VaultKey api={api} onClose={() => setDialog(null)} onNotice={onNotice} />}
     </section>
   );
@@ -288,14 +294,23 @@ function CreateCredential({ api, folders, onClose, onCreated }: { api: CrApi; fo
   );
 }
 
-/** A credential's attributes with their flags, an owner and description; the caller's own values; changing a value. */
-function CredentialDialog({ api, folder, name, onClose, onChanged }: { api: CrApi; folder: VaultFolder; name: string; onClose: () => void; onChanged: (t: string) => void }) {
+/** The bar that asks before something that cannot be undone. */
+function AskBar({ text, yes, onYes, onNo }: { text: string; yes: string; onYes: () => void; onNo: () => void }) {
+  return <div className="cc-list-bulk" role="alert"><span>{text}</span>
+    <Button kind="danger" onClick={onYes}>{yes}</Button><Button kind="plain" onClick={onNo}>Cancel</Button></div>;
+}
+
+/** A credential's own page: its attributes (values, masked, password fields only), its details, and the caller's own values. */
+function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi; folder: VaultFolder; name: string; onClose: () => void; onChanged: (t: string) => void }) {
   const [c, setC] = useState<VaultCredential | null>(null);
+  const [tab, setTab] = useState<"attributes" | "details" | "mine">("attributes");
   const [info, setInfo] = useState<Record<string, { description: string; masked: boolean; password_only: boolean }>>({});
   const [meta, setMeta] = useState({ description: "", owner: "", own: "" });
   const [values, setValues] = useState<Record<string, string>>({});
   const [shown, setShown] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const ref = folder.name + "/" + name;
   const read = useCallback(() => api.credential(folder.name, name).then((x) => {
     setC(x);
     setInfo(Object.fromEntries(x.attributes.filter((a) => !a.user_provided).map((a) => [a.attribute, { description: a.description ?? "", masked: a.masked !== false, password_only: !!a.password_only }])));
@@ -303,51 +318,73 @@ function CredentialDialog({ api, folder, name, onClose, onChanged }: { api: CrAp
   }, (e) => setError(message(e))), [api, folder.name, name]);
   useEffect(() => { read(); }, [read]);
   const run = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); setError(null); onChanged(done); await read(); } catch (e) { setError(message(e)); } };
-  if (!c) return <Dialog open title={"Credential " + folder.name + "/" + name} width={760} onClose={onClose} footer={null}>{error ? <p className="st-alert" role="alert">{error}</p> : <p className="st-muted" role="status">Loading…</p>}</Dialog>;
+  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the vault" onClick={onClose}>×</button>;
+  if (!c) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Credential " + ref}><div className="cc-agent-head"><h1>{ref}</h1><span className="ov-fill" />{close}</div>
+    {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
   const ownerEditable = writer(folder);
-  const ref = folder.name + "/" + name;
+  const own = c.attributes.filter((a) => a.user_provided);
   const save = () => run(() => api.saveCredentialDetails(folder.name, name, { description: meta.description, user_attributes: list(meta.own), attributes_info: info,
     ...(ownerEditable && meta.owner.trim() && meta.owner.trim() !== c.owner ? { owner: meta.owner.trim() } : {}) }), "Saved the details of " + ref + ".");
+  const remove = async () => { setAsking(false); try { await api.deleteCredential(folder.name, name); onChanged("Deleted " + ref + "."); onClose(); } catch (e) { setError(message(e)); } };
+  const tabs: ["attributes" | "details" | "mine", string][] = [["attributes", "Attributes (" + c.attributes.length + ")"], ["details", "Details"], ...(own.length ? [["mine", "Your values"] as ["mine", string]] : [])];
   return (
-    <Dialog open title={"Credential " + ref} width={820} onClose={onClose} footer={c.can_change || ownerEditable ? <>
-      {c.can_change && <Button kind="danger" onClick={() => run(() => api.deleteCredential(folder.name, name), "Deleted " + ref + ".").then(onClose)}>Delete</Button>}
-      <span className="st-bar-fill" /><Button kind="primary" onClick={save}>Save details</Button></> : null}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      <table className="st-table" aria-label="Attributes">
-        <thead><tr><th scope="col">Attribute</th><th scope="col">Value</th><th scope="col">Description</th><th scope="col">Masked</th><th scope="col">Password fields only</th><th scope="col">Updated</th></tr></thead>
-        <tbody>
-          {c.attributes.map((a) => {
-            const i = info[a.attribute];
-            return (
-              <tr key={a.attribute}>
-                <td className="ui-mono">{ref}/{a.attribute}</td>
-                <td>{a.user_provided ? "Each person's own" + (c.my_values.includes(a.attribute) ? " (yours is set)" : " (yours is not set)")
-                  : <span className="cc-inline">
-                    {c.can_change && <TextInput type="password" autoComplete="new-password" aria-label={"New value of " + a.attribute} placeholder="new value" value={values[a.attribute] ?? ""}
-                      onChange={(e) => setValues({ ...values, [a.attribute]: e.target.value })} />}
-                    {c.can_change && values[a.attribute] && <Button kind="secondary" onClick={() => run(() => api.setCredentialValue(folder.name, name, a.attribute, values[a.attribute]).then(() => setValues({ ...values, [a.attribute]: "" })), "Changed " + ref + "/" + a.attribute + ".")}>Change</Button>}
-                    {!c.can_change && "Encrypted"}
-                    {i && !i.masked && ownerEditable && (shown[a.attribute] !== undefined ? <code>{shown[a.attribute]}</code>
-                      : <Button kind="plain" onClick={() => api.credentialValue(folder.name, name, a.attribute).then((v) => setShown({ ...shown, [a.attribute]: v.value }), (e) => setError(message(e)))}>Show</Button>)}
-                  </span>}</td>
-                <td>{i ? <TextInput aria-label={"Description of " + a.attribute} value={i.description} disabled={!c.can_change} onChange={(e) => setInfo({ ...info, [a.attribute]: { ...i, description: e.target.value } })} /> : ""}</td>
-                <td>{i && <input type="checkbox" aria-label={"Masked: " + a.attribute} checked={i.masked} disabled={!c.can_change} onChange={(e) => setInfo({ ...info, [a.attribute]: { ...i, masked: e.target.checked } })} />}</td>
-                <td>{i && <input type="checkbox" aria-label={"Password fields only: " + a.attribute} checked={i.password_only} disabled={!c.can_change} onChange={(e) => setInfo({ ...info, [a.attribute]: { ...i, password_only: e.target.checked } })} />}</td>
-                <td>{a.updated ? when(a.updated) + (a.updated_by ? " by " + a.updated_by : "") : ""}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p className="st-muted">Masked values are never shown (the default). Clear Masked for values that are not secret, such as a user name, so owners and managers can look them up; each look is audited. Password fields only: agents may type the value into password fields only.</p>
-      <div className="cc-grid2">
-        <Field label="Description">{(id) => <TextInput id={id} value={meta.description} disabled={!c.can_change} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />}</Field>
-        <Field label="Owner">{(id) => <TextInput id={id} value={meta.owner} disabled={!ownerEditable} onChange={(e) => setMeta({ ...meta, owner: e.target.value })} />}</Field>
+    <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Credential " + ref}>
+      <div className="cc-agent-head">
+        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Credential vault</button> ›</span>
+        <h1>{ref}</h1>
+        {folder.external && <span className="cc-tag" title="Values are read live from the company vault">{EXT[folder.external.provider] ?? folder.external.provider}</span>}
+        <span className="cc-none">{c.owner ? "Owner " + c.owner : "No owner"}{own.length ? " · " + own.length + " each person's own" : ""}</span>
+        <span className="ov-fill" />
+        {(c.can_change || ownerEditable) && <Button kind="primary" onClick={save}>Save details</Button>}
+        {c.can_change && <RowMenu label={"More for " + ref} items={[{ key: "delete", label: "Delete…", onSelect: () => setAsking(true) }]} />}
+        {close}
       </div>
-      <Field label="Each person's own attributes (separated by commas)">{(id) => <TextInput id={id} value={meta.own} disabled={!c.can_change} placeholder="password" onChange={(e) => setMeta({ ...meta, own: e.target.value })} />}</Field>
-      {c.attributes.some((a) => a.user_provided) && <>
-        <h3 className="cc-log-title">Your values</h3>
-        {c.attributes.filter((a) => a.user_provided).map((a) => (
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {asking && <AskBar text={"Delete " + ref + " with all its values, everyone's own values too? Agents that use it fail until it is made again."} yes="Delete" onYes={remove} onNo={() => setAsking(false)} />}
+      <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this credential">
+        {tabs.map(([k, l]) => <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
+      </div>
+      {tab === "attributes" && <>
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Attributes">
+            <thead><tr><th scope="col">Attribute</th><th scope="col">Value</th><th scope="col">Description</th><th scope="col">Masked</th><th scope="col">Password fields only</th><th scope="col">Updated</th></tr></thead>
+            <tbody>
+              {c.attributes.map((a) => {
+                const i = info[a.attribute];
+                return (
+                  <tr key={a.attribute} className="is-static">
+                    <td className="ui-mono">{a.attribute}</td>
+                    <td>{a.user_provided ? "Each person's own" + (c.my_values.includes(a.attribute) ? " (yours is set)" : " (yours is not set)")
+                      : <span className="cc-inline">
+                        {c.can_change && <TextInput type="password" autoComplete="new-password" aria-label={"New value of " + a.attribute} placeholder="new value" value={values[a.attribute] ?? ""}
+                          onChange={(e) => setValues({ ...values, [a.attribute]: e.target.value })} />}
+                        {c.can_change && values[a.attribute] && <Button kind="secondary" onClick={() => run(() => api.setCredentialValue(folder.name, name, a.attribute, values[a.attribute]).then(() => setValues({ ...values, [a.attribute]: "" })), "Changed " + ref + "/" + a.attribute + ".")}>Change</Button>}
+                        {!c.can_change && "Encrypted"}
+                        {i && !i.masked && ownerEditable && (shown[a.attribute] !== undefined ? <code>{shown[a.attribute]}</code>
+                          : <Button kind="plain" onClick={() => api.credentialValue(folder.name, name, a.attribute).then((v) => setShown({ ...shown, [a.attribute]: v.value }), (e) => setError(message(e)))}>Show</Button>)}
+                      </span>}</td>
+                    <td>{i ? <TextInput aria-label={"Description of " + a.attribute} value={i.description} disabled={!c.can_change} onChange={(e) => setInfo({ ...info, [a.attribute]: { ...i, description: e.target.value } })} /> : ""}</td>
+                    <td>{i && <input type="checkbox" aria-label={"Masked: " + a.attribute} checked={i.masked} disabled={!c.can_change} onChange={(e) => setInfo({ ...info, [a.attribute]: { ...i, masked: e.target.checked } })} />}</td>
+                    <td>{i && <input type="checkbox" aria-label={"Password fields only: " + a.attribute} checked={i.password_only} disabled={!c.can_change} onChange={(e) => setInfo({ ...info, [a.attribute]: { ...i, password_only: e.target.checked } })} />}</td>
+                    <td>{a.updated ? when(a.updated) + (a.updated_by ? " by " + a.updated_by : "") : ""}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="cc-list-hint cc-qi-foot">Masked values are never shown (the default). Clear Masked for values that are not secret, such as a user name, so owners and managers can look them up; each look is audited. Password fields only: agents may type the value into password fields only.</p>
+      </>}
+      {tab === "details" && <div className="cc-agent-tab">
+        <div className="cc-grid2">
+          <Field label="Description">{(id) => <TextInput id={id} value={meta.description} disabled={!c.can_change} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />}</Field>
+          <Field label="Owner">{(id) => <TextInput id={id} value={meta.owner} disabled={!ownerEditable} onChange={(e) => setMeta({ ...meta, owner: e.target.value })} />}</Field>
+        </div>
+        <Field label="Each person's own attributes (separated by commas)">{(id) => <TextInput id={id} value={meta.own} disabled={!c.can_change} placeholder="password" onChange={(e) => setMeta({ ...meta, own: e.target.value })} />}</Field>
+        <p className="cc-list-hint">Agents name it as {ref}/attribute. Changes here are kept when you choose Save details.</p>
+      </div>}
+      {tab === "mine" && <div className="cc-agent-tab">
+        {own.map((a) => (
           <span key={a.attribute} className="cc-inline cc-myvalue">
             <TextInput type="password" autoComplete="new-password" aria-label={"Your " + a.attribute} value={values["mine:" + a.attribute] ?? ""}
               placeholder={c.my_values.includes(a.attribute) ? "your value is set; type to replace" : "your " + a.attribute} onChange={(e) => setValues({ ...values, ["mine:" + a.attribute]: e.target.value })} />
@@ -357,8 +394,83 @@ function CredentialDialog({ api, folder, name, onClose, onChanged }: { api: CrAp
           </span>
         ))}
         <p className="st-muted">A run reads a person's own attribute from whoever it runs as (the run-as user, or whoever started it).</p>
-      </>}
-    </Dialog>
+      </div>}
+    </div>
+  );
+}
+
+/** A vault folder's own page: its credentials, its members by place (AA's owners, managers, participants, consumers), and its company vault link. */
+function FolderPage({ api, folder: l, onClose, onOpen, onChanged }: { api: CrApi; folder: VaultFolder; onClose: () => void; onOpen: (name: string) => void; onChanged: (t: string, close: boolean) => void }) {
+  const [tab, setTab] = useState<"credentials" | "members" | "external">("credentials");
+  const [m, setM] = useState({ owners: list(l.owners).join(", "), managers: l.managers.join(", "), participants: l.participants.join(", "), consumers: list(l.consumers).join(", ") });
+  const e0 = l.external ?? { provider: "hashicorp" };
+  const [provider, setProvider] = useState(e0.provider);
+  const [ext, setExt] = useState<Record<string, string>>(Object.fromEntries(Object.entries(e0).filter(([k, v]) => k !== "provider" && typeof v === "string")) as Record<string, string>);
+  const [secret, setSecret] = useState("");
+  const [test, setTest] = useState({ credential: "", attribute: "password", result: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState<null | "delete" | "unlink">(null);
+  const run = async (fn: () => Promise<unknown>, done: string, close = false) => { try { await fn(); setError(null); onChanged(done, close); } catch (e) { setError(message(e)); } };
+  const names = [...new Set(l.credentials.map((c) => c.name))].sort();
+  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the vault" onClick={onClose}>×</button>;
+  const more = [...(l.can_manage && !names.length ? [{ key: "delete", label: "Delete folder…", onSelect: () => setAsking("delete" as const) }] : [])];
+  return (
+    <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Vault folder " + l.name}>
+      <div className="cc-agent-head">
+        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Credential vault</button> ›</span>
+        <h1>{l.name}</h1>
+        <span className="cc-role">{PLACE[l.my_role]}</span>
+        <span className="cc-none">{names.length} credential{names.length === 1 ? "" : "s"}{l.external ? " · read live from " + (EXT[l.external.provider] ?? l.external.provider) : ""}{l.description ? " · " + l.description : ""}</span>
+        <span className="ov-fill" />
+        {l.can_manage && tab === "members" && <Button kind="primary" onClick={() => run(() => api.setVaultMembers(l.name, m), "Saved the members of " + l.name + ".")}>Save members</Button>}
+        {more.length > 0 && <RowMenu label={"More for " + l.name} items={more} />}
+        {close}
+      </div>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {asking === "delete" && <AskBar text={"Delete the vault folder " + l.name + "? It is empty; its members and company vault link go with it."} yes="Delete folder"
+        onYes={() => { setAsking(null); run(() => api.deleteVaultFolder(l.name), "Deleted the vault folder " + l.name + ".", true); }} onNo={() => setAsking(null)} />}
+      {asking === "unlink" && <AskBar text={"Unlink " + l.name + " from " + (EXT[l.external?.provider ?? ""] ?? "the company vault") + "? Agents stop reading its values from there; values kept here are used again, if any."} yes="Unlink"
+        onYes={() => { setAsking(null); run(() => api.unlinkExternalVault(l.name), "Unlinked " + l.name + " from the company vault."); }} onNo={() => setAsking(null)} />}
+      <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this vault folder">
+        {([["credentials", "Credentials (" + names.length + ")"], ["members", "Members"], ...(l.can_manage ? [["external", "Company vault"]] : [])] as ["credentials" | "members" | "external", string][]).map(([k, lb]) =>
+          <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{lb}</button>)}
+      </div>
+      {tab === "credentials" && <div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Credentials in the folder">
+          <thead><tr><th scope="col">Credential</th><th scope="col">Attributes</th></tr></thead>
+          <tbody>{names.map((n) => <tr key={n} title="Open the credential" onClick={rowClick(() => onOpen(n))}>
+            <td><strong>{n}</strong></td><td className="cc-clip">{l.credentials.filter((c) => c.name === n).map((c) => c.attribute).join(", ")}</td></tr>)}
+            {!names.length && <tr className="is-static"><td colSpan={2} className="cc-none">No credentials in this folder yet.</td></tr>}</tbody>
+        </table>
+      </div>}
+      {tab === "members" && <div className="cc-agent-tab">
+        <Field label="Owners (user names): everything, members included">{(id) => <TextInput id={id} value={m.owners} disabled={!l.can_manage} onChange={(e) => setM({ ...m, owners: e.target.value })} />}</Field>
+        <Field label="Managers: add, change and delete every credential">{(id) => <TextInput id={id} value={m.managers} disabled={!l.can_manage} placeholder="user:carl, team:finance-admins" onChange={(e) => setM({ ...m, managers: e.target.value })} />}</Field>
+        <Field label="Participants: see the folder, add credentials and change their own">{(id) => <TextInput id={id} value={m.participants} disabled={!l.can_manage} placeholder="team:finance" onChange={(e) => setM({ ...m, participants: e.target.value })} />}</Field>
+        <Field label="Consumers: their agents may use the credentials">{(id) => <TextInput id={id} value={m.consumers} disabled={!l.can_manage} placeholder="role:bot_runner, team:finance" onChange={(e) => setM({ ...m, consumers: e.target.value })} />}</Field>
+        <p className="st-muted">Managers, participants and consumers can be people (user:jane), roles (role:bot_runner) or teams (team:finance).</p>
+      </div>}
+      {tab === "external" && l.can_manage && <div className="cc-agent-tab">
+        <p className="st-muted">Keep the secrets in your company vault: agents still ask this folder, so members and the Audit Trail work as before, and the value is read live from there as credential/attribute.</p>
+        <Field label="Provider">{(id) => <Select id={id} value={provider} onChange={(e) => setProvider(e.target.value)} options={Object.entries(EXT).map(([value, label]) => ({ value, label }))} />}</Field>
+        <div className="cc-grid2">
+          {EXT_FIELDS[provider].map(([k, label, ph]) => <Field key={k} label={label}>{(id) => <TextInput id={id} value={ext[k] ?? ""} placeholder={ph} onChange={(e) => setExt({ ...ext, [k]: e.target.value })} />}</Field>)}
+          <Field label={EXT_SECRET[provider]}>{(id) => <TextInput id={id} type="password" autoComplete="new-password" value={secret} placeholder={l.external ? "(unchanged)" : ""} onChange={(e) => setSecret(e.target.value)} />}</Field>
+        </div>
+        <span className="cc-inline">
+          <Button kind="secondary" onClick={() => run(() => api.linkExternalVault(l.name, { provider, ...Object.fromEntries(EXT_FIELDS[provider].filter(([k]) => ext[k]?.trim()).map(([k]) => [k, ext[k].trim()])), ...(secret ? { secret } : {}) })
+            .then(() => setSecret("")), "Linked " + l.name + " to " + EXT[provider] + ".")}>{l.external ? "Save link" : "Link"}</Button>
+          {l.external && <Button kind="plain" onClick={() => setAsking("unlink")}>Unlink…</Button>}
+        </span>
+        {l.external && <div className="cc-inline cc-test">
+          <TextInput aria-label="Secret name to test" placeholder="credential (secret name)" value={test.credential} onChange={(e) => setTest({ ...test, credential: e.target.value })} />
+          <TextInput aria-label="Field to test" value={test.attribute} onChange={(e) => setTest({ ...test, attribute: e.target.value })} />
+          <Button kind="secondary" disabled={!test.credential} onClick={() => api.testExternalVault(l.name, test.credential, test.attribute).then((r) =>
+            setTest({ ...test, result: r.ok ? "Found (" + r.length + " characters). The value is not shown." : r.code + ": " + r.message }), (e) => setError(message(e)))}>Test reading</Button>
+          {test.result && <span role="status">{test.result}</span>}
+        </div>}
+      </div>}
+    </div>
   );
 }
 
@@ -376,55 +488,6 @@ function CreateFolder({ api, onClose, onCreated }: { api: CrApi; onClose: () => 
       <Field label="Name">{(id) => <TextInput id={id} value={name} placeholder="finance" onChange={(e) => setName(e.target.value)} />}</Field>
       <Field label="Description">{(id) => <TextInput id={id} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
       <Field label="Consumers: their agents may use it (role:NAME, team:NAME, user:NAME)">{(id) => <TextInput id={id} value={consumers} placeholder="role:bot_runner, team:finance" onChange={(e) => setConsumers(e.target.value)} />}</Field>
-    </Dialog>
-  );
-}
-
-/** A vault folder: members by place (AA's owners, managers, participants, consumers), and its company vault link. */
-function FolderDialog({ api, folder: l, onClose, onChanged }: { api: CrApi; folder: VaultFolder; onClose: () => void; onChanged: (t: string, close: boolean) => void }) {
-  const [m, setM] = useState({ owners: list(l.owners).join(", "), managers: l.managers.join(", "), participants: l.participants.join(", "), consumers: list(l.consumers).join(", ") });
-  const e0 = l.external ?? { provider: "hashicorp" };
-  const [provider, setProvider] = useState(e0.provider);
-  const [ext, setExt] = useState<Record<string, string>>(Object.fromEntries(Object.entries(e0).filter(([k, v]) => k !== "provider" && typeof v === "string")) as Record<string, string>);
-  const [secret, setSecret] = useState("");
-  const [test, setTest] = useState({ credential: "", attribute: "password", result: "" });
-  const [error, setError] = useState<string | null>(null);
-  const run = async (fn: () => Promise<unknown>, done: string, close = false) => { try { await fn(); setError(null); onChanged(done, close); } catch (e) { setError(message(e)); } };
-  const empty = l.credentials.length === 0;
-  return (
-    <Dialog open title={"Vault folder " + l.name} width={720} onClose={onClose} footer={l.can_manage ? <>
-      {empty && <Button kind="danger" onClick={() => run(() => api.deleteVaultFolder(l.name), "Deleted the vault folder " + l.name + ".", true)}>Delete folder</Button>}
-      <span className="st-bar-fill" />
-      <Button kind="primary" onClick={() => run(() => api.setVaultMembers(l.name, m), "Saved the members of " + l.name + ".")}>Save members</Button></> : null}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">{l.description ?? ""} Your place: {PLACE[l.my_role]}.</p>
-      <h3 className="cc-log-title">Members</h3>
-      <Field label="Owners (user names): everything, members included">{(id) => <TextInput id={id} value={m.owners} disabled={!l.can_manage} onChange={(e) => setM({ ...m, owners: e.target.value })} />}</Field>
-      <Field label="Managers: add, change and delete every credential">{(id) => <TextInput id={id} value={m.managers} disabled={!l.can_manage} placeholder="user:carl, team:finance-admins" onChange={(e) => setM({ ...m, managers: e.target.value })} />}</Field>
-      <Field label="Participants: see the folder, add credentials and change their own">{(id) => <TextInput id={id} value={m.participants} disabled={!l.can_manage} placeholder="team:finance" onChange={(e) => setM({ ...m, participants: e.target.value })} />}</Field>
-      <Field label="Consumers: their agents may use the credentials">{(id) => <TextInput id={id} value={m.consumers} disabled={!l.can_manage} placeholder="role:bot_runner, team:finance" onChange={(e) => setM({ ...m, consumers: e.target.value })} />}</Field>
-      <p className="st-muted">Managers, participants and consumers can be people (user:jane), roles (role:bot_runner) or teams (team:finance).</p>
-      {l.can_manage && <>
-        <h3 className="cc-log-title">Company vault</h3>
-        <p className="st-muted">Keep the secrets in your company vault: agents still ask this folder, so members and the Audit Trail work as before, and the value is read live from there as credential/attribute.</p>
-        <Field label="Provider">{(id) => <Select id={id} value={provider} onChange={(e) => setProvider(e.target.value)} options={Object.entries(EXT).map(([value, label]) => ({ value, label }))} />}</Field>
-        <div className="cc-grid2">
-          {EXT_FIELDS[provider].map(([k, label, ph]) => <Field key={k} label={label}>{(id) => <TextInput id={id} value={ext[k] ?? ""} placeholder={ph} onChange={(e) => setExt({ ...ext, [k]: e.target.value })} />}</Field>)}
-          <Field label={EXT_SECRET[provider]}>{(id) => <TextInput id={id} type="password" autoComplete="new-password" value={secret} placeholder={l.external ? "(unchanged)" : ""} onChange={(e) => setSecret(e.target.value)} />}</Field>
-        </div>
-        <span className="cc-inline">
-          <Button kind="secondary" onClick={() => run(() => api.linkExternalVault(l.name, { provider, ...Object.fromEntries(EXT_FIELDS[provider].filter(([k]) => ext[k]?.trim()).map(([k]) => [k, ext[k].trim()])), ...(secret ? { secret } : {}) })
-            .then(() => setSecret("")), "Linked " + l.name + " to " + EXT[provider] + ".")}>{l.external ? "Save link" : "Link"}</Button>
-          {l.external && <Button kind="plain" onClick={() => run(() => api.unlinkExternalVault(l.name), "Unlinked " + l.name + " from the company vault.")}>Unlink</Button>}
-        </span>
-        {l.external && <div className="cc-inline cc-test">
-          <TextInput aria-label="Secret name to test" placeholder="credential (secret name)" value={test.credential} onChange={(e) => setTest({ ...test, credential: e.target.value })} />
-          <TextInput aria-label="Field to test" value={test.attribute} onChange={(e) => setTest({ ...test, attribute: e.target.value })} />
-          <Button kind="secondary" disabled={!test.credential} onClick={() => api.testExternalVault(l.name, test.credential, test.attribute).then((r) =>
-            setTest({ ...test, result: r.ok ? "Found (" + r.length + " characters). The value is not shown." : r.code + ": " + r.message }), (e) => setError(message(e)))}>Test reading</Button>
-          {test.result && <span role="status">{test.result}</span>}
-        </div>}
-      </>}
     </Dialog>
   );
 }

@@ -1176,6 +1176,12 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save details" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/credential", body: expect.objectContaining({
       attributes_info: { password: { description: "", masked: true, password_only: false }, username: { description: "", masked: false, password_only: false } } }) }));
+    // deleting a credential asks first
+    fireEvent.keyDown(within(d).getByRole("button", { name: "More for finance/erp" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(within(d).getByRole("alert").textContent).toContain("Delete finance/erp with all its values");
+    fireEvent.click(within(within(d).getByRole("alert")).getByRole("button", { name: "Cancel" }));
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
     fireEvent.click(within(d).getByRole("button", { name: "Close" }));
     // create a credential: a shared user name and each person's own password
     fireEvent.click(screen.getByRole("button", { name: "Create credential" }));
@@ -1190,6 +1196,8 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Vault folders/ }));
     fireEvent.click(within(await screen.findByRole("table", { name: "Vault folders list" })).getByText("finance"));
     const f = await screen.findByRole("dialog", { name: "Vault folder finance" });
+    expect(within(within(f).getByRole("table", { name: "Credentials in the folder" })).getByText("erp")).toBeTruthy();
+    fireEvent.click(within(f).getByRole("tab", { name: "Members" }));
     fireEvent.change(within(f).getByLabelText(/^Managers/), { target: { value: "user:vic" } });
     await act(async () => { fireEvent.click(within(f).getByRole("button", { name: "Save members" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "lockers/finance/members",
