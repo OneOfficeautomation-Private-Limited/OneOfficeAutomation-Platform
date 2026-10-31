@@ -189,6 +189,12 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals(List.of("FILE.NOT_FOUND", "WEB.TIMEOUT"), reasons.stream().map(x -> x.get("code")).toList());
         assertEquals(2, reasons.get(0).get("runs"));
         assertEquals("Ops/Backup.flow.json", reasons.get(0).get("agent"));
+        // when runs start, per weekday and hour; and the period before, for comparison (empty here)
+        Map<String, Object> heat = (Map<String, Object>) o.get("by_hour");
+        assertEquals(7L, ((List<List<Long>>) heat.get("runs")).stream().flatMap(List::stream).mapToLong(Long::longValue).sum());
+        assertEquals(3L, ((List<List<Long>>) heat.get("failed")).stream().flatMap(List::stream).mapToLong(Long::longValue).sum());
+        assertEquals("Asia/Kolkata", ((Map<String, Object>) cr.analytics.overview(admin, Map.of("tz", "Asia/Kolkata")).get("by_hour")).get("time_zone"));
+        assertEquals(0, ((Map<String, Object>) o.get("previous")).get("runs"));
         assertEquals(List.of("manual", "schedule"), ((List<Map<String, Object>>) o.get("by_source")).stream().map(x -> x.get("source")).toList());
         // carl may not see Finance: its runs are not counted for him
         assertEquals(3, ((Map<String, Object>) cr.analytics.overview(carl, Map.of()).get("totals")).get("runs"));

@@ -72,8 +72,18 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       const st = { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 };
       return ok({ totals: st, duration_distribution: [], by_day: [], most_run: [], longest: [], by_runner: [], by_source: [], period: { runs_counted: 5, capped: false },
         most_failed: [{ ...st, bot_path: "Finance/Invoice intake.flow.json", failure_rate: 25, top_errors: ["EXCEL.NOT_FOUND (1)"] }],
-        failure_reasons: [{ code: "EXCEL.NOT_FOUND", runs: 1, agents: 1, agent: "Finance/Invoice intake.flow.json", last: "2026-10-30T07:00:00Z" }] });
+        failure_reasons: [{ code: "EXCEL.NOT_FOUND", runs: 1, agents: 1, agent: "Finance/Invoice intake.flow.json", last: "2026-10-30T07:00:00Z" }],
+        by_hour: { time_zone: "UTC", runs: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 0 && h === 9 ? 4 : d === 2 && h === 14 ? 1 : 0)),
+          failed: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 0 && h === 9 ? 1 : 0)) },
+        previous: { ...st, runs: 2, success: 1, failed: 1, success_rate: 50 } });
     }
+    if (route === "analytics/agent") return ok({ bot_path: "Finance/Invoice intake.flow.json", totals: { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000,
+      avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }, by_day: [], errors: [{ code: "EXCEL.NOT_FOUND", runs: 1 }], by_runner: [{ runner: "Runner A", runs: 5, success: 3, failed: 1, stopped: 1,
+      active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }], last_run: { id: "r4", status: "success", created: "2026-10-30T08:00:00Z" },
+      last_failure: { id: "r3", created: "2026-10-30T07:00:00Z", code: "EXCEL.NOT_FOUND" } });
+    if (route === "analytics/variables") return ok({ bot_path: "Finance/Invoice intake.flow.json", runs: 3, variables: [{ variable: "total", runs: 3, runs_with_value: 3, min: 10, max: 90, avg: 50,
+      common: [{ value: "10", runs: 1 }] }] });
+    if (route === "analytics/export") { calls.push({ method: "GET", route: "analytics/export?" + (url.split("?")[1] ?? "") }); return new Response("agent,runs\r\n", { status: 200 }); }
     if (route === "plugins") return ok({ plugins });
     if (route === "repo" && url.includes("deleted=true")) return ok({ bots: [{ path: "HR/Old offboard.flow.json", latest_version: 2, deleted_at: "2026-10-20T08:00:00Z", deleted_by: "admin" }] });
     if (route === "repo") {
@@ -303,7 +313,7 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Operations" }).getAttribute("href")).toBe("../?page=operations");
+    expect(within(menu).getByRole("link", { name: "Dashboards" }).getAttribute("href")).toBe("../?page=dashboards");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -487,6 +497,31 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(second).getByRole("button", { name: "Delete" }));
     await act(async () => { fireEvent.click(within(second).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "alert-rules/ar2" }));
+  });
+
+  it("shows Operations as AA's operational dashboards: figures against the period before, when runs start, failure reasons, CSVs and an agent's statistics", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Operations" }));
+    const figs = await screen.findByRole("group", { name: "Figures" });
+    expect(await within(figs).findByText("Runs · +150% on before")).toBeTruthy();
+    expect(within(figs).getByText("Completed: 3 completed, 1 failed, 1 stopped · +25 points on before")).toBeTruthy();
+    const heat = screen.getByRole("table", { name: "When runs start, by weekday and hour (UTC)" });
+    const busy = within(heat).getByTitle("Mon 09:00 · 4 runs, 1 failed");
+    expect(busy.className).toBe("cc-heat-l4 has-failed");
+    expect(within(heat).getByTitle("Wed 14:00 · 1 run").className).toBe("cc-heat-l1");
+    expect(within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" }).getAttribute("href"))
+      .toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND");
+    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "7" } });
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7") && c.route.includes("tz="))).toBe(true));
+    URL.createObjectURL = (() => "blob:x") as typeof URL.createObjectURL;
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "CSV of agents run most" })); });
+    expect(calls.some((c) => c.route.startsWith("analytics/export?") && c.route.includes("report=most_run") && c.route.includes("days=7"))).toBe(true);
+    fireEvent.click(within(screen.getByRole("table", { name: "Agents that fail most" })).getByRole("button", { name: "Invoice intake" }));
+    const d = await screen.findByRole("dialog", { name: "Statistics of Invoice intake" });
+    expect(await within(d).findByText("10 – 90 (average 50)")).toBeTruthy();
+    expect(within(d).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["#/activity?run=r4", "#/activity?run=r3",   // last run, last failure
+      "#/activity?tab=completed&bot=Finance%2FInvoice+intake.flow.json"]);
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

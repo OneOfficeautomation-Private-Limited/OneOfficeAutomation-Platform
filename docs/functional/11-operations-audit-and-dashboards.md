@@ -91,13 +91,16 @@ against each connection's budget (80% or more is marked). Each figure and error 
 matching filter (Agent Activity takes `tab`, `status`, `period`, `q` and `bot` in its address). Cards a viewer may not
 see are left out; the screen refreshes every 30 seconds.
 
-**Operations** (`analytics.view`) shows how agents ran over a period (24 hours to a year), for all agents or one, counting
-only agents the viewer may see:
+**Operations** (`analytics.view`, in the new console) shows how agents ran over a period (24 hours to a year), for all
+agents or one agent, runner or way of starting, counting only agents the viewer may see:
 
-- runs, success rate, total and average run time, and the time within which 95% of runs finish;
+- runs, success rate, total and average run time, and the time within which 95% of runs finish, each compared with the
+  period just before (as long as this one);
 - the distribution of run times and runs per day;
-- the agents run most, that take longest and that fail most (with their most common errors);
-- use per runner and by source.
+- when runs start: a weekday-by-hour heatmap in the viewer's time zone, with hours that had failed runs outlined;
+- why runs failed (as on Overview), and the agents run most, that take longest and that fail most (with their most
+  common errors);
+- use per runner and by way of starting.
 
 Each list has a CSV download; **Run history CSV** lists every run. An agent's **Statistics** shows its errors, runners and
 **variable profile**: for each output, how often it had a value, its most common values and, for numbers, the range
@@ -105,7 +108,7 @@ and average.
 
 | API | Returns |
 | --- | --- |
-| `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=&top=` | The Operations figures for the period and filters (`source` matches a prefix), with `failure_reasons`: each error code, its failed runs, agents, the agent failing with it most and the last time |
+| `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=&top=&tz=` | The Operations figures for the period and filters (`source` matches a prefix), with `failure_reasons` (each error code, its failed runs, agents, the agent failing with it most and the last time), `by_hour` (runs and failed runs per weekday, Monday first, and hour in the time zone `tz`, UTC by default) and `previous` (the totals of the period before) |
 | `GET /api/analytics/agent?path=` | One agent's statistics |
 | `GET /api/analytics/variables?path=` | One agent's variable profile |
 | `GET /api/analytics/export?report=` | One list as CSV: `most_run`, `longest`, `most_failed`, `by_runner`, `by_day`, `by_source` or `run_history` |

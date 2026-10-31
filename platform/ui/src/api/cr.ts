@@ -22,7 +22,16 @@ export type Operations = { totals: RunStats; duration_distribution: { bucket: st
   most_run: (RunStats & { bot_path: string })[]; longest: (RunStats & { bot_path: string })[];
   most_failed: (RunStats & { bot_path: string; failure_rate: number; top_errors: string[] })[];
   failure_reasons?: { code: string; runs: number; agents: number; agent: string | null; last: string }[];
-  by_runner: (RunStats & { runner: string })[]; by_source: (RunStats & { source: string })[]; period: { runs_counted: number; capped: boolean } };
+  by_runner: (RunStats & { runner: string })[]; by_source: (RunStats & { source: string })[]; period: { runs_counted: number; capped: boolean };
+  /** Runs and failed runs per weekday (Monday first) and hour, in the time zone asked for. */
+  by_hour?: { time_zone: string; runs: number[][]; failed: number[][] };
+  /** The same totals for the period just before, as long as this one. */
+  previous?: RunStats };
+/** One agent's statistics for a period (GET analytics/agent). */
+export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
+  last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
+/** An agent's outputs over a period: how often each had a value, its common values and, for numbers, the range. */
+export type VariableProfile = { runs: number; variables: { variable: string; runs: number; runs_with_value: number; min?: number; max?: number; avg?: number; common?: { value: string; runs: number }[] }[] };
 /** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
 export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
   webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
@@ -466,6 +475,15 @@ export class CrApi {
   async setAlertRuleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "alert-rules/" + encodeURIComponent(id), { enabled }); }
   async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
   testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
+  agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }
+  agentVariables(path: string, days: string) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams({ path, days }).toString()); }
+  /** One Operations list as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */
+  async operationsCsv(report: string, params: Record<string, string>) {
+    const res = await this.fetcher(this.base + "analytics/export?" + new URLSearchParams({ ...params, report }).toString(), { method: "GET", credentials: "same-origin" });
+    const text = await res.text();
+    if (!res.ok) { let e: CrError = { code: "HTTP." + res.status, message: res.statusText || "Export failed" }; try { e = JSON.parse(text).error ?? e; } catch { /* not JSON */ } throw new CrFailure(res.status, e); }
+    return text;
+  }
   /** Operations figures for a period (days, or from and to) and filters (bot, device, user, source): only agents the caller may see. */
   operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }

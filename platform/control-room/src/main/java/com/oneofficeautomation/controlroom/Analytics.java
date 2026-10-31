@@ -3,8 +3,7 @@ package com.oneofficeautomation.controlroom;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
-import java.time.Duration;
-import java.time.Instant;
+import java.time.*;
 import java.util.*;
 import java.util.function.Function;
 
@@ -31,11 +30,18 @@ public final class Analytics {
     record Run(String id, String bot, String device, String deviceName, String status, String created, Long ms, String source, String user, String errorCode) {}
 
     /** The runs of the period that match the filters and that the caller may see. */
-    List<Run> runs(User by, Map<String, String> q) {
-        cr.require(by, "analytics.view", "view operations analytics");
+    /** The period asked for: from and to (a date includes its whole day), or the last days (30) up to now. */
+    static Instant[] period(Map<String, String> q) {
         Instant to = q.get("to") == null || q.get("to").isBlank() ? now() : instant(q.get("to"), true);
         Instant from = q.get("from") == null || q.get("from").isBlank() ? to.minus(Duration.ofDays(intOr(q.get("days"), 30))) : instant(q.get("from"), false);
         if (from.isAfter(to)) throw new OoaException("CR.BAD_INPUT", "The start of the period is after its end");
+        return new Instant[] {from, to};
+    }
+
+    List<Run> runs(User by, Map<String, String> q) {
+        cr.require(by, "analytics.view", "view operations analytics");
+        Instant[] pd = period(q);
+        Instant from = pd[0], to = pd[1];
         List<String> where = new ArrayList<>(List.of("r.created >= ?", "r.created <= ?"));
         List<Object> p = new ArrayList<>(List.of(from, to));
         for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}})
@@ -117,10 +123,37 @@ public final class Analytics {
         m.put("longest", perBot.stream().filter(x -> x.get("avg_ms") != null).sorted(by("avg_ms")).limit(top).toList());
         m.put("most_failed", mostFailed(runs, perBot).stream().limit(top).toList());
         m.put("failure_reasons", failureReasons(runs).stream().limit(top).toList());
+        m.put("by_hour", byHour(runs, zone(q.get("tz"))));
+        // the same figures for the period just before, as long as this one (for "compared with before")
+        Instant[] pd = period(q);
+        Map<String, String> before = new HashMap<>(q);
+        before.remove("days");
+        before.put("from", pd[0].minus(Duration.between(pd[0], pd[1])).toString());
+        before.put("to", pd[0].toString());
+        m.put("previous", stats(runs(by, before)));
         m.put("by_runner", grouped(runs, r -> r.deviceName() == null ? r.device() : r.deviceName(), "runner").stream().sorted(by("total_ms")).toList());
         m.put("by_source", grouped(runs, r -> sourceGroup(r.source()), "source").stream().sorted(by("runs")).toList());
         m.put("period", Map.of("runs_counted", runs.size(), "capped", runs.size() >= MAX_ROWS));
         return m;
+    }
+
+    static ZoneId zone(String tz) {
+        try { return tz == null || tz.isBlank() ? ZoneOffset.UTC : ZoneId.of(tz); } catch (DateTimeException e) { return ZoneOffset.UTC; }
+    }
+
+    /** When runs start (Blue Prism's activity heatmap): runs and failed runs per weekday (Monday first) and hour, in the viewer's time zone. */
+    static Map<String, Object> byHour(List<Run> runs, ZoneId zone) {
+        long[][] all = new long[7][24], failed = new long[7][24];
+        for (Run r : runs) {
+            ZonedDateTime t;
+            try { t = Instant.parse(r.created()).atZone(zone); } catch (DateTimeException e) { continue; }
+            int d = t.getDayOfWeek().getValue() - 1, h = t.getHour();
+            all[d][h]++;
+            if ("failed".equals(r.status())) failed[d][h]++;
+        }
+        List<Object> a = new ArrayList<>(), f = new ArrayList<>();
+        for (int d = 0; d < 7; d++) { a.add(Arrays.stream(all[d]).boxed().toList()); f.add(Arrays.stream(failed[d]).boxed().toList()); }
+        return Map.of("time_zone", zone.getId(), "runs", a, "failed", f);
     }
 
     static List<Map<String, Object>> byDay(List<Run> runs) {
