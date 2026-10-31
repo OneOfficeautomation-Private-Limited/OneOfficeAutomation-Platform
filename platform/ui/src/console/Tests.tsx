@@ -40,6 +40,7 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
       <header className="cc-list-head">
         <h1 id="cc-tests-title">Agent tests</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Test sets run an agent with chosen inputs and check what it gives back, also for AI answers. Each run of a set is scored and kept.">i</span>
+        {list && <span className="cc-list-count">{list.length} test set{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {can("repo.checkin") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", t: null })}>Create test set</Button>}
       </header>
@@ -66,7 +67,8 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
             {!list && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       {dialog?.kind === "edit" && <TestSetForm api={api} t={dialog.t} onClose={() => setDialog(null)} onSaved={(m) => { onNotice(m); setDialog(null); load(); }} />}
       {dialog?.kind === "open" && <TestSetView key={dialog.t.id} api={api} t={dialog.t} runners={runners} pools={pools} can={can} onClose={() => setDialog(null)}
         onEdit={() => setDialog({ kind: "edit", t: dialog.t })} onResults={(id) => setDialog({ kind: "results", id })}

@@ -33,6 +33,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
       <header className="cc-list-head">
         <h1 id="cc-conn-title">Connections</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in the Credential vault; a connection keeps only their references.">i</span>
+        {list && <span className="cc-list-count">{list.length} connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}
       </header>
@@ -61,7 +62,8 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
             {!list && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       {dialog && <ConnectionForm key={dialog.c?.name ?? "new"} api={api} c={dialog.c} kinds={kinds} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
   );

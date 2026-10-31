@@ -36,6 +36,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       <header className="cc-list-head">
         <h1 id="cc-apis-title">Agent APIs</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.">i</span>
+        {list && <span className="cc-list-count">{list.length} Agent API{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {user.permissions.includes("apitasks.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}
       </header>
@@ -61,7 +62,8 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       {dialog?.kind === "new" && <NewApi api={api} runners={runners} pools={pools} onClose={() => setDialog(null)}
         onCreated={(r) => { onNotice("Created the Agent API " + r.name + "."); load(); setDialog({ kind: "token", ...r }); }} />}
       {dialog?.kind === "token" && <TokenShown name={dialog.name} url={dialog.url} token={dialog.token} onClose={() => setDialog(null)} />}

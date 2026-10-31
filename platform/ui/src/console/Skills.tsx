@@ -30,6 +30,7 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
       <header className="cc-list-head">
         <h1 id="cc-sk-title">Prompt Skills</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new version.">i</span>
+        {list && <span className="cc-list-count">{list.length} skill{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {can("skills.manage") && <>
           <Button kind="secondary" onClick={() => setDialog({ kind: "templates" })}>From a template</Button>
@@ -57,7 +58,8 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
             {!list && !error && <tr className="is-static"><td colSpan={4} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       {dialog?.kind === "skill" && <SkillEditor key={dialog.name ?? "new"} api={api} name={dialog.name} user={user} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "templates" && <Templates api={api} onClose={() => setDialog(null)} onMade={(n) => { onNotice("Made " + n + " from a template."); load(); setDialog({ kind: "skill", name: n }); }} />}
     </section>

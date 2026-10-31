@@ -40,6 +40,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
       <header className="cc-list-head">
         <h1 id="cc-glob-title">Shared Global values</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Values every agent can read as $global.name. Where people may change a value, their runs use their own value.">i</span>
+        {list && <span className="cc-list-count">{list.length} shared value{list.length === 1 ? "" : "s"} · {list.filter((g) => g.changeable).length} people may change</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "edit", g: null })}>Create value</Button>}
       </header>
@@ -68,7 +69,8 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
             {!list && !error && <tr className="is-static"><td colSpan={6} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       {dialog?.kind === "edit" && <EditGlobal key={dialog.g?.name ?? "new"} api={api} g={dialog.g} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "mine" && <MyValue api={api} g={dialog.g} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RowMenu } from "./ListParts";
 
 /**
  * Manage > Agent ToolKits, built as AA's Packages (checked against AA's docs, UiPath's libraries and feeds, and Blue
@@ -30,6 +31,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <header className="cc-list-head">
         <h1 id="cc-tk-title">Agent ToolKits</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Every toolkit of actions, how many agents use it, and switching it on or off. Several versions of your own toolkits stay installed side by side.">i</span>
+        {list && <span className="cc-list-count">{list.length} toolkit{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on · {list.filter((t) => t.custom).length} your own</span>}
         <span className="ov-fill" />
         {manage && <>          <Button kind="secondary" onClick={() => setDialog({ kind: "publishers" })}>Trusted publishers</Button>
           <Button kind="secondary" onClick={() => setDialog({ kind: "versions" })}>Your toolkit versions</Button>
@@ -45,28 +47,30 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
       </div>
       </div>
-      <div className="cc-bar"><span className="cc-chosen">{shown.length} of {list?.length ?? 0} toolkits</span></div>
       <div className="cc-list-panel"><div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Toolkits list">
           <thead><tr><th scope="col">State</th><th scope="col">Toolkit</th><th scope="col">Versions</th><th scope="col">Actions</th><th scope="col">Used by</th><th scope="col">Publisher</th>
-            {manage && <th scope="col"><span className="st-sr">Switch</span></th>}</tr></thead>
+            {manage && <th scope="col"><span className="st-sr">Switch</span></th>}<th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((t) => (
               <tr key={t.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) setDialog({ kind: "open", t }); }}>
-                <td className={"cc-status is-" + (t.enabled ? "success" : "disabled")}>{t.enabled ? "On" : "Off"}</td>
-                <td>{t.name}{t.custom && <span className="cc-tag">your own</span>}<div className="st-muted ui-mono">{t.id}</div></td>
+                <td><span className={"cc-pill is-" + (t.enabled ? "active" : "disabled")}><span className="cc-pill-dot" />{t.enabled ? "On" : "Off"}</span></td>
+                <td><strong>{t.name}</strong>{t.custom && <span className="cc-tag">your own</span>}<span className="cc-list-sub ui-mono">{t.id}</span></td>
                 <td>{t.versions ? t.versions.join(", ") + " (default " + t.version + ")" : t.version ?? ""}</td>
                 <td>{t.actions}{t.conditions ? " + " + t.conditions + " conditions" : ""}</td>
                 <td>{t.used_by ? t.used_by + " agent" + (t.used_by === 1 ? "" : "s") : "None"}</td>
                 <td>{t.publisher ?? ""}</td>
                 {manage && <td>{t.id !== "core" && <Button kind="plain" onClick={() => t.enabled && t.used_by ? setDialog({ kind: "off", t }) : toggle(t)}>{t.enabled ? "Switch off" : "Switch on"}</Button>}</td>}
+                <td className="cc-list-menu"><RowMenu label={"Actions for " + t.name} items={[{ key: "open", label: "Open", onSelect: () => setDialog({ kind: "open", t }) },
+                  ...(manage && t.id !== "core" ? [{ key: "switch", label: t.enabled ? "Switch off…" : "Switch on", onSelect: () => { if (t.enabled && t.used_by) setDialog({ kind: "off", t }); else toggle(t); } }] : [])]} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">No toolkits match.</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">No toolkits match.</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       <p className="cc-list-hint">Switching a toolkit off stops agents that use it from being checked in or run. The core toolkit is always on.</p>
       {dialog?.kind === "off" && <Dialog open title={"Switch off " + dialog.t.name} width={460} onClose={() => setDialog(null)} footer={<>
         <Button kind="plain" onClick={() => setDialog(null)}>Cancel</Button><Button kind="danger" onClick={() => toggle(dialog.t)}>Switch off</Button></>}>
