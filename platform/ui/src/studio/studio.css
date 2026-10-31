@@ -546,3 +546,5 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-tool .st-rec-dot { margin: 0; }
 .st-tool-busy { display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; color: var(--ui-text-2); white-space: nowrap; }
 .st-steps-foot { position: sticky; bottom: -16px; margin: 0; padding: 6px 14px; background: var(--ui-bg); border-top: 1px solid var(--ui-border); font-size: 12px; }
+.st-edit-bar .st-view-seg { flex: none; }
+.st-view-seg .st-seg-btn { white-space: nowrap; }

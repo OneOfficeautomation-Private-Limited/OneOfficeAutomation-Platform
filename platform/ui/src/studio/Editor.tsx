@@ -492,8 +492,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                     <span className="st-guides" style={{ width: r.depth * 22 }} />
                     <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
                     <strong>{info.name}</strong>
-                    <span className="st-step-sum">{r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note
-                      ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages)}</span>
+                    {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
+                      return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
                     {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
                     {r.step.disabled && <span className="st-badge">OFF</span>}
                     {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
