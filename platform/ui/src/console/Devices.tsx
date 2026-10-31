@@ -72,7 +72,10 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   const [f, setF] = useState<Record<string, string>>({});
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
-  const [dialog, setDialog] = useState<null | { kind: "columns" | "register" | "settings" | "delete" | "maintenance" } | { kind: "details"; id: string } | { kind: "pool"; pool: RunnerPool | null; members?: string[] }>(null);
+  const [dialog, setDialog] = useState<null | { kind: "columns" | "register" | "settings" | "delete" | "maintenance" } | { kind: "details"; id: string } | { kind: "pool"; pool: RunnerPool | null; members?: string[] }>(() => {
+    const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("runner");   // #/devices?runner=<id> opens that runner
+    return id ? { kind: "details", id } : null;
+  });
   const can = (p: string) => user.permissions.includes(p);
   const manage = can("devices.manage");
 
@@ -84,6 +87,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     } catch (e) { setError(message(e)); }
   }, [api]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (location.hash.includes("?")) history.replaceState(null, "", "#/devices"); }, []);
   useEffect(() => { const t = setInterval(() => { if (!dialog) load(); }, 15_000); return () => clearInterval(t); }, [load, dialog]);
 
   const shown = useMemo(() => {

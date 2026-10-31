@@ -671,6 +671,12 @@ describe("rebuilt Command Center console", () => {
     expect(within(heat).getByTitle("Sun 09:00 · not in the period").className).toBe("cc-heat-l0");
     fireEvent.change(screen.getByLabelText("Period"), { target: { value: "30" } });
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics/capacity?") && c.route.includes("days=30"))).toBe(true));
+    // a runner's state as a pill; its row opens the runner on Runner Machines
+    expect(within(a).getByText("Busy (limit)").closest(".cc-pill")!.className).toContain("is-failed");
+    await act(async () => { fireEvent.click((a as HTMLTableRowElement).cells[3]); });
+    expect(await screen.findByRole("dialog", { name: "Runner Runner A" })).toBeTruthy();
+    expect(location.hash).toBe("#/devices");
+    location.hash = "";
   });
 
   it("shows Work queue insights as UiPath's queue monitoring: waiting, overdue and at risk, speed, runners needed against the pool, and advice", async () => {

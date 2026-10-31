@@ -90,10 +90,10 @@ function save(fileName: string, text: string, type: string) {
   a.download = fileName;
   document.body.appendChild(a); a.click(); a.remove();
 }
-/** What the address asks for: #/activity?run=<id> opens a run; tab, status, period, q (search) and bot set the list. */
+/** What the address asks for: #/activity?run=<id> opens a run; tab, status, period, q (search), bot and device set the list. */
 const linked = () => new URLSearchParams(location.hash.split("?")[1] ?? "");
 const linkedRun = () => linked().get("run");
-const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "q", "bot"].filter((k) => l.get(k)).map((k) => [k, l.get(k)!])); };
+const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "q", "bot", "device"].filter((k) => l.get(k)).map((k) => [k, l.get(k)!])); };
 
 type Summary = { running: number; queued: number; failed: number; ended: number; succeeded: number; next: Schedule | null; schedulesOn: number | null };
 
