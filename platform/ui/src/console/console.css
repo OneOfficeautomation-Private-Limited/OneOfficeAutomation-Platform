@@ -632,7 +632,9 @@ span.cc-tree-chev { cursor: default; }
 .cc-folder-row td { background: var(--ui-tint); }
 .cc-files-pane .cc-list-scroll { border-bottom: 0; }
 .cc-files-pane .cc-files { margin: 0; border: 0; border-top: 1px solid var(--ui-line, var(--ui-divider)); border-radius: 0; box-shadow: none; }
-@media (max-width: 900px) { .cc-explorer-body { grid-template-columns: 1fr; } .cc-tree-pane { border-right: 0; border-bottom: 1px solid var(--ui-border); } }
+@media (max-width: 900px) { .cc-explorer-body { grid-template-columns: 1fr; } .cc-tree-pane { border-right: 0; border-bottom: 1px solid var(--ui-border); }
+  /* stacked in a short window, the folder pane keeps its full height instead of spilling over the list */
+  .cc-tree-pane { min-height: auto; } .cc-tree-pane > * { flex-shrink: 0; } }
 /* An agent line by line, as AA's View (review round 2, approved on the canvas 31 Oct 2026): it opens as a page in place of the
    folder panes, read-only, with numbered steps, open and close on blocks, and the chosen line's settings beside them */
 .cc-agent { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 48px); background: var(--ui-bg); }
