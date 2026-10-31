@@ -224,7 +224,9 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^globals\/\w+(\/mine)?$/.test(route)) return ok({ ok: true });
     if (route === "workflows/runs") return ok({ runs: [
       { id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42", started_by: "vic", created: "2026-10-31T08:00:00Z", updated: "2026-10-31T08:01:00Z" },
-      { id: "w2", path: "Finance/Purchase approval.process.json", version: 2, status: "completed", stage: "Pay", reference: "PO-41", started_by: "vic", created: "2026-10-30T08:00:00Z", finished: "2026-10-30T09:00:00Z" }] });
+      { id: "w2", path: "Finance/Purchase approval.process.json", version: 2, status: "completed", stage: "Pay", reference: "PO-41", started_by: "vic", created: "2026-10-30T08:00:00Z", finished: "2026-10-30T09:00:00Z" },
+      { id: "w3", path: "Finance/Purchase approval.process.json", version: 2, status: "failed", stage: "Pay", reference: "PO-40", started_by: "vic", created: "2026-10-29T08:00:00Z", finished: "2026-10-29T08:30:00Z",
+        error: { code: "ERP.DOWN", message: "The ERP did not answer" } }] });
     if (route === "workflows/runs/w1") return ok({ id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42",
       created: "2026-10-31T08:00:00Z", data: { amount: 1200 }, history: [{ event: "agent_finished", stage: "Check budget", ts: "2026-10-31T08:00:30Z" }, { event: "task_created", stage: "Manager approval", ts: "2026-10-31T08:01:00Z" }],
       tasks: [{ id: "k1", stage: "Manager approval", kind: "approval", title: "Approve PO-42", assignee: "role:admin", status: "open" }] });
@@ -1322,6 +1324,16 @@ describe("rebuilt Command Center console", () => {
     const list = await screen.findByRole("table", { name: "Workflow runs in progress" });
     expect(await within(list).findByText("Waiting for a person")).toBeTruthy();
     expect(within(list).queryByText("PO-41")).toBeNull();
+    // a menu per run: Cancel from the list, asked first
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for PO-42" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Cancel run…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Cancel the run PO-42?");
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+    expect(screen.queryByRole("dialog", { name: "Workflow run PO-42" })).toBeNull();   // the menu does not open the run too
+    // finished runs say why they ended
+    fireEvent.click(screen.getByRole("tab", { name: /^Finished/ }));
+    expect(await within(screen.getByRole("table", { name: "Finished workflow runs" })).findByText("ERP.DOWN: The ERP did not answer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /^In progress/ }));
     fireEvent.click(within(list).getByText("PO-42"));
     const run = await screen.findByRole("dialog", { name: "Workflow run PO-42" });
     expect(await within(run).findByText("Task given")).toBeTruthy();

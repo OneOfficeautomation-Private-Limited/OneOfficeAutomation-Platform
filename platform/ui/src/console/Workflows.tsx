@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { FormField } from "./Inbox";
 
 /**
@@ -11,6 +11,8 @@ import { FormField } from "./Inbox";
  * going. Start a workflow with its own start form, or data as JSON. Workflows are designed in One AgentStudio.
  * Laid out as the design plan's step 8 (approved on the canvas 31 Oct 2026): the list pattern with status pills, and a
  * run in a side panel beside the list: its stages as a track, the facts, then Timeline, People's tasks and Data.
+ * Review round 2 (31 Oct 2026): the workflow's icon, why a finished run ended (on one line, whole on hover), and a menu
+ * per run (Open, Cancel run, asked first).
  */
 type Tab = "progress" | "finished";
 const STATUS: Record<string, string> = { running: "Running", waiting: "Waiting for a person", completed: "Completed", failed: "Failed", cancelled: "Cancelled" };
@@ -29,6 +31,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const [q, setQ] = useState("");
   const [flow, setFlow] = useState("");
   const [dialog, setDialog] = useState<null | { kind: "start" } | { kind: "run"; id: string }>(null);
+  const [ask, setAsk] = useState<WorkflowRun | null>(null);   // a run to cancel, asked first
   const load = useCallback(async () => { try { setRuns(await api.workflowRuns()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { const t = setInterval(() => { if (!dialog) load(); }, 10_000); return () => clearInterval(t); }, [load, dialog]);
@@ -36,6 +39,11 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     && (!q.trim() || (r.id + " " + (r.reference ?? "") + " " + flowName(r.path) + " " + (r.stage ?? "") + " " + (r.started_by ?? "")).toLowerCase().includes(q.trim().toLowerCase()))), [runs, tab, q, flow]);
   const flows = [...new Set((runs ?? []).map((r) => r.path))].sort();
   const count = (t: Tab) => (runs ?? []).filter((r) => (t === "progress") === going(r)).length;
+  const label = (r: WorkflowRun) => r.reference || flowName(r.path);
+  const rowMenu = (r: WorkflowRun) => [{ key: "open", label: "Open", onSelect: () => setDialog({ kind: "run", id: r.id }) },
+    ...(going(r) ? [{ key: "cancel", label: "Cancel run…", separatorBefore: true, onSelect: () => setAsk(r) }] : [])];
+  const cancel = (r: WorkflowRun) => api.cancelWorkflow(r.id).then(() => { onNotice("Cancelled the run " + (r.reference || r.id) + "."); setAsk(null); load(); }, (e) => setError(message(e)));
+  const why = (r: WorkflowRun) => r.error ? (r.error.code ? r.error.code + ": " : "") + (r.error.message ?? "") : "";
 
   return (
     <section className={"st-page cc-home cc-list" + (dialog?.kind === "run" ? " has-run" : "")} aria-labelledby="cc-wf-title">
@@ -58,20 +66,26 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
+      <div className="cc-list-panel">
+      {ask && <div className="cc-list-bulk" role="alert"><span>Cancel the run {label(ask)}? Its open tasks are withdrawn.</span>
+        <Button kind="danger" onClick={() => cancel(ask)}>Cancel run</Button><Button kind="plain" onClick={() => setAsk(null)}>Keep it</Button></div>}
+      <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label={tab === "progress" ? "Workflow runs in progress" : "Finished workflow runs"}>
           <thead><tr><th scope="col">Status</th><th scope="col">Workflow</th><th scope="col">Reference</th><th scope="col">{tab === "progress" ? "Current stage" : "Last stage"}</th>
-            <th scope="col">Started by</th><th scope="col">Started</th><th scope="col">{tab === "progress" ? "Updated" : "Finished"}</th></tr></thead>
+            <th scope="col">Started by</th><th scope="col">Started</th><th scope="col">{tab === "progress" ? "Updated" : "Finished"}</th>{tab === "finished" && <th scope="col">Why it ended</th>}
+            <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((r) => (
-              <tr key={r.id} className={dialog?.kind === "run" && dialog.id === r.id ? "is-open" : undefined} onClick={() => setDialog({ kind: "run", id: r.id })}>
+              <tr key={r.id} className={dialog?.kind === "run" && dialog.id === r.id ? "is-open" : undefined} onClick={rowClick(() => setDialog({ kind: "run", id: r.id }))}>
                 <td><span className={"cc-pill is-" + (PILL[r.status] ?? "pending")}><span className="cc-pill-dot" />{STATUS[r.status] ?? r.status}</span></td>
-                <td><strong>{flowName(r.path)}</strong> <span className="cc-none">v{r.version}</span></td><td className="ui-mono">{r.reference ?? ""}</td><td>{r.stage ?? ""}</td><td>{r.started_by ?? ""}</td>
+                <td><span className="cc-aico is-workflow" aria-hidden="true">W</span><strong>{flowName(r.path)}</strong> <span className="cc-none">v{r.version}</span></td><td className="ui-mono">{r.reference ?? ""}</td><td>{r.stage ?? ""}</td><td>{r.started_by ?? ""}</td>
                 <td>{when(r.created)}</td><td>{when(tab === "progress" ? r.updated : r.finished)}</td>
+                {tab === "finished" && <td>{why(r) ? <span className="cc-run-why" title={why(r)}>{why(r)}</span> : <span className="cc-none">–</span>}</td>}
+                <td className="cc-list-menu"><RowMenu label={"Actions for " + label(r)} items={rowMenu(r)} /></td>
               </tr>
             ))}
-            {runs && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{tab === "progress" ? "No workflow is running." : "No finished workflow runs."}</td></tr>}
-            {!runs && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
+            {runs && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{tab === "progress" ? "No workflow is running." : "No finished workflow runs."}</td></tr>}
+            {!runs && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
       </div>
