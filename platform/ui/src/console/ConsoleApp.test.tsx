@@ -1130,11 +1130,14 @@ describe("rebuilt Command Center console", () => {
     expect(within(list).getByText("team:finance")).toBeTruthy();
     expect(screen.getByText("2 teams · 2 people in them")).toBeTruthy();   // the list pattern: a count, a ⋯ menu per row
     expect(within(list).getByRole("button", { name: "Actions for ops" })).toBeTruthy();
+    // a team opens as its own page: its members, a person added and one removed from their menu
     fireEvent.click(within(list).getByText("finance"));
     const d = await screen.findByRole("dialog", { name: "Team finance" });
+    expect(screen.queryByRole("table", { name: "Teams list" })).toBeNull();
     fireEvent.change(within(d).getByLabelText("Person to add"), { target: { value: "admin" } });
     fireEvent.click(within(d).getByRole("button", { name: "Add" }));
-    fireEvent.click(within(within(d).getByRole("table", { name: "Members" }).querySelectorAll("tr")[2] as HTMLElement).getByRole("button", { name: "Remove" }));
+    fireEvent.keyDown(within(d).getByRole("button", { name: "Actions for old" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Remove from the team" }));
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save changes" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "teams/t1/members", body: { members: [{ username: "vic", role: "lead" }, { username: "admin", role: "member" }] } }));
     fireEvent.click(screen.getByRole("button", { name: "Create team" }));
@@ -1142,6 +1145,14 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(c).getByLabelText(/^Name/), { target: { value: "hr" } });
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create team" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "teams", body: { name: "hr", description: "" } }));
+    // deleting asks first
+    fireEvent.keyDown(within(await screen.findByRole("table", { name: "Teams list" })).getByRole("button", { name: "Actions for ops" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toContain("Delete the team ops?");
+    expect(calls.some((x) => x.method === "DELETE")).toBe(false);
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
+    expect(calls.some((x) => x.method === "DELETE" && x.route === "teams/t2")).toBe(true);
   });
 
   it("shows the Credential vault as AA's: credentials, vault folders, my requests; flags saved, a credential created, members changed", async () => {
