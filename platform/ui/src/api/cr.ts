@@ -139,7 +139,9 @@ export type HumanTask = { id: string; title: string; description?: string | null
 /** A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily or weekly. */
 export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly";
   every_minutes?: number | null; at_time?: string | null; days?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
-  created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null };
+  created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null;
+  /** Its last run, and how that run ended (queued, running, success, failed or stopped). */
+  last_run_id?: string | null; last_status?: string | null };
 /** A trigger: an event that starts an agent, watched on a runner or checked by the Command Center (evaluated_on). */
 export type Trigger = { id: string; name: string; kind: string; bot_path: string; device_id?: string | null; run_as?: string | null; created_by?: string; enabled: boolean;
   status?: string | null; evaluated_on?: "runner" | "server" | null; windows_only?: boolean; fire_count?: number; last_fired?: string | null; last_error?: string | null;

@@ -10,11 +10,15 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * timing with a time zone) with UiPath's and Blue Prism's holiday calendars and rules for missed times and overlaps.
  * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count, one toolbar, the selected's actions in a
  * bar only while rows are ticked, a ⋯ menu per row.
+ * Review round 2 (31 Oct 2026): the last run says how it ended and opens in Agent Activity (as Blue Prism's Scheduler
+ * shows the last result); the agent has its icon, as in Automation.
  */
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+/** How a schedule's last run ended, as a pill (the words and colours of Agent Activity). */
+const LAST: Record<string, [string, string]> = { success: ["Completed", "success"], failed: ["Failed", "failed"], stopped: ["Stopped", "stopped"], running: ["Running", "active"], queued: ["Waiting", "pending"] };
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 export const repeats = (s: Schedule) => (s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time
   : (s.days ?? "").split(",").filter(Boolean).map((d) => d.charAt(0) + d.slice(1).toLowerCase()).join(", ") + " at " + s.at_time) + " (" + s.time_zone + ")";
@@ -124,9 +128,11 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                   <td className="cc-check"><input type="checkbox" aria-label={"Select " + s.name} checked={selected.includes(s.id)}
                     onChange={(e) => setSelected(e.target.checked ? [...selected, s.id] : selected.filter((x) => x !== s.id))} /></td>
                   <td><span className={"cc-pill is-" + (s.enabled ? "active" : "disabled")}><span className="cc-pill-dot" />{s.enabled ? "Enabled" : "Disabled"}</span></td>
-                  <td><strong>{s.name}</strong></td><td>{agentName(s.bot_path)}</td><td>{runsOn(s)}</td>
+                  <td><strong>{s.name}</strong></td><td><span className="cc-aico" aria-hidden="true">A</span>{agentName(s.bot_path)}</td><td>{runsOn(s)}</td>
                   <td>{repeats(s)}{s.holiday_calendar ? ", not on " + s.holiday_calendar : ""}</td>
-                  <td>{s.enabled ? when(s.next_run) : <span className="cc-none">–</span>}</td><td>{s.last_run ? when(s.last_run) : <span className="cc-none">Never</span>}</td>
+                  <td>{s.enabled ? when(s.next_run) : <span className="cc-none">–</span>}</td><td>{s.last_run_id ? <a className="cc-last-run" href={"#/activity?run=" + encodeURIComponent(s.last_run_id)} title="Open this run in Agent Activity">
+                    <span className={"cc-pill is-" + (LAST[s.last_status ?? ""]?.[1] ?? "pending")}><span className="cc-pill-dot" />{LAST[s.last_status ?? ""]?.[0] ?? s.last_status}</span> {when(s.last_run)}</a>
+                    : s.last_run ? when(s.last_run) : <span className="cc-none">Never</span>}</td>
                   <td>{s.created_by}{s.run_as && s.run_as !== s.created_by && <span className="cc-none"> · runs as {s.run_as}</span>}</td>
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + s.name} items={rowMenu(s)} /></td>
                 </tr>

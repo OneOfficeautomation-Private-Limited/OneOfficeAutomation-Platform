@@ -2007,7 +2007,18 @@ public final class ControlRoom {
         audit.record(by.username(), "schedule.update", "schedule", sid, changes, "ok", ip);
     }
 
-    public List<Map<String, Object>> schedules(User by) { require(by, "schedules.view", "view schedules"); return db.query("SELECT * FROM schedules ORDER BY name"); }
+    /** The schedules, each with its last run's id and how it ended (as Blue Prism's Scheduler shows the last result). */
+    public List<Map<String, Object>> schedules(User by) {
+        require(by, "schedules.view", "view schedules");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> s : db.query("SELECT * FROM schedules ORDER BY name")) {
+            Map<String, Object> m = new LinkedHashMap<>(s);
+            Map<String, Object> last = db.one("SELECT id, status FROM runs WHERE source = ? ORDER BY created DESC LIMIT 1", "schedule:" + s.get("id"));
+            if (last != null) { m.put("last_run_id", last.get("id")); m.put("last_status", last.get("status")); }
+            out.add(m);
+        }
+        return out;
+    }
 
     public Map<String, Object> schedule(User by, String sid) {
         require(by, "schedules.view", "view schedules");

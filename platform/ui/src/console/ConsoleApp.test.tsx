@@ -250,7 +250,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "schedules" && init.method === "POST") return ok({ id: "s9", next_run: "2026-11-01T08:30:00Z" });
     if (route === "schedules") return ok({ schedules: [
       { id: "s1", name: "Nightly invoices", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "daily", at_time: "02:00", time_zone: "Asia/Kolkata", enabled: true,
-        next_run: "2026-11-01T20:30:00Z", last_run: "2026-10-31T20:30:00Z", created_by: "admin", holiday_calendar: "India 2026" },
+        next_run: "2026-11-01T20:30:00Z", last_run: "2026-10-31T20:30:00Z", created_by: "admin", holiday_calendar: "India 2026", last_run_id: "r7", last_status: "failed" },
       { id: "s2", name: "Hourly onboarding", bot_path: "HR/Onboard.flow.json", pool_id: "p1", kind: "every", every_minutes: 60, time_zone: "UTC", enabled: false, created_by: "vic" }] });
     if (route === "schedules/bulk") return ok({ changed: (body.ids as string[]).length });
     if (/^schedules\/s\d(\/run)?$/.test(route)) return ok(route.endsWith("/run") ? { run_id: "r9" } : { ok: true });
@@ -1229,6 +1229,10 @@ describe("rebuilt Command Center console", () => {
     const list = await screen.findByRole("table", { name: "Schedules list" });
     expect(await within(list).findByText("Daily at 02:00 (Asia/Kolkata), not on India 2026")).toBeTruthy();
     expect(within(list).getByText("Pool Finance pool")).toBeTruthy();
+    // the last run says how it ended and opens in Agent Activity; one never run says so
+    const last = within(within(list).getByText("Nightly invoices").closest("tr")!).getByRole("link", { name: /Failed/ });
+    expect(last.getAttribute("href")).toBe("#/activity?run=r7");
+    expect(within(within(list).getByText("Hourly onboarding").closest("tr")!).getByText("Never")).toBeTruthy();
     fireEvent.click(within(list).getByLabelText("Select Hourly onboarding"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enable" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules/bulk", body: { ids: ["s2"], action: "enable" } }));

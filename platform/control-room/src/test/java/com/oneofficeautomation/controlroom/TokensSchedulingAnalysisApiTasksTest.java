@@ -95,6 +95,11 @@ class TokensSchedulingAnalysisApiTasksTest {
         Map<String, Object> sch2 = cr.createSchedule(admin, new HashMap<>(Map.of("name", "hourly", "bot_path", "Ops/Echo.flow.json", "kind", "every", "every_minutes", 60, "device_id", device)), null);
         assertEquals(2, cr.bulkSchedules(admin, Map.of("ids", List.of(sid, sch2.get("id")), "action", "disable"), null).get("changed"));
         assertTrue(cr.schedules(admin).stream().noneMatch(x -> Boolean.TRUE.equals(x.get("enabled"))));
+        // each schedule says how its last run went, and which run that was; one never run says nothing
+        Map<String, Object> nightly = cr.schedules(admin).stream().filter(x -> sid.equals(x.get("id"))).findFirst().orElseThrow();
+        assertEquals(run.get("run_id"), nightly.get("last_run_id"));
+        assertNotNull(nightly.get("last_status"));
+        assertNull(cr.schedules(admin).stream().filter(x -> sch2.get("id").equals(x.get("id"))).findFirst().orElseThrow().get("last_run_id"));
         cr.bulkSchedules(admin, Map.of("ids", List.of(sid, sch2.get("id")), "action", "owner", "owner", "jane"), null);
         assertEquals("jane", cr.schedule(admin, (String) sch2.get("id")).get("created_by"));
         assertEquals("CR.NOT_FOUND", code(() -> cr.createSchedule(admin, new HashMap<>(Map.of("name", "x", "bot_path", "Ops/Echo.flow.json", "kind", "daily", "at_time", "03:00", "run_as", "nobody")), null)));
