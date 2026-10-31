@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { Alert, AlertRule, CrApi, CrUser, Dashboard, ModelConnection, Operations, Run, Runner, WorkQueue } from "../api/cr";
+import type { Alert, AlertRule, CrApi, CrUser, Dashboard, ModelConnection, Operations, Run, Runner, Schedule, WorkQueue } from "../api/cr";
+import { rowClick } from "./ListParts";
 
 /**
  * Operational Insights > Overview: how agents, runners, queues and AI connections are doing now, on one screen, as
@@ -7,6 +8,8 @@ import type { Alert, AlertRule, CrApi, CrUser, Dashboard, ModelConnection, Opera
  * 31 Oct 2026). Laid out as the design plan's step 2b (dense and clean): one row of figures with an icon each, what
  * needs attention in one tabbed panel, the latest runs as a table, and short side panels; "all clear" is one line.
  * Each figure opens the page behind it. Only what the viewer may see is shown; it refreshes every 30 seconds.
+ * Review round 2 (31 Oct 2026): the latest runs as in Agent Activity (its status pills, the agent icon and version, a row
+ * opens the run, the error's message on hover), and the next scheduled runs, as AA's Home and Bots dashboards show them.
  */
 const PERIODS: [string, string, string][] = [["1", "24 hours", "24h"], ["7", "7 days", "7d"]];
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
@@ -20,6 +23,10 @@ const took = (ms?: number | null) => ms == null ? "" : ms < 60000 ? Math.round(m
 const short = (n: number) => n >= 1_000_000 ? Math.round(n / 100_000) / 10 + "M" : n >= 1000 ? Math.round(n / 100) / 10 + "k" : String(n);
 const waiting = (q: WorkQueue) => (q.counts.new ?? 0) + (q.counts.retry ?? 0);
 const errCode = (e?: string | null) => { if (!e) return ""; try { return JSON.parse(e).code ?? ""; } catch { return ""; } };
+const errText = (e?: string | null) => { if (!e) return ""; try { return JSON.parse(e).message ?? ""; } catch { return e; } };
+/** A run's state as Agent Activity names and colours it. */
+const STATUS: Record<string, string> = { queued: "Queued", running: "Running", paused: "Paused", stopping: "Stopping", success: "Completed", failed: "Failed", stopped: "Stopped" };
+const PILL: Record<string, string> = { queued: "pending", running: "active", paused: "pending", stopping: "pending", success: "success", failed: "failed", stopped: "stopped" };
 /** The Agent Activity address for a tab and filters. */
 const activity = (p: Record<string, string>) => "#/activity?" + new URLSearchParams(p).toString();
 /** Why a runner needs attention, or null when it is fine. */
@@ -59,6 +66,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
   const [alerts, setAlerts] = useState<{ alerts: Alert[]; open: number } | null>(null);
   const [rules, setRules] = useState<AlertRule[] | null>(null);
   const [latest, setLatest] = useState<Run[] | null>(null);
+  const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [tab, setTab] = useState<Tab>("summary");
   const [error, setError] = useState<string | null>(null);
   const [at, setAt] = useState<Date | null>(null);
@@ -69,10 +77,10 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const no = Promise.reject();
     no.catch(() => {});
-    const [a, b, c, q, m, al, ru, la] = await Promise.allSettled([api.dashboard(tz), api.operations({ days, top: "6" }),
+    const [a, b, c, q, m, al, ru, la, sc] = await Promise.allSettled([api.dashboard(tz), api.operations({ days, top: "6" }),
       can("devices.view") ? api.devices() : no, can("queues.view") ? api.queues() : no,
       can("connections.manage") ? api.modelConnections() : no, api.alerts({ status: "open", limit: "50" }), api.alertRules(),
-      can("runs.view") ? api.runs({ limit: "6" }) : no]);
+      can("runs.view") ? api.runs({ limit: "6" }) : no, can("schedules.view") ? api.schedules() : no]);
     if (a.status === "fulfilled") setD(a.value);
     if (b.status === "fulfilled") setOps(b.value);
     setError(b.status === "rejected" ? (b.reason instanceof Error ? b.reason.message : String(b.reason)) : null);
@@ -82,6 +90,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
     setAlerts(al.status === "fulfilled" ? al.value : null);
     setRules(ru.status === "fulfilled" ? ru.value : null);
     setLatest(la.status === "fulfilled" ? la.value.runs : null);
+    setSchedules(sc.status === "fulfilled" ? sc.value : null);
     setAt(new Date());
   }, [api, days]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
@@ -116,6 +125,9 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
     ...(ai ? [{ kind: "ai" as Kind, label: "AI tokens", value: short(tokens), meta: budget ? Math.round(100 * tokens / budget) + "% of budget" : "this month", href: "#/connections", bad: budget > 0 && tokens >= 0.8 * budget }] : []),
     ...(d?.hours_saved_30d != null ? [{ kind: "hours" as Kind, label: "Hours saved", value: String(Math.round(d.hours_saved_30d)), meta: "last 30 days", href: pageHref("value") }] : []),
   ];
+  const next = (schedules ?? []).filter((s) => s.enabled && s.next_run).sort((x, y) => x.next_run!.localeCompare(y.next_run!)).slice(0, 5);
+  /** The runner a run ran on: its name, or "Removed runner" once it is gone (its id on hover). */
+  const runnerOf = (r: Run) => r.device_name ?? (runners ?? []).find((x) => x.id === r.device_id)?.name ?? (r.device_id ? (runners ? "Removed runner" : r.device_id) : "");
   const tabs: [Tab, string][] = [["summary", "Needs attention"], ["alerts", "Alerts"], ["failed", "Failed runs"], ["runners", "Runners"], ["queues", "Queues"]];
 
   return (
@@ -183,10 +195,11 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
             <div className="ov-ph"><h2>Latest runs</h2><a href="#/activity?tab=completed" className="ov-more">Agent Activity ›</a></div>
             {latest.length ? <table className="ov-t" aria-label="Latest runs">
               <thead><tr><th>Status</th><th>Agent</th><th>Runner</th><th>Started</th><th className="n">Took</th><th>Error</th></tr></thead>
-              <tbody>{latest.map((r) => <tr key={r.id}>
-                <td><span className={"ov-pill is-" + r.status}>{{ success: "Completed", failed: "Failed", stopped: "Stopped", running: "Running", queued: "Waiting" }[r.status] ?? r.status}</span></td>
-                <td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{name(r.bot_path)}</a></td><td>{r.device_name ?? r.device_id ?? ""}</td>
-                <td>{time(r.started ?? r.created)}</td><td className="n">{took(r.duration_ms)}</td><td className="ov-bad">{errCode(r.error)}</td></tr>)}</tbody>
+              <tbody>{latest.map((r) => <tr key={r.id} className="is-open" title="Open this run in Agent Activity" onClick={rowClick(() => { location.hash = "#/activity?run=" + encodeURIComponent(r.id); })}>
+                <td><span className={"cc-pill is-" + (PILL[r.status] ?? "pending")}><span className="cc-pill-dot" />{STATUS[r.status] ?? r.status}</span></td>
+                <td><span className="cc-aico" aria-hidden="true">A</span><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{name(r.bot_path)}</a>{r.version ? " v" + r.version : ""}</td>
+                <td title={r.device_id ?? undefined}>{runnerOf(r)}</td>
+                <td>{time(r.started ?? r.created)}</td><td className="n">{took(r.duration_ms)}</td><td className="ov-bad" title={errText(r.error) || undefined}>{errCode(r.error)}</td></tr>)}</tbody>
             </table> : <p className="ov-ok">No runs yet.</p>}
           </div>}
         </div>
@@ -200,6 +213,12 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
               {live.length - attention.length > (attention.length ? 1 : 3) && <li><span className="ov-dot" />{live.length - attention.length - (attention.length ? 1 : 3)} more<span className="ov-r ov-good">Online</span></li>}
               {!live.length && <li>No runners yet.</li>}
             </ul>
+          </div>}
+          {schedules && <div className="ov-panel">
+            <div className="ov-ph"><h2>Next scheduled runs</h2><a href="#/schedules" className="ov-more">Schedules ›</a></div>
+            <ul className="ov-rows" aria-label="Next scheduled runs">{next.map((s) => <li key={s.id} title={name(s.bot_path)}><span className="cc-aico" aria-hidden="true">A</span>{s.name}
+              <span className="ov-r">{time(s.next_run)}</span></li>)}
+              {!next.length && <li>Nothing is scheduled.</li>}</ul>
           </div>}
           {queues && queues.length > 0 && <div className="ov-panel">
             <div className="ov-ph"><h2>Work queues</h2><a href="#/queueinsights" className="ov-more">Work queue insights ›</a></div>

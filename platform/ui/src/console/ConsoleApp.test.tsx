@@ -534,6 +534,15 @@ describe("rebuilt Command Center console", () => {
     // the latest runs; nothing to set up (queues, connections, rules and hours saved all exist)
     const latest = screen.getByRole("table", { name: "Latest runs" });
     expect(within(latest).getAllByRole("link", { name: "Invoice intake" })[0].getAttribute("href")).toBe("#/activity?run=r3");
+    // as in Agent Activity: its status pills, and a row opens the run
+    expect(latest.querySelector(".cc-pill.is-failed")).toBeTruthy();
+    fireEvent.click((within(latest).getAllByRole("row")[1] as HTMLTableRowElement).cells[3]);
+    expect(location.hash).toMatch(/^#\/activity\?run=/);
+    location.hash = "#/insights";
+    // the next scheduled runs: enabled ones only, soonest first
+    const next = await screen.findByRole("list", { name: "Next scheduled runs" });
+    expect(within(next).getByText("Nightly invoices")).toBeTruthy();
+    expect(within(next).queryByText("Hourly onboarding")).toBeNull();
     expect(screen.queryByRole("list", { name: "Set up next" })).toBeNull();
     expect(screen.getByRole("link", { name: "New alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
     // the period, then a failure reason opens Agent Activity's Completed runs, filtered to it

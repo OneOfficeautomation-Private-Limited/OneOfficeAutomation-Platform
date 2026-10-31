@@ -342,6 +342,8 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .ov-t th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); white-space: nowrap; }
 .ov-t td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
 .ov-t tr:last-child td { border-bottom: 0; }
+.ov-t tr.is-open { cursor: pointer; }
+.ov-t tr.is-open:hover td { background: var(--ui-hover, var(--ui-selected)); }
 .ov-t .n { text-align: right; }
 .ov-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--ui-selected); color: var(--ui-pill-text); }
 .ov-pill.is-success { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
