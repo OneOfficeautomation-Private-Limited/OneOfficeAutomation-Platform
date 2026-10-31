@@ -189,6 +189,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 @media (max-width: 1250px) { .cc-ops-charts { grid-template-columns: 1fr 1fr; } .cc-ops-charts > .cc-card:nth-child(3) { grid-column: 1 / -1; } }
 .cc-ops-lists { margin: 10px 20px 16px; }
 .cc-cap-runners { margin: 10px 20px 0; }
+.cc-qi-foot { margin: 0; padding: 6px 12px; border-top: 1px solid var(--ui-line, var(--ui-divider)); }
 .cc-cap-title { margin: 0; padding: 8px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
 .cc-ops-lists > .ov-tabs { align-items: center; padding-right: 8px; }
 .cc-scroll { overflow-x: auto; }

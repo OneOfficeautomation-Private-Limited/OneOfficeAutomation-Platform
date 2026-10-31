@@ -693,9 +693,18 @@ describe("rebuilt Command Center console", () => {
     const table = screen.getByRole("table", { name: "Queues" });
     expect(within(within(table).getByRole("row", { name: /Claims/ })).getByText("3 of 1")).toBeTruthy();
     expect(within(within(table).getByRole("row", { name: /Vendor invoices/ })).getByText("3 h 0 min")).toBeTruthy();   // oldest waiting
-    fireEvent.click(within(table).getByRole("button", { name: "Vendor invoices" }));
+    // one line per queue: processing as a pill first, the target time on hover; a row shows its details below
+    const vendor = within(table).getByRole("row", { name: /Vendor invoices/ }) as HTMLTableRowElement;
+    expect(within(vendor).getByText("Off").closest(".cc-pill")).toBeTruthy();
+    fireEvent.click(vendor.cells[3]);
     expect(within(screen.getByRole("table", { name: "Why items failed in Vendor invoices" })).getByText("FILE.NOT_FOUND")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Added and finished per day in Vendor invoices" })).getByText("3 added · 2 finished")).toBeTruthy();
+    // Open the queue goes to its own page in Work queues
+    fireEvent.keyDown(within(table).getByRole("button", { name: "Actions for Vendor invoices" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Open the queue" })); });
+    expect(await screen.findByRole("dialog", { name: "Work queue Vendor invoices" })).toBeTruthy();
+    expect(location.hash).toBe("#/queues");
+    location.hash = "";
   });
 
   it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by folder and agent, minutes saved changed in place", async () => {

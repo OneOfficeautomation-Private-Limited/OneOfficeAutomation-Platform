@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrApi, CrUser, QueueInsight, RunnerPool } from "../api/cr";
-import { Button, Select, usePersistent } from "../components";
+import { Select, usePersistent } from "../components";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Operational Insights > Work queue insights, as UiPath's queue monitoring and Queues SLA, Blue Prism's work queue
  * composition and AA's Workload dashboard (checked 31 Oct 2026): for each queue the viewer may see, what waits now,
  * what is overdue or at risk of missing its target time, how many items finished and how fast, the failures by error,
  * and the runners needed to clear what waits within the target time, compared with the runners of its pool.
+ * Review round 2 (1 Nov 2026): the period as a filter with the refresh icon; one line per queue that fits at 1366 px
+ * (processing as a pill first, the target time on hover, short headings explained on hover); a row shows the queue's
+ * details below, and a menu per queue opens it in Work queues.
  */
 const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"]];
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -17,6 +21,11 @@ function dur(ms?: number | null) {
   return s < 60 ? s + " s" : s < 3600 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : s < 172_800 ? Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min" : Math.round(s / 86400) + " days";
 }
 const age = (t?: string | null) => t ? dur(Date.now() - new Date(t).getTime()) : "–";
+/** The number columns, short, with what each means on hover. */
+const HEADS: [string, string][] = [["Waiting", "Items waiting now"], ["Oldest", "How long the oldest item has waited"], ["Overdue", "Waiting longer than the target time"],
+  ["At risk", "Waiting more than three quarters of the target time"], ["Finished", "Items finished in the period"], ["Completed", "Share of finished items that completed"],
+  ["In time", "Share of finished items done within the target time"], ["An hour", "Items finished per hour of processing"], ["Handling", "Average time to handle an item"],
+  ["Wait", "Average wait before an item starts"], ["Runners", "Runners needed to clear what waits within the target time, of the runners in its pool"]];
 
 /** What to do about a queue, in plain words, or null when it is fine. */
 function advice(q: QueueInsight, poolSize: number | null): string | null {
@@ -53,10 +62,13 @@ export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
       <header className="cc-list-head">
         <h1 id="cc-qi-title">Work queue insights</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="What waits in each work queue, what is late or at risk of missing its target time, how fast items finish, and the runners needed to keep up.">i</span>
-        <span className="ov-fill" />
-                  <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
-          <Button kind="plain" onClick={load}>Refresh</Button>
       </header>
+      <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {!list && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {list && !qs.length && <p className="st-muted cc-pad">No work queues you may see yet.</p>}
@@ -68,24 +80,27 @@ export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
           <div className="cc-sum is-static"><strong>{finished}</strong><span>Finished · {finished ? Math.round(100 * success / finished) + "% completed · " : ""}{label}</span></div>
         </div>
         {tips.length > 0 && <ul className="cc-advice cc-pad-x cc-advice-list" aria-label="Advice">{tips.map((t) => <li key={t}>{t}</li>)}</ul>}
-        <div className="cc-card cc-card-flat cc-pad-x cc-gap">
-          <h2>Queues</h2>
-          <div className="cc-scroll"><table className="st-table" aria-label="Queues">
-            <thead><tr>{["Queue", "Waiting", "Oldest waiting", "Overdue", "At risk", "Target", "Finished", "Completed", "In time", "An hour", "Handling", "Wait to start", "Runners needed", "Processing"]
-              .map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
-            <tbody>{qs.map((q) => <tr key={q.id} className={q.id === open ? "is-selected" : undefined}>
-              <td><button type="button" className="cc-link" aria-expanded={q.id === open} onClick={() => setOpen(q.id === open ? null : q.id)}>{q.name}</button></td>
-              <td>{q.waiting}</td><td>{age(q.oldest_waiting)}</td>
-              <td className={q.overdue ? "cc-err" : undefined}>{q.sla_minutes ? q.overdue ?? 0 : "–"}</td>
-              <td className={q.at_risk ? "cc-sev is-warning" : undefined}>{q.sla_minutes ? q.at_risk ?? 0 : "–"}</td>
-              <td>{q.sla_minutes ? q.sla_minutes + " min" : "None"}</td>
-              <td>{q.finished}</td><td>{rate(q.success_rate)}</td><td>{rate(q.in_time_rate)}</td><td>{q.per_hour}</td>
-              <td>{dur(q.avg_handling_ms)}</td><td>{dur(q.avg_wait_ms)}</td>
-              <td>{q.runners_needed ?? "–"}{q.runners_needed != null && poolSize(q) != null ? " of " + poolSize(q) : ""}</td>
-              <td className={q.processing ? undefined : "cc-err"}>{q.processing ? "On" : "Off"}</td>
-            </tr>)}</tbody>
+        <div className="cc-list-panel cc-cap-runners">
+          <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Queues">
+            <thead><tr><th scope="col" title="Processing on or off">State</th><th scope="col">Queue</th>
+              {HEADS.map(([h, tip]) => <th key={h} scope="col" className="cc-num" title={tip}>{h}</th>)}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+            <tbody>{qs.map((q) => { const target = q.sla_minutes ? "Target time " + q.sla_minutes + " min" : "No target time";
+              const show = () => setOpen(q.id === open ? null : q.id);
+              return <tr key={q.id} className={q.id === open ? "is-selected" : undefined} aria-selected={q.id === open} onClick={rowClick(show)}>
+              <td><span className={"cc-pill is-" + (q.processing ? "active" : "disabled")}><span className="cc-pill-dot" />{q.processing ? "On" : "Off"}</span></td>
+              <td title={target}><strong>{q.name}</strong></td>
+              <td className="cc-num">{q.waiting}</td><td className="cc-num">{age(q.oldest_waiting)}</td>
+              <td className={"cc-num" + (q.overdue ? " cc-err" : "")} title={target}>{q.sla_minutes ? q.overdue ?? 0 : "–"}</td>
+              <td className={"cc-num" + (q.at_risk ? " cc-sev is-warning" : "")} title={target}>{q.sla_minutes ? q.at_risk ?? 0 : "–"}</td>
+              <td className="cc-num">{q.finished}</td><td className="cc-num">{rate(q.success_rate)}</td><td className="cc-num">{rate(q.in_time_rate)}</td><td className="cc-num">{q.per_hour}</td>
+              <td className="cc-num">{dur(q.avg_handling_ms)}</td><td className="cc-num">{dur(q.avg_wait_ms)}</td>
+              <td className="cc-num">{q.runners_needed ?? "–"}{q.runners_needed != null && poolSize(q) != null ? " of " + poolSize(q) : ""}</td>
+              <td className="cc-list-menu"><RowMenu label={"Actions for " + q.name} items={[{ key: "show", label: q.id === open ? "Hide its details" : "Show its details", onSelect: show },
+                { key: "open", label: "Open the queue", onSelect: () => { location.hash = "#/queues?queue=" + encodeURIComponent(q.id); } }]} /></td>
+            </tr>; })}</tbody>
           </table></div>
-          <p className="cc-card-foot st-muted">At risk: waiting more than three quarters of the target time. Runners needed: waiting items × average handling time ÷ target time (and the runners of its pool).</p>
+          <p className="cc-list-hint cc-qi-foot">At risk: waiting more than three quarters of the target time. Runners: waiting items × average handling time ÷ target time, and the runners of its pool.</p>
         </div>
         {sel && <div className="cc-two cc-pad">
           <div className="cc-card cc-card-flat"><h2>{sel.name}: added and finished per day</h2>

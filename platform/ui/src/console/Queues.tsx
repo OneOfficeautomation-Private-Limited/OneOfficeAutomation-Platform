@@ -33,7 +33,8 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dialog, setDialog] = useState<null | { kind: "edit"; queue: WorkQueue | null } | { kind: "models" } | { kind: "import" }>(null);
-  const [openId, setOpenId] = useState<string | null>(null);   // a queue's own page, in place of the list
+  // a queue's own page, in place of the list; #/queues?queue=<id> (Work queue insights) opens it
+  const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(location.hash.split("?")[1] ?? "").get("queue"));
   const [version, setVersion] = useState(0);   // read the open queue again after its settings change
   const can = (p: string) => user.permissions.includes(p);
 
@@ -42,6 +43,7 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     catch (e) { setError(message(e)); }
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (location.hash.includes("?")) history.replaceState(null, "", "#/queues"); }, []);
   useEffect(() => { const t = setInterval(() => { if (!dialog && !openId) load(); }, 10_000); return () => clearInterval(t); }, [load, dialog, openId]);
   const poolName = (id?: string | null) => id ? pools.find((p) => p.id === id)?.name ?? id : "Not chosen";
   const shown = useMemo(() => (list ?? []).filter((x) => !q.trim() || (x.name + " " + (x.description ?? "") + " " + (x.bot_path ?? "")).toLowerCase().includes(q.trim().toLowerCase())), [list, q]);
