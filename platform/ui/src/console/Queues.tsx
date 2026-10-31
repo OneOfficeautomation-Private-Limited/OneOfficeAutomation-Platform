@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
@@ -41,44 +41,58 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const poolName = (id?: string | null) => id ? pools.find((p) => p.id === id)?.name ?? id : "Not chosen";
   const shown = useMemo(() => (list ?? []).filter((x) => !q.trim() || (x.name + " " + (x.description ?? "") + " " + (x.bot_path ?? "")).toLowerCase().includes(q.trim().toLowerCase())), [list, q]);
 
+  const totals = (list ?? []).reduce((t, x) => ({ waiting: t.waiting + waiting(x), failed: t.failed + (x.counts.failed ?? 0), overdue: t.overdue + (x.overdue ?? 0) }), { waiting: 0, failed: 0, overdue: 0 });
+  const setOn = (x: WorkQueue) => api.setProcessing(x.id, !x.processing).then(() => { onNotice((x.processing ? "Stopped " : "Started ") + x.name + "."); load(); }, (e) => setError(message(e)));
+  const rowMenu = (x: WorkQueue) => [
+    { key: "open", label: "Open its items", onSelect: () => setDialog({ kind: "open", id: x.id }) },
+    ...(can("queues.work") ? [{ key: "on", label: x.processing ? "Stop processing" : "Start processing", onSelect: () => { setOn(x); } }] : []),
+    ...(can("queues.manage") ? [{ key: "edit", label: "Change settings…", onSelect: () => setDialog({ kind: "edit", queue: x }) }] : []),
+  ];
+
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-queues-title">
       <header className="cc-list-head">
         <h1 id="cc-queues-title">Work queues</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Lists of work items (invoices, tickets, orders) that an agent processes one by one on a runner pool, with retries and service levels.">i</span>
+        {list && <span className="cc-list-count">{list.length} queue{list.length === 1 ? "" : "s"} · {totals.waiting} item{totals.waiting === 1 ? "" : "s"} waiting{totals.failed ? " · " + totals.failed + " failed" : ""}{totals.overdue ? " · " + totals.overdue + " past the service level" : ""}</span>}
         <span className="ov-fill" />
-                  <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>
-          {can("queues.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import queue</Button>}
-          {can("queues.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", queue: null })}>Create work queue</Button>}
+        <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>
+        {can("queues.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import queue</Button>}
+        {can("queues.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", queue: null })}>Create work queue</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-list-tools">
-      <div className="cc-list-filters" role="group" aria-label="Filters">
-        <span className="cc-list-search"><TextInput type="search" aria-label="Search work queues" placeholder="Search work queues" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search work queues" placeholder="Search work queues" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="Work queues list tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      <div className="cc-list-panel">
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Work queues list">
+            <thead><tr><th scope="col">Processing</th><th scope="col">Queue</th><th scope="col">Agent</th><th scope="col">Runner pool</th><th scope="col">Waiting</th>
+              <th scope="col">In progress</th><th scope="col">Succeeded</th><th scope="col">Failed</th><th scope="col">Service level</th>{can("queues.work") && <th scope="col"><span className="st-sr">Start or stop</span></th>}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+            <tbody>
+              {shown.map((x) => (
+                <tr key={x.id} onClick={rowClick(() => setDialog({ kind: "open", id: x.id }))}>
+                  <td><span className={"cc-pill is-" + (x.processing ? "active" : "disabled")}><span className="cc-pill-dot" />{x.processing ? "On" : "Off"}</span></td>
+                  <td><strong>{x.name}</strong>{x.description && <div className="cc-list-sub">{x.description}</div>}</td>
+                  <td>{agentName(x.bot_path)}</td><td>{poolName(x.pool_id)}</td>
+                  <td>{waiting(x)}{(x.counts.review ?? 0) > 0 && <span className="cc-tag">{x.counts.review} to validate</span>}</td>
+                  <td>{x.counts.in_progress ?? 0}</td><td>{x.counts.success ?? 0}</td><td className={(x.counts.failed ?? 0) > 0 ? "cc-err" : undefined}>{x.counts.failed ?? 0}</td>
+                  <td>{x.sla_minutes ? x.sla_minutes + " min" : <span className="cc-none">None</span>}{x.overdue ? <span className="cc-risk">{x.overdue} past it</span> : null}</td>
+                  {can("queues.work") && <td><Button kind="plain" onClick={() => setOn(x)}>{x.processing ? "Stop" : "Start"}</Button></td>}
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + x.name} items={rowMenu(x)} /></td>
+                </tr>
+              ))}
+              {list && !shown.length && <tr className="is-static"><td colSpan={11} className="cc-none">{list.length ? "No queues match." : "No work queues yet. Create one, then add items by hand, from a CSV or Excel file, or from an agent."}</td></tr>}
+              {!list && !error && <tr className="is-static"><td colSpan={11} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{q.trim() ? " matching" : ""} · refreshes every 10 seconds</span></div>}
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
-        <table className="cc-list-table" aria-label="Work queues list">
-          <thead><tr><th scope="col">Processing</th><th scope="col">Queue</th><th scope="col">Agent</th><th scope="col">Runner pool</th><th scope="col">Waiting</th>
-            <th scope="col">In progress</th><th scope="col">Succeeded</th><th scope="col">Failed</th><th scope="col">Service level</th>{can("queues.work") && <th scope="col"><span className="st-sr">Start or stop</span></th>}</tr></thead>
-          <tbody>
-            {shown.map((x) => (
-              <tr key={x.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) setDialog({ kind: "open", id: x.id }); }}>
-                <td className={"cc-status is-" + (x.processing ? "success" : "disabled")}>{x.processing ? "On" : "Off"}</td>
-                <td>{x.name}{x.description && <div className="st-muted">{x.description}</div>}</td>
-                <td>{agentName(x.bot_path)}</td><td>{poolName(x.pool_id)}</td>
-                <td>{waiting(x)}{(x.counts.review ?? 0) > 0 && <span className="cc-tag">{x.counts.review} to validate</span>}</td>
-                <td>{x.counts.in_progress ?? 0}</td><td>{x.counts.success ?? 0}</td><td className={(x.counts.failed ?? 0) > 0 ? "cc-err" : undefined}>{x.counts.failed ?? 0}</td>
-                <td>{x.sla_minutes ? x.sla_minutes + " min" : "None"}{x.overdue ? <span className="cc-risk">{x.overdue} past it</span> : null}</td>
-                {can("queues.work") && <td><Button kind="plain" onClick={() => api.setProcessing(x.id, !x.processing).then(() => { onNotice((x.processing ? "Stopped " : "Started ") + x.name + "."); load(); }, (e) => setError(message(e)))}>{x.processing ? "Stop" : "Start"}</Button></td>}
-              </tr>
-            ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No queues match." : "No work queues yet. Create one, then add items by hand, from a CSV or Excel file, or from an agent."}</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
-      </div></div>
       {dialog?.kind === "edit" && <QueueForm api={api} queue={dialog.queue} pools={pools} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "open" && <QueueView key={dialog.id} api={api} id={dialog.id} can={can} poolName={poolName} onClose={() => { setDialog(null); load(); }} onNotice={onNotice}
         onEdit={(x) => setDialog({ kind: "edit", queue: x })} />}

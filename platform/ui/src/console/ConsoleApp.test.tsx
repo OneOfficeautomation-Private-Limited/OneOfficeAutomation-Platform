@@ -708,7 +708,8 @@ describe("rebuilt Command Center console", () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "lifecycle.export", "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Agent Repository");
-    await screen.findByRole("table", { name: "Agents list" });
+    const agentsList = await screen.findByRole("table", { name: "Agents list" });
+    expect(await within(agentsList).findAllByRole("button", { name: /^Actions for / })).not.toHaveLength(0);
     const made: string[] = [];
     URL.createObjectURL = (() => { made.push("file"); return "blob:x"; }) as typeof URL.createObjectURL;
 
@@ -831,6 +832,8 @@ describe("rebuilt Command Center console", () => {
     expect(await within(list).findByText("Runner B")).toBeTruthy();
     expect(within(list).getByText("Finance pool")).toBeTruthy();
     expect(screen.getByText(/1 of 2 online/)).toBeTruthy();
+    expect(within(list).getByRole("button", { name: "Actions for Runner B" })).toBeTruthy();   // the list pattern: a menu per row
+    expect(screen.queryByRole("toolbar", { name: "Runner actions" })).toBeNull();   // the bar shows only while runners are ticked
     // search in a chosen field (AA's search chooser), then a status filter
     fireEvent.change(screen.getByLabelText("Search in"), { target: { value: "os" } });
     fireEvent.change(screen.getByLabelText("Search runners"), { target: { value: "server" } });
@@ -1232,6 +1235,7 @@ describe("rebuilt Command Center console", () => {
     const list = await screen.findByRole("table", { name: "Work queues list" });
     expect(await within(list).findByText("1 past it")).toBeTruthy();
     expect(within(list).getByText("4")).toBeTruthy();   // waiting: new and retry
+    expect(within(list).getByRole("button", { name: "Actions for Vendor invoices" })).toBeTruthy();
     fireEvent.click(within(list).getByText("Vendor invoices"));
     const view = await screen.findByRole("dialog", { name: "Work queue Vendor invoices" });
     const items = await within(view).findByRole("table", { name: "Work items" });

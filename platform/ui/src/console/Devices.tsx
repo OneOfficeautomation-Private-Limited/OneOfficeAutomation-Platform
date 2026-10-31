@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput, usePersistent } from "../components";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and
@@ -109,76 +110,99 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   };
 
   const online = (runners ?? []).filter((d) => d.status === "online").length;
+  const filtered = Object.values(f).some(Boolean);
+  /** A row's own actions run on that runner alone (the dialogs act on the selected runners). */
+  const only = (d: Runner, next: NonNullable<typeof dialog>) => { setSelected([d.id]); setDialog(next); };
+  const rowMenu = (d: Runner) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "details", id: d.id }) },
+    ...(manage ? [
+      { key: "settings", label: "Update settings…", onSelect: () => only(d, { kind: "settings" }) },
+      d.maintenance ? { key: "endmt", label: "End maintenance", onSelect: () => { api.maintenance([d.id], null).then(() => { onNotice("Ended maintenance on " + d.name + "."); load(); }, (e) => setError(message(e))); } }
+        : { key: "mt", label: "Maintenance…", onSelect: () => only(d, { kind: "maintenance" }) },
+      { key: "program", label: "Update program", onSelect: () => { api.updateRunnerProgram([d.id]).then(() => { onNotice("Program update asked for on " + d.name + "."); load(); }, (e) => setError(message(e))); } },
+      { key: "state", label: d.enabled ? "Disable" : "Enable", onSelect: () => { api.patchDevice(d.id, { enabled: !d.enabled }).then(() => { onNotice((d.enabled ? "Disabled " : "Enabled ") + d.name + "."); load(); }, (e) => setError(message(e))); } },
+      { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => only(d, { kind: "delete" }) }] : []),
+  ];
+  const PILL: Record<string, string> = { online: "active", busy: "pending", maintenance: "pending", offline: "stopped", disabled: "disabled" };
+  const cell = (c: (typeof COLS)[number], d: Runner) => c.key === "status" ? <span className={"cc-pill is-" + PILL[stateOf(d)]} title={d.over_limit ?? undefined}><span className="cc-pill-dot" />{c.cell(d, pools)}</span>
+    : c.key === "name" ? <strong>{c.cell(d, pools)}</strong> : c.cell(d, pools) || <span className="cc-none">–</span>;
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-dev-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-dev-title">Runner Machines</h1>
-          <p>Machines running the OneRunner. A runner is online when it checked in during the last minute.{runners ? " " + online + " of " + runners.length + " online." : ""}</p></div>
+      <header className="cc-list-head">
+        <h1 id="cc-dev-title">Runner Machines</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Machines running the OneRunner. A runner is online when it checked in during the last minute.">i</span>
+        {runners && <span className="cc-list-count">{runners.length} runner{runners.length === 1 ? "" : "s"} · {online} of {runners.length} online · {pools.length} pool{pools.length === 1 ? "" : "s"}</span>}
+        <span className="ov-fill" />
         {tab === "runners" && manage && <Button kind="primary" onClick={() => setDialog({ kind: "register" })}>Register a runner</Button>}
         {tab === "pools" && can("pools.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "pool", pool: null })}>New runner pool</Button>}
       </header>
-      <div className="st-page-tabs" role="tablist" aria-label="Runner Machines">
-        {(["runners", "pools"] as const).map((t) => <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>
-          {t === "runners" ? "Runners" : "Runner pools"}{runners && <span className="cc-count">{t === "runners" ? runners.length : pools.length}</span>}</button>)}
+      <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Runner Machines">
+        {(["runners", "pools"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>
+          {t === "runners" ? "Runners" : "Runner pools"}{runners && <span className="ov-cnt">{t === "runners" ? runners.length : pools.length}</span>}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {tab === "runners" ? <>
         <div className="cc-list-tools">
-        <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="cc-chip"><Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} /></span>
-          <span className="cc-list-search"><TextInput type="search" aria-label="Search runners" placeholder="Search" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
-          <Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
-            options={[{ value: "", label: "Any status" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label }))]} />
-          {pools.length > 0 && <Select aria-label="Runner pool" value={f.pool ?? ""} onChange={(e) => setFilter("pool", e.target.value)}
-            options={[{ value: "", label: "Any pool" }, ...pools.map((p) => ({ value: p.id, label: p.name }))]} />}
-          {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
-        </div>
-        </div>
-        <div className="cc-bar" role="toolbar" aria-label="Runner actions">
-          {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
-          {manage && <>
-            <Button kind="secondary" disabled={!chosen.length} onClick={() => setDialog({ kind: "settings" })}>Update settings</Button>
-            <Button kind="secondary" disabled={!chosen.length} onClick={() => each("Program update asked for on", (d) => api.updateRunnerProgram([d.id]))}>Update program</Button>
-            <Button kind="secondary" disabled={!chosen.length} onClick={() => setDialog({ kind: "maintenance" })}>Maintenance</Button>
-            <Button kind="secondary" disabled={!chosen.some((d) => d.maintenance)} onClick={() => api.maintenance(chosen.filter((d) => d.maintenance).map((d) => d.id), null)
-              .then((r) => { onNotice("Ended maintenance on " + r.updated + " runner" + (r.updated === 1 ? "" : "s") + "."); setSelected([]); load(); }, (e) => setError(message(e)))}>End maintenance</Button>
-            <Button kind="secondary" disabled={!chosen.some((d) => d.enabled)} onClick={() => each("Disabled", (d) => api.patchDevice(d.id, { enabled: false }))}>Disable</Button>
-            <Button kind="secondary" disabled={!chosen.some((d) => !d.enabled)} onClick={() => each("Enabled", (d) => api.patchDevice(d.id, { enabled: true }))}>Enable</Button>
-            <Button kind="danger" disabled={!chosen.length} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
-          </>}
-          {can("pools.manage") && <Button kind="secondary" disabled={!chosen.length} onClick={() => setDialog({ kind: "pool", pool: null, members: chosen.map((d) => d.id) })}>Make a pool</Button>}
-          <span className="st-bar-fill" />
-          <Button kind="plain" onClick={load}>Refresh</Button>
-          <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
-          <Button kind="secondary" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
-        </div>
-        <div className="cc-list-panel"><div className="cc-list-scroll">
-          <table className="cc-list-table" aria-label="Runners list">
-            <thead><tr>
-              <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={page.length > 0 && page.every((d) => selected.includes(d.id))}
-                onChange={(e) => setSelected(e.target.checked ? page.map((d) => d.id) : [])} /></th>
-              {cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
-            </tr></thead>
-            <tbody>
-              {page.map((d) => (
-                <tr key={d.id} className={selected.includes(d.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) setDialog({ kind: "details", id: d.id }); }}>
-                  <td className="cc-check"><input type="checkbox" aria-label={"Select " + d.name} checked={selected.includes(d.id)}
-                    onChange={(e) => setSelected(e.target.checked ? [...selected, d.id] : selected.filter((x) => x !== d.id))} /></td>
-                  {cols.map((c) => <td key={c.key} className={c.key === "status" ? "cc-status is-" + stateOf(d) : undefined} title={c.key === "status" ? d.over_limit : undefined}>{c.cell(d, pools)}</td>)}
-                </tr>
-              ))}
-              {runners && !shown.length && <tr><td colSpan={cols.length + 1} className="st-muted">{runners.length ? "No runners match these filters." : "No runners yet. Register one, or start ooa server on this computer."}</td></tr>}
-              {!runners && !error && <tr><td colSpan={cols.length + 1} className="st-muted" role="status">Loading…</td></tr>}
-            </tbody>
-          </table>
-        </div></div>
-        {shown.length > PAGE && (
-          <div className="cc-pager">
-            <Button kind="plain" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</Button>
-            <span>{offset + 1}–{Math.min(offset + PAGE, shown.length)} of {shown.length}</span>
-            <Button kind="plain" disabled={offset + PAGE >= shown.length} onClick={() => setOffset(offset + PAGE)}>Next</Button>
+          <div className="cc-list-filters" role="group" aria-label="Filters">
+            <span className="cc-chip"><Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} /></span>
+            <span className="cc-list-search"><TextInput type="search" aria-label="Search runners" placeholder="Search" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
+            <span className={"cc-chip" + (f.status ? " is-on" : "")}><Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
+              options={[{ value: "", label: "Status: Any" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label: "Status: " + label }))]} /></span>
+            {pools.length > 0 && <span className={"cc-chip" + (f.pool ? " is-on" : "")}><Select aria-label="Runner pool" value={f.pool ?? ""} onChange={(e) => setFilter("pool", e.target.value)}
+              options={[{ value: "", label: "Pool: Any" }, ...pools.map((p) => ({ value: p.id, label: "Pool: " + p.name }))]} /></span>}
+            {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
           </div>
-        )}
+          <div className="cc-list-right" role="toolbar" aria-label="Runners list tools">
+            <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
+            <Button kind="plain" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
+            <RefreshButton onClick={load} />
+          </div>
+        </div>
+        <div className="cc-list-panel">
+          {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Runner actions">
+            <strong>{chosen.length} selected</strong>
+            {manage && <>
+              <Button kind="secondary" onClick={() => setDialog({ kind: "settings" })}>Update settings</Button>
+              <Button kind="secondary" onClick={() => each("Program update asked for on", (d) => api.updateRunnerProgram([d.id]))}>Update program</Button>
+              <Button kind="secondary" onClick={() => setDialog({ kind: "maintenance" })}>Maintenance</Button>
+              {chosen.some((d) => d.maintenance) && <Button kind="secondary" onClick={() => api.maintenance(chosen.filter((d) => d.maintenance).map((d) => d.id), null)
+                .then((r) => { onNotice("Ended maintenance on " + r.updated + " runner" + (r.updated === 1 ? "" : "s") + "."); setSelected([]); load(); }, (e) => setError(message(e)))}>End maintenance</Button>}
+              {chosen.some((d) => d.enabled) && <Button kind="secondary" onClick={() => each("Disabled", (d) => api.patchDevice(d.id, { enabled: false }))}>Disable</Button>}
+              {chosen.some((d) => !d.enabled) && <Button kind="secondary" onClick={() => each("Enabled", (d) => api.patchDevice(d.id, { enabled: true }))}>Enable</Button>}
+            </>}
+            {can("pools.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "pool", pool: null, members: chosen.map((d) => d.id) })}>Make a pool</Button>}
+            {manage && <Button kind="danger" onClick={() => setDialog({ kind: "delete" })}>Delete</Button>}
+            <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+          </div>}
+          <div className="cc-list-scroll">
+            <table className="cc-list-table" aria-label="Runners list">
+              <thead><tr>
+                <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={page.length > 0 && page.every((d) => selected.includes(d.id))}
+                  onChange={(e) => setSelected(e.target.checked ? page.map((d) => d.id) : [])} /></th>
+                {cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
+                <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
+              </tr></thead>
+              <tbody>
+                {page.map((d) => (
+                  <tr key={d.id} className={selected.includes(d.id) ? "is-selected" : ""} onClick={rowClick(() => setDialog({ kind: "details", id: d.id }))}>
+                    <td className="cc-check"><input type="checkbox" aria-label={"Select " + d.name} checked={selected.includes(d.id)}
+                      onChange={(e) => setSelected(e.target.checked ? [...selected, d.id] : selected.filter((x) => x !== d.id))} /></td>
+                    {cols.map((c) => <td key={c.key}>{cell(c, d)}</td>)}
+                    <td className="cc-list-menu"><RowMenu label={"Actions for " + d.name} items={rowMenu(d)} /></td>
+                  </tr>
+                ))}
+                {runners && !shown.length && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none">{runners.length ? "No runners match these filters." : "No runners yet. Register one, or start ooa server on this computer."}</td></tr>}
+                {!runners && !error && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none" role="status">Loading…</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {runners && <div className="cc-list-pager">
+            <span>{shown.length ? (offset + 1) + "–" + Math.min(offset + PAGE, shown.length) + " of " + shown.length : "0 of 0"}{filtered ? " matching · " + runners.length + " in all" : ""} · refreshes every 15 seconds</span>
+            <span className="ov-fill" />
+            <button type="button" className="cc-list-icon" aria-label="Previous page" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>‹</button>
+            <button type="button" className="cc-list-icon" aria-label="Next page" disabled={offset + PAGE >= shown.length} onClick={() => setOffset(offset + PAGE)}>›</button>
+          </div>}
+        </div>
       </> : <Pools pools={pools} runners={runners ?? []} canManage={can("pools.manage")} onOpen={(p) => setDialog({ kind: "pool", pool: p })} />}
 
       {dialog?.kind === "columns" && (
@@ -219,7 +243,7 @@ function Pools({ pools, runners, canManage, onOpen }: { pools: RunnerPool[]; run
         <tbody>
           {pools.map((p) => (
             <tr key={p.id} onClick={() => (canManage || p.can_manage) && onOpen(p)} className={canManage || p.can_manage ? undefined : "is-static"}>
-              <td>{p.name}</td><td>{p.description ?? ""}</td><td>{p.devices.map(nameOf).join(", ")}</td>
+              <td><strong>{p.name}</strong></td><td>{p.description || <span className="cc-none">–</span>}</td><td>{p.devices.map(nameOf).join(", ")}</td>
               <td>{p.devices.filter((id) => runners.find((d) => d.id === id)?.status === "online").length} of {p.devices.length}</td>
               <td>{(p.owners ?? []).join(", ") || p.created_by || ""}</td><td>{(p.consumers ?? []).join(", ") || "Anyone who may start runs"}</td>
             </tr>

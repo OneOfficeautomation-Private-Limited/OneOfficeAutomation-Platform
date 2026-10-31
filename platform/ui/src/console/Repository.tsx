@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 
 /**
@@ -49,14 +49,23 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     && (!show || (show === "live" ? !!a.production_version : show === "notlive" ? !a.production_version : !!a.locked_by))), [agents, q, kind, show]);
   const done = (m: string) => { onNotice(m); setDialog(null); load(); };
   const toDecide = requests.requests.filter((r) => r.can_decide).length;
+  const live = (agents ?? []).filter((a) => a.production_version).length;
+  const out = (agents ?? []).filter((a) => a.locked_by).length;
+  const filtered = !!(q.trim() || kind || show);
+  const rowMenu = (a: RepoAgent) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "agent", a }) },
+    ...(can("runs.start") && a.production_version && kindOf(a.path) === "Agent" ? [{ key: "run", label: "Run…", onSelect: () => setDialog({ kind: "run", a }) }] : []),
+    { key: "folder", label: "Show its folder", onSelect: () => setFolder(folderOf(a.path)) },
+  ];
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-repo-title">
       <header className="cc-list-head">
         <h1 id="cc-repo-title">Agent Repository</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Agents checked in from One AgentStudio, with every version. The live version is the one that runs on runners, schedules and triggers.">i</span>
+        {agents && <span className="cc-list-count">{agents.length} agent{agents.length === 1 ? "" : "s"}{folder ? " in " + folder : ""} · {live} live{out ? " · " + out + " checked out" : ""}</span>}
         <span className="ov-fill" />
-                  {can("repo.checkin") && <Button kind="secondary" onClick={() => setDialog({ kind: "folder", parent: folder })}>New folder</Button>}
+        {can("repo.checkin") && <Button kind="secondary" onClick={() => setDialog({ kind: "folder", parent: folder })}>New folder</Button>}
           {(requests.approval_on || requests.requests.length > 0) && <Button kind={toDecide ? "primary" : "secondary"} onClick={() => setDialog({ kind: "approvals" })}>
             Production approvals{requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""}</Button>}
           {can("repo.delete") && <Button kind="secondary" onClick={() => setDialog({ kind: "deleted" })}>Deleted agents</Button>}
@@ -79,10 +88,11 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
           <div className="cc-list-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">
             <span className="cc-list-search"><TextInput type="search" aria-label="Search agents" placeholder="Search by name, id or description" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-            <span className="cc-chip"><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Every kind" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: k + "s" }))]} /></span>
-            <span className="cc-chip"><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "All" }, { value: "live", label: "Live" }, { value: "notlive", label: "Not live yet" }, { value: "out", label: "Checked out" }]} /></span>
+            <span className={"cc-chip" + (kind ? " is-on" : "")}><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Kind: Any" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: "Kind: " + k + "s" }))]} /></span>
+            <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "Show: All" }, { value: "live", label: "Show: Live" }, { value: "notlive", label: "Show: Not live yet" }, { value: "out", label: "Show: Checked out" }]} /></span>
+            {filtered && <Button kind="plain" onClick={() => { setQ(""); setKind(""); setShow(""); }}>Clear filters</Button>}
           </div>
-          <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+          <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><RefreshButton onClick={load} /></div>
           </div>
           {folder && <div className="cc-bar" role="group" aria-label="Folder">
             <span className="cc-chosen">{folder}</span>{cur?.description && <span className="st-muted">{cur.description}</span>}
@@ -96,24 +106,27 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
           </div>}
           <div className="cc-list-panel"><div className="cc-list-scroll">
             <table className="cc-list-table" aria-label="Agents list">
-              <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th></tr></thead>
+              <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {shown.map((a) => (
-                  <tr key={a.path} onClick={() => setDialog({ kind: "agent", a })}>
+                  <tr key={a.path} onClick={rowClick(() => setDialog({ kind: "agent", a }))}>
                     <td><strong>{agentName(a.path)}</strong>{kindOf(a.path) !== "Agent" && <span className="cc-tag">{kindOf(a.path)}</span>}
-                      {a.description && <div className="st-muted cc-clip">{a.description}</div>}</td>
-                    <td className="st-muted">{folderOf(a.path) || "(top)"}</td>
+                      {a.description && <div className="cc-list-sub cc-clip">{a.description}</div>}</td>
+                    <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td>
                     <td>v{a.latest_version}{(a.labels ?? []).map((l) => <span key={l.label} className="cc-tag" title={"On v" + l.version}>{l.label}</span>)}</td>
-                    <td className={a.production_version ? "cc-status is-success" : "st-muted"}>{a.production_version ? "v" + a.production_version : "Not live"}</td>
-                    <td className={a.locked_by ? "cc-status is-busy" : undefined}>{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"}</td>
+                    <td>{a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-none">Not live</span>}</td>
+                    <td>{a.locked_by ? <span className="cc-pill is-pending"><span className="cc-pill-dot" />Checked out by {a.locked_by}</span> : "Checked in"}</td>
                     <td>{when(a.updated)}{a.updated_by ? " by " + a.updated_by : ""}</td>
+                    <td className="cc-list-menu"><RowMenu label={"Actions for " + agentName(a.path)} items={rowMenu(a)} /></td>
                   </tr>
                 ))}
-                {agents && !shown.length && <tr className="is-static"><td colSpan={6} className="st-muted">{agents.length ? "No agents match." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
-                {!agents && !error && <tr className="is-static"><td colSpan={6} className="st-muted" role="status">Loading…</td></tr>}
+                {agents && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{agents.length ? "No agents match." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
+                {!agents && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
-          </div></div>
+          </div>
+          {agents && <div className="cc-list-pager"><span>{shown.length} of {agents.length}{filtered ? " matching" : ""}</span></div>}
+          </div>
           <RepoFiles key={folder} api={api} user={user} folder={folder} onNotice={onNotice} />
         </div>
       </div>
