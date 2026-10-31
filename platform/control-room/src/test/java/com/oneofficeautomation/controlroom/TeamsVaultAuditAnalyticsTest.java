@@ -207,4 +207,28 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals("CR.BAD_INPUT", code(() -> cr.analytics.csv(admin, "nope", Map.of())));
         assertEquals("CR.FORBIDDEN", code(() -> cr.analytics.agent(carl, "Finance/Pay.flow.json", Map.of())));
     }
+
+    @Test @Order(5)
+    @SuppressWarnings("unchecked")
+    void runnerCapacity() {
+        db.update("DELETE FROM runs");
+        Instant now = Instant.now();
+        // an hour's run that waited 10 minutes to start, and one running for 30 minutes so far
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, started, finished, cancel_requested, pause_requested, duration_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "run_c1", "Ops/Backup.flow.json", 1, device, "success", "{}", "admin", "manual", now.minusSeconds(7800), now.minusSeconds(7200), now.minusSeconds(3600), false, false, 3_600_000L);
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, started, cancel_requested, pause_requested) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                "run_c2", "Ops/Backup.flow.json", 1, device, "running", "{}", "admin", "manual", now.minusSeconds(1800), now.minusSeconds(1800), false, false);
+        Map<String, Object> c = cr.analytics.capacity(admin, Map.of("days", "1", "tz", "Asia/Kolkata"));
+        Map<String, Object> pc = ((List<Map<String, Object>>) c.get("runners")).get(0);
+        assertEquals(device, pc.get("device_id"));
+        assertEquals(2L, pc.get("runs"));
+        long busy = ((Number) pc.get("busy_ms")).longValue();
+        assertTrue(Math.abs(busy - 5_400_000L) < 5_000, "an hour and a half busy: " + busy);
+        assertEquals(300_000L, c.get("avg_wait_ms"));   // 10 minutes and none, on average 5
+        assertEquals(6.25, ((Number) c.get("use")).doubleValue(), 0.06);   // 1.5 of 24 hours, one runner
+        assertEquals(0.3, c.get("full_time_people"));   // 1.5 hours of a 40-hour week's day share (5.7 hours)
+        double heat = ((List<List<Double>>) ((Map<String, Object>) c.get("heat")).get("use")).stream().flatMap(List::stream).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
+        assertTrue(heat > 140 && heat < 160, "the hours it was busy add up to 150% of an hour: " + heat);
+        assertEquals("Asia/Kolkata", ((Map<String, Object>) c.get("heat")).get("time_zone"));
+    }
 }

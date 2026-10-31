@@ -626,6 +626,7 @@ public final class ControlRoomServer {
             case "analytics" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.analytics.overview(u, q));
                 else if (m.equals("GET") && route.equals("analytics/agent")) sendJson(ex, 200, cr.analytics.agent(u, q.get("path"), q));
+                else if (m.equals("GET") && route.equals("analytics/capacity")) sendJson(ex, 200, cr.analytics.capacity(u, q));
                 else if (m.equals("GET") && route.equals("analytics/variables")) sendJson(ex, 200, cr.analytics.variables(u, q.get("path"), q));
                 else if (m.equals("GET") && route.equals("analytics/export")) {
                     String report = q.getOrDefault("report", "");

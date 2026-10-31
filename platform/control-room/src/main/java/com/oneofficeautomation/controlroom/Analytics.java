@@ -201,6 +201,79 @@ public final class Analytics {
         return out;
     }
 
+    /**
+     * Runner capacity (Blue Prism Hub's utilisation views, AA's Devices dashboard): for the period, each runner's busy
+     * time (its runs' running time inside the period, a run still going counted up to now), its share of the period and
+     * how long its runs waited to start; the share of all enabled runners' time in use per weekday and hour and the busy
+     * hours per day (in the time zone tz); how long runs waited to start (average and 95%); and the busy time as full-time
+     * people (40 hours a week). Runner figures: every run counts, and no agent is named.
+     */
+    public Map<String, Object> capacity(User by, Map<String, String> q) {
+        cr.require(by, "analytics.view", "view runner capacity");
+        Instant[] pd = period(q);
+        Instant from = pd[0], to = pd[1].isAfter(now()) ? now() : pd[1];
+        ZoneId zone = zone(q.get("tz"));
+        long[][] busy = new long[7][24], slots = new long[7][24];
+        Map<String, Long> perDay = new TreeMap<>();
+        Map<String, long[]> per = new LinkedHashMap<>();   // device: busy ms, runs, wait ms total, waited runs
+        List<Long> waits = new ArrayList<>();
+        for (Map<String, Object> d : db.query("SELECT id FROM devices WHERE enabled = ?", true)) per.put((String) d.get("id"), new long[4]);
+        int enabled = per.size();
+        for (Map<String, Object> r : db.query("SELECT device_id, created, started, finished FROM runs WHERE started IS NOT NULL AND started < ? AND (finished IS NULL OR finished > ?) LIMIT " + MAX_ROWS, to, from)) {
+            Instant s = Instant.parse(String.valueOf(r.get("started"))), e = r.get("finished") == null ? to : Instant.parse(String.valueOf(r.get("finished")));
+            long[] c = per.computeIfAbsent((String) r.get("device_id"), k -> new long[4]);
+            Instant created = Instant.parse(String.valueOf(r.get("created")));
+            if (!created.isBefore(from)) { c[1]++; long w = Math.max(0, Duration.between(created, s).toMillis()); c[2] += w; c[3]++; waits.add(w); }
+            Instant a = s.isBefore(from) ? from : s, z = e.isAfter(to) ? to : e;
+            while (a.isBefore(z)) {   // split the running time into the hours it falls in
+                ZonedDateTime t = a.atZone(zone);
+                Instant next = t.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1).toInstant();
+                Instant end = next.isBefore(z) ? next : z;
+                long ms = Duration.between(a, end).toMillis();
+                busy[t.getDayOfWeek().getValue() - 1][t.getHour()] += ms;
+                perDay.merge(t.toLocalDate().toString(), ms, Long::sum);
+                c[0] += ms;
+                a = end;
+            }
+        }
+        for (ZonedDateTime t = from.atZone(zone).truncatedTo(java.time.temporal.ChronoUnit.HOURS); t.toInstant().isBefore(to); t = t.plusHours(1))
+            slots[t.getDayOfWeek().getValue() - 1][t.getHour()]++;
+        long period = Math.max(1, Duration.between(from, to).toMillis()), total = 0;
+        List<Map<String, Object>> runners = new ArrayList<>();
+        for (var e : per.entrySet()) {
+            long[] c = e.getValue();
+            total += c[0];
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("device_id", e.getKey()); m.put("busy_ms", c[0]); m.put("runs", c[1]);
+            m.put("use", Math.round(1000.0 * c[0] / period) / 10.0);
+            m.put("avg_wait_ms", c[3] == 0 ? null : c[2] / c[3]);
+            runners.add(m);
+        }
+        runners.sort(by("busy_ms"));
+        List<Object> heat = new ArrayList<>();
+        for (int d = 0; d < 7; d++) {
+            List<Object> row = new ArrayList<>();
+            for (int h = 0; h < 24; h++) row.add(slots[d][h] == 0 || enabled == 0 ? null : Math.min(100.0, Math.round(1000.0 * busy[d][h] / (3_600_000.0 * slots[d][h] * enabled)) / 10.0));
+            heat.add(row);
+        }
+        Collections.sort(waits);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("from", from.toString()); m.put("to", to.toString());
+        m.put("runners", runners);
+        m.put("enabled_runners", enabled);
+        m.put("busy_ms", total);
+        m.put("use", enabled == 0 ? null : Math.min(100.0, Math.round(1000.0 * total / ((double) period * enabled)) / 10.0));
+        m.put("full_time_people", Math.round(10.0 * total / (period * 40.0 / 168.0)) / 10.0);
+        m.put("avg_wait_ms", waits.isEmpty() ? null : waits.stream().mapToLong(Long::longValue).sum() / waits.size());
+        m.put("p95_wait_ms", waits.isEmpty() ? null : percentile(waits, 95));
+        m.put("waiting_now", cr.count("SELECT COUNT(*) AS n FROM runs WHERE status = 'queued'"));
+        m.put("heat", Map.of("time_zone", zone.getId(), "use", heat));
+        List<Object> days = new ArrayList<>();
+        for (var e : perDay.entrySet()) days.add(Map.of("day", e.getKey(), "busy_ms", e.getValue()));
+        m.put("by_day", days);
+        return m;
+    }
+
     /** One agent: its totals and timing, runs per day, the errors it fails with, its runners and its last runs. */
     public Map<String, Object> agent(User by, String path, Map<String, String> q) {
         cr.folders.require(by, path, "view", "view agent statistics");

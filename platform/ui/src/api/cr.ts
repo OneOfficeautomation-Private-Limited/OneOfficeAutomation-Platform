@@ -27,6 +27,10 @@ export type Operations = { totals: RunStats; duration_distribution: { bucket: st
   by_hour?: { time_zone: string; runs: number[][]; failed: number[][] };
   /** The same totals for the period just before, as long as this one. */
   previous?: RunStats };
+/** Runner capacity for a period (GET analytics/capacity): busy time, share in use, waits to start, a weekday-by-hour use heatmap. */
+export type Capacity = { from: string; to: string; enabled_runners: number; busy_ms: number; use: number | null; full_time_people: number; avg_wait_ms: number | null;
+  p95_wait_ms: number | null; waiting_now: number; runners: { device_id: string; busy_ms: number; runs: number; use: number; avg_wait_ms: number | null }[];
+  heat: { time_zone: string; use: (number | null)[][] }; by_day: { day: string; busy_ms: number }[] };
 /** One agent's statistics for a period (GET analytics/agent). */
 export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
   last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
@@ -475,6 +479,7 @@ export class CrApi {
   async setAlertRuleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "alert-rules/" + encodeURIComponent(id), { enabled }); }
   async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
   testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
+  capacity(params: Record<string, string>) { return this.call<Capacity>("GET", "analytics/capacity?" + new URLSearchParams(params).toString()); }
   agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }
   agentVariables(path: string, days: string) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams({ path, days }).toString()); }
   /** One Operations list as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */

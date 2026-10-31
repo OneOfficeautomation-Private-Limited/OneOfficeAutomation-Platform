@@ -77,6 +77,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
           failed: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 0 && h === 9 ? 1 : 0)) },
         previous: { ...st, runs: 2, success: 1, failed: 1, success_rate: 50 } });
     }
+    if (route === "analytics/capacity") {
+      calls.push({ method: "GET", route: "analytics/capacity?" + (url.split("?")[1] ?? "") });
+      return ok({ from: "2026-10-24T00:00:00Z", to: "2026-10-31T00:00:00Z", enabled_runners: 2, busy_ms: 36_000_000, use: 85, full_time_people: 1.8, avg_wait_ms: 120_000,
+        p95_wait_ms: 900_000, waiting_now: 1, runners: [{ device_id: "d1", busy_ms: 30_000_000, runs: 12, use: 92, avg_wait_ms: 60_000 }, { device_id: "d2", busy_ms: 6_000_000, runs: 3, use: 15, avg_wait_ms: null }],
+        heat: { time_zone: "UTC", use: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 0 && h === 9 ? 95 : d === 6 ? null : 0)) },
+        by_day: [{ day: "2026-10-30", busy_ms: 18_000_000 }] });
+    }
     if (route === "analytics/agent") return ok({ bot_path: "Finance/Invoice intake.flow.json", totals: { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000,
       avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }, by_day: [], errors: [{ code: "EXCEL.NOT_FOUND", runs: 1 }], by_runner: [{ runner: "Runner A", runs: 5, success: 3, failed: 1, stopped: 1,
       active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }], last_run: { id: "r4", status: "success", created: "2026-10-30T08:00:00Z" },
@@ -522,6 +529,29 @@ describe("rebuilt Command Center console", () => {
     expect(await within(d).findByText("10 – 90 (average 50)")).toBeTruthy();
     expect(within(d).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["#/activity?run=r4", "#/activity?run=r3",   // last run, last failure
       "#/activity?tab=completed&bot=Finance%2FInvoice+intake.flow.json"]);
+  });
+
+  it("shows Runner capacity as Blue Prism's utilisation views: time in use, waits, each runner with its pools, when runners are busy, advice when short", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Runner capacity" }));
+    const figs = await screen.findByRole("group", { name: "Figures" });
+    expect(await within(figs).findByText("1 of 2")).toBeTruthy();
+    expect(within(figs).getByText("85%").className).toBe("cc-err");
+    expect(within(figs).getByText("Busy · as 1.8 full-time people (40 h a week)")).toBeTruthy();
+    expect(within(figs).getByText("Average wait to start · 95% within 15 min 0 s")).toBeTruthy();
+    expect(screen.getByRole("note").textContent).toContain("Runners are busy most of the time and runs wait 15 min 0 s or more to start");
+    const each = screen.getByRole("table", { name: "Each runner" });
+    const a = within(each).getByRole("row", { name: /Runner A/ });
+    expect(within(a).getByText("Busy (limit)")).toBeTruthy();
+    expect(within(a).getByText("Finance pool")).toBeTruthy();
+    expect(within(a).getByText("92%", { exact: false }).closest("td")!.className).toBe("cc-err");
+    expect(within(within(each).getByRole("row", { name: /Runner B/ })).getByText("Offline")).toBeTruthy();
+    const heat = screen.getByRole("table", { name: "Runner time in use, by weekday and hour (UTC)" });
+    expect(within(heat).getByTitle("Mon 09:00 · 95% in use").className).toBe("cc-heat-l4");
+    expect(within(heat).getByTitle("Sun 09:00 · not in the period").className).toBe("cc-heat-l0");
+    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "30" } });
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics/capacity?") && c.route.includes("days=30"))).toBe(true));
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

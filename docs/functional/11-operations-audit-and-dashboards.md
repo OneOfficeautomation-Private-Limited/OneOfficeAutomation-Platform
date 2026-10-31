@@ -30,7 +30,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 | --- | --- |
 | Build | Agent Repository (`repo.view`), Agent Templates (`repo.view`), One AgentStudio (new tab), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Agent ToolKits (`toolkits.manage`) |
-| Operational Insights | Overview, Operations, Dashboards (all `analytics.view`) |
+| Operational Insights | Overview, Alerts, Operations, Runner capacity, Dashboards (all `analytics.view`) |
 | Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Credential vault (members), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Model Connections (`connections.manage`), Prompt Skills (`skills.view`), Document Automation (`repo.view`), AI governance (`audit.view`) |
 
@@ -112,6 +112,21 @@ and average.
 | `GET /api/analytics/agent?path=` | One agent's statistics |
 | `GET /api/analytics/variables?path=` | One agent's variable profile |
 | `GET /api/analytics/export?report=` | One list as CSV: `most_run`, `longest`, `most_failed`, `by_runner`, `by_day`, `by_source` or `run_history` |
+
+### Runner capacity
+
+**Runner capacity** (`analytics.view`, new console) shows, for the last 24 hours to 90 days: the share of the switched-on
+runners' time in use; busy hours and what they equal in full-time people (40 hours a week); runs waiting for a runner
+now; how long runs waited to start (average and 95%); each runner with its state, pools, runs, busy time, share of the
+period, average wait and current CPU and memory; the share of runner time in use per weekday and hour (in the viewer's
+time zone); and busy hours per day. When runners are in use 80% of the time or more, or 95% of runs wait 10 minutes or
+more, it suggests adding a runner or moving schedules into quieter hours; when several runners are under 10% in use,
+that they have room. A run's running time inside the period counts (a run still going, up to now). These are runner
+figures: every run counts and no agent is named.
+
+`GET /api/analytics/capacity?days=&from=&to=&tz=` returns `runners` (`device_id`, `busy_ms`, `runs`, `use`,
+`avg_wait_ms`), `enabled_runners`, `busy_ms`, `use`, `full_time_people`, `avg_wait_ms`, `p95_wait_ms`, `waiting_now`,
+`heat` (`time_zone`, `use`: per weekday, Monday first, and hour; null for hours outside the period) and `by_day`.
 
 ### Alerts
 
