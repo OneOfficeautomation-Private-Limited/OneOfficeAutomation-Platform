@@ -110,6 +110,34 @@ and average.
 | `GET /api/analytics/variables?path=` | One agent's variable profile |
 | `GET /api/analytics/export?report=` | One list as CSV: `most_run`, `longest`, `most_failed`, `by_runner`, `by_day`, `by_source` or `run_history` |
 
+### Alerts
+
+**Alerts** (new console) holds rules that watch one condition each. The server checks them once a minute on the leader
+node; each condition met raises one alert per subject and sends it to the task inbox (`user:NAME`, `role:NAME`), to
+e-mail addresses (Settings > E-mail) and to a webhook (posted as JSON, three attempts; on a SaaS tenant only to public
+addresses). A rule is **Warning** or **Critical** and can be turned off.
+
+| Watch for | In (optional) | When | Clears |
+| --- | --- | --- | --- |
+| A run fails | an agent | each failed run | when acknowledged |
+| Too many runs fail | an agent (or all) | the failed share of finished runs in the period (default 50% over 60 minutes) reaches the threshold, once 3 runs have finished | when the share drops |
+| A run takes too long | an agent | a run still running after the time (default 60 minutes) | when it ends |
+| A runner stops reporting | a runner | an enabled runner not in maintenance is silent for the time (default 5 minutes) | when it reports |
+| Work queue items are overdue | a queue | at least the number of items (default 1) wait longer than the queue's target time | when none is overdue |
+| An AI budget is nearly used | a model connection | tokens this month reach the share of the budget (default 80%) | next month |
+
+A new rule counts what happens after it is made. One check raises at most 20 alerts per rule and one more that says
+how many were held back. **Send a test** sends a test alert through the rule's recipients. Alerts are **Open**,
+**Acknowledged** (seen) or **Cleared**; deleting a rule clears its alerts and keeps their history. Alerts about an agent
+are shown only to people who may see it. Overview shows the open alerts.
+
+| API | Does |
+| --- | --- |
+| `GET /api/alerts?status=open\|acknowledged\|cleared\|all&rule=&limit=&offset=` | Alerts, newest first, with the number open |
+| `POST /api/alerts/acknowledge` `{ids}` | Acknowledges open alerts |
+| `GET /api/alert-rules`, `POST`, `PUT /api/alert-rules/{id}`, `PATCH` `{enabled}`, `DELETE` | The rules (`kind`, `scope`, `threshold`, `window_minutes`, `notify_to`, `webhook_url`, `severity`, `enabled`) |
+| `POST /api/alert-rules/{id}/test` | Sends a test alert |
+
 ## 6. Business figures (KPIs) and dashboards
 
 - In Studio, an output variable of type Number, String or Boolean can be ticked **Business figure (KPI)**. Each
@@ -187,7 +215,8 @@ within about 30 seconds.
 | Action | Permission |
 | --- | --- |
 | Agent Activity and run details | `runs.view` |
-| Operations, dashboards | `analytics.view` |
+| Overview, Operations, dashboards, alerts (see, acknowledge) | `analytics.view` |
+| Alert rules (make, change, test, delete) | `alerts.manage` (admin only) |
 | Audit Trail, export, verify | `audit.view` |
 | Retention, e-mail, backups, syslog, nodes | `settings.manage` |
 

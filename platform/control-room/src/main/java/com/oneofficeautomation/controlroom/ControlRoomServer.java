@@ -512,6 +512,20 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("data")) sendJson(ex, 200, cr.dashboards.data(u, seg[1], q.get("tz")));
                 else notFound(ex);
             }
+            case "alerts" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.alerts.list(u, q));
+                else if (m.equals("POST") && route.equals("alerts/acknowledge")) sendJson(ex, 200, cr.alerts.acknowledge(u, (List<?>) map(body(ex)).getOrDefault("ids", List.of()), ip));
+                else notFound(ex);
+            }
+            case "alert-rules" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("rules", cr.alerts.rules(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.alerts.saveRule(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.alerts.saveRule(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("PATCH") && seg.length == 2) { cr.alerts.setEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.alerts.deleteRule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, cr.alerts.test(u, seg[1], ip));
+                else notFound(ex);
+            }
             case "test-sets" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("sets", cr.testSets.list(u, q.get("bot"))));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.testSets.save(u, null, map(body(ex)), ip));

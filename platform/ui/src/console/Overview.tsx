@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { CrApi, CrUser, Dashboard, ModelConnection, Operations, Runner, WorkQueue } from "../api/cr";
+import type { Alert, CrApi, CrUser, Dashboard, ModelConnection, Operations, Runner, WorkQueue } from "../api/cr";
 import { Button, Select } from "../components";
 
 /**
@@ -31,6 +31,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
   const [runners, setRunners] = useState<Runner[] | null>(null);
   const [queues, setQueues] = useState<WorkQueue[] | null>(null);
   const [ai, setAi] = useState<ModelConnection[] | null>(null);
+  const [alerts, setAlerts] = useState<{ alerts: Alert[]; open: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [at, setAt] = useState<Date | null>(null);
   const can = (p: string) => user.permissions.includes(p);
@@ -38,15 +39,16 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
 
   const load = useCallback(async () => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const [a, b, c, q, m] = await Promise.allSettled([api.dashboard(tz), api.operations({ days, top: "6" }),
+    const [a, b, c, q, m, al] = await Promise.allSettled([api.dashboard(tz), api.operations({ days, top: "6" }),
       can("devices.view") ? api.devices() : Promise.reject(), can("queues.view") ? api.queues() : Promise.reject(),
-      can("connections.manage") ? api.modelConnections() : Promise.reject()]);
+      can("connections.manage") ? api.modelConnections() : Promise.reject(), api.alerts({ status: "open", limit: "6" })]);
     if (a.status === "fulfilled") setD(a.value);
     if (b.status === "fulfilled") setOps(b.value);
     setError(b.status === "rejected" ? (b.reason instanceof Error ? b.reason.message : String(b.reason)) : null);
     setRunners(c.status === "fulfilled" ? c.value : null);
     setQueues(q.status === "fulfilled" ? q.value : null);
     setAi(m.status === "fulfilled" ? m.value : null);
+    setAlerts(al.status === "fulfilled" ? al.value : null);
     setAt(new Date());
   }, [api, days]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
@@ -72,6 +74,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-sums" role="group" aria-label="Figures">
+        {alerts && <a className="cc-sum" href="#/alerts"><strong className={alerts.open ? "cc-err" : undefined}>{alerts.open}</strong><span>Open alerts</span></a>}
         {d && can("runs.view") && <>
           <a className="cc-sum" href="#/activity?tab=progress&status=running"><strong>{d.running}</strong><span>Running now</span></a>
           <a className="cc-sum" href="#/activity?tab=progress&status=queued"><strong>{d.queued}</strong><span>Waiting for a runner</span></a>
@@ -89,6 +92,13 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
         {d?.hours_saved_30d != null && <a className="cc-sum" href={pageHref("operations")}><strong>{Math.round(d.hours_saved_30d)}</strong><span>Hours saved · last 30 days</span></a>}
       </div>
       <div className="cc-two cc-pad">
+        {alerts && alerts.open > 0 && <div className="cc-card cc-card-flat">
+          <h2>Open alerts</h2>
+          <ul className="cc-alerts-list" aria-label="Open alerts">{alerts.alerts.map((x) => <li key={x.id}>
+            <span className={"cc-status cc-sev is-" + x.severity}>{x.severity === "critical" ? "Critical" : "Warning"}</span>
+            {x.link ? <a href={x.link}>{x.message}</a> : <span>{x.message}</span>}<span className="st-muted">{when(x.raised)}</span></li>)}</ul>
+          <p className="cc-card-foot"><a href="#/alerts">{alerts.open > alerts.alerts.length ? "All " + alerts.open + " open alerts" : "Acknowledge them in Alerts"}</a></p>
+        </div>}
         {ops && <div className="cc-card cc-card-flat">
           <h2>Why runs failed</h2>
           {ops.failure_reasons?.length ? <table className="st-table" aria-label="Why runs failed">

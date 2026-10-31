@@ -18,7 +18,7 @@ public final class Rbac {
 
     /** Permissions only administrators have unless a custom role grants them. */
     public static final List<String> ADMIN_ONLY = List.of("repo.production", "repo.approve", "repo.permissions", "lifecycle.export", "lifecycle.import", "queues.all", "teams.manage", "users.manage", "devices.manage",
-            "lockers.manage", "globals.manage", "audit.view", "pools.manage", "settings.manage", "connections.manage", "toolkits.manage", "skills.all");
+            "lockers.manage", "globals.manage", "audit.view", "pools.manage", "settings.manage", "connections.manage", "toolkits.manage", "skills.all", "alerts.manage");
 
     /** Every permission, for building custom roles. */
     public static List<String> all() { return permissions("admin"); }

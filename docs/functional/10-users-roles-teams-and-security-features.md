@@ -91,7 +91,8 @@ Permissions marked "admin only" belong to administrators unless a custom role gr
 | `globals.manage` (admin only) | Change shared values and saved connections |
 | `lockers.own` | Create vault folders (and own them) |
 | `lockers.manage` (admin only) | Administer every vault folder; vault key status and rotation |
-| `analytics.view` | Operations, dashboards, Home figures |
+| `analytics.view` | Overview, Operations, dashboards, alerts, Home figures |
+| `alerts.manage` (admin only) | Make, change, test and delete alert rules |
 | `apitasks.manage` | Manage Agent APIs |
 | `skills.view` | See and use Prompt Skills |
 | `skills.manage` | Create and change own Prompt Skills |

@@ -23,6 +23,14 @@ export type Operations = { totals: RunStats; duration_distribution: { bucket: st
   most_failed: (RunStats & { bot_path: string; failure_rate: number; top_errors: string[] })[];
   failure_reasons?: { code: string; runs: number; agents: number; agent: string | null; last: string }[];
   by_runner: (RunStats & { runner: string })[]; by_source: (RunStats & { source: string })[]; period: { runs_counted: number; capped: boolean } };
+/** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
+export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
+  webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
+export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_offline" | "queue_overdue" | "ai_budget";
+/** An alert a rule raised: open, acknowledged (seen) or cleared (its state ended, or its rule was deleted). */
+export type Alert = { id: string; rule_id: string; rule_name?: string; kind: AlertKind; subject: string; subject_label?: string; message: string; severity: "warning" | "critical";
+  status: "open" | "acknowledged" | "cleared"; raised: string; cleared?: string | null; acknowledged?: string | null; acknowledged_by?: string | null; link?: string | null;
+  delivery?: { inbox?: string[]; emailed?: string[]; not_emailed?: string[]; note?: string; webhook?: string } | null };
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
 /** A run of an agent, as the runs list gives it; a running run carries its progress. */
 export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
@@ -450,6 +458,14 @@ export class CrApi {
   }
   async deletePool(id: string) { await this.call("DELETE", "pools/" + encodeURIComponent(id)); }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
+  // ---- Alerts: rules checked once a minute, and the alerts they raised ----
+  alerts(params: Record<string, string>) { return this.call<{ alerts: Alert[]; open: number }>("GET", "alerts?" + new URLSearchParams(params).toString()); }
+  acknowledgeAlerts(ids: string[]) { return this.call<{ acknowledged: number }>("POST", "alerts/acknowledge", { ids }); }
+  async alertRules() { return (await this.call<{ rules?: AlertRule[] }>("GET", "alert-rules")).rules ?? []; }
+  saveAlertRule(id: string | null, b: Record<string, unknown>) { return this.call<{ id: string }>(id ? "PUT" : "POST", "alert-rules" + (id ? "/" + encodeURIComponent(id) : ""), b); }
+  async setAlertRuleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "alert-rules/" + encodeURIComponent(id), { enabled }); }
+  async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
+  testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
   /** Operations figures for a period (days, or from and to) and filters (bot, device, user, source): only agents the caller may see. */
   operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }

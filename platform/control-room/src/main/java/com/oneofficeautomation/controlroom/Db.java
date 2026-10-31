@@ -553,9 +553,21 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE device_pools ADD COLUMN consumers VARCHAR(2000)",
     };
 
+    /** Version 26: alert rules and the alerts they raised (Alerts). */
+    private static final String[] SCHEMA_V26 = {
+        "CREATE TABLE alert_rules (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, kind VARCHAR(30) NOT NULL, scope VARCHAR(400), threshold DECIMAL(24,6), "
+            + "window_minutes INT, notify_to VARCHAR(2000), webhook_url VARCHAR(1000), severity VARCHAR(10) NOT NULL, enabled BOOLEAN NOT NULL, created_by VARCHAR(80), "
+            + "created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), last_checked TIMESTAMP)",
+        "CREATE TABLE alerts (id VARCHAR(40) PRIMARY KEY, rule_id VARCHAR(40) NOT NULL, rule_name VARCHAR(120), kind VARCHAR(30) NOT NULL, subject VARCHAR(400) NOT NULL, "
+            + "subject_label VARCHAR(400), message VARCHAR(2000) NOT NULL, severity VARCHAR(10) NOT NULL, status VARCHAR(20) NOT NULL, raised TIMESTAMP NOT NULL, "
+            + "cleared TIMESTAMP, acknowledged TIMESTAMP, acknowledged_by VARCHAR(80), link VARCHAR(400), bot_path VARCHAR(400), delivery VARCHAR(4000))",
+        "CREATE INDEX alerts_status ON alerts (status, raised)",
+        "CREATE INDEX alerts_rule_subject ON alerts (rule_id, subject)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 25;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25 };
+    public static final int LATEST = 26;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

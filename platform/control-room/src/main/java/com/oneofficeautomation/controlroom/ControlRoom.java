@@ -43,6 +43,8 @@ public final class ControlRoom {
     public final VaultAdmin vaultAdmin;
     /** Run analytics for Operations. */
     public final Analytics analytics;
+    /** Alert rules, checked once a minute, and the alerts they raised. */
+    public final Alerts alerts;
     /** Code analysis against the policy (on demand and at check-in). */
     public final CodeAnalysis codeAnalysis;
     /** Agents behind their own URL and token. */
@@ -153,6 +155,7 @@ public final class ControlRoom {
         this.templates = new Templates(this);
         this.vaultAdmin = new VaultAdmin(this);
         this.analytics = new Analytics(this);
+        this.alerts = new Alerts(this);
         this.codeAnalysis = new CodeAnalysis(this);
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
@@ -1920,6 +1923,7 @@ public final class ControlRoom {
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { alerts.checkIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================

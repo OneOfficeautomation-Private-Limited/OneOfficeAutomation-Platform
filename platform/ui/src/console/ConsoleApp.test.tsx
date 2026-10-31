@@ -57,6 +57,16 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       user = { ...user, mfa_setup_required: false } as typeof user; return ok({ recovery_codes: ["aaaa-1111", "bbbb-2222"] });
     }
     if (route === "dashboard") return ok(dashboard);
+    if (route === "alerts") return ok({ open: 1, alerts: url.includes("status=cleared") ? [] : [{ id: "al1", rule_id: "ar1", rule_name: "Any failure", kind: "run_failed", subject: "r3",
+      message: "Invoice intake failed: EXCEL.NOT_FOUND No such file", severity: "critical", status: "open", raised: "2026-10-31T08:00:00Z", link: "#/activity?run=r3",
+      delivery: { inbox: ["role:admin"], not_emailed: ["ops@example.com"], note: "E-mail is not set up" } }] });
+    if (route === "alerts/acknowledge") return ok({ acknowledged: (body.ids as string[]).length });
+    if (route === "alert-rules" && init.method === "POST") return ok({ id: "ar9" });
+    if (route === "alert-rules") return ok({ rules: [
+      { id: "ar1", name: "Any failure", kind: "run_failed", notify_to: ["role:admin", "ops@example.com"], severity: "critical", enabled: true, open: 1, last_checked: "2026-10-31T08:01:00Z" },
+      { id: "ar2", name: "Backup failing", kind: "failure_rate", scope: "Finance/Invoice intake.flow.json", threshold: 50, window_minutes: 60, notify_to: ["user:admin"], severity: "warning", enabled: false, open: 0 }] });
+    if (route === "alert-rules/ar1/test") return ok({ inbox: ["role:admin"], not_emailed: ["ops@example.com"], note: "E-mail is not set up (Administration > Settings > E-mail)" });
+    if (/^alert-rules\/ar\d$/.test(route)) return ok({ ok: true });
     if (route === "analytics") {
       calls.push({ method: "GET", route: "analytics?" + (url.split("?")[1] ?? "") });
       const st = { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 };
@@ -417,6 +427,8 @@ describe("rebuilt Command Center console", () => {
     expect(within(figs).getByText("Runners online · 2 need attention")).toBeTruthy();
     expect(within(figs).getByText("75%")).toBeTruthy();
     expect(within(figs).getByText("Queue items overdue · 4 waiting")).toBeTruthy();
+    expect(within(figs).getByText("Open alerts")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Open alerts" })).getByRole("link", { name: /^Invoice intake failed/ })).toBeTruthy();
     const runners = screen.getByRole("table", { name: "Runners needing attention" });
     expect(within(runners).getByText("Busy: CPU use 93% is above its limit of 80%")).toBeTruthy();
     expect(within(runners).getByText("Offline")).toBeTruthy();
@@ -435,6 +447,46 @@ describe("rebuilt Command Center console", () => {
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("status=failed") && c.route.includes("q=EXCEL.NOT_FOUND"))).toBe(true));
     expect(location.hash).toBe("#/activity");
     location.hash = "";
+  });
+
+  it("shows Alerts as UiPath's monitoring alerts: open alerts acknowledged, rules turned off, tested, made for a work queue and deleted", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "alerts.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Alerts" }));
+    const list = await screen.findByRole("table", { name: "Alerts list" });
+    const alert = await within(list).findByRole("link", { name: "Invoice intake failed: EXCEL.NOT_FOUND No such file" });
+    expect(alert.getAttribute("href")).toBe("#/activity?run=r3");
+    expect(within(list).getByText("Inbox: role:admin · Not e-mailed: ops@example.com")).toBeTruthy();
+    fireEvent.click(within(list).getByLabelText(/^Select the alert/));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Acknowledge" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "alerts/acknowledge", body: { ids: ["al1"] } }));
+    expect(await screen.findByText("Acknowledged 1 alert.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Rules/ }));
+    const rules = await screen.findByRole("table", { name: "Alert rules" });
+    expect(within(rules).getByText("Too many runs fail · Invoice intake")).toBeTruthy();
+    expect(within(rules).getByText("Failed share of finished runs: 50% · Over the last 60 min")).toBeTruthy();
+    const first = within(rules).getByRole("row", { name: /Any failure/ });
+    await act(async () => { fireEvent.click(within(first).getByRole("button", { name: "Send a test" })); });
+    expect(await screen.findByText(/^Test sent\. Inbox: role:admin · Not e-mailed: ops@example\.com E-mail is not set up/)).toBeTruthy();
+    await act(async () => { fireEvent.click(within(first).getByRole("button", { name: "Turn off" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "alert-rules/ar1", body: { enabled: false } }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New alert rule" }));
+    const d = await screen.findByRole("dialog", { name: "New alert rule" });
+    fireEvent.change(within(d).getByLabelText("Name"), { target: { value: "Queue late" } });
+    fireEvent.change(within(d).getByLabelText("Watch for"), { target: { value: "queue_overdue" } });
+    await waitFor(() => expect(within(within(d).getByLabelText("In")).getByRole("option", { name: "Vendor invoices" })).toBeTruthy());
+    fireEvent.change(within(d).getByLabelText("In"), { target: { value: "q1" } });
+    fireEvent.change(within(d).getByLabelText("Overdue items, at least"), { target: { value: "3" } });
+    fireEvent.change(within(d).getByLabelText("E-mail addresses"), { target: { value: "ops@example.com" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Make the rule" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "alert-rules", body: { name: "Queue late", kind: "queue_overdue", scope: "q1", severity: "warning",
+      enabled: true, threshold: 3, window_minutes: null, notify_to: ["role:admin", "ops@example.com"], webhook_url: null } }));
+    const second = within(screen.getByRole("table", { name: "Alert rules" })).getByRole("row", { name: /Backup failing/ });
+    fireEvent.click(within(second).getByRole("button", { name: "Delete" }));
+    await act(async () => { fireEvent.click(within(second).getByRole("button", { name: "Delete" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "alert-rules/ar2" }));
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

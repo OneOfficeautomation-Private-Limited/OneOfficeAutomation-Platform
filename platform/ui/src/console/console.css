@@ -168,3 +168,12 @@ a.cc-sum { text-decoration: none; }
 .cc-meter { display: inline-flex; align-items: center; gap: 6px; }
 .cc-meter progress { width: 80px; height: 8px; accent-color: var(--ui-accent); }
 .cc-updated { padding-top: 0; font-size: 12px; }
+/* Operational Insights > Alerts */
+.cc-sev.is-warning { color: var(--ui-warning-text); }
+.cc-sev.is-critical { color: var(--ui-error-text); }
+.cc-table td.cc-wrap { white-space: normal; min-width: 220px; max-width: 520px; }
+.cc-gap { margin-top: 12px; }
+button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: var(--ui-accent-text); text-decoration: underline; cursor: pointer; }
+.cc-alerts-list { list-style: none; margin: 0; padding: 0; }
+.cc-alerts-list li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--ui-divider); }
+.cc-alerts-list li .st-muted { margin-left: auto; white-space: nowrap; font-size: 12px; }
