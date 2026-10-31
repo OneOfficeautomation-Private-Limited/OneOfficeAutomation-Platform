@@ -436,9 +436,20 @@ describe("rebuilt Command Center console", () => {
     const done = await screen.findByRole("table", { name: "Completed runs" });
     expect(await within(done).findByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();   // why it ended, in the list
     expect(within(done).getAllByRole("row").some((r) => r.classList.contains("cc-au-day"))).toBe(true);   // grouped by day
+    // one line per run: the agent with its version, its folder in a column of its own, and a row menu
+    expect(within(done).getByRole("columnheader", { name: "Folder" })).toBeTruthy();
+    const first = within(done).getAllByRole("row").find((r) => !r.classList.contains("cc-au-day") && r.querySelector("td"))!;
+    expect(first.querySelector(".cc-list-sub")).toBeNull();
+    fireEvent.keyDown(within(first).getByRole("button", { name: /^Actions for the run of / }), { key: "Enter" });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Run again" })).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: "Open the agent in Automation" })).toBeTruthy();
+    fireEvent.keyDown(menu, { key: "Escape" });
     expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("filter=history") && c.route.includes("from="))).toBe(true);   // the last 90 days
+    const agentCell = (name: string) => (_: string, el: Element | null) => el?.tagName === "TD" && !!el.textContent?.endsWith(name);
+    expect(within(done).getAllByText(agentCell("Onboard v1")).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "failed" } });
-    await waitFor(() => expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Onboard v1")).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText(agentCell("Onboard v1"))).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Took"));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));

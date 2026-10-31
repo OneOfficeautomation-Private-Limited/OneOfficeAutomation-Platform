@@ -558,7 +558,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list > .cc-sums .cc-sum:hover { background: var(--ui-row-hover); }
 .cc-list-table .cc-num { text-align: right; }
 .cc-list-table tr.is-open td { background: var(--ui-selected); }
-.cc-run-why { color: var(--ui-error-text); max-width: 340px; display: inline-block; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.cc-run-why { color: var(--ui-error-text); max-width: 340px; display: inline-block; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
 .cc-list.has-run { padding-right: 556px; }
 .cc-run-panel { position: fixed; top: 48px; right: 0; bottom: 0; width: 540px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
   box-shadow: -10px 0 28px rgba(11, 26, 51, .16); display: flex; flex-direction: column; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
 import { Button, Dialog, Select, TextInput, usePersistent } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { repeats } from "./Schedules";
 
 /**
@@ -15,6 +15,8 @@ import { repeats } from "./Schedules";
  * Laid out as the design plan's step 7 (approved on the canvas 31 Oct 2026): the list pattern with the summary as one
  * strip of figures, completed runs grouped by day with why each ended, and a run in a side panel beside the list
  * (Newer / Older; why it failed first, with its step and whether a retry helps; the steps as a nested list).
+ * Review round 2 (31 Oct 2026): one line per run as in Automation (the agent with its version, its folder in a column
+ * of its own), why it ended on one line with the whole text on hover, and a row menu.
  */
 type Tab = "progress" | "scheduled" | "completed";
 type Names = Record<string, string>;
@@ -52,6 +54,7 @@ const json = (v: unknown) => { if (typeof v === "string") { try { v = JSON.parse
 const progressCols = (names: Names): Col[] => [
   { key: "status", label: "Status", cell: (r) => STATUS[runState(r)] ?? r.status },
   { key: "agent", label: "Agent", cell: (r) => name(r.bot_path) + (r.version ? " v" + r.version : "") },
+  { key: "folder", label: "Folder", cell: (r) => folderOf(r.bot_path) },
   { key: "progress", label: "Progress", cell: (r) => r.progress ? `Step ${Math.min(r.progress.finished + 1, r.progress.total || r.progress.finished + 1)}${r.progress.total ? " of " + r.progress.total : ""}${r.progress.action ? ": " + actionLabel(names, r.progress.action) : ""}` : r.status === "queued" ? "Waiting for the runner" : "" },
   { key: "runner", label: "Runner", cell: (r) => r.device_name ?? r.device_id ?? "" },
   { key: "by", label: "Started by", cell: startedBy },
@@ -62,6 +65,7 @@ const progressCols = (names: Names): Col[] => [
 const COMPLETED_COLS: Col[] = [
   { key: "status", label: "Status", cell: (r) => STATUS[r.status] ?? r.status },
   { key: "agent", label: "Agent", cell: (r) => name(r.bot_path) + (r.version ? " v" + r.version : "") },
+  { key: "folder", label: "Folder", cell: (r) => folderOf(r.bot_path) },
   { key: "runner", label: "Runner", cell: (r) => r.device_name ?? r.device_id ?? "" },
   { key: "by", label: "Started by", cell: startedBy },
   { key: "how", label: "How started", cell: (r) => howStarted(r.source) },
@@ -210,21 +214,33 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     ? ([["success", "completed"], ["failed", "failed"], ["stopped", "stopped"]] as const).map(([k, l]) => [runs.filter((r) => r.status === k).length, l] as const).filter(([n]) => n > 0) : [];
   const cell = (c: Col, r: Run) => {
     if (c.key === "status") { const st = runState(r); return <span className={"cc-pill is-" + (PILL[st] ?? "pending")}><span className="cc-pill-dot" />{STATUS[st] ?? r.status}</span>; }
-    if (c.key === "agent") return <><strong>{c.cell(r)}</strong>{folderOf(r.bot_path) && <span className="cc-list-sub">{folderOf(r.bot_path)}</span>}</>;
+    if (c.key === "agent") return <><span className="cc-aico" aria-hidden="true">A</span><strong>{name(r.bot_path)}</strong>{r.version ? <span className="cc-none"> v{r.version}</span> : null}</>;
     if (c.key === "error") { const e = parseError(r.error); return e ? <span className="cc-run-why" title={errorText(r.error)}>{errorText(r.error)}</span> : <span className="cc-none">–</span>; }
     const v = c.cell(r);
     return v || <span className="cc-none">–</span>;
+  };
+  /** One run's actions: open it, stop it while it runs, run it again once it ended, its agent in Automation. */
+  const rowMenu = (r: Run) => {
+    const st = runState(r), active = ["queued", "running", "paused"].includes(st);
+    const one = (what: string, call: () => Promise<unknown>) => call().then(() => { onNotice(what + "."); load(); loadSummary(); }, (e) => setError(message(e)));
+    return [
+      { key: "open", label: "Open", onSelect: () => openRun(r.id) },
+      ...(can("runs.start") && active ? [{ key: "stop", label: "Stop", onSelect: () => one("Stop asked for the run of " + name(r.bot_path) + " (after the current step)", () => api.control(r.id, "stop")) }] : []),
+      ...(can("runs.start") && !active ? [{ key: "rerun", label: "Run again", onSelect: () => one("Started " + name(r.bot_path) + " again", () => api.rerun(r.id)) }] : []),
+      ...(can("repo.view") ? [{ key: "agent", label: "Open the agent in Automation", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(r.bot_path)); } }] : []),
+    ];
   };
   const rows: ReactNode[] = [];
   runs.forEach((r, i) => {
     const t = r.started ?? r.created;
     if (tab === "completed" && t && (i === 0 || dayOf(t) !== dayOf(runs[i - 1].started ?? runs[i - 1].created)))
-      rows.push(<tr key={"d" + r.id} className="cc-au-day is-static"><td colSpan={cols.length + 1}>{dayLabel(t)}</td></tr>);
+      rows.push(<tr key={"d" + r.id} className="cc-au-day is-static"><td colSpan={cols.length + 2}>{dayLabel(t)}</td></tr>);
     rows.push(
-      <tr key={r.id} className={(selected.includes(r.id) ? "is-selected" : "") + (details === r.id ? " is-open" : "")} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) openRun(r.id); }}>
+      <tr key={r.id} className={(selected.includes(r.id) ? "is-selected" : "") + (details === r.id ? " is-open" : "")} onClick={rowClick(() => openRun(r.id))}>
         <td className="cc-check"><input type="checkbox" aria-label={"Select the run of " + name(r.bot_path)} checked={selected.includes(r.id)}
           onChange={(e) => setSelected(e.target.checked ? [...selected, r.id] : selected.filter((x) => x !== r.id))} /></td>
         {cols.map((c) => <td key={c.key} className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-clip" : undefined}>{cell(c, r)}</td>)}
+        <td className="cc-list-menu"><RowMenu label={"Actions for the run of " + name(r.bot_path)} items={rowMenu(r)} /></td>
       </tr>);
   });
   const at = details ? runs.findIndex((r) => r.id === details) : -1;
@@ -302,11 +318,12 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                 <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={runs.length > 0 && chosen.length === runs.length}
                   onChange={(e) => setSelected(e.target.checked ? runs.map((r) => r.id) : [])} /></th>
                 {cols.map((c) => <th key={c.key} scope="col" className={c.key === "duration" || c.key === "steps" ? "cc-num" : undefined}>{c.label}</th>)}
+                <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
               </tr></thead>
               <tbody>
                 {rows}
-                {data && !runs.length && <tr className="is-static"><td colSpan={cols.length + 1} className="cc-none">{tab === "progress" ? "Nothing is running or waiting." : "No runs match these filters."}</td></tr>}
-                {!data && !error && <tr className="is-static"><td colSpan={cols.length + 1} className="cc-none" role="status">Loading…</td></tr>}
+                {data && !runs.length && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none">{tab === "progress" ? "Nothing is running or waiting." : "No runs match these filters."}</td></tr>}
+                {!data && !error && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
           </div>
