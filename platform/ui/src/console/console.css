@@ -268,3 +268,20 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .st-menu-size button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
 .st-menu-size button:disabled { opacity: .45; cursor: default; }
 .st-menu.is-console .st-menu-heading { white-space: nowrap; }
+/*
+ * Design plan, step 2 (colours, option B chosen 31 Oct 2026): the console's light theme on a soft blue canvas with navy
+ * text, so neither the page nor its text reads grey; cards and tables stay white. One AgentStudio keeps theme.css as it
+ * is. tools/check-contrast.mjs checks this block too (every text colour at least 4.5:1 on every surface).
+ */
+:root:not([data-theme="dark"]) .cc-app {
+  --ui-text: #14233d;
+  --ui-text-2: #2e4366;
+  --ui-text-3: #3f5478;
+  --ui-border: #c5d3e8;
+  --ui-divider: #dde5f2;
+  --ui-soft: #edf2fa;
+  --ui-row-hover: #eef3fb;
+  --ui-heading: #0b1a33;
+}
+:root:not([data-theme="dark"]) .cc-app .cc-main h1, :root:not([data-theme="dark"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
+:root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: #d3deee; }

@@ -1,16 +1,19 @@
-// Checks the colour tokens in src/theme.css by calculation (WCAG 2 contrast), for the light and the dark theme:
+// Checks the colour tokens in src/theme.css by calculation (WCAG 2 contrast), for the light and the dark theme, and the
+// console's own light colours (src/console/console.css, .cc-app):
 // text at least 4.5:1 on every surface it is used on, control borders at least 3:1. Fails the build when one is short.
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/theme.css", import.meta.url), "utf8");
-const block = (selector) => {
-  const at = css.indexOf(selector + " {");
-  if (at < 0) throw new Error("theme.css has no " + selector + " block");
-  const body = css.slice(at, css.indexOf("}", at));
+const consoleCss = readFileSync(new URL("../src/console/console.css", import.meta.url), "utf8");
+const block = (selector, text = css, file = "theme.css") => {
+  const at = text.indexOf(selector + " {");
+  if (at < 0) throw new Error(file + " has no " + selector + " block");
+  const body = text.slice(at, text.indexOf("}", at));
   return Object.fromEntries([...body.matchAll(/(--ui-[\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]));
 };
 const light = block(":root");
-const themes = { light, dark: { ...light, ...block(':root[data-theme="dark"]') } };
+const themes = { light, dark: { ...light, ...block(':root[data-theme="dark"]') },
+  "console light": { ...light, ...block(':root:not([data-theme="dark"]) .cc-app', consoleCss, "console.css") } };
 
 const lum = (hex) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
@@ -35,4 +38,4 @@ for (const [name, t] of Object.entries(themes)) {
   }
 }
 if (failed) { console.error(failed + " colour pair(s) below the contrast rule"); process.exit(1); }
-console.log(`Contrast: ${PAIRS.length} pairs pass in the light and the dark theme.`);
+console.log(`Contrast: ${PAIRS.length} pairs pass in the light and the dark theme and the console's light colours.`);

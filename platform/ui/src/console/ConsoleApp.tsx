@@ -76,7 +76,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const hrefFor = (id: string) => id === "studio" ? (studio ? "../studio/" : undefined) : LOCAL.has(id) ? "#/" + id : TODAY + "?page=" + id;
 
   return (
-    <div className="st-app">
+    <div className="st-app cc-app">
       <TopBar api={api} user={user} page={page} classicHref={TODAY} onPage={setPage} onSignOut={signOut} />
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
