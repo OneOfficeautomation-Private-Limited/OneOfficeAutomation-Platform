@@ -10,6 +10,8 @@ import { Button, Select, TextArea, TextInput } from "../components";
  * Laid out as the design plan's step 6 (approved on the canvas 31 Oct 2026): a setting is one row (its name, a short
  * hint, the control with its unit), long sections are grouped, a changed row is marked with what it was, a save bar
  * shows only while something is changed, yes/no settings are switches, and changes in the search results save there.
+ * Review round 2 (1 Nov 2026): Remove old runs now asks first, with the saved numbers it uses (not the ones typed but
+ * unsaved), and has nothing to do while both are 0 (always).
  */
 type Kind = "text" | "number" | "area" | "check" | "select" | "roles";
 type Setting = { key: string; label: string; hint?: string; unit?: string; kind: Kind; min?: number; max?: number; placeholder?: string; options?: [string, string][] };
@@ -251,7 +253,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
               <div className="cc-set-group">{g.title}</div>
               {g.settings.map(row)}
             </Fragment>)}
-            <div className="cc-set-extras"><Extras api={api} section={current.id} form={form} onNotice={onNotice} onError={setError} /></div>
+            <div className="cc-set-extras"><Extras api={api} section={current.id} form={form} saved={saved ?? {}} onNotice={onNotice} onError={setError} /></div>
             {saveBar(current)}
           </div>}
       </div>}
@@ -260,9 +262,14 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
 }
 
 /** A section's own actions and facts: test e-mail and syslog, Git sync, backups, removing old runs, nodes and database. */
-function Extras({ api, section, form, onNotice, onError }: { api: CrApi; section: string; form: Record<string, string>; onNotice: (t: string) => void; onError: (e: string) => void }) {
+function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; section: string; form: Record<string, string>; saved: Record<string, string>;
+  onNotice: (t: string) => void; onError: (e: string) => void }) {
   const [info, setInfo] = useState<ReactNode>(null);
   const [to, setTo] = useState("");
+  const [asking, setAsking] = useState(false);   // removing old runs, asked first
+  // removing old runs uses the saved numbers; 0 keeps them always
+  const runDays = Number(saved.run_retention_days || 0), logDays = Number(saved.run_log_retention_days || 0);
+  const what = [runDays ? "runs older than " + runDays + " days" : "", logDays ? "step logs older than " + logDays + " days" : ""].filter(Boolean).join(" and ");
   const fail = (e: unknown) => onError(message(e));
   useEffect(() => {
     setInfo(null);
@@ -295,9 +302,12 @@ function Extras({ api, section, form, onNotice, onError }: { api: CrApi; section
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
     {section === "data" && <span className="cc-inline">
       <Button kind="secondary" onClick={() => api.backupNow().then((r) => onNotice("Backup made: " + r.file + " (" + r.size_mb + " MB)."), fail)}>Back up now</Button>
-      <Button kind="secondary" onClick={() => api.purgeRuns(Number(form.run_retention_days || 0), Number(form.run_log_retention_days || 0))
-        .then((r) => onNotice("Removed " + r.runs_removed + " run(s) and " + r.log_lines_removed + " log line(s)."), fail)}>Remove old runs now</Button>
+      <Button kind="secondary" disabled={!what || asking} title={what ? undefined : "Keep runs for and Keep step logs for are 0 (always): there is nothing to remove"}
+        onClick={() => setAsking(true)}>Remove old runs now…</Button>
     </span>}
+    {section === "data" && asking && <div className="cc-list-bulk" role="alert"><span>Remove {what}? This cannot be undone.</span>
+      <Button kind="danger" onClick={() => { setAsking(false); api.purgeRuns(runDays, logDays).then((r) => onNotice("Removed " + r.runs_removed + " run(s) and " + r.log_lines_removed + " log line(s)."), fail); }}>Remove</Button>
+      <Button kind="plain" onClick={() => setAsking(false)}>Cancel</Button></div>}
     {(section === "connections" || section === "agents" || section === "data") && <p className="st-muted">The buttons use the saved settings: save first.</p>}
   </>;
 }

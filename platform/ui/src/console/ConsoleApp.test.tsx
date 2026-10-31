@@ -266,7 +266,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
         form: { fields: [{ id: "iban", type: "text", label: "IBAN", required: true }, { id: "urgent", type: "checkbox", label: "Urgent" }], submitLabel: "Send" } }] });
     if (/^tasks\/k\d\/(claim|release|complete)$/.test(route)) return ok({ ok: true });
     if (route === "settings" && init.method === "PUT") return ok({ ok: true });
-    if (route === "settings") return ok({ announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "" });
+    if (route === "settings") return ok({ announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "",
+      run_retention_days: 90, run_log_retention_days: 30 });
     if (route === "settings/mail-test") return ok({ to: body.to });
     if (route === "audit") {
       const q = new URLSearchParams(url.split("?")[1]);
@@ -1311,6 +1312,16 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(mail).getByLabelText("Send a test e-mail to"), { target: { value: "me@example.com" } });
     await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
+    // removing old runs asks first, with the saved numbers (not ones typed but not saved)
+    fireEvent.click(within(nav).getByRole("button", { name: "Data retention and backups" }));
+    const data = await screen.findByRole("region", { name: "Data retention and backups" });
+    fireEvent.change(within(data).getByLabelText("Keep runs for"), { target: { value: "7" } });
+    fireEvent.click(within(data).getByRole("button", { name: "Remove old runs now…" }));
+    const ask = within(data).getByRole("alert");
+    expect(ask.textContent).toContain("Remove runs older than 90 days and step logs older than 30 days? This cannot be undone.");
+    expect(calls.some((c) => c.route === "runs/purge")).toBe(false);
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Remove" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs/purge", body: { run_days: 90, log_days: 30 } }));
   });
 
   it("shows the Task inbox as AA's task list: one line per task with where it comes from and its state, take it from the row, overdue filter, approve with a comment, a form with a required field", async () => {
