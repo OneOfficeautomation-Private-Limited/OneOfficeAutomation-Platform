@@ -1594,6 +1594,15 @@ describe("rebuilt Command Center console", () => {
     const mc = await screen.findByRole("table", { name: "Model connections list" });
     expect(await within(mc).findByText("Masks personal data, Checks answers")).toBeTruthy();
     expect(within(mc).getByRole("img", { name: "90% of the budget" })).toBeTruthy();
+    // a menu per connection: Test connection from the row, Delete asked first
+    fireEvent.keyDown(within(mc).getByRole("button", { name: "Actions for company-gpt" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Test connection" })); });
+    expect(await screen.findByText("company-gpt: connected in 120 ms: pong.")).toBeTruthy();
+    fireEvent.keyDown(within(mc).getByRole("button", { name: "Actions for company-gpt" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Delete the model connection company-gpt?");
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Cancel" }));
+    expect(calls.some((c) => c.method === "DELETE" && c.route.startsWith("connections/"))).toBe(false);
     fireEvent.click(within(mc).getByText("company-gpt"));
     const d = await screen.findByRole("dialog", { name: "Model connection company-gpt" });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Test connection" })); });

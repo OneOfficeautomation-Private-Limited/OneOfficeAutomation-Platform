@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ModelConnection } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * AI > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
  * 2026): named connections to an AI model that agents use. Each shows its provider and model, the roles that may use
  * it, its key's vault reference, tokens used this month against the budget (UiPath-style limits), and its privacy
  * settings. Create in sections: model, key and access, privacy and safety, budget; Test connection before saving.
+ * Review round 2 (1 Nov 2026): one line per connection (its description and key reference in full on hover), a menu per
+ * connection (Edit, Test connection, Copy the name, Delete asked first), and rows you cannot open shown as such.
  */
 const PROVIDERS: [string, string][] = [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["aws_bedrock", "Amazon Bedrock"], ["google_vertex", "Google Vertex AI"],
   ["aws_bedrock_sagemaker", "Amazon SageMaker endpoint"], ["huggingface", "Hugging Face"], ["openai_compatible", "OpenAI-compatible (local or hosted)"]];
@@ -29,11 +31,24 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
   const [q, setQ] = useState("");
   const [provider, setProvider] = useState("");
   const [dialog, setDialog] = useState<null | { c: ModelConnection | null }>(null);
+  const [ask, setAsk] = useState<ModelConnection | null>(null);   // a connection to delete, asked first
   const manage = user.permissions.includes("connections.manage");
   const load = useCallback(async () => { try { setList(await api.modelConnections()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
   const shown = useMemo(() => (list ?? []).filter((c) => (!provider || c.provider === provider)
     && (!q.trim() || (c.name + " " + (c.model ?? "") + " " + (c.description ?? "")).toLowerCase().includes(q.trim().toLowerCase()))), [list, q, provider]);
+  /** Test a saved connection as it is, from its row. */
+  const test = (c: ModelConnection) => api.testModelConnection({ name: c.name, provider: c.provider, model_type: c.model_type ?? "standard", model: c.model ?? null, base_url: c.base_url ?? null,
+    key_ref: c.key_ref ?? null }).then((r) => r.ok ? onNotice(c.name + ": connected in " + r.ms + " ms" + (r.answer ? ": " + r.answer : "") + ".") : setError(c.name + ": " + (r.message ?? "the test failed")),
+    (e) => setError(message(e)));
+  const copy = (c: ModelConnection) => (navigator.clipboard?.writeText(c.name) ?? Promise.reject(new Error("no clipboard")))
+    .then(() => onNotice("Copied " + c.name + "."), () => setError("Copying is not allowed here: choose " + c.name + " on the AI step."));
+  const del = (c: ModelConnection) => api.deleteModelConnection(c.name).then(() => { onNotice("Deleted the model connection " + c.name + "."); setAsk(null); load(); }, (e) => setError(message(e)));
+  const rowMenu = (c: ModelConnection) => [
+    ...(manage ? [{ key: "edit", label: "Edit", onSelect: () => setDialog({ c }) }, { key: "test", label: "Test connection", onSelect: () => { test(c); } }] : []),
+    { key: "copy", label: "Copy the name", onSelect: () => { copy(c); } },
+    ...(manage ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsk(c) }] : []),
+  ];
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-mc-title">
@@ -52,25 +67,30 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
+      <div className="cc-list-panel">
+        {ask && <div className="cc-list-bulk" role="alert"><span>Delete the model connection {ask.name}? AI steps that use it fail until another is chosen.</span>
+          <Button kind="danger" onClick={() => del(ask)}>Delete</Button><Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
+        <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Model connections list">
-          <thead><tr><th scope="col">Connection</th><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Roles</th><th scope="col">Tokens this month</th><th scope="col">Privacy</th><th scope="col">Key</th><th scope="col">Updated</th></tr></thead>
+          <thead><tr><th scope="col">Connection</th><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Roles</th><th scope="col">Tokens this month</th><th scope="col">Privacy</th><th scope="col">Key</th><th scope="col">Updated</th>
+            <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((c) => (
-              <tr key={c.name} onClick={() => manage && setDialog({ c })} className={manage ? undefined : "is-static"}>
-                <td>{c.name}{c.description && <div className="st-muted">{c.description}</div>}</td>
+              <tr key={c.name} onClick={rowClick(() => { if (manage) setDialog({ c }); })} className={manage ? undefined : "is-static"}>
+                <td className="cc-clip" title={c.description || undefined}>{c.name}</td>
                 <td>{providerName(c.provider)}</td>
                 <td>{c.model ?? ""}{c.model_type === "fine_tuned" && <span className="cc-tag">fine-tuned</span>}</td>
                 <td>{(c.allowed_roles ?? []).join(", ") || "Every role"}</td>
                 <td>{(c.tokens_this_month ?? 0).toLocaleString()}{c.monthly_tokens ? " of " + c.monthly_tokens.toLocaleString() : ""}
                   {c.monthly_tokens ? <span className="cc-meter" role="img" aria-label={pct(c) + "% of the budget"}><span className={pct(c) >= 100 ? "is-full" : pct(c) >= 80 ? "is-high" : ""} style={{ width: pct(c) + "%" }} /></span> : null}</td>
                 <td>{[c.pii_analyzer_url ? "Masks personal data" : "", c.content_check === "moderation" ? "Checks answers" : ""].filter(Boolean).join(", ") || "None"}</td>
-                <td className="ui-mono">{c.key_ref ?? "None"}</td>
+                <td className="ui-mono cc-clip" title={c.key_ref ?? undefined}>{c.key_ref ?? "None"}</td>
                 <td>{when(c.updated)}{c.updated_by ? " by " + c.updated_by : ""}</td>
+                <td className="cc-list-menu"><RowMenu label={"Actions for " + c.name} items={rowMenu(c)} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{list.length ? "No connections match." : "No model connections yet."}</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{list.length ? "No connections match." : "No model connections yet."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
       </div>
