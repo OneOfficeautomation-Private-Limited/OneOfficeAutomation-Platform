@@ -35,7 +35,8 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const [rules, setRules] = useState<AlertRule[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<AlertRule | "new" | null>(null);
+  // #/alerts?new=1 (Overview's New alert rule) opens the new rule straight away
+  const [editing, setEditing] = useState<AlertRule | "new" | null>(() => user.permissions.includes("alerts.manage") && /[?&]new=1/.test(location.hash) ? "new" : null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [choices, setChoices] = useState<Choices>({ agent: [], runner: [], queue: [], connection: [] });
   const can = (p: string) => user.permissions.includes(p);

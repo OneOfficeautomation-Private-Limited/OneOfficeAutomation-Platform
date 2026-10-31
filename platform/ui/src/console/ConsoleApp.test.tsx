@@ -494,26 +494,33 @@ describe("rebuilt Command Center console", () => {
     location.hash = "";
   });
 
-  it("shows Operational Insights > Overview: figures that open their page, why runs failed across agents, runners and queues needing attention, AI budget used", async () => {
-    const { api, calls } = fakeServer({ signedIn: admin });
+  it("shows Operational Insights > Overview, dense and clean: one row of figures, what needs attention in tabs, the latest runs, side panels", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "alerts.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Overview");
     const figs = await screen.findByRole("group", { name: "Figures" });
-    expect(await within(figs).findByText("1 of 2")).toBeTruthy();
-    expect(within(figs).getByText("Runners online · 2 need attention")).toBeTruthy();
+    expect(await within(figs).findByText("1 / 2")).toBeTruthy();
+    expect(within(figs).getByText("2 need attention")).toBeTruthy();
     expect(within(figs).getByText("75%")).toBeTruthy();
-    expect(within(figs).getByText("Queue items overdue · 4 waiting")).toBeTruthy();
-    expect(within(figs).getByText("Open alerts")).toBeTruthy();
-    expect(within(screen.getByRole("list", { name: "Open alerts" })).getByRole("link", { name: /^Invoice intake failed/ })).toBeTruthy();
-    const runners = screen.getByRole("table", { name: "Runners needing attention" });
-    expect(within(runners).getByText("Busy: CPU use 93% is above its limit of 80%")).toBeTruthy();
-    expect(within(runners).getByText("Offline")).toBeTruthy();
-    const queues = screen.getByRole("table", { name: "Work queues with items waiting" });
-    expect(within(queues).getByText("1 (target 240 min)")).toBeTruthy();
-    expect(within(screen.getByRole("table", { name: "AI use this month" })).getByText("90%", { exact: false }).closest("td")!.className).toContain("cc-err");   // 80% or more used
-    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "7" } });
+    expect(within(figs).getByText("1 overdue")).toBeTruthy();
+    expect(within(figs).getByText("90% of budget")).toBeTruthy();
+    expect(within(figs).getByText("900k").className).toContain("is-bad");   // 80% or more of the budget used
+    expect(within(figs).getByRole("link", { name: /Open alerts/ }).getAttribute("href")).toBe("#/alerts");
+    // what needs attention, in one list
+    const needs = await screen.findByRole("list", { name: "What needs attention" });
+    expect(within(needs).getByRole("link", { name: /^Invoice intake failed/ })).toBeTruthy();
+    expect(within(needs).getByText("Busy: CPU use 93% is above its limit of 80%")).toBeTruthy();
+    expect(within(needs).getByText("1 overdue")).toBeTruthy();
+    expect(within(needs).getByRole("link", { name: "1 run failed in the last 24 hours" })).toBeTruthy();
+    // the latest runs; nothing to set up (queues, connections, rules and hours saved all exist)
+    const latest = screen.getByRole("table", { name: "Latest runs" });
+    expect(within(latest).getAllByRole("link", { name: "Invoice intake" })[0].getAttribute("href")).toBe("#/activity?run=r3");
+    expect(screen.queryByRole("list", { name: "Set up next" })).toBeNull();
+    expect(screen.getByRole("link", { name: "New alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
+    // the period, then a failure reason opens Agent Activity's Completed runs, filtered to it
+    fireEvent.click(screen.getByRole("button", { name: "7 days" }));
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7"))).toBe(true));
-    // a failure reason opens Agent Activity's Completed runs, filtered to it
+    fireEvent.click(screen.getByRole("tab", { name: /^Failed runs/ }));
     const link = within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" });
     expect(link.getAttribute("href")).toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND&period=7d");
     await act(async () => { location.hash = link.getAttribute("href")!; });

@@ -285,3 +285,57 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 }
 :root:not([data-theme="dark"]) .cc-app .cc-main h1, :root:not([data-theme="dark"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
 :root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: #d3deee; }
+/* Overview, dense and clean (design plan step 2b): one grid, four text styles (18 / 14 / 13 / 12, numbers 20), 12 px spacing, 32 px rows */
+.ov { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.ov-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
+.ov-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
+.ov-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: help; }
+.ov-fill { flex: 1; }
+.ov-meta { font-size: 12px; color: var(--ui-text-3); }
+.ov-seg { display: inline-flex; height: var(--ui-h); border: 1px solid var(--ui-field); border-radius: var(--ui-radius); overflow: hidden; }
+.ov-seg button { border: 0; padding: 0 10px; background: var(--ui-bg); color: var(--ui-text); font: inherit; cursor: pointer; }
+.ov-seg button + button { border-left: 1px solid var(--ui-field); }
+.ov-seg button[aria-pressed="true"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
+.ov-icon-btn { width: var(--ui-h); height: var(--ui-h); box-sizing: border-box; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-accent-text);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ov-panel { background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); min-width: 0; }
+.ov-figs { display: grid; }
+.ov-fig { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-right: 1px solid var(--ui-divider); color: var(--ui-text); text-decoration: none; min-width: 0; }
+.ov-fig:last-child { border-right: 0; }
+.ov-fig:hover { background: var(--ui-row-hover); }
+.ov-fig:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.ov-fig-l { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-fig-v { font-size: 20px; font-weight: 600; line-height: 26px; }
+.ov-fig-v.is-bad, .ov-bad { color: var(--ui-error-text); }
+.ov-good { color: var(--ui-ok-text); }
+.ov-fig-m { font-size: 12px; color: var(--ui-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-ic { width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.ov-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.ov-main { grid-column: span 8; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ov-side { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (max-width: 1100px) { .ov-main, .ov-side { grid-column: 1 / -1; } .ov-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+.ov-ph { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
+.ov-ph h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.ov-more { margin-left: auto; font-size: 12px; }
+.ov-tabs { display: flex; align-items: stretch; height: 40px; padding: 0 4px; border-bottom: 1px solid var(--ui-divider); overflow-x: auto; }
+.ov-tab { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ui-text); font: inherit; cursor: pointer; white-space: nowrap; }
+.ov-tab[aria-selected="true"] { border-bottom-color: var(--ui-accent); font-weight: 600; }
+.ov-cnt { min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 11px; font-weight: 700; text-align: center; }
+.ov-cnt.is-bad { background: var(--ui-error-bg); color: var(--ui-error-text); }
+.ov-ok { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 12px; min-height: 36px; color: var(--ui-ok-text); }
+.ov-rows { list-style: none; margin: 0; padding: 0; }
+.ov-rows li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
+.ov-rows li:last-child { border-bottom: 0; }
+.ov-r { margin-left: auto; padding-left: 8px; font-size: 12px; white-space: nowrap; }
+.ov-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ui-success); flex: none; }
+.ov-dot.is-bad { background: #d14343; }
+.ov-t { width: 100%; border-collapse: collapse; }
+.ov-t th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
+.ov-t td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+.ov-t tr:last-child td { border-bottom: 0; }
+.ov-t .n { text-align: right; }
+.ov-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--ui-selected); color: var(--ui-pill-text); }
+.ov-pill.is-success { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
+.ov-pill.is-failed, .ov-pill.is-critical { background: var(--ui-error-bg); color: var(--ui-error-text); }
+.ov-pill.is-warning, .ov-pill.is-queued { background: var(--ui-running-bg); color: var(--ui-warning-text); }
+.ov-pill.is-stopped { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
