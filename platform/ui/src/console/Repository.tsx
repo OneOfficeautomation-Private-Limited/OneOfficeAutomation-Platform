@@ -63,9 +63,14 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     { key: "open", label: "Open", onSelect: () => setDialog({ kind: "agent", a }) },
     ...(can("runs.start") && a.production_version && kindOf(a.path) === "Agent" ? [{ key: "run", label: "Run…", onSelect: () => setDialog({ kind: "run", a }) }] : []),
     { key: "folder", label: "Show its folder", onSelect: () => setFolder(folderOf(a.path)) },
+    ...(can("apitasks.manage") && kindOf(a.path) === "Agent" ? [apis.has(a.path)
+      ? { key: "api", label: "Open its Agent API", onSelect: () => { location.hash = "#/apitasks"; } }
+      : { key: "api", label: "Make it an Agent API…", disabled: !a.production_version, onSelect: () => { location.hash = "#/apitasks?new=" + encodeURIComponent(a.path); } }] : []),
   ];
 
   const [opened, setOpened] = usePersistent<string[]>("repo.opened", []);
+  const [apis, setApis] = useState<Set<string>>(new Set());
+  useEffect(() => { if (can("apitasks.manage")) api.agentApis().then((l) => setApis(new Set(l.map((t) => t.bot_path))), () => {}); }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [withSub, setWithSub] = usePersistent<boolean>("repo.withSubfolders", true);
   const kids = (p: string) => folders.filter((f) => folderOf(f.path) === p).sort((a, b) => a.path.localeCompare(b.path));
   const total = (p: string) => folders.filter((f) => !p || f.path === p || f.path.startsWith(p + "/")).reduce((n, f) => n + f.agents, 0);
@@ -172,7 +177,7 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
                 {here.map((a) => (
                   <tr key={a.path} onClick={rowClick(() => setDialog({ kind: "agent", a }))}>
                     <td title={a.description ?? undefined}><AgentIcon kind={kindOf(a.path)} /><strong>{agentName(a.path)}</strong></td>
-                    <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td><td>{kindOf(a.path)}</td><td className="cc-num"><span className="cc-none">–</span></td>
+                    <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td><td>{kindOf(a.path)}{apis.has(a.path) && <span className="cc-tag" title="Other systems can call it as an Agent API">API</span>}</td><td className="cc-num"><span className="cc-none">–</span></td>
                     <td>v{a.latest_version}{(a.labels ?? []).map((l) => <span key={l.label} className="cc-tag" title={"On v" + l.version}>{l.label}</span>)}</td>
                     <td>{a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-none">Not live</span>}</td>
                     <td>{a.locked_by ? <span className="cc-pill is-pending"><span className="cc-pill-dot" />Checked out by {a.locked_by}</span> : "Checked in"}</td>

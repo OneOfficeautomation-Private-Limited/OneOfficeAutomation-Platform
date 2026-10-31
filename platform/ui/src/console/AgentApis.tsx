@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { FolderIcon } from "./Repository";
 
 /**
  * Build > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an
  * agent behind its own address and token, for other systems to call like a web service; the call runs the agent and
  * answers with its outputs. Each shows its agent, where it runs (a runner, a pool, or serverless on the Command
  * Center), how long a caller waits, calls and last use. The token is shown once, with an example call.
+ * As AA, where an API task is a kind of automation, an agent becomes an Agent API from its menu in Automation too
+ * (#/apitasks?new=<agent> opens Create with it chosen). Laid out as Automation (review round 2, 31 Oct 2026): the
+ * agents' folders on the left, the Agent APIs in one table with their address to copy.
  */
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
+const folderOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+/** #/apitasks?new=<agent path>: Create opens with that agent chosen (from Automation). */
+const linkedNew = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("new");
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
@@ -19,7 +26,14 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const [pools, setPools] = useState<RunnerPool[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [dialog, setDialog] = useState<null | { kind: "new" } | { kind: "open"; t: AgentApi } | { kind: "token"; name: string; url: string; token: string }>(null);
+  const [folder, setFolder] = useState("");
+  const [state, setState] = useState("");
+  const [dialog, setDialog] = useState<null | { kind: "new"; bot?: string } | { kind: "open"; t: AgentApi } | { kind: "token"; name: string; url: string; token: string }>(() => {
+    const bot = linkedNew();
+    return bot && user.permissions.includes("apitasks.manage") ? { kind: "new", bot } : null;
+  });
+  useEffect(() => { if (location.hash.includes("?")) history.replaceState(null, "", "#/apitasks"); }, []);
+  const manage = user.permissions.includes("apitasks.manage");
   const load = useCallback(async () => {
     try {
       const [l, d, p] = await Promise.all([api.agentApis(), api.devices().catch(() => []), api.pools().catch(() => [])]);
@@ -28,43 +42,83 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   }, [api]);
   useEffect(() => { load(); }, [load]);
   const where = (t: AgentApi) => t.serverless ? "The Command Center (serverless)" : t.pool_id ? "Pool " + (pools.find((p) => p.id === t.pool_id)?.name ?? t.pool_id) : runners.find((r) => r.id === t.device_id)?.name ?? t.device_id ?? "";
-  const shown = useMemo(() => (list ?? []).filter((t) => !q.trim() || (t.name + " " + t.bot_path).toLowerCase().includes(q.trim().toLowerCase())), [list, q]);
+  const shown = useMemo(() => (list ?? []).filter((t) => (!q.trim() || (t.name + " " + t.bot_path).toLowerCase().includes(q.trim().toLowerCase()))
+    && (!folder || t.bot_path.startsWith(folder + "/")) && (!state || (state === "on") === t.enabled)), [list, q, folder, state]);
+  /** The agents' folders and every folder above them, so the tree has its parents. */
+  const folders = useMemo(() => { const out = new Set<string>(); for (const t of list ?? []) { let f = folderOf(t.bot_path); while (f) { out.add(f); f = folderOf(f); } } return [...out].sort(); }, [list]);
+  const count = (f: string) => (list ?? []).filter((t) => !f || t.bot_path.startsWith(f + "/")).length;
+  const address = (t: AgentApi) => location.origin + t.url;
+  const copy = (t: AgentApi) => (navigator.clipboard?.writeText(address(t)) ?? Promise.reject(new Error("Copying is not allowed here"))).then(() => onNotice("Copied the address of " + t.name + "."), () => setError("Copy it from the Agent API instead: " + address(t)));
   const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { onNotice(done); setDialog(null); load(); }, (e) => setError(message(e)));
 
+  const rowMenu = (t: AgentApi) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "open", t }) },
+    { key: "copy", label: "Copy the address", onSelect: () => { copy(t); } },
+    ...(manage ? [{ key: "state", label: t.enabled ? "Switch off" : "Switch on", onSelect: () => { act(() => api.setAgentApiEnabled(t.id, !t.enabled), (t.enabled ? "Switched off " : "Switched on ") + t.name + "."); } },
+      { key: "token", label: "New token…", onSelect: () => { api.newAgentApiToken(t.id).then((n) => setDialog({ kind: "token", name: t.name, url: t.url, token: n.token }), (e) => setError(message(e))); } },
+      { key: "delete", label: "Delete", separatorBefore: true, onSelect: () => { act(() => api.deleteAgentApi(t.id), "Deleted " + t.name + "."); } }] : []),
+  ];
+
   return (
-    <section className="st-page cc-home cc-list" aria-labelledby="cc-apis-title">
+    <section className="st-page cc-home cc-explorer" aria-labelledby="cc-apis-title">
       <header className="cc-list-head">
         <h1 id="cc-apis-title">Agent APIs</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.">i</span>
-        {list && <span className="cc-list-count">{list.length} Agent API{list.length === 1 ? "" : "s"}</span>}
+        {list && <span className="cc-list-count">{list.length} Agent API{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on</span>}
         <span className="ov-fill" />
-        {user.permissions.includes("apitasks.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}
+        {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-list-tools">
-      <div className="cc-list-filters" role="group" aria-label="Filters">
-        <span className="cc-list-search"><TextInput type="search" aria-label="Search Agent APIs" placeholder="Search Agent APIs" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+      <div className="cc-explorer-body">
+        <nav className="cc-tree-pane" aria-label="Folders">
+          <div className="cc-pane-head"><h2>Folders</h2></div>
+          <ul className="cc-tree">
+            <li><div className={"cc-tree-row" + (folder === "" ? " is-on" : "")} style={{ paddingLeft: 6 }}><span className="cc-tree-chev" />
+              <button type="button" className="cc-tree-name" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}><FolderIcon open />All Agent APIs<span className="cc-tree-n">{count("")}</span></button></div>
+              <ul>{folders.map((f) => <li key={f}><div className={"cc-tree-row" + (folder === f ? " is-on" : "")} style={{ paddingLeft: 6 + 16 * f.split("/").length }}><span className="cc-tree-chev" />
+                <button type="button" className="cc-tree-name" aria-current={folder === f ? "page" : undefined} onClick={() => setFolder(f)}><FolderIcon />{f.split("/").pop()}<span className="cc-tree-n">{count(f)}</span></button></div></li>)}</ul></li>
+          </ul>
+          <p className="cc-pane-foot">The folders of the agents behind them, as in Automation.</p>
+        </nav>
+        <div className="cc-files-pane">
+          <div className="cc-pane-head"><span className="cc-crumbs-path"><FolderIcon open /><button type="button" className="cc-link" onClick={() => setFolder("")}>Agent APIs</button>
+            {folder.split("/").filter(Boolean).map((c, i, a) => <span key={i}> › {i === a.length - 1 ? <strong>{c}</strong> : <button type="button" className="cc-link" onClick={() => setFolder(a.slice(0, i + 1).join("/"))}>{c}</button>}</span>)}</span></div>
+          <div className="cc-list-tools cc-pane-tools">
+            <div className="cc-list-filters" role="group" aria-label="Filters">
+              <span className="cc-list-search"><TextInput type="search" aria-label="Search Agent APIs" placeholder="Search Agent APIs" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}
+                options={[{ value: "", label: "State: Any" }, { value: "on", label: "State: On" }, { value: "off", label: "State: Off" }]} /></span>
+              {(q.trim() || state) && <Button kind="plain" onClick={() => { setQ(""); setState(""); }}>Clear filters</Button>}
+            </div>
+            <div className="cc-list-right" role="toolbar" aria-label="Agent APIs list tools"><RefreshButton onClick={load} /></div>
+          </div>
+          <div className="cc-list-scroll">
+            <table className="cc-list-table" aria-label="Agent APIs list">
+              <thead><tr><th scope="col">State</th><th scope="col">Agent API</th><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Address</th><th scope="col">Runs on</th>
+                <th scope="col" className="cc-num">Waits up to</th><th scope="col" className="cc-num">Calls</th><th scope="col">Last call</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+              <tbody>
+                {shown.map((t) => (
+                  <tr key={t.id} onClick={rowClick(() => setDialog({ kind: "open", t }))}>
+                    <td><span className={"cc-pill is-" + (t.enabled ? "active" : "disabled")}><span className="cc-pill-dot" />{t.enabled ? "On" : "Off"}</span></td>
+                    <td><span className="cc-aico is-api" aria-hidden="true">API</span><strong>{t.name}</strong></td>
+                    <td>{agentName(t.bot_path)}</td><td>{folderOf(t.bot_path) || <span className="cc-none">(top)</span>}</td>
+                    <td className="cc-api-addr"><span className="ui-mono" title={"POST " + address(t)}>POST {t.url}</span>
+                      <button type="button" className="ui-btn ui-btn-plain cc-api-copy" aria-label={"Copy the address of " + t.name} onClick={() => copy(t)}>Copy</button></td>
+                    <td>{where(t)}</td><td className="cc-num">{t.timeout_seconds} s</td><td className="cc-num">{t.calls}</td><td>{t.last_used ? when(t.last_used) : <span className="cc-none">Never</span>}</td>
+                    <td className="cc-list-menu"><RowMenu label={"Actions for " + t.name} items={rowMenu(t)} /></td>
+                  </tr>
+                ))}
+                {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No Agent APIs match." : <span className="cc-api-empty">
+                  <strong>No Agent APIs yet.</strong> An Agent API puts one live agent behind its own address and token, so another system can run it like a web service and get its outputs back.
+                  Make one with Create Agent API here, or from an agent's ⋯ menu in <a href="#/automation">Automation</a>.</span>}</td></tr>}
+                {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{q.trim() || state || folder ? " matching" : ""}</span></div>}
+        </div>
       </div>
-      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
-      </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
-        <table className="cc-list-table" aria-label="Agent APIs list">
-          <thead><tr><th scope="col">State</th><th scope="col">Agent API</th><th scope="col">Agent</th><th scope="col">Runs on</th><th scope="col">Waits up to</th><th scope="col">Calls</th><th scope="col">Last call</th></tr></thead>
-          <tbody>
-            {shown.map((t) => (
-              <tr key={t.id} onClick={() => setDialog({ kind: "open", t })}>
-                <td className={"cc-status is-" + (t.enabled ? "success" : "disabled")}>{t.enabled ? "On" : "Off"}</td>
-                <td>{t.name}<div className="st-muted ui-mono">POST {location.origin + t.url}</div></td>
-                <td>{agentName(t.bot_path)}</td><td>{where(t)}</td><td>{t.timeout_seconds} s</td><td>{t.calls}</td><td>{t.last_used ? when(t.last_used) : "Never"}</td>
-              </tr>
-            ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{list.length ? "No Agent APIs match." : "No Agent APIs yet."}</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
-      </div>
-        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
-      {dialog?.kind === "new" && <NewApi api={api} runners={runners} pools={pools} onClose={() => setDialog(null)}
+      {dialog?.kind === "new" && <NewApi api={api} runners={runners} pools={pools} preset={dialog.bot} onClose={() => setDialog(null)}
         onCreated={(r) => { onNotice("Created the Agent API " + r.name + "."); load(); setDialog({ kind: "token", ...r }); }} />}
       {dialog?.kind === "token" && <TokenShown name={dialog.name} url={dialog.url} token={dialog.token} onClose={() => setDialog(null)} />}
       {dialog?.kind === "open" && (
@@ -88,9 +142,11 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   );
 }
 
-function NewApi({ api, runners, pools, onClose, onCreated }: { api: CrApi; runners: Runner[]; pools: RunnerPool[]; onClose: () => void; onCreated: (r: { name: string; url: string; token: string }) => void }) {
+function NewApi({ api, runners, pools, preset, onClose, onCreated }: { api: CrApi; runners: Runner[]; pools: RunnerPool[]; preset?: string; onClose: () => void;
+  onCreated: (r: { name: string; url: string; token: string }) => void }) {
   const [agents, setAgents] = useState<string[]>([]);
-  const [v, setV] = useState({ name: "", bot: "", where: "runner", device: runners[0]?.id ?? "", pool: "", timeout: "60" });
+  const [v, setV] = useState({ name: preset ? agentName(preset) : "", bot: preset ?? "", where: "runner", device: runners[0]?.id ?? "", pool: "", timeout: "60" });
+  useEffect(() => { if (!v.device && runners[0]) setV((o) => ({ ...o, device: runners[0].id })); }, [runners]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, bot: o.bot || b[0]?.path || "" })); }, () => {}); }, [api]);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });

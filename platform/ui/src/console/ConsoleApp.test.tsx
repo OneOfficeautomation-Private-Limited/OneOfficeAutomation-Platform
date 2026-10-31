@@ -1381,6 +1381,9 @@ describe("rebuilt Command Center console", () => {
     await go("Agent APIs");
     const list = await screen.findByRole("table", { name: "Agent APIs list" });
     expect(await within(list).findByText("Pool Finance pool")).toBeTruthy();
+    // laid out as Automation: the agents' folders on the left, the address in its row with Copy
+    expect(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ })).toBeTruthy();
+    expect(within(list).getByRole("button", { name: "Copy the address of Invoice lookup" })).toBeTruthy();
     fireEvent.click(within(list).getByText("Invoice lookup"));
     const d = await screen.findByRole("dialog", { name: "Agent API Invoice lookup" });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Switch off" })); });
@@ -1395,6 +1398,23 @@ describe("rebuilt Command Center console", () => {
     const t = await screen.findByRole("dialog", { name: "Agent API Lookup: its token" });
     expect(within(t).getByLabelText("Token").textContent).toBe("tok-new");
     expect(within(t).getByText(/curl -X POST/).textContent).not.toContain("tok-new");   // the example never repeats the token
+    fireEvent.click(within(t).getByRole("button", { name: "Done" }));
+    // as AA, where an API task is a kind of automation: Automation marks the agent, and its menu leads to its Agent API
+    await go("Automation");
+    const agents = await screen.findByRole("table", { name: "Agents list" });
+    const row = (await within(agents).findByText("Invoice intake")).closest("tr")!;
+    expect(await within(row).findByText("API")).toBeTruthy();
+  });
+
+  it("opens Create Agent API with the agent chosen when Automation sends it (#/apitasks?new=)", async () => {
+    location.hash = "#/apitasks?new=" + encodeURIComponent("Finance/Invoice intake.flow.json");
+    const { api } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    const n = await screen.findByRole("dialog", { name: "Create Agent API" });
+    expect((within(n).getByLabelText("Name") as HTMLInputElement).value).toBe("Invoice intake");
+    await waitFor(() => expect((within(n).getByLabelText("Agent (its live version)") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
+    expect(location.hash).toBe("#/apitasks");
+    location.hash = "";
   });
 
   it("shows Agent tests as test sets: last score, failing ones, a run on a pool scored case by case", async () => {

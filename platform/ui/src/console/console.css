@@ -702,3 +702,10 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-col-pop-foot .ui-btn { height: 28px; }
 /* Agent Templates laid out exactly as Automation (review round 2, 31 Oct 2026): only its row icon differs */
 .cc-aico.is-template { background: #0e7490; }
+/* Agent APIs laid out as Automation (review round 2, 31 Oct 2026): the address to copy in its row */
+.cc-aico.is-api { width: 24px; background: #c2410c; font-size: 8.5px; }
+.cc-api-addr { white-space: nowrap; }
+.cc-api-addr .ui-mono { font-size: 12px; margin-right: 6px; }
+.cc-api-copy { height: 22px !important; padding: 0 6px !important; font-size: 12px; }
+.cc-api-empty { display: block; white-space: normal; max-width: 760px; color: var(--ui-text-2); line-height: 1.5; padding: 8px 0; }
+.cc-api-empty strong { color: var(--ui-text); }
