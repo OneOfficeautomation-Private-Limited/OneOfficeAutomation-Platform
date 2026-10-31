@@ -767,16 +767,26 @@ describe("rebuilt Command Center console", () => {
 
     fireEvent.change(await screen.findByRole("combobox", { name: "Dashboard" }), { target: { value: "db2" } });
     expect(await screen.findByText("Made by vic · shared with *")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();   // only its maker changes it
-    fireEvent.click(screen.getByRole("button", { name: "Copy as mine" }));
+    const more = async (board: string, item: string) => {
+      fireEvent.keyDown(screen.getByRole("button", { name: "More for " + board }), { key: "Enter" });
+      const m = await screen.findByRole("menu");
+      fireEvent.click(within(m).getByRole("menuitem", { name: item }));
+      return m;
+    };
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for Ops board" }), { key: "Enter" });
+    expect(within(await screen.findByRole("menu")).queryByRole("menuitem", { name: "Edit" })).toBeNull();   // only its maker changes it
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Copy as mine" }));
     const c = await screen.findByRole("dialog", { name: "Copy Ops board" });
     expect((within(c).getByLabelText("Name") as HTMLInputElement).value).toBe("Ops board (copy)");
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Save" })); });
     expect(calls.filter((x) => x.method === "POST" && x.route === "dashboards")).toHaveLength(2);
 
     fireEvent.change(screen.getByRole("combobox", { name: "Dashboard" }), { target: { value: "db1" } });
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
-    await act(async () => { fireEvent.click(within(screen.getByRole("toolbar", { name: "Dashboard" })).getByRole("button", { name: "Delete" })); });
+    await more((screen.getByRole("combobox", { name: "Dashboard" }) as HTMLSelectElement).selectedOptions[0].textContent!, "Delete…");
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toMatch(/^Delete the dashboard /);
+    expect(calls.some((x) => x.method === "DELETE")).toBe(false);
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "dashboards/db1" }));
   });
 

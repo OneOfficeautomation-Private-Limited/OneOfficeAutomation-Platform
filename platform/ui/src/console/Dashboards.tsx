@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, CustomDashboard, DashWidget, WidgetData } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton, RowMenu } from "./ListParts";
 
 /**
  * Operational Insights > Dashboards, rebuilt from today's console with AA's Bot Insight custom dashboards and UiPath
  * Insights' templates in mind (checked 31 Oct 2026): dashboards of widgets over the KPIs agents record and over the
  * runs, kept to oneself or shared; ready-made dashboards to start from; widgets made in a form (or as JSON) and shown as
  * a number, bars, a line, a table or a pie; a CSV of each widget; any dashboard one may see copied as one's own.
+ * Review round 2 (1 Nov 2026): a one-line toolbar (the dashboard, whose it is, a menu with Edit, Copy as mine and Delete
+ * asked first, and the refresh icon), and a menu per widget in the editor.
  */
 type Kpi = { bot_path: string; name: string; n: number };
 const TYPES: [NonNullable<DashWidget["type"]>, string][] = [["number", "A number"], ["bars", "Bars"], ["line", "A line over time"], ["table", "A table"], ["pie", "A pie"]];
@@ -61,6 +64,9 @@ export function Dashboards({ api, user, onNotice }: { api: CrApi; user: CrUser; 
   useEffect(() => { setData(null); refresh(); const t = setInterval(refresh, 60000); return () => clearInterval(t); }, [refresh]);
 
   const cur = list?.find((d) => d.id === current) ?? null;
+  const more = cur ? [...(cur.can_edit ? [{ key: "edit", label: "Edit", onSelect: () => setEditing({ d: cur }) }] : []),
+    { key: "copy", label: "Copy as mine", onSelect: () => setEditing({ d: cur, copy: true }) },
+    ...(cur.can_edit ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(true) }] : [])] : [];
   const remove = () => cur && api.deleteDashboard(cur.id).then(() => { onNotice("Deleted the dashboard " + cur.name + "."); setDeleting(false); load(""); }, (e) => setError(message(e)));
 
   return (
@@ -73,17 +79,16 @@ export function Dashboards({ api, user, onNotice }: { api: CrApi; user: CrUser; 
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {list && !list.length && <p className="st-muted cc-pad">No dashboards yet. Make one, or start from a ready-made one with New dashboard.</p>}
-      {list && list.length > 0 && <div className="cc-bar" role="toolbar" aria-label="Dashboard">
-        <Select aria-label="Dashboard" value={current ?? ""} onChange={(e) => { setCurrent(e.target.value); setDeleting(false); }} options={list.map((d) => ({ value: d.id, label: d.name }))} />
-        {cur?.can_edit && <Button kind="secondary" onClick={() => setEditing({ d: cur })}>Edit</Button>}
-        {cur && <Button kind="secondary" onClick={() => setEditing({ d: cur, copy: true })}>Copy as mine</Button>}
-        {cur?.can_edit && (deleting
-          ? <span className="cc-inline">Delete {cur.name}? <Button kind="danger" onClick={remove}>Delete</Button><Button kind="plain" onClick={() => setDeleting(false)}>Keep</Button></span>
-          : <Button kind="plain" onClick={() => setDeleting(true)}>Delete</Button>)}
-        <span className="st-muted">{cur ? (cur.owner === user.username ? "Yours" : "Made by " + cur.owner) + (cur.shared_with.length ? " · shared with " + cur.shared_with.join(", ") : " · not shared") : ""}</span>
-        <span className="st-bar-fill" />
-        <Button kind="plain" onClick={refresh}>Refresh</Button>
+      {list && list.length > 0 && <div className="cc-list-tools">
+        <div className="cc-list-filters" role="toolbar" aria-label="Dashboard">
+          <span className="cc-chip"><Select aria-label="Dashboard" value={current ?? ""} onChange={(e) => { setCurrent(e.target.value); setDeleting(false); }} options={list.map((d) => ({ value: d.id, label: d.name }))} /></span>
+          <span className="st-muted" title={cur?.description || undefined}>{cur ? (cur.owner === user.username ? "Yours" : "Made by " + cur.owner) + (cur.shared_with.length ? " · shared with " + cur.shared_with.join(", ") : " · not shared") : ""}</span>
+          {cur && <RowMenu label={"More for " + cur.name} items={more} />}
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={refresh} /></div>
       </div>}
+      {deleting && cur && <div className="cc-list-bulk cc-pad-x" role="alert"><span>Delete the dashboard {cur.name}?{cur.shared_with.length ? " People it is shared with lose it too." : ""}</span>
+        <Button kind="danger" onClick={remove}>Delete</Button><Button kind="plain" onClick={() => setDeleting(false)}>Cancel</Button></div>}
       {cur?.description && <p className="st-muted cc-pad-x">{cur.description}</p>}
       {cur && !data && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {data && <div className="cc-dash">{data.map((w, i) => <WidgetCard key={i} w={w} />)}</div>}
@@ -188,11 +193,10 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
       {json != null ? <TextArea aria-label="Widgets (JSON)" rows={14} className="ui-mono" value={json} onChange={(e) => setJson(e.target.value)} />
         : widgets.length ? <table className="st-table" aria-label="Widgets"><tbody>{widgets.map((w, i) => <tr key={i}>
           <td>{titleOf(w)}</td><td className="st-muted">{TYPES.find(([t]) => t === (w.type ?? "number"))?.[1]} · {w.days ?? 30} days</td>
-          <td><span className="cc-inline">
-            <Button kind="plain" onClick={() => setWidget({ i, w })} aria-label={"Change " + titleOf(w)}>Change</Button>
-            <Button kind="plain" disabled={i === 0} onClick={() => move(i, -1)} aria-label={"Move " + titleOf(w) + " up"}>Up</Button>
-            <Button kind="plain" disabled={i === widgets.length - 1} onClick={() => move(i, 1)} aria-label={"Move " + titleOf(w) + " down"}>Down</Button>
-            <Button kind="plain" onClick={() => setWidgets(widgets.filter((_, j) => j !== i))} aria-label={"Remove " + titleOf(w)}>Remove</Button></span></td></tr>)}</tbody></table>
+          <td className="cc-list-menu"><RowMenu label={"Actions for " + titleOf(w)} items={[{ key: "change", label: "Change", onSelect: () => setWidget({ i, w }) },
+            ...(i > 0 ? [{ key: "up", label: "Move up", onSelect: () => move(i, -1) }] : []),
+            ...(i < widgets.length - 1 ? [{ key: "down", label: "Move down", onSelect: () => move(i, 1) }] : []),
+            { key: "remove", label: "Remove", separatorBefore: true, onSelect: () => setWidgets(widgets.filter((_, j) => j !== i)) }]} /></td></tr>)}</tbody></table>
         : <p className="st-muted">No widgets yet: add one, or start from a ready-made dashboard.</p>}
       {kpis.length === 0 && <p className="st-muted">No KPI values recorded yet: mark an agent's outputs as KPI in One AgentStudio and run it. Run figures work now.</p>}
       {widget && <WidgetEditor w={widget.w} kpis={kpis} agents={agents} onClose={() => setWidget(null)}
