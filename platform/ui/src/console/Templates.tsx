@@ -51,7 +51,8 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             {can("lifecycle.import") && <Button kind="primary" onClick={() => setDialog({ kind: "install", t })}>Install</Button>}
           </article>
         ))}
-        {data && !shown.length && <p className="st-muted">{data.templates.length ? "No template matches." : "No templates yet."}</p>}
+        {data && !shown.length && <p className="st-muted">{data.templates.length ? "No template matches." : "No templates yet: ONEOFFICEAUTOMATION's catalogue has none to offer."
+          + (can("settings.manage") ? " Upload a catalogue file, or set the template catalogue address in Settings." : "")}</p>}
       </div>
       {dialog?.kind === "install" && <Install api={api} t={dialog.t} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); setDialog(null); }} />}
       {dialog?.kind === "share" && <Share api={api} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); setDialog(null); }} />}

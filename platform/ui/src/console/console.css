@@ -112,7 +112,7 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-meter > span.is-high { background: var(--ui-warning-text); }
 .cc-meter > span.is-full { background: var(--ui-error-text); }
 .cc-install { display: grid; gap: 6px; max-width: 640px; margin-top: 12px; }
-.cc-settings { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
+.cc-settings { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
 .cc-settings-nav { display: grid; gap: 2px; position: sticky; top: 0; }
 .cc-settings-tab { text-align: left; padding: 7px 10px; border: 0; border-radius: var(--ui-radius); background: transparent; cursor: pointer; color: var(--ui-text); }
 .cc-settings-tab:hover { background: var(--ui-soft); }
@@ -137,9 +137,9 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-tpl p { margin: 0; }
 .cc-tpl button { justify-self: start; }
 /* Agent Repository: the folder tree beside the agents */
-.cc-repo { display: grid; grid-template-columns: 240px 1fr; align-items: start; }
+.cc-repo { display: grid; grid-template-columns: 240px minmax(0, 1fr); align-items: start; }
 .cc-repo-tree { display: grid; gap: 1px; padding: 10px 8px; position: sticky; top: 0; max-height: calc(100vh - 120px); overflow-y: auto; border-right: 1px solid var(--ui-divider); background: var(--ui-bg); }
 .cc-repo-tree .cc-settings-tab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-log li.cc-add { color: var(--ui-success); }
 .cc-log li.cc-del { color: var(--ui-error-text); }
-@media (max-width: 760px) { .cc-repo { grid-template-columns: 1fr; } .cc-repo-tree { position: static; max-height: none; border-right: 0; } }
+@media (max-width: 760px) { .cc-repo { grid-template-columns: minmax(0, 1fr); } .cc-repo-tree { position: static; max-height: none; border-right: 0; } }
