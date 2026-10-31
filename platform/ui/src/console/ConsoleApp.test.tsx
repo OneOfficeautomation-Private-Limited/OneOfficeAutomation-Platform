@@ -177,7 +177,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "users") return ok({ users: [
       { id: "u1", username: "admin", display_name: "Asha Admin", role: "admin", roles: ["admin"], enabled: true, mfa_enabled: true, last_login: new Date().toISOString(), email: "asha@example.com" },
       { id: "u2", username: "vic", display_name: "Vic Viewer", first_name: "Vic", last_name: "Rao", role: "viewer", roles: ["viewer", "bot_runner"], enabled: true,
-        locked_until: new Date(Date.now() + 600_000).toISOString() },
+        locked_until: new Date(Date.now() + 600_000).toISOString(), mfa_enabled: true },
       { id: "u3", username: "old", display_name: "Old Hand", role: "bot_runner", roles: ["bot_runner"], enabled: false }] });
     if (route === "users/u2" && (init.method ?? "GET") === "GET") return ok({ id: "u2", username: "vic", display_name: "Vic Viewer", first_name: "Vic", last_name: "Rao", role: "viewer",
       enabled: true, locked_until: new Date(Date.now() + 600_000).toISOString(), further_roles: ["bot_runner"], teams: [{ name: "finance", team_role: "member" }], default_device: null });
@@ -1021,19 +1021,27 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "users/u3", body: { enabled: true } }));
     expect(await screen.findByText("Enabled 1 user.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    // details: general details, roles, then sign-in and security with Unlock
+    // a person opens as their own page: Details (general details, roles), then Sign-in and security
     fireEvent.click(await within(list).findByText("vic"));
     const d = await screen.findByRole("dialog", { name: "User vic" });
-    expect(await within(d).findByText(/finance/)).toBeTruthy();
+    expect(screen.queryByRole("table", { name: "Users list" })).toBeNull();
+    await within(d).findByLabelText("E-mail");
     fireEvent.change(within(d).getByLabelText("E-mail"), { target: { value: "vic@example.com" } });
     fireEvent.click(within(d).getByLabelText("Agent builder"));
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save changes" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "users/u2", body: { email: "vic@example.com", further_roles: ["bot_runner", "bot_creator"] } }));
+    fireEvent.click(within(d).getByRole("tab", { name: "Sign-in and security" }));
+    expect(await within(d).findByText(/finance/)).toBeTruthy();   // their teams
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Unlock" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users/u2/unlock" }));
-    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Reset password" })); });
+    // a reset asks first
+    fireEvent.click(within(d).getByRole("button", { name: "Reset password…" }));
+    expect(within(d).getByRole("alert").textContent).toContain("Reset the password of vic?");
+    expect(calls.some((c) => c.route === "users/u2/reset-password")).toBe(false);
+    await act(async () => { fireEvent.click(within(within(d).getByRole("alert")).getByRole("button", { name: "Reset" })); });
     expect(within(await screen.findByRole("dialog", { name: "Temporary password for vic" })).getByText("Reset-4k2")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(within(d).getByRole("button", { name: "Close" }));
     // create a user: the temporary password is shown once
     fireEvent.click(screen.getByRole("button", { name: "Create user" }));
     const c = await screen.findByRole("dialog", { name: "Create user" });
@@ -1044,8 +1052,11 @@ describe("rebuilt Command Center console", () => {
     expect(within(await screen.findByRole("dialog", { name: "Temporary password for ravi" })).getByText("Temp-9x7")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     // the row menu: the same actions as the details, from the list
-    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for vic" }), { key: "Enter" });
-    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Reset two-step sign-in" })); });
+    const users = screen.getByRole("table", { name: "Users list" });
+    fireEvent.keyDown(within(users).getByRole("button", { name: "Actions for vic" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Reset two-step sign-in…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Reset two-step sign-in for vic?");
+    await act(async () => { fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Reset" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users/u2/reset-mfa" }));
   });
 

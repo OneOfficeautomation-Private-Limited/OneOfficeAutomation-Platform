@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput, usePersistent } from "../components";
-import { RefreshButton, RowMenu } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Administration > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
@@ -12,6 +12,8 @@ import { RefreshButton, RowMenu } from "./ListParts";
  * Laid out as the design plan's list pattern (step 3, approved on the canvas): a title row with a count, one toolbar
  * (search, filter chips, Columns, Export, refresh), Enable / Disable / Delete in a blue bar only while rows are ticked,
  * a compact table with one status pill style and a ⋯ menu per row, and a pager under it.
+ * Review round 2 (1 Nov 2026): a person opens as their own page (Details; Sign-in and security), as AA's user page, and
+ * resetting a password or two-step sign-in asks first, from the list and from the page.
  */
 type Col = { key: string; label: string; cell: (u: CrPerson, runner: string) => string };
 
@@ -59,7 +61,9 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = usePersistent("users.pageSize", 25);
   const [selected, setSelected] = useState<string[]>([]);
-  const [dialog, setDialog] = useState<null | { kind: "columns" | "create" | "delete" } | { kind: "details"; id: string } | { kind: "password"; username: string; password: string }>(null);
+  const [dialog, setDialog] = useState<null | { kind: "columns" | "create" | "delete" } | { kind: "password"; username: string; password: string }>(null);
+  const [openId, setOpenId] = useState<string | null>(null);   // a person's own page, in place of the list
+  const [ask, setAsk] = useState<Ask | null>(null);   // a reset, asked first
   const canRunners = user.permissions.includes("devices.view");
 
   const load = useCallback(async () => {
@@ -107,14 +111,14 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const active = (people ?? []).filter((u) => u.enabled).length;
   const locked = (people ?? []).filter((u) => stateOf(u) === "locked").length;
   const filtered = Object.values(f).some(Boolean);
-  const resetPassword = (u: CrPerson) => api.resetPassword(u.id).then((p) => { onNotice("Reset the password of " + u.username + "."); setDialog({ kind: "password", username: u.username, password: p.temporary_password }); },
-    (e) => setError(message(e)));
+  const reset = (a: Ask) => { setAsk(null); if (a.kind === "password") api.resetPassword(a.id).then((p) => { onNotice("Reset the password of " + a.username + "."); setDialog({ kind: "password", username: a.username, password: p.temporary_password }); load(); },
+    (e) => setError(message(e))); else one("Two-step sign-in reset for " + a.username + "; they set it up again.", () => api.resetTwoStep(a.id)); };
   const one = (what: string, fn: () => Promise<unknown>) => fn().then(() => { onNotice(what); load(); }, (e) => setError(message(e)));
   const rowMenu = (u: CrPerson) => [
-    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "details", id: u.id }) },
+    { key: "open", label: "Open", onSelect: () => setOpenId(u.id) },
     ...(stateOf(u) === "locked" ? [{ key: "unlock", label: "Unlock", onSelect: () => one("Unlocked " + u.username + ".", () => api.unlockUser(u.id)) }] : []),
-    { key: "password", label: "Reset password", onSelect: () => resetPassword(u) },
-    { key: "twostep", label: "Reset two-step sign-in", onSelect: () => one("Two-step sign-in reset for " + u.username + "; they set it up again.", () => api.resetTwoStep(u.id)) },
+    { key: "password", label: "Reset password…", onSelect: () => setAsk({ kind: "password", id: u.id, username: u.username }) },
+    ...(u.mfa_enabled ? [{ key: "twostep", label: "Reset two-step sign-in…", onSelect: () => setAsk({ kind: "twostep", id: u.id, username: u.username }) }] : []),
     { key: "enable", label: u.enabled ? "Disable" : "Enable", onSelect: () => one((u.enabled ? "Disabled " : "Enabled ") + u.username + ".", () => api.updateUser(u.id, { enabled: !u.enabled })) },
     { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => { setSelected([u.id]); setDialog({ kind: "delete" }); } },
   ];
@@ -126,6 +130,19 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     return v || <span className="cc-none">–</span>;
   };
 
+  const passwordDialog = dialog?.kind === "password" && (
+    <Dialog open title={"Temporary password for " + dialog.username} width={480} onClose={() => setDialog(null)} footer={<Button kind="primary" onClick={() => setDialog(null)}>Done</Button>}>
+      <p>Give it to {dialog.username} securely. They choose their own password at their first sign-in. It is shown only now.</p>
+      <code className="cc-key" aria-label="Temporary password">{dialog.password}</code>
+    </Dialog>
+  );
+  if (openId) return (
+    <section className="st-page cc-home cc-explorer" aria-label="User">
+      <UserPage key={openId} api={api} id={openId} self={user.username} roles={roles} runners={canRunners ? runners : null}
+        onClose={() => { setOpenId(null); load(); }} onChanged={(t) => onNotice(t)} onPassword={(username, password) => setDialog({ kind: "password", username, password })} />
+      {passwordDialog}
+    </section>
+  );
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-users-title">
       <header className="cc-list-head">
@@ -153,6 +170,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         </div>
       </div>
       <div className="cc-list-panel">
+        {ask && <AskBar ask={ask} onYes={() => reset(ask)} onNo={() => setAsk(null)} />}
         {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="User actions">
           <strong>{chosen.length} selected</strong>
           {chosen.some((u) => !u.enabled) && <Button kind="secondary" onClick={() => each("Enabled", (u) => api.updateUser(u.id, { enabled: true }))}>Enable</Button>}
@@ -170,7 +188,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
             </tr></thead>
             <tbody>
               {page.map((u) => (
-                <tr key={u.id} className={selected.includes(u.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input, button")) setDialog({ kind: "details", id: u.id }); }}>
+                <tr key={u.id} className={selected.includes(u.id) ? "is-selected" : ""} onClick={rowClick(() => setOpenId(u.id))}>
                   <td className="cc-check"><input type="checkbox" aria-label={"Select " + u.username} checked={selected.includes(u.id)}
                     onChange={(e) => setSelected(e.target.checked ? [...selected, u.id] : selected.filter((x) => x !== u.id))} /></td>
                   {cols.map((c) => <td key={c.key}>{cell(c, u)}</td>)}
@@ -212,15 +230,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
       )}
       {dialog?.kind === "create" && <CreateUser api={api} roles={roles} onClose={() => setDialog(null)}
         onCreated={(username, password) => { setDialog({ kind: "password", username, password }); load(); }} />}
-      {dialog?.kind === "password" && (
-        <Dialog open title={"Temporary password for " + dialog.username} width={480} onClose={() => setDialog(null)} footer={<Button kind="primary" onClick={() => setDialog(null)}>Done</Button>}>
-          <p>Give it to {dialog.username} securely. They choose their own password at their first sign-in. It is shown only now.</p>
-          <code className="cc-key" aria-label="Temporary password">{dialog.password}</code>
-        </Dialog>
-      )}
-      {dialog?.kind === "details" && <UserDetails api={api} id={dialog.id} self={user.username} roles={roles} runners={canRunners ? runners : null}
-        onClose={() => setDialog(null)} onChanged={(t) => { onNotice(t); load(); }}
-        onPassword={(username, password) => setDialog({ kind: "password", username, password })} />}
+      {passwordDialog}
     </section>
   );
 }
@@ -259,15 +269,28 @@ function CreateUser({ api, roles, onClose, onCreated }: { api: CrApi; roles: str
   );
 }
 
-/** A person's details in AA's order: general details, roles, default runner; then security (Blue Prism's Unlock, resets). */
-function UserDetails({ api, id, self, roles, runners, onClose, onChanged, onPassword }:
+/** What a reset does, asked before it happens. */
+type Ask = { kind: "password" | "twostep"; id: string; username: string };
+const askText = (a: Ask) => a.kind === "password" ? "Reset the password of " + a.username + "? Their current password stops working; you get a temporary one to give them."
+  : "Reset two-step sign-in for " + a.username + "? They set it up again at their next sign-in.";
+
+/** The bar that asks before a reset, with what to do on yes. */
+function AskBar({ ask, onYes, onNo }: { ask: Ask; onYes: () => void; onNo: () => void }) {
+  return <div className="cc-list-bulk" role="alert"><span>{askText(ask)}</span>
+    <Button kind="danger" onClick={onYes}>Reset</Button><Button kind="plain" onClick={onNo}>Cancel</Button></div>;
+}
+
+/** A person's own page, as AA's user page: their details, roles and default runner to change; then sign-in and security. */
+function UserPage({ api, id, self, roles, runners, onClose, onChanged, onPassword }:
   { api: CrApi; id: string; self: string; roles: string[]; runners: Runner[] | null; onClose: () => void; onChanged: (t: string) => void;
     onPassword: (username: string, password: string) => void }) {
   type Detail = Awaited<ReturnType<CrApi["userDetail"]>>;
   const [u, setU] = useState<Detail | null>(null);
+  const [tab, setTab] = useState<"details" | "security">("details");
   const [form, setForm] = useState({ display_name: "", first_name: "", last_name: "", email: "", description: "", role: "", further: [] as string[], runner: "" });
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [ask, setAsk] = useState<Ask | null>(null);
   const read = useCallback(() => api.userDetail(id).then((d) => {
     setU(d);
     setForm({ display_name: d.display_name ?? "", first_name: d.first_name ?? "", last_name: d.last_name ?? "", email: d.email ?? "", description: d.description ?? "",
@@ -275,7 +298,9 @@ function UserDetails({ api, id, self, roles, runners, onClose, onChanged, onPass
   }, (e) => setError(message(e))), [api, id]);
   useEffect(() => { read(); }, [read]);
   const run = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); setError(null); onChanged(done); await read(); } catch (e) { setError(message(e)); } };
-  if (!u) return <Dialog open title="User" width={680} onClose={onClose} footer={null}>{error ? <p className="st-alert" role="alert">{error}</p> : <p className="st-muted" role="status">Loading…</p>}</Dialog>;
+  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the users" onClick={onClose}>×</button>;
+  if (!u) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="User"><div className="cc-agent-head"><h1>User</h1><span className="ov-fill" />{close}</div>
+    {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
 
   const changes: Record<string, unknown> = {};
   for (const k of ["display_name", "first_name", "last_name", "email", "description"] as const) if (form[k] !== (u[k] ?? "")) changes[k] = form[k];
@@ -290,53 +315,72 @@ function UserDetails({ api, id, self, roles, runners, onClose, onChanged, onPass
   const state = stateOf(u);
   const isSelf = u.username === self;
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const reset = (a: Ask) => { setAsk(null); if (a.kind === "password") api.resetPassword(u.id).then((p) => { onChanged("Reset the password of " + u.username + "."); onPassword(u.username, p.temporary_password); read(); }, (e) => setError(message(e)));
+    else run(() => api.resetTwoStep(u.id), "Two-step sign-in reset for " + u.username + "; they set it up again."); };
+  const more = [{ key: "password", label: "Reset password…", onSelect: () => setAsk({ kind: "password", id: u.id, username: u.username }) },
+    ...(u.mfa_enabled ? [{ key: "twostep", label: "Reset two-step sign-in…", onSelect: () => setAsk({ kind: "twostep", id: u.id, username: u.username }) }] : []),
+    ...(state === "locked" ? [{ key: "unlock", label: "Unlock", onSelect: () => { run(() => api.unlockUser(u.id), "Unlocked " + u.username + "."); } }] : []),
+    ...(!isSelf ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setConfirmDelete(true) }] : [])];
 
   return (
-    <Dialog open title={"User " + u.username} width={680} onClose={onClose} footer={<>
-      {!isSelf && <Button kind="danger" onClick={() => setConfirmDelete(true)}>Delete</Button>}
-      {!isSelf && <Button kind="secondary" onClick={() => run(() => api.updateUser(u.id, { enabled: !u.enabled }), (u.enabled ? "Disabled " : "Enabled ") + u.username + ".")}>{u.enabled ? "Disable" : "Enable"}</Button>}
-      <span className="st-bar-fill" />
-      <Button kind="primary" disabled={!dirty} onClick={save}>Save changes</Button></>}>
+    <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"User " + u.username}>
+      <div className="cc-agent-head">
+        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Users</button> ›</span>
+        <h1>{u.username}</h1>
+        <span className={"cc-pill is-" + state}><span className="cc-pill-dot" />{STATUS[state]}</span>
+        <span className="cc-none">{[u.display_name || fullName(u), [u.role, ...(u.further_roles ?? [])].map(roleName).join(", ")].filter(Boolean).join(" · ")}</span>
+        <span className="ov-fill" />
+        {!isSelf && <Button kind="secondary" onClick={() => run(() => api.updateUser(u.id, { enabled: !u.enabled }), (u.enabled ? "Disabled " : "Enabled ") + u.username + ".")}>{u.enabled ? "Disable" : "Enable"}</Button>}
+        <RowMenu label={"More for " + u.username} items={more} />
+        {close}
+      </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      {confirmDelete && <div className="st-alert" role="alert"><span>Delete {u.username}? The audit trail keeps their name.</span>
+      {ask && <AskBar ask={ask} onYes={() => reset(ask)} onNo={() => setAsk(null)} />}
+      {confirmDelete && <div className="cc-list-bulk" role="alert"><span>Delete {u.username}? The audit trail keeps their name.</span>
         <Button kind="danger" onClick={() => run(() => api.deleteUser(u.id), "Deleted " + u.username + ".").then(onClose)}>Delete</Button>
         <Button kind="plain" onClick={() => setConfirmDelete(false)}>Cancel</Button></div>}
-      <dl className="cc-facts">
-        <dt>Status</dt><dd className={"cc-status is-" + state}>{STATUS[state]}{state === "locked" ? " until " + when(u.locked_until) : ""}</dd>
-        <dt>Last sign-in</dt><dd>{u.last_login ? when(u.last_login) : "Never"}</dd>
-        <dt>Created</dt><dd>{when(u.created)}</dd>
-        {u.teams && u.teams.length > 0 && <><dt>Teams</dt><dd>{u.teams.map((t) => t.name + (t.team_role === "lead" ? " (lead)" : "")).join(", ")}</dd></>}
-      </dl>
-      <h3 className="cc-log-title">General details</h3>
-      <div className="cc-grid2">
-        <Field label="Display name">{(fid) => <TextInput id={fid} value={form.display_name} maxLength={100} onChange={set("display_name")} />}</Field>
-        <Field label="E-mail">{(fid) => <TextInput id={fid} type="email" value={form.email} maxLength={200} onChange={set("email")} />}</Field>
-        <Field label="First name">{(fid) => <TextInput id={fid} value={form.first_name} maxLength={100} onChange={set("first_name")} />}</Field>
-        <Field label="Last name">{(fid) => <TextInput id={fid} value={form.last_name} maxLength={100} onChange={set("last_name")} />}</Field>
+      <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this person">
+        {([["details", "Details"], ["security", "Sign-in and security"]] as const).map(([k, l]) =>
+          <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
       </div>
-      <Field label="Description">{(fid) => <TextArea id={fid} rows={2} value={form.description} maxLength={500} onChange={set("description")} />}</Field>
-      <h3 className="cc-log-title">Roles</h3>
-      <Field label="Main role">{(fid) => <Select id={fid} value={form.role} disabled={isSelf} onChange={set("role")} options={roles.map((r) => ({ value: r, label: roleName(r) }))} />}</Field>
-      <div className="cc-cols" role="group" aria-label="Further roles">
-        {roles.filter((r) => r !== "admin" && r !== form.role).map((r) => <label key={r} className="st-check-line"><input type="checkbox" checked={form.further.includes(r)}
-          onChange={(e) => setForm({ ...form, further: e.target.checked ? [...form.further, r] : form.further.filter((x) => x !== r) })} /> {roleName(r)}</label>)}
-      </div>
-      <p className="st-muted">A person has every permission of each of their roles. Administrator can only be a main role.</p>
-      {runners && <>
-        <h3 className="cc-log-title">Default runner</h3>
-        <Field label="Runs started as this person go to">{(fid) => <Select id={fid} value={form.runner} onChange={set("runner")}
-          options={[{ value: "", label: "No default runner" }, ...runners.map((d) => ({ value: d.id, label: d.name + (d.status === "online" ? "" : " (" + d.status + ")") }))]} />}</Field>
-      </>}
-      <h3 className="cc-log-title">Sign-in and security</h3>
-      <dl className="cc-facts">
-        <dt>Two-step sign-in</dt><dd>{u.mfa_enabled ? "On" : "Off"}</dd>
-        <dt>Password</dt><dd>{u.must_change ? "A temporary one: they choose their own at the next sign-in" : "Their own"}</dd>
-      </dl>
-      <span className="cc-inline">
-        <Button kind="secondary" onClick={() => api.resetPassword(u.id).then((p) => { onChanged("Reset the password of " + u.username + "."); onPassword(u.username, p.temporary_password); }, (e) => setError(message(e)))}>Reset password</Button>
-        {u.mfa_enabled && <Button kind="secondary" onClick={() => run(() => api.resetTwoStep(u.id), "Two-step sign-in reset for " + u.username + "; they set it up again.")}>Reset two-step sign-in</Button>}
-        {state === "locked" && <Button kind="secondary" onClick={() => run(() => api.unlockUser(u.id), "Unlocked " + u.username + ".")}>Unlock</Button>}
-      </span>
-    </Dialog>
+      {tab === "details" && <div className="cc-agent-tab cc-user-form">
+        <h3 className="cc-log-title">General details</h3>
+        <div className="cc-grid2">
+          <Field label="Display name">{(fid) => <TextInput id={fid} value={form.display_name} maxLength={100} onChange={set("display_name")} />}</Field>
+          <Field label="E-mail">{(fid) => <TextInput id={fid} type="email" value={form.email} maxLength={200} onChange={set("email")} />}</Field>
+          <Field label="First name">{(fid) => <TextInput id={fid} value={form.first_name} maxLength={100} onChange={set("first_name")} />}</Field>
+          <Field label="Last name">{(fid) => <TextInput id={fid} value={form.last_name} maxLength={100} onChange={set("last_name")} />}</Field>
+        </div>
+        <Field label="Description">{(fid) => <TextArea id={fid} rows={2} value={form.description} maxLength={500} onChange={set("description")} />}</Field>
+        <h3 className="cc-log-title">Roles</h3>
+        <Field label="Main role">{(fid) => <Select id={fid} value={form.role} disabled={isSelf} onChange={set("role")} options={roles.map((r) => ({ value: r, label: roleName(r) }))} />}</Field>
+        <div className="cc-cols" role="group" aria-label="Further roles">
+          {roles.filter((r) => r !== "admin" && r !== form.role).map((r) => <label key={r} className="st-check-line"><input type="checkbox" checked={form.further.includes(r)}
+            onChange={(e) => setForm({ ...form, further: e.target.checked ? [...form.further, r] : form.further.filter((x) => x !== r) })} /> {roleName(r)}</label>)}
+        </div>
+        <p className="st-muted">A person has every permission of each of their roles. Administrator can only be a main role.</p>
+        {runners && <>
+          <h3 className="cc-log-title">Default runner</h3>
+          <Field label="Runs started as this person go to">{(fid) => <Select id={fid} value={form.runner} onChange={set("runner")}
+            options={[{ value: "", label: "No default runner" }, ...runners.map((d) => ({ value: d.id, label: d.name + (d.status === "online" ? "" : " (" + d.status + ")") }))]} />}</Field>
+        </>}
+        <span><Button kind="primary" disabled={!dirty} onClick={save}>Save changes</Button></span>
+      </div>}
+      {tab === "security" && <div className="cc-agent-tab">
+        <dl className="cc-facts cc-facts-wide">
+          <dt>Status</dt><dd>{STATUS[state]}{state === "locked" ? " until " + when(u.locked_until) : ""}</dd>
+          <dt>Last sign-in</dt><dd>{u.last_login ? when(u.last_login) : "Never"}</dd>
+          <dt>Created</dt><dd>{when(u.created)}</dd>
+          <dt>Teams</dt><dd>{u.teams?.length ? u.teams.map((t) => t.name + (t.team_role === "lead" ? " (lead)" : "")).join(", ") : "None"}</dd>
+          <dt>Two-step sign-in</dt><dd>{u.mfa_enabled ? "On" : "Off"}</dd>
+          <dt>Password</dt><dd>{u.must_change ? "A temporary one: they choose their own at the next sign-in" : "Their own"}</dd>
+        </dl>
+        <span className="cc-inline">
+          <Button kind="secondary" onClick={() => setAsk({ kind: "password", id: u.id, username: u.username })}>Reset password…</Button>
+          {u.mfa_enabled && <Button kind="secondary" onClick={() => setAsk({ kind: "twostep", id: u.id, username: u.username })}>Reset two-step sign-in…</Button>}
+          {state === "locked" && <Button kind="secondary" onClick={() => run(() => api.unlockUser(u.id), "Unlocked " + u.username + ".")}>Unlock</Button>}
+        </span>
+      </div>}
+    </div>
   );
 }
