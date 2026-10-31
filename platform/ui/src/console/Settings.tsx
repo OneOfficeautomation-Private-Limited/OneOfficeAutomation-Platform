@@ -1,105 +1,150 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi } from "../api/cr";
-import { Button, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Select, TextArea, TextInput } from "../components";
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
  * settings and Blue Prism's System settings, 31 Oct 2026): sections down the side, as AA's and UiPath's tabs, each
- * saved on its own and only with the values changed; a search across every setting (by label or key); and each
+ * saved on its own and only with the values changed; a search across every setting (by name, hint or key); and each
  * section's own actions (send a test e-mail or syslog message, sync Git now, back up now, remove old runs now).
+ * Laid out as the design plan's step 6 (approved on the canvas 31 Oct 2026): a setting is one row (its name, a short
+ * hint, the control with its unit), long sections are grouped, a changed row is marked with what it was, a save bar
+ * shows only while something is changed, yes/no settings are switches, and changes in the search results save there.
  */
 type Kind = "text" | "number" | "area" | "check" | "select" | "roles";
-type Setting = { key: string; label: string; kind: Kind; min?: number; max?: number; placeholder?: string; options?: [string, string][] };
-type Section = { id: string; title: string; about: string; settings: Setting[] };
+type Setting = { key: string; label: string; hint?: string; unit?: string; kind: Kind; min?: number; max?: number; placeholder?: string; options?: [string, string][] };
+type Group = { title: string; settings: Setting[] };
+type Section = { id: string; title: string; about: string; mark: string; colour: string; groups: Group[] };
 
+const VAULT_REF = "A vault reference: folder/credential/attribute. The value stays in the vault.";
 const SECTIONS: Section[] = [
-  { id: "general", title: "General", about: "What everyone sees, and the address of this Command Center.", settings: [
-    { key: "announcement", label: "Announcement for all users (empty for none)", kind: "area", placeholder: "Maintenance on Saturday 10:00–12:00 UTC" },
-    { key: "public_url", label: "Public address of the Command Center (for sign-in redirects)", kind: "text", placeholder: "https://ooa.example.com" },
-    { key: "max_upload_mb", label: "Largest upload (MB)", kind: "number", min: 1, max: 1024 },
-    { key: "queue_poll_seconds", label: "Work queue check interval (seconds)", kind: "number", min: 3, max: 3600 },
-    { key: "default_minutes_saved", label: "Minutes saved per successful run (for agents without their own value)", kind: "number", min: 0, max: 100000 },
-    { key: "hourly_cost", label: "Cost of an hour of the manual work (for money saved in Value)", kind: "number", min: 0, max: 100000 },
-    { key: "currency", label: "Its currency (a three-letter code: INR, USD, EUR)", kind: "text", placeholder: "INR" },
-    { key: "template_catalog_url", label: "Template catalogue (an https address of templates.json; off: none)", kind: "text" },
+  { id: "general", title: "General", mark: "G", colour: "#2f6fde", about: "What everyone sees, and the address of this Command Center.", groups: [
+    { title: "For everyone", settings: [
+      { key: "announcement", label: "Announcement", hint: "Shown to everyone at the top of the page. Empty: none.", kind: "area", placeholder: "Maintenance on Saturday 10:00–12:00 UTC" },
+      { key: "public_url", label: "Public address", hint: "Of this Command Center, for sign-in redirects and links in e-mails.", kind: "text", placeholder: "https://ooa.example.com" }] },
+    { title: "Limits", settings: [
+      { key: "max_upload_mb", label: "Largest upload", hint: "1 to 1024.", unit: "MB", kind: "number", min: 1, max: 1024 },
+      { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 }] },
+    { title: "Value of automation", settings: [
+      { key: "default_minutes_saved", label: "Minutes saved per successful run", hint: "For agents without their own value.", unit: "minutes", kind: "number", min: 0, max: 100000 },
+      { key: "hourly_cost", label: "Cost of an hour of the manual work", hint: "For money saved in Value.", kind: "number", min: 0, max: 100000 },
+      { key: "currency", label: "Currency", hint: "A three-letter code: INR, USD, EUR.", kind: "text", placeholder: "INR" }] },
+    { title: "Templates", settings: [
+      { key: "template_catalog_url", label: "Template catalogue", hint: "An https address of templates.json. Empty: none.", kind: "text" }] },
   ] },
-  { id: "security", title: "Sign-in and security", about: "Sessions, passwords, two-step sign-in, and which addresses may connect. This computer is always allowed.", settings: [
-    { key: "session_hours", label: "Sign-in session length (hours)", kind: "number", min: 1, max: 720 },
-    { key: "max_sessions_per_user", label: "Sign-ins per person at once", kind: "number", min: 1, max: 50 },
-    { key: "inactive_user_days", label: "Disable users inactive for (days, 0 = never)", kind: "number", min: 0, max: 3650 },
-    { key: "password_min_length", label: "Shortest password (characters)", kind: "number", min: 12, max: 64 },
-    { key: "password_history", label: "Passwords that cannot be used again (the last N, 0 = no rule)", kind: "number", min: 0, max: 24 },
-    { key: "password_max_days", label: "Change passwords every (days, 0 = never)", kind: "number", min: 0, max: 3650 },
-    { key: "mfa_required", label: "Two-step sign-in", kind: "select", options: [["0", "Optional (each person decides)"], ["1", "Required for administrators"], ["2", "Required for everyone with a password"]] },
-    { key: "ip_allow_list", label: "IP allow list (addresses or CIDR ranges, separated by commas; empty = every address)", kind: "area", placeholder: "10.0.0.0/8, 203.0.113.7" },
-    { key: "trusted_proxies", label: "Trusted proxies: load balancers whose X-Forwarded-For names the client", kind: "area", placeholder: "10.0.5.10, 10.0.6.0/24" },
-    { key: "switched_off_roles", label: "Built-in roles switched off: they give no permissions and cannot be given; people keep their other roles", kind: "roles" },
+  { id: "security", title: "Sign-in and security", mark: "S", colour: "#be185d", about: "Sessions, passwords, two-step sign-in, and which addresses may connect. This computer is always allowed.", groups: [
+    { title: "Sessions", settings: [
+      { key: "session_hours", label: "Sign-in session length", hint: "How long a sign-in lasts. 1 to 720.", unit: "hours", kind: "number", min: 1, max: 720 },
+      { key: "max_sessions_per_user", label: "Sign-ins per person at once", hint: "1 to 50.", unit: "at once", kind: "number", min: 1, max: 50 },
+      { key: "inactive_user_days", label: "Disable people inactive for", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 3650 }] },
+    { title: "Passwords", settings: [
+      { key: "password_min_length", label: "Shortest password", hint: "12 to 64.", unit: "characters", kind: "number", min: 12, max: 64 },
+      { key: "password_history", label: "Passwords that cannot be used again", hint: "The last N a person used. 0 = no rule.", unit: "last passwords", kind: "number", min: 0, max: 24 },
+      { key: "password_max_days", label: "Change passwords every", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 3650 }] },
+    { title: "Two-step sign-in", settings: [
+      { key: "mfa_required", label: "Two-step sign-in", hint: "A code from an authenticator app as well as the password.", kind: "select",
+        options: [["0", "Optional (each person decides)"], ["1", "Required for administrators"], ["2", "Required for everyone with a password"]] }] },
+    { title: "Network", settings: [
+      { key: "ip_allow_list", label: "IP allow list", hint: "Addresses or CIDR ranges, separated by commas. Empty: every address.", kind: "area", placeholder: "10.0.0.0/8, 203.0.113.7" },
+      { key: "trusted_proxies", label: "Trusted proxies", hint: "Load balancers whose X-Forwarded-For names the client.", kind: "area", placeholder: "10.0.5.10, 10.0.6.0/24" }] },
+    { title: "Built-in roles", settings: [
+      { key: "switched_off_roles", label: "Built-in roles in use", hint: "Switched off, a role gives no permissions and cannot be given; people keep their other roles.", kind: "roles" }] },
   ] },
-  { id: "sso", title: "Single sign-on", about: "OpenID Connect and SAML 2.0 (Entra ID, Okta, Google, Keycloak, ADFS). Local accounts always sign in with their password too.", settings: [
-    { key: "sso_issuer", label: "OpenID Connect: issuer URL", kind: "text", placeholder: "https://login.microsoftonline.com/<tenant>/v2.0" },
-    { key: "sso_client_id", label: "OpenID Connect: client id", kind: "text" },
-    { key: "sso_client_secret_ref", label: "OpenID Connect: client secret (vault reference folder/credential/attribute)", kind: "text", placeholder: "sso/oidc/client_secret" },
-    { key: "sso_label", label: "OpenID Connect: button text", kind: "text", placeholder: "Sign in with your organisation account" },
-    { key: "saml_idp_sso_url", label: "SAML: identity provider sign-in address", kind: "text", placeholder: "https://login.microsoftonline.com/<tenant>/saml2" },
-    { key: "saml_idp_entity_id", label: "SAML: identity provider entity id (issuer)", kind: "text" },
-    { key: "saml_sp_entity_id", label: "SAML: this Command Center's entity id (empty = the metadata address)", kind: "text" },
-    { key: "saml_label", label: "SAML: button text", kind: "text", placeholder: "Sign in with SAML" },
-    { key: "saml_idp_certificate", label: "SAML: identity provider signing certificate (PEM)", kind: "area", placeholder: "-----BEGIN CERTIFICATE-----" },
-    { key: "sso_default_role", label: "Role for new people (empty = existing accounts only)", kind: "text", placeholder: "viewer" },
-    { key: "sso_group_roles", label: "Groups to roles: one line per group, group = role (first match wins, at every sign-in)", kind: "area", placeholder: "OOA Admins = admin\nFinance Automation = bot_runner" },
+  { id: "sso", title: "Single sign-on", mark: "SO", colour: "#1d4ed8", about: "OpenID Connect and SAML 2.0 (Entra ID, Okta, Google, Keycloak, ADFS). Local accounts always sign in with their password too.", groups: [
+    { title: "OpenID Connect", settings: [
+      { key: "sso_issuer", label: "Issuer URL", kind: "text", placeholder: "https://login.microsoftonline.com/<tenant>/v2.0" },
+      { key: "sso_client_id", label: "Client id", kind: "text" },
+      { key: "sso_client_secret_ref", label: "Client secret", hint: VAULT_REF, kind: "text", placeholder: "sso/oidc/client_secret" },
+      { key: "sso_label", label: "OpenID Connect button text", kind: "text", placeholder: "Sign in with your organisation account" }] },
+    { title: "SAML 2.0", settings: [
+      { key: "saml_idp_sso_url", label: "Identity provider sign-in address", kind: "text", placeholder: "https://login.microsoftonline.com/<tenant>/saml2" },
+      { key: "saml_idp_entity_id", label: "Identity provider entity id", hint: "Its issuer.", kind: "text" },
+      { key: "saml_sp_entity_id", label: "This Command Center's entity id", hint: "Empty: the metadata address.", kind: "text" },
+      { key: "saml_label", label: "SAML button text", kind: "text", placeholder: "Sign in with SAML" },
+      { key: "saml_idp_certificate", label: "Identity provider signing certificate", hint: "PEM.", kind: "area", placeholder: "-----BEGIN CERTIFICATE-----" }] },
+    { title: "New people and groups", settings: [
+      { key: "sso_default_role", label: "Role for new people", hint: "Empty: only existing accounts sign in this way.", kind: "text", placeholder: "viewer" },
+      { key: "sso_group_roles", label: "Groups to roles", hint: "One line per group: group = role. The first match wins, at every sign-in.", kind: "area", placeholder: "OOA Admins = admin\nFinance Automation = bot_runner" }] },
   ] },
-  { id: "runners", title: "Runner Machines", about: "Updates, temporary runners, secrets, limits and screen pictures for every runner (a runner can have its own limits).", settings: [
-    { key: "runner_auto_update", label: "Update runners automatically to this Command Center's version when they are idle", kind: "check" },
-    { key: "temporary_runner_hours", label: "Remove temporary runners after this many hours without contact", kind: "number", min: 1, max: 720 },
-    { key: "runner_secret_days", label: "Give runners a new secret every (days, 0 = never)", kind: "number", min: 0, max: 365 },
-    { key: "runner_cpu_max", label: "A runner above this CPU use takes no new work (%, 0 = no limit)", kind: "number", min: 0, max: 100 },
-    { key: "runner_mem_max", label: "A runner above this memory use takes no new work (%, 0 = no limit)", kind: "number", min: 0, max: 100 },
-    { key: "runner_screen_pictures", label: "Administrators may ask a runner for a picture of its screen (each one is audited)", kind: "check" },
+  { id: "runners", title: "Runner Machines", mark: "M", colour: "#0e7490", about: "Updates, temporary runners, secrets, limits and screen pictures for every runner (a runner can have its own limits).", groups: [
+    { title: "Updates and secrets", settings: [
+      { key: "runner_auto_update", label: "Update runners automatically", hint: "To this Command Center's version, when they are idle.", kind: "check" },
+      { key: "runner_secret_days", label: "Give runners a new secret every", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 365 },
+      { key: "temporary_runner_hours", label: "Remove temporary runners after", hint: "Hours without contact. 1 to 720.", unit: "hours", kind: "number", min: 1, max: 720 }] },
+    { title: "Limits", settings: [
+      { key: "runner_cpu_max", label: "Take no new work above this CPU use", hint: "0 = no limit.", unit: "%", kind: "number", min: 0, max: 100 },
+      { key: "runner_mem_max", label: "Take no new work above this memory use", hint: "0 = no limit.", unit: "%", kind: "number", min: 0, max: 100 }] },
+    { title: "Screens", settings: [
+      { key: "runner_screen_pictures", label: "Pictures of a runner's screen", hint: "Administrators may ask for one; each is recorded in the Audit Trail.", kind: "check" }] },
   ] },
-  { id: "agents", title: "Agents and repository", about: "Rules for what goes into the agent repository and into production, and its copy in Git.", settings: [
-    { key: "production_approval", label: "Approval before production: a second person approves every version before it goes live", kind: "check" },
-    { key: "block_executable_uploads", label: "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads", kind: "check" },
-    { key: "git_remote_url", label: "Git: remote (https://...git)", kind: "text", placeholder: "https://github.com/acme/agents.git" },
-    { key: "git_branch", label: "Git: branch", kind: "text", placeholder: "main" },
-    { key: "git_username", label: "Git: user name", kind: "text", placeholder: "(any, for a token)" },
-    { key: "git_token_ref", label: "Git: access token (vault reference folder/credential/attribute)", kind: "text", placeholder: "git/agents-repo/token" },
-    { key: "git_auto_push", label: "Git: push after every check-in, production change and deletion", kind: "check" },
-    { key: "repo_files_folder", label: "Shared folder for repository files (for several nodes; empty = the data folder)", kind: "text" },
+  { id: "agents", title: "Agents and repository", mark: "A", colour: "#2f6fde", about: "Rules for what goes into the agent repository and into production, and its copy in Git.", groups: [
+    { title: "Rules", settings: [
+      { key: "production_approval", label: "Approval before production", hint: "A second person approves every version before it goes live.", kind: "check" },
+      { key: "block_executable_uploads", label: "Block programs and scripts in uploads", hint: ".exe, .dll, .ps1 and similar.", kind: "check" }] },
+    { title: "Git copy", settings: [
+      { key: "git_remote_url", label: "Git remote", hint: "https://…git", kind: "text", placeholder: "https://github.com/acme/agents.git" },
+      { key: "git_branch", label: "Git branch", kind: "text", placeholder: "main" },
+      { key: "git_username", label: "Git user name", hint: "Any, when you use a token.", kind: "text" },
+      { key: "git_token_ref", label: "Git access token", hint: VAULT_REF, kind: "text", placeholder: "git/agents-repo/token" },
+      { key: "git_auto_push", label: "Push to Git after every change", hint: "After every check-in, production change and deletion.", kind: "check" }] },
+    { title: "Files", settings: [
+      { key: "repo_files_folder", label: "Shared folder for repository files", hint: "For several nodes. Empty: the data folder.", kind: "text" }] },
   ] },
-  { id: "mcp", title: "AI assistants (MCP)", about: "Assistants connect to /api/mcp with a person's API key, or an OAuth token from your identity provider, and run the agents listed here as tools.", settings: [
-    { key: "mcp_agents", label: "Agents offered as tools (paths, separated by commas; * for all)", kind: "text", placeholder: "Finance/Invoice lookup.flow.json" },
-    { key: "mcp_runner", label: "Runner or runner pool id (empty = any online runner)", kind: "text" },
-    { key: "mcp_timeout_seconds", label: "Wait for a result (seconds)", kind: "number", min: 10, max: 3600 },
-    { key: "mcp_oauth_audience", label: "OAuth token audience (empty = API keys only)", kind: "text", placeholder: "api://ooa-mcp" },
-    { key: "mcp_oauth_scope", label: "Scope the token must carry (optional)", kind: "text", placeholder: "mcp.use" },
+  { id: "mcp", title: "AI assistants (MCP)", mark: "AI", colour: "#6d28d9", about: "Assistants connect to /api/mcp with a person's API key, or an OAuth token from your identity provider, and run the agents listed here as tools.", groups: [
+    { title: "Tools", settings: [
+      { key: "mcp_agents", label: "Agents offered as tools", hint: "Paths, separated by commas; * for all.", kind: "text", placeholder: "Finance/Invoice lookup.flow.json" },
+      { key: "mcp_runner", label: "Runner or runner pool id", hint: "Empty: any online runner.", kind: "text" },
+      { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 }] },
+    { title: "OAuth", settings: [
+      { key: "mcp_oauth_audience", label: "Token audience", hint: "Empty: API keys only.", kind: "text", placeholder: "api://ooa-mcp" },
+      { key: "mcp_oauth_scope", label: "Scope the token must carry", hint: "Optional.", kind: "text", placeholder: "mcp.use" }] },
   ] },
-  { id: "connections", title: "E-mail, proxy and SIEM", about: "The Command Center's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", settings: [
-    { key: "mail_smtp_host", label: "Outgoing mail server", kind: "text", placeholder: "smtp.office365.com" },
-    { key: "mail_smtp_port", label: "Port", kind: "number", min: 1, max: 65535 },
-    { key: "mail_smtp_security", label: "Security", kind: "select", options: [["starttls", "STARTTLS (port 587)"], ["ssl", "SSL/TLS (port 465)"], ["none", "None (trusted network only)"]] },
-    { key: "mail_smtp_user", label: "Account (empty = no sign-in)", kind: "text" },
-    { key: "mail_smtp_password_ref", label: "Password (vault reference folder/credential/attribute)", kind: "text", placeholder: "mail/smtp/password" },
-    { key: "mail_from", label: "Sender address", kind: "text" },
-    { key: "license_mail_to", label: "Also send licence reminders to (addresses, separated by commas)", kind: "text" },
-    { key: "outbound_proxy", label: "Proxy for outgoing connections (http://host:port, empty = direct)", kind: "text", placeholder: "http://proxy.example.com:8080" },
-    { key: "outbound_proxy_bypass", label: "Reach these directly (host names, * allowed)", kind: "text", placeholder: "*.example.com, 10.*" },
-    { key: "syslog_target", label: "Syslog target for every audit entry (host:port, empty = off)", kind: "text", placeholder: "siem.example.com:514" },
-    { key: "syslog_protocol", label: "Syslog protocol", kind: "select", options: [["udp", "UDP"], ["tcp", "TCP"]] },
+  { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "The Command Center's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
+    { title: "E-mail", settings: [
+      { key: "mail_smtp_host", label: "Outgoing mail server", kind: "text", placeholder: "smtp.office365.com" },
+      { key: "mail_smtp_port", label: "Port", hint: "1 to 65535.", kind: "number", min: 1, max: 65535 },
+      { key: "mail_smtp_security", label: "Security", kind: "select", options: [["starttls", "STARTTLS (port 587)"], ["ssl", "SSL/TLS (port 465)"], ["none", "None (trusted network only)"]] },
+      { key: "mail_smtp_user", label: "Mail account", hint: "Empty: no sign-in.", kind: "text" },
+      { key: "mail_smtp_password_ref", label: "Mail account password", hint: VAULT_REF, kind: "text", placeholder: "mail/smtp/password" },
+      { key: "mail_from", label: "Sender address", kind: "text" },
+      { key: "license_mail_to", label: "Also send licence reminders to", hint: "Addresses, separated by commas.", kind: "text" }] },
+    { title: "Proxy", settings: [
+      { key: "outbound_proxy", label: "Proxy for outgoing connections", hint: "http://host:port. Empty: direct.", kind: "text", placeholder: "http://proxy.example.com:8080" },
+      { key: "outbound_proxy_bypass", label: "Reach these directly", hint: "Host names; * allowed.", kind: "text", placeholder: "*.example.com, 10.*" }] },
+    { title: "SIEM", settings: [
+      { key: "syslog_target", label: "Syslog target", hint: "host:port, for every audit entry. Empty: off.", kind: "text", placeholder: "siem.example.com:514" },
+      { key: "syslog_protocol", label: "Syslog protocol", kind: "select", options: [["udp", "UDP"], ["tcp", "TCP"]] }] },
   ] },
-  { id: "data", title: "Data retention and backups", about: "How long history is kept (removed once an hour; queued and running runs never), and the backups of everything.", settings: [
-    { key: "run_log_retention_days", label: "Keep step logs for (days, 0 = always)", kind: "number", min: 0, max: 36500 },
-    { key: "run_retention_days", label: "Keep runs for (days, 0 = always)", kind: "number", min: 0, max: 36500 },
-    { key: "audit_retention_days", label: "Keep audit entries for (days, at least 90; 0 = always; older ones are archived first)", kind: "number", min: 0, max: 36500 },
-    { key: "ai_call_retention_days", label: "Keep AI call records for (days, 0 = always)", kind: "number", min: 0, max: 36500 },
-    { key: "work_item_retention_days", label: "Keep finished work-queue items for (days, 0 = always)", kind: "number", min: 0, max: 36500 },
-    { key: "backup_hours", label: "Back up every (hours, 0 = never)", kind: "number", min: 0, max: 168 },
-    { key: "backup_keep_days", label: "Keep backups for (days)", kind: "number", min: 1, max: 3650 },
-    { key: "backup_folder", label: "Backup folder (empty = the data folder's backups folder)", kind: "text" },
+  { id: "data", title: "Data retention and backups", mark: "D", colour: "#0f766e", about: "How long history is kept (removed once an hour; queued and running runs never), and the backups of everything.", groups: [
+    { title: "Keep history", settings: [
+      { key: "run_log_retention_days", label: "Keep step logs for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
+      { key: "run_retention_days", label: "Keep runs for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
+      { key: "audit_retention_days", label: "Keep audit entries for", hint: "At least 90; 0 = always. Older ones are archived first.", unit: "days", kind: "number", min: 0, max: 36500 },
+      { key: "ai_call_retention_days", label: "Keep AI call records for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
+      { key: "work_item_retention_days", label: "Keep finished work-queue items for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 }] },
+    { title: "Backups", settings: [
+      { key: "backup_hours", label: "Back up every", hint: "0 = never.", unit: "hours", kind: "number", min: 0, max: 168 },
+      { key: "backup_keep_days", label: "Keep backups for", hint: "1 to 3650.", unit: "days", kind: "number", min: 1, max: 3650 },
+      { key: "backup_folder", label: "Backup folder", hint: "Empty: the data folder's backups folder.", kind: "text" }] },
   ] },
-  { id: "about", title: "This Command Center", about: "The database and the nodes serving this Command Center (read-only here; the database is changed with the ooa db command).", settings: [] },
+  { id: "about", title: "This Command Center", mark: "i", colour: "#475569", about: "The database and the nodes serving this Command Center (read-only here; the database is changed with the ooa db command).", groups: [] },
 ];
+const ROLES: [string, string][] = [["bot_creator", "Agent builder"], ["bot_runner", "Agent runner"], ["viewer", "Viewer"]];
+const settingsOf = (s: Section) => s.groups.flatMap((g) => g.settings);
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const str = (v: unknown) => v === null || v === undefined ? "" : String(v);
+/** A value as people read it: a choice's words, On / Off, the roles in use, or "empty". */
+function shown(x: Setting, v: string) {
+  if (x.kind === "check") return v === "1" ? "On" : "Off";
+  if (x.kind === "select") return x.options!.find(([k]) => k === (v || x.options![0][0]))?.[1] ?? v;
+  if (x.kind === "roles") { const off = v.split(",").filter(Boolean); return off.length ? off.map((r) => ROLES.find(([k]) => k === r)?.[1] ?? r).join(", ") + " off" : "all on"; }
+  return v === "" ? "empty" : v.length > 28 ? v.slice(0, 26) + "…" : v;
+}
+/** The search words marked in a name. */
+function marked(text: string, q: string): ReactNode {
+  const at = q ? text.toLowerCase().indexOf(q) : -1;
+  return at < 0 ? text : <>{text.slice(0, at)}<mark>{text.slice(at, at + q.length)}</mark>{text.slice(at + q.length)}</>;
+}
 
 export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
@@ -115,67 +160,100 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
   useEffect(() => { load(); }, [load]);
 
   const text = q.trim().toLowerCase();
-  const matches = useMemo(() => text ? SECTIONS.flatMap((s) => s.settings.filter((x) => (x.label + " " + x.key).toLowerCase().includes(text)).map((x) => ({ s, x }))) : [], [text]);
-  const changedIn = (s: Section) => saved ? s.settings.filter((x) => form[x.key] !== saved[x.key]) : [];
+  const found = useMemo(() => text ? SECTIONS.map((s) => ({ s, groups: s.groups.map((g) => ({ ...g, settings: g.settings.filter((x) => (x.label + " " + (x.hint ?? "") + " " + x.key).toLowerCase().includes(text)) }))
+    .filter((g) => g.settings.length) })).filter((r) => r.groups.length) : [], [text]);
+  const changedIn = (s: Section) => saved ? settingsOf(s).filter((x) => form[x.key] !== saved[x.key]) : [];
   const save = async (s: Section) => {
     const changes: Record<string, string | number> = {};
     for (const x of changedIn(s)) changes[x.key] = x.kind === "number" || x.kind === "check" || (x.kind === "select" && x.key === "mfa_required") ? Number(form[x.key] || 0) : form[x.key].trim();
     try { await api.saveSettings(changes); onNotice("Saved " + Object.keys(changes).length + " setting" + (Object.keys(changes).length === 1 ? "" : "s") + " in " + s.title + "."); await load(); }
     catch (e) { setError(message(e)); }
   };
-  const field = (x: Setting) => {
+  const undo = (s: Section) => saved && setForm({ ...form, ...Object.fromEntries(settingsOf(s).map((x) => [x.key, saved[x.key]])) });
+
+  /** One setting as a row: its name and hint on the left, the control with its unit on the right, and what it was when changed. */
+  const row = (x: Setting) => {
     const v = form[x.key] ?? "";
     const set = (nv: string) => setForm({ ...form, [x.key]: nv });
-    const changed = saved && v !== saved[x.key];
+    const changed = !!saved && v !== saved[x.key];
+    const id = "cc-set-" + x.key, hintId = x.hint ? id + "-hint" : undefined;
+    let control: ReactNode;
     if (x.kind === "roles") {
       const off = v.split(",").map((r) => r.trim()).filter(Boolean);
-      return <fieldset key={x.key} className={"cc-roles-off" + (changed ? " cc-changed" : "")}><legend>{x.label}</legend>
-        {([["bot_creator", "Agent builder"], ["bot_runner", "Agent runner"], ["viewer", "Viewer"]] as const).map(([r, l]) => <label key={r} className="st-check-line">
-          <input type="checkbox" checked={off.includes(r)} onChange={(e) => set((e.target.checked ? [...off, r] : off.filter((o) => o !== r)).join(","))} /> Switch off {l}</label>)}
-      </fieldset>;
+      control = <span className="cc-set-switches" role="group" aria-label={x.label}>{ROLES.map(([r, l]) => <label key={r} className="cc-switch">
+        <input type="checkbox" role="switch" aria-label={l + " in use"} checked={!off.includes(r)} onChange={(e) => set((e.target.checked ? off.filter((o) => o !== r) : [...off, r]).join(","))} />
+        <span className="cc-switch-track" aria-hidden="true" />{l}</label>)}</span>;
+    } else if (x.kind === "check") {
+      control = <label className="cc-switch"><input id={id} type="checkbox" role="switch" aria-describedby={hintId} checked={v === "1"} onChange={(e) => set(e.target.checked ? "1" : "0")} />
+        <span className="cc-switch-track" aria-hidden="true" />{v === "1" ? "On" : "Off"}</label>;
+    } else if (x.kind === "area") {
+      control = <TextArea id={id} aria-describedby={hintId} rows={x.key === "saml_idp_certificate" || x.key === "sso_group_roles" ? 4 : 2} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;
+    } else if (x.kind === "select") {
+      control = <Select id={id} aria-describedby={hintId} value={v || x.options![0][0]} onChange={(e) => set(e.target.value)} options={x.options!.map(([value, label]) => ({ value, label }))} />;
+    } else {
+      control = <TextInput id={id} aria-describedby={hintId} className={x.kind === "number" ? "cc-set-num" : undefined} type={x.kind === "number" ? "number" : "text"}
+        min={x.min} max={x.max} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;
     }
-    if (x.kind === "check") return <label key={x.key} className={"st-check-line" + (changed ? " cc-changed" : "")}>
-      <input type="checkbox" checked={v === "1"} onChange={(e) => set(e.target.checked ? "1" : "0")} /> {x.label}</label>;
-    return <div key={x.key} className={changed ? "cc-changed" : undefined}><Field label={x.label}>{(id) =>
-      x.kind === "area" ? <TextArea id={id} rows={x.key === "saml_idp_certificate" || x.key === "sso_group_roles" ? 4 : 2} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />
-        : x.kind === "select" ? <Select id={id} value={v || x.options![0][0]} onChange={(e) => set(e.target.value)} options={x.options!.map(([value, label]) => ({ value, label }))} />
-          : <TextInput id={id} type={x.kind === "number" ? "number" : "text"} min={x.min} max={x.max} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />}</Field></div>;
+    return (
+      <div key={x.key} className={"cc-set-row" + (changed ? " is-changed" : "")}>
+        <div className="cc-set-text">
+          {x.kind === "roles" ? <span className="cc-set-name">{marked(x.label, text)}</span> : <label htmlFor={id} className="cc-set-name">{marked(x.label, text)}</label>}
+          {x.hint && <div id={hintId} className="cc-set-hint">{x.hint}</div>}
+        </div>
+        <div className="cc-set-ctl">{control}{x.unit && <span className="cc-set-unit">{x.unit}</span>}{changed && <span className="cc-set-was">was {shown(x, saved![x.key] ?? "")}</span>}</div>
+      </div>
+    );
   };
+  /** The bar that shows while a section has changes: how many, Undo changes, Save. */
+  const saveBar = (s: Section) => {
+    const n = changedIn(s).length;
+    return n > 0 && <div className="cc-set-save" role="group" aria-label={"Changes in " + s.title}>
+      <span><strong>{n} change{n === 1 ? "" : "s"}</strong> in {s.title}</span><span className="ov-fill" />
+      <Button kind="plain" onClick={() => undo(s)}>Undo changes</Button>
+      <Button kind="primary" onClick={() => save(s)}>Save {s.title}</Button>
+    </div>;
+  };
+  const tile = (s: Section) => <span className="cc-set-tile" style={{ background: s.colour }} aria-hidden="true">{s.mark}</span>;
   const current = SECTIONS.find((s) => s.id === section)!;
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-settings-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-settings-title">Settings</h1><p>Settings for everyone, by section. Each section is saved on its own; every change is recorded in the Audit Trail.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-settings-title">
+      <header className="cc-list-head">
+        <h1 id="cc-settings-title">Settings</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Settings for everyone, by section. Each section is saved on its own; every change is recorded in the Audit Trail.">i</span>
+        <span className="cc-list-count">For everyone · each section saves on its own · every change goes to the Audit Trail</span>
+        <span className="ov-fill" />
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search settings" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} /></span>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Find a setting">
-        <TextInput type="search" aria-label="Search settings" placeholder="Search settings" value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
-      {!saved && !error && <p className="st-muted" role="status">Loading…</p>}
-      {saved && text && <div className="cc-settings-found" role="region" aria-label="Settings found">
-        {matches.length ? matches.map(({ s, x }) => <div key={x.key} className="cc-found">
-          <Button kind="plain" onClick={() => { setSection(s.id); setQ(""); }}>{s.title}</Button>{field(x)}</div>)
-          : <p className="st-muted">No setting matches.</p>}
-        {matches.length > 0 && <p className="st-muted">Open a section to save what you change here.</p>}
-      </div>}
-      {saved && !text && <div className="cc-settings">
-        <nav className="cc-settings-nav" aria-label="Settings sections">
-          {SECTIONS.map((s) => <button key={s.id} type="button" className="cc-settings-tab" aria-current={s.id === section ? "page" : undefined} onClick={() => setSection(s.id)}>
-            {s.title}{changedIn(s).length > 0 && <span className="cc-count" title="Changed, not saved yet">{changedIn(s).length}</span>}</button>)}
+      {!saved && !error && <p className="cc-none" role="status">Loading…</p>}
+      {saved && <div className="cc-set">
+        <nav className="cc-set-nav" aria-label="Settings sections">
+          {SECTIONS.map((s) => <button key={s.id} type="button" className="cc-set-tab" aria-current={!text && s.id === section ? "page" : undefined} onClick={() => { setSection(s.id); setQ(""); }}>
+            {tile(s)}<span className="cc-set-tab-name">{s.title}</span>{changedIn(s).length > 0 && <span className="cc-set-badge" title="Changed, not saved yet">{changedIn(s).length}</span>}</button>)}
         </nav>
-        <div className="cc-settings-body" role="region" aria-label={current.title}>
-          <h2 className="cc-log-title">{current.title}</h2>
-          <p className="st-muted">{current.about}</p>
-          {current.id === "sso" && <p className="st-muted">Register these with your provider. OpenID Connect redirect: <code>{(saved.public_url || location.origin) + "/api/auth/sso/callback"}</code>.
-            SAML metadata: <code>{(saved.public_url || location.origin) + "/api/auth/saml/metadata"}</code>.</p>}
-          <div className="cc-settings-fields">{current.settings.map(field)}</div>
-          <Extras api={api} section={current.id} form={form} onNotice={onNotice} onError={setError} />
-          {current.settings.length > 0 && <div className="cc-bar">
-            <Button kind="primary" disabled={!changedIn(current).length} onClick={() => save(current)}>Save {current.title}</Button>
-            <Button kind="plain" disabled={!changedIn(current).length} onClick={() => setForm({ ...form, ...Object.fromEntries(current.settings.map((x) => [x.key, saved[x.key]])) })}>Undo changes</Button>
-          </div>}
+        {text ? <div className="cc-set-form" role="region" aria-label="Settings found">
+          <div className="cc-set-head"><h2>{found.reduce((n, r) => n + r.groups.reduce((m, g) => m + g.settings.length, 0), 0) || "No"} setting{found.reduce((n, r) => n + r.groups.reduce((m, g) => m + g.settings.length, 0), 0) === 1 ? "" : "s"} match “{q.trim()}”</h2>
+            <p>{found.length ? "In " + found.length + " section" + (found.length === 1 ? "" : "s") + ". Change them here; each section saves on its own." : "Try another word: names, hints and setting keys are searched."}</p></div>
+          {found.map(({ s, groups }) => <Fragment key={s.id}>
+            <div className="cc-set-group is-section">{tile(s)}<span>{s.title}</span><span className="ov-fill" />
+              <button type="button" className="cc-link" aria-label={"Open " + s.title} onClick={() => { setSection(s.id); setQ(""); }}>Open the section ›</button></div>
+            {groups.flatMap((g) => g.settings).map(row)}
+            {saveBar(s)}
+          </Fragment>)}
+          {found.length > 0 && <p className="cc-set-foot">Searches names, hints and setting keys (such as <code>password_min_length</code>).</p>}
         </div>
+          : <div className="cc-set-form" role="region" aria-label={current.title}>
+            <div className="cc-set-head"><h2>{current.title}</h2><p>{current.about}</p>
+              {current.id === "sso" && <p>Register these with your provider. OpenID Connect redirect: <code>{(saved.public_url || location.origin) + "/api/auth/sso/callback"}</code>.
+                SAML metadata: <code>{(saved.public_url || location.origin) + "/api/auth/saml/metadata"}</code>.</p>}</div>
+            {current.groups.map((g) => <Fragment key={g.title}>
+              <div className="cc-set-group">{g.title}</div>
+              {g.settings.map(row)}
+            </Fragment>)}
+            <div className="cc-set-extras"><Extras api={api} section={current.id} form={form} onNotice={onNotice} onError={setError} /></div>
+            {saveBar(current)}
+          </div>}
       </div>}
     </section>
   );

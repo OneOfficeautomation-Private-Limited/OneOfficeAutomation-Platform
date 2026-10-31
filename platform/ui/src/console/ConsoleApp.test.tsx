@@ -1127,17 +1127,26 @@ describe("rebuilt Command Center console", () => {
     const nav = await screen.findByRole("navigation", { name: "Settings sections" });
     fireEvent.click(within(nav).getByRole("button", { name: "Sign-in and security" }));
     const sec = screen.getByRole("region", { name: "Sign-in and security" });
-    fireEvent.change(within(sec).getByLabelText("Sign-in session length (hours)"), { target: { value: "10" } });
+    // the save bar shows only while something is changed; a changed row says what it was
+    expect(within(sec).queryByRole("group", { name: "Changes in Sign-in and security" })).toBeNull();
+    fireEvent.change(within(sec).getByLabelText("Sign-in session length"), { target: { value: "10" } });
+    expect(within(sec).getByText("was 8")).toBeTruthy();
     fireEvent.change(within(sec).getByLabelText("Two-step sign-in"), { target: { value: "1" } });
-    fireEvent.click(within(sec).getByLabelText("Switch off Viewer"));
+    expect(within(sec).getByText("was Optional (each person decides)")).toBeTruthy();
+    fireEvent.click(within(sec).getByRole("switch", { name: "Viewer in use" }));
     expect(within(nav).getByTitle("Changed, not saved yet").textContent).toBe("3");
-    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save Sign-in and security" })); });
+    const bar = within(sec).getByRole("group", { name: "Changes in Sign-in and security" });
+    expect(within(bar).getByText("3 changes")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Save Sign-in and security" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { session_hours: 10, mfa_required: 1, switched_off_roles: "viewer" } }));
-    // search across every section
+    // search across every section (names, hints and keys); a change in the results saves there
     fireEvent.change(screen.getByLabelText("Search settings"), { target: { value: "syslog" } });
     const found = await screen.findByRole("region", { name: "Settings found" });
     expect(within(found).getByLabelText(/Syslog target/)).toBeTruthy();
-    fireEvent.click(within(found).getAllByRole("button", { name: "E-mail, proxy and SIEM" })[0]);
+    fireEvent.change(within(found).getByLabelText(/Syslog target/), { target: { value: "siem.example.com:514" } });
+    await act(async () => { fireEvent.click(within(found).getByRole("button", { name: "Save E-mail, proxy and SIEM" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { syslog_target: "siem.example.com:514" } }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Settings found" })).getByRole("button", { name: "Open E-mail, proxy and SIEM" }));
     const mail = await screen.findByRole("region", { name: "E-mail, proxy and SIEM" });
     fireEvent.change(within(mail).getByLabelText("Send a test e-mail to"), { target: { value: "me@example.com" } });
     await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
