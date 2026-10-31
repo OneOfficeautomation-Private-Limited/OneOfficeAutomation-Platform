@@ -81,7 +81,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
         </>}
         {t && <>
           <a className="cc-sum" href={activity({ tab: "completed", period: period[2] })}><strong>{t.success_rate == null ? "–" : t.success_rate + "%"}</strong>
-            <span>Completed, of {finished} finished · {period[1].toLowerCase()}</span></a>
+            <span>{finished ? "Completed, of " + finished + " finished" : "No run finished"} · {period[1].toLowerCase()}</span></a>
           <a className="cc-sum" href={activity({ tab: "completed", status: "failed", period: period[2] })}><strong className={t.failed ? "cc-err" : undefined}>{t.failed}</strong>
             <span>Failed · {period[1].toLowerCase()}</span></a>
         </>}
@@ -123,7 +123,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
             <thead><tr><th scope="col">Runner</th><th scope="col">Why</th><th scope="col">CPU</th><th scope="col">Memory</th></tr></thead>
             <tbody>{attention.map(({ x, why }) => <tr key={x.id}><td><a href="#/devices">{x.nickname || x.name}</a></td><td className="cc-err">{why}</td>
               <td>{x.cpu_pct != null ? Math.round(x.cpu_pct) + "%" : ""}</td><td>{x.mem_pct != null ? Math.round(x.mem_pct) + "%" : ""}</td></tr>)}</tbody>
-          </table> : <p className="st-muted">{live.length ? "All " + live.length + " runners are online, up to date and within their limits." : "No runners yet."}</p>}
+          </table> : <p className="st-muted">{live.length === 1 ? "Your runner is online, up to date and within its limits." : live.length ? "All " + live.length + " runners are online, up to date and within their limits." : "No runners yet."}</p>}
         </div>}
         {queues && <div className="cc-card cc-card-flat">
           <h2>Work queues with items waiting</h2>
