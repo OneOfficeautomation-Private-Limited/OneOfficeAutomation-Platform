@@ -477,7 +477,16 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-au-av { width: 18px; height: 18px; border-radius: 50%; background: var(--ui-accent); color: #ffffff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .cc-au-av.is-system { background: #475569; }
 .cc-au-av.is-runner { background: #0e7490; border-radius: 4px; }
-.cc-au-obj { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.cc-list-table td.cc-au-cut { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-list-table td.cc-au-who-c { max-width: 180px; }
+.cc-au-who-c .cc-au-who { display: inline; }
+.cc-au-who-c .cc-au-av { display: inline-flex; margin-right: 6px; vertical-align: -4px; }
+.cc-list-table td.cc-au-what { max-width: 280px; }
+.cc-list-table td.cc-au-obj { max-width: 220px; }
+.cc-au .cc-chip select[aria-label="Who"] { max-width: 180px; }
+.cc-au.has-panel td.cc-au-who-c { max-width: 150px; }
+.cc-au.has-panel td.cc-au-what { max-width: 240px; }
+.cc-au .cc-list-search .ui-input { width: 220px; }
 .cc-au-more { padding: 8px 10px; background: var(--ui-bg); border: 1px solid var(--ui-line, var(--ui-divider)); border-radius: var(--ui-radius); }
 .cc-au-more .ui-input { width: 200px; height: 30px; }
 .cc-au .ov-seg { height: 30px; }

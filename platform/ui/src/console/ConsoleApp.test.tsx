@@ -1227,6 +1227,8 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(await within(list).findByText("user.create"));
     const d = await screen.findByRole("dialog", { name: "Audit record 12" });
     expect(within(d).getByText(/from 10\.0\.0\.5/)).toBeTruthy();
+    // beside an open record the list keeps only time, who, what happened and result
+    expect(within(list).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Time", "Who", "What happened", "Result", "Actions"]);
     expect(within(within(d).getByRole("region", { name: "Details" })).getByText("bot_creator")).toBeTruthy();
     expect(screen.getByRole("table", { name: "Audit records" })).toBeTruthy();   // the list stays in view
     fireEvent.click(within(d).getByRole("button", { name: "Older ›" }));

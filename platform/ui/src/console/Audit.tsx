@@ -12,6 +12,9 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * Laid out as the design plan's step 5 (approved on the canvas 31 Oct 2026): the list pattern with records grouped by
  * day and said in plain words, history checkpoints hidden by default, and a record in a side panel beside the list
  * (Newer / Older, details by name, the run's other records, one-click searches, what seals it).
+ * Review round 2 (1 Nov 2026): fits at 1366 px (who, what happened and the object cut to one width, in full on hover),
+ * only time, who, what happened and result beside an open record, the Who filter kept narrow, and Hide checkpoints moved
+ * under More filters (the pager still says when they are hidden), so the toolbar takes two lines.
  */
 type Col = { key: string; label: string; cell: (a: AuditRecord) => string };
 
@@ -62,6 +65,12 @@ function parseDetails(d?: string | null): [string, string][] {
 }
 const detailsText = (d?: string | null) => parseDetails(d).map(([k, v]) => k + ": " + v).join("; ");
 const runOf = (a: AuditRecord) => a.object_type === "run" ? a.object_id ?? null : parseDetails(a.details).find(([k]) => k === "run")?.[1] ?? null;
+/** The columns kept beside an open record. */
+/** Cells cut to one width, their full text on hover. */
+const CELL_CLASS: Record<string, string> = { details: "cc-clip", actor: "cc-au-cut cc-au-who-c", action: "cc-au-cut cc-au-what", object: "cc-au-cut cc-au-obj" };
+const BESIDE_RECORD = new Set(["ts", "actor", "action", "result"]);
+/** A long name cut for the Who filter (the whole name is the value). */
+const cut = (t: string, n = 28) => t.length > n ? t.slice(0, n - 1) + "…" : t;
 const COLS: Col[] = [
   { key: "seq", label: "#", cell: (a) => String(a.seq) },
   { key: "ts", label: "Time", cell: (a) => new Date(a.ts).toLocaleString() },
@@ -128,7 +137,8 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);   // typing waits a moment
 
   const setFilter = (k: string, v: string) => { setF({ ...f, [k]: v }); setOffset(0); };
-  const cols = COLS.filter((c) => !hidden.includes(c.key));
+  // beside an open record the list keeps only what tells records apart, so both fit at 1366 px
+  const cols = COLS.filter((c) => !hidden.includes(c.key) && (!open || BESIDE_RECORD.has(c.key)));
   const filtered = Object.values(f).some(Boolean);
   const exportCsv = async () => {
     try {
@@ -165,7 +175,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     if (i === 0 || isoDay(a.ts) !== isoDay(records[i - 1].ts)) rows.push(<tr key={"d" + a.seq} className="cc-au-day is-static"><td colSpan={cols.length + 1}>{dayLabel(a.ts)}</td></tr>);
     rows.push(
       <tr key={a.seq} className={open?.seq === a.seq ? "is-selected" : ""} onClick={rowClick(() => setOpen(a))}>
-        {cols.map((c) => <td key={c.key} className={c.key === "details" ? "cc-clip" : c.key === "object" ? "cc-au-obj" : undefined}>{cell(c, a)}</td>)}
+        {cols.map((c) => <td key={c.key} className={CELL_CLASS[c.key]} title={c.key in CELL_CLASS && c.key !== "details" ? c.cell(a) : undefined}>{cell(c, a)}</td>)}
         <td className="cc-list-menu"><RowMenu label={"Actions for record " + a.seq} items={[
           { key: "open", label: "Open", onSelect: () => setOpen(a) },
           ...(a.object_type && a.object_id ? [{ key: "about", label: "Every record about this " + a.object_type, onSelect: () => search({ object_type: a.object_type!, object_id: a.object_id! }, "all") }] : []),
@@ -198,11 +208,9 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
           <span className={"cc-chip" + (f.area ? " is-on" : "")}><Select aria-label="Area" value={f.area ?? ""} onChange={(e) => setFilter("area", e.target.value)}
             options={[{ value: "", label: "Area: Any" }, ...AREAS.map(([value, label]) => ({ value, label: "Area: " + label }))]} /></span>
           <span className={"cc-chip" + (f.actor ? " is-on" : "")}><Select aria-label="Who" value={f.actor ?? ""} onChange={(e) => setFilter("actor", e.target.value)}
-            options={[{ value: "", label: "Who: Anyone" }, ...[...new Set([...actors, ...(f.actor ? [f.actor] : [])])].map((a) => ({ value: a, label: "Who: " + (a === "system" ? "System" : a) }))]} /></span>
+            options={[{ value: "", label: "Who: Anyone" }, ...[...new Set([...actors, ...(f.actor ? [f.actor] : [])])].map((a) => ({ value: a, label: "Who: " + (a === "system" ? "System" : cut(a)) }))]} /></span>
           <span className={"cc-chip" + (f.result ? " is-on" : "")}><Select aria-label="Result" value={f.result ?? ""} onChange={(e) => setFilter("result", e.target.value)}
             options={[{ value: "", label: "Result: Any" }, ...RESULTS.map(([value, label]) => ({ value, label: "Result: " + label }))]} /></span>
-          <label className={"cc-chip-check" + (hideCheckpoints ? " is-on" : "")} title="History checkpoints seal the records before them; they are hidden to keep the list to what people and runners did">
-            <input type="checkbox" checked={hideCheckpoints} onChange={(e) => { setHideCheckpoints(e.target.checked); setOffset(0); }} /> Hide checkpoints</label>
           <Button kind="plain" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
           {(f.object_type || f.object_id) && <span className="cc-tag">Object: {[f.object_type, f.object_id].filter(Boolean).join(" ")}</span>}
           {f.around && <span className="cc-tag">Within 5 minutes of {new Date(f.around).toLocaleString()}</span>}
@@ -220,6 +228,8 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
         <TextInput aria-label="Object id" placeholder="Object id" value={f.object_id ?? ""} onChange={(e) => setFilter("object_id", e.target.value)} />
         <span className="cc-chip"><Select aria-label="Order" value={f.sort ?? "newest"} onChange={(e) => setFilter("sort", e.target.value)}
           options={[{ value: "newest", label: "Newest first" }, { value: "oldest", label: "Oldest first" }]} /></span>
+        <label className={"cc-chip-check" + (hideCheckpoints ? " is-on" : "")} title="History checkpoints seal the records before them; they are hidden to keep the list to what people and runners did">
+          <input type="checkbox" checked={hideCheckpoints} onChange={(e) => { setHideCheckpoints(e.target.checked); setOffset(0); }} /> Hide checkpoints</label>
       </div>}
       <div className="cc-list-panel">
         <div className="cc-list-scroll">
