@@ -568,8 +568,15 @@ describe("rebuilt Command Center console", () => {
     const alert = await within(list).findByRole("link", { name: "Invoice intake failed: EXCEL.NOT_FOUND No such file" });
     expect(alert.getAttribute("href")).toBe("#/activity?run=r3");
     expect(within(list).getByText("Inbox: role:admin · Not e-mailed: ops@example.com")).toBeTruthy();
+    // one line per alert, severity as a pill; search and severity filter the list
+    expect(alert.closest("td")!.getAttribute("title")).toBe("Invoice intake failed: EXCEL.NOT_FOUND No such file");
+    expect(list.querySelector(".cc-pill")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Search alerts"), { target: { value: "backup" } });
+    expect(within(list).getByText("No alerts match.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(await within(list).findByLabelText(/^Select the alert/)).toBeTruthy();
     fireEvent.click(within(list).getByLabelText(/^Select the alert/));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Acknowledge" })); });
+    await act(async () => { fireEvent.click(within(screen.getByRole("toolbar", { name: "Alert actions" })).getByRole("button", { name: "Acknowledge" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "alerts/acknowledge", body: { ids: ["al1"] } }));
     expect(await screen.findByText("Acknowledged 1 alert.")).toBeTruthy();
 
@@ -577,10 +584,13 @@ describe("rebuilt Command Center console", () => {
     const rules = await screen.findByRole("table", { name: "Alert rules" });
     expect(within(rules).getByText("Too many runs fail · Invoice intake")).toBeTruthy();
     expect(within(rules).getByText("Failed share of finished runs: 50% · Over the last 60 min")).toBeTruthy();
-    const first = within(rules).getByRole("row", { name: /Any failure/ });
-    await act(async () => { fireEvent.click(within(first).getByRole("button", { name: "Send a test" })); });
+    const menu = async (rule: string, item: string) => {
+      fireEvent.keyDown(within(screen.getByRole("table", { name: "Alert rules" })).getByRole("button", { name: "Actions for " + rule }), { key: "Enter" });
+      await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: item })); });
+    };
+    await menu("Any failure", "Send a test");
     expect(await screen.findByText(/^Test sent\. Inbox: role:admin · Not e-mailed: ops@example\.com E-mail is not set up/)).toBeTruthy();
-    await act(async () => { fireEvent.click(within(first).getByRole("button", { name: "Turn off" })); });
+    await menu("Any failure", "Turn off");
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "alert-rules/ar1", body: { enabled: false } }));
 
     fireEvent.click(screen.getByRole("button", { name: "New alert rule" }));
@@ -594,10 +604,17 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Make the rule" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "alert-rules", body: { name: "Queue late", kind: "queue_overdue", scope: "q1", severity: "warning",
       enabled: true, threshold: 3, window_minutes: null, notify_to: ["role:admin", "ops@example.com"], webhook_url: null } }));
-    const second = within(screen.getByRole("table", { name: "Alert rules" })).getByRole("row", { name: /Backup failing/ });
-    fireEvent.click(within(second).getByRole("button", { name: "Delete" }));
-    await act(async () => { fireEvent.click(within(second).getByRole("button", { name: "Delete" })); });
+    await menu("Backup failing", "Delete…");
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toContain("Delete the alert rule Backup failing?");
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "alert-rules/ar2" }));
+    // a rule's alerts, on the Alerts tab
+    await menu("Any failure", "Show its alerts");
+    await waitFor(() => expect(calls.some((c) => c.route === "alerts" && c.method === "GET")).toBe(true));
+    expect((screen.getByLabelText("Rule") as HTMLSelectElement).value).toBe("ar1");
+    expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("all");
   });
 
   it("shows Operations as AA's operational dashboards: figures against the period before, when runs start, failure reasons, CSVs and an agent's statistics", async () => {

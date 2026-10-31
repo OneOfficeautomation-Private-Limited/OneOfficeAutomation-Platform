@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Alert, AlertKind, AlertRule, CrApi, CrUser } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Operational Insights > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's
  * notifications (checked 31 Oct 2026). Rules watch one condition each, checked once a minute; an alert goes to the
  * task inbox, e-mail and a webhook. Alerts on a state clear by themselves when it ends; alerts on a failed run stay
  * open until acknowledged. Seeing needs analytics.view; changing rules needs alerts.manage.
+ * Review round 2 (31 Oct 2026, with UiPath's Alerts page and AA's Notifications): one line per alert, severity as pills,
+ * search and filters by state, severity and rule, a row opening what the alert is about, a menu per alert and per rule,
+ * and deleting a rule asked first.
  */
 type Scope = "agent" | "runner" | "queue" | "connection";
 const KINDS: Record<AlertKind, { label: string; scope: Scope; threshold?: [string, number]; window?: [string, number]; hint: string }> = {
@@ -30,6 +34,9 @@ type Choices = Record<Scope, { value: string; label: string }[]>;
 export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<"alerts" | "rules">("alerts");
   const [status, setStatus] = useState("open");
+  const [rule, setRule] = useState("");   // only this rule's alerts (a rule's "Show its alerts")
+  const [severity, setSeverity] = useState("");
+  const [q, setQ] = useState("");
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [rules, setRules] = useState<AlertRule[] | null>(null);
@@ -37,18 +44,18 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const [error, setError] = useState<string | null>(null);
   // #/alerts?new=1 (Overview's New alert rule) opens the new rule straight away
   const [editing, setEditing] = useState<AlertRule | "new" | null>(() => user.permissions.includes("alerts.manage") && /[?&]new=1/.test(location.hash) ? "new" : null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<AlertRule | null>(null);   // a rule to delete, asked first
   const [choices, setChoices] = useState<Choices>({ agent: [], runner: [], queue: [], connection: [] });
   const can = (p: string) => user.permissions.includes(p);
   const manage = can("alerts.manage");
 
   const load = useCallback(async () => {
     try {
-      const [a, r] = await Promise.all([api.alerts({ status, limit: "200" }), api.alertRules()]);
+      const [a, r] = await Promise.all([api.alerts({ status, limit: "200", ...(rule ? { rule } : {}) }), api.alertRules()]);
       setAlerts(a.alerts); setOpen(a.open); setRules(r); setError(null);
       setSelected((s) => s.filter((id) => a.alerts.some((x) => x.id === id && x.status === "open")));
     } catch (e) { setError(message(e)); }
-  }, [api, status]);
+  }, [api, status, rule]);
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
   useEffect(() => {   // the names behind each rule's scope, and the choices when making one
     const list = <T,>(ok: boolean, p: () => Promise<T[]>) => ok ? p().catch(() => [] as T[]) : Promise.resolve([] as T[]);
@@ -64,8 +71,26 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const acknowledge = (ids: string[]) => api.acknowledgeAlerts(ids).then((r) => { onNotice("Acknowledged " + r.acknowledged + " alert" + (r.acknowledged === 1 ? "" : "s") + "."); setSelected([]); load(); }, (e) => setError(message(e)));
   const toggle = (r: AlertRule) => api.setAlertRuleEnabled(r.id, !r.enabled).then(() => { onNotice((r.enabled ? "Turned off " : "Turned on ") + r.name + "."); load(); }, (e) => setError(message(e)));
   const test = (r: AlertRule) => api.testAlertRule(r.id).then((d) => onNotice("Test sent. " + (sentTo(d) || "Nothing was sent.") + (d.note ? " " + d.note + "." : "")), (e) => setError(message(e)));
-  const remove = (id: string) => api.deleteAlertRule(id).then(() => { onNotice("Deleted the alert rule; its alerts are kept as cleared."); setDeleting(null); load(); }, (e) => setError(message(e)));
-  const openAlerts = (alerts ?? []).filter((a) => a.status === "open");
+  const remove = (r: AlertRule) => api.deleteAlertRule(r.id).then(() => { onNotice("Deleted the alert rule " + r.name + "; its alerts are kept as cleared."); setDeleting(null); load(); }, (e) => setError(message(e)));
+  /** A rule's alerts, in every state, on the Alerts tab. */
+  const showAlerts = (r: AlertRule) => { setRule(r.id); setStatus("all"); setSeverity(""); setQ(""); setAlerts(null); setTab("alerts"); };
+  const goTo = (a: Alert) => { if (a.link?.startsWith("#")) location.hash = a.link; };
+  const shown = (alerts ?? []).filter((a) => (!severity || a.severity === severity)
+    && (!q.trim() || [a.message, a.rule_name, a.subject_label, a.subject].join(" ").toLowerCase().includes(q.trim().toLowerCase())));
+  const openAlerts = shown.filter((a) => a.status === "open");
+  const ruleOf = (a: Alert) => rules?.find((r) => r.id === a.rule_id);
+  const alertMenu = (a: Alert) => [
+    ...(a.link?.startsWith("#") ? [{ key: "open", label: "Open what it is about", onSelect: () => goTo(a) }] : []),
+    ...(a.status === "open" ? [{ key: "ack", label: "Acknowledge", onSelect: () => { acknowledge([a.id]); } }] : []),
+    ...(manage && ruleOf(a) ? [{ key: "rule", label: "Open its rule", onSelect: () => setEditing(ruleOf(a)!) }] : []),
+  ];
+  const ruleMenu = (r: AlertRule) => [
+    ...(manage ? [{ key: "edit", label: "Edit", onSelect: () => setEditing(r) }, { key: "toggle", label: r.enabled ? "Turn off" : "Turn on", onSelect: () => { toggle(r); } },
+      { key: "test", label: "Send a test", onSelect: () => { test(r); } }] : []),
+    { key: "alerts", label: "Show its alerts", onSelect: () => showAlerts(r) },
+    ...(manage ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(r) }] : []),
+  ];
+  const filtered = !!(rule || severity || q.trim() || status !== "open");
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-al-title">
@@ -81,56 +106,71 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {tab === "alerts" ? <>
-        <div className="cc-bar" role="toolbar" aria-label="Alerts actions">
-          <Select aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setAlerts(null); }}
-            options={[{ value: "open", label: "Open" }, { value: "acknowledged", label: "Acknowledged" }, { value: "cleared", label: "Cleared" }, { value: "all", label: "All" }]} />
-          {selected.length > 0 && <span className="cc-chosen">{selected.length} selected</span>}
-          <Button kind="secondary" disabled={!selected.length} onClick={() => acknowledge(selected)}>Acknowledge</Button>
-          <span className="st-bar-fill" />
-          <Button kind="plain" onClick={load}>Refresh</Button>
+        <div className="cc-list-tools">
+          <div className="cc-list-filters" role="group" aria-label="Filters">
+            <span className="cc-list-search"><TextInput type="search" aria-label="Search alerts" placeholder="Search alerts and rules" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+            <span className="cc-chip"><Select aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setAlerts(null); }}
+              options={[{ value: "open", label: "Open" }, { value: "acknowledged", label: "Acknowledged" }, { value: "cleared", label: "Cleared" }, { value: "all", label: "Every state" }]} /></span>
+            <span className="cc-chip"><Select aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)}
+              options={[{ value: "", label: "Every severity" }, { value: "critical", label: "Critical" }, { value: "warning", label: "Warning" }]} /></span>
+            <span className="cc-chip"><Select aria-label="Rule" value={rule} onChange={(e) => { setRule(e.target.value); setAlerts(null); }}
+              options={[{ value: "", label: "Every rule" }, ...(rules ?? []).map((r) => ({ value: r.id, label: r.name }))]} /></span>
+            {filtered && <Button kind="plain" onClick={() => { setRule(""); setSeverity(""); setQ(""); setStatus("open"); }}>Clear filters</Button>}
+          </div>
+          <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
         </div>
-        <div className="cc-list-panel"><div className="cc-list-scroll">
+        <div className="cc-list-panel">
+          {selected.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Alert actions">
+            <strong>{selected.length} selected</strong>
+            <Button kind="secondary" onClick={() => acknowledge(selected)}>Acknowledge</Button>
+            <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+          </div>}
+          <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Alerts list">
             <thead><tr>
-              <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={openAlerts.length > 0 && selected.length === openAlerts.length}
+              <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={openAlerts.length > 0 && openAlerts.every((a) => selected.includes(a.id))}
                 onChange={(e) => setSelected(e.target.checked ? openAlerts.map((a) => a.id) : [])} /></th>
               {["Severity", "Alert", "Rule", "Raised", "State", "Sent to"].map((h) => <th key={h} scope="col">{h}</th>)}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
             </tr></thead>
             <tbody>
-              {(alerts ?? []).map((a) => (
-                <tr key={a.id} className="is-static">
+              {shown.map((a) => (
+                <tr key={a.id} className={a.link?.startsWith("#") ? (selected.includes(a.id) ? "is-selected" : undefined) : "is-static"} onClick={rowClick(() => goTo(a))}>
                   <td className="cc-check">{a.status === "open" && <input type="checkbox" aria-label={"Select the alert " + a.message} checked={selected.includes(a.id)}
                     onChange={(e) => setSelected(e.target.checked ? [...selected, a.id] : selected.filter((x) => x !== a.id))} />}</td>
-                  <td className={"cc-status cc-sev is-" + a.severity}>{a.severity === "critical" ? "Critical" : "Warning"}</td>
-                  <td className="cc-wrap">{a.link ? <a href={a.link}>{a.message}</a> : a.message}</td>
+                  <td><span className={"cc-pill is-" + (a.severity === "critical" ? "failed" : "pending")}><span className="cc-pill-dot" />{a.severity === "critical" ? "Critical" : "Warning"}</span></td>
+                  <td className="cc-clip cc-alert-msg" title={a.message}>{a.link ? <a href={a.link}>{a.message}</a> : a.message}</td>
                   <td>{a.rule_name}</td><td>{when(a.raised)}</td>
                   <td>{STATUS[a.status]}{a.status === "acknowledged" && a.acknowledged_by ? " by " + a.acknowledged_by : a.status === "cleared" && a.cleared ? " " + when(a.cleared) : ""}</td>
-                  <td className="cc-wrap" title={a.delivery?.note}>{sentTo(a.delivery)}</td>
+                  <td className="cc-clip" title={[sentTo(a.delivery), a.delivery?.note].filter(Boolean).join("\n") || undefined}>{sentTo(a.delivery)}</td>
+                  <td className="cc-list-menu">{alertMenu(a).length > 0 && <RowMenu label={"Actions for the alert " + a.message} items={alertMenu(a)} />}</td>
                 </tr>
               ))}
-              {alerts && !alerts.length && <tr className="is-static"><td colSpan={7} className="cc-none">{status === "open" ? "No open alerts." : "No alerts here."}{rules && !rules.length ? " No alert rules yet: make one to be told when something goes wrong." : ""}</td></tr>}
-              {!alerts && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
+              {alerts && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{alerts.length ? "No alerts match." : status === "open" ? "No open alerts." : "No alerts here."}{rules && !rules.length ? " No alert rules yet: make one to be told when something goes wrong." : ""}</td></tr>}
+              {!alerts && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>
-        </div></div>
+        </div>
+          {alerts && <div className="cc-list-pager"><span>{shown.length} of {alerts.length}</span></div>}</div>
       </> : <>
-        <div className="cc-list-panel cc-gap"><div className="cc-list-scroll">
+        <div className="cc-list-panel cc-gap">
+          {deleting && <div className="cc-list-bulk" role="alert"><span>Delete the alert rule {deleting.name}? It stops watching; its alerts are kept as cleared.</span>
+            <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
+          <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Alert rules">
-            <thead><tr>{["State", "Rule", "Watches", "Condition", "Sends to", "Open alerts", "Last checked", ""].map((h, i) => <th key={i} scope="col">{h}</th>)}</tr></thead>
+            <thead><tr>{["State", "Rule", "Watches", "Condition", "Sends to", "Open alerts", "Last checked"].map((h) => <th key={h} scope="col">{h}</th>)}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {(rules ?? []).map((r) => (
-                <tr key={r.id} className="is-static">
-                  <td className={"cc-status is-" + (r.enabled ? "success" : "stopped")}>{r.enabled ? "On" : "Off"}</td>
-                  <td>{manage ? <button type="button" className="cc-link" onClick={() => setEditing(r)}>{r.name}</button> : r.name}{r.severity === "critical" && <span className="cc-tag">Critical</span>}</td>
-                  <td>{KINDS[r.kind]?.label ?? r.kind} · {scopeLabel(r)}</td>
-                  <td>{condition(r)}</td>
-                  <td className="cc-wrap">{[...r.notify_to, ...(r.webhook_url ? ["webhook"] : [])].join(", ")}</td>
-                  <td className={r.open ? "cc-err" : undefined}>{r.open ?? 0}</td>
+                <tr key={r.id} className={manage ? undefined : "is-static"} onClick={rowClick(() => { if (manage) setEditing(r); })}>
+                  <td><span className={"cc-pill is-" + (r.enabled ? "active" : "disabled")}><span className="cc-pill-dot" />{r.enabled ? "On" : "Off"}</span></td>
+                  <td>{r.name}{r.severity === "critical" && <span className="cc-tag">Critical</span>}</td>
+                  <td className="cc-clip">{KINDS[r.kind]?.label ?? r.kind} · {scopeLabel(r)}</td>
+                  <td className="cc-clip">{condition(r)}</td>
+                  <td className="cc-clip" title={[...r.notify_to, ...(r.webhook_url ? ["webhook"] : [])].join(", ")}>{[...r.notify_to, ...(r.webhook_url ? ["webhook"] : [])].join(", ")}</td>
+                  <td>{r.open ? <button type="button" className="cc-link cc-err" title="Show its alerts" onClick={() => showAlerts(r)}>{r.open}</button> : 0}</td>
                   <td>{when(r.last_checked)}</td>
-                  <td>{manage && (deleting === r.id
-                    ? <span className="cc-inline">Delete {r.name}? <Button kind="danger" onClick={() => remove(r.id)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Keep</Button></span>
-                    : <span className="cc-inline"><Button kind="plain" onClick={() => toggle(r)}>{r.enabled ? "Turn off" : "Turn on"}</Button>
-                      <Button kind="plain" onClick={() => test(r)}>Send a test</Button><Button kind="plain" onClick={() => setDeleting(r.id)}>Delete</Button></span>)}</td>
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + r.name} items={ruleMenu(r)} /></td>
                 </tr>
               ))}
               {rules && !rules.length && <tr className="is-static"><td colSpan={8} className="cc-none">No alert rules yet.{manage ? " Make one with New alert rule." : ""}</td></tr>}

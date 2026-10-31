@@ -169,6 +169,7 @@ a.cc-sum { text-decoration: none; }
 /* Operational Insights > Alerts */
 .cc-sev.is-warning { color: var(--ui-warning-text); }
 .cc-sev.is-critical { color: var(--ui-error-text); }
+.cc-list-table td.cc-alert-msg { max-width: 420px; }
 .cc-table td.cc-wrap { white-space: normal; min-width: 220px; max-width: 520px; }
 .cc-gap { margin-top: 12px; }
 button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: var(--ui-accent-text); text-decoration: underline; cursor: pointer; }
