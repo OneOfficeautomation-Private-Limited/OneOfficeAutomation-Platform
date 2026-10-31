@@ -193,7 +193,15 @@ public final class Templates {
         if (s != null) for (Map<String, Object> t : s.approved()) out.add(summary(t, "region", String.valueOf(t.get("publisher"))));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("templates", out);
-        m.put("categories", CATEGORIES);
+        Map<String, Object> layout = folders();
+        Map<String, String> placed = (Map<String, String>) layout.get("placed");
+        List<String> folders = (List<String>) layout.get("folders");
+        for (Map<String, Object> t : out) {   // a template whose folder has gone sits at the top, under All templates
+            String f = placed.getOrDefault(t.get("source") + ":" + t.get("id"), String.valueOf(t.get("category")));
+            t.put("folder", folders.contains(f) ? f : "");
+        }
+        m.put("categories", folders);
+        m.put("can_arrange", cr.can(by, "settings.manage"));
         m.put("can_share", s != null && cr.can(by, "lifecycle.export"));
         if (problem != null) m.put("problem", problem);
         return m;
@@ -245,12 +253,58 @@ public final class Templates {
         Map<String, Object> t = new LinkedHashMap<>();
         t.put("name", name.trim());
         t.put("description", description == null ? "" : description.trim());
-        t.put("category", CATEGORIES.contains(category) ? category : "Other");
+        t.put("category", ((List<String>) folders().get("folders")).contains(category) ? category : "Other");
         t.put("bundle", bundle);
         t.put("submitted_by", by.username());
         Map<String, Object> r = s.submit(cr.tenant, t);
         cr.audit.record(by.username(), "template.share", "bot", path, Map.of("template", r.get("id"), "agents", ((List<Object>) bundle.get("agents")).size()), "ok", ip);
         return r;
+    }
+
+    // ------------------------------------------------------------ template folders
+
+    /**
+     * How the templates are arranged here (review round 2, 31 Oct 2026): administrators make, rename and delete folders
+     * (nested with /) and move templates between them, as in Automation. The catalogue's categories are the first
+     * folders; a template sits in its category until it is moved. Kept beside the uploaded catalogue, in folders.json.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> folders() {
+        Path f = cr.dataDir.resolve("templates").resolve("folders.json");
+        try {
+            if (Files.exists(f)) {
+                Map<String, Object> m = (Map<String, Object>) JsonLite.parse(Files.readString(f));
+                Map<String, String> placed = new LinkedHashMap<>();
+                if (m.get("placed") instanceof Map<?, ?> p) p.forEach((k, v) -> placed.put(String.valueOf(k), String.valueOf(v)));
+                return Map.of("folders", List.copyOf((List<String>) m.getOrDefault("folders", CATEGORIES)), "placed", placed);
+            }
+        } catch (IOException | RuntimeException e) { /* a damaged file: the categories again */ }
+        return Map.of("folders", CATEGORIES, "placed", Map.of());
+    }
+
+    /** Saves the folders and where templates sit ("" is the top; administrators). A folder inside another needs that folder too. */
+    public Map<String, Object> arrange(User by, List<String> folders, Map<String, String> placed, String ip) {
+        cr.require(by, "settings.manage", "arrange the templates");
+        if (folders == null || folders.isEmpty() || folders.size() > 500) throw new OoaException("CR.BAD_INPUT", "Give between 1 and 500 folders");
+        Set<String> seen = new LinkedHashSet<>();
+        for (String f : folders) {
+            String n = f == null ? "" : f.trim();
+            if (n.isEmpty() || n.length() > 120 || n.startsWith("/") || n.endsWith("/") || n.contains("//") || !n.matches("[^\\\\<>:\"|?*]+"))
+                throw new OoaException("CR.BAD_INPUT", "A folder name is 1 to 120 characters, without \\ < > : \" | ? * (use / for a folder inside another)");
+            if (!seen.add(n)) throw new OoaException("CR.BAD_INPUT", "The folder '" + n + "' is there twice");
+        }
+        for (String n : seen) if (n.contains("/") && !seen.contains(n.substring(0, n.lastIndexOf('/'))))
+            throw new OoaException("CR.BAD_INPUT", "The folder '" + n + "' is inside '" + n.substring(0, n.lastIndexOf('/')) + "', which is not there");
+        Map<String, String> place = new LinkedHashMap<>();
+        if (placed != null) placed.forEach((k, v) -> {
+            if (!v.isEmpty() && !seen.contains(v)) throw new OoaException("CR.BAD_INPUT", "There is no folder '" + v + "' to put a template in");
+            place.put(k, v);
+        });
+        Path f = cr.dataDir.resolve("templates").resolve("folders.json");
+        try { Files.createDirectories(f.getParent()); Files.writeString(f, JsonLite.write(Map.of("folders", List.copyOf(seen), "placed", place))); }
+        catch (IOException e) { throw new OoaException("CR.IO", "Cannot save the template folders: " + e.getMessage()); }
+        cr.audit.record(by.username(), "template.folders", "template", null, Map.of("folders", seen.size(), "placed", place.size()), "ok", ip);
+        return Map.of("folders", List.copyOf(seen), "placed", place);
     }
 
     /** Uploads a signed catalogue file (administrators; for a Command Center without internet access). */

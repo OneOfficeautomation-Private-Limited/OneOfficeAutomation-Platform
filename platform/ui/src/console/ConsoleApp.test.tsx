@@ -308,9 +308,10 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "test-sets/x1/run") return ok({ test_run_id: "tr1", started: 2, cases: 2 });
     if (route === "test-sets/runs/tr1") return ok({ id: "tr1", bot_path: "Finance/Invoice intake.flow.json", version: 3, started: "2026-10-31T09:00:00Z", started_by: "admin", total: 2, passed: 1, status: "done",
       results: [{ case_name: "urgent", status: "done", passed: true }, { case_name: "calm", status: "done", passed: false, detail: "label was high, expected low" }] });
-    if (route === "templates") return ok({ can_share: true, categories: ["Finance", "IT"], problem: null, templates: [
-      { id: "inv", source: "vendor", name: "Invoice intake", description: "Reads invoices into the ERP", category: "Finance", publisher: "ONEOFFICEAUTOMATION", agents: ["Invoice intake.flow.json", "Read PDF.flow.json"] },
-      { id: "pw", source: "region", name: "Password reset", description: "Resets a user's password", category: "IT", publisher: "Contoso", agents: ["Password reset.flow.json"] }] });
+    if (route === "templates") return ok({ can_share: true, can_arrange: true, categories: ["Finance", "IT"], problem: null, templates: [
+      { id: "inv", source: "vendor", name: "Invoice intake", description: "Reads invoices into the ERP", category: "Finance", folder: "Finance", publisher: "ONEOFFICEAUTOMATION", agents: ["Invoice intake.flow.json", "Read PDF.flow.json"] },
+      { id: "pw", source: "region", name: "Password reset", description: "Resets a user's password", category: "IT", folder: "IT", publisher: "Contoso", agents: ["Password reset.flow.json"] }] });
+    if (route === "templates/folders") return ok({});
     if (route === "templates/install") return ok({ ok: true, folder: body.folder, results: [{ path: body.folder + "/Invoice intake.flow.json", status: "installed" }] });
     if (route === "templates/share") return ok({ ok: true });
     if (route === "pools") return ok({ pools: [{ id: "p1", name: "Finance pool", description: "Month end", devices: ["d1"], created_by: "admin" }] });
@@ -1436,14 +1437,33 @@ describe("rebuilt Command Center console", () => {
     expect(await within(r).findByText("label was high, expected low")).toBeTruthy();
   });
 
-  it("shows Agent Templates as AA's Bot Store: cards by category, install into a folder, an agent shared for approval", async () => {
+  it("shows Agent Templates laid out as Automation: a folder tree, folders made and templates moved, install into a folder, an agent shared for approval", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Agent Templates");
     const list = await screen.findByRole("table", { name: "Templates" });   // laid out as Automation: a category tree and one table
     expect(await within(list).findByText("Shared by Contoso")).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Categories" })).getByRole("button", { name: /^Finance/ }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ }));
     await waitFor(() => expect(within(list).queryByText("Password reset")).toBeNull());
+    // administrators arrange the templates in folders of their own, as in Automation
+    fireEvent.keyDown(screen.getByRole("button", { name: "Create" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "New folder in Finance" }));
+    const nf = await screen.findByRole("dialog", { name: "New folder" });
+    fireEvent.change(within(nf).getByLabelText(/^Folder/), { target: { value: "Finance/Invoices/2026" } });
+    await act(async () => { fireEvent.click(within(nf).getByRole("button", { name: "Create folder" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "templates/folders",
+      body: { folders: ["Finance", "IT", "Finance/Invoices", "Finance/Invoices/2026"], placed: { "vendor:inv": "Finance", "region:pw": "IT" } } }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ }));
+    fireEvent.keyDown(within(within(list).getByText("Invoice intake").closest("tr")!).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Move to folder…" }));
+    const mv = await screen.findByRole("dialog", { name: "Move Invoice intake" });
+    fireEvent.change(within(mv).getByLabelText("To the folder"), { target: { value: "IT" } });
+    await act(async () => { fireEvent.click(within(mv).getByRole("button", { name: "Move" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "templates/folders", body: { folders: ["Finance", "IT"], placed: { "vendor:inv": "IT", "region:pw": "IT" } } }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for the folder Finance" }), { key: "Enter" });
+    expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Rename or move folder" })).toBeTruthy();
+    expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: "Delete folder…" })).toBeNull();   // it holds a template
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     // already in Automation (Finance): the row says where; its page lists what is inside and installs it again
     const row = within(list).getByText("Invoice intake").closest("tr")!;
     expect(within(row).getByText("Installed")).toBeTruthy();

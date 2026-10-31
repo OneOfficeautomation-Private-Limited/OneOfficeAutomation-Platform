@@ -666,6 +666,14 @@ public final class ControlRoomServer {
                     Map<String, Object> b = map(body(ex));
                     sendJson(ex, 200, cr.templates.share(u, (String) b.get("path"), (String) b.get("name"), (String) b.get("description"), (String) b.get("category"), ip));
                 } else if (m.equals("POST") && route.equals("templates/catalogue")) sendJson(ex, 200, cr.templates.upload(u, (String) map(body(ex)).get("text"), ip));
+                else if (m.equals("PUT") && route.equals("templates/folders")) {
+                    Map<String, Object> b = map(body(ex));
+                    List<String> fs = new ArrayList<>();
+                    if (b.get("folders") instanceof List<?> l) for (Object o : l) fs.add(String.valueOf(o));
+                    Map<String, String> placed = new LinkedHashMap<>();
+                    if (b.get("placed") instanceof Map<?, ?> pm) pm.forEach((k, v) -> placed.put(String.valueOf(k), String.valueOf(v)));
+                    sendJson(ex, 200, cr.templates.arrange(u, fs, placed, ip));
+                }
                 else notFound(ex);
             }
             case "queues" -> {

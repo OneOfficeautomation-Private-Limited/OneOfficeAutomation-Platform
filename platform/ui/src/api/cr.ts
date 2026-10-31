@@ -179,7 +179,7 @@ export type RepoVersion = { version: number; comment?: string | null; author?: s
 export type ProductionRequest = { id: string; path: string; version: number; requested_by: string; requested?: string; comment?: string | null; status: string;
   can_decide?: boolean; decided_by?: string | null; decided?: string | null; note?: string | null };
 export type FlowVariable = { name: string; type?: string; direction?: string; required?: boolean; description?: string; default?: unknown; enum?: unknown[] };
-export type AgentTemplate = { id: string; source: string; name: string; description?: string; category: string; publisher: string; agents: string[] };
+export type AgentTemplate = { id: string; source: string; name: string; description?: string; category: string; publisher: string; agents: string[]; folder?: string };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -488,7 +488,9 @@ export class CrApi {
   async decideRequest(id: string, how: "approve" | "reject" | "withdraw", note: string) { await this.call("POST", "repo/production-requests/" + encodeURIComponent(id) + "/" + how, { note }); }
   startRun(b: { bot_path: string; device_id?: string; pool_id?: string; inputs: Record<string, unknown> }) { return this.call<{ run_id: string }>("POST", "runs", b); }
   // ---- Agent Templates: ready-made agents to install, share to the region, or load from a signed catalogue file ----
-  templates() { return this.call<{ templates: AgentTemplate[]; categories: string[]; can_share?: boolean; problem?: string | null }>("GET", "templates"); }
+  templates() { return this.call<{ templates: AgentTemplate[]; categories: string[]; can_share?: boolean; can_arrange?: boolean; problem?: string | null }>("GET", "templates"); }
+  /** The template folders (nested with /) and the folder of each template, by "source:id" ("" is the top). Administrators. */
+  async saveTemplateFolders(folders: string[], placed: Record<string, string>) { await this.call("PUT", "templates/folders", { folders, placed }); }
   installTemplate(source: string, id: string, folder: string) {
     return this.call<{ ok: boolean; folder: string; results: { path: string; status: string; error?: { message?: string } }[] }>("POST", "templates/install", { source, id, folder });
   }
