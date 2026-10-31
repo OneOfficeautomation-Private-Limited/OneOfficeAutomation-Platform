@@ -225,3 +225,9 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-pie-1 { fill: #2e8b57; background: #2e8b57; }
 .cc-pie-2 { fill: #bd7a1c; background: #bd7a1c; }
 .cc-pie-3 { fill: #8a94a3; background: #8a94a3; }
+/* Agent Repository: export, import, code analysis, files */
+.cc-pick { max-height: 220px; overflow-y: auto; display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); background: var(--ui-bg); }
+.cc-promote { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); background: var(--ui-soft); }
+.cc-param { display: inline-flex; align-items: center; gap: 6px; margin: 2px 8px 2px 0; color: var(--ui-text-2); }
+.cc-param .ui-input { width: 160px; }
+.cc-files { margin: 12px 20px 0; }

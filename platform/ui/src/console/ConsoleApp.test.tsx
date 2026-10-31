@@ -32,7 +32,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
   const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
-    const body = init.body ? JSON.parse(init.body as string) : undefined;
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : init.body ? { file: (init.body as File).name } : undefined;   // an upload sends the file itself
     calls.push({ method: init.method ?? "GET", route, body, headers: init.headers as Record<string, string> });
     const ok = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
     const no = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: { code, message } }), { status });
@@ -118,6 +118,24 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       common: [{ value: "10", runs: 1 }] }] });
     if (route === "analytics/export") { calls.push({ method: "GET", route: "analytics/export?" + (url.split("?")[1] ?? "") }); return new Response("agent,runs\r\n", { status: 200 }); }
     if (route === "plugins") return ok({ plugins });
+    if (route === "repo/policy") return ok({ enforce_at_checkin: false, rules: {
+      require_description: { enabled: true, severity: "warning", description: "Every agent says what it does", params: {} },
+      max_steps: { enabled: true, severity: "error", description: "Agents stay small enough to read", params: { max: 200 } },
+      blocked_actions: { enabled: false, severity: "error", description: "Commands nobody may use", params: { actions: ["ooa.shell/run"] } } } });
+    if (route === "repo/analysis/report") return new Response("agent,version,rule\r\n", { status: 200 });
+    if (route === "repo/analysis") return ok({ path: "Finance/Invoice intake.flow.json", version: 3, errors: 1, warnings: 1, passed: false, analyzed: "2026-10-30T08:00:00Z",
+      violations: [{ rule: "max_steps", severity: "error", step: "s9", message: "212 steps; the most allowed is 200" }, { rule: "require_description", severity: "warning", message: "The agent has no description" }] });
+    if (route === "repo/analyze") return ok({ path: "Finance/Invoice intake.flow.json", version: 3, errors: 0, warnings: 0, passed: true, violations: [] });
+    if (route === "repo/files" && (init.method ?? "GET") === "GET") return ok({ files: [
+      { path: "Finance/rates.xlsx", size: 2048, version: 2, updated: "2026-10-30T08:00:00Z", updated_by: "admin", folder: "Finance", access: "manage" },
+      { path: "Finance/Sub/codes.csv", size: 10, version: 1, folder: "Finance/Sub", access: "manage" }] });
+    if (route === "repo/files" && init.method === "PUT") return ok({ version: 3 });
+    if (route === "repo/files") return ok({ ok: true });
+    if (route === "lifecycle/export") return ok({ format: "ooa.bundle", exported_by: "admin", agents: [{ path: "Finance/Invoice intake.flow.json", version: 3, production: true }] });
+    if (route === "lifecycle/import") return ok({ ok: true, imported: 2, results: [{ path: "Imported/Finance/Invoice intake.flow.json", status: "created", version: 1 },
+      { path: "Imported/Shared/Read PDF.flow.json", status: "created", version: 1 }] });
+    if (route === "lifecycle/promote") return ok({ ok: true, status: 200, target: "https://cc-prod.example.com", result: { ok: true, imported: 1,
+      results: [{ path: "Finance/Invoice intake.flow.json", status: "updated", version: 4 }] } });
     if (route === "repo" && url.includes("deleted=true")) return ok({ bots: [{ path: "HR/Old offboard.flow.json", latest_version: 2, deleted_at: "2026-10-20T08:00:00Z", deleted_by: "admin" }] });
     if (route === "repo") {
       const folder = new URLSearchParams(url.split("?")[1]).get("folder");
@@ -662,6 +680,83 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
     await act(async () => { fireEvent.click(within(screen.getByRole("toolbar", { name: "Dashboard" })).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "dashboards/db1" }));
+  });
+
+  it("exports, promotes and imports agents, keeps the code analysis policy and an agent's findings, and the files of a folder (AA's Bot Lifecycle Management)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "lifecycle.export", "lifecycle.import"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Repository" }));
+    await screen.findByRole("table", { name: "Agents list" });
+    const made: string[] = [];
+    URL.createObjectURL = (() => { made.push("file"); return "blob:x"; }) as typeof URL.createObjectURL;
+
+    // export two agents, then promote them to another Command Center
+    fireEvent.click(screen.getByRole("button", { name: "Export or promote" }));
+    const ex = await screen.findByRole("dialog", { name: "Export or promote agents" });
+    const pick = await within(ex).findByRole("group", { name: "Agents to export" });
+    fireEvent.click(within(pick).getByLabelText(/^Invoice intake/));
+    fireEvent.click(within(ex).getByRole("button", { name: "Promote to another Command Center" }));
+    fireEvent.change(within(ex).getByLabelText("Its address"), { target: { value: "https://cc-prod.example.com" } });
+    fireEvent.change(within(ex).getByLabelText("Its API key (vault reference)"), { target: { value: "Prod/cc-key/token" } });
+    fireEvent.change(within(ex).getByLabelText("If an agent is already there"), { target: { value: "overwrite" } });
+    await act(async () => { fireEvent.click(within(ex).getByRole("button", { name: "Promote" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "lifecycle/promote", body: { paths: ["Finance/Invoice intake.flow.json"], version: "production",
+      include_dependencies: true, target_url: "https://cc-prod.example.com", api_key_ref: "Prod/cc-key/token", conflict: "overwrite", production: false } }));
+    expect(within(within(ex).getByRole("table", { name: "Promotion results" })).getByText("New version")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(ex).getByRole("button", { name: "Download bundle" })); });
+    expect(made).toEqual(["file"]);
+    expect(await screen.findByText("Exported 1 agent to a bundle file.")).toBeTruthy();
+
+    // import: what the bundle holds and where each agent goes, before anything happens
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    const im = await screen.findByRole("dialog", { name: "Import agents" });
+    const bundle = { format: "ooa.bundle", exported_by: "vic", agents: [{ path: "Finance/Invoice intake.flow.json", version: 3, production: true }, { path: "Shared/Read PDF.flow.json", version: 1, included_as: "dependency" }] };
+    const file = new File([JSON.stringify(bundle)], "agents.ooabundle.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(JSON.stringify(bundle)) });
+    await act(async () => { fireEvent.change(within(im).getByLabelText("Bundle file"), { target: { files: [file] } }); });
+    const inside = await within(im).findByRole("table", { name: "In the bundle" });
+    expect(within(inside).getByText("Yes: skipped")).toBeTruthy();   // Invoice intake is here already
+    expect(within(inside).getByText("Called by another")).toBeTruthy();
+    fireEvent.change(within(im).getByLabelText("Put them under folder"), { target: { value: "Imported" } });
+    expect(within(inside).getByText("Imported/Shared/Read PDF.flow.json")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(im).getByRole("button", { name: "Import" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "lifecycle/import", body: { bundle, conflict: "skip", production: false, target_folder: "Imported" } }));
+    expect(await screen.findByText("Imported 2 agents.")).toBeTruthy();
+    fireEvent.click(within(im).getByRole("button", { name: "Done" }));
+
+    // the code analysis policy: a rule's severity and setting changed, and the report for all agents
+    fireEvent.click(screen.getByRole("button", { name: "Code analysis" }));
+    const ca = await screen.findByRole("dialog", { name: "Code analysis" });
+    fireEvent.change(await within(ca).findByLabelText("Severity of Require description"), { target: { value: "error" } });
+    fireEvent.change(within(ca).getByLabelText("Max steps: max"), { target: { value: "150" } });
+    fireEvent.click(within(ca).getByLabelText("Refuse check-ins that have errors"));
+    await act(async () => { fireEvent.click(within(ca).getByRole("button", { name: "Report for all agents (CSV)" })); });
+    expect(made).toEqual(["file", "file"]);
+    await act(async () => { fireEvent.click(within(ca).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "repo/policy", body: { enforce_at_checkin: true, rules: {
+      require_description: { enabled: true, severity: "error", params: {} }, max_steps: { enabled: true, severity: "error", params: { max: 150 } },
+      blocked_actions: { enabled: false, severity: "error", params: { actions: ["ooa.shell/run"] } } } } }));
+
+    // an agent's own findings, analysed again
+    fireEvent.click(within(screen.getByRole("table", { name: "Agents list" })).getByText("Invoice intake"));
+    const d = await screen.findByRole("dialog", { name: "Invoice intake" });
+    expect(within(await within(d).findByRole("table", { name: "Findings" })).getByText("212 steps; the most allowed is 200")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Analyse again" })); });
+    expect(within(d).getByText("No errors")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("button", { name: /close/i }));
+
+    // the files of the Finance folder (not those of its subfolders): upload, download, delete
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ }));
+    const files = await screen.findByRole("table", { name: "Files" });
+    expect(within(files).getByText("rates.xlsx")).toBeTruthy();
+    expect(within(files).queryByText("codes.csv")).toBeNull();
+    expect(within(files).getByRole("link", { name: "Download" }).getAttribute("href")).toBe("/api/repo/files/content?path=Finance%2Frates.xlsx");
+    await act(async () => { fireEvent.change(screen.getByLabelText("File to upload"), { target: { files: [new File(["x"], "rates.xlsx")] } }); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "repo/files" }));
+    expect(await screen.findByText("Uploaded Finance/rates.xlsx (version 3).")).toBeTruthy();
+    fireEvent.click(within(files).getByRole("button", { name: "Delete" }));
+    await act(async () => { fireEvent.click(within(files).getByRole("button", { name: "Delete" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "repo/files" }));
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

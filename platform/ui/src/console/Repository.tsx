@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 
 /**
  * Build > Agent Repository, built as AA's public workspace (checked 31 Oct 2026): a folder tree beside the agents in the
  * chosen folder, each with its latest and live versions, labels and who has it checked out; folder permissions; an
  * agent's inputs, dependencies, recent runs and version history (version, comment, author, date, newest first). From
  * UiPath's packages: two versions compared line by line, the check-in comment as release notes. From Blue Prism:
- * one published (live) version per agent, set directly or through an approval by someone else. Export and import,
- * code analysis and repository files stay in today's console for now.
+ * one published (live) version per agent, set directly or through an approval by someone else. Export, promotion and
+ * import, code analysis and the files kept in a folder are in RepoTools.
  */
-const TODAY = "../?page=automation";
 const KINDS: [RegExp, string][] = [[/\.process\.json$/, "Workflow"], [/\.form\.json$/, "Form"], [/\.flow\.json$/, "Agent"]];
 const kindOf = (p: string) => KINDS.find(([r]) => r.test(p))?.[1] ?? "File";
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
@@ -20,7 +20,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and schedule"], ["edit", "Edit: also check out, check in, move, delete"], ["manage", "Manage: also live version and labels"]];
 
 type Dlg = null | { kind: "agent"; a: RepoAgent } | { kind: "folder"; parent: string } | { kind: "rename" } | { kind: "permissions" } | { kind: "deleted" } | { kind: "approvals" }
-  | { kind: "run"; a: RepoAgent };
+  | { kind: "run"; a: RepoAgent } | { kind: "export" } | { kind: "import" } | { kind: "analysis" };
 
 export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [agents, setAgents] = useState<RepoAgent[] | null>(null);
@@ -58,7 +58,9 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
           {(requests.approval_on || requests.requests.length > 0) && <Button kind={toDecide ? "primary" : "secondary"} onClick={() => setDialog({ kind: "approvals" })}>
             Production approvals{requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""}</Button>}
           {can("repo.delete") && <Button kind="secondary" onClick={() => setDialog({ kind: "deleted" })}>Deleted agents</Button>}
-          <a className="ui-btn ui-btn-light" href={TODAY}>Export, import and code analysis</a>
+          {can("lifecycle.export") && <Button kind="secondary" onClick={() => setDialog({ kind: "export" })}>Export or promote</Button>}
+          {can("lifecycle.import") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import</Button>}
+          <Button kind="secondary" onClick={() => setDialog({ kind: "analysis" })}>Code analysis</Button>
         </span>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
@@ -109,6 +111,7 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
               </tbody>
             </table>
           </div>
+          <RepoFiles key={folder} api={api} user={user} folder={folder} onNotice={onNotice} />
         </div>
       </div>
       {dialog?.kind === "agent" && <AgentView key={dialog.a.path} api={api} user={user} a={dialog.a} folders={folders} approvalOn={requests.approval_on} onClose={() => setDialog(null)}
@@ -119,6 +122,9 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
       {dialog?.kind === "permissions" && <FolderPermissions api={api} folder={folder} onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.kind === "deleted" && <Deleted api={api} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); load(); }} />}
       {dialog?.kind === "approvals" && <Approvals api={api} user={user} onClose={() => { setDialog(null); load(); }} onNotice={onNotice} />}
+      {dialog?.kind === "export" && <ExportAgents api={api} onClose={() => setDialog(null)} onNotice={onNotice} />}
+      {dialog?.kind === "import" && <ImportAgents api={api} folder={folder} onClose={() => { setDialog(null); load(); }} onDone={(m) => { onNotice(m); load(); }} />}
+      {dialog?.kind === "analysis" && <CodeAnalysisPolicy api={api} user={user} onClose={() => setDialog(null)} onNotice={onNotice} />}
     </section>
   );
 }
@@ -208,6 +214,7 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
         <dt>Calls</dt><dd>{deps.agents.length ? deps.agents.map((d) => <span key={d.bot_id} className={d.found ? "cc-tag" : "cc-risk"} title={d.found ? undefined : "Not in this Command Center"}>{d.path ? agentName(d.path) : d.bot_id}</span>) : "No other agent"}</dd>
         <dt>Called by</dt><dd>{deps.called_by.length ? deps.called_by.map((p) => <span key={p} className="cc-tag">{agentName(p)}</span>) : "No other agent"}</dd>
         <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl></>}
+      {kind !== "File" && <AgentAnalysis api={api} path={a.path} />}
       {runs.length > 0 && <><h3 className="cc-log-title">Recent runs</h3>
         <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
           <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table></>}

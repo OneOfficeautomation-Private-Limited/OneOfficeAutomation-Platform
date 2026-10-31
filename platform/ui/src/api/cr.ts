@@ -48,6 +48,18 @@ export type DashWidget = { title?: string; type?: "number" | "bars" | "line" | "
 export type CustomDashboard = { id: string; name: string; description?: string | null; owner: string; shared_with: string[]; widgets: DashWidget[]; can_edit: boolean; updated?: string };
 /** A widget with its figures: value for a number, points for the others, or why it could not be worked out. */
 export type WidgetData = DashWidget & { value?: number | null; points?: { label: string; value: number | null }[]; error?: string };
+/** An export bundle: each agent's exact version with a checksum (and the agents they call), to import in another Command Center. */
+export type AgentBundle = { format: string; format_version?: number; exported_at?: string; exported_by?: string; source?: string; checksum?: string; toolkits?: string[];
+  agents: { path: string; bot_id?: string; name?: string; version: number; production?: boolean; included_as?: string; sha256?: string; content?: unknown }[] };
+/** What happened to each agent of an import (or promotion): created, updated, skipped, failed or not imported. */
+export type ImportResult = { ok: boolean; imported: number; results: { path: string; status: string; version?: number; error?: { code?: string; message: string } }[] };
+/** The code analysis policy: each rule on or off, error or warning, its settings; and whether check-ins with errors are refused. */
+export type CodePolicy = { enforce_at_checkin: boolean; rules: Record<string, { enabled: boolean; severity: "error" | "warning"; description: string; params: Record<string, unknown> }> };
+/** A version's code analysis: errors, warnings and each finding. */
+export type CodeReport = { path: string; version: number; errors: number; warnings: number; passed: boolean; analyzed?: string; analyzed_by?: string;
+  violations: { rule: string; severity: "error" | "warning"; step?: string | null; message: string }[] };
+/** A file kept in the repository (a template, workbook or list agents use); runners receive it before a run. */
+export type RepoFile = { path: string; size: number; sha256?: string; content_type?: string; updated?: string; updated_by?: string; version: number; folder: string; access: string };
 /** One agent's statistics for a period (GET analytics/agent). */
 export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
   last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
@@ -517,6 +529,34 @@ export class CrApi {
     if (!res.ok) { let e: CrError = { code: "HTTP." + res.status, message: res.statusText || "Export failed" }; try { e = JSON.parse(text).error ?? e; } catch { /* not JSON */ } throw new CrFailure(res.status, e); }
     return text;
   }
+  // ---- Agent Repository: export and import, promotion, code analysis, repository files ----
+  exportAgents(b: { paths: string[]; version: string; include_dependencies: boolean }) { return this.call<AgentBundle>("POST", "lifecycle/export", b); }
+  importAgents(b: { bundle: AgentBundle; conflict: "skip" | "overwrite"; production: boolean; target_folder: string | null }) { return this.call<ImportResult>("POST", "lifecycle/import", b); }
+  promoteAgents(b: { paths: string[]; version: string; include_dependencies: boolean; target_url: string; api_key_ref: string; conflict: "skip" | "overwrite"; production: boolean }) {
+    return this.call<{ ok: boolean; status: number; target: string; result?: Partial<ImportResult> & Record<string, unknown> }>("POST", "lifecycle/promote", b); }
+  codePolicy() { return this.call<CodePolicy>("GET", "repo/policy"); }
+  saveCodePolicy(b: { enforce_at_checkin: boolean; rules: Record<string, { enabled: boolean; severity: string; params: Record<string, unknown> }> }) { return this.call<CodePolicy>("PUT", "repo/policy", b); }
+  codeAnalysis(path: string) { return this.call<CodeReport>("GET", "repo/analysis?path=" + encodeURIComponent(path)); }
+  analyzeAgent(path: string) { return this.call<CodeReport>("POST", "repo/analyze", { path }); }
+  async codeAnalysisCsv() {
+    const res = await this.fetcher(this.base + "repo/analysis/report", { method: "GET", credentials: "same-origin" });
+    const text = await res.text();
+    if (!res.ok) { let e: CrError = { code: "HTTP." + res.status, message: res.statusText || "Report failed" }; try { e = JSON.parse(text).error ?? e; } catch { /* not JSON */ } throw new CrFailure(res.status, e); }
+    return text;
+  }
+  async repoFiles(folder?: string) { return (await this.call<{ files?: RepoFile[] }>("GET", "repo/files" + (folder ? "?folder=" + encodeURIComponent(folder) : ""))).files ?? []; }
+  /** Where a repository file downloads from (the browser follows the link with the session). */
+  repoFileUrl(path: string) { return this.base + "repo/files/content?path=" + encodeURIComponent(path); }
+  async uploadRepoFile(path: string, file: Blob) {
+    const res = await this.fetcher(this.base + "repo/files?path=" + encodeURIComponent(path), { method: "PUT", credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", "Content-Type": file.type || "application/octet-stream" }, body: file });
+    const text = await res.text();
+    let d: { version?: number; error?: CrError } = {};
+    try { d = JSON.parse(text); } catch { /* not JSON */ }
+    if (!res.ok) throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Upload failed" });
+    return { version: d.version ?? 1 };
+  }
+  async deleteRepoFile(path: string) { await this.call("DELETE", "repo/files?path=" + encodeURIComponent(path)); }
   /** Operations figures for a period (days, or from and to) and filters (bot, device, user, source): only agents the caller may see. */
   operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
