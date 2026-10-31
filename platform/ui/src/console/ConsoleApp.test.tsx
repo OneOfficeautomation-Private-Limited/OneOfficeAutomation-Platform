@@ -853,6 +853,10 @@ describe("rebuilt Command Center console", () => {
     expect(within(list).getByText("Finance pool")).toBeTruthy();
     expect(screen.getByText(/1 of 2 online/)).toBeTruthy();
     expect(within(list).getByRole("button", { name: "Actions for Runner B" })).toBeTruthy();   // the list pattern: a menu per row
+    // the first columns are AA's and what an operator watches; the rest wait in Columns, and the version says when an update is out
+    expect(within(list).queryByRole("columnheader", { name: "Platform" })).toBeNull();
+    expect(within(list).queryByRole("columnheader", { name: "Program" })).toBeNull();
+    expect(within(within(list).getByText("Runner B").closest("tr")!).getByText(/update available/)).toBeTruthy();
     expect(screen.queryByRole("toolbar", { name: "Runner actions" })).toBeNull();   // the bar shows only while runners are ticked
     // search in a chosen field (AA's search chooser), then a status filter
     fireEvent.change(screen.getByLabelText("Search in"), { target: { value: "os" } });
@@ -908,7 +912,12 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(pool).getByRole("button", { name: "Save" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "pools", body: { name: "HR pool", description: "", devices: ["d1"], owners: [], consumers: ["bot_runner"] } }));
     fireEvent.click(screen.getByRole("tab", { name: /Runner pools/ }));
-    expect(within(await screen.findByRole("table", { name: "Runner pools list" })).getByText("1 of 1")).toBeTruthy();
+    const pools = await screen.findByRole("table", { name: "Runner pools list" });
+    expect(within(pools).getByText("1 of 1")).toBeTruthy();
+    expect(within(pools).getByText("1 runner").getAttribute("title")).toBe("Runner A");   // counted, named on hover
+    fireEvent.keyDown(within(pools).getByRole("button", { name: "Actions for Finance pool" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Show its runners" }));
+    expect((await screen.findByLabelText("Runner pool") as HTMLSelectElement).value).toBe("p1");
   });
 
   it("asks the server once at start, with its own client: no request loop", async () => {

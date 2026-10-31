@@ -10,6 +10,9 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * program, maintenance (no new work; runs finish or are stopped, as UiPath's), disable or enable, delete, export. A
  * runner's details open from its row, with its nickname and description, CPU and memory use, and its logs and a
  * screen picture on request. Pools: runners that share work, with owners and users (roles). Refreshes every 15 s.
+ * Review round 2 (31 Oct 2026): the columns shown at first are AA's (status, name, pool, type, users) and what an
+ * operator watches (running, CPU, version, last seen), so the list fits the screen; the rest are in Columns. A pool is
+ * one line (its runners counted, named on hover) with a menu.
  */
 type Tab = "runners" | "pools";
 type Col = { key: string; label: string; cell: (d: Runner, pools: RunnerPool[]) => string };
@@ -34,21 +37,22 @@ const program = (d: Runner) => d.up_to_date === undefined ? "" : d.up_to_date ? 
 const COLS: Col[] = [
   { key: "status", label: "Status", cell: (d) => STATUS[stateOf(d)] },
   { key: "name", label: "Runner", cell: (d) => d.name },
+  { key: "pools", label: "Runner pools", cell: poolsOf },
+  { key: "type", label: "Runner type", cell: (d) => TYPE[d.device_type ?? "multi_user"] ?? d.device_type ?? "" },
+  { key: "users", label: "Default users", cell: (d) => (d.default_users ?? []).join(", ") },
+  { key: "running", label: "Running", cell: (d) => String(d.running ?? 0) },
+  { key: "cpu", label: "CPU", cell: (d) => pct(d.cpu_pct) },
+  { key: "version", label: "Runner version", cell: (d) => (d.agent_version ?? "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center)" : "")
+    + (d.up_to_date === false ? (d.update_requested ? " · updating" : " · update available") : "") },
+  { key: "seen", label: "Last seen", cell: (d) => ago(d.last_seen) },
   { key: "nickname", label: "Nickname", cell: (d) => d.nickname ?? "" },
   { key: "os", label: "Platform", cell: (d) => d.os ?? "" },
-  { key: "users", label: "Default users", cell: (d) => (d.default_users ?? []).join(", ") },
-  { key: "type", label: "Runner type", cell: (d) => TYPE[d.device_type ?? "multi_user"] ?? d.device_type ?? "" },
   { key: "lifespan", label: "Lifespan", cell: (d) => d.lifespan === "temporary" ? "Temporary" : "Persistent" },
   { key: "log", label: "Log level", cell: (d) => d.log_level ?? "info" },
   { key: "screen", label: "Screen", cell: (d) => SCREEN[d.session_state ?? ""] ?? "" },
   { key: "after", label: "After a run", cell: (d) => AFTER_RUN[d.after_run ?? "nothing"] },
-  { key: "running", label: "Running", cell: (d) => String(d.running ?? 0) },
-  { key: "cpu", label: "CPU", cell: (d) => pct(d.cpu_pct) },
   { key: "mem", label: "Memory", cell: (d) => pct(d.mem_pct) },
-  { key: "version", label: "Runner version", cell: (d) => (d.agent_version ?? "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center)" : "") },
   { key: "program", label: "Program", cell: program },
-  { key: "pools", label: "Runner pools", cell: poolsOf },
-  { key: "seen", label: "Last seen", cell: (d) => ago(d.last_seen) },
   { key: "registered", label: "Registered", cell: (d) => when(d.registered) + (d.registered_by ? " by " + d.registered_by : "") },
 ];
 /** The fields the search box can look in, as AA's search chooser. */
@@ -59,7 +63,8 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
 export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = usePersistent<Tab>("devices.tab", "runners");
-  const [hidden, setHidden] = usePersistent<string[]>("devices.hidden", ["nickname", "screen", "after", "mem", "registered"]);
+  // v2: the shorter first choice of review round 2 (earlier choices kept under the old key are not carried over)
+  const [hidden, setHidden] = usePersistent<string[]>("devices.hidden.v2", ["nickname", "os", "lifespan", "log", "screen", "after", "mem", "program", "registered"]);
   const [runners, setRunners] = useState<Runner[] | null>(null);
   const [pools, setPools] = useState<RunnerPool[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +208,8 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
             <button type="button" className="cc-list-icon" aria-label="Next page" disabled={offset + PAGE >= shown.length} onClick={() => setOffset(offset + PAGE)}>›</button>
           </div>}
         </div>
-      </> : <Pools pools={pools} runners={runners ?? []} canManage={can("pools.manage")} onOpen={(p) => setDialog({ kind: "pool", pool: p })} />}
+      </> : <Pools pools={pools} runners={runners ?? []} canManage={can("pools.manage")} onOpen={(p) => setDialog({ kind: "pool", pool: p })}
+        onRunners={(p) => { setTab("runners"); setF({ pool: p.id }); setOffset(0); }} />}
 
       {dialog?.kind === "columns" && (
         <Dialog open title="Columns" width={360} onClose={() => setDialog(null)} footer={<Button kind="primary" onClick={() => setDialog(null)}>Done</Button>}>
@@ -234,21 +240,26 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   );
 }
 
-function Pools({ pools, runners, canManage, onOpen }: { pools: RunnerPool[]; runners: Runner[]; canManage: boolean; onOpen: (p: RunnerPool) => void }) {
+function Pools({ pools, runners, canManage, onOpen, onRunners }: { pools: RunnerPool[]; runners: Runner[]; canManage: boolean; onOpen: (p: RunnerPool) => void; onRunners: (p: RunnerPool) => void }) {
   const nameOf = (id: string) => runners.find((d) => d.id === id)?.name ?? id;
+  const mayOpen = (p: RunnerPool) => canManage || !!p.can_manage;
   return (
     <div className="cc-list-panel"><div className="cc-list-scroll">
       <table className="cc-list-table" aria-label="Runner pools list">
-        <thead><tr><th scope="col">Pool</th><th scope="col">Description</th><th scope="col">Runners</th><th scope="col">Online</th><th scope="col">Owners</th><th scope="col">Users</th></tr></thead>
+        <thead><tr><th scope="col">Pool</th><th scope="col">Description</th><th scope="col">Runners</th><th scope="col">Online</th><th scope="col">Owners</th><th scope="col">Users</th>
+          <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
         <tbody>
           {pools.map((p) => (
-            <tr key={p.id} onClick={() => (canManage || p.can_manage) && onOpen(p)} className={canManage || p.can_manage ? undefined : "is-static"}>
-              <td><strong>{p.name}</strong></td><td>{p.description || <span className="cc-none">–</span>}</td><td>{p.devices.map(nameOf).join(", ")}</td>
+            <tr key={p.id} onClick={rowClick(() => mayOpen(p) && onOpen(p))} className={mayOpen(p) ? undefined : "is-static"}>
+              <td><strong>{p.name}</strong></td><td>{p.description || <span className="cc-none">–</span>}</td>
+              <td title={p.devices.map(nameOf).join(", ")}>{p.devices.length} runner{p.devices.length === 1 ? "" : "s"}</td>
               <td>{p.devices.filter((id) => runners.find((d) => d.id === id)?.status === "online").length} of {p.devices.length}</td>
               <td>{(p.owners ?? []).join(", ") || p.created_by || ""}</td><td>{(p.consumers ?? []).join(", ") || "Anyone who may start runs"}</td>
+              <td className="cc-list-menu"><RowMenu label={"Actions for " + p.name} items={[...(mayOpen(p) ? [{ key: "open", label: "Open", onSelect: () => onOpen(p) }] : []),
+                { key: "runners", label: "Show its runners", onSelect: () => onRunners(p) }]} /></td>
             </tr>
           ))}
-          {!pools.length && <tr className="is-static"><td colSpan={6} className="cc-none">No runner pools yet. A pool shares work between runners: a run sent to it goes to its least busy online runner.</td></tr>}
+          {!pools.length && <tr className="is-static"><td colSpan={7} className="cc-none">No runner pools yet. A pool shares work between runners: a run sent to it goes to its least busy online runner.</td></tr>}
         </tbody>
       </table>
     </div></div>
