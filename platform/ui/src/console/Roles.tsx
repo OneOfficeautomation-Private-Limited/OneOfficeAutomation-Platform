@@ -65,6 +65,11 @@ const AREA_LOOK: Record<string, [string, string]> = {
   AI: ["AI", "#6d28d9"], Administration: ["Ad", "#475569"],
 };
 const infoOf = (p: string) => PERMS[p] ?? { area: "Other", kind: "admin" as Kind, label: p };
+/** Permissions in a steady order (by area as in AREA_LOOK, then as listed in PERMS), whatever order the server sends. */
+const AREA_ORDER = Object.keys(AREA_LOOK);
+const PERM_ORDER = Object.keys(PERMS);
+const rank = (list: string[], v: string) => { const i = list.indexOf(v); return i < 0 ? list.length : i; };
+const byOrder = (a: string, b: string) => rank(AREA_ORDER, infoOf(a).area) - rank(AREA_ORDER, infoOf(b).area) || rank(PERM_ORDER, a) - rank(PERM_ORDER, b) || a.localeCompare(b);
 const ROLE_NAMES: Record<string, string> = { admin: "Administrator", bot_creator: "Agent builder", bot_runner: "Agent runner", viewer: "Viewer" };
 /** What each built-in role is for, in one line. */
 const BUILTIN_FOR: Record<string, string> = {
@@ -160,7 +165,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
           <span className={"cc-chip" + (f.kind ? " is-on" : "")}><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
             options={[{ value: "", label: "Kind: Any" }, { value: "builtin", label: "Kind: Built-in" }, { value: "custom", label: "Kind: Custom" }]} /></span>
           {data && <span className={"cc-chip" + (f.perm ? " is-on" : "")}><Select aria-label="Grants" value={f.perm ?? ""} onChange={(e) => setF({ ...f, perm: e.target.value })}
-            options={[{ value: "", label: "Grants: Any permission" }, ...data.permissions.map((p) => ({ value: p, label: "Grants: " + infoOf(p).area + ", " + infoOf(p).label }))]} /></span>}
+            options={[{ value: "", label: "Grants: Any permission" }, ...[...data.permissions].sort(byOrder).map((p) => ({ value: p, label: "Grants: " + infoOf(p).area + ", " + infoOf(p).label }))]} /></span>}
           {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="Roles list tools">
@@ -245,7 +250,7 @@ function RoleEditor({ api, role, copyOf, all, roles, onClose, onCopy, onSaved }:
   const [error, setError] = useState<string | null>(null);
   const areas = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const p of all) { const a = infoOf(p).area; m.set(a, [...(m.get(a) ?? []), p]); }
+    for (const p of [...all].sort(byOrder)) { const a = infoOf(p).area; m.set(a, [...(m.get(a) ?? []), p]); }
     return [...m.entries()];
   }, [all]);
   const text = find.trim().toLowerCase();
