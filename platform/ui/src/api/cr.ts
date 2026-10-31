@@ -133,7 +133,9 @@ export type TaskFormField = { id: string; type: string; label?: string; text?: s
 /** A task a workflow gives a person or role: fill in a form, approve, or read a notice. */
 export type HumanTask = { id: string; title: string; description?: string | null; kind: "form" | "approval" | "notification"; status: string; assignee?: string;
   claimed_by?: string | null; completed_by?: string | null; created?: string; due?: string | null; completed?: string | null; overdue?: boolean; can_act?: boolean; outcome?: string | null;
-  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string };
+  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string;
+  /** Where it comes from: its workflow's name and the request's reference. */
+  workflow?: string | null; reference?: string | null };
 /** A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily or weekly. */
 export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly";
   every_minutes?: number | null; at_time?: string | null; days?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;

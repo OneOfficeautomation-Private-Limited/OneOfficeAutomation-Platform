@@ -257,7 +257,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "calendars") return ok({ calendars: [{ name: "India 2026", dates: ["2026-08-15", "2026-12-25"] }] });
     if (route === "tasks") return ok({ tasks: url.includes("status=completed") ? [
       { id: "k9", title: "Old approval", kind: "approval", status: "completed", assignee: "role:admin", outcome: "approved", completed_by: "admin", completed: "2026-10-30T10:00:00Z" }] : [
-      { id: "k1", title: "Approve invoice 42", kind: "approval", status: "open", assignee: "role:admin", due: "2026-10-01T00:00:00Z", overdue: true, can_act: true, data: { amount: 1200, vendor: "Acme" } },
+      { id: "k1", title: "Approve invoice 42", kind: "approval", status: "open", assignee: "role:admin", due: "2026-10-01T00:00:00Z", overdue: true, can_act: true, data: { amount: 1200, vendor: "Acme" },
+        workflow: "Invoice approval", reference: "INV-42" },
       { id: "k2", title: "Vendor details", kind: "form", status: "open", assignee: "user:admin", can_act: true,
         form: { fields: [{ id: "iban", type: "text", label: "IBAN", required: true }, { id: "urgent", type: "checkbox", label: "Urgent" }], submitLabel: "Send" } }] });
     if (/^tasks\/k\d\/(claim|release|complete)$/.test(route)) return ok({ ok: true });
@@ -1175,13 +1176,20 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
   });
 
-  it("shows the Task inbox as UiPath's Action Center: to do and done, overdue filter, approve with a comment, a form with a required field", async () => {
+  it("shows the Task inbox as AA's task list: one line per task with where it comes from and its state, take it from the row, overdue filter, approve with a comment, a form with a required field", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
     await go("Task inbox");
     const list = await screen.findByRole("table", { name: "Tasks to do" });
     expect(await within(list).findByText("Overdue")).toBeTruthy();   // a red pill
     expect(screen.getByText(/to do · 1 overdue/)).toBeTruthy();   // the count
+    const k1 = within(list).getByText("Approve invoice 42").closest("tr")!;
+    expect(within(k1).getByText("Invoice approval · INV-42")).toBeTruthy();   // where it comes from
+    expect(within(k1).getByText("Waiting")).toBeTruthy();
+    fireEvent.keyDown(within(within(list).getByText("Vendor details").closest("tr")!).getByRole("button", { name: "Actions for Vendor details" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Take it" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "tasks/k2/claim" }));
+    expect(screen.queryByRole("dialog", { name: "Vendor details" })).toBeNull();   // the menu does not open the task too
     fireEvent.click(screen.getByLabelText("Overdue only"));
     await waitFor(() => expect(within(list).queryByText("Vendor details")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));

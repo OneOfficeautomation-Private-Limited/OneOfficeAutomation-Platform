@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
 import { Button, Field, Select, TextArea, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
@@ -10,6 +10,8 @@ import { RefreshButton } from "./ListParts";
  * people do not work on the same task. The list refreshes every 30 seconds.
  * Laid out as the design plan's step 8 (approved on the canvas 31 Oct 2026): the list pattern with a tile per kind and
  * Overdue as a pill, and a task in a side panel beside the list (where it comes from, what to decide, the actions).
+ * Review round 2 (31 Oct 2026), as AA's task list (status, request, reference): one line per task, where it comes from
+ * (its workflow and the request's reference) and its state in columns of their own, and a row menu.
  */
 type Tab = "open" | "completed";
 const KIND: Record<string, string> = { form: "Fill in", approval: "Approve", notification: "Notice" };
@@ -36,12 +38,19 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
-    return (tasks ?? []).filter((t) => (!text || (t.title + " " + (t.description ?? "") + " " + (t.assignee ?? "")).toLowerCase().includes(text))
+    return (tasks ?? []).filter((t) => (!text || (t.title + " " + (t.description ?? "") + " " + (t.assignee ?? "") + " " + (t.workflow ?? "") + " " + (t.reference ?? "")).toLowerCase().includes(text))
       && (!f.kind || t.kind === f.kind) && (!f.overdue || t.overdue) && (!f.mine || t.claimed_by === user.username));
   }, [tasks, f, user.username]);
 
   const overdue = (tasks ?? []).filter((t) => t.overdue).length;
   const filtered = Object.values(f).some(Boolean);
+  const claim = (t: HumanTask, release: boolean) => api.claimTask(t.id, release).then(() => { onNotice(release ? "Gave back " + t.title + "." : "Took " + t.title + ": others no longer see it as open."); load(); }, (e) => setError(message(e)));
+  const rowMenu = (t: HumanTask) => [
+    { key: "open", label: "Open", onSelect: () => setOpen(t) },
+    ...(t.can_act && t.status === "open" && t.kind !== "notification" ? [{ key: "take", label: "Take it", onSelect: () => claim(t, false) }] : []),
+    ...(t.can_act && t.status === "claimed" ? [{ key: "back", label: "Give back", onSelect: () => claim(t, true) }] : []),
+  ];
+  const comesFrom = (t: HumanTask) => [t.workflow, t.reference].filter(Boolean).join(" · ");
   const tile = (k: string) => { const [m, c] = TILE[k] ?? ["?", "#475569"]; return <span className="cc-task-tile" style={{ background: c }} title={KIND[k] ?? k} aria-hidden="true">{m}</span>; };
 
   return (
@@ -74,19 +83,23 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
       <div className="cc-list-panel">
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label={tab === "open" ? "Tasks to do" : "Tasks done"}>
-            <thead><tr><th scope="col">Task</th><th scope="col">Assigned to</th>
-              {tab === "open" ? <><th scope="col">Due</th><th scope="col">Given</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}</tr></thead>
+            <thead><tr><th scope="col">Task</th><th scope="col">Comes from</th>{tab === "open" && <th scope="col">State</th>}<th scope="col">Assigned to</th>
+              {tab === "open" ? <><th scope="col">Due</th><th scope="col">Given</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((t) => (
-                <tr key={t.id} className={open?.id === t.id ? "is-open" : undefined} onClick={() => setOpen(t)}>
-                  <td>{tile(t.kind)}<strong>{t.title}</strong><span className="st-sr"> ({KIND[t.kind] ?? t.kind})</span>{t.description && <span className="cc-list-sub cc-task-sub">{t.description}</span>}</td>
-                  <td>{t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee}</td>
+                <tr key={t.id} className={open?.id === t.id ? "is-open" : undefined} onClick={rowClick(() => setOpen(t))}>
+                  <td title={t.description ?? undefined}>{tile(t.kind)}<strong>{t.title}</strong><span className="st-sr"> ({KIND[t.kind] ?? t.kind})</span></td>
+                  <td>{comesFrom(t) || <span className="cc-none">–</span>}</td>
+                  {tab === "open" && <td>{t.claimed_by ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Taken by {t.claimed_by === user.username ? "you" : t.claimed_by}</span> : <span className="cc-pill is-stopped">Waiting</span>}</td>}
+                  <td>{t.assignee}</td>
                   {tab === "open" ? <><td>{t.overdue && <span className="cc-pill is-failed"><span className="cc-pill-dot" />Overdue</span>} {t.due ? when(t.due) : <span className="cc-none">–</span>}</td><td>{when(t.created)}</td></>
                     : <><td>{OUTCOME[t.outcome ?? ""] ?? t.outcome ?? t.status}</td><td>{t.completed_by ?? ""}</td><td>{when(t.completed)}</td></>}
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + t.title} items={rowMenu(t)} /></td>
                 </tr>
               ))}
-              {tasks && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{tasks.length ? "No tasks match." : tab === "open" ? "Nothing waiting for you." : "No completed tasks yet."}</td></tr>}
-              {!tasks && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
+              {tasks && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{tasks.length ? "No tasks match." : tab === "open" ? "Nothing waiting for you." : "No completed tasks yet."}</td></tr>}
+              {!tasks && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>
         </div>

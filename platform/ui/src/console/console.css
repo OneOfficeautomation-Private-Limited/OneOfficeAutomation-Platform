@@ -688,6 +688,7 @@ span.cc-code-tw { cursor: default; }
 .cc-col-filter:hover { border-color: var(--ui-border); background: var(--ui-bg); color: var(--ui-text); }
 .cc-col-filter.is-on { opacity: 1; color: #ffffff; background: var(--ui-accent); border-color: var(--ui-accent); }
 .cc-col-grip { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
+th:last-child > .cc-col-grip { right: 0; }   /* inside the table: past its edge it made a sideways scroll bar */
 .cc-col-grip:hover, .cc-col-grip:active { background: linear-gradient(to right, transparent 3px, var(--ui-accent) 3px, var(--ui-accent) 4px, transparent 4px); }
 table.cc-cols-fixed { table-layout: fixed; }
 table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow: ellipsis; }

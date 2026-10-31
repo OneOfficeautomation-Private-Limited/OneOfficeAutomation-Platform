@@ -171,6 +171,10 @@ class TokensSchedulingAnalysisApiTasksTest {
         assertEquals(started.get("id"), byRef.get("id"));
         assertEquals(1, ((List<Object>) byRef.get("tasks")).size());
         assertEquals(started.get("id"), cr.workflows.run(admin, (String) started.get("id"), null).get("id"));
+        // the inbox says where a task comes from: its workflow and the request's reference
+        Map<String, Object> told = cr.workflows.tasks(admin, "open", false).stream().filter(x -> started.get("id").equals(x.get("workflow_run_id"))).findFirst().orElseThrow();
+        assertEquals("Purchase", told.get("workflow"));
+        assertEquals("PO-1", told.get("reference"));
     }
 
     @Test @Order(5)
