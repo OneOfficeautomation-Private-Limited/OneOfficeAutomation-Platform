@@ -19,7 +19,7 @@ const kindOf = (p: string) => KINDS.find(([r]) => r.test(p))?.[1] ?? "File";
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
 const folderOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 /** A folder icon, open or closed (the colour of a paper folder, outlined for contrast). */
-function FolderIcon({ open }: { open?: boolean }) {
+export function FolderIcon({ open }: { open?: boolean }) {
   return open ? <svg className="cc-fico" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H8.5a2 2 0 0 0-1.9 1.4L4 19H5" fill="none" stroke="#a86b0c" strokeWidth="1.8" />
     <path d="M6.6 11.4A2 2 0 0 1 8.5 10H21l-2.6 7.6A2 2 0 0 1 16.5 19H4z" fill="#f6d58b" stroke="#a86b0c" strokeWidth="1.8" strokeLinejoin="round" /></svg>
     : <svg className="cc-fico" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#f6d58b" stroke="#a86b0c" strokeWidth="1.8" strokeLinejoin="round" /></svg>;

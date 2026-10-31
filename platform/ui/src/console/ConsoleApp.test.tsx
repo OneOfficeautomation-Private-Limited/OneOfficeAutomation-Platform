@@ -1420,14 +1420,15 @@ describe("rebuilt Command Center console", () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Agent Templates");
-    const cards = await screen.findByRole("list", { name: "Templates" });
-    expect(await within(cards).findByText("IT · shared by Contoso")).toBeTruthy();
+    const list = await screen.findByRole("table", { name: "Templates" });   // laid out as Automation: a category tree and one table
+    expect(await within(list).findByText("Shared by Contoso")).toBeTruthy();
     fireEvent.click(within(screen.getByRole("navigation", { name: "Categories" })).getByRole("button", { name: /^Finance/ }));
-    await waitFor(() => expect(within(cards).queryByText("Password reset")).toBeNull());
-    // already in Automation (Finance): the card says where, and its side panel installs it again
-    const card = within(cards).getByRole("listitem", { name: "Invoice intake" });
-    expect(await within(card).findByText("in Finance")).toBeTruthy();
-    fireEvent.click(within(card).getByText("Reads invoices into the ERP"));
+    await waitFor(() => expect(within(list).queryByText("Password reset")).toBeNull());
+    // already in Automation (Finance): the row says where; its page lists what is inside and installs it again
+    const row = within(list).getByText("Invoice intake").closest("tr")!;
+    expect(within(row).getByText("Installed")).toBeTruthy();
+    expect(within(row).getAllByText("Finance").length).toBeGreaterThan(0);
+    fireEvent.click(within(row).getByText("Invoice intake"));
     const about = await screen.findByRole("dialog", { name: "About Invoice intake" });
     expect(within(about).getByText("Read PDF")).toBeTruthy();
     fireEvent.click(within(about).getByRole("button", { name: "Install again into…" }));
@@ -1435,6 +1436,7 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(i).getByLabelText("Folder"), { target: { value: "Finance/From templates" } });
     await act(async () => { fireEvent.click(within(i).getByRole("button", { name: "Install" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/install", body: { source: "vendor", id: "inv", folder: "Finance/From templates" } }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "About Invoice intake" })).getByRole("button", { name: "Close" }));
     fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Share an agent" }));
     const sh = await screen.findByRole("dialog", { name: "Share an agent as a template" });
