@@ -4,6 +4,8 @@ import type { ConsolePlugin, CrApi } from "../api/cr";
 /**
  * AI > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
  * ConsolePlugin on the server); without it, the page says what the module does and that it is not installed.
+ * Review round 2 (1 Nov 2026): the title row of the other pages (what it does on hover, Installed or Not installed, and
+ * Open on the right when installed).
  */
 export function DocumentAutomation({ api }: { api: CrApi }) {
   const [plugin, setPlugin] = useState<ConsolePlugin | null | undefined>(undefined);   // undefined: still asking
@@ -14,12 +16,17 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-da-title">
-      <header className="st-page-head"><div><h1 id="cc-da-title">Document Automation</h1>
-        <p>Reads documents such as invoices, receipts and forms, and pulls their fields out with AI, for agents to use.</p></div></header>
+      <header className="cc-list-head">
+        <h1 id="cc-da-title">Document Automation</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Reads documents such as invoices, receipts and forms, and pulls their fields out with AI, for agents to use.">i</span>
+        {plugin !== undefined && <span className={"cc-pill is-" + (plugin ? "active" : "disabled")}><span className="cc-pill-dot" />{plugin ? "Installed" : "Not installed"}</span>}
+        <span className="ov-fill" />
+        {plugin && <a className="ui-btn ui-btn-primary" href={plugin.path}>Open Document Automation</a>}
+      </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {plugin === undefined && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {plugin && (
-        <div className="cc-card"><p>{plugin.description}</p><a className="ui-btn ui-btn-primary" href={plugin.path}>Open Document Automation</a></div>
+        <div className="cc-card"><p>{plugin.description}</p></div>
       )}
       {plugin === null && (
         <div className="cc-card">

@@ -413,11 +413,13 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     await go("Document Automation");
     expect(await screen.findByRole("heading", { name: "Not installed on this Command Center" })).toBeTruthy();
+    expect(screen.getByText("Not installed").closest(".cc-pill")).toBeTruthy();   // the title row's badge
     expect(within(menu).getByRole("button", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
     cleanup();
     render(<ConsoleApp api={fakeServer({ signedIn: admin, plugins: [{ id: "document-automation", name: "Document Automation", description: "Learning instances and validation.", path: "/plugins/document-automation/" }] }).api} />);
     await go("Document Automation");
     expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
+    expect(screen.getByText("Installed").closest(".cc-pill")).toBeTruthy();
   });
 
   it("shows Agent Activity as AA's Activity: a summary, In progress and Completed, filters, selected runs stopped or run again, columns, CSV", async () => {
