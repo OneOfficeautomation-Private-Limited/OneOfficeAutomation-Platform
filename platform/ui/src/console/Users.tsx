@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Field, Menu, Select, TextArea, TextInput, usePersistent } from "../components";
 
 /**
  * Administration > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
@@ -8,6 +8,9 @@ import { Button, Dialog, Field, Select, TextArea, TextInput, usePersistent } fro
  * for the selected people: enable, disable, delete, export. A person's details open from their row, in AA's order
  * (general details, roles, default runner), with Blue Prism's Unlock and the password and two-step resets. Create
  * user shows the temporary password once; they choose their own at the first sign-in.
+ * Laid out as the design plan's list pattern (step 3, approved on the canvas): a title row with a count, one toolbar
+ * (search, filter chips, Columns, Export, refresh), Enable / Disable / Delete in a blue bar only while rows are ticked,
+ * a compact table with one status pill style and a ⋯ menu per row, and a pager under it.
  */
 type Col = { key: string; label: string; cell: (u: CrPerson, runner: string) => string };
 
@@ -39,7 +42,7 @@ const COLS: Col[] = [
 ];
 /** The fields the search box can look in, as AA's search chooser. */
 const SEARCH_IN: [string, string][] = [["any", "Any field"], ["username", "User name"], ["name", "Name"], ["email", "E-mail"], ["description", "Description"]];
-const PAGE = 50;
+const PAGE_SIZES = [25, 50, 100];
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
@@ -53,6 +56,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const [searchIn, setSearchIn] = useState("any");
   const [f, setF] = useState<Record<string, string>>({});
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = usePersistent("users.pageSize", 25);
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<null | { kind: "columns" | "create" | "delete" } | { kind: "details"; id: string } | { kind: "password"; username: string; password: string }>(null);
   const canRunners = user.permissions.includes("devices.view");
@@ -77,7 +81,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     return (people ?? []).filter((u) => (!text || fields(u).toLowerCase().includes(text))
       && (!f.status || stateOf(u) === f.status) && (!f.role || (u.roles ?? [u.role]).includes(f.role)));
   }, [people, f, searchIn]);
-  const page = shown.slice(offset, offset + PAGE);
+  const page = shown.slice(offset, offset + pageSize);
   const chosen = (people ?? []).filter((u) => selected.includes(u.id));
   const cols = COLS.filter((c) => !hidden.includes(c.key) && (c.key !== "runner" || canRunners));
   const setFilter = (k: string, v: string) => { setF({ ...f, [k]: v }); setOffset(0); };
@@ -99,59 +103,98 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     onNotice("Exported " + rows.length + " user" + (rows.length === 1 ? "" : "s") + ".");
   };
 
+  const active = (people ?? []).filter((u) => u.enabled).length;
+  const locked = (people ?? []).filter((u) => stateOf(u) === "locked").length;
+  const filtered = Object.values(f).some(Boolean);
+  const resetPassword = (u: CrPerson) => api.resetPassword(u.id).then((p) => { onNotice("Reset the password of " + u.username + "."); setDialog({ kind: "password", username: u.username, password: p.temporary_password }); },
+    (e) => setError(message(e)));
+  const one = (what: string, fn: () => Promise<unknown>) => fn().then(() => { onNotice(what); load(); }, (e) => setError(message(e)));
+  const rowMenu = (u: CrPerson) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "details", id: u.id }) },
+    ...(stateOf(u) === "locked" ? [{ key: "unlock", label: "Unlock", onSelect: () => one("Unlocked " + u.username + ".", () => api.unlockUser(u.id)) }] : []),
+    { key: "password", label: "Reset password", onSelect: () => resetPassword(u) },
+    { key: "twostep", label: "Reset two-step sign-in", onSelect: () => one("Two-step sign-in reset for " + u.username + "; they set it up again.", () => api.resetTwoStep(u.id)) },
+    { key: "enable", label: u.enabled ? "Disable" : "Enable", onSelect: () => one((u.enabled ? "Disabled " : "Enabled ") + u.username + ".", () => api.updateUser(u.id, { enabled: !u.enabled })) },
+    { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => { setSelected([u.id]); setDialog({ kind: "delete" }); } },
+  ];
+  const cell = (c: Col, u: CrPerson) => {
+    if (c.key === "status") return <span className={"cc-pill is-" + stateOf(u)}><span className="cc-pill-dot" />{STATUS[stateOf(u)]}</span>;
+    if (c.key === "username") return <strong>{u.username}</strong>;
+    if (c.key === "roles") return (u.roles ?? [u.role]).map((r) => <span key={r} className="cc-role">{roleName(r)}</span>);
+    const v = c.cell(u, runnerOf[u.username] ?? "");
+    return v || <span className="cc-none">–</span>;
+  };
+
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-users-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-users-title">Users</h1><p>People who can sign in, their roles, and the runner their runs go to.{people ? " " + people.filter((u) => u.enabled).length + " of " + people.length + " enabled." : ""}</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-users-title">
+      <header className="cc-list-head">
+        <h1 id="cc-users-title">Users</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="People who can sign in, their roles, and the runner their runs go to">i</span>
+        {people && <span className="cc-list-count">{people.length} {people.length === 1 ? "person" : "people"} · {active} active{locked ? " · " + locked + " locked" : ""}</span>}
+        <span className="ov-fill" />
         <Button kind="primary" onClick={() => setDialog({ kind: "create" })}>Create user</Button>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} />
-        <TextInput type="search" aria-label="Search users" placeholder="Search" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} />
-        <Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
-          options={[{ value: "", label: "Any status" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label }))]} />
-        {roles.length > 0 && <Select aria-label="Role" value={f.role ?? ""} onChange={(e) => setFilter("role", e.target.value)}
-          options={[{ value: "", label: "Any role" }, ...roles.map((r) => ({ value: r, label: roleName(r) }))]} />}
-        {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
-      </div>
-      <div className="cc-bar" role="toolbar" aria-label="User actions">
-        {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
-        <Button kind="secondary" disabled={!chosen.some((u) => !u.enabled)} onClick={() => each("Enabled", (u) => api.updateUser(u.id, { enabled: true }))}>Enable</Button>
-        <Button kind="secondary" disabled={!chosen.some((u) => u.enabled)} onClick={() => each("Disabled", (u) => api.updateUser(u.id, { enabled: false }))}>Disable</Button>
-        <Button kind="danger" disabled={!chosen.length} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
-        <span className="st-bar-fill" />
-        <Button kind="plain" onClick={load}>Refresh</Button>
-        <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
-        <Button kind="secondary" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
-      </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Users list">
-          <thead><tr>
-            <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={page.length > 0 && page.every((u) => selected.includes(u.id))}
-              onChange={(e) => setSelected(e.target.checked ? page.map((u) => u.id) : [])} /></th>
-            {cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
-          </tr></thead>
-          <tbody>
-            {page.map((u) => (
-              <tr key={u.id} className={selected.includes(u.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) setDialog({ kind: "details", id: u.id }); }}>
-                <td className="cc-check"><input type="checkbox" aria-label={"Select " + u.username} checked={selected.includes(u.id)}
-                  onChange={(e) => setSelected(e.target.checked ? [...selected, u.id] : selected.filter((x) => x !== u.id))} /></td>
-                {cols.map((c) => <td key={c.key} className={c.key === "status" ? "cc-status is-" + stateOf(u) : undefined}>{c.cell(u, runnerOf[u.username] ?? "")}</td>)}
-              </tr>
-            ))}
-            {people && !shown.length && <tr><td colSpan={cols.length + 1} className="st-muted">No users match these filters.</td></tr>}
-            {!people && !error && <tr><td colSpan={cols.length + 1} className="st-muted" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      {shown.length > PAGE && (
-        <div className="cc-pager">
-          <Button kind="plain" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</Button>
-          <span>{offset + 1}–{Math.min(offset + PAGE, shown.length)} of {shown.length}</span>
-          <Button kind="plain" disabled={offset + PAGE >= shown.length} onClick={() => setOffset(offset + PAGE)}>Next</Button>
+      <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} />
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search users" placeholder="Search users" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
+          <span className={"cc-chip" + (f.status ? " is-on" : "")}><Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
+            options={[{ value: "", label: "Status: Any" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label: "Status: " + label }))]} /></span>
+          {roles.length > 0 && <span className={"cc-chip" + (f.role ? " is-on" : "")}><Select aria-label="Role" value={f.role ?? ""} onChange={(e) => setFilter("role", e.target.value)}
+            options={[{ value: "", label: "Role: Any" }, ...roles.map((r) => ({ value: r, label: "Role: " + roleName(r) }))]} /></span>}
+          {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
         </div>
-      )}
+        <div className="cc-list-right" role="toolbar" aria-label="Users list tools">
+          <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
+          <Button kind="plain" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
+          <button type="button" className="cc-list-icon" aria-label="Refresh" title="Refresh" onClick={load}>
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></button>
+        </div>
+      </div>
+      <div className="cc-list-panel">
+        {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="User actions">
+          <strong>{chosen.length} selected</strong>
+          {chosen.some((u) => !u.enabled) && <Button kind="secondary" onClick={() => each("Enabled", (u) => api.updateUser(u.id, { enabled: true }))}>Enable</Button>}
+          {chosen.some((u) => u.enabled) && <Button kind="secondary" onClick={() => each("Disabled", (u) => api.updateUser(u.id, { enabled: false }))}>Disable</Button>}
+          <Button kind="danger" onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
+          <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+        </div>}
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Users list">
+            <thead><tr>
+              <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={page.length > 0 && page.every((u) => selected.includes(u.id))}
+                onChange={(e) => setSelected(e.target.checked ? page.map((u) => u.id) : [])} /></th>
+              {cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
+            </tr></thead>
+            <tbody>
+              {page.map((u) => (
+                <tr key={u.id} className={selected.includes(u.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input, button")) setDialog({ kind: "details", id: u.id }); }}>
+                  <td className="cc-check"><input type="checkbox" aria-label={"Select " + u.username} checked={selected.includes(u.id)}
+                    onChange={(e) => setSelected(e.target.checked ? [...selected, u.id] : selected.filter((x) => x !== u.id))} /></td>
+                  {cols.map((c) => <td key={c.key}>{cell(c, u)}</td>)}
+                  <td className="cc-list-menu"><Menu label={"Actions for " + u.username} align="end" items={rowMenu(u)}
+                    trigger={<button type="button" className="cc-list-icon is-row" aria-label={"Actions for " + u.username} title="Actions">
+                      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg></button>} /></td>
+                </tr>
+              ))}
+              {people && !shown.length && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none">No users match these filters.</td></tr>}
+              {!people && !error && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {people && <div className="cc-list-pager">
+          <span>{shown.length ? (offset + 1) + "–" + Math.min(offset + pageSize, shown.length) + " of " + shown.length : "0 of 0"}{filtered ? " matching · " + people.length + " in all" : ""}</span>
+          <span className="ov-fill" />
+          <label className="cc-list-rows">Rows per page <select aria-label="Rows per page" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setOffset(0); }}>
+            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+          <button type="button" className="cc-list-icon" aria-label="Previous page" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - pageSize))}>‹</button>
+          <button type="button" className="cc-list-icon" aria-label="Next page" disabled={offset + pageSize >= shown.length} onClick={() => setOffset(offset + pageSize)}>›</button>
+        </div>}
+      </div>
+      {people && people.length === 1 && <p className="cc-list-hint">You are the only person here. <button type="button" className="cc-link" onClick={() => setDialog({ kind: "create" })}>Create a user</button> for each colleague,
+        or turn on single sign-on in <a href="#/settings">Settings</a>.</p>}
 
       {dialog?.kind === "columns" && (
         <Dialog open title="Columns" width={360} onClose={() => setDialog(null)} footer={<Button kind="primary" onClick={() => setDialog(null)}>Done</Button>}>

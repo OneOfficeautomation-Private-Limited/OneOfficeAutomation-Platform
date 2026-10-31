@@ -908,8 +908,10 @@ describe("rebuilt Command Center console", () => {
     await go("Users");
     const list = await screen.findByRole("table", { name: "Users list" });
     expect(await within(list).findByText("Locked")).toBeTruthy();
-    expect(within(list).getByText("Agent runner")).toBeTruthy();          // roles by their names
+    expect(within(list).getAllByText("Agent runner").length).toBeGreaterThan(0);   // roles by their names, one chip each
     expect(within(list).getByText("Runner A")).toBeTruthy();              // the default runner
+    expect(screen.queryByRole("toolbar", { name: "User actions" })).toBeNull();   // the bulk bar shows only while rows are ticked
+    expect(screen.getByText(/^1–\d+ of \d+$/)).toBeTruthy();            // the pager under the table
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "disabled" } });
     await waitFor(() => expect(within(list).queryByText("vic")).toBeNull());
     fireEvent.click(within(list).getByLabelText("Select old"));
@@ -938,6 +940,11 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create user" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users", body: { username: "ravi", display_name: "", role: "bot_creator" } }));
     expect(within(await screen.findByRole("dialog", { name: "Temporary password for ravi" })).getByText("Temp-9x7")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    // the row menu: the same actions as the details, from the list
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for vic" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Reset two-step sign-in" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users/u2/reset-mfa" }));
   });
 
   it("shows Roles as AA's Roles page: kinds, a permission matrix by area, built-in roles read-only and copied, custom roles saved and deleted", async () => {
@@ -1316,14 +1323,14 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(list).getByText("Invoice lookup"));
     const d = await screen.findByRole("dialog", { name: "Agent API Invoice lookup" });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Switch off" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "apitasks/a1", body: { enabled: false } }));
+    await waitFor(() => expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "apitasks/a1", body: { enabled: false } })));   // the call may land after the click under load
     fireEvent.click(screen.getByRole("button", { name: "Create Agent API" }));
     const n = await screen.findByRole("dialog", { name: "Create Agent API" });
     fireEvent.change(within(n).getByLabelText("Name"), { target: { value: "Lookup" } });
     await waitFor(() => expect((within(n).getByLabelText("Agent (its live version)") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
     fireEvent.click(within(n).getByLabelText("The Command Center (serverless)"));
     await act(async () => { fireEvent.click(within(n).getByRole("button", { name: "Create Agent API" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "apitasks", body: expect.objectContaining({ name: "Lookup", serverless: true, timeout_seconds: 60 }) }));
+    await waitFor(() => expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "apitasks", body: expect.objectContaining({ name: "Lookup", serverless: true, timeout_seconds: 60 }) })));
     const t = await screen.findByRole("dialog", { name: "Agent API Lookup: its token" });
     expect(within(t).getByLabelText("Token").textContent).toBe("tok-new");
     expect(within(t).getByText(/curl -X POST/).textContent).not.toContain("tok-new");   // the example never repeats the token

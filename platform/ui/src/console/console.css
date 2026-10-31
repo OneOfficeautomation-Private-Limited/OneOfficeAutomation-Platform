@@ -339,3 +339,48 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .ov-pill.is-failed, .ov-pill.is-critical { background: var(--ui-error-bg); color: var(--ui-error-text); }
 .ov-pill.is-warning, .ov-pill.is-queued { background: var(--ui-running-bg); color: var(--ui-warning-text); }
 .ov-pill.is-stopped { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
+/* The list page pattern (design plan step 3, approved on the canvas; Users first): title row, one toolbar, a bulk bar only
+   while rows are ticked, a compact table with one status pill style and a row menu, a pager. Same grid and type as Overview. */
+.cc-list { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.cc-list-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
+.cc-list-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
+.cc-list-count { color: var(--ui-text-2); }
+.cc-list-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cc-list-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 520px; min-width: 0; }
+.cc-list-filters .ui-input { width: auto; height: 30px; }
+.cc-list-search .ui-input { width: 260px; }
+.cc-chip .ui-input { border-color: var(--ui-field); }
+.cc-chip.is-on .ui-input { border-color: var(--ui-accent); background: var(--ui-selected); color: var(--ui-pill-text); font-weight: 600; }
+.cc-list-right { display: flex; align-items: center; gap: 2px; }
+.cc-list-icon { width: 30px; height: 30px; box-sizing: border-box; border: 1px solid transparent; border-radius: var(--ui-radius); background: transparent; color: var(--ui-text);
+  display: inline-flex; align-items: center; justify-content: center; font: 600 15px/1 var(--ui-font); cursor: pointer; }
+.cc-list-icon:hover:not(:disabled), .cc-list-icon[data-state="open"] { background: var(--ui-selected); color: var(--ui-pill-text); }
+.cc-list-icon:disabled { opacity: .45; cursor: default; }
+.cc-list-icon.is-row { width: 26px; height: 26px; }
+.cc-list-panel { background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); min-width: 0; overflow: hidden; }
+.cc-list-bulk { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; background: var(--ui-selected); border-bottom: 1px solid var(--ui-border); flex-wrap: wrap; }
+.cc-list-bulk strong { color: var(--ui-pill-text); }
+.cc-list-bulk .ui-btn { height: 26px; }
+.cc-list-scroll { overflow-x: auto; }
+.cc-list-table { width: 100%; border-collapse: collapse; }
+.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
+.cc-list-table td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
+.cc-list-table tbody tr { cursor: pointer; }
+.cc-list-table tbody tr:hover td { background: var(--ui-row-hover); }
+.cc-list-table tbody tr.is-selected td { background: var(--ui-tint); }
+.cc-list-table tbody tr.is-static { cursor: default; }
+.cc-list-table .cc-check { width: 24px; padding-right: 0; }
+.cc-list-menu { width: 34px; text-align: right; padding-right: 8px !important; }
+.cc-list-pager { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-top: 1px solid var(--ui-divider); font-size: 12px; color: var(--ui-text-2); }
+.cc-list-rows { display: inline-flex; align-items: center; gap: 6px; }
+.cc-list-rows select { height: 26px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: var(--ui-bg); color: var(--ui-text); font: inherit; }
+.cc-list-hint { margin: 0; color: var(--ui-text-2); }
+.cc-none { color: var(--ui-text-3); }
+.cc-pill { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: var(--ui-selected); color: var(--ui-pill-text); }
+.cc-pill-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.cc-pill.is-active, .cc-pill.is-success { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
+.cc-pill.is-locked, .cc-pill.is-failed { background: var(--ui-error-bg); color: var(--ui-error-text); }
+.cc-pill.is-pending { background: var(--ui-running-bg); color: var(--ui-warning-text); }
+.cc-pill.is-disabled, .cc-pill.is-stopped { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
+.cc-role { display: inline-block; height: 20px; line-height: 20px; padding: 0 7px; margin-right: 4px; border-radius: 4px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; }
