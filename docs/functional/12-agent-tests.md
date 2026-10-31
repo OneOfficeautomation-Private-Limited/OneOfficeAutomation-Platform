@@ -77,7 +77,7 @@ things differently each time. An unknown operator is refused when the set is sav
   requested by the person who started the test.
 - Every run passes the usual checks ([document 03](03-runs-runners-and-devices.md)). A case whose run cannot start fails at
   once with "Did not start: …".
-- The runs are ordinary runs: they appear in Agent Runs, use credentials as the person who started the test, and count
+- The runs are ordinary runs: they appear in Agent Activity, use credentials as the person who started the test, and count
   for licences.
 
 ## 6. Judging and scoring

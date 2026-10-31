@@ -29,7 +29,7 @@ console where they are changed.
 | 08 | [Repository, versions and templates](08-repository-versions-and-templates.md) | Check-in and check-out, versions, labels, live production version, production approval, folders, Git sync, lifecycle, templates |
 | 09 | [AI features](09-ai-features.md) | Model Connections, budgets, masking, content check, AI governance, Prompt Skills, AI agents, web goal agent, Knowledge Q&A, AI calls tab, assistants over MCP |
 | 10 | [Users, roles, teams and security](10-users-roles-teams-and-security-features.md) | Users, built-in and custom roles, every permission, teams, sign-in, SSO, two-step sign-in, password policy, API keys, switched-off roles |
-| 11 | [Operations, audit and dashboards](11-operations-audit-and-dashboards.md) | Agent Runs pages, Home, Operations, dashboards and KPIs, Audit Trail, retention, e-mail, backups |
+| 11 | [Operations, audit and dashboards](11-operations-audit-and-dashboards.md) | Agent Activity pages, Home, Operations, dashboards and KPIs, Audit Trail, retention, e-mail, backups |
 | 12 | [Agent tests](12-agent-tests.md) | Test sets, cases, expectations and comparisons, scoring, history |
 | 13 | [Licensing and editions](13-licensing-and-editions.md) | Evaluation, licence files and states, seats, enforcement, SaaS subscription seats |
 | 14 | [One AgentStudio](14-studio-features.md) | Explorer, editor views, step settings, validation, run and debug, Run from here, child agents, recorder and capture, assistant, Command Center link |

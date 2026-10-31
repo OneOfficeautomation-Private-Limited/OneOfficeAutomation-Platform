@@ -199,7 +199,7 @@ starts agents for the signed-in person (with their API key, kept with Windows DP
   identity provider. For OAuth the Command Center publishes `/.well-known/oauth-protected-resource` (RFC 9728) with
   `mcp_oauth_audience` and `mcp_oauth_scope`, and a 401 on `/api/mcp` carries a `WWW-Authenticate` header pointing
   there.
-- Every call uses the user's role, folder permissions and vault access, appears in Agent Runs and is audited.
+- Every call uses the user's role, folder permissions and vault access, appears in Agent Activity and is audited.
 - MCP calls share the "calls" rate-limit group (1,200 per minute per address).
 
 ## 12. Human review of AI output

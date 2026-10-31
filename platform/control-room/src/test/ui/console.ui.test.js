@@ -101,7 +101,7 @@ async function page() {
   check("Home updates by itself when an agent is checked in", await until(() => agentsTile() === "1", 12000), agentsTile());
   await post("/api/repo/delete", { path: "Live/Refresh check.flow.json" });
   check("and a deleted agent no longer counts", await until(() => agentsTile() === "0", 12000), agentsTile());
-  nav("Agent Runs");
+  nav("Agent Activity");
   check("Activity has In progress and History tabs with an empty state", await until(() => d.getElementById("main").textContent.includes("Live") && d.getElementById("main").textContent.includes("Nothing is running")));
   click([...d.querySelectorAll("#main .tabs .tab")].find((b) => b.textContent.startsWith("History")));
   check("History has filters and CSV export", await until(() => d.querySelector('#main select[aria-label="Any status"]') && d.querySelector('#main input[type=date]') && btn("Export CSV")));

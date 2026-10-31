@@ -11,7 +11,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 /**
  * Model Context Protocol server over HTTP (JSON-RPC 2.0 on POST /api/mcp). Outside AI assistants list the agents an
  * administrator exposed (Settings: mcp_agents) as tools and run them as the calling user, with that user's role and
- * vault access. Each call starts a normal run (source "mcp"), so it shows in Agent Runs and the Audit Trail.
+ * vault access. Each call starts a normal run (source "mcp"), so it shows in Agent Activity and the Audit Trail.
  */
 final class McpServer {
     static final String PROTOCOL = "2025-06-18";
@@ -130,7 +130,7 @@ final class McpServer {
             }
             try { Thread.sleep(400); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
-        return Map.of("content", List.of(Map.of("type", "text", "text", "The agent is still running as run " + runId + "; check Agent Runs for its result.")), "isError", false);
+        return Map.of("content", List.of(Map.of("type", "text", "text", "The agent is still running as run " + runId + "; check Agent Activity for its result.")), "isError", false);
     }
 
 }

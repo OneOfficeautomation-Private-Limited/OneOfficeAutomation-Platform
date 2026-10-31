@@ -13,7 +13,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     { id: "automation", label: "Agent Repository", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" },
     { id: "studio", label: "One AgentStudio" }, { id: "apitasks", label: "Agent APIs", perm: "apitasks.manage" }, { id: "tests", label: "Agent tests", perm: "repo.view" }] },
   { id: "manage", label: "MANAGE", color: "#0f766e", icon: "pulse", pages: [
-    { id: "activity", label: "Agent Runs", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
+    { id: "activity", label: "Agent Activity", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
     { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "workflows", label: "Workflow", perm: "runs.view" },
     { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },

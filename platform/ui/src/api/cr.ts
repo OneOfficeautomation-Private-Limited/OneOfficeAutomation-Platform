@@ -19,7 +19,10 @@ export type CrError = { code: string; message: string; hint?: string; suggestedF
 export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
   requested_by?: string; run_as?: string | null; run_mode?: string; source?: string; created?: string; started?: string | null; finished?: string | null;
   duration_ms?: number | null; error?: string | null; pause_requested?: boolean; cancel_requested?: boolean; steps?: number | null;
-  progress?: { total: number; finished: number; action?: string; step_id?: string } };
+  progress?: { total: number; finished: number; action?: string; step_id?: string }; inputs?: string | Record<string, unknown> | null; outputs?: string | Record<string, unknown> | null };
+/** One model call a run made: what for, which model, tokens, time, what was masked and the tools it asked for. */
+export type AiCall = { ts: string; purpose?: string; provider?: string; model?: string; connection?: string; input_tokens?: number; output_tokens?: number;
+  latency_ms?: number; masked?: Record<string, number> | null; tool_calls?: string[] | null };
 /** One event a run reported (step started, finished or failed, a log line, a variable set). */
 export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
@@ -164,11 +167,16 @@ export class CrApi {
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
   /** Runs: filter=active (queued, running) or history (finished), with status, bot, device, user, source, q, from, to, limit, offset. */
   runs(params: Record<string, string>) { return this.call<{ runs: Run[]; total: number }>("GET", "runs?" + new URLSearchParams(params).toString()); }
-  /** One run with its events. */
-  run(id: string) { return this.call<Run & { events: RunEvent[] }>("GET", "runs/" + encodeURIComponent(id)); }
+  /** One run with its events (only those after event number `after`, to follow a run as it goes). */
+  run(id: string, after = 0) { return this.call<Run & { events: RunEvent[] }>("GET", "runs/" + encodeURIComponent(id) + (after ? "?after=" + after : "")); }
+  /** The model calls a run made (recorded when it ends; prompts are never kept). */
+  async runAiCalls(id: string) { return (await this.call<{ calls?: AiCall[] }>("GET", "runs/" + encodeURIComponent(id) + "/ai-calls")).calls ?? []; }
+  /** Readable names of the commands, e.g. "ooa.excel/open" to "Open workbook", for run logs. */
+  async actionNames() { return (await this.call<{ actions?: Record<string, string> }>("GET", "catalog")).actions ?? {}; }
   /** Pause, resume or stop a run (stop ends a queued run at once, a running one after its current step). */
   async control(id: string, action: "pause" | "resume" | "stop") { await this.call("POST", "runs/" + encodeURIComponent(id) + "/" + action); }
-  async rerun(id: string) { await this.call("POST", "runs/" + encodeURIComponent(id) + "/rerun"); }
+  /** Runs the agent again on the same runner with the same inputs (its live version); returns the new run. */
+  rerun(id: string) { return this.call<{ run_id: string; version?: number }>("POST", "runs/" + encodeURIComponent(id) + "/rerun"); }
   /** The agents in the repository and the runners, for the filters. */
   async agents() { return (await this.call<{ bots?: { path: string }[] }>("GET", "repo")).bots ?? []; }
   async runners() { return (await this.call<{ devices?: { id: string; name: string }[] }>("GET", "devices")).devices ?? []; }

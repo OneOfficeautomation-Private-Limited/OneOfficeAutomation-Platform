@@ -11,8 +11,8 @@ audit records, e-mail from the Command Center, backups, and the Command Center d
 
 1. The console menu and live updates
 2. Home
-3. Agent Runs: Live
-4. Agent Runs: History and run details
+3. Agent Activity: In progress and Scheduled
+4. Agent Activity: Completed and run details
 5. Operations
 6. Business figures (KPIs) and dashboards
 7. Audit Trail
@@ -30,7 +30,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 | --- | --- |
 | Build | Agent Repository (`repo.view`), Templates (`repo.view`), One AgentStudio (new tab), Workflow (`runs.view`), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Runners (`devices.view`), Credential vault (members), Shared Global values (`globals.view`), Connections (`globals.view`), Toolkits (`toolkits.manage`) |
-| Operations | Agent Runs (`runs.view`), Task inbox (everyone), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Operations (`analytics.view`), Dashboards (`analytics.view`) |
+| Operations | Agent Activity (`runs.view`), Task inbox (everyone), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Operations (`analytics.view`), Dashboards (`analytics.view`) |
 | Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Prompt Skills (`skills.view`), Model Connections (`connections.manage`), AI governance (`audit.view`) |
 
@@ -46,13 +46,21 @@ schedules, runs per day (counted in the viewer's time zone), the most-run agents
 open tasks, their recently used agents and recent runs, and hours saved over 30 days (minutes saved per successful run,
 [document 08](08-repository-versions-and-templates.md)).
 
-## 3. Agent Runs: Live
+## 3. Agent Activity: In progress and Scheduled
 
-Every queued and running run: agent, runner, who started it and how (source), run-as user, how long it has run, a
-progress bar (steps finished of the agent's total) and the step running now. Pause, Resume and Stop reach the runner
-within seconds (`runs.stop`). A paused run shows **Paused**; one being stopped shows **Stopping**.
+On top, a summary: runs running now, runs waiting for a runner, runs failed and ended in the last 24 hours (with the
+share completed), and the next scheduled run. Each figure opens the matching tab and filter.
 
-## 4. Agent Runs: History and run details
+**In progress**: every queued and running run: agent, runner, who started it and how (source), run-as user, how long it
+has run, the step it is on (steps finished of the agent's total) and the command running now. Pause, Resume and Stop
+reach the runner within seconds (`runs.stop`). A paused run shows **Paused**; one being stopped shows **Stopping**.
+Stop asks the agent to stop after its current step; there is no forced stop.
+
+**Scheduled** (`schedules.view`): each schedule's next run, soonest first, with how it repeats, where it runs, as whom
+and the holiday calendar it skips. Selected schedules can be run now (`runs.start`) or turned on and off
+(`schedules.manage`); schedules are made and changed on the Schedules page.
+
+## 4. Agent Activity: Completed and run details
 
 Finished runs (success, failed, stopped) with status, duration, steps and error code.
 
@@ -61,12 +69,12 @@ Finished runs (success, failed, stopped) with status, duration, steps and error 
 | Status | queued, running, success, failed, stopped |
 | Agent, runner, person | exact |
 | Source | manual, API, schedule, trigger, work queue, workflow, API task, test, AI assistant (MCP), rerun |
-| Dates | from and to (a date includes the whole day, UTC) |
+| Period | last 24 hours, 7 days or 90 days (the default), or chosen dates (a date includes the whole day) |
 | Text | agent path, run id, error, requester |
 
 Paging (up to 500 per page) and CSV export. **Rerun** runs the live version again with the same inputs.
 
-Run details show the error with the failed step and a suggested fix; a step-by-step timeline with durations; the full
+Run details (a link: `#/activity?run=<id>`) follow a running run live, and show the error with the failed step and a suggested fix; a step-by-step timeline with durations; the full
 log (filter, **Download log**); the last value of each variable (credentials masked); inputs and outputs; and the
 **AI calls** tab ([document 09](09-ai-features.md)). Log events larger than about 19,000 characters are cut; up to 2,000
 events are returned per request.
@@ -168,7 +176,7 @@ within about 30 seconds.
 
 | Action | Permission |
 | --- | --- |
-| Agent Runs and run details | `runs.view` |
+| Agent Activity and run details | `runs.view` |
 | Operations, dashboards | `analytics.view` |
 | Audit Trail, export, verify | `audit.view` |
 | Retention, e-mail, backups, syslog, nodes | `settings.manage` |

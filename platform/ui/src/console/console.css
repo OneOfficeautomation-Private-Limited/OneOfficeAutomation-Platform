@@ -52,7 +52,25 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-legend .cc-seg { width: 10px; height: 10px; border-radius: 2px; }
 .cc-pad { padding: 16px 20px; }
 
-/* Agent Runs (Activity) */
+/* Agent Activity */
+.cc-sums { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 20px 0; }
+.cc-sum { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 150px; padding: 8px 12px; border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+.cc-sum:hover { border-color: var(--ui-accent); }
+.cc-sum:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.cc-sum strong { font-size: 20px; line-height: 1.2; }
+.cc-sum strong.cc-sum-text { font-size: 14px; line-height: 1.6; }
+.cc-sum span { color: var(--ui-text-2); font-size: 12.5px; }
+.cc-sum .cc-err { max-width: none; }
+.cc-run-state { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.cc-run-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.cc-run-progress progress { flex: 0 0 240px; height: 8px; accent-color: var(--ui-accent); }
+.cc-errbox { margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--ui-error-text); border-left-width: 4px; border-radius: var(--ui-radius); color: var(--ui-error-text); background: var(--ui-bg); }
+.cc-errbox div { margin-top: 2px; }
+.cc-run-tabs { margin: 12px 0 8px; padding: 0; }
+.cc-bar-tight { padding: 0 0 6px; }
+.cc-log-t { display: inline-block; min-width: 64px; color: var(--ui-text-2); }
+pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-count { margin-left: 6px; padding: 0 6px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; }
 .cc-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 20px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
 .cc-filters .ui-input { width: auto; min-width: 150px; }

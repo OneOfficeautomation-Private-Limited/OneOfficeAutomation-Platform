@@ -194,7 +194,7 @@ function showApp() {
 }
 
 const PAGES = [
-  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent Repository", "repo.view", "bot", "#6d28d9"], ["templates", "Agent Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
+  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent Repository", "repo.view", "bot", "#6d28d9"], ["templates", "Agent Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Activity", "runs.view", "pulse", "#ea580c"],
   ["devices", "Runner Machines", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "Credential vault", null, "lock", "#dc2626"], ["globals", "Shared Global values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
@@ -751,7 +751,7 @@ const VIEWS = {
         }) : [h("tr", {}, h("td", { colspan: "10", class: "muted empty-cell", text: "No runs match these filters." }))])));
     }
     renderTabs(); renderFilters();
-    main.replaceChildren(...header("Agent Runs", "Runs on all runners: what is running now, and the history of every run. Select a run for its live step log, inputs, outputs and errors."), tabs, filters, list);
+    main.replaceChildren(...header("Agent Activity", "Runs on all runners: what is running now, and the history of every run. Select a run for its live step log, inputs, outputs and errors."), tabs, filters, list);
     await refresh();
     if (main.isConnected) S.timer = every(() => { if (st.tab === "active" || !st.offset) refresh().catch(() => {}); }, 2500);
   },

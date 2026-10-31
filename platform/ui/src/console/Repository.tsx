@@ -209,7 +209,7 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onRun, onDone }
         <dt>Called by</dt><dd>{deps.called_by.length ? deps.called_by.map((p) => <span key={p} className="cc-tag">{agentName(p)}</span>) : "No other agent"}</dd>
         <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl></>}
       {runs.length > 0 && <><h3 className="cc-log-title">Recent runs</h3>
-        <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td>{when(r.created)}</td><td>v{r.version}</td>
+        <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
           <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table></>}
       <h3 className="cc-log-title">Versions</h3>
       <div className="cc-bar"><span className="st-muted">Tick two versions to compare them.</span><Button kind="secondary" disabled={picks.length !== 2} onClick={compare}>Compare</Button></div>
@@ -284,7 +284,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
       }
     } catch { setError("An input meant as JSON is not valid JSON."); return; }
     api.startRun({ bot_path: a.path, ...(where.startsWith("p:") ? { pool_id: where.slice(2) } : { device_id: where.slice(2) }), inputs })
-      .then((r) => onDone("Started " + agentName(a.path) + " (run " + r.run_id + "): follow it in Agent Runs."), (e) => setError(message(e)));
+      .then((r) => onDone("Started " + agentName(a.path) + " (run " + r.run_id + "): follow it in Agent Activity."), (e) => setError(message(e)));
   };
   const missing = vars.some((v) => v.required && !(values[v.name] ?? "").trim());
   return (

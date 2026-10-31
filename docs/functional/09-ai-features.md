@@ -186,7 +186,7 @@ only when the name is free; inserted steps get fresh ids and stay selected for r
 | OAuth checks | Signature, issuer, audience (`mcp_oauth_audience`), expiry and, when set, scope (`mcp_oauth_scope`); the token must belong to an existing, enabled account; it works for MCP only, never as a console session. Assistants find the issuer at `/.well-known/oauth-protected-resource`, and a 401 points them there. |
 | What is offered | The agents an administrator lists (Settings > AI assistants, `mcp_agents`), that the user may see, with their inputs as the tool's input schema; Credential inputs are never offered |
 | Runner, wait | The runner given in `mcp_runner`; each call waits up to `mcp_timeout_seconds` (10-3600, default 120) |
-| Runs | Normal runs with source `mcp` at priority 5, as that user and with their permissions, in Agent Runs and the audit trail |
+| Runs | Normal runs with source `mcp` at priority 5, as that user and with their permissions, in Agent Activity and the audit trail |
 
 ## 15. Retention, permissions and audit
 

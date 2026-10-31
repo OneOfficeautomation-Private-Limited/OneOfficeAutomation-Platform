@@ -76,8 +76,8 @@ The start is recorded in the Audit Trail (`run.start`) and the runner is woken a
 
 | State | Meaning | Shown in |
 | --- | --- | --- |
-| `queued` | Waiting on its runner | Agent Runs > Live |
-| `running` | Claimed by the runner and executing | Agent Runs > Live, with progress |
+| `queued` | Waiting on its runner | Agent Activity > In progress |
+| `running` | Claimed by the runner and executing | Agent Activity > In progress, with progress |
 | `running` + pause requested | Shown as **Paused**; the run halts before its next step | Live |
 | `running` + stop requested | Shown as **Stopping** | Live |
 | `success` | Ended normally (including Stop agent with status success) | History |
@@ -139,7 +139,7 @@ answers as soon as a run of that runner is queued, paused, resumed or stopped.
 
 - A run can be started **as** another enabled user. It then goes to that user's default runner unless a runner or pool
   is given, and the agent's vault credentials, people's own vault values, shared values and repository files are
-  checked against that user. The Agent Runs lists show "requester as run-as user".
+  checked against that user. The Agent Activity lists show "requester as run-as user".
 - Schedules and triggers can carry a run-as user; work queues run as the person who started processing.
 - **Deploy** (`POST /api/runs` with `run_as_users` and/or `device_ids`) starts one run per target. A target that cannot
   run is reported with its error while the others start; the answer gives the number started and failed.

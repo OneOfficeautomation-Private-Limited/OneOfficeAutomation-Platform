@@ -32,8 +32,8 @@ import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
 const LOCAL = new Set<string>(["activity", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
-/** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
-const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
+/** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
+const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, "").split("?")[0]; return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
 const TODAY = "../";
 

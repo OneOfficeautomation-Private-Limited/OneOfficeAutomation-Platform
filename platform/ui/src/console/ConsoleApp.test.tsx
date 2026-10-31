@@ -22,7 +22,7 @@ const runs = [
   { id: "r2", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "queued", requested_by: "vic", source: "manual", created: "2026-10-30T08:01:00Z" },
   { id: "r3", bot_path: "Finance/Invoice intake.flow.json", version: 3, device_id: "d1", device_name: "Runner A", status: "failed", requested_by: "admin", source: "manual",
     created: "2026-10-30T07:00:00Z", started: "2026-10-30T07:00:02Z", finished: "2026-10-30T07:01:02Z", duration_ms: 60000, steps: 3,
-    error: JSON.stringify({ code: "EXCEL.NOT_FOUND", message: "No such file" }) },
+    error: JSON.stringify({ code: "EXCEL.NOT_FOUND", message: "No such file", stepId: "s1", suggestedFix: "Check the file is in the folder." }) },
   { id: "r4", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "success", requested_by: "vic", source: "trigger:t1",
     created: "2026-10-29T07:00:00Z", started: "2026-10-29T07:00:02Z", finished: "2026-10-29T07:00:32Z", duration_ms: 30000, steps: 5 }];
 
@@ -241,10 +241,16 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
         && (!q.get("status") || r.status === q.get("status")));
       return ok({ runs: list.slice(0, Number(q.get("limit") ?? 100)), total: list.length });
     }
+    if (route === "catalog") return ok({ actions: { "ooa.excel/open": "Open workbook" } });
+    if (route === "runs/r3/ai-calls") return ok({ calls: [{ ts: "2026-10-30T07:00:12Z", purpose: "Read the invoice", model: "gpt-4o-mini", connection: "OpenAI", input_tokens: 120, output_tokens: 8, latency_ms: 900 }] });
+    if (route === "runs/r3/rerun") return ok({ run_id: "r9", version: 3 });
     const m = /^runs\/([^/]+)(?:\/(\w+))?$/.exec(route);
-    if (m && !m[2]) return ok({ ...runs.find((r) => r.id === m[1]), events: [
-      { seq: 1, type: "step.started", stepId: "s1", data: { action: "ooa.excel/open" } },
-      { seq: 2, type: "step.failed", stepId: "s1", data: { action: "ooa.excel/open", code: "EXCEL.NOT_FOUND", message: "No such file" } }] });
+    if (m && !m[2]) return ok({ ...(runs.find((r) => r.id === m[1]) ?? { id: m[1], bot_path: "Finance/Invoice intake.flow.json", version: 3, device_id: "d1", device_name: "Runner A",
+      status: "queued", requested_by: "admin", source: "rerun", created: "2026-10-31T09:00:00Z" }),
+      inputs: JSON.stringify({ file: "march.xlsx" }), events: m[1] !== "r3" ? [] : [
+      { seq: 1, type: "step.started", stepId: "s1", ts: 100, data: { action: "ooa.excel/open" } },
+      { seq: 2, type: "variable.set", ts: 100.5, data: { name: "rows", value: "0" } },
+      { seq: 3, type: "step.failed", stepId: "s1", ts: 101.25, data: { action: "ooa.excel/open", code: "EXCEL.NOT_FOUND", message: "No such file" } }] });
     if (m && m[2]) return ok({ ok: true });
     return no(404, "CR.NOT_FOUND", "Unknown API route " + route);
   }) as unknown as typeof fetch;
@@ -314,12 +320,15 @@ describe("rebuilt Command Center console", () => {
     expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
   });
 
-  it("shows Agent Runs as AA's Activity: In progress and Completed, filters, selected runs stopped or run again, columns, details, CSV", async () => {
+  it("shows Agent Activity as AA's Activity: a summary, In progress and Completed, filters, selected runs stopped or run again, columns, CSV", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.stop", "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Runs" }));
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Activity" }));
     const live = await screen.findByRole("table", { name: "Runs in progress" });
-    expect(await within(live).findByText("Step 3 of 8: ooa.excel/open")).toBeTruthy();
+    expect(await within(live).findByText("Step 3 of 8: Open workbook")).toBeTruthy();   // the command's own name
+    const sums = await screen.findByRole("group", { name: "Summary" });
+    expect(within(sums).getByText("Ended in the last 24 hours · 50% completed")).toBeTruthy();
+    expect(within(sums).getByText("Next scheduled: Invoice intake")).toBeTruthy();
     expect(within(live).getByText("Schedule")).toBeTruthy();
     expect(within(live).getByText("Waiting for the runner")).toBeTruthy();
     expect(screen.getByRole("tab", { name: /In progress/ }).textContent).toContain("2");
@@ -338,15 +347,58 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Duration"));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Duration")).toBeNull();
-    fireEvent.click(within(screen.getByRole("table", { name: "Completed runs" })).getByText("EXCEL.NOT_FOUND: No such file"));
-    const details = await screen.findByRole("dialog", { name: "Run of Invoice intake" });
-    expect(await within(details).findByText("Failed ooa.excel/open: EXCEL.NOT_FOUND No such file")).toBeTruthy();
-    fireEvent.click(within(details).getByRole("button", { name: "Close" }));
     const made: string[] = [];
     URL.createObjectURL = (() => { made.push("csv"); return "blob:x"; }) as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
     expect(made).toEqual(["csv"]);
     expect(await screen.findByText("Exported 1 run.")).toBeTruthy();
+  });
+
+  it("opens Scheduled from the summary: each schedule's next run, soonest first; selected ones turned off or run now", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "schedules.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Activity" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Summary" })).getByText("Next scheduled: Invoice intake"));
+    const list = await screen.findByRole("table", { name: "Scheduled runs" });
+    await within(list).findByText("Nightly invoices");
+    const rows = within(list).getAllByRole("row").slice(1).map((r) => r.textContent ?? "");
+    expect(rows[0]).toContain("Nightly invoices");   // on, and soonest first
+    expect(rows[1]).toContain("Not planned");         // off: last
+    expect(within(list).getByText("Skips India 2026")).toBeTruthy();
+    fireEvent.click(within(list).getByLabelText("Select the schedule Nightly invoices"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Turn off" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules/bulk", body: { ids: ["s1"], action: "disable" } }));
+    fireEvent.click(within(list).getByLabelText("Select the schedule Nightly invoices"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Run now" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules/s1/run" }));
+    expect(await screen.findByRole("dialog", { name: "Run of Invoice intake" })).toBeTruthy();   // the run it started opens
+    location.hash = "";
+  });
+
+  it("shows a run as UiPath's job details: why it ended and the fix, steps, the log with times, variables, inputs, AI calls; Run again opens the new run", async () => {
+    location.hash = "#/activity?run=r3";
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    const d = await screen.findByRole("dialog", { name: "Run of Invoice intake" });
+    const why = await within(d).findByRole("note", { name: "Why it ended" });
+    expect(why.textContent).toContain("Fix: Check the file is in the folder.");
+    expect(within(within(d).getByRole("table", { name: "Steps" })).getByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("tab", { name: /^Log/ }));
+    expect(within(d).getByText("Failed Open workbook: EXCEL.NOT_FOUND No such file")).toBeTruthy();
+    expect(within(d).getByText("+1.25s")).toBeTruthy();
+    fireEvent.change(within(d).getByLabelText("Show in the log"), { target: { value: "vars" } });
+    expect(within(d).getByText("rows = 0")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("tab", { name: "Inputs and outputs" }));
+    expect(within(d).getByLabelText("Inputs").textContent).toContain('"file": "march.xlsx"');
+    fireEvent.click(await within(d).findByRole("tab", { name: "AI calls (1)" }));
+    expect(within(d).getByText("gpt-4o-mini (OpenAI)")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Run again" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs/r3/rerun" }));
+    expect(await screen.findByText("Started again as run r9.")).toBeTruthy();
+    expect(location.hash).toBe("#/activity?run=r9");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Run of Invoice intake" })).getByRole("button", { name: "Close" }));
+    expect(location.hash).toBe("#/activity");
+    location.hash = "";
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {
