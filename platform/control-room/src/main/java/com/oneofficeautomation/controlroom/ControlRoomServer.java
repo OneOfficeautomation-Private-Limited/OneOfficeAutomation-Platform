@@ -163,6 +163,9 @@ public final class ControlRoomServer {
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
             else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
+            // The new console is the default (31 Oct 2026): the bare address opens it. The classic console stays at
+            // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
+            else if (path.equals("/") && ex.getRequestURI().getRawQuery() == null) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
             else serveStatic(ex, path);
         } catch (OoaException e) {

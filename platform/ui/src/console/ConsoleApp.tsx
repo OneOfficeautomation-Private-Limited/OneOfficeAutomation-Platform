@@ -77,7 +77,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
 
   return (
     <div className="st-app cc-app">
-      <TopBar api={api} user={user} page={page} classicHref={TODAY} onPage={setPage} onSignOut={signOut} />
+      <TopBar api={api} user={user} page={page} classicHref={TODAY + "?classic"} onPage={setPage} onSignOut={signOut} />
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
       {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
