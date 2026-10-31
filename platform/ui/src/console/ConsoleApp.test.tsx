@@ -1422,14 +1422,21 @@ describe("rebuilt Command Center console", () => {
     await go("Agent Templates");
     const cards = await screen.findByRole("list", { name: "Templates" });
     expect(await within(cards).findByText("IT · shared by Contoso")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Finance" } });
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Categories" })).getByRole("button", { name: /^Finance/ }));
     await waitFor(() => expect(within(cards).queryByText("Password reset")).toBeNull());
-    fireEvent.click(within(within(cards).getByRole("listitem", { name: "Invoice intake" })).getByRole("button", { name: "Install" }));
+    // already in Automation (Finance): the card says where, and its side panel installs it again
+    const card = within(cards).getByRole("listitem", { name: "Invoice intake" });
+    expect(await within(card).findByText("in Finance")).toBeTruthy();
+    fireEvent.click(within(card).getByText("Reads invoices into the ERP"));
+    const about = await screen.findByRole("dialog", { name: "About Invoice intake" });
+    expect(within(about).getByText("Read PDF")).toBeTruthy();
+    fireEvent.click(within(about).getByRole("button", { name: "Install again into…" }));
     const i = await screen.findByRole("dialog", { name: "Install Invoice intake" });
     fireEvent.change(within(i).getByLabelText("Folder"), { target: { value: "Finance/From templates" } });
     await act(async () => { fireEvent.click(within(i).getByRole("button", { name: "Install" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/install", body: { source: "vendor", id: "inv", folder: "Finance/From templates" } }));
-    fireEvent.click(screen.getByRole("button", { name: "Share an agent" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Share an agent" }));
     const sh = await screen.findByRole("dialog", { name: "Share an agent as a template" });
     await waitFor(() => expect((within(sh).getByLabelText("Agent") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
     await act(async () => { fireEvent.click(within(sh).getByRole("button", { name: "Share" })); });
