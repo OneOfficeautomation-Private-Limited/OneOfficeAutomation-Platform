@@ -1465,9 +1465,12 @@ describe("rebuilt Command Center console", () => {
     const steps = await within(d).findByRole("list", { name: "Steps" });
     expect(within(steps).getByText("Open workbook")).toBeTruthy();
     expect(within(steps).getByText("$total is greater than 1000")).toBeTruthy();
-    expect(within(steps).getAllByRole("listitem").map((li) => li.querySelector(".cc-code-n")?.textContent)).toEqual(["1", "2", "3"]);
-    fireEvent.click(within(steps).getByRole("button", { name: "Close line 2" }));
-    expect(within(steps).getAllByRole("listitem")).toHaveLength(2);
+    // as One AgentStudio's step list: START, numbered lines, END; a block folds
+    expect([...steps.querySelectorAll(".st-step-n")].map((n) => n.textContent)).toEqual(["1", "2", "3"]);
+    expect(steps.querySelector(".st-start")).toBeTruthy();
+    fireEvent.click(within(steps).getByRole("button", { name: "Fold line 2" }));
+    expect(steps.querySelectorAll(".st-step-n")).toHaveLength(2);
+    expect(within(steps).getByText("1 step folded")).toBeTruthy();
     fireEvent.click(within(steps).getByText("Open workbook"));
     expect(within(within(d).getByRole("complementary", { name: "The selected line" })).getByText("march.xlsx")).toBeTruthy();
     fireEvent.click(within(d).getByRole("tab", { name: "Inputs and details" }));

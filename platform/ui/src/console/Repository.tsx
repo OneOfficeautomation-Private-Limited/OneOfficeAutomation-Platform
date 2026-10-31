@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { Button, Dialog, Field, IconTile, Menu, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Field, Icon, IconTile, Menu, Select, TextInput, usePersistent } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -160,21 +160,19 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
           </div>
           <div className="cc-list-scroll">
             <table className="cc-list-table" aria-label="Agents list">
-              <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col" className="cc-num">Items</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th>
+              <thead><tr><th scope="col">Name</th><th scope="col">Folder</th><th scope="col">Type</th><th scope="col" className="cc-num">Items</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th>
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {subfolders.map((f) => (
                   <tr key={"f:" + f.path} className="cc-folder-row" onClick={rowClick(() => setFolder(f.path))}>
-                    <td><FolderIcon /><strong>{f.path.split("/").pop()}</strong>{f.description && <span className="cc-list-sub cc-ico-sub">{f.description}</span>}</td>
-                    <td>Folder</td><td className="cc-num">{total(f.path)}</td><td colSpan={4}><span className="cc-none">–</span></td><td className="cc-list-menu" />
+                    <td title={f.description ?? undefined}><FolderIcon /><strong>{f.path.split("/").pop()}</strong></td>
+                    <td>{folderOf(f.path) || <span className="cc-none">(top)</span>}</td><td>Folder</td><td className="cc-num">{total(f.path)}</td><td colSpan={4}><span className="cc-none">–</span></td><td className="cc-list-menu" />
                   </tr>
                 ))}
                 {here.map((a) => (
                   <tr key={a.path} onClick={rowClick(() => setDialog({ kind: "agent", a }))}>
-                    <td><AgentIcon kind={kindOf(a.path)} /><strong>{agentName(a.path)}</strong>
-                      {(withSub && folderOf(a.path) !== folder || filtered) && <span className="cc-list-sub cc-ico-sub">{folderOf(a.path) || "(top)"}{a.description ? " · " + a.description : ""}</span>}
-                      {!(withSub && folderOf(a.path) !== folder || filtered) && a.description && <span className="cc-list-sub cc-ico-sub cc-clip">{a.description}</span>}</td>
-                    <td>{kindOf(a.path)}</td><td className="cc-num"><span className="cc-none">–</span></td>
+                    <td title={a.description ?? undefined}><AgentIcon kind={kindOf(a.path)} /><strong>{agentName(a.path)}</strong></td>
+                    <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td><td>{kindOf(a.path)}</td><td className="cc-num"><span className="cc-none">–</span></td>
                     <td>v{a.latest_version}{(a.labels ?? []).map((l) => <span key={l.label} className="cc-tag" title={"On v" + l.version}>{l.label}</span>)}</td>
                     <td>{a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-none">Not live</span>}</td>
                     <td>{a.locked_by ? <span className="cc-pill is-pending"><span className="cc-pill-dot" />Checked out by {a.locked_by}</span> : "Checked in"}</td>
@@ -182,8 +180,8 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + agentName(a.path)} items={rowMenu(a)} /></td>
                   </tr>
                 ))}
-                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={8} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
-                {!agents && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
+                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={9} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
+                {!agents && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
           </div>
@@ -325,27 +323,31 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onFolder, onRun
             <span className="cc-none">Read-only</span>
           </div>
           {flow === null ? <p className="cc-none cc-agent-pad" role="status">Loading the steps…</p> : !rows.length ? <p className="cc-none cc-agent-pad">This agent has no steps.</p>
-            : <ol className="cc-code" aria-label="Steps">{rows.map((r, i) => {
-              const guides = Array.from({ length: r.depth }, (_, g) => <span key={g} className="cc-code-guide" aria-hidden="true" />);
-              if (r.kind === "section") return <li key={"s" + i} className="cc-code-line is-section"><span className="cc-code-n" aria-hidden="true" />
-                <span className="cc-code-body">{guides.slice(1)}<span className="cc-code-tw" /><span className="cc-code-kw">{r.label}</span></span></li>;
-              const st = r.step, d = describeAction(st.action ?? "", []), block = !!(st.children || st.else || st.elseIf || st.catch || st.finally);
-              const cond = st.action === "core/if" && st.args?.condition !== undefined;
-              return <li key={st.id} className={"cc-code-line" + (picked === st.id ? " is-on" : "") + (hit(st) ? " is-hit" : "") + (st.disabled ? " is-off" : "")}
-                onClick={() => setPicked(st.id)}>
-                <span className="cc-code-n">{r.n}</span>
-                <span className="cc-code-body">{guides}
-                  {block ? <button type="button" className="cc-code-tw" aria-expanded={!r.folded} aria-label={(r.folded ? "Open " : "Close ") + "line " + r.n}
-                    onClick={(e) => { e.stopPropagation(); const n = new Set(folded); if (n.has(st.id)) n.delete(st.id); else n.add(st.id); setFolded(n); }}>{r.folded ? "▸" : "▾"}</button>
-                    : <span className="cc-code-tw" />}
-                  <IconTile name={d.mark.icon} color={d.mark.color} size={20} />
-                  <span className={cond ? "cc-code-kw" : "cc-code-name"}>{nameOf(st.action ?? "")}</span>
-                  <span className="cc-code-sum">{cond ? conditionText(st.args?.condition) : summarize({ ...st, args: Object.fromEntries(Object.entries(st.args ?? {}).filter(([k]) => k !== "condition")) })}
-                    {r.folded ? " · " + r.hidden + " step" + (r.hidden === 1 ? "" : "s") + " inside" : ""}{st.disabled ? " · switched off" : ""}</span>
+            : <ol className="st-step-list cc-agent-list" aria-label="Steps">
+              <li aria-hidden="true"><span className="st-marker-row"><span className="st-marker st-start">START</span></span></li>
+              {rows.map((r, i) => {
+              if (r.kind === "section") return <li key={"s" + i}><div className="st-section cc-agent-section" style={{ paddingLeft: 46 + r.depth * 22 }}>{r.label}</div></li>;
+              const st = r.step, d = describeAction(st.action ?? "", []), hasParts = !!(st.children || st.else || st.elseIf || st.catch || st.finally);
+              return <li key={st.id} className="st-step-row">
+                <button type="button" className={"st-step" + (picked === st.id ? " is-selected" : "") + (st.disabled ? " is-disabled" : "") + (hit(st) ? " is-hit" : "")}
+                  aria-pressed={picked === st.id} onClick={() => setPicked(st.id)}>
+                  <span className="st-step-n">{r.n}</span>
+                  <span className="st-guides" style={{ width: r.depth * 22 }} />
+                  <IconTile name={d.mark.icon} color={d.mark.color} size={24} />
+                  <strong>{nameOf(st.action ?? "")}</strong>
+                  <span className="st-step-sum">{summarize(st)}</span>
+                  {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
+                  {st.disabled && <span className="st-badge">OFF</span>}
                   <span className="cc-code-id">{st.id}</span>
-                </span>
+                </button>
+                {hasParts && <span className="st-step-tools">
+                  <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"} aria-expanded={!r.folded}
+                    onClick={() => { const n = new Set(folded); if (n.has(st.id)) n.delete(st.id); else n.add(st.id); setFolded(n); }}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>
+                </span>}
               </li>;
-            })}</ol>}
+            })}
+              <li aria-hidden="true"><span className="st-marker-row"><span className="st-marker st-end">END</span></span></li>
+            </ol>}
         </div>
         <aside className="cc-agent-side" aria-label="The selected line">
           {sel ? <>

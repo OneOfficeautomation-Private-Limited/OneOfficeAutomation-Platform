@@ -664,3 +664,14 @@ span.cc-code-tw { cursor: default; }
 .cc-code-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ui-text-2); font: 12px var(--ui-mono); }
 .cc-code-id { margin-left: auto; padding-right: 10px; font: 11px var(--ui-mono); color: var(--ui-text-3); flex: none; }
 @media (max-width: 1000px) { .cc-agent-steps { grid-template-columns: 1fr; } .cc-agent-code { border-right: 0; border-bottom: 1px solid var(--ui-border); } }
+/* The agent's steps as One AgentStudio's step list (same classes, read-only), and the list grows with the agent: the
+   page scrolls, never a one-line box with its own scroll bar */
+.cc-agent-steps { flex: 1 0 auto; min-height: 0; align-items: stretch; }
+.cc-agent-code { min-height: 100%; }
+.cc-agent-list { padding-bottom: 16px; }
+.cc-agent-list .st-step { padding-right: 52px; }
+.cc-agent-list .st-step .cc-code-id { margin-left: auto; padding-right: 0; }
+.cc-agent-list .st-step.is-hit strong, .cc-agent-list .st-step.is-hit .st-step-sum { background: #fff1b8; }
+.cc-agent-section { cursor: default; }
+.cc-agent-section:hover { background: var(--ui-soft); }
+.cc-agent-side > * { position: sticky; top: 0; }
