@@ -116,6 +116,7 @@ public final class Analytics {
         m.put("most_run", perBot.stream().sorted(by("runs")).limit(top).toList());
         m.put("longest", perBot.stream().filter(x -> x.get("avg_ms") != null).sorted(by("avg_ms")).limit(top).toList());
         m.put("most_failed", mostFailed(runs, perBot).stream().limit(top).toList());
+        m.put("failure_reasons", failureReasons(runs).stream().limit(top).toList());
         m.put("by_runner", grouped(runs, r -> r.deviceName() == null ? r.device() : r.deviceName(), "runner").stream().sorted(by("total_ms")).toList());
         m.put("by_source", grouped(runs, r -> sourceGroup(r.source()), "source").stream().sorted(by("runs")).toList());
         m.put("period", Map.of("runs_counted", runs.size(), "capped", runs.size() >= MAX_ROWS));
@@ -144,6 +145,26 @@ public final class Analytics {
             out.add(m);
         }
         out.sort(by("failed"));
+        return out;
+    }
+
+    /** Why runs failed, across all agents (AA's top failure reasons): each error code with its runs, agents and last time. */
+    static List<Map<String, Object>> failureReasons(List<Run> runs) {
+        Map<String, List<Run>> g = new HashMap<>();
+        for (Run r : runs) if ("failed".equals(r.status())) g.computeIfAbsent(r.errorCode() == null ? "UNKNOWN" : r.errorCode(), k -> new ArrayList<>()).add(r);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (var e : g.entrySet()) {
+            Map<String, Long> agents = new HashMap<>();
+            for (Run r : e.getValue()) agents.merge(r.bot(), 1L, Long::sum);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("code", e.getKey());
+            m.put("runs", e.getValue().size());
+            m.put("agents", agents.size());
+            m.put("agent", agents.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null));   // the one failing with it most
+            m.put("last", e.getValue().get(e.getValue().size() - 1).created());   // runs come oldest first
+            out.add(m);
+        }
+        out.sort(by("runs"));
         return out;
     }
 

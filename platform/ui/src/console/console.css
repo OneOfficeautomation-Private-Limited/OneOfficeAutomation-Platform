@@ -161,3 +161,10 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-log li.cc-add { color: var(--ui-success); }
 .cc-log li.cc-del { color: var(--ui-error-text); }
 @media (max-width: 760px) { .cc-repo { grid-template-columns: minmax(0, 1fr); } .cc-repo-tree { position: static; max-height: none; border-right: 0; } }
+/* Operational Insights > Overview */
+a.cc-sum { text-decoration: none; }
+.cc-card-flat { margin: 0; }
+.cc-card-foot { margin: 8px 0 0; font-size: 12.5px; }
+.cc-meter { display: inline-flex; align-items: center; gap: 6px; }
+.cc-meter progress { width: 80px; height: 8px; accent-color: var(--ui-accent); }
+.cc-updated { padding-top: 0; font-size: 12px; }

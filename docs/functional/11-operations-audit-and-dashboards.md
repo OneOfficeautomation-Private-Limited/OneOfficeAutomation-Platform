@@ -13,7 +13,7 @@ audit records, e-mail from the Command Center, backups, and the Command Center d
 2. Home
 3. Agent Activity: In progress and Scheduled
 4. Agent Activity: Completed and run details
-5. Operations
+5. Operational Insights: Overview and Operations
 6. Business figures (KPIs) and dashboards
 7. Audit Trail
 8. Retention
@@ -28,11 +28,11 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 
 | Section | Pages (permission) |
 | --- | --- |
-| Build | Agent Repository (`repo.view`), Templates (`repo.view`), One AgentStudio (new tab), Workflow (`runs.view`), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
-| Manage | Runners (`devices.view`), Credential vault (members), Shared Global values (`globals.view`), Connections (`globals.view`), Toolkits (`toolkits.manage`) |
-| Operations | Agent Activity (`runs.view`), Task inbox (everyone), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Operations (`analytics.view`), Dashboards (`analytics.view`) |
-| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
-| AI | Prompt Skills (`skills.view`), Model Connections (`connections.manage`), AI governance (`audit.view`) |
+| Build | Agent Repository (`repo.view`), Agent Templates (`repo.view`), One AgentStudio (new tab), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
+| Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Agent ToolKits (`toolkits.manage`) |
+| Operational Insights | Overview, Operations, Dashboards (all `analytics.view`) |
+| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Credential vault (members), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
+| AI | Model Connections (`connections.manage`), Prompt Skills (`skills.view`), Document Automation (`repo.view`), AI governance (`audit.view`) |
 
 The section of the current page is open; the menu can be narrowed to icons. Pages redraw themselves within about a
 second of a change: the console keeps one request open (`GET /api/changes?since=TOKEN&wait=25`) that answers as soon as
@@ -79,9 +79,19 @@ log (filter, **Download log**); the last value of each variable (credentials mas
 **AI calls** tab ([document 09](09-ai-features.md)). Log events larger than about 19,000 characters are cut; up to 2,000
 events are returned per request.
 
-## 5. Operations
+## 5. Operational Insights: Overview and Operations
 
-Operations (`analytics.view`) shows how agents ran over a period (24 hours to a year), for all agents or one, counting
+**Overview** (`analytics.view`, in the new console) shows on one screen how things stand, for the last 24 hours or 7
+days: runs running and waiting, the share of finished runs that completed, runs failed, runners online (and how many
+need attention), queue items overdue and waiting, and hours saved over 30 days. Below: why runs failed (each error code
+with its runs, the number of agents and the agent failing with it most), the agents failing most, runners needing
+attention (offline, out of service, above their CPU or memory limit, or with an old OneRunner), work queues with items
+waiting (overdue against their target, processing on or off) and, for `connections.manage`, AI tokens used this month
+against each connection's budget (80% or more is marked). Each figure and error opens the page behind it with the
+matching filter (Agent Activity takes `tab`, `status`, `period`, `q` and `bot` in its address). Cards a viewer may not
+see are left out; the screen refreshes every 30 seconds.
+
+**Operations** (`analytics.view`) shows how agents ran over a period (24 hours to a year), for all agents or one, counting
 only agents the viewer may see:
 
 - runs, success rate, total and average run time, and the time within which 95% of runs finish;
@@ -95,7 +105,7 @@ and average.
 
 | API | Returns |
 | --- | --- |
-| `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=` | The Operations figures for the period and filters (`source` matches a prefix) |
+| `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=&top=` | The Operations figures for the period and filters (`source` matches a prefix), with `failure_reasons`: each error code, its failed runs, agents, the agent failing with it most and the last time |
 | `GET /api/analytics/agent?path=` | One agent's statistics |
 | `GET /api/analytics/variables?path=` | One agent's variable profile |
 | `GET /api/analytics/export?report=` | One list as CSV: `most_run`, `longest`, `most_failed`, `by_runner`, `by_day`, `by_source` or `run_history` |

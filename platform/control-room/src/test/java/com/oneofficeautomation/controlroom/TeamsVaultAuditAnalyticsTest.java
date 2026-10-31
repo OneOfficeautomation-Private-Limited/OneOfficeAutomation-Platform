@@ -184,6 +184,11 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals("Ops/Backup.flow.json", worst.get("bot_path"));
         assertEquals(100.0, worst.get("failure_rate"));
         assertEquals(List.of("FILE.NOT_FOUND (2)"), worst.get("top_errors"));
+        // failure reasons across all agents: the most common first, with the agent failing with it most
+        List<Map<String, Object>> reasons = (List<Map<String, Object>>) o.get("failure_reasons");
+        assertEquals(List.of("FILE.NOT_FOUND", "WEB.TIMEOUT"), reasons.stream().map(x -> x.get("code")).toList());
+        assertEquals(2, reasons.get(0).get("runs"));
+        assertEquals("Ops/Backup.flow.json", reasons.get(0).get("agent"));
         assertEquals(List.of("manual", "schedule"), ((List<Map<String, Object>>) o.get("by_source")).stream().map(x -> x.get("source")).toList());
         // carl may not see Finance: its runs are not counted for him
         assertEquals(3, ((Map<String, Object>) cr.analytics.overview(carl, Map.of()).get("totals")).get("runs"));

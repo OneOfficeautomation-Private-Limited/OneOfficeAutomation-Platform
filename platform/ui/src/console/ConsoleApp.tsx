@@ -27,11 +27,12 @@ import { Tests } from "./Tests";
 import { Toolkits } from "./Toolkits";
 import { Triggers } from "./Triggers";
 import { Users } from "./Users";
+import { Overview } from "./Overview";
 import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["activity", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, "").split("?")[0]; return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -88,6 +89,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           offTitle="Agent Studio runs beside the Command Center (ooa server), on the same computer" />
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
+          {page === "insights" && <Overview api={api} user={user} pageHref={hrefFor} />}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}
           {page === "docautomation" && <DocumentAutomation api={api} />}

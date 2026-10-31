@@ -77,8 +77,10 @@ function save(fileName: string, text: string, type: string) {
   a.download = fileName;
   document.body.appendChild(a); a.click(); a.remove();
 }
-/** The run named in the address (#/activity?run=<id>), if any. */
-const linkedRun = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("run");
+/** What the address asks for: #/activity?run=<id> opens a run; tab, status, period, q (search) and bot set the list. */
+const linked = () => new URLSearchParams(location.hash.split("?")[1] ?? "");
+const linkedRun = () => linked().get("run");
+const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "q", "bot"].filter((k) => l.get(k)).map((k) => [k, l.get(k)!])); };
 
 type Summary = { running: number; queued: number; failed: number; ended: number; succeeded: number; next: Schedule | null; schedulesOn: number | null };
 
@@ -86,7 +88,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const [stored, setTabState] = usePersistent<Tab>("activity.tab", "progress");
   const tab: Tab = stored === "scheduled" && !user.permissions.includes("schedules.view") ? "progress" : stored;
   const [hidden, setHidden] = usePersistent<Record<string, string[]>>("activity.hidden", { progress: [], completed: ["steps"] });
-  const [f, setF] = useState<Record<string, string>>({});
+  const [f, setF] = useState<Record<string, string>>(linkedFilters);
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ runs: Run[]; total: number } | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -101,6 +103,12 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const allCols = useMemo(() => tab === "progress" ? progressCols(names) : COMPLETED_COLS, [tab, names]);
   const cols = allCols.filter((c) => !(hidden[tab] ?? []).includes(c.key));
 
+  useEffect(() => {   // a tab named in the address wins over the one remembered; the address then keeps only a run
+    const t = linked().get("tab");
+    if (t === "progress" || t === "completed" || t === "scheduled") setTabState(t);
+    const run = linkedRun();
+    if (location.hash.includes("?")) history.replaceState(null, "", "#/activity" + (run ? "?run=" + encodeURIComponent(run) : ""));
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (can("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), () => {});
     if (can("devices.view")) api.runners().then(setRunners, () => {});

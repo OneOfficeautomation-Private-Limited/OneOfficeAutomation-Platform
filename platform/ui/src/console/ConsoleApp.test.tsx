@@ -57,6 +57,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       user = { ...user, mfa_setup_required: false } as typeof user; return ok({ recovery_codes: ["aaaa-1111", "bbbb-2222"] });
     }
     if (route === "dashboard") return ok(dashboard);
+    if (route === "analytics") {
+      calls.push({ method: "GET", route: "analytics?" + (url.split("?")[1] ?? "") });
+      const st = { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 };
+      return ok({ totals: st, duration_distribution: [], by_day: [], most_run: [], longest: [], by_runner: [], by_source: [], period: { runs_counted: 5, capped: false },
+        most_failed: [{ ...st, bot_path: "Finance/Invoice intake.flow.json", failure_rate: 25, top_errors: ["EXCEL.NOT_FOUND (1)"] }],
+        failure_reasons: [{ code: "EXCEL.NOT_FOUND", runs: 1, agents: 1, agent: "Finance/Invoice intake.flow.json", last: "2026-10-30T07:00:00Z" }] });
+    }
     if (route === "plugins") return ok({ plugins });
     if (route === "repo" && url.includes("deleted=true")) return ok({ bots: [{ path: "HR/Old offboard.flow.json", latest_version: 2, deleted_at: "2026-10-20T08:00:00Z", deleted_by: "admin" }] });
     if (route === "repo") {
@@ -397,6 +404,35 @@ describe("rebuilt Command Center console", () => {
     expect(await screen.findByText("Started again as run r9.")).toBeTruthy();
     expect(location.hash).toBe("#/activity?run=r9");
     fireEvent.click(within(screen.getByRole("dialog", { name: "Run of Invoice intake" })).getByRole("button", { name: "Close" }));
+    expect(location.hash).toBe("#/activity");
+    location.hash = "";
+  });
+
+  it("shows Operational Insights > Overview: figures that open their page, why runs failed across agents, runners and queues needing attention, AI budget used", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Overview" }));
+    const figs = await screen.findByRole("group", { name: "Figures" });
+    expect(await within(figs).findByText("1 of 2")).toBeTruthy();
+    expect(within(figs).getByText("Runners online · 2 need attention")).toBeTruthy();
+    expect(within(figs).getByText("75%")).toBeTruthy();
+    expect(within(figs).getByText("Queue items overdue · 4 waiting")).toBeTruthy();
+    const runners = screen.getByRole("table", { name: "Runners needing attention" });
+    expect(within(runners).getByText("Busy: CPU use 93% is above its limit of 80%")).toBeTruthy();
+    expect(within(runners).getByText("Offline")).toBeTruthy();
+    const queues = screen.getByRole("table", { name: "Work queues with items waiting" });
+    expect(within(queues).getByText("1 (target 240 min)")).toBeTruthy();
+    expect(within(screen.getByRole("table", { name: "AI use this month" })).getByText("90%", { exact: false }).closest("td")!.className).toContain("cc-err");   // 80% or more used
+    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "7" } });
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7"))).toBe(true));
+    // a failure reason opens Agent Activity's Completed runs, filtered to it
+    const link = within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" });
+    expect(link.getAttribute("href")).toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND&period=7d");
+    await act(async () => { location.hash = link.getAttribute("href")!; });
+    expect(await screen.findByRole("table", { name: "Completed runs" })).toBeTruthy();
+    expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("failed");
+    expect((screen.getByLabelText("Search runs") as HTMLInputElement).value).toBe("EXCEL.NOT_FOUND");
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("status=failed") && c.route.includes("q=EXCEL.NOT_FOUND"))).toBe(true));
     expect(location.hash).toBe("#/activity");
     location.hash = "";
   });

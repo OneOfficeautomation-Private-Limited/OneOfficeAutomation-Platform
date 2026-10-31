@@ -19,7 +19,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
     { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
   { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [
-    { id: "operations", label: "Operations", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }] },
+    { id: "insights", label: "Overview", perm: "analytics.view" }, { id: "operations", label: "Operations", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }] },
   { id: "administration", label: "ADMINISTRATION", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
     { id: "teams", label: "Teams", perm: "teams.manage|team_lead" }, { id: "credentials", label: "Credential vault" },

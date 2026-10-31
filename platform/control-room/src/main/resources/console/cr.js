@@ -10,6 +10,8 @@ for (const m of ["append", "replaceChildren"]) {
 const S = { user: null, page: "home", timer: null, drawerTimer: null, devices: [], bots: [], users: [], names: {} };
 // A link such as /?page=queues (from the new Studio menu) opens that page after sign-in.
 const LINKED_PAGE = new URLSearchParams(location.search).get("page");
+// pages only the new console has (Studio's menu links every page here): open them there
+if (["insights", "alerts"].includes(LINKED_PAGE)) location.replace("next/#/" + LINKED_PAGE);
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);

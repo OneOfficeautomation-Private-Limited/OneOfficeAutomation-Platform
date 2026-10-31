@@ -14,6 +14,15 @@ export type Dashboard = {
   my_recent_runs?: { id: string; bot_path: string; status: string; created?: string; finished?: string }[];
   days?: { date: string; success: number; failed: number; stopped: number; active: number }[];
 };
+/** Run figures of a group: counts, success rate (of finished runs) and timing. */
+export type RunStats = { runs: number; success: number; failed: number; stopped: number; active: number; success_rate: number | null; total_ms: number;
+  avg_ms: number | null; p95_ms: number | null; max_ms: number | null };
+/** The Operations figures (GET analytics). */
+export type Operations = { totals: RunStats; duration_distribution: { bucket: string; runs: number }[]; by_day: (RunStats & { day: string })[];
+  most_run: (RunStats & { bot_path: string })[]; longest: (RunStats & { bot_path: string })[];
+  most_failed: (RunStats & { bot_path: string; failure_rate: number; top_errors: string[] })[];
+  failure_reasons?: { code: string; runs: number; agents: number; agent: string | null; last: string }[];
+  by_runner: (RunStats & { runner: string })[]; by_source: (RunStats & { source: string })[]; period: { runs_counted: number; capped: boolean } };
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
 /** A run of an agent, as the runs list gives it; a running run carries its progress. */
 export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
@@ -441,5 +450,7 @@ export class CrApi {
   }
   async deletePool(id: string) { await this.call("DELETE", "pools/" + encodeURIComponent(id)); }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
+  /** Operations figures for a period (days, or from and to) and filters (bot, device, user, source): only agents the caller may see. */
+  operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }
