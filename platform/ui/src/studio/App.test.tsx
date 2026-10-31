@@ -568,7 +568,14 @@ describe("new Studio", () => {
   it("selects several steps with Ctrl and Shift, then switches them off and deletes them together", async () => {
     render(<App api={fakeServer().api} />);
     const steps = await openIntake();
+    // the toolbar shows the step actions only while steps are selected (no greyed-out buttons), Undo and Redo always
+    const bar = within(steps).getByRole("toolbar", { name: "Edit steps" });
+    fireEvent.click(within(steps).getByText("START"));   // no step selected
+    expect(within(bar).queryByRole("button", { name: "Cut" })).toBeNull();
+    expect(within(bar).queryByRole("button", { name: "Paste" })).toBeNull();
+    expect(within(bar).getByRole("button", { name: "Undo" })).toBeTruthy();
     fireEvent.click(stepButton(steps, "Open workbook"));
+    expect(within(bar).getByRole("button", { name: "Cut" }).getAttribute("title")).toBe("Cut (Ctrl+X)");
     fireEvent.click(stepButton(steps, "Write to log"), { shiftKey: true });
     expect(within(steps).getByText(/^3 selected of 3 steps/)).toBeTruthy();
     expect(screen.getByText(/3 steps selected/)).toBeTruthy();

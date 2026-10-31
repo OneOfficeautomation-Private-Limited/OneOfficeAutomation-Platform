@@ -36,6 +36,15 @@ export const ICONS = {
   help: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01",
   star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  undo: "M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-4",
+  redo: "M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h4",
+  cut: "M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12",
+  copy: "M9 9h11v11H9zM5 15H4V4h11v1",
+  paste: "M9 4h6v3H9zM8 5H6v15h12V5h-2",
+  duplicate: "M8 8h12v12H8zM4 16V4h12M14 11v6M11 14h6",
+  power: "M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0",
+  record: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z",
+  target: "M12 3v4M12 17v4M3 12h4M17 12h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
 } as const;
 
 export type IconName = keyof typeof ICONS;

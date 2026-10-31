@@ -398,17 +398,22 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       onKeyDown={(e) => { if (e.key === "Escape" && full && !document.fullscreenElement) setFull(false); }}>
       <div className="st-agent">
         <section className="st-steps" aria-label="Agent steps" onKeyDown={onKeys} onPaste={onPaste}>
+          {/* review round 2 (1 Nov 2026): one line, icons with their name and shortcut on hover (as AA's editor), the step
+              actions only while steps are selected and Paste only while something is copied; the count is at the list's foot */}
           <div role="toolbar" aria-label="Edit steps" className="st-edit-bar">
-            <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
-            <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
-            <span className="st-bar-gap" />
-            <Button kind="plain" onClick={act.cut} disabled={!chosen.length} title="Ctrl+X">Cut</Button>
-            <Button kind="plain" onClick={() => act.copy()} disabled={!chosen.length} title="Ctrl+C">Copy</Button>
-            <Button kind="plain" onClick={() => act.paste()} disabled={!clipboard} title="Ctrl+V">Paste</Button>
-            <span className="st-bar-gap" />
-            <Button kind="plain" onClick={act.remove} disabled={!chosen.length} title="Delete">Delete</Button>
-            <Button kind="plain" onClick={act.duplicate} disabled={!chosen.length} title="Ctrl+D">Duplicate</Button>
-            <Button kind="plain" onClick={act.disable} disabled={!chosen.length} title="Ctrl+/">{allOff ? "Switch on" : "Switch off"}</Button>
+            <button type="button" className="st-tool" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
+            {(chosen.length > 0 || clipboard) && <span className="st-bar-gap" />}
+            {chosen.length > 0 && <>
+              <button type="button" className="st-tool" aria-label="Cut" title="Cut (Ctrl+X)" onClick={act.cut}><Icon name="cut" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Copy" title="Copy (Ctrl+C)" onClick={() => act.copy()}><Icon name="copy" size={16} /></button>
+            </>}
+            {clipboard && <button type="button" className="st-tool" aria-label="Paste" title="Paste (Ctrl+V)" onClick={() => act.paste()}><Icon name="paste" size={16} /></button>}
+            {chosen.length > 0 && <>
+              <button type="button" className="st-tool" aria-label="Delete" title="Delete (Del)" onClick={act.remove}><Icon name="trash" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Duplicate" title="Duplicate (Ctrl+D)" onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
+              <button type="button" className="st-tool" aria-label={allOff ? "Switch on" : "Switch off"} title={(allOff ? "Switch on" : "Switch off") + " (Ctrl+/)"} onClick={act.disable}><Icon name="power" size={16} /></button>
+            </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [
                 { key: "up", label: "Move up", shortcut: "Alt+↑", onSelect: act.up },
@@ -421,19 +426,21 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
-            ]} trigger={<Button kind="plain" icon="chevronDown">More</Button>} />
+            ]} trigger={<button type="button" className="st-tool" aria-label="More" title="More step actions"><Icon name="more" size={16} stroke={3} /></button>} />
             <span className="st-bar-gap" />
             <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
               {([["list", "List"], ["flow", "Flow"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={view === k} className="st-seg-btn" onClick={() => setView(k)}>{t}</button>)}
             </div>
-            <Button kind="plain" icon="spark" onClick={() => setAssistant("build")} title="Build steps from a description, or explain this agent">Assistant</Button>
-            <Button kind="plain" className="st-record-btn" onClick={record} disabled={!!recording} title="Record actions in a web browser or a Windows application">
-              <span className="st-rec-dot" aria-hidden="true" />{recording ? "Recording…" : "Record"}</Button>
-            <Menu label="Capture" align="start" items={[
-              { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
-              { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
-            ]} trigger={<Button kind="plain" icon="chevronDown" disabled={capturing}>{capturing ? "Capturing…" : "Capture"}</Button>} />
-            <span className="st-steps-meta" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
+            <button type="button" className="st-tool" aria-label="Assistant" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}><Icon name="spark" size={16} /></button>
+            {recording
+              ? <span className="st-tool-busy" role="status"><span className="st-rec-dot" aria-hidden="true" />Recording…</span>
+              : <button type="button" className="st-tool st-record-btn" aria-label="Record" title="Record actions in a web browser or a Windows application" onClick={record}><span className="st-rec-dot" aria-hidden="true" /></button>}
+            {capturing
+              ? <span className="st-tool-busy" role="status">Capturing…</span>
+              : <Menu label="Capture" align="start" items={[
+                  { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
+                  { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
+                ]} trigger={<button type="button" className="st-tool" aria-label="Capture" title="Capture a web element or a desktop control"><Icon name="target" size={16} /></button>} />}
             <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
               aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
               <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>
@@ -509,6 +516,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               </div>
             </li>
           </ol>}
+          <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
         </section>
 
         {!rightHidden && <Splitter label="Resize the details panel" axis="x" grow={-1} value={rightWidth} min={260} max={680}
