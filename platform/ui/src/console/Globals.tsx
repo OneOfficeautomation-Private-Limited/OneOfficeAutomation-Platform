@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, GlobalValue } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Shared Global values, built as AA's Global values (checked against AA's docs, UiPath's assets and Blue Prism's
  * environment variables, 31 Oct 2026): each value with its type (text, number, true/false, list or record, as AA's and
  * UiPath's typed values), whether people may set their own (AA's "can be changed"), and your own value. Agents read a
  * value as $global.name; a person's runs use their own value where they set one.
+ * Review round 2 (31 Oct 2026): a menu per value (Edit, Set my own value, Copy the name, Delete asked first), your value on
+ * one line, and rows you cannot open shown as such.
  */
 type Kind = "text" | "number" | "boolean" | "json";
 const KIND: Record<Kind, string> = { text: "Text", number: "Number", boolean: "True/false", json: "List or record (JSON)" };
@@ -30,10 +32,22 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   const [only, setOnly] = useState("");
   const [dialog, setDialog] = useState<null | { kind: "edit"; g: GlobalValue | null } | { kind: "mine"; g: GlobalValue }>(null);
   const manage = user.permissions.includes("globals.manage");
+  const [ask, setAsk] = useState<GlobalValue | null>(null);   // a value to delete, asked first
   const load = useCallback(async () => { try { setList(await api.globals()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
   const shown = useMemo(() => (list ?? []).filter((g) => (!q.trim() || (g.name + " " + show(g.value)).toLowerCase().includes(q.trim().toLowerCase()))
     && (!only || (only === "changeable" ? g.changeable : g.changeable && g.my_value !== undefined))), [list, q, only]);
+
+  const openOf = (g: GlobalValue) => manage ? { kind: "edit" as const, g } : g.changeable ? { kind: "mine" as const, g } : null;
+  const copy = (g: GlobalValue) => (navigator.clipboard?.writeText("$global." + g.name) ?? Promise.reject(new Error("no clipboard")))
+    .then(() => onNotice("Copied $global." + g.name + "."), () => setError("Copying is not allowed here: type $global." + g.name + " in the agent."));
+  const del = (g: GlobalValue) => api.deleteGlobal(g.name).then(() => { onNotice("Deleted $global." + g.name + "."); setAsk(null); load(); }, (e) => setError(message(e)));
+  const rowMenu = (g: GlobalValue) => [
+    ...(manage ? [{ key: "edit", label: "Edit", onSelect: () => setDialog({ kind: "edit", g }) }] : []),
+    ...(g.changeable ? [{ key: "mine", label: "Set my own value", onSelect: () => setDialog({ kind: "mine", g }) }] : []),
+    { key: "copy", label: "Copy the name", onSelect: () => { copy(g); } },
+    ...(manage ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsk(g) }] : []),
+  ];
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-glob-title">
@@ -52,21 +66,25 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
+      <div className="cc-list-panel">
+        {ask && <div className="cc-list-bulk" role="alert"><span>Delete $global.{ask.name}? Everyone's own values of it go too; agents reading it get nothing.</span>
+          <Button kind="danger" onClick={() => del(ask)}>Delete</Button><Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
+        <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Shared values list">
-          <thead><tr><th scope="col">Name in agents</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">People may change</th><th scope="col">Your value</th><th scope="col">Updated</th></tr></thead>
+          <thead><tr><th scope="col">Name in agents</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">People may change</th><th scope="col">Your value</th><th scope="col">Updated</th>
+            <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((g) => (
-              <tr key={g.name} onClick={() => setDialog(manage ? { kind: "edit", g } : g.changeable ? { kind: "mine", g } : null)}>
+              <tr key={g.name} className={openOf(g) ? undefined : "is-static"} onClick={rowClick(() => setDialog(openOf(g)))}>
                 <td className="ui-mono">$global.{g.name}</td><td>{KIND[kindOf(g.value)]}</td><td className="ui-mono cc-clip">{show(g.value)}</td>
                 <td>{g.changeable ? "Yes" : "No"}</td>
-                <td>{!g.changeable ? "" : g.my_value === undefined ? <span className="st-muted">Uses the shared one</span> : <span className="ui-mono">{show(g.my_value)}</span>}
-                  {g.changeable && <Button kind="plain" onClick={(e) => { e.stopPropagation(); setDialog({ kind: "mine", g }); }}>My value</Button>}</td>
+                <td className="cc-clip">{!g.changeable ? <span className="cc-none">–</span> : g.my_value === undefined ? <span className="cc-none">Uses the shared one</span> : <span className="ui-mono">{show(g.my_value)}</span>}</td>
                 <td>{when(g.updated)}{g.updated_by ? " by " + g.updated_by : ""}</td>
+                <td className="cc-list-menu"><RowMenu label={"Actions for $global." + g.name} items={rowMenu(g)} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={6} className="cc-none">{list.length ? "No values match." : "No shared values yet."}</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={6} className="cc-none" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{list.length ? "No values match." : "No shared values yet."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
       </div>

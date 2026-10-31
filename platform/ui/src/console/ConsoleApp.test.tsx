@@ -1359,7 +1359,14 @@ describe("rebuilt Command Center console", () => {
     const list = await screen.findByRole("table", { name: "Shared values list" });
     expect(await within(list).findByText("$global.max_amount")).toBeTruthy();
     expect(within(list).getByText("Number")).toBeTruthy();
-    fireEvent.click(within(list).getByRole("button", { name: "My value" }));
+    // a menu per value: your own value, the name to copy, Delete asked first
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for $global.max_amount" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Delete $global.max_amount?");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(calls.some((c) => c.method === "DELETE" && c.route === "globals/max_amount")).toBe(false);
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for $global.reports_folder" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Set my own value" }));
     const mine = await screen.findByRole("dialog", { name: "Your value of reports_folder" });
     await act(async () => { fireEvent.click(within(mine).getByRole("button", { name: "Use the shared one" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "globals/reports_folder/mine" }));
