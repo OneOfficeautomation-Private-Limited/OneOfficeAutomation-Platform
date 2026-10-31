@@ -129,8 +129,9 @@ When **Approval before production** is on (Administration > Settings > Security,
 ## 9. Files in the repository
 
 - Templates, workbooks, lists and pictures live next to agents, in the same folders and under the same permissions.
-- **Upload file** adds a file of up to 25 MB; uploading the same name again makes a new version. Download and Delete are
-  on each row. Agent files are checked in from Studio instead.
+- The Agent Repository shows the files of the open folder (not those of its subfolders) under its agents. **Upload a
+  file** adds a file of up to 25 MB; uploading the same name again makes a new version. Download and Delete (with a
+  warning that agents needing it will not start) are on each row. Agent files are checked in from Studio instead.
 - With `block_executable_uploads` on (Settings), files ending `.exe`, `.dll`, `.msi`, `.bat`, `.cmd`, `.com`, `.scr`,
   `.ps1`, `.vbs` or `.jar` are refused.
 - An agent lists the files it needs in `requires.files`. The runner places each at the same path in its workspace before
@@ -189,7 +190,7 @@ author. The Command Center stays the source of truth: changes made in Git are ov
 | Action | Rule |
 | --- | --- |
 | Export | A bundle of the ticked items at a version (production, latest, a number or a label) and optionally every agent they call. Each item's content carries its SHA-256; the bundle has a checksum. Needs `lifecycle.export` and view access. |
-| Import | Checks the bundle and validates every item as check-in does, with folder permissions. Stores all of them or none. An existing item is skipped or gets a new version; history is never replaced. Can place items under another folder and make the versions live (or request approval). Needs `lifecycle.import`. |
+| Import | First shows what the bundle holds: each agent, its version, whether it was included because another calls it, where it will go (its own folders under the folder chosen) and whether it is already here. Then checks the bundle and validates every item as check-in does, with folder permissions. Stores all of them or none. An existing item is skipped or gets a new version; history is never replaced. Can place items under another folder and make the versions live (or request approval). Needs `lifecycle.import`. |
 | Promote | Export and import in one step against another Command Center, using an API key of someone allowed to import there, kept in a vault folder here; the key is read from the vault and sent only to that address |
 
 ## 14. Templates
