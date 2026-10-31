@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Field, Select, TextArea, TextInput } from "../components";
 import { RefreshButton } from "./ListParts";
 
 /**
@@ -8,9 +8,13 @@ import { RefreshButton } from "./ListParts";
  * Prism's, 31 Oct 2026): tabs To do and Done; filters by kind, overdue and a search; administrators can see everyone's
  * tasks. A task opens with its form, approval or notice, the workflow's data, a comment, and Take it / Give back so two
  * people do not work on the same task. The list refreshes every 30 seconds.
+ * Laid out as the design plan's step 8 (approved on the canvas 31 Oct 2026): the list pattern with a tile per kind and
+ * Overdue as a pill, and a task in a side panel beside the list (where it comes from, what to decide, the actions).
  */
 type Tab = "open" | "completed";
 const KIND: Record<string, string> = { form: "Fill in", approval: "Approve", notification: "Notice" };
+/** The tile of each kind of task: a letter on its colour (white text at least 4.5:1). */
+const TILE: Record<string, [string, string]> = { approval: ["A", "#1d6b38"], form: ["F", "#2f6fde"], notification: ["N", "#475569"] };
 const OUTCOME: Record<string, string> = { submitted: "Submitted", approved: "Approved", rejected: "Rejected", done: "Read", expired: "Expired", cancelled: "Cancelled" };
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -36,48 +40,58 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
       && (!f.kind || t.kind === f.kind) && (!f.overdue || t.overdue) && (!f.mine || t.claimed_by === user.username));
   }, [tasks, f, user.username]);
 
+  const overdue = (tasks ?? []).filter((t) => t.overdue).length;
+  const filtered = Object.values(f).some(Boolean);
+  const tile = (k: string) => { const [m, c] = TILE[k] ?? ["?", "#475569"]; return <span className="cc-task-tile" style={{ background: c }} title={KIND[k] ?? k} aria-hidden="true">{m}</span>; };
+
   return (
-    <section className="st-page cc-home cc-list" aria-labelledby="cc-inbox-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-inbox-title">Task inbox</h1><p>Work that workflows give you or your role: forms to fill in, approvals and notices.</p></div>
+    <section className={"st-page cc-home cc-list" + (open ? " has-run" : "")} aria-labelledby="cc-inbox-title">
+      <header className="cc-list-head">
+        <h1 id="cc-inbox-title">Task inbox</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Work that workflows give you or your role: forms to fill in, approvals and notices.">i</span>
+        {tasks && <span className="cc-list-count">{tab === "open" ? tasks.length + " to do" + (overdue ? " · " + overdue + " overdue" : "") : tasks.length + " done"}</span>}
+        <span className="ov-fill" />
       </header>
-      <div className="st-page-tabs" role="tablist" aria-label="Task inbox">
-        {(["open", "completed"] as const).map((t) => <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={tab === t} onClick={() => { setTab(t); setTasks(null); }}>
-          {t === "open" ? "To do" : "Done"}{tab === t && tasks && <span className="cc-count">{tasks.length}</span>}</button>)}
+      <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Task inbox">
+        {(["open", "completed"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setTasks(null); setOpen(null); }}>
+          {t === "open" ? "To do" : "Done"}{tab === t && tasks && <span className="ov-cnt">{tasks.length}</span>}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-list-tools">
-      <div className="cc-list-filters" role="group" aria-label="Filters">
-        <span className="cc-list-search"><TextInput type="search" aria-label="Search tasks" placeholder="Search tasks" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-        <span className="cc-chip"><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })} options={[{ value: "", label: "Every kind" }, ...Object.entries(KIND).map(([value, label]) => ({ value, label }))]} /></span>
-        {tab === "open" && <>
-          <label className="cc-chip-check"><input type="checkbox" checked={!!f.overdue} onChange={(e) => setF({ ...f, overdue: e.target.checked ? "1" : "" })} /> Overdue only</label>
-          <label className="cc-chip-check"><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Taken by me</label>
-        </>}
-        {admin && <label className="cc-chip-check"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Everyone's tasks</label>}
-        {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search tasks" placeholder="Search tasks" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+          <span className={"cc-chip" + (f.kind ? " is-on" : "")}><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
+            options={[{ value: "", label: "Kind: Any" }, ...Object.entries(KIND).map(([value, label]) => ({ value, label: "Kind: " + label }))]} /></span>
+          {tab === "open" && <>
+            <label className={"cc-chip-check" + (f.overdue ? " is-on" : "")}><input type="checkbox" checked={!!f.overdue} onChange={(e) => setF({ ...f, overdue: e.target.checked ? "1" : "" })} /> Overdue only</label>
+            <label className={"cc-chip-check" + (f.mine ? " is-on" : "")}><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Taken by me</label>
+          </>}
+          {admin && <label className={"cc-chip-check" + (all ? " is-on" : "")}><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Everyone's tasks</label>}
+          {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="Task inbox list tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      <div className="cc-list-panel">
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label={tab === "open" ? "Tasks to do" : "Tasks done"}>
+            <thead><tr><th scope="col">Task</th><th scope="col">Assigned to</th>
+              {tab === "open" ? <><th scope="col">Due</th><th scope="col">Given</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}</tr></thead>
+            <tbody>
+              {shown.map((t) => (
+                <tr key={t.id} className={open?.id === t.id ? "is-open" : undefined} onClick={() => setOpen(t)}>
+                  <td>{tile(t.kind)}<strong>{t.title}</strong><span className="st-sr"> ({KIND[t.kind] ?? t.kind})</span>{t.description && <span className="cc-list-sub cc-task-sub">{t.description}</span>}</td>
+                  <td>{t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee}</td>
+                  {tab === "open" ? <><td>{t.overdue && <span className="cc-pill is-failed"><span className="cc-pill-dot" />Overdue</span>} {t.due ? when(t.due) : <span className="cc-none">–</span>}</td><td>{when(t.created)}</td></>
+                    : <><td>{OUTCOME[t.outcome ?? ""] ?? t.outcome ?? t.status}</td><td>{t.completed_by ?? ""}</td><td>{when(t.completed)}</td></>}
+                </tr>
+              ))}
+              {tasks && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{tasks.length ? "No tasks match." : tab === "open" ? "Nothing waiting for you." : "No completed tasks yet."}</td></tr>}
+              {!tasks && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {tasks && <div className="cc-list-pager"><span>{shown.length} of {tasks.length}{filtered ? " matching" : ""} · refreshes every 30 seconds</span></div>}
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
-        <table className="cc-list-table" aria-label={tab === "open" ? "Tasks to do" : "Tasks done"}>
-          <thead><tr><th scope="col">Task</th><th scope="col">Kind</th><th scope="col">Assigned to</th>
-            {tab === "open" ? <><th scope="col">Due</th><th scope="col">Given</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}</tr></thead>
-          <tbody>
-            {shown.map((t) => (
-              <tr key={t.id} onClick={() => setOpen(t)}>
-                <td>{t.title}{t.description && <div className="st-muted">{t.description}</div>}</td>
-                <td>{KIND[t.kind] ?? t.kind}</td>
-                <td>{t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee}</td>
-                {tab === "open" ? <><td className={t.overdue ? "cc-err" : undefined}>{t.due ? (t.overdue ? "Overdue: " : "") + when(t.due) : ""}</td><td>{when(t.created)}</td></>
-                  : <><td>{OUTCOME[t.outcome ?? ""] ?? t.outcome ?? t.status}</td><td>{t.completed_by ?? ""}</td><td>{when(t.completed)}</td></>}
-              </tr>
-            ))}
-            {tasks && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{tasks.length ? "No tasks match." : tab === "open" ? "Nothing waiting for you." : "No completed tasks yet."}</td></tr>}
-            {!tasks && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
-      </div></div>
       {open && <TaskDialog key={open.id} api={api} task={open} onClose={() => setOpen(null)} onDone={(t) => { onNotice(t); setOpen(null); load(); }} />}
     </section>
   );
@@ -97,29 +111,46 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
   };
   const claim = (release: boolean) => api.claimTask(t.id, release).then(() => onDone(release ? "Gave back " + t.title + "." : "Took " + t.title + ": others no longer see it as open."), (e) => setError(message(e)));
   const data = Object.entries(t.data ?? {});
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
+  const [m, c] = TILE[t.kind] ?? ["?", "#475569"];
   return (
-    <Dialog open title={t.title} width={640} onClose={onClose} footer={act ? <>
-      {t.status === "open" && t.kind !== "notification" && <Button kind="secondary" onClick={() => claim(false)}>Take it</Button>}
-      {t.status === "claimed" && <Button kind="secondary" onClick={() => claim(true)}>Give back</Button>}
-      <span className="st-bar-fill" />
-      {t.kind === "approval" ? <><Button kind="danger" onClick={() => submit("rejected")}>Reject</Button><Button kind="primary" onClick={() => submit("approved")}>Approve</Button></>
-        : t.kind === "form" ? <Button kind="primary" onClick={() => submit("submitted")}>{t.form?.submitLabel || "Submit"}</Button>
-          : <Button kind="primary" onClick={() => submit("done")}>Mark as read</Button>}</> : null}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      {t.description && <p>{t.description}</p>}
-      <dl className="cc-facts">
-        <dt>Kind</dt><dd>{KIND[t.kind] ?? t.kind}</dd>
-        <dt>Assigned to</dt><dd>{t.assignee}{t.claimed_by ? " · taken by " + t.claimed_by : ""}</dd>
-        {t.due && <><dt>Due</dt><dd className={t.overdue ? "cc-err" : undefined}>{when(t.due)}{t.overdue ? " (overdue)" : ""}</dd></>}
-        {t.completed && <><dt>Done</dt><dd>{when(t.completed)}{t.completed_by ? " by " + t.completed_by : ""}{t.outcome ? " · " + (OUTCOME[t.outcome] ?? t.outcome) : ""}</dd></>}
-      </dl>
-      {fields.length > 0 && <div className="cc-taskform" role="group" aria-label="Form">
-        {fields.map((x) => <FormField key={x.id || x.label} field={x} value={answers[x.id]} disabled={!act} onChange={(v) => setAnswers({ ...answers, [x.id]: v })} />)}
+    <aside className="cc-run-panel cc-task-panel" role="dialog" aria-modal="false" aria-label={t.title}>
+      <div className="cc-run-head">
+        <span className="cc-task-tile" style={{ background: c }} aria-hidden="true">{m}</span>
+        <h2>{t.title}</h2>
+        {t.overdue && <span className="cc-pill is-failed"><span className="cc-pill-dot" />Overdue</span>}
+        <span className="ov-fill" />
+        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+      </div>
+      <div className="cc-run-body">
+        {error && <p className="st-alert" role="alert">{error}</p>}
+        <p className="cc-task-from">{KIND[t.kind] ?? t.kind}{t.workflow_run_id ? <>, from the workflow run <span className="ui-mono">{t.workflow_run_id}</span></> : null}.
+          Given to {t.assignee}{t.created ? " on " + when(t.created) : ""}; {t.claimed_by ? "taken by " + t.claimed_by : "nobody has taken it yet"}.
+          {t.due && <> Due {when(t.due)}{t.overdue ? " (overdue)" : ""}.</>}
+          {t.completed && <> Done {when(t.completed)}{t.completed_by ? " by " + t.completed_by : ""}{t.outcome ? " · " + (OUTCOME[t.outcome] ?? t.outcome) : ""}.</>}</p>
+        {t.description && <p>{t.description}</p>}
+        {data.length > 0 && <section aria-label={t.kind === "approval" ? "What to decide" : "Workflow data"}>
+          <h3 className="cc-au-sec">{t.kind === "approval" ? "What to decide" : "Workflow data"}</h3>
+          <table className="cc-au-kv"><tbody>{data.map(([k, v]) => <tr key={k}><th scope="row">{k}</th><td>{typeof v === "object" ? JSON.stringify(v) : String(v)}</td></tr>)}</tbody></table>
+        </section>}
+        {fields.length > 0 && <div className="cc-taskform" role="group" aria-label="Form">
+          {fields.map((x) => <FormField key={x.id || x.label} field={x} value={answers[x.id]} disabled={!act} onChange={(v) => setAnswers({ ...answers, [x.id]: v })} />)}
+        </div>}
+        {act && t.kind !== "notification" && <Field label="Comment (optional)">{(id) => <TextArea id={id} rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />}</Field>}
+        {act && t.status === "open" && t.kind !== "notification" && <p className="cc-none">Take it first if others share this task: they then see it as being worked on.</p>}
+      </div>
+      {act && <div className="cc-run-foot">
+        {t.status === "open" && t.kind !== "notification" && <Button kind="secondary" onClick={() => claim(false)}>Take it</Button>}
+        {t.status === "claimed" && <Button kind="secondary" onClick={() => claim(true)}>Give back</Button>}
+        <span className="ov-fill" />
+        {t.kind === "approval" ? <><Button kind="danger" onClick={() => submit("rejected")}>Reject</Button><Button kind="primary" onClick={() => submit("approved")}>Approve</Button></>
+          : t.kind === "form" ? <Button kind="primary" onClick={() => submit("submitted")}>{t.form?.submitLabel || "Submit"}</Button>
+            : <Button kind="primary" onClick={() => submit("done")}>Mark as read</Button>}
       </div>}
-      {act && t.kind !== "notification" && <Field label="Comment (optional)">{(id) => <TextArea id={id} rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />}</Field>}
-      {data.length > 0 && <details open={t.kind === "approval"}><summary>Workflow data</summary>
-        <dl className="cc-facts">{data.map(([k, v]) => [<dt key={k + "t"}>{k}</dt>, <dd key={k + "d"}>{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>])}</dl></details>}
-    </Dialog>
+    </aside>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
 import { RefreshButton } from "./ListParts";
@@ -9,6 +9,8 @@ import { FormField } from "./Inbox";
  * and Blue Prism's, 31 Oct 2026): tabs In progress and Finished; each run with its workflow, reference, status and
  * current stage. A run opens with its timeline (agents, people's tasks, decisions) and data, and Cancel while it is
  * going. Start a workflow with its own start form, or data as JSON. Workflows are designed in One AgentStudio.
+ * Laid out as the design plan's step 8 (approved on the canvas 31 Oct 2026): the list pattern with status pills, and a
+ * run in a side panel beside the list: its stages as a track, the facts, then Timeline, People's tasks and Data.
  */
 type Tab = "progress" | "finished";
 const STATUS: Record<string, string> = { running: "Running", waiting: "Waiting for a person", completed: "Completed", failed: "Failed", cancelled: "Cancelled" };
@@ -18,6 +20,7 @@ const flowName = (p: string) => p.split("/").pop()!.replace(/\.process\.json$/, 
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const going = (r: WorkflowRun) => r.status === "running" || r.status === "waiting";
+const PILL: Record<string, string> = { running: "active", waiting: "pending", completed: "success", failed: "failed", cancelled: "stopped" };
 
 export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<Tab>("progress");
@@ -35,22 +38,23 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const count = (t: Tab) => (runs ?? []).filter((r) => (t === "progress") === going(r)).length;
 
   return (
-    <section className="st-page cc-home cc-list" aria-labelledby="cc-wf-title">
+    <section className={"st-page cc-home cc-list" + (dialog?.kind === "run" ? " has-run" : "")} aria-labelledby="cc-wf-title">
       <header className="cc-list-head">
         <h1 id="cc-wf-title">Workflow</h1>
         <span className="ov-info" role="img" aria-label="About this page" title="Workflows chain agents, people and decisions. Design them in One AgentStudio, put them live, then start them here; people get their steps in the Task inbox.">i</span>
+        {runs && <span className="cc-list-count">{count("progress")} in progress · {(runs ?? []).filter((r) => r.status === "waiting").length} waiting for a person</span>}
         <span className="ov-fill" />
         {user.permissions.includes("runs.start") && <Button kind="primary" onClick={() => setDialog({ kind: "start" })}>Start a workflow</Button>}
       </header>
-      <div className="st-page-tabs" role="tablist" aria-label="Workflow runs">
-        {(["progress", "finished"] as const).map((t) => <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-          {t === "progress" ? "In progress" : "Finished"}{runs && <span className="cc-count">{count(t)}</span>}</button>)}
+      <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Workflow runs">
+        {(["progress", "finished"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => setTab(t)}>
+          {t === "progress" ? "In progress" : "Finished"}{runs && <span className="ov-cnt">{count(t)}</span>}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search workflow runs" placeholder="Search reference, run id, stage, who started it" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-        {flows.length > 1 && <Select aria-label="Workflow" value={flow} onChange={(e) => setFlow(e.target.value)} options={[{ value: "", label: "Every workflow" }, ...flows.map((p) => ({ value: p, label: flowName(p) }))]} />}
+        {flows.length > 1 && <span className={"cc-chip" + (flow ? " is-on" : "")}><Select aria-label="Workflow" value={flow} onChange={(e) => setFlow(e.target.value)} options={[{ value: "", label: "Workflow: Any" }, ...flows.map((p) => ({ value: p, label: "Workflow: " + flowName(p) }))]} /></span>}
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
@@ -60,9 +64,9 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             <th scope="col">Started by</th><th scope="col">Started</th><th scope="col">{tab === "progress" ? "Updated" : "Finished"}</th></tr></thead>
           <tbody>
             {shown.map((r) => (
-              <tr key={r.id} onClick={() => setDialog({ kind: "run", id: r.id })}>
-                <td className={"cc-status is-" + (r.status === "completed" ? "success" : r.status === "failed" ? "failed" : r.status === "cancelled" ? "disabled" : "pending")}>{STATUS[r.status] ?? r.status}</td>
-                <td>{flowName(r.path)} v{r.version}</td><td>{r.reference ?? ""}</td><td>{r.stage ?? ""}</td><td>{r.started_by ?? ""}</td>
+              <tr key={r.id} className={dialog?.kind === "run" && dialog.id === r.id ? "is-open" : undefined} onClick={() => setDialog({ kind: "run", id: r.id })}>
+                <td><span className={"cc-pill is-" + (PILL[r.status] ?? "pending")}><span className="cc-pill-dot" />{STATUS[r.status] ?? r.status}</span></td>
+                <td><strong>{flowName(r.path)}</strong> <span className="cc-none">v{r.version}</span></td><td className="ui-mono">{r.reference ?? ""}</td><td>{r.stage ?? ""}</td><td>{r.started_by ?? ""}</td>
                 <td>{when(r.created)}</td><td>{when(tab === "progress" ? r.updated : r.finished)}</td>
               </tr>
             ))}
@@ -70,7 +74,9 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             {!runs && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div></div>
+      </div>
+      {runs && <div className="cc-list-pager"><span>{shown.length} of {count(tab)}{q.trim() || flow ? " matching" : ""} · refreshes every 10 seconds</span></div>}
+      </div>
       {dialog?.kind === "start" && <StartWorkflow api={api} onClose={() => setDialog(null)} onStarted={(t, id) => { onNotice(t); load(); setDialog({ kind: "run", id }); }} />}
       {dialog?.kind === "run" && <RunView key={dialog.id} api={api} id={dialog.id} onClose={() => { setDialog(null); load(); }} onNotice={onNotice} />}
     </section>
@@ -120,14 +126,48 @@ function RunView({ api, id, onClose, onNotice }: { api: CrApi; id: string; onClo
   const [confirm, setConfirm] = useState(false);
   const read = useCallback(() => api.workflowRun(id).then(setR, (e) => setError(message(e))), [api, id]);
   useEffect(() => { read(); const t = setInterval(read, 5000); return () => clearInterval(t); }, [read]);
-  if (!r) return <Dialog open title="Workflow run" width={760} onClose={onClose} footer={null}>{error ? <p className="st-alert" role="alert">{error}</p> : <p className="st-muted" role="status">Loading…</p>}</Dialog>;
-  return (
-    <Dialog open title={"Workflow run " + (r.reference || r.id)} width={760} onClose={onClose} footer={going(r) ? (confirm
-      ? <><span>Cancel this run? Its open tasks are withdrawn.</span><Button kind="plain" onClick={() => setConfirm(false)}>Keep it</Button>
-        <Button kind="danger" onClick={() => api.cancelWorkflow(r.id).then(() => { onNotice("Cancelled the run " + (r.reference || r.id) + "."); setConfirm(false); read(); }, (e) => setError(message(e)))}>Cancel run</Button></>
-      : <Button kind="danger" onClick={() => setConfirm(true)}>Cancel run</Button>) : null}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      <dl className="cc-facts">
+  const [tab, setTab] = useState<"timeline" | "tasks" | "data">("timeline");
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
+  const title = r ? "Workflow run " + (r.reference || r.id) : "Workflow run";
+  /** The stages reached so far, in order: done, or the one it is on now (failed when the run failed there). */
+  const stages = useMemo(() => {
+    const seen: string[] = [];
+    for (const e of r?.history ?? []) if (e.stage && !seen.includes(e.stage)) seen.push(e.stage);
+    if (r?.stage && !seen.includes(r.stage)) seen.push(r.stage);
+    return seen.map((name) => {
+      const tasks = (r?.tasks ?? []).filter((t) => t.stage === name);
+      const now = !!r && going(r) && name === r.stage;
+      const bad = !!r && r.status === "failed" && name === r.stage;
+      const who = tasks.length ? tasks.map((t) => t.claimed_by ?? t.assignee).filter(Boolean).join(", ") : "";
+      return { name, now, bad, who };
+    });
+  }, [r]);
+  const openTask = (r?.tasks ?? []).find((t) => t.status === "open" || t.status === "claimed");
+  const panel = (body: ReactNode, foot: ReactNode) => (
+    <aside className="cc-run-panel" role="dialog" aria-modal="false" aria-label={title}>
+      <div className="cc-run-head">
+        {r && <span className={"cc-pill is-" + (PILL[r.status] ?? "pending")}><span className="cc-pill-dot" />{STATUS[r.status] ?? r.status}</span>}
+        <h2>{r ? flowName(r.path) + (r.reference ? " · " + r.reference : "") : "Workflow run"}</h2>
+        <span className="ov-fill" />
+        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+      </div>
+      <div className="cc-run-body">{error && <p className="st-alert" role="alert">{error}</p>}{body}</div>
+      {foot && <div className="cc-run-foot">{foot}</div>}
+    </aside>
+  );
+  if (!r) return panel(error ? null : <p className="cc-none" role="status">Loading…</p>, null);
+  return panel(<>
+      {stages.length > 0 && <ol className="cc-wf-track" aria-label="Stages">
+        {stages.map((st, i) => <li key={st.name} className={st.bad ? "is-bad" : st.now ? "is-now" : "is-done"}>
+          <span className="cc-wf-dot" aria-hidden="true">{st.bad ? "!" : st.now ? i + 1 : "✓"}</span>
+          <span className="cc-wf-name">{st.name}</span>
+          <span className="cc-none">{st.bad ? "failed here" : st.now ? (r.status === "waiting" ? "waiting" : "now") : "done"}{st.who ? " · " + st.who : ""}</span>
+        </li>)}
+      </ol>}
+      <dl className="cc-facts cc-facts-wide">
         <dt>Workflow</dt><dd>{flowName(r.path)} v{r.version}</dd>
         {r.reference && <><dt>Reference</dt><dd>{r.reference}</dd></>}
         <dt>Status</dt><dd>{STATUS[r.status] ?? r.status}{r.stage ? " · " + r.stage : ""}</dd>
@@ -136,20 +176,32 @@ function RunView({ api, id, onClose, onNotice }: { api: CrApi; id: string; onClo
         {r.error && <><dt>Error</dt><dd className="cc-err">{(r.error.code ?? "") + " " + (r.error.message ?? "")}</dd></>}
         <dt>Run id</dt><dd className="ui-mono">{r.id}</dd>
       </dl>
-      <h3 className="cc-log-title">Timeline</h3>
-      <ol className="cc-log" aria-label="Timeline">
-        {(r.history ?? []).map((e, i) => <li key={i} className={e.event.endsWith("failed") || e.event === "rejected" ? "is-bad" : undefined}>
-          <span className="cc-log-step">{when(e.ts)}</span><strong>{EVENT[e.event] ?? e.event}</strong>{e.stage ? " · " + e.stage : ""}
-          {e.detail && <div className="st-muted ui-mono cc-clip">{Object.entries(e.detail).map(([k, v]) => k + ": " + (typeof v === "object" ? JSON.stringify(v) : String(v))).join("; ")}</div>}</li>)}
-        {!(r.history ?? []).length && <li className="st-muted">Nothing has happened yet.</li>}
-      </ol>
-      {(r.tasks ?? []).length > 0 && <>
-        <h3 className="cc-log-title">People's tasks</h3>
-        <table className="st-table" aria-label="People's tasks"><thead><tr><th scope="col">Task</th><th scope="col">Stage</th><th scope="col">Assigned to</th><th scope="col">Status</th><th scope="col">Done</th></tr></thead>
-          <tbody>{r.tasks!.map((t) => <tr key={t.id}><td>{t.title}</td><td>{t.stage ?? ""}</td><td>{t.claimed_by ?? t.assignee ?? ""}</td><td>{t.outcome ?? t.status}</td><td>{when(t.completed)}</td></tr>)}</tbody></table>
-      </>}
-      <h3 className="cc-log-title">Data</h3>
-      <pre className="cc-codes">{JSON.stringify(r.data ?? {}, null, 2)}</pre>
-    </Dialog>
-  );
+      <div className="ov-tabs cc-list-tabs cc-run-tabs" role="tablist" aria-label="Run details">
+        {([["timeline", "Timeline (" + (r.history ?? []).length + ")"], ["tasks", "People's tasks (" + (r.tasks ?? []).length + ")"], ["data", "Data"]] as const).map(([k, l]) =>
+          <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
+      </div>
+      {tab === "timeline" && <ol className="cc-run-steps" aria-label="Timeline">
+        {(r.history ?? []).map((e, i) => { const bad = e.event.endsWith("failed") || e.event === "rejected"; const wait = e.event === "task_created" || e.event === "waiting";
+          return <li key={i} className={bad ? "is-failed" : undefined}>
+            <span className={"cc-run-ic is-" + (bad ? "failed" : wait ? "running" : "done")} aria-hidden="true">{bad ? "!" : wait ? "…" : "✓"}</span>
+            <span className="cc-none">{new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+            <span className="cc-run-step"><strong>{EVENT[e.event] ?? e.event}</strong>{e.stage ? " · " + e.stage : ""}
+              {e.detail && <span className="cc-run-err cc-wf-detail">{Object.entries(e.detail).map(([k, v]) => k + ": " + (typeof v === "object" ? JSON.stringify(v) : String(v))).join("; ")}</span>}</span>
+            <span />
+          </li>; })}
+        {!(r.history ?? []).length && <li className="cc-none">Nothing has happened yet.</li>}
+      </ol>}
+      {tab === "tasks" && ((r.tasks ?? []).length ? <table className="cc-list-table" aria-label="People's tasks"><thead><tr><th scope="col">Task</th><th scope="col">Stage</th><th scope="col">Assigned to</th><th scope="col">Status</th><th scope="col">Done</th></tr></thead>
+        <tbody>{r.tasks!.map((t) => <tr key={t.id} className="is-static"><td>{t.title}</td><td>{t.stage ?? ""}</td><td>{t.claimed_by ?? t.assignee ?? ""}</td><td>{t.outcome ?? t.status}</td><td>{when(t.completed)}</td></tr>)}</tbody></table>
+        : <p className="cc-none">No one has been given a task in this run.</p>)}
+      {tab === "data" && (Object.keys(r.data ?? {}).length ? <table className="cc-au-kv" aria-label="Data"><tbody>{Object.entries(r.data ?? {}).map(([k, v]) =>
+        <tr key={k}><th scope="row">{k}</th><td>{typeof v === "object" ? JSON.stringify(v) : String(v)}</td></tr>)}</tbody></table> : <p className="cc-none">No data.</p>)}
+    </>, <>
+      {openTask && <a className="ui-btn ui-btn-secondary cc-btn-link" href="#/inbox">Open its task in the Task inbox</a>}
+      <span className="ov-fill" />
+      {going(r) && (confirm
+        ? <><span>Cancel this run? Its open tasks are withdrawn.</span><Button kind="plain" onClick={() => setConfirm(false)}>Keep it</Button>
+          <Button kind="danger" onClick={() => api.cancelWorkflow(r.id).then(() => { onNotice("Cancelled the run " + (r.reference || r.id) + "."); setConfirm(false); read(); }, (e) => setError(message(e)))}>Cancel run</Button></>
+        : <Button kind="danger" onClick={() => setConfirm(true)}>Cancel run</Button>)}
+    </>);
 }

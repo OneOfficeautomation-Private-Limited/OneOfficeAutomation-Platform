@@ -1163,14 +1163,16 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={api} />);
     await go("Task inbox");
     const list = await screen.findByRole("table", { name: "Tasks to do" });
-    expect(await within(list).findByText(/Overdue:/)).toBeTruthy();
+    expect(await within(list).findByText("Overdue")).toBeTruthy();   // a red pill
+    expect(screen.getByText(/to do · 1 overdue/)).toBeTruthy();   // the count
     fireEvent.click(screen.getByLabelText("Overdue only"));
     await waitFor(() => expect(within(list).queryByText("Vendor details")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     // an approval: the workflow's data, a comment, Approve
     fireEvent.click(within(list).getByText("Approve invoice 42"));
     const a = await screen.findByRole("dialog", { name: "Approve invoice 42" });
-    expect(within(a).getByText("Acme")).toBeTruthy();
+    expect(within(within(a).getByRole("region", { name: "What to decide" })).getByText("Acme")).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Tasks to do" })).toBeTruthy();   // a side panel: the list stays in view
     fireEvent.change(within(a).getByLabelText("Comment (optional)"), { target: { value: "ok by me" } });
     await act(async () => { fireEvent.click(within(a).getByRole("button", { name: "Approve" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "tasks/k1/complete", body: { outcome: "approved", answers: {}, comment: "ok by me" } }));
@@ -1264,8 +1266,10 @@ describe("rebuilt Command Center console", () => {
     expect(within(list).queryByText("PO-41")).toBeNull();
     fireEvent.click(within(list).getByText("PO-42"));
     const run = await screen.findByRole("dialog", { name: "Workflow run PO-42" });
-    expect(await within(run).findByText("Approve PO-42")).toBeTruthy();
-    expect(within(run).getByText("Task given")).toBeTruthy();
+    expect(await within(run).findByText("Task given")).toBeTruthy();
+    expect(within(run).getByRole("list", { name: "Stages" })).toBeTruthy();
+    fireEvent.click(within(run).getByRole("tab", { name: /^People's tasks/ }));
+    expect(within(run).getByText("Approve PO-42")).toBeTruthy();
     fireEvent.click(within(run).getByRole("button", { name: "Cancel run" }));
     await act(async () => { fireEvent.click(within(run).getAllByRole("button", { name: "Cancel run" }).at(-1)!); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/runs/w1/cancel" }));
