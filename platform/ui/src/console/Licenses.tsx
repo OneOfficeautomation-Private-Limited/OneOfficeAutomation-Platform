@@ -10,6 +10,8 @@ import { RefreshButton } from "./ListParts";
  * licences and UiPath's user and robot licences) and Usage (90 days, and idle seats to take back, from UiPath's usage).
  * Laid out as the design plan's list pattern and Overview panels (applied 31 Oct 2026): the licence state in the title
  * row, seats in a panel beside the licence's facts, compact tables.
+ * Review round 2 (1 Nov 2026): what each licence type allows on hover (so Seats fits beside the licence at 1366 px),
+ * taking a seat back asks first, and installing over an installed licence asks first.
  */
 type Tab = "overview" | "allocation" | "usage";
 const TYPES: [string, string, "user" | "device", string][] = [
@@ -18,6 +20,9 @@ const TYPES: [string, string, "user" | "device", string][] = [
   ["attended_runner", "Attended Runner", "user", "Runs agents on their own runner"],
   ["unattended_runner", "Unattended Runner", "device", "A runner that takes scheduled, triggered, API and queue work"],
 ];
+/** What a holder can no longer do once a seat of the type is taken back. */
+const LOSES: Record<string, string> = { developer: "They can no longer check in agents", citizen_developer: "They can no longer check in simpler agents",
+  attended_runner: "They can no longer run agents on their own runner", unattended_runner: "It no longer takes scheduled, triggered, API and queue work" };
 const STATE: Record<string, [string, string]> = { unlicensed: ["No licence installed", "pending"], evaluation: ["Evaluation", "pending"], evaluation_ended: ["Evaluation ended", "failed"],
   active: ["Active", "success"], expiring: ["Expiring soon", "pending"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"], database_required: ["Needs SQL Server", "failed"] };
 const typeName = (t: string) => TYPES.find(([k]) => k === t)?.[1] ?? t;
@@ -33,6 +38,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const [people, setPeople] = useState<CrPerson[]>([]);
   const [runners, setRunners] = useState<Runner[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [takeBack, setTakeBack] = useState<{ type: string; principal: string; name: string } | null>(null);   // asked first
   const canAssign = user.permissions.includes("users.manage");
   const canInstall = user.permissions.includes("settings.manage");
 
@@ -47,6 +53,12 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
 
   const assign = (type: string, principal: string, on: boolean) => api.assignSeat(type, principal, on)
     .then(() => { onNotice((on ? "Gave a " : "Took back the ") + typeName(type) + " seat " + (on ? "to " : "from ") + principal + "."); load(); }, (e) => { setError(message(e)); load(); });
+  /** Giving a seat is one click; taking one back asks first. */
+  const change = (type: string, principal: string, on: boolean, name = principal) => on ? assign(type, principal, true) : setTakeBack({ type, principal, name });
+  const askBar = takeBack && <div className="cc-list-bulk" role="alert">
+    <span>Take back the {typeName(takeBack.type)} seat from {takeBack.name}? {LOSES[takeBack.type] ?? "The seat goes back to the free seats"} until {takeBack.type === "unattended_runner" ? "it gets" : "they get"} one again.</span>
+    <Button kind="danger" onClick={() => { const t = takeBack; setTakeBack(null); assign(t.type, t.principal, false); }}>Take back</Button>
+    <Button kind="plain" onClick={() => setTakeBack(null)}>Cancel</Button></div>;
   const seats = lic?.seats ?? {};
   const [stateText, stateCls] = STATE[lic?.state ?? ""] ?? [lic?.state ?? "", ""];
   const nearlyFull = TYPES.filter(([t]) => seats[t] && seats[t].total > 0 && seats[t].used / seats[t].total >= 0.8);
@@ -66,6 +78,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => setTab(t)}>{l}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
+      {askBar}
       {!lic && !error && <p className="cc-none" role="status">Loading…</p>}
 
       {lic && tab === "overview" && <>
@@ -80,18 +93,19 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
               <div className="ov-ph"><h2 id="cc-lic-seats">Seats</h2></div>
               <div className="cc-list-scroll">
                 <table className="cc-list-table" aria-label="Seats">
-                  <thead><tr><th scope="col">Licence type</th><th scope="col">What it allows</th><th scope="col">In use</th><th scope="col">Purchased</th><th scope="col">Free</th><th scope="col">Idle</th><th scope="col"><span className="st-sr">Use</span></th></tr></thead>
+                  <thead><tr><th scope="col">Licence type</th><th scope="col">In use</th><th scope="col">Purchased</th><th scope="col">Free</th><th scope="col">Idle</th><th scope="col"><span className="st-sr">Use</span></th></tr></thead>
                   <tbody>{TYPES.map(([t, l, , what]) => {
                     const s = seats[t], idle = usage?.seats[t]?.idle;
                     const pct = s && s.total > 0 ? Math.min(100, Math.round(100 * s.used / s.total)) : 0;
-                    return <tr key={t} className="is-static"><td><strong>{l}</strong></td><td>{what}</td><td>{s ? s.used : 0}</td><td>{s && s.total >= 0 ? s.total : "Unlimited"}</td>
+                    return <tr key={t} className="is-static"><td title={what}><strong>{l}</strong></td><td>{s ? s.used : 0}</td><td>{s && s.total >= 0 ? s.total : "Unlimited"}</td>
                       <td>{s && s.total >= 0 ? Math.max(0, s.total - s.used) : <span className="cc-none">–</span>}</td><td>{idle ?? <span className="cc-none">–</span>}</td>
                       <td>{s && s.total > 0 && <span className="cc-meter" role="img" aria-label={pct + "% in use"}><span className={pct >= 100 ? "is-full" : pct >= 80 ? "is-high" : ""} style={{ width: pct + "%" }} /></span>}</td></tr>;
                   })}</tbody>
                 </table>
               </div>
             </section>
-            {canInstall && !lic.requires_server_database && <InstallLicense api={api} onInstalled={() => { onNotice("Licence installed."); load(); }} />}
+            {canInstall && !lic.requires_server_database && <InstallLicense api={api} current={["unlicensed", "evaluation", "evaluation_ended"].includes(lic.state) ? null : lic}
+              onInstalled={() => { onNotice("Licence installed."); load(); }} />}
           </div>
           <div className="ov-side">
             <section className="ov-panel" aria-labelledby="cc-lic-about">
@@ -116,18 +130,20 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         </div>
       </>}
 
-      {lic && tab === "allocation" && <Allocation people={people} runners={runners} held={held} seats={seats} canAssign={canAssign} onAssign={assign} />}
+      {lic && tab === "allocation" && <Allocation people={people} runners={runners} held={held} seats={seats} canAssign={canAssign} onAssign={change} />}
 
-      {lic && tab === "usage" && (usage ? <Usage usage={usage} canAssign={canAssign} onTakeBack={(type, principal) => assign(type, principal, false)} onNotice={onNotice} />
+      {lic && tab === "usage" && (usage ? <Usage usage={usage} canAssign={canAssign} onTakeBack={(type, principal, name) => change(type, principal, false, name)} onNotice={onNotice} />
         : <p className="st-muted">Usage is not available.</p>)}
     </section>
   );
 }
 
 /** Install a licence file: chosen from disk or pasted (offline, as AA's on-premises licence upload). */
-function InstallLicense({ api, onInstalled }: { api: CrApi; onInstalled: () => void }) {
+function InstallLicense({ api, current, onInstalled }: { api: CrApi; current: LicenseInfo | null; onInstalled: () => void }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);   // installing over an installed licence, asked first
+  const install = () => { setAsking(false); api.installLicense(text.trim()).then(() => { setText(""); onInstalled(); }, (e) => setError(message(e))); };
   return (
     <section className="ov-panel" aria-labelledby="cc-lic-install">
       <div className="ov-ph"><h2 id="cc-lic-install">Install a licence</h2></div>
@@ -135,7 +151,9 @@ function InstallLicense({ api, onInstalled }: { api: CrApi; onInstalled: () => v
         {error && <p className="st-alert" role="alert">{error}</p>}
         <input type="file" accept=".lic,.json,.txt" aria-label="Licence file" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText((await f.text()).trim()); }} />
         <TextArea aria-label="Licence file text" rows={3} placeholder="Or paste the licence file text here" value={text} onChange={(e) => setText(e.target.value)} />
-        <span><Button kind="primary" disabled={!text.trim()} onClick={() => api.installLicense(text.trim()).then(() => { setText(""); onInstalled(); }, (e) => setError(message(e)))}>Install licence</Button></span>
+        {asking && current && <div className="cc-list-bulk" role="alert"><span>Install this licence? It replaces the current one (licence id {current.id}, valid until {current.expires}).</span>
+          <Button kind="danger" onClick={install}>Install licence</Button><Button kind="plain" onClick={() => setAsking(false)}>Cancel</Button></div>}
+        {!asking && <span><Button kind="primary" disabled={!text.trim()} onClick={() => current ? setAsking(true) : install()}>Install licence</Button></span>}
       </div>
     </section>
   );
@@ -143,7 +161,7 @@ function InstallLicense({ api, onInstalled }: { api: CrApi; onInstalled: () => v
 
 /** Seats to people (Developer, Citizen Developer, Attended Runner) and to runners (Unattended Runner). */
 function Allocation({ people, runners, held, seats, canAssign, onAssign }: { people: CrPerson[]; runners: Runner[]; held: Set<string>;
-  seats: Record<string, { total: number; used: number }>; canAssign: boolean; onAssign: (type: string, principal: string, on: boolean) => void }) {
+  seats: Record<string, { total: number; used: number }>; canAssign: boolean; onAssign: (type: string, principal: string, on: boolean, name?: string) => void }) {
   const [q, setQ] = useState("");
   const text = q.trim().toLowerCase();
   const ps = people.filter((p) => !text || (p.username + " " + (p.display_name ?? "")).toLowerCase().includes(text));
@@ -152,7 +170,7 @@ function Allocation({ people, runners, held, seats, canAssign, onAssign }: { peo
   const box = (type: string, kind: "user" | "device", principal: string, label: string) => {
     const on = held.has(kind + "|" + principal + "|" + type);
     return <input type="checkbox" aria-label={typeName(type) + " seat for " + label} checked={on} disabled={!canAssign || (!on && full(type))}
-      title={!on && full(type) ? "No seats left" : undefined} onChange={(e) => onAssign(type, principal, e.target.checked)} />;
+      title={!on && full(type) ? "No seats left" : undefined} onChange={(e) => onAssign(type, principal, e.target.checked, label)} />;
   };
   return (
     <>
@@ -191,7 +209,7 @@ function Allocation({ people, runners, held, seats, canAssign, onAssign }: { peo
 }
 
 /** 90 days of seats in use, and each holder's last activity: idle seats (no sign-in or runs for 30 days) can be taken back. */
-function Usage({ usage, canAssign, onTakeBack, onNotice }: { usage: LicenseUsage; canAssign: boolean; onTakeBack: (type: string, principal: string) => void; onNotice: (t: string) => void }) {
+function Usage({ usage, canAssign, onTakeBack, onNotice }: { usage: LicenseUsage; canAssign: boolean; onTakeBack: (type: string, principal: string, name: string) => void; onNotice: (t: string) => void }) {
   const [idleOnly, setIdleOnly] = useState(false);
   const holders = useMemo(() => usage.holders.filter((h) => !idleOnly || h.idle), [usage, idleOnly]);
   const spark = (type: string) => {
@@ -238,7 +256,7 @@ function Usage({ usage, canAssign, onTakeBack, onNotice }: { usage: LicenseUsage
               {holders.map((h) => <tr key={h.principal + h.license_type} className="is-static">
                 <td><strong>{h.name}</strong>{h.name !== h.principal && <span className="cc-none"> ({h.principal})</span>}{h.idle && <span className="cc-pill is-pending cc-pill-inline">idle</span>}</td>
                 <td>{typeName(h.license_type)}</td><td>{when(h.assigned)}</td><td>{h.last_active ? when(h.last_active) : "Never"}</td><td>{h.runs_30_days}</td>
-                <td>{canAssign && h.idle && <Button kind="plain" onClick={() => onTakeBack(h.license_type, h.principal)}>Take back</Button>}</td>
+                <td>{canAssign && h.idle && <Button kind="plain" onClick={() => onTakeBack(h.license_type, h.principal, h.name)}>Take back…</Button>}</td>
               </tr>)}
               {!holders.length && <tr className="is-static"><td colSpan={6} className="cc-none">{idleOnly ? "No idle seats." : "Nobody holds a seat yet."}</td></tr>}
             </tbody>

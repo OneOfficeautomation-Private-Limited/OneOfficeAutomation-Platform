@@ -1252,6 +1252,13 @@ describe("rebuilt Command Center console", () => {
     expect(screen.getByText(/Nearly full: Developer \(4 of 5\)/)).toBeTruthy();
     expect(screen.getByRole("region", { name: "Seats" })).toBeTruthy();   // seats beside the licence's facts, as Overview's panels
     expect(screen.getByRole("region", { name: "Licence" })).toBeTruthy();
+    expect(within(screen.getByRole("table", { name: "Seats" })).getByText("Developer").closest("td")!.getAttribute("title")).toBe("Checks in agents");
+    // installing over the installed licence asks first
+    fireEvent.change(screen.getByLabelText("Licence file text"), { target: { value: "{\"licence\": 1}" } });
+    fireEvent.click(screen.getByRole("button", { name: "Install licence" }));
+    expect(screen.getByRole("alert").textContent).toContain("It replaces the current one");
+    expect(calls.some((c) => c.route.startsWith("license") && c.method === "POST")).toBe(false);
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Cancel" }));
     // allocation: a seat for a person; the runner already holds one
     fireEvent.click(screen.getByRole("tab", { name: "Allocation" }));
     const people = await screen.findByRole("table", { name: "People seats" });
@@ -1263,7 +1270,13 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(await screen.findByLabelText("Idle seats only"));
     const holders = screen.getByRole("table", { name: "Seat holders" });
     await waitFor(() => expect(within(holders).queryByText("Asha Admin")).toBeNull());
-    await act(async () => { fireEvent.click(within(holders).getByRole("button", { name: "Take back" })); });
+    // taking a seat back asks first
+    fireEvent.click(within(holders).getByRole("button", { name: "Take back…" }));
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toContain("Take back the Developer seat from");
+    expect(ask.textContent).toContain("can no longer check in agents");
+    expect(calls.some((c) => c.route === "license/assignments" && (c.body as { assigned?: boolean } | undefined)?.assigned === false)).toBe(false);
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Take back" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "license/assignments", body: { license_type: "developer", principal: "old", assigned: false } }));
   });
 
