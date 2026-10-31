@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
-import { Button, Dialog, Menu, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Select, TextInput, usePersistent } from "../components";
+import { RefreshButton, RowMenu } from "./ListParts";
 
 /**
  * Administration > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
@@ -171,8 +172,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
         <div className="cc-list-right" role="toolbar" aria-label="Roles list tools">
           <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
           <Button kind="plain" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
-          <button type="button" className="cc-list-icon" aria-label="Refresh" title="Refresh" onClick={load}>
-            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></button>
+          <RefreshButton onClick={load} />
         </div>
       </div>
       <div className="cc-list-panel">
@@ -196,9 +196,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
                     : <input type="checkbox" aria-label={"Select " + r.name} checked={selected.includes(r.name)}
                       onChange={(e) => setSelected(e.target.checked ? [...selected, r.name] : selected.filter((x) => x !== r.name))} />}</td>
                   {cols.map((c) => <td key={c.key}>{cell(c, r)}</td>)}
-                  <td className="cc-list-menu"><Menu label={"Actions for " + roleName(r.name)} align="end" items={rowMenu(r)}
-                    trigger={<button type="button" className="cc-list-icon is-row" aria-label={"Actions for " + roleName(r.name)} title="Actions">
-                      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg></button>} /></td>
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + roleName(r.name)} items={rowMenu(r)} /></td>
                 </tr>
               ))}
               {data && !shown.length && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none">No roles match these filters.</td></tr>}

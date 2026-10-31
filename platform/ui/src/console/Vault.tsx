@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Administration > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
@@ -8,6 +9,8 @@ import { Button, Dialog, Field, Select, TextInput } from "../components";
  * and My requests (values each person fills in for their own runs). Values are encrypted and never shown again unless
  * marked not secret; agents get them only while running, and every use is audited. A folder can read its values live
  * from a company vault (HashiCorp, Azure Key Vault, AWS Secrets Manager, CyberArk), as UiPath's credential stores.
+ * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count, tabs, one toolbar, Delete in a bar only
+ * while rows are ticked, a ⋯ menu per row.
  */
 type Tab = "credentials" | "folders" | "requests";
 const EXT: Record<string, string> = { hashicorp: "HashiCorp Vault", azure_keyvault: "Azure Key Vault", aws_secrets_manager: "AWS Secrets Manager", cyberark_ccp: "CyberArk Central Credential Provider" };
@@ -81,78 +84,104 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     onNotice("Exported " + shown.length + " credential" + (shown.length === 1 ? "" : "s") + " (names only, never values).");
   };
   const canCreateCredential = (folders ?? []).some((x) => writer(x) || x.my_role === "participant");
+  const filtered = Object.values(f).some(Boolean);
+  const missing = rows.filter((r) => r.userAttrs.some((a) => !r.mine.includes(a))).length;
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-vault-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-vault-title">Credential vault</h1><p>Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.</p></div>
-        <span className="cc-inline">
-          {can("lockers.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "key" })}>Vault key</Button>}
-          {tab === "folders" && (can("lockers.manage") || can("lockers.own")) && <Button kind="primary" onClick={() => setDialog({ kind: "create-folder" })}>Create vault folder</Button>}
-          {tab === "credentials" && canCreateCredential && <Button kind="primary" onClick={() => setDialog({ kind: "create-credential" })}>Create credential</Button>}
-        </span>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-vault-title">
+      <header className="cc-list-head">
+        <h1 id="cc-vault-title">Credential vault</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.">i</span>
+        {folders && <span className="cc-list-count">{rows.length} credential{rows.length === 1 ? "" : "s"} · {folders.length} vault folder{folders.length === 1 ? "" : "s"}{missing ? " · " + missing + " need your own value" : ""}</span>}
+        <span className="ov-fill" />
+        {can("lockers.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "key" })}>Vault key</Button>}
+        {tab === "folders" && (can("lockers.manage") || can("lockers.own")) && <Button kind="primary" onClick={() => setDialog({ kind: "create-folder" })}>Create vault folder</Button>}
+        {tab === "credentials" && canCreateCredential && <Button kind="primary" onClick={() => setDialog({ kind: "create-credential" })}>Create credential</Button>}
       </header>
-      <div className="st-page-tabs" role="tablist" aria-label="Credential vault">
+      <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Credential vault">
         {([["credentials", "Credentials", rows.length], ["folders", "Vault folders", folders?.length ?? 0], ["requests", "My requests", requests.length]] as const).map(([t, l, n]) =>
-          <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>{l}{folders && <span className="cc-count">{n}</span>}</button>)}
+          <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>{l}{folders && <span className="ov-cnt">{n}</span>}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
 
       {tab === "credentials" && <>
-        <div className="cc-filters" role="group" aria-label="Filters">
-          <TextInput type="search" aria-label="Search credentials" placeholder="Search credentials, attributes, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} />
-          <Select aria-label="Vault folder" value={f.folder ?? ""} onChange={(e) => setF({ ...f, folder: e.target.value })}
-            options={[{ value: "", label: "Every vault folder" }, ...(folders ?? []).map((x) => ({ value: x.name, label: x.name }))]} />
-          <label className="st-check-line"><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Needs my own value</label>
-          {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+        <div className="cc-list-tools">
+          <div className="cc-list-filters" role="group" aria-label="Filters">
+            <span className="cc-list-search"><TextInput type="search" aria-label="Search credentials" placeholder="Search credentials, attributes, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+            <span className={"cc-chip" + (f.folder ? " is-on" : "")}><Select aria-label="Vault folder" value={f.folder ?? ""} onChange={(e) => setF({ ...f, folder: e.target.value })}
+              options={[{ value: "", label: "Folder: Any" }, ...(folders ?? []).map((x) => ({ value: x.name, label: "Folder: " + x.name }))]} /></span>
+            <label className={"cc-chip-check" + (f.mine ? " is-on" : "")}><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Needs my own value</label>
+            {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+          </div>
+          <div className="cc-list-right" role="toolbar" aria-label="Credentials list tools">
+            <Button kind="plain" onClick={exportCsv}>Export CSV</Button>
+            <RefreshButton onClick={load} />
+          </div>
         </div>
-        <div className="cc-bar" role="toolbar" aria-label="Credential actions">
-          {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
-          <Button kind="danger" disabled={!chosen.length || !chosen.every(canDelete)} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
-          <span className="st-bar-fill" />
-          <Button kind="plain" onClick={load}>Refresh</Button>
-          <Button kind="secondary" onClick={exportCsv}>Export CSV</Button>
-        </div>
-        <div className="cc-table-wrap">
-          <table className="st-table cc-table" aria-label="Credentials list">
-            <thead><tr><th scope="col" className="cc-check"><span className="st-sr">Select</span></th><th scope="col">Credential</th><th scope="col">Vault folder</th>
-              <th scope="col">Attributes</th><th scope="col">Each person's own</th><th scope="col">Owner</th><th scope="col">Updated</th></tr></thead>
-            <tbody>
-              {shown.map((r) => (
-                <tr key={key(r)} className={selected.includes(key(r)) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) setDialog({ kind: "credential", folder: r.folder, name: r.name }); }}>
-                  <td className="cc-check"><input type="checkbox" aria-label={"Select " + key(r)} checked={selected.includes(key(r))}
-                    onChange={(e) => setSelected(e.target.checked ? [...selected, key(r)] : selected.filter((x) => x !== key(r)))} /></td>
-                  <td>{r.name}</td>
-                  <td>{r.folder.name}{r.folder.external && <span className="cc-tag" title="Values are read live from the company vault">{EXT[r.folder.external.provider] ?? r.folder.external.provider}</span>}</td>
-                  <td>{r.attributes.join(", ")}</td>
-                  <td>{r.userAttrs.map((a) => a + (r.mine.includes(a) ? " (yours set)" : " (yours missing)")).join(", ")}</td>
-                  <td>{r.owner}</td>
-                  <td>{r.updated ? when(r.updated) + (r.updatedBy ? " by " + r.updatedBy : "") : ""}</td>
-                </tr>
-              ))}
-              {folders && !shown.length && <tr><td colSpan={7} className="st-muted">{rows.length ? "No credentials match." : "No credentials you can see yet."}</td></tr>}
-              {!folders && !error && <tr><td colSpan={7} className="st-muted" role="status">Loading…</td></tr>}
-            </tbody>
-          </table>
+        <div className="cc-list-panel">
+          {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Credential actions">
+            <strong>{chosen.length} selected</strong>
+            <Button kind="danger" disabled={!chosen.every(canDelete)} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
+            {!chosen.every(canDelete) && <span>You may delete only credentials in folders you manage, or your own.</span>}
+            <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+          </div>}
+          <div className="cc-list-scroll">
+            <table className="cc-list-table" aria-label="Credentials list">
+              <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && shown.every((r) => selected.includes(key(r)))}
+                onChange={(e) => setSelected(e.target.checked ? shown.map(key) : [])} /></th><th scope="col">Credential</th><th scope="col">Vault folder</th>
+                <th scope="col">Attributes</th><th scope="col">Each person's own</th><th scope="col">Owner</th><th scope="col">Updated</th>
+                <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+              <tbody>
+                {shown.map((r) => (
+                  <tr key={key(r)} className={selected.includes(key(r)) ? "is-selected" : ""} onClick={rowClick(() => setDialog({ kind: "credential", folder: r.folder, name: r.name }))}>
+                    <td className="cc-check"><input type="checkbox" aria-label={"Select " + key(r)} checked={selected.includes(key(r))}
+                      onChange={(e) => setSelected(e.target.checked ? [...selected, key(r)] : selected.filter((x) => x !== key(r)))} /></td>
+                    <td><strong>{r.name}</strong></td>
+                    <td>{r.folder.name}{r.folder.external && <span className="cc-tag" title="Values are read live from the company vault">{EXT[r.folder.external.provider] ?? r.folder.external.provider}</span>}</td>
+                    <td>{r.attributes.length ? r.attributes.map((a) => <span key={a} className="cc-role">{a}</span>) : <span className="cc-none">–</span>}</td>
+                    <td>{r.userAttrs.length ? r.userAttrs.map((a) => <span key={a} className={"cc-own " + (r.mine.includes(a) ? "is-set" : "is-missing")}>{a + (r.mine.includes(a) ? " (yours set)" : " (yours missing)")}</span>)
+                      : <span className="cc-none">–</span>}</td>
+                    <td>{r.owner || <span className="cc-none">–</span>}</td>
+                    <td>{r.updated ? when(r.updated) + (r.updatedBy ? " by " + r.updatedBy : "") : <span className="cc-none">–</span>}</td>
+                    <td className="cc-list-menu"><RowMenu label={"Actions for " + key(r)} items={[
+                      { key: "open", label: "Open", onSelect: () => setDialog({ kind: "credential", folder: r.folder, name: r.name }) },
+                      { key: "delete", label: "Delete…", disabled: !canDelete(r), separatorBefore: true, onSelect: () => { setSelected([key(r)]); setDialog({ kind: "delete" }); } }]} /></td>
+                  </tr>
+                ))}
+                {folders && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{rows.length ? "No credentials match." : "No credentials you can see yet."}</td></tr>}
+                {!folders && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {folders && <div className="cc-list-pager"><span>{shown.length} of {rows.length}{filtered ? " matching" : ""}</span></div>}
         </div>
       </>}
 
       {tab === "folders" && (
-        <div className="cc-table-wrap">
-          <table className="st-table cc-table" aria-label="Vault folders list">
-            <thead><tr><th scope="col">Vault folder</th><th scope="col">Description</th><th scope="col">Your place</th><th scope="col">Owners</th>
-              <th scope="col">Consumers</th><th scope="col">Credentials</th><th scope="col">Company vault</th></tr></thead>
-            <tbody>
-              {(folders ?? []).map((x) => (
-                <tr key={x.name} onClick={() => setDialog({ kind: "folder", folder: x })}>
-                  <td>{x.name}</td><td>{x.description ?? ""}</td><td>{PLACE[x.my_role]}</td><td>{list(x.owners).join(", ")}</td>
-                  <td>{list(x.consumers).join(", ") || "None"}</td><td>{new Set(x.credentials.map((c) => c.name)).size}</td>
-                  <td>{x.external ? EXT[x.external.provider] ?? x.external.provider : "Not linked"}</td>
-                </tr>
-              ))}
-              {folders && !folders.length && <tr><td colSpan={7} className="st-muted">No vault folders you own or use yet.</td></tr>}
-            </tbody>
-          </table>
+        <div className="cc-list-panel">
+          <div className="cc-list-scroll">
+            <table className="cc-list-table" aria-label="Vault folders list">
+              <thead><tr><th scope="col">Vault folder</th><th scope="col">Description</th><th scope="col">Your place</th><th scope="col">Owners</th>
+                <th scope="col">Consumers</th><th scope="col">Credentials</th><th scope="col">Company vault</th>
+                <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+              <tbody>
+                {(folders ?? []).map((x) => (
+                  <tr key={x.name} onClick={rowClick(() => setDialog({ kind: "folder", folder: x }))}>
+                    <td><strong>{x.name}</strong></td><td>{x.description || <span className="cc-none">–</span>}</td>
+                    <td><span className="cc-role">{PLACE[x.my_role]}</span></td><td>{list(x.owners).join(", ")}</td>
+                    <td>{list(x.consumers).length ? list(x.consumers).map((c) => <code key={c} className="cc-code">{c}</code>) : <span className="cc-none">None</span>}</td>
+                    <td>{new Set(x.credentials.map((c) => c.name)).size}</td>
+                    <td>{x.external ? EXT[x.external.provider] ?? x.external.provider : <span className="cc-none">Not linked</span>}</td>
+                    <td className="cc-list-menu"><RowMenu label={"Actions for " + x.name} items={[
+                      { key: "open", label: "Open", onSelect: () => setDialog({ kind: "folder", folder: x }) },
+                      { key: "show", label: "Show its credentials", onSelect: () => { setF({ folder: x.name }); setTab("credentials"); } }]} /></td>
+                  </tr>
+                ))}
+                {folders && !folders.length && <tr className="is-static"><td colSpan={8} className="cc-none">No vault folders you own or use yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {folders && <div className="cc-list-pager"><span>{folders.length} vault folder{folders.length === 1 ? "" : "s"}</span></div>}
         </div>
       )}
 
@@ -183,26 +212,30 @@ function Requests({ api, requests, onSaved }: { api: CrApi; requests: VaultReque
   const [error, setError] = useState<string | null>(null);
   const k = (q: VaultRequest) => q.locker + "/" + q.name + "/" + q.attribute;
   return (
-    <div>
-      <p className="st-muted">Agents that run as you read these values from the vault. Fill them in once; you can change them later in the credential's details.</p>
+    <>
+      <p className="cc-list-hint">Agents that run as you read these values from the vault. Fill them in once; you can change them later in the credential's details.</p>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <table className="st-table cc-table" aria-label="My requests list">
-        <thead><tr><th scope="col">Credential</th><th scope="col">Attribute</th><th scope="col">Your value</th><th scope="col"><span className="st-sr">Save</span></th></tr></thead>
-        <tbody>
-          {requests.map((q) => (
-            <tr key={k(q)}>
-              <td><span className="ui-mono">{q.locker}/{q.name}</span>{q.credential_description && <div className="st-muted">{q.credential_description}</div>}</td>
-              <td>{q.attribute}{q.password_only && <span className="cc-tag">password fields only</span>}{q.description && <div className="st-muted">{q.description}</div>}</td>
-              <td><TextInput type="password" autoComplete="new-password" aria-label={"Your " + q.attribute + " for " + q.locker + "/" + q.name} value={values[k(q)] ?? ""}
-                onChange={(e) => setValues({ ...values, [k(q)]: e.target.value })} /></td>
-              <td><Button kind="primary" disabled={!values[k(q)]} onClick={() => api.setMyValue(q.locker, q.name, q.attribute, values[k(q)])
-                .then(() => { setValues({ ...values, [k(q)]: "" }); onSaved("Saved your " + q.attribute + " for " + q.locker + "/" + q.name + "."); }, (e) => setError(message(e)))}>Save</Button></td>
-            </tr>
-          ))}
-          {!requests.length && <tr><td colSpan={4} className="st-muted">Nothing to fill in.</td></tr>}
-        </tbody>
-      </table>
-    </div>
+      <div className="cc-list-panel">
+        <div className="cc-list-scroll">
+          <table className="cc-list-table cc-list-form" aria-label="My requests list">
+            <thead><tr><th scope="col">Credential</th><th scope="col">Attribute</th><th scope="col">Your value</th><th scope="col"><span className="st-sr">Save</span></th></tr></thead>
+            <tbody>
+              {requests.map((q) => (
+                <tr key={k(q)} className="is-static">
+                  <td><code className="cc-code">{q.locker}/{q.name}</code>{q.credential_description && <div className="cc-list-sub">{q.credential_description}</div>}</td>
+                  <td>{q.attribute}{q.password_only && <span className="cc-tag">password fields only</span>}{q.description && <div className="cc-list-sub">{q.description}</div>}</td>
+                  <td><TextInput type="password" autoComplete="new-password" aria-label={"Your " + q.attribute + " for " + q.locker + "/" + q.name} value={values[k(q)] ?? ""}
+                    onChange={(e) => setValues({ ...values, [k(q)]: e.target.value })} /></td>
+                  <td><Button kind="primary" disabled={!values[k(q)]} onClick={() => api.setMyValue(q.locker, q.name, q.attribute, values[k(q)])
+                    .then(() => { setValues({ ...values, [k(q)]: "" }); onSaved("Saved your " + q.attribute + " for " + q.locker + "/" + q.name + "."); }, (e) => setError(message(e)))}>Save</Button></td>
+                </tr>
+              ))}
+              {!requests.length && <tr className="is-static"><td colSpan={4} className="cc-none">Nothing to fill in.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 

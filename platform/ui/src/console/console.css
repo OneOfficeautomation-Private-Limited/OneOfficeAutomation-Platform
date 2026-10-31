@@ -431,3 +431,23 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-who { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 3px; border-radius: 11px; background: var(--ui-selected); color: var(--ui-pill-text); }
 .cc-who-av { width: 16px; height: 16px; border-radius: 50%; background: var(--ui-accent); color: #ffffff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 760px) { .cc-role-fields { grid-template-columns: 1fr; } .cc-mx-area { width: 140px; } }
+/* Teams, Credential vault and Licenses in the list pattern (31 Oct 2026): page tabs under the title, a tick-box chip,
+   each person's own value as set or missing, rule names in a code chip, panels as on Overview */
+.cc-list-tabs { height: 36px; padding: 0; }
+.cc-chip-check { display: inline-flex; align-items: center; gap: 6px; height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius);
+  background: var(--ui-bg); color: var(--ui-text); font-size: 13px; white-space: nowrap; cursor: pointer; }
+.cc-chip-check input { margin: 0; accent-color: var(--ui-accent); }
+.cc-chip-check.is-on { border-color: var(--ui-accent); background: var(--ui-selected); color: var(--ui-pill-text); font-weight: 600; }
+.cc-own { display: inline-block; height: 20px; line-height: 20px; padding: 0 7px; margin-right: 4px; border-radius: 4px; font-size: 12px; }
+.cc-own.is-set { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
+.cc-own.is-missing { background: var(--ui-running-bg); color: var(--ui-warning-text); font-weight: 600; }
+.cc-code { display: inline-block; height: 20px; line-height: 20px; padding: 0 6px; margin-right: 4px; border-radius: 4px; background: var(--ui-soft); border: 1px solid var(--ui-divider);
+  font: 12px var(--ui-mono); color: var(--ui-text); }
+.cc-list-sub { font-size: 12px; color: var(--ui-text-2); white-space: normal; }
+.cc-list-form td { height: 40px; }
+.cc-list-form .ui-input { height: 28px; max-width: 280px; }
+.cc-lic-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.cc-lic-body p { margin: 0; }
+.ov-panel .cc-install { margin: 0; padding: 10px 12px; max-width: none; }
+.cc-pill-inline { margin-left: 6px; }
+.cc-list .ov-panel .cc-list-table tbody tr:last-child td { border-bottom: 0; }

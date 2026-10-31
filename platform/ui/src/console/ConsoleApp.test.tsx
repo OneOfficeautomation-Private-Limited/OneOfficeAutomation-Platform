@@ -1002,6 +1002,8 @@ describe("rebuilt Command Center console", () => {
     const list = await screen.findByRole("table", { name: "Teams list" });
     expect(await within(list).findByText("agent folder Finance, vault folder Bank")).toBeTruthy();
     expect(within(list).getByText("team:finance")).toBeTruthy();
+    expect(screen.getByText("2 teams · 2 people in them")).toBeTruthy();   // the list pattern: a count, a ⋯ menu per row
+    expect(within(list).getByRole("button", { name: "Actions for ops" })).toBeTruthy();
     fireEvent.click(within(list).getByText("finance"));
     const d = await screen.findByRole("dialog", { name: "Team finance" });
     fireEvent.change(within(d).getByLabelText("Person to add"), { target: { value: "admin" } });
@@ -1022,6 +1024,11 @@ describe("rebuilt Command Center console", () => {
     await go("Credential vault");
     const list = await screen.findByRole("table", { name: "Credentials list" });
     expect(await within(list).findByText("pin (yours missing)")).toBeTruthy();
+    // Delete shows in a bar only while credentials are ticked
+    expect(screen.queryByRole("toolbar", { name: "Credential actions" })).toBeNull();
+    fireEvent.click(within(list).getByLabelText("Select finance/erp"));
+    expect(within(screen.getByRole("toolbar", { name: "Credential actions" })).getByText("1 selected")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
     fireEvent.click(screen.getByLabelText("Needs my own value"));
     await waitFor(() => expect(within(list).queryByText("erp")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -1086,6 +1093,8 @@ describe("rebuilt Command Center console", () => {
     await go("Licenses");
     expect(await screen.findByText("Acme")).toBeTruthy();
     expect(screen.getByText(/Nearly full: Developer \(4 of 5\)/)).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Seats" })).toBeTruthy();   // seats beside the licence's facts, as Overview's panels
+    expect(screen.getByRole("region", { name: "Licence" })).toBeTruthy();
     // allocation: a seat for a person; the runner already holds one
     fireEvent.click(screen.getByRole("tab", { name: "Allocation" }));
     const people = await screen.findByRole("table", { name: "People seats" });
