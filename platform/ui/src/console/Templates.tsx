@@ -25,7 +25,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     && (!q.trim() || (t.name + " " + (t.description ?? "") + " " + t.publisher).toLowerCase().includes(q.trim().toLowerCase()))), [data, q, cat]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-tpl-title">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-tpl-title">
       <header className="st-page-head">
         <div><h1 id="cc-tpl-title">Agent Templates</h1><p>Ready-made agents to install into your agent repository and adapt: from ONEOFFICEAUTOMATION{data?.can_share ? " and shared in your region" : ""}.</p></div>
         <span className="cc-inline">
@@ -35,10 +35,12 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {data?.problem && <p className="st-alert">{data.problem}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search templates" placeholder="Search templates" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Category" value={cat} onChange={(e) => setCat(e.target.value)} options={[{ value: "", label: "All categories" }, ...(data?.categories ?? []).map((c) => ({ value: c, label: c }))]} />
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search templates" placeholder="Search templates" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <span className="cc-chip"><Select aria-label="Category" value={cat} onChange={(e) => setCat(e.target.value)} options={[{ value: "", label: "All categories" }, ...(data?.categories ?? []).map((c) => ({ value: c, label: c }))]} /></span>
         <span className="cc-chosen">{shown.length} template{shown.length === 1 ? "" : "s"}</span>
+      </div>
       </div>
       {!data && !error && <p className="st-muted" role="status">Loading…</p>}
       <div className="cc-tpls" role="list" aria-label="Templates">

@@ -110,7 +110,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
 
   const online = (runners ?? []).filter((d) => d.status === "online").length;
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-dev-title">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-dev-title">
       <header className="st-page-head">
         <div><h1 id="cc-dev-title">Runner Machines</h1>
           <p>Machines running the OneRunner. A runner is online when it checked in during the last minute.{runners ? " " + online + " of " + runners.length + " online." : ""}</p></div>
@@ -123,14 +123,16 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {tab === "runners" ? <>
-        <div className="cc-filters" role="group" aria-label="Filters">
-          <Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} />
-          <TextInput type="search" aria-label="Search runners" placeholder="Search" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} />
+        <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-chip"><Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} /></span>
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search runners" placeholder="Search" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
           <Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
             options={[{ value: "", label: "Any status" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label }))]} />
           {pools.length > 0 && <Select aria-label="Runner pool" value={f.pool ?? ""} onChange={(e) => setFilter("pool", e.target.value)}
             options={[{ value: "", label: "Any pool" }, ...pools.map((p) => ({ value: p.id, label: p.name }))]} />}
           {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
+        </div>
         </div>
         <div className="cc-bar" role="toolbar" aria-label="Runner actions">
           {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
@@ -150,8 +152,8 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
           <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
           <Button kind="secondary" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
         </div>
-        <div className="cc-table-wrap">
-          <table className="st-table cc-table" aria-label="Runners list">
+        <div className="cc-list-panel"><div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Runners list">
             <thead><tr>
               <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={page.length > 0 && page.every((d) => selected.includes(d.id))}
                 onChange={(e) => setSelected(e.target.checked ? page.map((d) => d.id) : [])} /></th>
@@ -169,7 +171,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
               {!runners && !error && <tr><td colSpan={cols.length + 1} className="st-muted" role="status">Loading…</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div></div>
         {shown.length > PAGE && (
           <div className="cc-pager">
             <Button kind="plain" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</Button>
@@ -211,8 +213,8 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
 function Pools({ pools, runners, canManage, onOpen }: { pools: RunnerPool[]; runners: Runner[]; canManage: boolean; onOpen: (p: RunnerPool) => void }) {
   const nameOf = (id: string) => runners.find((d) => d.id === id)?.name ?? id;
   return (
-    <div className="cc-table-wrap">
-      <table className="st-table cc-table" aria-label="Runner pools list">
+    <div className="cc-list-panel"><div className="cc-list-scroll">
+      <table className="cc-list-table" aria-label="Runner pools list">
         <thead><tr><th scope="col">Pool</th><th scope="col">Description</th><th scope="col">Runners</th><th scope="col">Online</th><th scope="col">Owners</th><th scope="col">Users</th></tr></thead>
         <tbody>
           {pools.map((p) => (
@@ -222,10 +224,10 @@ function Pools({ pools, runners, canManage, onOpen }: { pools: RunnerPool[]; run
               <td>{(p.owners ?? []).join(", ") || p.created_by || ""}</td><td>{(p.consumers ?? []).join(", ") || "Anyone who may start runs"}</td>
             </tr>
           ))}
-          {!pools.length && <tr><td colSpan={6} className="st-muted">No runner pools yet. A pool shares work between runners: a run sent to it goes to its least busy online runner.</td></tr>}
+          {!pools.length && <tr className="is-static"><td colSpan={6} className="cc-none">No runner pools yet. A pool shares work between runners: a run sent to it goes to its least busy online runner.</td></tr>}
         </tbody>
       </table>
-    </div>
+    </div></div>
   );
 }
 

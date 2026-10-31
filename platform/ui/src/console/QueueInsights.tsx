@@ -49,13 +49,13 @@ export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
   const sel = qs.find((q) => q.id === open);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-qi-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-qi-title">Work queue insights</h1><p>What waits in each work queue, what is late or at risk of missing its target time, how fast items finish, and the runners needed to keep up.</p></div>
-        <span className="cc-inline">
-          <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-qi-title">
+      <header className="cc-list-head">
+        <h1 id="cc-qi-title">Work queue insights</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="What waits in each work queue, what is late or at risk of missing its target time, how fast items finish, and the runners needed to keep up.">i</span>
+        <span className="ov-fill" />
+                  <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
           <Button kind="plain" onClick={load}>Refresh</Button>
-        </span>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {!list && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}

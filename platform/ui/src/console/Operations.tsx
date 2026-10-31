@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../api/cr";
 import { Button, Dialog, Select, usePersistent } from "../components";
+import { RefreshButton } from "./ListParts";
 import { howStarted } from "./Activity";
 
 /**
@@ -63,20 +64,23 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
   const agentCell = (path: string) => <button type="button" className="cc-link" onClick={() => setStats(path)}>{name(path)}</button>;
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-op-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-op-title">Operations</h1><p>How agents ran over a period: volumes, success and run time compared with the period before, when runs start, which agents run most, take longest and fail most, and each runner's use.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-op-title">
+      <header className="cc-list-head">
+        <h1 id="cc-op-title">Operations</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="How agents ran over a period: volumes, success and run time compared with the period before, when runs start, which agents run most, take longest and fail most, and each runner's use.">i</span>
+        <span className="ov-fill" />
         <Button kind="secondary" onClick={() => csv("run_history")}>Run history CSV</Button>
       </header>
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
         {agents.length > 0 && <Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setF({ ...f, bot: e.target.value })} options={[{ value: "", label: "All agents" }, ...agents.map((x) => ({ value: x, label: name(x) }))]} />}
         {runners.length > 0 && <Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setF({ ...f, device: e.target.value })} options={[{ value: "", label: "All runners" }, ...runners.map((d) => ({ value: d.id, label: d.name }))]} />}
         <Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })}
           options={[{ value: "", label: "Started any way" }, ...["manual", "schedule", "trigger", "queue", "api", "rerun", "mcp"].map((v) => ({ value: v, label: howStarted(v) }))]} />
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
-        <span className="st-bar-fill" />
-        <Button kind="plain" onClick={load}>Refresh</Button>
+      </div>
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {o?.period.capped && <p className="st-alert">Only the first {o.period.runs_counted.toLocaleString()} runs of the period are counted: choose a shorter period or one agent.</p>}

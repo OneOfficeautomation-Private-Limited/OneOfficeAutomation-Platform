@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * Build > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an
@@ -31,18 +32,22 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { onNotice(done); setDialog(null); load(); }, (e) => setError(message(e)));
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-apis-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-apis-title">Agent APIs</h1><p>An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-apis-title">
+      <header className="cc-list-head">
+        <h1 id="cc-apis-title">Agent APIs</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.">i</span>
+        <span className="ov-fill" />
         {user.permissions.includes("apitasks.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search Agent APIs" placeholder="Search Agent APIs" value={q} onChange={(e) => setQ(e.target.value)} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search Agent APIs" placeholder="Search Agent APIs" value={q} onChange={(e) => setQ(e.target.value)} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Agent APIs list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Agent APIs list">
           <thead><tr><th scope="col">State</th><th scope="col">Agent API</th><th scope="col">Agent</th><th scope="col">Runs on</th><th scope="col">Waits up to</th><th scope="col">Calls</th><th scope="col">Last call</th></tr></thead>
           <tbody>
             {shown.map((t) => (
@@ -52,11 +57,11 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                 <td>{agentName(t.bot_path)}</td><td>{where(t)}</td><td>{t.timeout_seconds} s</td><td>{t.calls}</td><td>{t.last_used ? when(t.last_used) : "Never"}</td>
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={7} className="st-muted">{list.length ? "No Agent APIs match." : "No Agent APIs yet."}</td></tr>}
-            {!list && !error && <tr><td colSpan={7} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{list.length ? "No Agent APIs match." : "No Agent APIs yet."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog?.kind === "new" && <NewApi api={api} runners={runners} pools={pools} onClose={() => setDialog(null)}
         onCreated={(r) => { onNotice("Created the Agent API " + r.name + "."); load(); setDialog({ kind: "token", ...r }); }} />}
       {dialog?.kind === "token" && <TokenShown name={dialog.name} url={dialog.url} token={dialog.token} onClose={() => setDialog(null)} />}
@@ -106,7 +111,7 @@ function NewApi({ api, runners, pools, onClose, onCreated }: { api: CrApi; runne
       {v.where === "pool" && <Field label="Runner pool">{(id) => <Select id={id} value={v.pool} onChange={set("pool")} options={[{ value: "", label: "Choose a pool" }, ...pools.map((p) => ({ value: p.id, label: p.name }))]} />}</Field>}
       {v.where === "serverless" && <p className="st-muted">Serverless suits agents that only call web services and work on data (REST, SOAP, cloud apps, Excel, PDF, JSON). They run for at most 5 minutes, four at a time, with files only in their own workspace.</p>}
       <Field label="Wait for the result up to (seconds, 1-300)">{(id) => <TextInput id={id} type="number" min={1} max={300} value={v.timeout} onChange={set("timeout")} />}</Field>
-      <p className="st-muted">Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again.</p>
+      <p className="cc-list-hint">Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again.</p>
     </Dialog>
   );
 }
@@ -121,7 +126,7 @@ function TokenShown({ name, url, token, onClose }: { name: string; url: string; 
       <code className="cc-key" aria-label="Token">{token}</code>
       <h3 className="cc-log-title">Example</h3>
       <pre className="cc-codes">{'curl -X POST "' + full + '" -H "X-OOA-Task-Token: <token>" -H "Content-Type: application/json" -d \'{"inputs": {"text": "hello"}}\''}</pre>
-      <p className="st-muted">The answer is status, run_id, outputs and error: 200 when the run finished, 202 while it still runs (then GET {url.replace(/\/run$/, "/runs/")}&lt;run_id&gt; with the same token).</p>
+      <p className="cc-list-hint">The answer is status, run_id, outputs and error: 200 when the run finished, 202 while it still runs (then GET {url.replace(/\/run$/, "/runs/")}&lt;run_id&gt; with the same token).</p>
     </Dialog>
   );
 }

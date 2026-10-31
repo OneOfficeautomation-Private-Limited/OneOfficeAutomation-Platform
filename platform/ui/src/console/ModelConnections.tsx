@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ModelConnection } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * AI > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
@@ -35,19 +36,23 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
     && (!q.trim() || (c.name + " " + (c.model ?? "") + " " + (c.description ?? "")).toLowerCase().includes(q.trim().toLowerCase()))), [list, q, provider]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-mc-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-mc-title">Model Connections</h1><p>Named connections to AI models that agents use through prompt skills, AI agents and generative AI actions. Keys stay in the Credential vault; agents receive only the reference.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-mc-title">
+      <header className="cc-list-head">
+        <h1 id="cc-mc-title">Model Connections</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Named connections to AI models that agents use through prompt skills, AI agents and generative AI actions. Keys stay in the Credential vault; agents receive only the reference.">i</span>
+        <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ c: null })}>Create connection</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search model connections" placeholder="Search connections and models" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={[{ value: "", label: "Every provider" }, ...PROVIDERS.map(([value, label]) => ({ value, label }))]} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search model connections" placeholder="Search connections and models" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <span className="cc-chip"><Select aria-label="Provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={[{ value: "", label: "Every provider" }, ...PROVIDERS.map(([value, label]) => ({ value, label }))]} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Model connections list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Model connections list">
           <thead><tr><th scope="col">Connection</th><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Roles</th><th scope="col">Tokens this month</th><th scope="col">Privacy</th><th scope="col">Key</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {shown.map((c) => (
@@ -63,11 +68,11 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
                 <td>{when(c.updated)}{c.updated_by ? " by " + c.updated_by : ""}</td>
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={8} className="st-muted">{list.length ? "No connections match." : "No model connections yet."}</td></tr>}
-            {!list && !error && <tr><td colSpan={8} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{list.length ? "No connections match." : "No model connections yet."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog && <ConnectionForm key={dialog.c?.name ?? "new"} api={api} c={dialog.c} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
   );
@@ -124,7 +129,7 @@ function ConnectionForm({ api, c, onClose, onSaved }: { api: CrApi; c: ModelConn
         <Field label="Calls a minute, per run (more calls wait)">{(id) => <TextInput id={id} type="number" min={0} value={v.perMinute} placeholder="no limit" onChange={set("perMinute")} />}</Field>
         <Field label="Calls a run (more calls fail)">{(id) => <TextInput id={id} type="number" min={0} value={v.perRun} placeholder="no limit" onChange={set("perRun")} />}</Field>
       </div>
-      <p className="st-muted">When the month's tokens are used up, AI steps fail with AI.BUDGET_REACHED until the next month or a higher budget. Runners read the key from the vault only while an agent runs, and only for agents whose owner may use that vault folder.</p>
+      <p className="cc-list-hint">When the month's tokens are used up, AI steps fail with AI.BUDGET_REACHED until the next month or a higher budget. Runners read the key from the vault only while an agent runs, and only for agents whose owner may use that vault folder.</p>
     </Dialog>
   );
 }

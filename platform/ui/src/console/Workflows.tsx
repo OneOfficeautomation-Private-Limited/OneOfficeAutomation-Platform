@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 import { FormField } from "./Inbox";
 
 /**
@@ -34,9 +35,11 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const count = (t: Tab) => (runs ?? []).filter((r) => (t === "progress") === going(r)).length;
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-wf-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-wf-title">Workflow</h1><p>Workflows chain agents, people and decisions. Design them in One AgentStudio, put them live, then start them here; people get their steps in the Task inbox.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-wf-title">
+      <header className="cc-list-head">
+        <h1 id="cc-wf-title">Workflow</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Workflows chain agents, people and decisions. Design them in One AgentStudio, put them live, then start them here; people get their steps in the Task inbox.">i</span>
+        <span className="ov-fill" />
         {user.permissions.includes("runs.start") && <Button kind="primary" onClick={() => setDialog({ kind: "start" })}>Start a workflow</Button>}
       </header>
       <div className="st-page-tabs" role="tablist" aria-label="Workflow runs">
@@ -44,13 +47,15 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
           {t === "progress" ? "In progress" : "Finished"}{runs && <span className="cc-count">{count(t)}</span>}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search workflow runs" placeholder="Search reference, run id, stage, who started it" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search workflow runs" placeholder="Search reference, run id, stage, who started it" value={q} onChange={(e) => setQ(e.target.value)} /></span>
         {flows.length > 1 && <Select aria-label="Workflow" value={flow} onChange={(e) => setFlow(e.target.value)} options={[{ value: "", label: "Every workflow" }, ...flows.map((p) => ({ value: p, label: flowName(p) }))]} />}
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label={tab === "progress" ? "Workflow runs in progress" : "Finished workflow runs"}>
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label={tab === "progress" ? "Workflow runs in progress" : "Finished workflow runs"}>
           <thead><tr><th scope="col">Status</th><th scope="col">Workflow</th><th scope="col">Reference</th><th scope="col">{tab === "progress" ? "Current stage" : "Last stage"}</th>
             <th scope="col">Started by</th><th scope="col">Started</th><th scope="col">{tab === "progress" ? "Updated" : "Finished"}</th></tr></thead>
           <tbody>
@@ -61,11 +66,11 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                 <td>{when(r.created)}</td><td>{when(tab === "progress" ? r.updated : r.finished)}</td>
               </tr>
             ))}
-            {runs && !shown.length && <tr><td colSpan={7} className="st-muted">{tab === "progress" ? "No workflow is running." : "No finished workflow runs."}</td></tr>}
-            {!runs && !error && <tr><td colSpan={7} className="st-muted" role="status">Loading…</td></tr>}
+            {runs && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{tab === "progress" ? "No workflow is running." : "No finished workflow runs."}</td></tr>}
+            {!runs && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog?.kind === "start" && <StartWorkflow api={api} onClose={() => setDialog(null)} onStarted={(t, id) => { onNotice(t); load(); setDialog({ kind: "run", id }); }} />}
       {dialog?.kind === "run" && <RunView key={dialog.id} api={api} id={dialog.id} onClose={() => { setDialog(null); load(); }} onNotice={onNotice} />}
     </section>

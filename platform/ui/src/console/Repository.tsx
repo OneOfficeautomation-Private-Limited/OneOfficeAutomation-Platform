@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 
 /**
@@ -50,18 +51,18 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
   const toDecide = requests.requests.filter((r) => r.can_decide).length;
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-repo-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-repo-title">Agent Repository</h1><p>Agents checked in from One AgentStudio, with every version. The live version is the one that runs on runners, schedules and triggers.</p></div>
-        <span className="cc-inline">
-          {can("repo.checkin") && <Button kind="secondary" onClick={() => setDialog({ kind: "folder", parent: folder })}>New folder</Button>}
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-repo-title">
+      <header className="cc-list-head">
+        <h1 id="cc-repo-title">Agent Repository</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Agents checked in from One AgentStudio, with every version. The live version is the one that runs on runners, schedules and triggers.">i</span>
+        <span className="ov-fill" />
+                  {can("repo.checkin") && <Button kind="secondary" onClick={() => setDialog({ kind: "folder", parent: folder })}>New folder</Button>}
           {(requests.approval_on || requests.requests.length > 0) && <Button kind={toDecide ? "primary" : "secondary"} onClick={() => setDialog({ kind: "approvals" })}>
             Production approvals{requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""}</Button>}
           {can("repo.delete") && <Button kind="secondary" onClick={() => setDialog({ kind: "deleted" })}>Deleted agents</Button>}
           {can("lifecycle.export") && <Button kind="secondary" onClick={() => setDialog({ kind: "export" })}>Export or promote</Button>}
           {can("lifecycle.import") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import</Button>}
           <Button kind="secondary" onClick={() => setDialog({ kind: "analysis" })}>Code analysis</Button>
-        </span>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-repo">
@@ -75,11 +76,13 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
           ))}
         </nav>
         <div>
-          <div className="cc-filters" role="group" aria-label="Filters">
-            <TextInput type="search" aria-label="Search agents" placeholder="Search by name, id or description" value={q} onChange={(e) => setQ(e.target.value)} />
-            <Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Every kind" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: k + "s" }))]} />
-            <Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "All" }, { value: "live", label: "Live" }, { value: "notlive", label: "Not live yet" }, { value: "out", label: "Checked out" }]} />
-            <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+          <div className="cc-list-tools">
+          <div className="cc-list-filters" role="group" aria-label="Filters">
+            <span className="cc-list-search"><TextInput type="search" aria-label="Search agents" placeholder="Search by name, id or description" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+            <span className="cc-chip"><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Every kind" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: k + "s" }))]} /></span>
+            <span className="cc-chip"><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "All" }, { value: "live", label: "Live" }, { value: "notlive", label: "Not live yet" }, { value: "out", label: "Checked out" }]} /></span>
+          </div>
+          <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
           </div>
           {folder && <div className="cc-bar" role="group" aria-label="Folder">
             <span className="cc-chosen">{folder}</span>{cur?.description && <span className="st-muted">{cur.description}</span>}
@@ -91,8 +94,8 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
                 <Button kind="plain" onClick={() => setConfirmDelete(false)}>Cancel</Button></span>
               : <Button kind="danger" onClick={() => setConfirmDelete(true)}>Delete folder</Button>)}
           </div>}
-          <div className="cc-table-wrap">
-            <table className="st-table cc-table" aria-label="Agents list">
+          <div className="cc-list-panel"><div className="cc-list-scroll">
+            <table className="cc-list-table" aria-label="Agents list">
               <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th></tr></thead>
               <tbody>
                 {shown.map((a) => (
@@ -110,7 +113,7 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
                 {!agents && !error && <tr className="is-static"><td colSpan={6} className="st-muted" role="status">Loading…</td></tr>}
               </tbody>
             </table>
-          </div>
+          </div></div>
           <RepoFiles key={folder} api={api} user={user} folder={folder} onNotice={onNotice} />
         </div>
       </div>
@@ -298,7 +301,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
     <Dialog open title={"Run " + agentName(a.path)} width={620} onClose={onClose} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!where || missing} onClick={run}>Run</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">Runs the live version, v{a.production_version}.</p>
+      <p className="cc-list-hint">Runs the live version, v{a.production_version}.</p>
       <Field label="Run on">{(id) => <Select id={id} value={where} onChange={(e) => setWhere(e.target.value)} options={[...runners.filter((r) => r.enabled).map((r) => ({ value: "d:" + r.id, label: r.name + " (" + r.status + ")" })),
         ...pools.map((p) => ({ value: "p:" + p.id, label: "Pool " + p.name + " (least busy runner)" }))]} />}</Field>
       {vars.map((v) => <Field key={v.name} label={v.name + (v.required ? " *" : "") + " (" + v.type + ")"} hint={v.description}>{(id) => v.type === "Boolean"
@@ -331,7 +334,7 @@ function RenameFolder({ api, folder, onClose, onDone }: { api: CrApi; folder: st
       <Button kind="primary" disabled={!to.trim() || to.trim() === folder} onClick={() => api.renameFolder(folder, to.trim()).then((r) => onDone(r.path, r.agents), (e) => setError(message(e)))}>Rename</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <Field label="New path">{(id) => <TextInput id={id} value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
-      <p className="st-muted">Everything in it moves too: agents with their versions, labels, schedules, triggers and run history.</p>
+      <p className="cc-list-hint">Everything in it moves too: agents with their versions, labels, schedules, triggers and run history.</p>
     </Dialog>
   );
 }
@@ -352,7 +355,7 @@ function FolderPermissions({ api, folder, onClose, onDone }: { api: CrApi; folde
     <Dialog open title={"Permissions of " + folder} width={680} onClose={onClose} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!rows} onClick={() => api.saveFolderPermissions(folder, rows!).then(() => onDone("Saved the permissions of " + folder + "."), (e) => setError(message(e)))}>Save</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">With permissions of its own, only those listed see the folder's agents (and its sub-folders', unless one has its own). Roles still apply: a folder never grants what a role does not allow.</p>
+      <p className="cc-list-hint">With permissions of its own, only those listed see the folder's agents (and its sub-folders', unless one has its own). Roles still apply: a folder never grants what a role does not allow.</p>
       {rows && (rows.length ? <table className="st-table" aria-label="Permissions"><tbody>{rows.map((r, i) => <tr key={r.principal} className="is-static"><td>{label(r.principal)}</td>
         <td><Select aria-label={"Access of " + label(r.principal)} value={r.access} onChange={(e) => setRows(rows.map((x, k) => k === i ? { ...x, access: e.target.value } : x))} options={ACCESS.map(([value, l]) => ({ value, label: l }))} /></td>
         <td><Button kind="plain" onClick={() => setRows(rows.filter((_, k) => k !== i))}>Remove</Button></td></tr>)}</tbody></table>

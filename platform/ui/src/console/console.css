@@ -531,17 +531,22 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-table th + th, .cc-list-table td + td, .ov-t th + th, .ov-t td + td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
 .cc-au-kv td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
 /* Pages not yet rebuilt in the list pattern take its look (31 Oct 2026): the title row, toolbar, panel and compact table */
-.cc-app .cc-home:not(.cc-list) > .st-page-head { padding: 8px 16px; min-height: 52px; box-sizing: border-box; background: transparent; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); gap: 10px; }
-.cc-app .cc-home:not(.cc-list) > .st-page-head h1 { font-size: 18px; font-weight: 600; }
-.cc-app .cc-home:not(.cc-list) > .st-page-head p { font-size: 12.5px; color: var(--ui-text-2); max-width: 900px; }
-.cc-app .cc-home:not(.cc-list) .cc-filters { padding: 10px 16px 0; background: transparent; border-bottom: 0; }
-.cc-app .cc-home:not(.cc-list) .cc-filters .ui-input, .cc-app .cc-home:not(.cc-list) .cc-bar .ui-btn { height: 30px; }
-.cc-app .cc-home:not(.cc-list) .cc-bar { padding: 8px 16px; }
-.cc-app .cc-home:not(.cc-list) .cc-table-wrap { margin: 0 16px; }
-.cc-app .cc-home:not(.cc-list) .st-page-tabs { padding: 0 16px; background: transparent; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
-.cc-app .cc-home:not(.cc-list) .st-page-tab { height: 36px; border-bottom-width: 2px; color: var(--ui-text); font-weight: 400; }
-.cc-app .cc-home:not(.cc-list) .st-page-tab[aria-selected="true"] { color: var(--ui-text); font-weight: 600; }
+.cc-app .cc-home > .st-page-head { padding: 8px 16px; min-height: 52px; box-sizing: border-box; background: transparent; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); gap: 10px; }
+.cc-app .cc-home > .st-page-head h1 { font-size: 18px; font-weight: 600; }
+.cc-app .cc-home > .st-page-head p { font-size: 12.5px; color: var(--ui-text-2); max-width: 900px; }
+.cc-app .cc-home .cc-filters { padding: 10px 16px 0; background: transparent; border-bottom: 0; }
+.cc-app .cc-home .cc-filters .ui-input, .cc-app .cc-home .cc-bar .ui-btn { height: 30px; }
+.cc-app .cc-home .cc-bar { padding: 8px 16px; }
+.cc-app .cc-home .cc-table-wrap { margin: 0 16px; }
+.cc-app .cc-home .st-page-tabs { padding: 0 16px; background: transparent; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
+.cc-app .cc-home .st-page-tab { height: 36px; border-bottom-width: 2px; color: var(--ui-text); font-weight: 400; }
+.cc-app .cc-home .st-page-tab[aria-selected="true"] { color: var(--ui-text); font-weight: 600; }
 .cc-app .st-table.cc-table { font-size: 13px; }
 .cc-app .st-table.cc-table th { height: 30px; padding: 0 12px; font-size: 12px; font-weight: 600; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); white-space: nowrap; }
 .cc-app .st-table.cc-table td { height: 32px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
 .cc-app .st-table.cc-table tbody tr:last-child td { border-bottom: 0; }
+/* Inside the list pattern's page padding, the older parts sit flush (no second gutter) */
+.cc-app .cc-list > .st-page-head { padding-left: 0; padding-right: 0; }
+.cc-app .cc-list .cc-filters, .cc-app .cc-list .cc-bar { padding-left: 0; padding-right: 0; }
+.cc-app .cc-list .cc-table-wrap { margin: 0; }
+.cc-app .cc-list .st-page-tabs { padding: 0; }

@@ -13,7 +13,7 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
   }, [api]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-da-title">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-da-title">
       <header className="st-page-head"><div><h1 id="cc-da-title">Document Automation</h1>
         <p>Reads documents such as invoices, receipts and forms, and pulls their fields out with AI, for agents to use.</p></div></header>
       {error && <p className="st-alert" role="alert">{error}</p>}

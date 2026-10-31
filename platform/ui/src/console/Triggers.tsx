@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
  * triggers and Blue Prism, 31 Oct 2026): each trigger with its event, where it listens (a runner, or the Command Center,
  * UiPath-style, so no runner waits), its health (listening, paused, error) with the last firing, and Check now for the
  * Command Center ones. Create in sections: event, its settings, agent, runner and run-as. Refreshes every 30 seconds.
+ * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count with errors, chips, a ⋯ menu per row.
  */
 type F = [key: string, label: string, placeholder?: string, value?: string, type?: "number" | "check", checked?: boolean];
 const FOLDER: F[] = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
@@ -84,44 +86,64 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   }, [list, f]);
   const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { onNotice(done); load(); }, (e) => setError(message(e)));
 
+  const filtered = Object.values(f).some(Boolean);
+  const errors = (list ?? []).filter((t) => health(t) === "error").length;
+  const listening = (list ?? []).filter((t) => health(t) === "listening").length;
+  const checkNow = (t: Trigger) => api.pollTrigger(t.id).then((x) => { onNotice(x.error ? x.error : "Checked " + t.name + ": " + (x.fired ?? 0) + " new."); load(); }, (e) => setError(message(e)));
+  const rowMenu = (t: Trigger) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "edit", t }) },
+    ...(manage && t.evaluated_on === "server" && t.enabled ? [{ key: "check", label: "Check now", onSelect: () => { checkNow(t); } }] : []),
+    ...(manage ? [{ key: "pause", label: t.enabled ? "Pause" : "Resume", onSelect: () => { act(() => api.pauseTrigger(t.id, t.enabled), (t.enabled ? "Paused " : "Resumed ") + t.name + "."); } }] : []),
+  ];
+
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-trig-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-trig-title">Triggers</h1><p>Start agents on events: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and polled web data checked by the Command Center; or a webhook call.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-trig-title">
+      <header className="cc-list-head">
+        <h1 id="cc-trig-title">Triggers</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Start agents on events: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and polled web data checked by the Command Center; or a webhook call.">i</span>
+        {list && <span className="cc-list-count">{list.length} trigger{list.length === 1 ? "" : "s"} · {listening} listening{errors ? " · " + errors + " with an error" : ""}</span>}
+        <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create trigger</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search triggers" placeholder="Search triggers, agents, events" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        <Select aria-label="Listens on" value={f.where ?? ""} onChange={(e) => setF({ ...f, where: e.target.value })} options={[{ value: "", label: "Anywhere" }, { value: "runner", label: "A runner" }, { value: "server", label: "The Command Center" }]} />
-        <Select aria-label="Health" value={f.health ?? ""} onChange={(e) => setF({ ...f, health: e.target.value })} options={[{ value: "", label: "Any health" }, ...Object.entries(HEALTH).map(([value, label]) => ({ value, label }))]} />
-        {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search triggers" placeholder="Search triggers, agents, events" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+          <span className={"cc-chip" + (f.where ? " is-on" : "")}><Select aria-label="Listens on" value={f.where ?? ""} onChange={(e) => setF({ ...f, where: e.target.value })}
+            options={[{ value: "", label: "Listens on: Anywhere" }, { value: "runner", label: "Listens on: A runner" }, { value: "server", label: "Listens on: The Command Center" }]} /></span>
+          <span className={"cc-chip" + (f.health ? " is-on" : "")}><Select aria-label="Health" value={f.health ?? ""} onChange={(e) => setF({ ...f, health: e.target.value })}
+            options={[{ value: "", label: "Health: Any" }, ...Object.entries(HEALTH).map(([value, label]) => ({ value, label: "Health: " + label }))]} /></span>
+          {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="Triggers list tools">
+          <RefreshButton onClick={load} />
+        </div>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Triggers list">
-          <thead><tr><th scope="col">Health</th><th scope="col">Trigger</th><th scope="col">Event</th><th scope="col">Listens on</th><th scope="col">Agent</th>
-            <th scope="col">Details</th><th scope="col">Fired</th>{manage && <th scope="col"><span className="st-sr">Actions</span></th>}</tr></thead>
-          <tbody>
-            {shown.map((t) => (
-              <tr key={t.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) setDialog({ kind: "edit", t }); }}>
-                <td className={"cc-status is-" + (health(t) === "listening" ? "success" : health(t) === "error" ? "failed" : "disabled")} title={t.last_error ?? undefined}>{HEALTH[health(t)]}</td>
-                <td>{t.name}{t.run_as && <div className="st-muted">runs as {t.run_as}</div>}</td>
-                <td>{kindName(t.kind)}</td>
-                <td>{t.evaluated_on === "server" ? "The Command Center" : runnerName(t.device_id) + (t.windows_only ? " (Windows)" : "")}</td>
-                <td>{agentName(t.bot_path)}</td>
-                <td className="cc-clip ui-mono">{details(t)}</td>
-                <td>{t.fire_count ?? 0}{t.last_fired ? ", last " + when(t.last_fired) : ", never"}{t.last_error && <div className="cc-err cc-clip">{t.last_error}</div>}</td>
-                {manage && <td><span className="cc-inline">
-                  {t.evaluated_on === "server" && t.enabled && <Button kind="plain" onClick={() => api.pollTrigger(t.id).then((x) => { onNotice(x.error ? x.error : "Checked " + t.name + ": " + (x.fired ?? 0) + " new."); load(); }, (e) => setError(message(e)))}>Check now</Button>}
-                  <Button kind="plain" onClick={() => act(() => api.pauseTrigger(t.id, t.enabled), (t.enabled ? "Paused " : "Resumed ") + t.name + ".")}>{t.enabled ? "Pause" : "Resume"}</Button>
-                </span></td>}
-              </tr>
-            ))}
-            {list && !shown.length && <tr><td colSpan={8} className="st-muted">{list.length ? "No triggers match." : "No triggers yet."}</td></tr>}
-            {!list && !error && <tr><td colSpan={8} className="st-muted" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
+      <div className="cc-list-panel">
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Triggers list">
+            <thead><tr><th scope="col">Health</th><th scope="col">Trigger</th><th scope="col">Event</th><th scope="col">Listens on</th><th scope="col">Agent</th>
+              <th scope="col">Details</th><th scope="col">Fired</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+            <tbody>
+              {shown.map((t) => (
+                <tr key={t.id} onClick={rowClick(() => setDialog({ kind: "edit", t }))}>
+                  <td title={t.last_error ?? undefined}><span className={"cc-pill is-" + (health(t) === "listening" ? "active" : health(t) === "error" ? "failed" : "disabled")}><span className="cc-pill-dot" />{HEALTH[health(t)]}</span></td>
+                  <td><strong>{t.name}</strong>{t.run_as && <span className="cc-none"> · runs as {t.run_as}</span>}</td>
+                  <td>{kindName(t.kind)}</td>
+                  <td>{t.evaluated_on === "server" ? "The Command Center" : runnerName(t.device_id) + (t.windows_only ? " (Windows)" : "")}</td>
+                  <td>{agentName(t.bot_path)}</td>
+                  <td className="cc-clip ui-mono">{details(t)}</td>
+                  <td>{t.fire_count ?? 0}{t.last_fired ? ", last " + when(t.last_fired) : ", never"}{t.last_error && <div className="cc-err cc-clip">{t.last_error}</div>}
+                    {manage && t.evaluated_on === "server" && t.enabled && <> <Button kind="plain" onClick={() => checkNow(t)}>Check now</Button></>}</td>
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + t.name} items={rowMenu(t)} /></td>
+                </tr>
+              ))}
+              {list && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{list.length ? "No triggers match." : "No triggers yet."}</td></tr>}
+              {!list && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{filtered ? " matching" : ""} · refreshes every 30 seconds</span></div>}
       </div>
       {dialog?.kind === "new" && <NewTrigger api={api} runners={runners} onClose={() => setDialog(null)}
         onCreated={(t, hook) => { onNotice(t); load(); setDialog(hook ? { kind: "hook", ...hook } : null); }} />}

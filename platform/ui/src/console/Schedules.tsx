@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, Schedule } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Schedules, built as AA's scheduled automations (checked against AA's docs, UiPath's time triggers and Blue
  * Prism's Scheduler, 31 Oct 2026): schedules with what runs, where, how often, the next and last run; filters; for the
  * selected: enable, disable, run now, change owner, delete. Create in AA's order (agent, run-as, runner or pool, then
  * timing with a time zone) with UiPath's and Blue Prism's holiday calendars and rules for missed times and overlaps.
+ * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count, one toolbar, the selected's actions in a
+ * bar only while rows are ticked, a ⋯ menu per row.
  */
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
@@ -60,57 +63,80 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   };
   const agents = [...new Set((list ?? []).map((s) => s.bot_path))].sort();
 
+  const filtered = Object.values(f).some(Boolean);
+  const enabled = (list ?? []).filter((s) => s.enabled).length;
+  const setState = (s: Schedule, on: boolean) => api.bulkSchedules([s.id], on ? "enable" : "disable")
+    .then(() => { onNotice((on ? "Enabled " : "Disabled ") + s.name + "."); load(); }, (e) => setError(message(e)));
+  const rowMenu = (s: Schedule) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "edit", s }) },
+    ...(can("runs.start") ? [{ key: "run", label: "Run now", onSelect: () => { api.runSchedule(s.id).then(() => onNotice("Started " + s.name + "."), (e) => setError(message(e))); } }] : []),
+    ...(manage ? [{ key: "state", label: s.enabled ? "Disable" : "Enable", onSelect: () => { setState(s, !s.enabled); } },
+      { key: "copy", label: "Copy as a new schedule", onSelect: () => setDialog({ kind: "new", from: s }) },
+      { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => { setSelected([s.id]); setDialog({ kind: "delete" }); } }] : []),
+  ];
+
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-sched-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-sched-title">Schedules</h1><p>Run agents automatically. Scheduled runs use the vault permissions of the schedule's owner, or of the run-as user; holiday calendars skip the dates you list.</p></div>
-        <span className="cc-inline">
-          <Button kind="secondary" onClick={() => setDialog({ kind: "calendars" })}>Holiday calendars</Button>
-          {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create schedule</Button>}
-        </span>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-sched-title">
+      <header className="cc-list-head">
+        <h1 id="cc-sched-title">Schedules</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Run agents automatically. Scheduled runs use the vault permissions of the schedule's owner, or of the run-as user; holiday calendars skip the dates you list.">i</span>
+        {list && <span className="cc-list-count">{list.length} schedule{list.length === 1 ? "" : "s"} · {enabled} enabled</span>}
+        <span className="ov-fill" />
+        <Button kind="secondary" onClick={() => setDialog({ kind: "calendars" })}>Holiday calendars</Button>
+        {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create schedule</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search schedules" placeholder="Search schedules, agents, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        <Select aria-label="State" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })} options={[{ value: "", label: "Enabled and disabled" }, { value: "on", label: "Enabled" }, { value: "off", label: "Disabled" }]} />
-        {agents.length > 1 && <Select aria-label="Agent" value={f.agent ?? ""} onChange={(e) => setF({ ...f, agent: e.target.value })} options={[{ value: "", label: "Any agent" }, ...agents.map((a) => ({ value: a, label: agentName(a) }))]} />}
-        {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+      <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search schedules" placeholder="Search schedules, agents, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+          <span className={"cc-chip" + (f.state ? " is-on" : "")}><Select aria-label="State" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })}
+            options={[{ value: "", label: "State: Any" }, { value: "on", label: "State: Enabled" }, { value: "off", label: "State: Disabled" }]} /></span>
+          {agents.length > 1 && <span className={"cc-chip" + (f.agent ? " is-on" : "")}><Select aria-label="Agent" value={f.agent ?? ""} onChange={(e) => setF({ ...f, agent: e.target.value })}
+            options={[{ value: "", label: "Agent: Any" }, ...agents.map((a) => ({ value: a, label: "Agent: " + agentName(a) }))]} /></span>}
+          {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="Schedules list tools">
+          <Button kind="plain" onClick={exportCsv}>Export CSV</Button>
+          <RefreshButton onClick={load} />
+        </div>
       </div>
-      <div className="cc-bar" role="toolbar" aria-label="Schedule actions">
-        {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
-        {manage && <>
-          <Button kind="secondary" disabled={!chosen.some((s) => !s.enabled)} onClick={() => api.bulkSchedules(chosen.map((s) => s.id), "enable").then((r) => { onNotice("Enabled " + r.changed + " schedule(s)."); setSelected([]); load(); }, (e) => setError(message(e)))}>Enable</Button>
-          <Button kind="secondary" disabled={!chosen.some((s) => s.enabled)} onClick={() => api.bulkSchedules(chosen.map((s) => s.id), "disable").then((r) => { onNotice("Disabled " + r.changed + " schedule(s)."); setSelected([]); load(); }, (e) => setError(message(e)))}>Disable</Button>
-          <Button kind="secondary" disabled={!chosen.length} onClick={() => setDialog({ kind: "owner" })}>Change owner</Button>
-        </>}
-        {can("runs.start") && <Button kind="secondary" disabled={!chosen.length} onClick={() => each("Started", (s) => api.runSchedule(s.id))}>Run now</Button>}
-        {manage && <Button kind="danger" disabled={!chosen.length} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>}
-        <span className="st-bar-fill" />
-        <Button kind="plain" onClick={load}>Refresh</Button>
-        <Button kind="secondary" onClick={exportCsv}>Export CSV</Button>
-      </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Schedules list">
-          <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && shown.every((s) => selected.includes(s.id))}
-            onChange={(e) => setSelected(e.target.checked ? shown.map((s) => s.id) : [])} /></th>
-            <th scope="col">State</th><th scope="col">Schedule</th><th scope="col">Agent</th><th scope="col">Runs on</th><th scope="col">Repeats</th>
-            <th scope="col">Next run</th><th scope="col">Last run</th><th scope="col">Owner</th></tr></thead>
-          <tbody>
-            {shown.map((s) => (
-              <tr key={s.id} className={selected.includes(s.id) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) setDialog({ kind: "edit", s }); }}>
-                <td className="cc-check"><input type="checkbox" aria-label={"Select " + s.name} checked={selected.includes(s.id)}
-                  onChange={(e) => setSelected(e.target.checked ? [...selected, s.id] : selected.filter((x) => x !== s.id))} /></td>
-                <td className={"cc-status is-" + (s.enabled ? "success" : "disabled")}>{s.enabled ? "Enabled" : "Disabled"}</td>
-                <td>{s.name}</td><td>{agentName(s.bot_path)}</td><td>{runsOn(s)}</td>
-                <td>{repeats(s)}{s.holiday_calendar ? ", not on " + s.holiday_calendar : ""}</td>
-                <td>{s.enabled ? when(s.next_run) : ""}</td><td>{s.last_run ? when(s.last_run) : "Never"}</td>
-                <td>{s.created_by}{s.run_as && s.run_as !== s.created_by && <div className="st-muted">runs as {s.run_as}</div>}</td>
-              </tr>
-            ))}
-            {list && !shown.length && <tr><td colSpan={9} className="st-muted">{list.length ? "No schedules match." : "No schedules yet."}</td></tr>}
-            {!list && !error && <tr><td colSpan={9} className="st-muted" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
+      <div className="cc-list-panel">
+        {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Schedule actions">
+          <strong>{chosen.length} selected</strong>
+          {manage && <>
+            {chosen.some((s) => !s.enabled) && <Button kind="secondary" onClick={() => api.bulkSchedules(chosen.map((s) => s.id), "enable").then((r) => { onNotice("Enabled " + r.changed + " schedule(s)."); setSelected([]); load(); }, (e) => setError(message(e)))}>Enable</Button>}
+            {chosen.some((s) => s.enabled) && <Button kind="secondary" onClick={() => api.bulkSchedules(chosen.map((s) => s.id), "disable").then((r) => { onNotice("Disabled " + r.changed + " schedule(s)."); setSelected([]); load(); }, (e) => setError(message(e)))}>Disable</Button>}
+            <Button kind="secondary" onClick={() => setDialog({ kind: "owner" })}>Change owner</Button>
+          </>}
+          {can("runs.start") && <Button kind="secondary" onClick={() => each("Started", (s) => api.runSchedule(s.id))}>Run now</Button>}
+          {manage && <Button kind="danger" onClick={() => setDialog({ kind: "delete" })}>Delete</Button>}
+          <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+        </div>}
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Schedules list">
+            <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && shown.every((s) => selected.includes(s.id))}
+              onChange={(e) => setSelected(e.target.checked ? shown.map((s) => s.id) : [])} /></th>
+              <th scope="col">State</th><th scope="col">Schedule</th><th scope="col">Agent</th><th scope="col">Runs on</th><th scope="col">Repeats</th>
+              <th scope="col">Next run</th><th scope="col">Last run</th><th scope="col">Owner</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+            <tbody>
+              {shown.map((s) => (
+                <tr key={s.id} className={selected.includes(s.id) ? "is-selected" : ""} onClick={rowClick(() => setDialog({ kind: "edit", s }))}>
+                  <td className="cc-check"><input type="checkbox" aria-label={"Select " + s.name} checked={selected.includes(s.id)}
+                    onChange={(e) => setSelected(e.target.checked ? [...selected, s.id] : selected.filter((x) => x !== s.id))} /></td>
+                  <td><span className={"cc-pill is-" + (s.enabled ? "active" : "disabled")}><span className="cc-pill-dot" />{s.enabled ? "Enabled" : "Disabled"}</span></td>
+                  <td><strong>{s.name}</strong></td><td>{agentName(s.bot_path)}</td><td>{runsOn(s)}</td>
+                  <td>{repeats(s)}{s.holiday_calendar ? ", not on " + s.holiday_calendar : ""}</td>
+                  <td>{s.enabled ? when(s.next_run) : <span className="cc-none">–</span>}</td><td>{s.last_run ? when(s.last_run) : <span className="cc-none">Never</span>}</td>
+                  <td>{s.created_by}{s.run_as && s.run_as !== s.created_by && <span className="cc-none"> · runs as {s.run_as}</span>}</td>
+                  <td className="cc-list-menu"><RowMenu label={"Actions for " + s.name} items={rowMenu(s)} /></td>
+                </tr>
+              ))}
+              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No schedules match." : "No schedules yet."}</td></tr>}
+              {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{filtered ? " matching" : ""}</span></div>}
       </div>
 
       {dialog?.kind === "new" && <NewSchedule api={api} from={dialog.from} runners={runners} pools={pools} onClose={() => setDialog(null)} onCreated={(t) => { onNotice(t); setDialog(null); load(); }} />}

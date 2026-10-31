@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestSet } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * Build > Agent tests, after UiPath's Test Manager test sets (AA keeps testing out of its Control Room; checked
@@ -35,19 +36,23 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     && (!only || (only === "failing" ? !!t.last_run && t.last_run.status !== "running" && t.last_run.passed < t.last_run.total : !t.last_run))), [list, q, only]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-tests-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-tests-title">Agent tests</h1><p>Test sets run an agent with chosen inputs and check what it gives back, also for AI answers. Each run of a set is scored and kept.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-tests-title">
+      <header className="cc-list-head">
+        <h1 id="cc-tests-title">Agent tests</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Test sets run an agent with chosen inputs and check what it gives back, also for AI answers. Each run of a set is scored and kept.">i</span>
+        <span className="ov-fill" />
         {can("repo.checkin") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", t: null })}>Create test set</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search test sets" placeholder="Search test sets and agents" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Show" value={only} onChange={(e) => setOnly(e.target.value)} options={[{ value: "", label: "Every test set" }, { value: "failing", label: "Failing last time" }, { value: "never", label: "Never run" }]} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search test sets" placeholder="Search test sets and agents" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <span className="cc-chip"><Select aria-label="Show" value={only} onChange={(e) => setOnly(e.target.value)} options={[{ value: "", label: "Every test set" }, { value: "failing", label: "Failing last time" }, { value: "never", label: "Never run" }]} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Test sets list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Test sets list">
           <thead><tr><th scope="col">Test set</th><th scope="col">Agent</th><th scope="col">Cases</th><th scope="col">Last score</th><th scope="col">Last run</th></tr></thead>
           <tbody>
             {shown.map((t) => (
@@ -57,11 +62,11 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                 <td>{when(t.last_run?.started)}</td>
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={5} className="st-muted">{list.length ? "No test sets match." : "No test sets yet."}</td></tr>}
-            {!list && !error && <tr><td colSpan={5} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{list.length ? "No test sets match." : "No test sets yet."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog?.kind === "edit" && <TestSetForm api={api} t={dialog.t} onClose={() => setDialog(null)} onSaved={(m) => { onNotice(m); setDialog(null); load(); }} />}
       {dialog?.kind === "open" && <TestSetView key={dialog.t.id} api={api} t={dialog.t} runners={runners} pools={pools} can={can} onClose={() => setDialog(null)}
         onEdit={() => setDialog({ kind: "edit", t: dialog.t })} onResults={(id) => setDialog({ kind: "results", id })}
@@ -93,7 +98,7 @@ function TestSetForm({ api, t, onClose, onSaved }: { api: CrApi; t: TestSet | nu
       </div>
       <Field label="Description">{(id) => <TextInput id={id} value={v.description} onChange={set("description")} />}</Field>
       <Field label="Cases (JSON)">{(id) => <TextArea id={id} rows={14} className="ui-mono" value={v.cases} onChange={set("cases")} />}</Field>
-      <p className="st-muted">Each case: a name, the agent's inputs, and expect: status (success or failed), error_code (EMAIL.* allowed) and outputs. An output equals a value, or is {"{op, value}"}: contains, not_contains, matches (a regular expression), close_to (a number, with tolerance) or one_of (a list).</p>
+      <p className="cc-list-hint">Each case: a name, the agent's inputs, and expect: status (success or failed), error_code (EMAIL.* allowed) and outputs. An output equals a value, or is {"{op, value}"}: contains, not_contains, matches (a regular expression), close_to (a number, with tolerance) or one_of (a list).</p>
     </Dialog>
   );
 }
@@ -119,7 +124,7 @@ function TestSetView({ api, t, runners, pools, can, onClose, onEdit, onResults, 
       {confirm && <div className="st-alert" role="alert"><span>Delete {t.name} and its results?</span>
         <Button kind="danger" onClick={() => api.deleteTestSet(t.id).then(() => onDeleted("Deleted the test set " + t.name + "."), (e) => setError(message(e)))}>Delete</Button>
         <Button kind="plain" onClick={() => setConfirm(false)}>Cancel</Button></div>}
-      <p className="st-muted">{t.cases.length} case(s) run the live version of {agentName(t.bot_path)}, one run each.</p>
+      <p className="cc-list-hint">{t.cases.length} case(s) run the live version of {agentName(t.bot_path)}, one run each.</p>
       <h3 className="cc-log-title">Cases</h3>
       <table className="st-table" aria-label="Cases"><thead><tr><th scope="col">Case</th><th scope="col">Inputs</th><th scope="col">Expect</th></tr></thead>
         <tbody>{t.cases.map((c) => <tr key={c.name}><td>{c.name}</td><td className="ui-mono cc-clip">{JSON.stringify(c.inputs ?? {})}</td><td className="ui-mono cc-clip">{JSON.stringify(c.expect ?? {})}</td></tr>)}</tbody></table>

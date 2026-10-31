@@ -195,7 +195,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const tabs: [Tab, string][] = [["progress", "In progress"], ...(can("schedules.view") ? [["scheduled", "Scheduled"] as [Tab, string]] : []), ["completed", "Completed"]];
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-act-title">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-act-title">
       <header className="st-page-head"><div><h1 id="cc-act-title">Agent Activity</h1><p>What is running now, what runs next on a schedule, and every run that has ended.</p></div></header>
       {summary && <div className="cc-sums" role="group" aria-label="Summary">
         <button type="button" className="cc-sum" onClick={() => go("progress", { status: "running" })}><strong>{summary.running}</strong><span>Running now</span></button>
@@ -213,8 +213,9 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           {label}{counts[t] != null && <span className="cc-count">{counts[t]}</span>}</button>)}
       </div>
       {tab === "scheduled" ? <Upcoming api={api} user={user} agents={agents} onNotice={onNotice} onStarted={(id) => { loadSummary(); openRun(id); }} /> : <>
-        <div className="cc-filters" role="group" aria-label="Filters">
-          <TextInput type="search" aria-label="Search runs" placeholder="Search agent, run id, user or error" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} />
+        <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search runs" placeholder="Search agent, run id, user or error" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
           <Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
             options={[{ value: "", label: "Any status" }, ...(tab === "progress" ? [["queued", "Queued"], ["running", "Running"]] : [["success", "Completed"], ["failed", "Failed"], ["stopped", "Stopped"]]).map(([v, l]) => ({ value: v, label: l }))]} />
           {agents.length > 0 && <Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setFilter("bot", e.target.value)}
@@ -225,13 +226,14 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
             options={[{ value: "", label: "Started any way" }, ...SOURCES.map(([v, l]) => ({ value: v, label: l }))]} />
           <TextInput aria-label="Started by" placeholder="Started by (user name)" value={f.user ?? ""} onChange={(e) => setFilter("user", e.target.value)} />
           {tab === "completed" && <>
-            <Select aria-label="Period" value={f.period ?? ""} onChange={(e) => setFilter("period", e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
+            <span className="cc-chip"><Select aria-label="Period" value={f.period ?? ""} onChange={(e) => setFilter("period", e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
             {f.period === "dates" && <>
               <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>
               <label className="cc-date">To <TextInput type="date" aria-label="To" value={f.to ?? ""} onChange={(e) => setFilter("to", e.target.value)} /></label>
             </>}
           </>}
           {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
+        </div>
         </div>
         <div className="cc-bar" role="toolbar" aria-label="Runs actions">
           {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
@@ -247,8 +249,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           <Button kind="secondary" onClick={() => exportCsv().catch((e) => setError(message(e)))}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
         </div>
         {error && <p className="st-alert" role="alert">{error}</p>}
-        <div className="cc-table-wrap">
-          <table className="st-table cc-table" aria-label={tab === "progress" ? "Runs in progress" : "Completed runs"}>
+        <div className="cc-list-panel"><div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label={tab === "progress" ? "Runs in progress" : "Completed runs"}>
             <thead><tr>
               <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={runs.length > 0 && chosen.length === runs.length}
                 onChange={(e) => setSelected(e.target.checked ? runs.map((r) => r.id) : [])} /></th>
@@ -266,7 +268,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
               {!data && !error && <tr><td colSpan={cols.length + 1} className="st-muted" role="status">Loading…</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div></div>
         {tab === "completed" && data && data.total > PAGE && (
           <div className="cc-pager">
             <Button kind="plain" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</Button>
@@ -341,8 +343,8 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
       <a className="ui-btn ui-btn-plain" href="#/schedules">Make or change schedules</a>
     </div>
     {error && <p className="st-alert" role="alert">{error}</p>}
-    <div className="cc-table-wrap">
-      <table className="st-table cc-table" aria-label="Scheduled runs">
+    <div className="cc-list-panel"><div className="cc-list-scroll">
+      <table className="cc-list-table" aria-label="Scheduled runs">
         <thead><tr>
           <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && chosen.length === shown.length}
             onChange={(e) => setSelected(e.target.checked ? shown.map((s) => s.id) : [])} /></th>
@@ -359,11 +361,11 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
               <td className={"cc-status is-" + (s.enabled ? "success" : "stopped")}>{s.enabled ? "On" : "Off"}</td>
             </tr>
           ))}
-          {list && !shown.length && <tr><td colSpan={9} className="st-muted">{list.length ? "No schedule matches." : "No schedules yet: make one on the Schedules page."}</td></tr>}
-          {!list && !error && <tr><td colSpan={9} className="st-muted" role="status">Loading…</td></tr>}
+          {list && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{list.length ? "No schedule matches." : "No schedules yet: make one on the Schedules page."}</td></tr>}
+          {!list && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
         </tbody>
       </table>
-    </div>
+    </div></div>
   </>;
 }
 

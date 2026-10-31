@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * Manage > Connections, after UiPath's Integration Service connections (checked against its docs; AA keeps a connector's
@@ -28,19 +29,23 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
     && (!q.trim() || (c.name + " " + (c.description ?? "") + " " + kindName(c.package)).toLowerCase().includes(q.trim().toLowerCase()))), [list, q, kind, kinds]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-conn-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-conn-title">Connections</h1><p>A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in the Credential vault; a connection keeps only their references.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-conn-title">
+      <header className="cc-list-head">
+        <h1 id="cc-conn-title">Connections</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in the Credential vault; a connection keeps only their references.">i</span>
+        <span className="ov-fill" />
         {manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search connections" placeholder="Search connections" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Toolkit" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Every toolkit" }, ...kinds.map((k) => ({ value: k.package, label: k.name }))]} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search connections" placeholder="Search connections" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <span className="cc-chip"><Select aria-label="Toolkit" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Every toolkit" }, ...kinds.map((k) => ({ value: k.package, label: k.name }))]} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Connections list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Connections list">
           <thead><tr><th scope="col">Connection</th><th scope="col">Toolkit</th><th scope="col">Settings</th><th scope="col">Secrets from the vault</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {shown.map((c) => (
@@ -52,11 +57,11 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
                 <td>{when(c.updated)}{c.updated_by ? " by " + c.updated_by : ""}</td>
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={5} className="st-muted">{list.length ? "No connections match." : "No connections yet. Create one so agent steps do not repeat an address and sign-in."}</td></tr>}
-            {!list && !error && <tr><td colSpan={5} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{list.length ? "No connections match." : "No connections yet. Create one so agent steps do not repeat an address and sign-in."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog && <ConnectionForm key={dialog.c?.name ?? "new"} api={api} c={dialog.c} kinds={kinds} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
   );
@@ -94,7 +99,7 @@ function ConnectionForm({ api, c, kinds, onClose, onSaved }: { api: CrApi; c: Sa
       {k ? <div className="cc-grid2">{k.inputs.map((i) => <Field key={i.name} label={i.name + (i.credential ? " (vault reference)" : "")}>{(id) =>
         <TextInput id={id} value={v[i.name] ?? ""} placeholder={i.credential ? "vault folder/credential/attribute" : i.description ?? ""} title={i.description} onChange={(e) => setV({ ...v, [i.name]: e.target.value })} />}</Field>)}</div>
         : <p className="st-muted">No toolkit takes a connection.</p>}
-      <p className="st-muted">Leave a setting empty to set it on each step instead. Secrets are read from the vault when the agent runs, as the person it runs as.</p>
+      <p className="cc-list-hint">Leave a setting empty to set it on each step instead. Secrets are read from the vault when the agent runs, as the person it runs as.</p>
     </Dialog>
   );
 }

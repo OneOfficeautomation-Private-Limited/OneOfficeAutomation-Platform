@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, PromptSkill, SkillDefinition } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
@@ -25,22 +26,25 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     && (!who || (who === "mine" ? s.owner === user.username : who === "shared" ? s.shared : !!s.template))), [list, q, who, user.username]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-sk-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-sk-title">Prompt Skills</h1><p>Reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new version.</p></div>
-        {can("skills.manage") && <span className="cc-inline">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-sk-title">
+      <header className="cc-list-head">
+        <h1 id="cc-sk-title">Prompt Skills</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new version.">i</span>
+        <span className="ov-fill" />
+        {can("skills.manage") && <>
           <Button kind="secondary" onClick={() => setDialog({ kind: "templates" })}>From a template</Button>
-          <Button kind="primary" onClick={() => setDialog({ kind: "skill", name: null })}>Create skill</Button>
-        </span>}
+          <Button kind="primary" onClick={() => setDialog({ kind: "skill", name: null })}>Create skill</Button></>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search skills" placeholder="Search skills" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Show" value={who} onChange={(e) => setWho(e.target.value)} options={[{ value: "", label: "Every skill" }, { value: "mine", label: "Mine" }, { value: "shared", label: "Shared" }, { value: "template", label: "Templates" }]} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search skills" placeholder="Search skills" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <span className="cc-chip"><Select aria-label="Show" value={who} onChange={(e) => setWho(e.target.value)} options={[{ value: "", label: "Every skill" }, { value: "mine", label: "Mine" }, { value: "shared", label: "Shared" }, { value: "template", label: "Templates" }]} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Skills list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Skills list">
           <thead><tr><th scope="col">Skill</th><th scope="col">Shared</th><th scope="col">Version</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {shown.map((s) => (
@@ -49,11 +53,11 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
                 <td>{s.shared ? "Shared" : "Private to " + s.owner}</td><td>v{s.version}</td><td>{when(s.updated)}{s.updated_by ? " by " + s.updated_by : ""}</td>
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={4} className="st-muted">{list.length ? "No skills match." : "No Prompt Skills yet. Start from a template."}</td></tr>}
-            {!list && !error && <tr><td colSpan={4} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={4} className="cc-none">{list.length ? "No skills match." : "No Prompt Skills yet. Start from a template."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={4} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog?.kind === "skill" && <SkillEditor key={dialog.name ?? "new"} api={api} name={dialog.name} user={user} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "templates" && <Templates api={api} onClose={() => setDialog(null)} onMade={(n) => { onNotice("Made " + n + " from a template."); load(); setDialog({ kind: "skill", name: n }); }} />}
     </section>

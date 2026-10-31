@@ -49,13 +49,13 @@ export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
   const maxDay = Math.max(1, ...(c?.by_day ?? []).map((x) => x.busy_ms));
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-cap-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-cap-title">Runner capacity</h1><p>How much of your runners' time agents use, how long runs wait for a runner, and when runners are busy or free.</p></div>
-        <span className="cc-inline">
-          <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-cap-title">
+      <header className="cc-list-head">
+        <h1 id="cc-cap-title">Runner capacity</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="How much of your runners' time agents use, how long runs wait for a runner, and when runners are busy or free.">i</span>
+        <span className="ov-fill" />
+                  <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} />
           <Button kind="plain" onClick={load}>Refresh</Button>
-        </span>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {!c && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}

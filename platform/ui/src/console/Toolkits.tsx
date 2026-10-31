@@ -26,26 +26,28 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const toggle = (t: Toolkit) => api.setToolkitEnabled(t.id, !t.enabled).then(() => { onNotice((t.enabled ? "Switched off " : "Switched on ") + t.name + "."); setDialog(null); load(); }, (e) => setError(message(e)));
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-tk-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-tk-title">Agent ToolKits</h1><p>Every toolkit of actions, how many agents use it, and switching it on or off. Several versions of your own toolkits stay installed side by side.</p></div>
-        {manage && <span className="cc-inline">
-          <Button kind="secondary" onClick={() => setDialog({ kind: "publishers" })}>Trusted publishers</Button>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-tk-title">
+      <header className="cc-list-head">
+        <h1 id="cc-tk-title">Agent ToolKits</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Every toolkit of actions, how many agents use it, and switching it on or off. Several versions of your own toolkits stay installed side by side.">i</span>
+        <span className="ov-fill" />
+        {manage && <>          <Button kind="secondary" onClick={() => setDialog({ kind: "publishers" })}>Trusted publishers</Button>
           <Button kind="secondary" onClick={() => setDialog({ kind: "versions" })}>Your toolkit versions</Button>
-          <Button kind="primary" onClick={() => setDialog({ kind: "upload" })}>Upload toolkit</Button>
-        </span>}
+          <Button kind="primary" onClick={() => setDialog({ kind: "upload" })}>Upload toolkit</Button></>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search toolkits" placeholder="Search toolkits" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        <Select aria-label="State" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })} options={[{ value: "", label: "On and off" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} />
-        <Select aria-label="Source" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })} options={[{ value: "", label: "Built-in and your own" }, { value: "builtin", label: "Built-in" }, { value: "own", label: "Your own" }]} />
-        <label className="st-check-line"><input type="checkbox" checked={!!f.used} onChange={(e) => setF({ ...f, used: e.target.checked ? "1" : "" })} /> Used by agents</label>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search toolkits" placeholder="Search toolkits" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+        <span className="cc-chip"><Select aria-label="State" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })} options={[{ value: "", label: "On and off" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} /></span>
+        <span className="cc-chip"><Select aria-label="Source" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })} options={[{ value: "", label: "Built-in and your own" }, { value: "builtin", label: "Built-in" }, { value: "own", label: "Your own" }]} /></span>
+        <label className="cc-chip-check"><input type="checkbox" checked={!!f.used} onChange={(e) => setF({ ...f, used: e.target.checked ? "1" : "" })} /> Used by agents</label>
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
       </div>
+      </div>
       <div className="cc-bar"><span className="cc-chosen">{shown.length} of {list?.length ?? 0} toolkits</span></div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Toolkits list">
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Toolkits list">
           <thead><tr><th scope="col">State</th><th scope="col">Toolkit</th><th scope="col">Versions</th><th scope="col">Actions</th><th scope="col">Used by</th><th scope="col">Publisher</th>
             {manage && <th scope="col"><span className="st-sr">Switch</span></th>}</tr></thead>
           <tbody>
@@ -60,12 +62,12 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                 {manage && <td>{t.id !== "core" && <Button kind="plain" onClick={() => t.enabled && t.used_by ? setDialog({ kind: "off", t }) : toggle(t)}>{t.enabled ? "Switch off" : "Switch on"}</Button>}</td>}
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={7} className="st-muted">No toolkits match.</td></tr>}
-            {!list && !error && <tr><td colSpan={7} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">No toolkits match.</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
-      <p className="st-muted">Switching a toolkit off stops agents that use it from being checked in or run. The core toolkit is always on.</p>
+      </div></div>
+      <p className="cc-list-hint">Switching a toolkit off stops agents that use it from being checked in or run. The core toolkit is always on.</p>
       {dialog?.kind === "off" && <Dialog open title={"Switch off " + dialog.t.name} width={460} onClose={() => setDialog(null)} footer={<>
         <Button kind="plain" onClick={() => setDialog(null)}>Cancel</Button><Button kind="danger" onClick={() => toggle(dialog.t)}>Switch off</Button></>}>
         <p>{dialog.t.used_by} agent{dialog.t.used_by === 1 ? " uses" : "s use"} {dialog.t.name}. They will stop running until it is switched on again.</p></Dialog>}
@@ -127,7 +129,7 @@ function Upload({ api, onClose, onDone }: { api: CrApi; onClose: () => void; onD
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!file} onClick={async () => { try { const r = await api.uploadToolkit(await file!.arrayBuffer()); onDone("Installed " + (r.name ?? r.toolkit_id ?? file!.name) + (r.version ? " " + r.version : "") + "."); } catch (e) { setError(message(e)); } }}>Upload</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">A toolkit jar built with the toolkit SDK and signed by a trusted publisher. Older versions stay installed for the agents that need them.</p>
+      <p className="cc-list-hint">A toolkit jar built with the toolkit SDK and signed by a trusted publisher. Older versions stay installed for the agents that need them.</p>
       <input type="file" accept=".jar" aria-label="Toolkit jar" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
     </Dialog>
   );
@@ -171,7 +173,7 @@ function CustomVersions({ api, onClose, onNotice }: { api: CrApi; onClose: () =>
           {(list ?? []).map((v) => <tr key={v.id}><td>{v.name || v.toolkit_id}</td><td>{v.version}</td><td>{v.publisher}</td><td>{when(v.uploaded)}{v.uploaded_by ? " by " + v.uploaded_by : ""}</td>
             <td className="ui-mono">{v.sha256.slice(0, 12)}</td>
             <td><Button kind="plain" onClick={() => api.deleteCustomToolkit(v.id).then(() => { onNotice("Deleted " + v.toolkit_id + " " + v.version + "."); read(); }, (e) => setError(message(e)))}>Delete</Button></td></tr>)}
-          {list && !list.length && <tr><td colSpan={6} className="st-muted">No toolkits uploaded yet.</td></tr>}
+          {list && !list.length && <tr className="is-static"><td colSpan={6} className="cc-none">No toolkits uploaded yet.</td></tr>}
         </tbody>
       </table>
     </Dialog>

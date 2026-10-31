@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AiGovernance, CrApi } from "../api/cr";
 import { Button, Select, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * AI > AI governance, built as AA's AI governance (prompt logs) and UiPath's AI Trust Layer audit (checked against their
@@ -34,14 +35,16 @@ export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string
   const tiles: [string, string][] = [[n(t.calls), "AI calls"], [n((t.input_tokens ?? 0) + (t.output_tokens ?? 0)), "Tokens"], [n(t.masked_calls), "Calls with personal data masked"],
     [n(t.tool_calls), "Calls where the AI used tools"], [t.avg_latency_ms ? (Number(t.avg_latency_ms) / 1000).toFixed(1) + " s" : "—", "Average answer time"]];
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-gov-title">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-gov-title">
       <header className="st-page-head">
         <div><h1 id="cc-gov-title">AI governance</h1><p>Every AI model call made by agents: which model, how many tokens, what was masked and which tools the AI used. Prompts are never stored, only a fingerprint.</p></div>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <Select aria-label="Period" value={String(days)} onChange={(e) => setDays(Number(e.target.value))} options={[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(([value, label]) => ({ value, label }))} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-chip"><Select aria-label="Period" value={String(days)} onChange={(e) => setDays(Number(e.target.value))} options={[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(([value, label]) => ({ value, label }))} /></span>
+      </div>
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
       {!g && !error && <p className="st-muted" role="status">Loading…</p>}
       {g && <>
@@ -50,28 +53,28 @@ export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string
           <div><h2 className="cc-log-title">By model</h2>
             <table className="st-table" aria-label="By model"><thead><tr><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Calls</th><th scope="col">Tokens in</th><th scope="col">Tokens out</th></tr></thead>
               <tbody>{(g.by_model ?? []).map((x) => <tr key={x.provider + x.model}><td>{x.provider}</td><td>{x.model ?? ""}</td><td>{n(x.calls)}</td><td>{n(x.input_tokens)}</td><td>{n(x.output_tokens)}</td></tr>)}
-                {!(g.by_model ?? []).length && <tr><td colSpan={5} className="st-muted">No calls.</td></tr>}</tbody></table></div>
+                {!(g.by_model ?? []).length && <tr className="is-static"><td colSpan={5} className="cc-none">No calls.</td></tr>}</tbody></table></div>
           <div><h2 className="cc-log-title">By agent</h2>
             <table className="st-table" aria-label="By agent"><thead><tr><th scope="col">Agent</th><th scope="col">Calls</th><th scope="col">Tokens</th></tr></thead>
               <tbody>{(g.by_agent ?? []).map((x) => <tr key={x.bot_path}><td>{agentName(x.bot_path)}</td><td>{n(x.calls)}</td><td>{n(x.tokens)}</td></tr>)}
-                {!(g.by_agent ?? []).length && <tr><td colSpan={3} className="st-muted">No calls.</td></tr>}</tbody></table></div>
+                {!(g.by_agent ?? []).length && <tr className="is-static"><td colSpan={3} className="cc-none">No calls.</td></tr>}</tbody></table></div>
         </div>
         <h2 className="cc-log-title">Recent AI calls</h2>
         <div className="cc-bar" role="toolbar" aria-label="Call actions">
           <TextInput type="search" aria-label="Search calls" placeholder="Search agent, user, purpose, model" value={q} onChange={(e) => setQ(e.target.value)} />
           <span className="st-bar-fill" /><Button kind="secondary" onClick={exportCsv}>Export CSV</Button>
         </div>
-        <div className="cc-table-wrap">
-          <table className="st-table cc-table" aria-label="Recent AI calls">
+        <div className="cc-list-panel"><div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Recent AI calls">
             <thead><tr><th scope="col">Time</th><th scope="col">Agent</th><th scope="col">User</th><th scope="col">Purpose</th><th scope="col">Model</th><th scope="col">Tokens</th><th scope="col">Masked</th><th scope="col">Tools used</th><th scope="col">Fingerprint</th></tr></thead>
             <tbody>
               {recent.map((c, i) => <tr key={i} className="is-static"><td>{new Date(c.ts).toLocaleString()}</td><td>{agentName(c.bot_path)}</td><td>{c.requested_by ?? ""}</td><td>{c.purpose ?? ""}</td>
                 <td>{(c.provider ?? "") + "/" + (c.model ?? "")}</td><td>{n((c.input_tokens ?? 0) + (c.output_tokens ?? 0))}</td><td>{list(c.masked) || "—"}</td><td className="ui-mono">{list(c.tool_calls) || "—"}</td>
                 <td className="ui-mono" title={c.prompt_sha256}>{(c.prompt_sha256 ?? "").slice(0, 12)}</td></tr>)}
-              {!recent.length && <tr><td colSpan={9} className="st-muted">No AI calls in this period.</td></tr>}
+              {!recent.length && <tr className="is-static"><td colSpan={9} className="cc-none">No AI calls in this period.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div></div>
       </>}
     </section>
   );

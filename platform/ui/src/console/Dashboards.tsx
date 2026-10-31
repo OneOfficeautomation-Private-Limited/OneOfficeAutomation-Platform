@@ -64,9 +64,11 @@ export function Dashboards({ api, user, onNotice }: { api: CrApi; user: CrUser; 
   const remove = () => cur && api.deleteDashboard(cur.id).then(() => { onNotice("Deleted the dashboard " + cur.name + "."); setDeleting(false); load(""); }, (e) => setError(message(e)));
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-db-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-db-title">Dashboards</h1><p>Business figures your agents record (outputs marked KPI in One AgentStudio) and figures about the runs, on dashboards you keep to yourself or share.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-db-title">
+      <header className="cc-list-head">
+        <h1 id="cc-db-title">Dashboards</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Business figures your agents record (outputs marked KPI in One AgentStudio) and figures about the runs, on dashboards you keep to yourself or share.">i</span>
+        <span className="ov-fill" />
         <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}

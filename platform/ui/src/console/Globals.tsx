@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, GlobalValue } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * Manage > Shared Global values, built as AA's Global values (checked against AA's docs, UiPath's assets and Blue Prism's
@@ -35,19 +36,23 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     && (!only || (only === "changeable" ? g.changeable : g.changeable && g.my_value !== undefined))), [list, q, only]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-glob-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-glob-title">Shared Global values</h1><p>Values every agent can read as $global.name. Where people may change a value, their runs use their own value.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-glob-title">
+      <header className="cc-list-head">
+        <h1 id="cc-glob-title">Shared Global values</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Values every agent can read as $global.name. Where people may change a value, their runs use their own value.">i</span>
+        <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "edit", g: null })}>Create value</Button>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search shared values" placeholder="Search names and values" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Show" value={only} onChange={(e) => setOnly(e.target.value)} options={[{ value: "", label: "Every value" }, { value: "changeable", label: "People may change" }, { value: "mine", label: "I set my own" }]} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search shared values" placeholder="Search names and values" value={q} onChange={(e) => setQ(e.target.value)} /></span>
+        <span className="cc-chip"><Select aria-label="Show" value={only} onChange={(e) => setOnly(e.target.value)} options={[{ value: "", label: "Every value" }, { value: "changeable", label: "People may change" }, { value: "mine", label: "I set my own" }]} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Shared values list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Shared values list">
           <thead><tr><th scope="col">Name in agents</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">People may change</th><th scope="col">Your value</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {shown.map((g) => (
@@ -59,11 +64,11 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
                 <td>{when(g.updated)}{g.updated_by ? " by " + g.updated_by : ""}</td>
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={6} className="st-muted">{list.length ? "No values match." : "No shared values yet."}</td></tr>}
-            {!list && !error && <tr><td colSpan={6} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={6} className="cc-none">{list.length ? "No values match." : "No shared values yet."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={6} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog?.kind === "edit" && <EditGlobal key={dialog.g?.name ?? "new"} api={api} g={dialog.g} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "mine" && <MyValue api={api} g={dialog.g} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
@@ -101,7 +106,7 @@ function EditGlobal({ api, g, onClose, onSaved }: { api: CrApi; g: GlobalValue |
       <ValueInput kind={kind} text={text} onChange={setText} label="Value" />
       <label className="st-check-line"><input type="checkbox" checked={changeable} onChange={(e) => setChangeable(e.target.checked)} /> People may set their own value (their runs use it instead)</label>
       {g?.changeable && !changeable && <p className="st-muted">Turning this off removes everyone's own values.</p>}
-      <p className="st-muted">Agents read it as <code>$global.{name || "name"}</code>.</p>
+      <p className="cc-list-hint">Agents read it as <code>$global.{name || "name"}</code>.</p>
     </Dialog>
   );
 }
@@ -118,7 +123,7 @@ function MyValue({ api, g, onClose, onSaved }: { api: CrApi; g: GlobalValue; onC
       {g.my_value !== undefined && <Button kind="secondary" onClick={() => api.clearMyGlobal(g.name).then(() => onSaved("Your runs use the shared $global." + g.name + " again."), (e) => setError(message(e)))}>Use the shared one</Button>}
       <span className="st-bar-fill" /><Button kind="primary" onClick={save}>Save my value</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">Shared value: <span className="ui-mono">{show(g.value)}</span>. Runs that run as you use your value instead.</p>
+      <p className="cc-list-hint">Shared value: <span className="ui-mono">{show(g.value)}</span>. Runs that run as you use your value instead.</p>
       <ValueInput kind={kind} text={text} onChange={setText} label={"Your value (" + KIND[kind].toLowerCase() + ")"} />
     </Dialog>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * Manage > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
@@ -41,22 +42,24 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const shown = useMemo(() => (list ?? []).filter((x) => !q.trim() || (x.name + " " + (x.description ?? "") + " " + (x.bot_path ?? "")).toLowerCase().includes(q.trim().toLowerCase())), [list, q]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-queues-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-queues-title">Work queues</h1><p>Lists of work items (invoices, tickets, orders) that an agent processes one by one on a runner pool, with retries and service levels.</p></div>
-        <span className="cc-inline">
-          <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-queues-title">
+      <header className="cc-list-head">
+        <h1 id="cc-queues-title">Work queues</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Lists of work items (invoices, tickets, orders) that an agent processes one by one on a runner pool, with retries and service levels.">i</span>
+        <span className="ov-fill" />
+                  <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>
           {can("queues.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import queue</Button>}
           {can("queues.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", queue: null })}>Create work queue</Button>}
-        </span>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search work queues" placeholder="Search work queues" value={q} onChange={(e) => setQ(e.target.value)} />
-        <span className="st-bar-fill" /><Button kind="plain" onClick={load}>Refresh</Button>
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search work queues" placeholder="Search work queues" value={q} onChange={(e) => setQ(e.target.value)} /></span>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Work queues list">
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Work queues list">
           <thead><tr><th scope="col">Processing</th><th scope="col">Queue</th><th scope="col">Agent</th><th scope="col">Runner pool</th><th scope="col">Waiting</th>
             <th scope="col">In progress</th><th scope="col">Succeeded</th><th scope="col">Failed</th><th scope="col">Service level</th>{can("queues.work") && <th scope="col"><span className="st-sr">Start or stop</span></th>}</tr></thead>
           <tbody>
@@ -71,11 +74,11 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
                 {can("queues.work") && <td><Button kind="plain" onClick={() => api.setProcessing(x.id, !x.processing).then(() => { onNotice((x.processing ? "Stopped " : "Started ") + x.name + "."); load(); }, (e) => setError(message(e)))}>{x.processing ? "Stop" : "Start"}</Button></td>}
               </tr>
             ))}
-            {list && !shown.length && <tr><td colSpan={10} className="st-muted">{list.length ? "No queues match." : "No work queues yet. Create one, then add items by hand, from a CSV or Excel file, or from an agent."}</td></tr>}
-            {!list && !error && <tr><td colSpan={10} className="st-muted" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No queues match." : "No work queues yet. Create one, then add items by hand, from a CSV or Excel file, or from an agent."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {dialog?.kind === "edit" && <QueueForm api={api} queue={dialog.queue} pools={pools} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "open" && <QueueView key={dialog.id} api={api} id={dialog.id} can={can} poolName={poolName} onClose={() => { setDialog(null); load(); }} onNotice={onNotice}
         onEdit={(x) => setDialog({ kind: "edit", queue: x })} />}
@@ -112,7 +115,7 @@ function QueueForm({ api, queue: x, pools, onClose, onSaved }: { api: CrApi; que
         <Field label="Service level (minutes from added to done)">{(id) => <TextInput id={id} type="number" min={0} value={v.sla} placeholder="240" onChange={set("sla")} />}</Field>
         <Field label="Attempts per item">{(id) => <TextInput id={id} type="number" min={1} max={10} value={v.attempts} onChange={set("attempts")} />}</Field>
       </div>
-      <p className="st-muted">The agent receives each item in an input named work_item and its id in work_item_id. A failed run retries the item until its attempts are used.</p>
+      <p className="cc-list-hint">The agent receives each item in an input named work_item and its id in work_item_id. A failed run retries the item until its attempts are used.</p>
     </Dialog>
   );
 }
@@ -168,7 +171,7 @@ function QueueView({ api, id, can, poolName, onClose, onNotice, onEdit }: { api:
         <span className="st-bar-fill" />
         <Button kind="secondary" onClick={() => api.itemsCsv(x.id, status).then((t) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + "-items.csv", t, "text/csv"), (e) => setError(message(e)))}>Export CSV</Button>
       </div>
-      <table className="st-table cc-table" aria-label="Work items">
+      <table className="cc-list-table" aria-label="Work items">
         <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all items" checked={!!items?.items.length && items.items.every((i) => selected.includes(i.id))}
           onChange={(e) => setSelected(e.target.checked ? (items?.items ?? []).map((i) => i.id) : [])} /></th>
           <th scope="col">Reference</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Priority</th><th scope="col">Added</th><th scope="col">Result or error</th></tr></thead>
@@ -182,7 +185,7 @@ function QueueView({ api, id, can, poolName, onClose, onNotice, onEdit }: { api:
               <td className={it.error ? "cc-err cc-clip" : "cc-clip"}>{it.error ? short(it.error) : short(it.result)}</td>
             </tr>
           ))}
-          {items && !items.items.length && <tr><td colSpan={7} className="st-muted">No items{status ? " " + statusName(status).toLowerCase() : ""}.</td></tr>}
+          {items && !items.items.length && <tr className="is-static"><td colSpan={7} className="cc-none">No items{status ? " " + statusName(status).toLowerCase() : ""}.</td></tr>}
         </tbody>
       </table>
       {items && items.total > items.items.length && <p className="st-muted">Showing {items.items.length} of {items.total}. Narrow the search to see more.</p>}
@@ -237,7 +240,7 @@ function AddItems({ api, queue: x, onClose, onAdded }: { api: CrApi; queue: Work
     <Dialog open title={"Add items to " + x.name} width={640} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!text.trim() && !book} onClick={add}>Add items</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">Paste a JSON list of objects or CSV with a header row, or choose a CSV, JSON or Excel file. A reference column names the item; priority puts it first.</p>
+      <p className="cc-list-hint">Paste a JSON list of objects or CSV with a header row, or choose a CSV, JSON or Excel file. A reference column names the item; priority puts it first.</p>
       <input type="file" aria-label="CSV, JSON or Excel file" accept=".csv,.json,.xlsx" onChange={(e) => pick(e.target.files?.[0])} />
       {book ? <><p>{book.name} loaded (Excel).</p><Field label="Excel sheet (empty for the first)">{(id) => <TextInput id={id} value={sheet} onChange={(e) => setSheet(e.target.value)} />}</Field></>
         : <TextArea aria-label="Items" rows={8} value={text} placeholder={'[{"_reference": "INV-1001", "vendor": "Acme", "amount": 120.5}]'} onChange={(e) => setText(e.target.value)} />}
@@ -256,7 +259,7 @@ function Members({ api, queue: x, onClose, onSaved }: { api: CrApi; queue: WorkQ
     <Dialog open title={"Members of " + x.name} width={560} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" onClick={() => api.setQueueMembers(x.id, rows).then(onSaved, (e) => setError(message(e)))}>Save members</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">With members, only they can use the queue. Keep yourself as an owner. Members can be user:NAME, role:NAME or team:NAME.</p>
+      <p className="cc-list-hint">With members, only they can use the queue. Keep yourself as an owner. Members can be user:NAME, role:NAME or team:NAME.</p>
       <table className="st-table" aria-label="Queue members"><tbody>
         {rows.map((r, i) => <tr key={r.principal + r.role}><td>{r.principal}</td><td>{ROLES.find(([k]) => k === r.role)?.[1] ?? r.role}</td>
           <td><Button kind="plain" onClick={() => setRows(rows.filter((_, j) => j !== i))}>Remove</Button></td></tr>)}
@@ -328,7 +331,7 @@ function Validate({ api, queue: x, item: it, onClose, onDone }: { api: CrApi; qu
       <Button kind="primary" onClick={() => api.validateItem(x.id, it.id, { fields: Object.fromEntries(Object.entries(fields).map(([k, val]) => [k, val === "" ? null : val])) })
         .then((r) => onDone("Approved " + name + (r.changed?.length ? " with " + r.changed.length + " correction(s)" : "") + "."), (e) => setError(message(e)))}>Approve</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">The agent was not sure of the fields marked (below {Math.round(min * 100)} %). Check them against the document, correct them and approve: the item goes back to the agent with these values.</p>
+      <p className="cc-list-hint">The agent was not sure of the fields marked (below {Math.round(min * 100)} %). Check them against the document, correct them and approve: the item goes back to the agent with these values.</p>
       <div className="cc-grid2">{Object.keys(fields).map((k) => {
         const c = conf[k] === undefined ? null : Number(conf[k]); const unsure = c !== null && c < min;
         return <div key={k} className={unsure ? "cc-unsure" : undefined}><Field label={k + (c !== null ? " (" + Math.round(c * 100) + " %" + (unsure ? ", unsure" : "") + ")" : "")}>{(id) =>
@@ -350,14 +353,14 @@ function Models({ api, manage, onClose, onNotice }: { api: CrApi; manage: boolea
   return (
     <Dialog open title="Work item models" width={720} onClose={onClose} footer={manage ? <Button kind="primary" onClick={() => setEdit("new")}>Create model</Button> : null}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">A model names the fields of a queue's items and their types. Items added by hand, from CSV or Excel, by agents or over the API are checked against it.</p>
+      <p className="cc-list-hint">A model names the fields of a queue's items and their types. Items added by hand, from CSV or Excel, by agents or over the API are checked against it.</p>
       <table className="st-table" aria-label="Models">
         <thead><tr><th scope="col">Model</th><th scope="col">Fields</th><th scope="col">Queues</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
         <tbody>
           {(models ?? []).map((m) => <tr key={m.id}><td>{m.name}</td><td>{m.fields.map((f) => f.name + (f.required ? "*" : "") + " (" + f.type + ")").join(", ")}</td><td>{m.queues ?? 0}</td>
             <td>{manage && <span className="cc-inline"><Button kind="plain" onClick={() => setEdit(m)}>Edit</Button>
               <Button kind="plain" onClick={() => api.deleteItemModel(m.id).then(() => { onNotice("Deleted the model " + m.name + "."); read(); }, (e) => setError(message(e)))}>Delete</Button></span>}</td></tr>)}
-          {models && !models.length && <tr><td colSpan={4} className="st-muted">No models yet.</td></tr>}
+          {models && !models.length && <tr className="is-static"><td colSpan={4} className="cc-none">No models yet.</td></tr>}
         </tbody>
       </table>
     </Dialog>
@@ -405,7 +408,7 @@ function ImportQueue({ api, onClose, onDone }: { api: CrApi; onClose: () => void
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!def} onClick={() => api.importQueue(def, name.trim() || null).then((r) => onDone("Made " + r.name + " with " + r.items + " item(s)." + (r.notes?.length ? " " + r.notes.join(" ") : "")), (e) => setError(message(e)))}>Import</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">A queue definition exported from a Command Center. The agent and runner pool are linked when they exist here.</p>
+      <p className="cc-list-hint">A queue definition exported from a Command Center. The agent and runner pool are linked when they exist here.</p>
       <input type="file" aria-label="Queue definition file" accept=".json,application/json" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { setDef(JSON.parse(await f.text())); setError(null); } catch { setError("The file is not JSON."); } }} />
       <Field label="Name here (empty: the name in the file)">{(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
     </Dialog>

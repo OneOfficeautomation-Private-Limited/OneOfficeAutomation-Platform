@@ -46,9 +46,11 @@ export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const perRunHour = (r: ValueRow) => r.run_hours > 0 ? Math.round(10 * r.hours / r.run_hours) / 10 + "×" : "–";
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-val-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-val-title">Value</h1><p>The manual work your agents' successful runs saved, in hours and money, per agent and folder.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-val-title">
+      <header className="cc-list-head">
+        <h1 id="cc-val-title">Value</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="The manual work your agents' successful runs saved, in hours and money, per agent and folder.">i</span>
+        <span className="ov-fill" />
         <Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([d, l]) => ({ value: d, label: l }))} />
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}

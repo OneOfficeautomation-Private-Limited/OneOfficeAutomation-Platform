@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { RefreshButton } from "./ListParts";
 
 /**
  * Manage > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
@@ -36,7 +37,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   }, [tasks, f, user.username]);
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-inbox-title">
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-inbox-title">
       <header className="st-page-head">
         <div><h1 id="cc-inbox-title">Task inbox</h1><p>Work that workflows give you or your role: forms to fill in, approvals and notices.</p></div>
       </header>
@@ -45,20 +46,21 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
           {t === "open" ? "To do" : "Done"}{tab === t && tasks && <span className="cc-count">{tasks.length}</span>}</button>)}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search tasks" placeholder="Search tasks" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        <Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })} options={[{ value: "", label: "Every kind" }, ...Object.entries(KIND).map(([value, label]) => ({ value, label }))]} />
+      <div className="cc-list-tools">
+      <div className="cc-list-filters" role="group" aria-label="Filters">
+        <span className="cc-list-search"><TextInput type="search" aria-label="Search tasks" placeholder="Search tasks" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+        <span className="cc-chip"><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })} options={[{ value: "", label: "Every kind" }, ...Object.entries(KIND).map(([value, label]) => ({ value, label }))]} /></span>
         {tab === "open" && <>
-          <label className="st-check-line"><input type="checkbox" checked={!!f.overdue} onChange={(e) => setF({ ...f, overdue: e.target.checked ? "1" : "" })} /> Overdue only</label>
-          <label className="st-check-line"><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Taken by me</label>
+          <label className="cc-chip-check"><input type="checkbox" checked={!!f.overdue} onChange={(e) => setF({ ...f, overdue: e.target.checked ? "1" : "" })} /> Overdue only</label>
+          <label className="cc-chip-check"><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Taken by me</label>
         </>}
-        {admin && <label className="st-check-line"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Everyone's tasks</label>}
+        {admin && <label className="cc-chip-check"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Everyone's tasks</label>}
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
-        <span className="st-bar-fill" />
-        <Button kind="plain" onClick={load}>Refresh</Button>
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label={tab === "open" ? "Tasks to do" : "Tasks done"}>
+      <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
+      </div>
+      <div className="cc-list-panel"><div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label={tab === "open" ? "Tasks to do" : "Tasks done"}>
           <thead><tr><th scope="col">Task</th><th scope="col">Kind</th><th scope="col">Assigned to</th>
             {tab === "open" ? <><th scope="col">Due</th><th scope="col">Given</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}</tr></thead>
           <tbody>
@@ -71,11 +73,11 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                   : <><td>{OUTCOME[t.outcome ?? ""] ?? t.outcome ?? t.status}</td><td>{t.completed_by ?? ""}</td><td>{when(t.completed)}</td></>}
               </tr>
             ))}
-            {tasks && !shown.length && <tr><td colSpan={5} className="st-muted">{tasks.length ? "No tasks match." : tab === "open" ? "Nothing waiting for you." : "No completed tasks yet."}</td></tr>}
-            {!tasks && !error && <tr><td colSpan={5} className="st-muted" role="status">Loading…</td></tr>}
+            {tasks && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{tasks.length ? "No tasks match." : tab === "open" ? "Nothing waiting for you." : "No completed tasks yet."}</td></tr>}
+            {!tasks && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div></div>
       {open && <TaskDialog key={open.id} api={api} task={open} onClose={() => setOpen(null)} onDone={(t) => { onNotice(t); setOpen(null); load(); }} />}
     </section>
   );

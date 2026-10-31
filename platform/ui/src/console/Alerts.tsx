@@ -68,9 +68,11 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const openAlerts = (alerts ?? []).filter((a) => a.status === "open");
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-al-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-al-title">Alerts</h1><p>Rules that watch runs, runners, work queues and AI budgets once a minute, and tell people in the task inbox, by e-mail or through a webhook.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-al-title">
+      <header className="cc-list-head">
+        <h1 id="cc-al-title">Alerts</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="Rules that watch runs, runners, work queues and AI budgets once a minute, and tell people in the task inbox, by e-mail or through a webhook.">i</span>
+        <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setEditing("new")}>New alert rule</Button>}
       </header>
       <div className="st-page-tabs" role="tablist" aria-label="Alerts">
@@ -87,8 +89,8 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
           <span className="st-bar-fill" />
           <Button kind="plain" onClick={load}>Refresh</Button>
         </div>
-        <div className="cc-table-wrap">
-          <table className="st-table cc-table" aria-label="Alerts list">
+        <div className="cc-list-panel"><div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Alerts list">
             <thead><tr>
               <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={openAlerts.length > 0 && selected.length === openAlerts.length}
                 onChange={(e) => setSelected(e.target.checked ? openAlerts.map((a) => a.id) : [])} /></th>
@@ -106,14 +108,14 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
                   <td className="cc-wrap" title={a.delivery?.note}>{sentTo(a.delivery)}</td>
                 </tr>
               ))}
-              {alerts && !alerts.length && <tr><td colSpan={7} className="st-muted">{status === "open" ? "No open alerts." : "No alerts here."}{rules && !rules.length ? " No alert rules yet: make one to be told when something goes wrong." : ""}</td></tr>}
-              {!alerts && !error && <tr><td colSpan={7} className="st-muted" role="status">Loading…</td></tr>}
+              {alerts && !alerts.length && <tr className="is-static"><td colSpan={7} className="cc-none">{status === "open" ? "No open alerts." : "No alerts here."}{rules && !rules.length ? " No alert rules yet: make one to be told when something goes wrong." : ""}</td></tr>}
+              {!alerts && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div></div>
       </> : <>
-        <div className="cc-table-wrap cc-gap">
-          <table className="st-table cc-table" aria-label="Alert rules">
+        <div className="cc-list-panel cc-gap"><div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Alert rules">
             <thead><tr>{["State", "Rule", "Watches", "Condition", "Sends to", "Open alerts", "Last checked", ""].map((h, i) => <th key={i} scope="col">{h}</th>)}</tr></thead>
             <tbody>
               {(rules ?? []).map((r) => (
@@ -131,10 +133,10 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
                       <Button kind="plain" onClick={() => test(r)}>Send a test</Button><Button kind="plain" onClick={() => setDeleting(r.id)}>Delete</Button></span>)}</td>
                 </tr>
               ))}
-              {rules && !rules.length && <tr><td colSpan={8} className="st-muted">No alert rules yet.{manage ? " Make one with New alert rule." : ""}</td></tr>}
+              {rules && !rules.length && <tr className="is-static"><td colSpan={8} className="cc-none">No alert rules yet.{manage ? " Make one with New alert rule." : ""}</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div></div>
       </>}
       {editing && <RuleDialog api={api} rule={editing === "new" ? null : editing} choices={choices} onClose={() => setEditing(null)}
         onSaved={(t) => { onNotice(t); setEditing(null); setTab("rules"); load(); }} />}
