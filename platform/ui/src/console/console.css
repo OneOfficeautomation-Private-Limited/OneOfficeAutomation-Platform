@@ -261,3 +261,10 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .st-menu-where { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-frame-text-2); }
 .st-menu-found { margin-top: 2px; }
 .cc-main .st-page-head > :first-child { flex: 1 1 320px; min-width: 0; }
+.st-menu-foot { display: flex; align-items: center; gap: 6px; }
+.st-menu-foot .st-menu-fold { flex: 1; }
+.st-menu-size { display: inline-flex; gap: 4px; margin-top: 8px; }
+.st-menu-size button { width: 28px; height: 30px; border-radius: var(--ui-radius); border: 1px solid #6b7890; background: transparent; color: var(--ui-frame-text); font: 700 15px/1 var(--ui-font); cursor: pointer; }
+.st-menu-size button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+.st-menu-size button:disabled { opacity: .45; cursor: default; }
+.st-menu.is-console .st-menu-heading { white-space: nowrap; }

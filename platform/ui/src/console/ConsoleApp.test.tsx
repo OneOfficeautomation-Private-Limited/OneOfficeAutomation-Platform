@@ -788,8 +788,15 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();   // opening another closes it
     expect(within(menu).getByText("Pinned pages show here.")).toBeTruthy();
-    const buttons = within(menu).getAllByRole("button");
-    expect(buttons[buttons.length - 1].getAttribute("aria-label")).toBe("Collapse menu");   // at the bottom
+    expect(within(within(menu).getByRole("group", { name: "Menu width" }).parentElement!).getByRole("button", { name: "Collapse menu" })).toBeTruthy();   // at the bottom
+    expect(menu.style.width).toBe("232px");
+    fireEvent.click(within(menu).getByRole("button", { name: "Wider menu" }));
+    expect(menu.style.width).toBe("264px");
+    fireEvent.click(within(menu).getByRole("button", { name: "Narrower menu" }));
+    fireEvent.click(within(menu).getByRole("button", { name: "Narrower menu" }));
+    expect(menu.style.width).toBe("200px");
+    expect((within(menu).getByRole("button", { name: "Narrower menu" }) as HTMLButtonElement).disabled).toBe(true);   // the narrowest
+    expect(screen.getByRole("separator", { name: "Menu width" })).toBeTruthy();   // the edge can be dragged too
     fireEvent.change(within(menu).getByLabelText("Find a page"), { target: { value: "queue" } });
     const found = within(menu).getByRole("list", { name: "Pages found" });
     expect(within(found).getAllByRole("button").map((b) => b.textContent)).toEqual(["Work queuesMANAGE", "Work queue insightsOPERATIONAL INSIGHTS"]);
