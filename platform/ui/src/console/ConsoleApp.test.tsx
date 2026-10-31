@@ -709,14 +709,15 @@ describe("rebuilt Command Center console", () => {
   it("exports, promotes and imports agents, keeps the code analysis policy and an agent's findings, and the files of a folder (AA's Bot Lifecycle Management)", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "lifecycle.export", "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Agent Repository");
+    await go("Automation");
     const agentsList = await screen.findByRole("table", { name: "Agents list" });
     expect(await within(agentsList).findAllByRole("button", { name: /^Actions for / })).not.toHaveLength(0);
     const made: string[] = [];
     URL.createObjectURL = (() => { made.push("file"); return "blob:x"; }) as typeof URL.createObjectURL;
 
     // export two agents, then promote them to another Command Center
-    fireEvent.click(screen.getByRole("button", { name: "Export or promote" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Export or promote" }));
     const ex = await screen.findByRole("dialog", { name: "Export or promote agents" });
     const pick = await within(ex).findByRole("group", { name: "Agents to export" });
     fireEvent.click(within(pick).getByLabelText(/^Invoice intake/));
@@ -733,7 +734,8 @@ describe("rebuilt Command Center console", () => {
     expect(await screen.findByText("Exported 1 agent to a bundle file.")).toBeTruthy();
 
     // import: what the bundle holds and where each agent goes, before anything happens
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Import" }));
     const im = await screen.findByRole("dialog", { name: "Import agents" });
     const bundle = { format: "ooa.bundle", exported_by: "vic", agents: [{ path: "Finance/Invoice intake.flow.json", version: 3, production: true }, { path: "Shared/Read PDF.flow.json", version: 1, included_as: "dependency" }] };
     const file = new File([JSON.stringify(bundle)], "agents.ooabundle.json", { type: "application/json" });
@@ -750,7 +752,8 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(im).getByRole("button", { name: "Done" }));
 
     // the code analysis policy: a rule's severity and setting changed, and the report for all agents
-    fireEvent.click(screen.getByRole("button", { name: "Code analysis" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Code analysis" }));
     const ca = await screen.findByRole("dialog", { name: "Code analysis" });
     fireEvent.change(await within(ca).findByLabelText("Severity of Require description"), { target: { value: "error" } });
     fireEvent.change(within(ca).getByLabelText("Max steps: max"), { target: { value: "150" } });
@@ -1431,12 +1434,16 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/share", body: { path: "Finance/Invoice intake.flow.json", name: "Invoice intake", description: "", category: "Finance" } }));
   });
 
-  it("shows the Agent Repository as AA's public workspace: a folder tree, folder permissions, an agent's versions compared, a version asked to go live, a run, approvals, recovery", async () => {
+  it("shows Automation as AA's public workspace: a folder tree pane, files and folders, folder permissions, an agent's versions compared, a version asked to go live, a run, approvals, recovery", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "repo.permissions", "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Agent Repository");
+    await go("Automation");
     const list = await screen.findByRole("table", { name: "Agents list" });
     expect(await within(list).findByText("Checked out by vic")).toBeTruthy();
+    // AA's Automation page: the folder tree pane, and subfolders listed first in the files-and-folders pane
+    expect(screen.getByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(within(list).getAllByRole("row").some((r) => r.classList.contains("cc-folder-row"))).toBe(true);
+    expect(screen.getByLabelText("Include subfolders")).toBeTruthy();
     expect(within(list).getByText("Workflow")).toBeTruthy();
     fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ }));
     await waitFor(() => expect(within(list).queryByText("Onboard")).toBeNull());
@@ -1473,12 +1480,14 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(run).getByRole("button", { name: "Run" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs", body: { bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", inputs: { vendor: "Acme" } } }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Production approvals (1 waiting)" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Production approvals (1 waiting)" }));
     const ap = await screen.findByRole("dialog", { name: "Production approvals" });
     await act(async () => { fireEvent.click(await within(ap).findByRole("button", { name: "Approve" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/production-requests/q1/approve" }));
     fireEvent.click(within(ap).getByRole("button", { name: /close/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Deleted agents" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Deleted agents" }));
     const del = await screen.findByRole("dialog", { name: "Deleted agents" });
     await act(async () => { fireEvent.click(await within(del).findByRole("button", { name: "Recover" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/recover", body: { path: "HR/Old offboard.flow.json" } }));

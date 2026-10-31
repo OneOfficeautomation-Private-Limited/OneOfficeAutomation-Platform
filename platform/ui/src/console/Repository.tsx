@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, Menu, Select, TextInput, usePersistent } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 
@@ -16,6 +16,13 @@ const KINDS: [RegExp, string][] = [[/\.process\.json$/, "Workflow"], [/\.form\.j
 const kindOf = (p: string) => KINDS.find(([r]) => r.test(p))?.[1] ?? "File";
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
 const folderOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+/** A folder icon, open or closed (the colour of a paper folder, outlined for contrast). */
+function FolderIcon({ open }: { open?: boolean }) {
+  return open ? <svg className="cc-fico" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H8.5a2 2 0 0 0-1.9 1.4L4 19H5" fill="none" stroke="#a86b0c" strokeWidth="1.8" />
+    <path d="M6.6 11.4A2 2 0 0 1 8.5 10H21l-2.6 7.6A2 2 0 0 1 16.5 19H4z" fill="#f6d58b" stroke="#a86b0c" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+    : <svg className="cc-fico" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#f6d58b" stroke="#a86b0c" strokeWidth="1.8" strokeLinejoin="round" /></svg>;
+}
+const AgentIcon = ({ kind }: { kind: string }) => <span className={"cc-aico is-" + kind.toLowerCase()} aria-hidden="true">{kind === "Workflow" ? "W" : kind === "Form" ? "F" : "A"}</span>;
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and schedule"], ["edit", "Edit: also check out, check in, move, delete"], ["manage", "Manage: also live version and labels"]];
@@ -49,8 +56,6 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     && (!show || (show === "live" ? !!a.production_version : show === "notlive" ? !a.production_version : !!a.locked_by))), [agents, q, kind, show]);
   const done = (m: string) => { onNotice(m); setDialog(null); load(); };
   const toDecide = requests.requests.filter((r) => r.can_decide).length;
-  const live = (agents ?? []).filter((a) => a.production_version).length;
-  const out = (agents ?? []).filter((a) => a.locked_by).length;
   const filtered = !!(q.trim() || kind || show);
   const rowMenu = (a: RepoAgent) => [
     { key: "open", label: "Open", onSelect: () => setDialog({ kind: "agent", a }) },
@@ -58,61 +63,105 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     { key: "folder", label: "Show its folder", onSelect: () => setFolder(folderOf(a.path)) },
   ];
 
+  const [opened, setOpened] = usePersistent<string[]>("repo.opened", []);
+  const [withSub, setWithSub] = usePersistent<boolean>("repo.withSubfolders", true);
+  const kids = (p: string) => folders.filter((f) => folderOf(f.path) === p).sort((a, b) => a.path.localeCompare(b.path));
+  const total = (p: string) => folders.filter((f) => !p || f.path === p || f.path.startsWith(p + "/")).reduce((n, f) => n + f.agents, 0);
+  const isOpen = (p: string) => opened.includes(p) || folder === p || folder.startsWith(p + "/");
+  const toggle = (p: string) => setOpened(opened.includes(p) ? opened.filter((x) => x !== p) : [...opened, p]);
+  const node = (f: RepoFolder, depth: number): ReactNode => {
+    const children = kids(f.path), open = isOpen(f.path), name = f.path.split("/").pop();
+    return <li key={f.path}>
+      <div className={"cc-tree-row" + (folder === f.path ? " is-on" : "")} style={{ paddingLeft: 6 + 16 * depth }}>
+        {children.length ? <button type="button" className="cc-tree-chev" aria-expanded={open} aria-label={(open ? "Close " : "Open ") + name} onClick={() => toggle(f.path)}>{open ? "▾" : "▸"}</button> : <span className="cc-tree-chev" />}
+        <button type="button" className="cc-tree-name" aria-current={folder === f.path ? "page" : undefined} title={f.description ?? undefined} onClick={() => setFolder(f.path)}>
+          <FolderIcon open={open && children.length > 0} />{name}{f.has_permissions && <span className="cc-tag">Own permissions</span>}<span className="cc-tree-n">{total(f.path)}</span></button>
+      </div>
+      {open && children.length > 0 && <ul>{children.map((c) => node(c, depth + 1))}</ul>}
+    </li>;
+  };
+  const here = shown.filter((a) => withSub || folderOf(a.path) === folder);
+  const subfolders = filtered ? [] : kids(folder);
+  const crumbs = folder ? folder.split("/") : [];
+  const manage = [
+    ...(can("lifecycle.import") ? [{ key: "import", label: "Import", onSelect: () => setDialog({ kind: "import" }) }] : []),
+    ...(can("lifecycle.export") ? [{ key: "export", label: "Export or promote", onSelect: () => setDialog({ kind: "export" }) }] : []),
+    ...(requests.approval_on || requests.requests.length > 0 ? [{ key: "approvals", label: "Production approvals" + (requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""), onSelect: () => setDialog({ kind: "approvals" }) }] : []),
+    ...(can("repo.delete") ? [{ key: "deleted", label: "Deleted agents", onSelect: () => setDialog({ kind: "deleted" }) }] : []),
+    { key: "analysis", label: "Code analysis", onSelect: () => setDialog({ kind: "analysis" }) },
+  ];
+  const create = [
+    ...(can("repo.checkin") ? [{ key: "folder", label: "New folder" + (folder ? " in " + folder.split("/").pop() : ""), onSelect: () => setDialog({ kind: "folder", parent: folder }) }] : []),
+    { key: "agent", label: "New agent (opens One AgentStudio)", onSelect: () => { location.href = "../studio/"; } },
+  ];
+  const folderMenu = [
+    ...(can("repo.checkin") ? [{ key: "sub", label: "New subfolder", onSelect: () => setDialog({ kind: "folder", parent: folder }) },
+      { key: "rename", label: "Rename or move folder", onSelect: () => setDialog({ kind: "rename" }) }] : []),
+    ...(can("repo.delete") && cur && inside === 0 ? [{ key: "delete", label: "Delete folder…", separatorBefore: true, onSelect: () => setConfirmDelete(true) }] : []),
+  ];
+
   return (
-    <section className="st-page cc-home cc-list" aria-labelledby="cc-repo-title">
+    <section className="st-page cc-home cc-explorer" aria-labelledby="cc-repo-title">
       <header className="cc-list-head">
-        <h1 id="cc-repo-title">Agent Repository</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Agents checked in from One AgentStudio, with every version. The live version is the one that runs on runners, schedules and triggers.">i</span>
-        {agents && <span className="cc-list-count">{agents.length} agent{agents.length === 1 ? "" : "s"}{folder ? " in " + folder : ""} · {live} live{out ? " · " + out + " checked out" : ""}</span>}
+        <h1 id="cc-repo-title">Automation</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="The shared (public) workspace: agents checked in from One AgentStudio, with every version. The live version is the one that runs on runners, schedules and triggers. Each person's private workspace is in One AgentStudio.">i</span>
+        {agents && <span className="cc-list-count">{total("")} agent{total("") === 1 ? "" : "s"} · {folders.length} folder{folders.length === 1 ? "" : "s"}{toDecide ? " · " + toDecide + " to approve" : ""}</span>}
         <span className="ov-fill" />
-        {can("repo.checkin") && <Button kind="secondary" onClick={() => setDialog({ kind: "folder", parent: folder })}>New folder</Button>}
-          {(requests.approval_on || requests.requests.length > 0) && <Button kind={toDecide ? "primary" : "secondary"} onClick={() => setDialog({ kind: "approvals" })}>
-            Production approvals{requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""}</Button>}
-          {can("repo.delete") && <Button kind="secondary" onClick={() => setDialog({ kind: "deleted" })}>Deleted agents</Button>}
-          {can("lifecycle.export") && <Button kind="secondary" onClick={() => setDialog({ kind: "export" })}>Export or promote</Button>}
-          {can("lifecycle.import") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import</Button>}
-          <Button kind="secondary" onClick={() => setDialog({ kind: "analysis" })}>Code analysis</Button>
+        <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />
+        <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-repo">
-        <nav className="cc-repo-tree" aria-label="Folders">
-          <button type="button" className="cc-settings-tab" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}>All folders</button>
-          {folders.map((f) => (
-            <button key={f.path} type="button" className="cc-settings-tab" style={{ paddingLeft: 10 + 14 * (f.path.split("/").length - 1) }} aria-current={folder === f.path ? "page" : undefined}
-              title={f.description ?? undefined} onClick={() => setFolder(f.path)}>
-              {f.path.split("/").pop()} <span className="st-muted">({f.agents})</span>{f.has_permissions && <span className="cc-tag">Own permissions</span>}
-            </button>
-          ))}
+      <div className="cc-explorer-body">
+        <nav className="cc-tree-pane" aria-label="Folders">
+          <div className="cc-pane-head"><h2>Folders</h2><span className="ov-fill" />
+            <button type="button" className="cc-link" onClick={() => setOpened(folders.filter((f) => kids(f.path).length).map((f) => f.path))}>Open all</button></div>
+          <ul className="cc-tree">
+            <li><div className={"cc-tree-row" + (folder === "" ? " is-on" : "")} style={{ paddingLeft: 6 }}><span className="cc-tree-chev" />
+              <button type="button" className="cc-tree-name" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}><FolderIcon open />Automation<span className="cc-tree-n">{total("")}</span></button></div>
+              <ul>{kids("").map((f) => node(f, 1))}</ul></li>
+          </ul>
+          <p className="cc-pane-foot">The shared (public) workspace. Each person's private workspace is in One AgentStudio, on their computer.</p>
         </nav>
-        <div>
-          <div className="cc-list-tools">
-          <div className="cc-list-filters" role="group" aria-label="Filters">
-            <span className="cc-list-search"><TextInput type="search" aria-label="Search agents" placeholder="Search by name, id or description" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-            <span className={"cc-chip" + (kind ? " is-on" : "")}><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Kind: Any" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: "Kind: " + k + "s" }))]} /></span>
-            <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "Show: All" }, { value: "live", label: "Show: Live" }, { value: "notlive", label: "Show: Not live yet" }, { value: "out", label: "Show: Checked out" }]} /></span>
-            {filtered && <Button kind="plain" onClick={() => { setQ(""); setKind(""); setShow(""); }}>Clear filters</Button>}
+        <div className="cc-files-pane">
+          <div className="cc-pane-head">
+            <span className="cc-crumbs-path"><FolderIcon open />
+              <button type="button" className="cc-link" onClick={() => setFolder("")}>Automation</button>
+              {crumbs.map((c, i) => <span key={i}> › {i === crumbs.length - 1 ? <strong>{c}</strong> : <button type="button" className="cc-link" onClick={() => setFolder(crumbs.slice(0, i + 1).join("/"))}>{c}</button>}</span>)}</span>
+            {cur?.description && <span className="cc-none">{cur.description}</span>}
+            <span className="ov-fill" />
+            {folder && can("repo.permissions") && <Button kind="plain" onClick={() => setDialog({ kind: "permissions" })}>Folder permissions</Button>}
+            {folder && folderMenu.length > 0 && <RowMenu label={"Actions for the folder " + folder} items={folderMenu} />}
           </div>
-          <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><RefreshButton onClick={load} /></div>
+          {confirmDelete && <div className="cc-list-bulk" role="alert"><span>Delete the empty folder {folder}?</span>
+            <Button kind="danger" onClick={() => api.deleteFolder(folder).then(() => { setConfirmDelete(false); setFolder(""); onNotice("Deleted the folder " + folder + "."); }, (e) => setError(message(e)))}>Delete</Button>
+            <Button kind="plain" onClick={() => setConfirmDelete(false)}>Cancel</Button></div>}
+          <div className="cc-list-tools cc-pane-tools">
+            <div className="cc-list-filters" role="group" aria-label="Filters">
+              <span className="cc-list-search"><TextInput type="search" aria-label="Search agents" placeholder={"Search in " + (folder ? folder.split("/").pop() : "Automation")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
+              <label className={"cc-chip-check" + (withSub ? " is-on" : "")}><input type="checkbox" checked={withSub} onChange={(e) => setWithSub(e.target.checked)} /> Include subfolders</label>
+              <span className={"cc-chip" + (kind ? " is-on" : "")}><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Type: Any" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: "Type: " + k + "s" }))]} /></span>
+              <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "State: Any" }, { value: "live", label: "State: Live" }, { value: "notlive", label: "State: Not live yet" }, { value: "out", label: "State: Checked out" }]} /></span>
+              {filtered && <Button kind="plain" onClick={() => { setQ(""); setKind(""); setShow(""); }}>Clear filters</Button>}
+            </div>
+            <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><RefreshButton onClick={load} /></div>
           </div>
-          {folder && <div className="cc-bar" role="group" aria-label="Folder">
-            <span className="cc-chosen">{folder}</span>{cur?.description && <span className="st-muted">{cur.description}</span>}
-            {can("repo.permissions") && <Button kind="secondary" onClick={() => setDialog({ kind: "permissions" })}>Folder permissions</Button>}
-            {can("repo.checkin") && <Button kind="secondary" onClick={() => setDialog({ kind: "rename" })}>Rename or move folder</Button>}
-            {can("repo.delete") && cur && inside === 0 && (confirmDelete
-              ? <span className="cc-inline" role="alert">Delete the empty folder {folder}?
-                <Button kind="danger" onClick={() => api.deleteFolder(folder).then(() => { setConfirmDelete(false); setFolder(""); onNotice("Deleted the folder " + folder + "."); }, (e) => setError(message(e)))}>Delete</Button>
-                <Button kind="plain" onClick={() => setConfirmDelete(false)}>Cancel</Button></span>
-              : <Button kind="danger" onClick={() => setConfirmDelete(true)}>Delete folder</Button>)}
-          </div>}
-          <div className="cc-list-panel"><div className="cc-list-scroll">
+          <div className="cc-list-scroll">
             <table className="cc-list-table" aria-label="Agents list">
-              <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+              <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col" className="cc-num">Items</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th>
+                <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
-                {shown.map((a) => (
+                {subfolders.map((f) => (
+                  <tr key={"f:" + f.path} className="cc-folder-row" onClick={rowClick(() => setFolder(f.path))}>
+                    <td><FolderIcon /><strong>{f.path.split("/").pop()}</strong>{f.description && <span className="cc-list-sub cc-ico-sub">{f.description}</span>}</td>
+                    <td>Folder</td><td className="cc-num">{total(f.path)}</td><td colSpan={4}><span className="cc-none">–</span></td><td className="cc-list-menu" />
+                  </tr>
+                ))}
+                {here.map((a) => (
                   <tr key={a.path} onClick={rowClick(() => setDialog({ kind: "agent", a }))}>
-                    <td><strong>{agentName(a.path)}</strong>{kindOf(a.path) !== "Agent" && <span className="cc-tag">{kindOf(a.path)}</span>}
-                      {a.description && <div className="cc-list-sub cc-clip">{a.description}</div>}</td>
-                    <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td>
+                    <td><AgentIcon kind={kindOf(a.path)} /><strong>{agentName(a.path)}</strong>
+                      {(withSub && folderOf(a.path) !== folder || filtered) && <span className="cc-list-sub cc-ico-sub">{folderOf(a.path) || "(top)"}{a.description ? " · " + a.description : ""}</span>}
+                      {!(withSub && folderOf(a.path) !== folder || filtered) && a.description && <span className="cc-list-sub cc-ico-sub cc-clip">{a.description}</span>}</td>
+                    <td>{kindOf(a.path)}</td><td className="cc-num"><span className="cc-none">–</span></td>
                     <td>v{a.latest_version}{(a.labels ?? []).map((l) => <span key={l.label} className="cc-tag" title={"On v" + l.version}>{l.label}</span>)}</td>
                     <td>{a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-none">Not live</span>}</td>
                     <td>{a.locked_by ? <span className="cc-pill is-pending"><span className="cc-pill-dot" />Checked out by {a.locked_by}</span> : "Checked in"}</td>
@@ -120,13 +169,12 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + agentName(a.path)} items={rowMenu(a)} /></td>
                   </tr>
                 ))}
-                {agents && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{agents.length ? "No agents match." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
-                {!agents && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
+                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={8} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
+                {!agents && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
           </div>
-          {agents && <div className="cc-list-pager"><span>{shown.length} of {agents.length}{filtered ? " matching" : ""}</span></div>}
-          </div>
+          {agents && <div className="cc-list-pager"><span>{subfolders.length ? subfolders.length + " folder" + (subfolders.length === 1 ? "" : "s") + " · " : ""}{here.length} agent{here.length === 1 ? "" : "s"}{withSub ? " here and in subfolders" : " in this folder"}{filtered ? " matching" : ""}</span></div>}
           <RepoFiles key={folder} api={api} user={user} folder={folder} onNotice={onNotice} />
         </div>
       </div>
