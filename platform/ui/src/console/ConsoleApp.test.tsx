@@ -1633,6 +1633,11 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(within(nav).getByRole("button", { name: "AI governance" }));
     expect(await screen.findByText("Calls with personal data masked")).toBeTruthy();
     expect(within(screen.getByRole("table", { name: "Recent AI calls" })).getByText("PERSON")).toBeTruthy();
+    // By agent in the same panel; an agent's row shows its calls
+    fireEvent.click(screen.getByRole("tab", { name: /^By agent/ }));
+    fireEvent.click(within(screen.getByRole("table", { name: "By agent" })).getByText("Invoice intake"));
+    expect(screen.getByRole("tab", { name: /^Recent calls/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText(/^Only Invoice intake/)).toBeTruthy();
   });
 
   it("shows Agent APIs as AA's API tasks: where each runs and its calls; a new one shows its token once with an example call", async () => {
