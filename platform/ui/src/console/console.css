@@ -451,3 +451,38 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .ov-panel .cc-install { margin: 0; padding: 10px 12px; max-width: none; }
 .cc-pill-inline { margin-left: 6px; }
 .cc-list .ov-panel .cc-list-table tbody tr:last-child td { border-bottom: 0; }
+/* Audit Trail (design plan step 5, approved on the canvas 31 Oct 2026): day groups, plain words with an area icon, who
+   with initials, a record in a side panel beside the list */
+.cc-au-day td { height: 26px; background: var(--ui-tint); color: var(--ui-text-2); font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
+.cc-au-ic { display: inline-flex; width: 20px; height: 20px; border-radius: 5px; color: #ffffff; font-size: 10px; font-weight: 700; align-items: center; justify-content: center; margin-right: 8px; vertical-align: -5px; flex: none; }
+.cc-au-code { margin-left: 6px; font: 11.5px var(--ui-mono); color: var(--ui-text-3); }
+.cc-au-who { display: inline-flex; align-items: center; gap: 6px; }
+.cc-au-av { width: 18px; height: 18px; border-radius: 50%; background: var(--ui-accent); color: #ffffff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.cc-au-av.is-system { background: #475569; }
+.cc-au-av.is-runner { background: #0e7490; border-radius: 4px; }
+.cc-au-obj { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.cc-au-more { padding: 8px 10px; background: var(--ui-bg); border: 1px solid var(--ui-line, var(--ui-divider)); border-radius: var(--ui-radius); }
+.cc-au-more .ui-input { width: 200px; height: 30px; }
+.cc-au .ov-seg { height: 30px; }
+.cc-au.has-panel { padding-right: 486px; }
+.cc-au-panel { position: fixed; top: 48px; right: 0; bottom: 0; width: 470px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
+  box-shadow: -10px 0 28px rgba(11, 26, 51, .16); display: flex; flex-direction: column; }
+.cc-au-panel-head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
+.cc-au-panel-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.cc-au-panel-head .cc-au-ic { margin-right: 0; }
+.cc-au-panel-head .ui-btn { height: 28px; padding: 0 8px; }
+.cc-au-panel-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
+.cc-au-sec { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--ui-heading, var(--ui-text)); }
+.cc-au-kv { width: 100%; border-collapse: collapse; font-size: 12.5px; border: 1px solid var(--ui-divider); }
+.cc-au-kv th, .cc-au-kv td { padding: 4px 10px; min-height: 28px; text-align: left; border-bottom: 1px solid var(--ui-divider); vertical-align: top; word-break: break-word; }
+.cc-au-kv th { width: 150px; font-weight: 400; color: var(--ui-text-2); background: var(--ui-tint); }
+.cc-au-tl { list-style: none; margin: 0; padding: 0; font-size: 12.5px; border: 1px solid var(--ui-divider); }
+.cc-au-tl li { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-bottom: 1px solid var(--ui-divider); }
+.cc-au-tl li:last-child { border-bottom: 0; }
+.cc-au-tl li .cc-au-ic { margin-right: 0; }
+.cc-au-tl li.is-now { background: var(--ui-selected); font-weight: 600; }
+.cc-au-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.cc-au-links a.ui-btn { text-decoration: none; display: inline-flex; align-items: center; }
+.cc-au-seal { display: flex; align-items: flex-start; gap: 8px; margin: auto 0 0; padding-top: 8px; border-top: 1px solid var(--ui-divider); font-size: 12px; color: var(--ui-text-2); }
+.cc-au-seal svg { color: var(--ui-success); flex: none; margin-top: 1px; }
+@media (max-width: 1100px) { .cc-au.has-panel { padding-right: 16px; } .cc-au-panel { width: min(470px, 100vw); } }

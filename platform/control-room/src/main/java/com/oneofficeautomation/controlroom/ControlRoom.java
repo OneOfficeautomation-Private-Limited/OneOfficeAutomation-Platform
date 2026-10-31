@@ -2668,6 +2668,8 @@ public final class ControlRoom {
         }
         for (String[] k : new String[][] {{"object_type", "object_type"}, {"object_id", "object_id"}, {"result", "result"}})
             if (f.get(k[0]) != null && !f.get(k[0]).isBlank()) { where.add(k[1] + " = ?"); p.add(f.get(k[0])); }
+        // checkpoints=hide leaves out the hash checkpoints the system writes after activity (they seal history, but crowd the list)
+        if ("hide".equals(f.get("checkpoints"))) { where.add("action <> ?"); p.add("audit.checkpoint"); }
         if (f.get("from") != null && !f.get("from").isBlank()) { where.add("ts >= ?"); p.add(instant(f.get("from"), false)); }
         if (f.get("to") != null && !f.get("to").isBlank()) { where.add("ts <= ?"); p.add(instant(f.get("to"), true)); }
         String w = where.isEmpty() ? "" : " WHERE " + String.join(" AND ", where);

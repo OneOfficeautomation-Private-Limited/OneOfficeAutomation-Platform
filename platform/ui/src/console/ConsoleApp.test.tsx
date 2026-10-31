@@ -1070,18 +1070,28 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={api} />);
     await go("Audit Trail");
     const list = await screen.findByRole("table", { name: "Audit records" });
-    expect(await within(list).findByText("role: bot_creator")).toBeTruthy();
-    expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from="))).toBe(true);   // the last 24 hours
+    // what happened in plain words beside its code, rows grouped by day, history checkpoints left out by default
+    expect(await within(list).findByText("Created a user")).toBeTruthy();
+    expect(within(list).getByText("Signed in")).toBeTruthy();
+    expect(within(list).getAllByRole("row").some((r) => /^(Today|Yesterday) · |^\w{3} \d/.test(r.textContent ?? ""))).toBe(true);
+    expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from=") && c.route.includes("checkpoints=hide"))).toBe(true);   // the last 24 hours
     fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
     await waitFor(() => expect(within(list).queryByText("user.create")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    // a record opens in a side panel beside the list, with its details by name
     fireEvent.click(await within(list).findByText("user.create"));
     const d = await screen.findByRole("dialog", { name: "Audit record 12" });
-    expect(within(d).getByText("10.0.0.5")).toBeTruthy();
-    fireEvent.click(within(d).getByRole("button", { name: "Every record about this user" }));
+    expect(within(d).getByText(/from 10\.0\.0\.5/)).toBeTruthy();
+    expect(within(within(d).getByRole("region", { name: "Details" })).getByText("bot_creator")).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Audit records" })).toBeTruthy();   // the list stays in view
+    fireEvent.click(within(d).getByRole("button", { name: "Older ›" }));
+    expect(await screen.findByRole("dialog", { name: "Audit record 11" })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Audit record 11" })).getByRole("button", { name: "‹ Newer" }));
+    const back = await screen.findByRole("dialog", { name: "Audit record 12" });
+    fireEvent.click(within(back).getByRole("button", { name: "Every record about this user" }));
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("object_id=ravi"))).toBe(true));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Check history" })); });
-    expect(await screen.findByText("History intact: 12 records checked.")).toBeTruthy();
+    expect(await screen.findByText(/^History intact · 12 records checked at \d\d:\d\d$/)).toBeTruthy();
     URL.createObjectURL = (() => "blob:x") as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
     expect(calls.some((c) => c.route === "audit/export")).toBe(true);

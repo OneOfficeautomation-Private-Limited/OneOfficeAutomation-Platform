@@ -153,6 +153,12 @@ class TeamsVaultAuditAnalyticsTest {
         assertTrue(csv.contains(",vault.rotate,"), csv);
         assertEquals("audit.export", ((List<Map<String, Object>>) cr.auditSearch(admin, Map.of("limit", "1")).get("records")).get(0).get("action"));
         assertEquals("CR.FORBIDDEN", code(() -> cr.auditSearch(jane, Map.of())));
+        // checkpoints=hide leaves out the history checkpoints, and only them
+        cr.audit.record("system", "audit.checkpoint", "audit", "1", Map.of("upto_seq", 1), "ok", null);
+        long with = ((Number) cr.auditSearch(admin, Map.of()).get("total")).longValue();
+        Map<String, Object> hidden = cr.auditSearch(admin, Map.of("checkpoints", "hide", "limit", "1000"));
+        assertEquals(with - 1, ((Number) hidden.get("total")).longValue());
+        assertTrue(((List<Map<String, Object>>) hidden.get("records")).stream().noneMatch(r -> "audit.checkpoint".equals(r.get("action"))));
     }
 
     @Test @Order(4)
