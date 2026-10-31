@@ -10,7 +10,7 @@ import { canSee, type MenuPage, type MenuSection, type MenuViewer } from "./menu
  * keeps its room; it can still be opened, and the person's own choice for the other pages is left as it was.
  * In the console (`console`, the design plan's step 1): a box to find a page, a Favourites slot, only the current
  * section open (opening another closes it), Collapse at the bottom, and its width set by dragging its edge or with
- * Narrower and Wider (200 to 360 px, 232 by default; remembered). Studio keeps the menu as it was.
+ * Narrower and Wider (200 to 360 px, 232 by default; remembered). Studio uses the same look since 1 Nov 2026.
  */
 const WIDTH = { min: 200, max: 360, normal: 232, step: 32 };
 export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, viewer = null, editing = false, offTitle, console: inConsole = false }:

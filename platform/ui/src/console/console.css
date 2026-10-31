@@ -3,8 +3,6 @@
 .cc-loading { padding: 24px; color: var(--ui-text-2); }
 .cc-preview { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--ui-frame-2); color: var(--ui-frame-text); }
 .cc-main { overflow-y: auto; background: var(--ui-soft); }
-.st-menu-home.is-current { background: var(--ui-accent); color: #fff; }
-button.st-menu-home { border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; }
 
 /* Sign-in */
 .cc-signin { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--ui-soft); }
@@ -266,22 +264,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-bell { position: relative; color: var(--ui-frame-text); }
 .cc-badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: #d14343; color: #ffffff;
   font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; }
-.st-menu.is-console .st-menu-find { margin: 0 2px 8px; box-sizing: border-box; height: 30px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: #ffffff; color: #17202b; padding: 0 10px; font: inherit; }
-.st-menu.is-console .st-menu-fold { margin: 8px 0 0; }
-.st-menu-fill { flex: 1; min-height: 8px; }
-.st-menu-hint { margin: 0 0 4px; padding: 0 10px 0 36px; font-size: 12px; color: var(--ui-frame-text-2); }
-.st-menu-heading.is-static { cursor: default; }
-.st-menu-star { display: inline-flex; width: 20px; justify-content: center; color: #f5b33d; }
-.st-menu-where { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-frame-text-2); }
-.st-menu-found { margin-top: 2px; }
 .cc-main .st-page-head > :first-child { flex: 1 1 320px; min-width: 0; }
-.st-menu-foot { display: flex; align-items: center; gap: 6px; }
-.st-menu-foot .st-menu-fold { flex: 1; }
-.st-menu-size { display: inline-flex; gap: 4px; margin-top: 8px; }
-.st-menu-size button { width: 28px; height: 30px; border-radius: var(--ui-radius); border: 1px solid #6b7890; background: transparent; color: var(--ui-frame-text); font: 700 15px/1 var(--ui-font); cursor: pointer; }
-.st-menu-size button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
-.st-menu-size button:disabled { opacity: .45; cursor: default; }
-.st-menu.is-console .st-menu-heading { white-space: nowrap; }
 /*
  * Design plan, step 2 (colours, option B chosen 31 Oct 2026): the console's light theme on a soft blue canvas with navy
  * text, so neither the page nor its text reads grey; cards and tables stay white. One AgentStudio keeps theme.css as it

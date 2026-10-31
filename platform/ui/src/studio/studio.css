@@ -8,7 +8,7 @@
 .st-logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #2f6fde, #7c3aed); }
 .st-crumbs { color: var(--ui-frame-text-2); display: flex; align-items: center; gap: 4px; }
 .st-crumb-current { color: var(--ui-frame-text); font-weight: 600; }
-.st-search { flex: 1 1 240px; max-width: 460px; display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 10px; border-radius: var(--ui-radius);
+.st-search { flex: 0 1 420px; margin: 0 auto; position: relative; display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 10px; border-radius: var(--ui-radius);
   background: var(--ui-bg); color: var(--ui-text-2); }
 .st-search input { flex: 1; border: 0; outline: none; background: transparent; color: var(--ui-text); }
 .st-top-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
@@ -502,3 +502,36 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-edit-bar .st-full-btn { position: absolute; top: 4px; right: 6px; }   /* always the top right corner of the canvas */
 /* Column lines in every table of the product (31 Oct 2026), so cells line up by eye as in AA's and UiPath's grids */
 .st-table th + th, .st-table td + td, .st-cap-table th + th, .st-cap-table td + td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
+
+/* The menu's console look (find a page, favourites, one section open, Collapse and width at the foot), used by the console and, since 1 Nov 2026, by Studio. */
+.st-menu-home.is-current { background: var(--ui-accent); color: #fff; }
+button.st-menu-home { border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; }
+.st-menu.is-console .st-menu-find { margin: 0 2px 8px; box-sizing: border-box; height: 30px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: #ffffff; color: #17202b; padding: 0 10px; font: inherit; }
+.st-menu.is-console .st-menu-fold { margin: 8px 0 0; }
+.st-menu-fill { flex: 1; min-height: 8px; }
+.st-menu-hint { margin: 0 0 4px; padding: 0 10px 0 36px; font-size: 12px; color: var(--ui-frame-text-2); }
+.st-menu-heading.is-static { cursor: default; }
+.st-menu-star { display: inline-flex; width: 20px; justify-content: center; color: #f5b33d; }
+.st-menu-where { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-frame-text-2); }
+.st-menu-found { margin-top: 2px; }
+.st-menu-foot { display: flex; align-items: center; gap: 6px; }
+.st-menu-foot .st-menu-fold { flex: 1; }
+.st-menu-size { display: inline-flex; gap: 4px; margin-top: 8px; }
+.st-menu-size button { width: 28px; height: 30px; border-radius: var(--ui-radius); border: 1px solid #6b7890; background: transparent; color: var(--ui-frame-text); font: 700 15px/1 var(--ui-font); cursor: pointer; }
+.st-menu-size button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+.st-menu-size button:disabled { opacity: .45; cursor: default; }
+.st-menu.is-console .st-menu-heading { white-space: nowrap; }
+.st-search-kbd { font: 11px/18px var(--ui-font); padding: 0 6px; border: 1px solid #7d8797; border-radius: 4px; color: #353e4c; background: #ffffff; pointer-events: none; }
+.st-top-actions:empty { display: none; }
+/* Automation, review round 2: the console's title row, list tools, one line per item with its kind's mark, and a bar only while items are ticked */
+.st-page-head .st-head-row { display: flex; align-items: center; gap: 10px; }
+.st-head-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 11px; display: inline-flex; align-items: center; justify-content: center; cursor: help; flex: none; }
+.st-head-count { color: var(--ui-text-2); }
+.st-items-tools { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px; border-bottom: 1px solid var(--ui-border); }
+.st-items-tools .ui-select { height: 30px; }
+.st-items-fill { flex: 1; }
+.st-items-bar.is-chosen { background: var(--ui-selected); }
+.st-items .st-check { width: 28px; }
+.st-name { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.st-name .st-link, .st-name > span { color: var(--ui-text); font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-name .st-link:hover { text-decoration: underline; }

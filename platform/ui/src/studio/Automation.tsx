@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { Button, Dialog, Field, Icon, IconTile, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
@@ -34,7 +34,13 @@ const foundBy = (m: string[]) => m.map((x) => x.replace(/^uses [^/]+\/(.+)$/, (_
  * pasted, duplicated, dragged onto a folder to move them, and moved to the trash, from the ⋮ menu, a right-click or
  * the keyboard. A search finds items by name, and agents by their description, id, actions and variables too.
  * As in AA, Private is the workspace and Public is the Command Center agent repository (publicView).
+ * Review round 2 (1 Nov 2026), in the console's look: the title with what the page is for on hover and a count, a Type
+ * filter, one line per item with its kind's mark, a tick box per item, and Copy, Cut, Duplicate, Rename, Delete and
+ * Paste in a bar only while items are ticked or copied (no greyed-out buttons).
  */
+/** Each kind's mark, as on Create. */
+const markOf = (n: WorkspaceNode) => ITEM_TYPES.find((t) => n.type === "bot" ? t.kind === (n.kind ?? "TaskBot") : t.kind === (n.type === "script" ? (/\.ps1$/i.test(n.name) ? "script-powershell" : "script-python") : n.type));
+const KINDS: [string, string][] = [["", "Type: Any"], ["folder", "Folders"], ["bot", "Agents"], ["process", "Workflows"], ["form", "Forms"], ["document", "Document types"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Other files"]];
 export function Automation({ api, view, tree, search = "", blueprints = [], publicView, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
   { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
@@ -55,6 +61,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const uploadTo = useRef("");
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
+  const [kind, setKind] = useState("");   // Type filter
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
@@ -73,10 +80,11 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     ? [...everything(tree).filter((n) => keep(n) && n.name.toLowerCase().includes(q) && !found.some((f) => f.path === n.path)).map((node) => ({ node, why: "name" })),
        ...found.flatMap((f) => { const node = find(tree, f.path); return node ? [{ node, why: foundBy(f.matches) }] : []; })]
     : [...(folderNode.children ?? []).filter((c) => c.type === "folder"), ...(folderNode.children ?? []).filter(keep)].map((node) => ({ node }));
-  const paths = rows.map((r) => r.node.path);
+  const listed = kind ? rows.filter((r) => r.node.type === kind) : rows;
+  const paths = listed.map((r) => r.node.path);
   const chosen = paths.filter((p) => selected.includes(p));
   const chosenNodes = chosen.map((p) => find(tree, p)!).filter(Boolean);
-  useEffect(() => { setSelected([]); setAnchor(null); }, [folder, q]);
+  useEffect(() => { setSelected([]); setAnchor(null); }, [folder, q, kind]);
   const toggle = (id: string) => setExpanded((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const openFolder = (path: string) => { setFolder(path); setExpanded((s) => { const n = new Set(s); let p = path; while (p) { n.add(p); p = parentOf(p); } n.add(""); return n; }); };
   const open = (n: WorkspaceNode) => { if (n.type === "folder") openFolder(n.path); else if (OPENS.includes(n.type)) onOpen(n); };
@@ -187,9 +195,12 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     <section className="st-page" aria-labelledby="st-page-title" onKeyDown={keys}>
       <input ref={uploadInput} type="file" multiple hidden aria-label="Files to upload" onChange={(e) => uploaded(e.target.files)} />
       <header className="st-page-head">
-        <div>
+        <div className="st-head-row">
           <h1 id="st-page-title">{title}</h1>
-          <p>{isPublic ? "Agents shared through Command Center. Check one out to work on it here." : q ? `Items matching “${search.trim()}” in the whole workspace` : "Pick a folder, then press Create."}</p>
+          <span className="st-head-info" role="img" aria-label="About this page" title={isPublic ? "Agents shared through Command Center. Check one out to work on it here."
+            : "Your workspace on this computer. Pick a folder, then press Create; double-click or click a name to open it."}>i</span>
+          {!isPublic && <span className="st-head-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
+            : count(everything(tree).filter((n) => n.type !== "folder").length) + " · " + everything(tree).filter((n) => n.type === "bot").length + " agents"}</span>}
         </div>
         {!isPublic && <div className="st-page-actions">
           <Button kind="secondary" icon="plus" onClick={() => onNewFolder(folder)}>New folder</Button>
@@ -223,31 +234,46 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
         {!foldersHidden && <Splitter label="Resize the folders panel" axis="x" grow={1} value={foldersWidth} min={180} max={520}
           measure={() => foldersPanel.current?.getBoundingClientRect().width ?? 260} onChange={setFoldersWidth} />}
         <div className="st-items">
-          <div role="toolbar" aria-label="Selected items" className="st-items-bar">
-            <span className="st-items-count" aria-live="polite">{chosen.length ? chosen.length + " selected" : count(rows.length)}</span>
-            <Button kind="plain" onClick={() => act.copy()} disabled={!chosen.length} title="Ctrl+C">Copy</Button>
-            <Button kind="plain" onClick={() => act.cut()} disabled={!chosen.length} title="Ctrl+X">Cut</Button>
-            <Button kind="plain" onClick={() => act.paste()} disabled={!clip || !!q} title="Ctrl+V">{clip ? "Paste " + count(clip.paths.length) : "Paste"}</Button>
-            <Button kind="plain" onClick={() => act.duplicate()} disabled={!chosen.length}>Duplicate</Button>
-            <Button kind="plain" onClick={() => chosenNodes.length === 1 && setRenaming(chosenNodes[0])} disabled={chosenNodes.length !== 1} title="F2">Rename</Button>
-            <Button kind="plain" icon="trash" onClick={() => act.remove()} disabled={!chosen.length} title="Delete">Delete</Button>
+          <div className="st-items-tools" role="group" aria-label="List tools">
+            <span className="st-items-count" aria-live="polite">{listed.length === rows.length ? count(rows.length) : listed.length + " of " + count(rows.length)}</span>
+            <Select aria-label="Type" value={kind} onChange={(e) => setKind(e.target.value)} options={KINDS.map(([value, label]) => ({ value, label }))} />
+            <span className="st-items-fill" />
+            <button type="button" className="ui-icon-btn" aria-label="Refresh" title="Refresh" onClick={() => { onChanged(); }}><Icon name="loop" size={15} /></button>
           </div>
+          {(chosen.length > 0 || (clip && !q)) && <div role="toolbar" aria-label="Selected items" className="st-items-bar is-chosen">
+            <strong className="st-items-count">{chosen.length ? chosen.length + " selected" : count(clip!.paths.length) + (clip!.cut ? " cut" : " copied")}</strong>
+            {chosen.length > 0 && <>
+              <Button kind="plain" onClick={() => act.copy()} title="Ctrl+C">Copy</Button>
+              <Button kind="plain" onClick={() => act.cut()} title="Ctrl+X">Cut</Button>
+              <Button kind="plain" onClick={() => act.duplicate()}>Duplicate</Button>
+              {chosenNodes.length === 1 && <Button kind="plain" onClick={() => setRenaming(chosenNodes[0])} title="F2">Rename</Button>}
+              <Button kind="plain" icon="trash" onClick={() => act.remove()} title="Delete">Delete…</Button>
+            </>}
+            {clip && !q && <Button kind="plain" onClick={() => act.paste()} title="Ctrl+V">{"Paste " + count(clip.paths.length) + " here"}</Button>}
+            <span className="st-items-fill" />
+            {chosen.length > 0 ? <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button> : <Button kind="plain" onClick={() => setClip(null)}>Cancel</Button>}
+          </div>}
           <table className="st-table">
-            <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col" className="st-check"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
+              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
-              {rows.map(({ node: n, why }) => {
+              {listed.map(({ node: n, why }) => {
                 const isSel = selected.includes(n.path);
                 return (
                   <tr key={n.path} className={isSel ? "is-selected" : ""} aria-selected={isSel} onClick={(e) => click(e, n.path)} onDoubleClick={() => open(n)}
                     onContextMenu={(e) => { e.preventDefault(); if (!isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(n.path); }}
                     draggable onDragStart={(e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify(dragPaths(n.path))); e.dataTransfer.effectAllowed = "move"; }}
                     onDragOver={n.type === "folder" ? (e) => e.preventDefault() : undefined} onDrop={n.type === "folder" ? (e) => { e.preventDefault(); dropOn(n.path, e); } : undefined}>
-                    <td>{n.type === "folder"
-                      ? <button type="button" className="st-link st-folder-link" onClick={(e) => { e.stopPropagation(); openFolder(n.path); }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="#f5c451" stroke="#a16207" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg>{n.name}</button>
+                    <td className="st-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={"Select " + displayName(n)} checked={isSel}
+                      onChange={(e) => { setSelected(e.target.checked ? [...selected, n.path] : selected.filter((x) => x !== n.path)); setAnchor(n.path); }} /></td>
+                    <td><span className="st-name">{n.type === "folder"
+                      ? <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="#f5c451" stroke="#a16207" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg>
+                      : markOf(n) ? <IconTile name={markOf(n)!.icon} color={markOf(n)!.color} size={18} /> : <Icon name="doc" size={16} />}
+                      {n.type === "folder"
+                      ? <button type="button" className="st-link st-folder-link" onClick={(e) => { e.stopPropagation(); openFolder(n.path); }}>{n.name}</button>
                       : OPENS.includes(n.type)
                       ? <button type="button" className="st-link" onClick={(e) => { if (!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.stopPropagation(); onOpen(n); } }}>{displayName(n)}</button>
-                      : <span>{displayName(n)}</span>}
+                      : <span>{displayName(n)}</span>}</span>
                       {q && <div className="st-item-path">{parentOf(n.path) || "Workspace"}</div>}</td>
                     <td>{n.type === "folder" ? "Folder" : typeLabel(n)}</td>
                     <td>{q ? why : n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
@@ -259,7 +285,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                   </tr>
                 );
               })}
-              {!rows.length && <tr><td colSpan={4} className="st-empty">{q ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
+              {!listed.length && <tr><td colSpan={5} className="st-empty">{q || kind ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
             </tbody>
           </table>
         </div>

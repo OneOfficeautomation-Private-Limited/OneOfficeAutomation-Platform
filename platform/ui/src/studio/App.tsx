@@ -158,6 +158,13 @@ export function App({ api: given }: { api?: StudioApi }) {
     } catch (e) { fail(e); return false; }
   };
 
+  // Ctrl+K goes to the workspace search, as the console's search
+  const searchBox = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchBox.current?.focus(); searchBox.current?.select(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   // Ctrl+S saves, Ctrl+Z and Ctrl+Y undo and redo (outside text fields, which keep their own undo)
   const keys = useRef({ save, undo, redo, current });
   keys.current = { save, undo, redo, current };
@@ -387,8 +394,8 @@ export function App({ api: given }: { api?: StudioApi }) {
           })()}
           {current && dirty && <span className="st-unsaved">Unsaved</span>}
         </nav>
-        <label className="st-search"><Icon name="search" size={14} /><input aria-label="Search items" placeholder="Search items in the workspace" value={search}
-          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /></label>
+        <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
+          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">Ctrl K</span></label>
         <Menu label="Display" title="Display" items={displayItems}
           trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">

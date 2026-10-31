@@ -191,8 +191,11 @@ describe("new Studio", () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/?page=queues"));
+    expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
+    expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/?page=queues"));
     for (const gone of ["Workflows", "Forms", "Templates"]) expect(within(menu).queryByText(gone)).toBeNull();   // made from Create, called from agents
   });
 
@@ -286,6 +289,9 @@ describe("new Studio", () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));   // one section open at a time
+    expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
+    expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
@@ -750,7 +756,8 @@ describe("new Studio", () => {
     for (const n of names) { fireEvent.click(await within(tree).findByText(n)); fireEvent.keyDown(within(tree).getByText(n), { key: "ArrowRight" }); }
     return tree;
   };
-  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td")?.textContent?.startsWith(name))!;
+  // the name cell: the first one, or the second after a tick box
+  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td:not(.st-check)")?.textContent?.startsWith(name))!;
 
   it("deletes an item and a folder to the trash after asking", async () => {
     const { api, created } = fakeServer();
@@ -819,13 +826,18 @@ describe("new Studio", () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     await goToFolder("Finance", "Invoices");
-    fireEvent.click((await waitFor(() => row("Invoice check"))).querySelectorAll("td")[1]);
+    await waitFor(() => row("Invoice check"));
+    expect(screen.queryByRole("toolbar", { name: "Selected items" })).toBeNull();   // no greyed-out buttons: the bar shows once something is ticked
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "form" } });   // the Type filter
+    expect(row("Approve")).toBeUndefined();
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "" } });
+    fireEvent.click(row("Invoice check").querySelectorAll("td")[1]);
     fireEvent.click(row("Approve").querySelectorAll("td")[1], { ctrlKey: true });
     const bar = screen.getByRole("toolbar", { name: "Selected items" });
     expect(within(bar).getByText("2 selected")).toBeTruthy();
     fireEvent.click(within(bar).getByRole("button", { name: "Copy" }));
     fireEvent.click(within(screen.getByRole("tree", { name: "Folders" })).getByText("Finance"));
-    await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Paste 2 items" })); });
+    await act(async () => { fireEvent.click(within(screen.getByRole("toolbar", { name: "Selected items" })).getByRole("button", { name: "Paste 2 items here" })); });
     expect(created).toContainEqual({ copied: "Finance/Invoices/Invoice check.form.json", to: "Finance" });
     expect(created).toContainEqual({ copied: "Finance/Invoices/Approve.process.json", to: "Finance" });
     expect(screen.getByText("Pasted 2 items into Finance.")).toBeTruthy();
