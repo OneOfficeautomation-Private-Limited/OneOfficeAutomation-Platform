@@ -99,6 +99,17 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       folders: [{ folder: "Finance", runs: 30, minutes: 750, hours: 12.5, money: 7500, run_hours: 2.5 }, { folder: "HR", runs: 10, minutes: 0, hours: 0, money: 0, run_hours: 0.5 }],
       by_day: [{ day: "2026-10-30", runs: 40, minutes: 750, hours: 12.5, money: 7500, run_hours: 3 }] });
     if (route === "repo/roi") return ok({ ok: true });
+    if (route === "dashboards" && init.method === "POST") return ok({ id: "db9" });
+    if (route === "dashboards") return ok({ dashboards: [
+      { id: "db1", name: "Finance", description: "Money in and out", owner: "admin", shared_with: ["role:viewer"], can_edit: true, widgets: [{ title: "Amount paid", type: "number", kpi: "amount", agg: "sum" }] },
+      { id: "db2", name: "Ops board", owner: "vic", shared_with: ["*"], can_edit: false, widgets: [{ type: "line", source: "runs", metric: "runs", group: "day", days: 7 }] }] });
+    if (route === "dashboards/kpis") return ok({ kpis: [{ bot_path: "Finance/Invoice intake.flow.json", name: "amount", n: 12 }, { bot_path: "Finance/Invoice intake.flow.json", name: "category", n: 12 }] });
+    if (route === "dashboards/db1/data") return ok({ id: "db1", name: "Finance", widgets: [
+      { title: "Amount paid", type: "number", kpi: "amount", agg: "sum", value: 1200 },
+      { title: "Runs per day", type: "line", source: "runs", metric: "runs", group: "day", days: 7, points: [{ label: "2026-10-29", value: 3 }, { label: "2026-10-30", value: 5 }] },
+      { title: "By category", type: "pie", kpi: "amount", agg: "sum", group: "value", by: "category", points: ["rent", "food", "travel", "tax", "misc"].map((l, i) => ({ label: l, value: 50 - 10 * i })) },
+      { title: "Broken", type: "bars", kpi: "nope", error: "No KPI nope" }] });
+    if (/^dashboards\/db\d(\/data)?$/.test(route)) return route.endsWith("/data") ? ok({ id: "db2", name: "Ops board", widgets: [] }) : ok({ ok: true });
     if (route === "analytics/agent") return ok({ bot_path: "Finance/Invoice intake.flow.json", totals: { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000,
       avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }, by_day: [], errors: [{ code: "EXCEL.NOT_FOUND", runs: 1 }], by_runner: [{ runner: "Runner A", runs: 5, success: 3, failed: 1, stopped: 1,
       active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }], last_run: { id: "r4", status: "success", created: "2026-10-30T08:00:00Z" },
@@ -331,11 +342,11 @@ describe("rebuilt Command Center console", () => {
     expect(calls.filter((c) => c.method === "POST").every((c) => c.headers?.["X-OOA-Request"] === "1")).toBe(true);
   });
 
-  it("shows the menu by task; pages not rebuilt yet open in today's console, Studio in its own tab", async () => {
+  it("shows the menu by task; every page opens here, Studio in its own tab", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Dashboards" }).getAttribute("href")).toBe("../?page=dashboards");
+    expect(within(menu).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["../studio/"]);   // every other page is rebuilt here
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -604,6 +615,53 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(agents).getByRole("button", { name: "Save" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/roi", body: { path: "HR/Onboard.flow.json", minutes_saved: 15 } }));
     expect(await screen.findByText("Onboard: 15 minutes saved a run.")).toBeTruthy();
+  });
+
+  it("shows Dashboards with widgets made in a form: ready-made ones, a pie of the largest parts, a CSV per widget, copies and deletes", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Dashboards" }));
+    expect(await screen.findByText("Yours · shared with role:viewer")).toBeTruthy();
+    expect(within(await screen.findByRole("article", { name: "Amount paid" })).getByText("1,200")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Runs per day: from 3 (2026-10-29) to 5 (2026-10-30)" })).toBeTruthy();
+    const parts = screen.getByRole("list", { name: "Parts of By category" });
+    expect(within(parts).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["rent50 · 33%", "food40 · 27%", "travel30 · 20%", "Others30 · 20%"]);
+    expect(within(screen.getByRole("article", { name: "Broken" })).getByText("No KPI nope")).toBeTruthy();
+    const made: string[] = [];
+    URL.createObjectURL = (() => { made.push("csv"); return "blob:x"; }) as typeof URL.createObjectURL;
+    fireEvent.click(screen.getByRole("button", { name: "CSV of Amount paid" }));
+    expect(made).toEqual(["csv"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "New dashboard" }));
+    const d = await screen.findByRole("dialog", { name: "New dashboard" });
+    fireEvent.change(within(d).getByLabelText("Start from"), { target: { value: "ops" } });
+    expect(within(within(d).getByRole("table", { name: "Widgets" })).getAllByRole("row")).toHaveLength(4);
+    fireEvent.click(within(d).getByRole("button", { name: "Add a widget" }));
+    const w = await screen.findByRole("dialog", { name: "Widget" });
+    fireEvent.change(within(w).getByLabelText("Show as"), { target: { value: "pie" } });
+    fireEvent.change(within(w).getByLabelText("Figure from"), { target: { value: "kpi" } });
+    fireEvent.change(within(w).getByLabelText("KPI"), { target: { value: "amount" } });
+    fireEvent.change(within(w).getByLabelText("Split by"), { target: { value: "value" } });
+    fireEvent.change(within(w).getByLabelText("The value of"), { target: { value: "category" } });
+    fireEvent.click(within(w).getByRole("button", { name: "Done" }));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save" })); });
+    const saved = calls.find((c) => c.method === "POST" && c.route === "dashboards");
+    expect(saved?.body).toEqual(expect.objectContaining({ name: "Operations at a glance", shared_with: [] }));
+    expect((saved?.body as { widgets: unknown[] }).widgets[4]).toEqual({ type: "pie", source: "kpi", days: 30, kpi: "amount", agg: "sum", group: "value", by: "category" });
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Dashboard" }), { target: { value: "db2" } });
+    expect(await screen.findByText("Made by vic · shared with *")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();   // only its maker changes it
+    fireEvent.click(screen.getByRole("button", { name: "Copy as mine" }));
+    const c = await screen.findByRole("dialog", { name: "Copy Ops board" });
+    expect((within(c).getByLabelText("Name") as HTMLInputElement).value).toBe("Ops board (copy)");
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Save" })); });
+    expect(calls.filter((x) => x.method === "POST" && x.route === "dashboards")).toHaveLength(2);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Dashboard" }), { target: { value: "db1" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await act(async () => { fireEvent.click(within(screen.getByRole("toolbar", { name: "Dashboard" })).getByRole("button", { name: "Delete" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "dashboards/db1" }));
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

@@ -37,7 +37,11 @@ class DashboardsTest {
             assertEquals(6, cr.count("SELECT COUNT(*) AS n FROM kpi_values"), "two KPIs of the three successful runs; note is not a KPI");
             assertEquals(2, cr.dashboards.kpis(admin).size());
 
-            assertThrows(OoaException.class, () -> cr.dashboards.save(admin, null, Map.of("name", "x", "widgets", List.of(Map.of("type", "pie", "kpi", "amount"))), null));
+            assertThrows(OoaException.class, () -> cr.dashboards.save(admin, null, Map.of("name", "x", "widgets", List.of(Map.of("type", "radar", "kpi", "amount"))), null));
+            // a pie shares out the same figures as bars
+            String pie = (String) cr.dashboards.save(admin, null, Map.of("name", "Pie", "widgets", List.of(Map.of("type", "pie", "kpi", "amount", "group", "value", "by", "category"))), null).get("id");
+            assertTrue(((List<Map<String, Object>>) cr.dashboards.data(admin, pie, "UTC").get("widgets")).get(0).containsKey("points"));
+            cr.dashboards.delete(admin, pie, null);
             String dash = (String) cr.dashboards.save(admin, null, Map.of("name", "Finance", "widgets", List.of(
                 Map.of("title", "Paid", "type", "number", "kpi", "amount", "agg", "sum"),
                 Map.of("title", "By category", "type", "bars", "kpi", "amount", "agg", "sum", "group", "value", "by", "category"),

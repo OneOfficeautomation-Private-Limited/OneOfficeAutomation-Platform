@@ -206,3 +206,22 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-hbars-two li { grid-template-columns: 50px 1fr auto; }
 .cc-hbar-pair { display: grid; gap: 2px; }
 .cc-hbar-fill.is-done { background: var(--ui-success); }
+/* Operational Insights > Dashboards. Pie colours: the accent and Home's chart colours, each 3:1 or more on the card in both themes */
+.cc-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; padding: 12px 20px 20px; }
+.cc-dash-card { display: flex; flex-direction: column; min-width: 0; }
+.cc-dash-number { font-size: 30px; font-weight: 700; line-height: 1.2; padding: 8px 0; }
+.cc-dash-line { margin: 0; }
+.cc-dash-line svg { width: 100%; height: 130px; }
+.cc-dash-line polyline { stroke: var(--ui-accent); }
+.cc-dash-line circle { fill: var(--ui-accent); }
+.cc-dash-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ui-text-2); }
+.cc-pie { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cc-pie svg { width: 120px; height: 120px; flex: none; }
+.cc-pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
+.cc-pie-legend li { display: flex; align-items: center; gap: 6px; }
+.cc-pie-legend .st-muted { margin-left: 6px; }
+.cc-pie-key { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.cc-pie-0 { fill: var(--ui-accent); background: var(--ui-accent); }
+.cc-pie-1 { fill: #2e8b57; background: #2e8b57; }
+.cc-pie-2 { fill: #bd7a1c; background: #bd7a1c; }
+.cc-pie-3 { fill: #8a94a3; background: #8a94a3; }

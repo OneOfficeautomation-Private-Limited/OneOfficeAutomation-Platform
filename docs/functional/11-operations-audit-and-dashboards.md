@@ -191,13 +191,17 @@ are shown only to people who may see it. Overview shows the open alerts.
 
 - In Studio, an output variable of type Number, String or Boolean can be ticked **Business figure (KPI)**. Each
   successful run records its value.
-- Insights > **Dashboards** holds dashboards of widgets:
+- Operational Insights > **Dashboards** (new console) holds dashboards of widgets. Widgets are made in a form (what to
+  show, the figure, the agent, how to split it, the days) or edited as JSON. A new dashboard can start from a ready-made
+  one: *Operations at a glance*, *Value*, or one over the first KPI recorded. Each widget has a CSV of its figures; any
+  dashboard a person may see can be copied as their own (not shared). A pie shows the three largest parts and the
+  rest as *Others*, with a legend of values and shares.
 
 | Widget property | Values |
 | --- | --- |
 | Source | `kpi` (one KPI, optionally of one agent, aggregated with `sum`, `avg`, `count`, `min`, `max` or `last`) or `runs` (metric `runs`, `success_rate`, `failed`, `avg_seconds`, `hours_saved`) |
 | Group | `none`, `day`, `week`, `month`, `agent`, or `value` (by the KPI's own value or, with `by`, by another KPI of the same run) |
-| Type | number, bars, line, table |
+| Type | number, bars, line, table, pie |
 | Period | the last 1 to 365 days (default 30) |
 
 - A dashboard belongs to its maker until shared with `role:…`, `team:…`, `user:…` or `*` (everyone with `analytics.view`).

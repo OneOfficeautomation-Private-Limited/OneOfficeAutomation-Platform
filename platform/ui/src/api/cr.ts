@@ -41,6 +41,13 @@ export type ValueRow = { runs: number; minutes: number; hours: number; money: nu
 export type ValueReport = { currency: string; hourly_cost: number; default_minutes_saved: number; successful_runs: number; hours: number; money: number; full_time_people: number;
   previous_hours: number; previous_money: number; agents: (ValueRow & { bot_path: string; minutes_each: number; own_value: boolean })[]; folders: (ValueRow & { folder: string })[];
   by_day: (ValueRow & { day: string })[] };
+/** A dashboard widget: a figure from the runs or from a KPI agents record, shown as a number, bars, a line, a table or a pie. */
+export type DashWidget = { title?: string; type?: "number" | "bars" | "line" | "table" | "pie"; source?: "kpi" | "runs"; kpi?: string; agg?: "sum" | "avg" | "count" | "min" | "max" | "last";
+  metric?: "runs" | "success_rate" | "failed" | "avg_seconds" | "hours_saved"; bot?: string; group?: "none" | "day" | "week" | "month" | "agent" | "value"; by?: string; days?: number };
+/** A dashboard: its owner's, or shared with roles, teams, users or everyone (*). */
+export type CustomDashboard = { id: string; name: string; description?: string | null; owner: string; shared_with: string[]; widgets: DashWidget[]; can_edit: boolean; updated?: string };
+/** A widget with its figures: value for a number, points for the others, or why it could not be worked out. */
+export type WidgetData = DashWidget & { value?: number | null; points?: { label: string; value: number | null }[]; error?: string };
 /** One agent's statistics for a period (GET analytics/agent). */
 export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
   last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
@@ -490,6 +497,13 @@ export class CrApi {
   async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
   testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
   async queueInsights(params: Record<string, string>) { return (await this.call<{ queues?: QueueInsight[] }>("GET", "analytics/queues?" + new URLSearchParams(params).toString())).queues ?? []; }
+  // ---- Dashboards of business KPIs and run figures ----
+  async dashboards() { return (await this.call<{ dashboards?: CustomDashboard[] }>("GET", "dashboards")).dashboards ?? []; }
+  async dashboardKpis() { return (await this.call<{ kpis?: { bot_path: string; name: string; n: number }[] }>("GET", "dashboards/kpis")).kpis ?? []; }
+  saveDashboard(id: string | null, b: { name: string; description?: string; shared_with: string[]; widgets: DashWidget[] }) {
+    return this.call<{ id: string }>(id ? "PUT" : "POST", "dashboards" + (id ? "/" + encodeURIComponent(id) : ""), b); }
+  async deleteDashboard(id: string) { await this.call("DELETE", "dashboards/" + encodeURIComponent(id)); }
+  dashboardData(id: string, tz?: string) { return this.call<{ id: string; name: string; widgets: WidgetData[] }>("GET", "dashboards/" + encodeURIComponent(id) + "/data" + (tz ? "?tz=" + encodeURIComponent(tz) : "")); }
   value(params: Record<string, string>) { return this.call<ValueReport>("GET", "analytics/value?" + new URLSearchParams(params).toString()); }
   /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */
   async setMinutesSaved(path: string, minutes: number | null) { await this.call("POST", "repo/roi", { path, minutes_saved: minutes }); }

@@ -20,7 +20,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * their values. People build dashboards of widgets over those values or over the runs themselves, keep them to
  * themselves or share them with roles, teams or everyone. A widget:
  * <pre>
- *   {"title": "Invoices paid", "type": "number" | "bars" | "line" | "table",
+ *   {"title": "Invoices paid", "type": "number" | "bars" | "line" | "table" | "pie",
  *    "source": "kpi", "bot": "Finance/Pay.flow.json", "kpi": "amount", "agg": "sum" | "avg" | "count" | "min" | "max" | "last",
  *    "group": "none" | "day" | "week" | "month" | "value" | "agent", "by": "category", "days": 30}   (by: group by another KPI of the same run)
  *   {"source": "runs", "metric": "runs" | "success_rate" | "failed" | "avg_seconds" | "hours_saved", "bot": optional, "group": ..., "days": 30}
@@ -28,7 +28,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * Only agents the viewer may see are counted.
  */
 public final class Dashboards {
-    static final Set<String> TYPES = Set.of("number", "bars", "line", "table"), AGGS = Set.of("sum", "avg", "count", "min", "max", "last"),
+    static final Set<String> TYPES = Set.of("number", "bars", "line", "table", "pie"), AGGS = Set.of("sum", "avg", "count", "min", "max", "last"),
         GROUPS = Set.of("none", "day", "week", "month", "value", "agent"), METRICS = Set.of("runs", "success_rate", "failed", "avg_seconds", "hours_saved");
     private final ControlRoom cr;
     private final Db db;
@@ -157,7 +157,7 @@ public final class Dashboards {
 
     // ---------- figures ----------
 
-    /** Each widget's figures: {value} for number, {points: [{label, value}]} for bars, line and table. */
+    /** Each widget's figures: {value} for number, {points: [{label, value}]} for bars, line, table and pie. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> data(User by, String id, String timeZone) {
         cr.require(by, "analytics.view", "view dashboards");
