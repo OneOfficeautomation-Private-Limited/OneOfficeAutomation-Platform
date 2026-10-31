@@ -628,14 +628,22 @@ describe("rebuilt Command Center console", () => {
     const busy = within(heat).getByTitle("Mon 09:00 · 4 runs, 1 failed");
     expect(busy.className).toBe("cc-heat-l4 has-failed");
     expect(within(heat).getByTitle("Wed 14:00 · 1 run").className).toBe("cc-heat-l1");
+    // the lists in one tabbed panel, one line per row
+    expect(screen.getByRole("tab", { name: /^Agents run most/ }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: /^Why runs failed/ }));
     expect(within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" }).getAttribute("href"))
       .toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND");
+    expect(screen.queryByRole("button", { name: /^CSV of/ })).toBeNull();   // no CSV of failure reasons
+    fireEvent.click(screen.getByRole("tab", { name: /^Agents run most/ }));
     fireEvent.change(screen.getByLabelText("Period"), { target: { value: "7" } });
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7") && c.route.includes("tz="))).toBe(true));
     URL.createObjectURL = (() => "blob:x") as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "CSV of agents run most" })); });
     expect(calls.some((c) => c.route.startsWith("analytics/export?") && c.route.includes("report=most_run") && c.route.includes("days=7"))).toBe(true);
-    fireEvent.click(within(screen.getByRole("table", { name: "Agents that fail most" })).getByRole("button", { name: "Invoice intake" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Agents that fail most/ }));
+    const failing = within(screen.getByRole("table", { name: "Agents that fail most" })).getByRole("row", { name: /Invoice intake/ }) as HTMLTableRowElement;
+    expect(within(failing).getByText("Finance")).toBeTruthy();   // its folder
+    fireEvent.click(failing.cells[2]);
     const d = await screen.findByRole("dialog", { name: "Statistics of Invoice intake" });
     expect(await within(d).findByText("10 – 90 (average 50)")).toBeTruthy();
     expect(within(d).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["#/activity?run=r4", "#/activity?run=r3",   // last run, last failure

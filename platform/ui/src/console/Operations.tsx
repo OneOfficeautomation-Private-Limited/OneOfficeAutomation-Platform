@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../api/cr";
 import { Button, Dialog, Select, usePersistent } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { howStarted } from "./Activity";
 
 /**
@@ -10,11 +10,17 @@ import { howStarted } from "./Activity";
  * all agents or one runner, agent or way of starting; each figure compared with the period before; when runs start
  * (weekday by hour, in the viewer's time zone); why runs failed; the agents that run most, take longest and fail most;
  * each runner and way of starting; a CSV of each list; an agent's statistics with its output profile.
+ * Review round 2 (31 Oct 2026): the three charts in one row and the six lists in one full-width tabbed panel, one line per
+ * row (they were squeezed into narrow cards at 1366 px); an agent's row opens its statistics, with a menu per row.
  */
 const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]];
 const ACTIVITY_PERIOD: Record<string, string> = { "1": "24h", "7": "7d" };
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const SOURCES = ["manual", "schedule", "trigger", "queue", "api", "rerun", "mcp"];
+/** The lists, by the report each one's CSV comes from ("failed" has none). */
+type ListTab = "failed" | "most_failed" | "most_run" | "longest" | "by_runner" | "by_source";
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
+const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const rate = (x?: number | null) => x == null ? "–" : x + "%";
@@ -40,6 +46,7 @@ function save(fileName: string, text: string) {
 
 export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
   const [days, setDays] = usePersistent("operations.days", "30");
+  const [tab, setTab] = usePersistent<ListTab>("operations.list", "most_run");
   const [f, setF] = useState<Record<string, string>>({});
   const [o, setO] = useState<OpsData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +68,15 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
   const t = o?.totals, p = o?.previous;
   const label = PERIODS.find(([v]) => v === days)?.[1].toLowerCase() ?? "";
   const activity = (q: Record<string, string>) => "#/activity?" + new URLSearchParams({ tab: "completed", ...(ACTIVITY_PERIOD[days] ? { period: ACTIVITY_PERIOD[days] } : {}), ...q }).toString();
-  const agentCell = (path: string) => <button type="button" className="cc-link" onClick={() => setStats(path)}>{name(path)}</button>;
+  /** An agent's row: its statistics, its runs, and the agent in Automation. */
+  const agentMenu = (path: string) => [{ key: "stats", label: "Statistics", onSelect: () => setStats(path) },
+    { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = activity({ bot: path }); } },
+    ...(can("repo.view") ? [{ key: "open", label: "Open in Automation", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(path)); } }] : [])];
+  const agentCells = (path: string) => <><td><span className="cc-aico" aria-hidden="true">A</span>{name(path)}</td><td>{folderOf(path)}</td></>;
+  const lists: [ListTab, string, number, boolean][] = o ? [["failed", "Why runs failed", o.failure_reasons?.length ?? 0, true], ["most_failed", "Agents that fail most", o.most_failed.length, true],
+    ["most_run", "Agents run most", o.most_run.length, false], ["longest", "Take longest", o.longest.length, false], ["by_runner", "Runners", o.by_runner.length, false],
+    ["by_source", "How runs were started", o.by_source.length, false]] : [];
+  const listName = lists.find(([k]) => k === tab)?.[1] ?? "";
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-op-title">
@@ -77,7 +92,7 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
         {agents.length > 0 && <Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setF({ ...f, bot: e.target.value })} options={[{ value: "", label: "All agents" }, ...agents.map((x) => ({ value: x, label: name(x) }))]} />}
         {runners.length > 0 && <Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setF({ ...f, device: e.target.value })} options={[{ value: "", label: "All runners" }, ...runners.map((d) => ({ value: d.id, label: d.name }))]} />}
         <Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })}
-          options={[{ value: "", label: "Started any way" }, ...["manual", "schedule", "trigger", "queue", "api", "rerun", "mcp"].map((v) => ({ value: v, label: howStarted(v) }))]} />
+          options={[{ value: "", label: "Started any way" }, ...SOURCES.map((v) => ({ value: v, label: howStarted(v) }))]} />
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
@@ -93,36 +108,41 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
           <div className="cc-sum is-static"><strong>{dur(t.total_ms)}</strong><span>Run time · average {dur(t.avg_ms)}{p?.avg_ms != null && t.avg_ms != null ? " · average " + change(t.avg_ms, p.avg_ms) : ""}</span></div>
           <div className="cc-sum is-static"><strong>{dur(t.p95_ms)}</strong><span>95% of runs finish within · longest {dur(t.max_ms)}</span></div>
         </div>
-        <div className="cc-two cc-pad">
+        <div className="cc-ops-charts">
           <div className="cc-card cc-card-flat"><h2>How long runs take</h2><Bars items={o.duration_distribution.map((x) => ({ label: x.bucket, value: x.runs }))} label="How long runs take" /></div>
           <div className="cc-card cc-card-flat"><h2>Runs per day</h2>
             {o.by_day.length ? <Bars items={o.by_day.slice(-31).map((x) => ({ label: x.day.slice(5), value: x.runs, bad: x.failed }))} label="Runs per day" /> : <p className="st-muted">No runs in the period.</p>}</div>
+          {o.by_hour && <div className="cc-card cc-card-flat"><h2>When runs start</h2><Heatmap h={o.by_hour} /></div>}
         </div>
-        {o.by_hour && <div className="cc-card cc-card-flat cc-pad-x"><h2>When runs start</h2><Heatmap h={o.by_hour} /></div>}
-        <div className="cc-two cc-pad">
-          <Card title="Why runs failed" onCsv={null}>
-            {o.failure_reasons?.length ? <table className="st-table" aria-label="Why runs failed">
-              <thead><tr><th scope="col">Error</th><th scope="col">Runs</th><th scope="col">Agents</th><th scope="col">Mostly in</th><th scope="col">Last</th></tr></thead>
-              <tbody>{o.failure_reasons.map((r) => <tr key={r.code}><td><a href={activity({ status: "failed", q: r.code })}>{r.code}</a></td><td>{r.runs}</td><td>{r.agents}</td>
-                <td>{r.agent ? agentCell(r.agent) : ""}</td><td>{when(r.last)}</td></tr>)}</tbody>
-            </table> : <p className="st-muted">No run failed in the period.</p>}
-          </Card>
-          <Card title="Agents that fail most" onCsv={() => csv("most_failed")}>
-            {o.most_failed.length ? <StatTable rows={o.most_failed} first="Agent" cell={(r) => agentCell(r.bot_path)} label="Agents that fail most"
-              extra={[["Failed", (r) => String(r.failed)], ["Of finished", (r) => rate(r.failure_rate)], ["Errors", (r) => r.top_errors.join(", ")]]} /> : <p className="st-muted">No failures in the period.</p>}
-          </Card>
-          <Card title="Agents run most" onCsv={() => csv("most_run")}>
-            <StatTable rows={o.most_run} first="Agent" cell={(r) => agentCell(r.bot_path)} label="Agents run most" />
-          </Card>
-          <Card title="Agents that take longest (average)" onCsv={() => csv("longest")}>
-            <StatTable rows={o.longest} first="Agent" cell={(r) => agentCell(r.bot_path)} label="Agents that take longest" extra={[["Longest", (r) => dur(r.max_ms)]]} />
-          </Card>
-          <Card title="Runners" onCsv={() => csv("by_runner")}>
-            <StatTable rows={o.by_runner} first="Runner" cell={(r) => r.runner ?? ""} label="Runners" />
-          </Card>
-          <Card title="How runs were started" onCsv={() => csv("by_source")}>
-            <StatTable rows={o.by_source} first="Started by" cell={(r) => howStarted(r.source)} label="How runs were started" />
-          </Card>
+        <div className="cc-list-panel cc-ops-lists">
+          <div className="ov-tabs" role="tablist" aria-label="Lists">
+            {lists.map(([k, l, n, bad]) => <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>
+              {l}<span className={"ov-cnt" + (bad && n ? " is-bad" : "")}>{n}</span></button>)}
+            <span className="ov-fill" />
+            {tab !== "failed" && <Button kind="plain" onClick={() => csv(tab)} aria-label={"CSV of " + listName.toLowerCase()}>CSV</Button>}
+          </div>
+          <div className="cc-list-scroll">
+            {tab === "failed" && <table className="cc-list-table" aria-label="Why runs failed">
+              <thead><tr><th scope="col">Error</th><th scope="col" className="cc-num">Runs</th><th scope="col" className="cc-num">Agents</th><th scope="col">Mostly in</th><th scope="col">Last</th>
+                <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+              <tbody>{(o.failure_reasons ?? []).map((r) => <tr key={r.code} title="Open these failed runs in Agent Activity" onClick={rowClick(() => { location.hash = activity({ status: "failed", q: r.code }); })}>
+                <td className="ui-mono"><a href={activity({ status: "failed", q: r.code })}>{r.code}</a></td><td className="cc-num">{r.runs}</td><td className="cc-num">{r.agents}</td>
+                <td>{r.agent ? <><span className="cc-aico" aria-hidden="true">A</span>{name(r.agent)}</> : ""}</td><td>{when(r.last)}</td>
+                <td className="cc-list-menu"><RowMenu label={"Actions for " + r.code} items={[{ key: "runs", label: "Its failed runs in Agent Activity", onSelect: () => { location.hash = activity({ status: "failed", q: r.code }); } },
+                  ...(r.agent ? [{ key: "stats", label: "Statistics of " + name(r.agent), onSelect: () => setStats(r.agent!) }] : [])]} /></td></tr>)}
+                {!o.failure_reasons?.length && <tr className="is-static"><td colSpan={6} className="cc-none">No run failed in the period.</td></tr>}</tbody>
+            </table>}
+            {tab === "most_failed" && <StatList rows={o.most_failed} label="Agents that fail most" head={["Agent", "Folder"]} cells={(r) => agentCells(r.bot_path)}
+              open={(r) => setStats(r.bot_path)} menu={(r) => agentMenu(r.bot_path)} name={(r) => name(r.bot_path)} empty="No failures in the period."
+              extra={[["Failed", (r) => String(r.failed), true], ["Of finished", (r) => rate(r.failure_rate), true], ["Errors", (r) => r.top_errors.join(", "), false]]} />}
+            {tab === "most_run" && <StatList rows={o.most_run} label="Agents run most" head={["Agent", "Folder"]} cells={(r) => agentCells(r.bot_path)}
+              open={(r) => setStats(r.bot_path)} menu={(r) => agentMenu(r.bot_path)} name={(r) => name(r.bot_path)} />}
+            {tab === "longest" && <StatList rows={o.longest} label="Agents that take longest" head={["Agent", "Folder"]} cells={(r) => agentCells(r.bot_path)}
+              open={(r) => setStats(r.bot_path)} menu={(r) => agentMenu(r.bot_path)} name={(r) => name(r.bot_path)} extra={[["Longest", (r) => dur(r.max_ms), true]]} />}
+            {tab === "by_runner" && <StatList rows={o.by_runner} label="Runners" head={["Runner"]} cells={(r) => <td>{r.runner ?? ""}</td>} name={(r) => r.runner ?? ""} />}
+            {tab === "by_source" && <StatList rows={o.by_source} label="How runs were started" head={["Started by"]} cells={(r) => <td>{howStarted(r.source)}</td>} name={(r) => howStarted(r.source)}
+              open={(r) => setF({ ...f, source: r.source })} openTitle="Show only runs started this way" />}
+          </div>
         </div>
       </>}
       {stats && <AgentStatistics api={api} path={stats} days={days} label={label} onClose={() => setStats(null)} />}
@@ -130,11 +150,21 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
   );
 }
 
-function Card({ title, onCsv, children }: { title: string; onCsv: (() => void) | null; children: ReactNode }) {
-  return <div className="cc-card cc-card-flat">
-    <div className="cc-card-head"><h2>{title}</h2>{onCsv && <Button kind="plain" onClick={onCsv} aria-label={"CSV of " + title.toLowerCase()}>CSV</Button>}</div>
-    {children}
-  </div>;
+/** One of the lists at full width, one line per row: runs, completed, average, 95% within and total, then its own columns. */
+function StatList<R extends RunStats>({ rows, label, head, cells, name: nameOf, open, openTitle, menu, extra = [], empty = "No runs in the period." }: { rows: R[]; label: string;
+  head: string[]; cells: (r: R) => ReactNode; name: (r: R) => string; open?: (r: R) => void; openTitle?: string; menu?: (r: R) => { key: string; label: string; onSelect: () => void }[];
+  extra?: [string, (r: R) => string, boolean][]; empty?: string }) {
+  const span = head.length + 5 + extra.length + (menu ? 1 : 0);
+  return <table className="cc-list-table" aria-label={label}>
+    <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Completed", "Average", "95% within", "Total"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
+      {extra.map(([h, , num]) => <th key={h} scope="col" className={num ? "cc-num" : undefined}>{h}</th>)}
+      {menu && <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>}</tr></thead>
+    <tbody>{rows.map((r, i) => <tr key={i} className={open ? undefined : "is-static"} title={open ? openTitle : undefined} onClick={open ? rowClick(() => open(r)) : undefined}>
+      {cells(r)}<td className="cc-num">{r.runs}</td><td className="cc-num">{rate(r.success_rate)}</td><td className="cc-num">{dur(r.avg_ms)}</td><td className="cc-num">{dur(r.p95_ms)}</td><td className="cc-num">{dur(r.total_ms)}</td>
+      {extra.map(([h, fn, num]) => <td key={h} className={num ? "cc-num" : "cc-clip"} title={num ? undefined : fn(r)}>{fn(r)}</td>)}
+      {menu && <td className="cc-list-menu"><RowMenu label={"Actions for " + nameOf(r)} items={menu(r)} /></td>}</tr>)}
+      {!rows.length && <tr className="is-static"><td colSpan={span} className="cc-none">{empty}</td></tr>}</tbody>
+  </table>;
 }
 
 function StatTable<R extends RunStats>({ rows, first, cell, label, extra = [] }: { rows: R[]; first: string; cell: (r: R) => ReactNode; label: string; extra?: [string, (r: R) => string][] }) {
