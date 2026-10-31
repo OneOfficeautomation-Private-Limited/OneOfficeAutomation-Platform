@@ -3,6 +3,7 @@ import { CrApi, CrFailure, type CrUser } from "../api/cr";
 import { Button, Field, Icon, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
+import { enableTableTools } from "./TableTools";
 import { Activity } from "./Activity";
 import { AgentApis } from "./AgentApis";
 import { Audit } from "./Audit";
@@ -61,6 +62,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const [studio, setStudio] = useState(false);
   const [theme] = usePersistent<"light" | "dark">("display.theme", "light");
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
+  useEffect(() => enableTableTools(), []);   // widen, narrow and filter the columns of every table
   useEffect(() => {
     api.me().then(setUser, () => setUser(null));
     api.studio().then(setStudio, () => setStudio(false));
