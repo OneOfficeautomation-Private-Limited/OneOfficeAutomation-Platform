@@ -212,6 +212,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       { id: "acme.sap", name: "Acme SAP", version: "0.3.0", actions: 5, enabled: false, used_by: 0, custom: true, publisher: "acme" }] });
     if (route === "toolkits/excel/versions") return ok({ installed: "2.1.0", agents: [{ path: "Finance/Invoice intake.flow.json", version: 3, required: "^1.0.0", satisfied: false }] });
     if (route === "toolkits/excel/update-agents") return ok({ results: [{ path: "Finance/Invoice intake.flow.json", status: "updated", version: 4 }] });
+    if (route === "toolkits/publishers" && (init.method ?? "GET") === "GET") return ok({ publishers: [{ publisher: "acme", public_key: "MCowBQYDK2VwAyEA", added_by: "admin" }] });
     if (/^toolkits\/[\w.]+$/.test(route)) return ok({ ok: true });
     if (route === "saved-connections") return ok({ connections: [{ name: "SNOW prod", package: "servicenow", description: "Incidents", values: { instance_url: "https://acme.service-now.com" },
       credentials: { password: "snow/api/password" }, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
@@ -1417,17 +1418,36 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(screen.getByLabelText("Source"), { target: { value: "own" } });
     await waitFor(() => expect(within(list).queryByText("Excel")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    const excel = (await within(list).findByText("Excel")).closest("tr")!;
-    fireEvent.click(within(excel as HTMLElement).getByRole("button", { name: "Switch off" }));
+    // one line per toolkit, its id on hover; switching only from the menu, switching off asked first
+    expect((await within(list).findByText("Excel")).closest("td")!.getAttribute("title")).toBe("excel");
+    expect(within(list).queryByRole("button", { name: "Switch off" })).toBeNull();
+    fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for Excel" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Switch off…" }));
     const off = await screen.findByRole("dialog", { name: "Switch off Excel" });
     expect(within(off).getByText(/3 agents use Excel/)).toBeTruthy();
     await act(async () => { fireEvent.click(within(off).getByRole("button", { name: "Switch off" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "toolkits/excel", body: { enabled: false } }));
+    // a toolkit opens as its own page: the agents that use it, updating them, its details
     fireEvent.click(within(list).getByText("Excel"));
     const v = await screen.findByRole("dialog", { name: "Toolkit Excel" });
-    expect(await within(v).findByText("^1.0.0")).toBeTruthy();
+    expect(screen.queryByRole("table", { name: "Toolkits list" })).toBeNull();
+    const agents = within(v).getByRole("table", { name: "Agents using the toolkit" });
+    expect(await within(agents).findByText("^1.0.0")).toBeTruthy();
+    expect(within(agents).getByText("Finance")).toBeTruthy();
+    expect(within(v).getByText(/1 needs another version/)).toBeTruthy();
     await act(async () => { fireEvent.click(within(v).getByRole("button", { name: "Update agents" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "toolkits/excel/update-agents", body: { range: "^2.0.0" } }));
+    fireEvent.click(within(v).getByRole("tab", { name: "Details" }));
+    expect(within(v).getByText("Versions installed")).toBeTruthy();
+    fireEvent.click(within(v).getByRole("button", { name: "Close" }));
+    // Stop trusting a publisher is asked first
+    fireEvent.click(await screen.findByRole("button", { name: "Trusted publishers" }));
+    const pubs = await screen.findByRole("dialog", { name: "Trusted publishers" });
+    fireEvent.click(await within(pubs).findByRole("button", { name: "Stop trusting…" }));
+    expect(within(pubs).getByRole("alert").textContent).toContain("Stop trusting acme?");
+    expect(calls.some((c) => c.method === "DELETE" && c.route === "toolkits/publishers/acme")).toBe(false);
+    await act(async () => { fireEvent.click(within(within(pubs).getByRole("alert")).getByRole("button", { name: "Stop trusting" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "toolkits/publishers/acme" }));
   });
 
   it("shows the AI pages: model connections with budget and test, a prompt skill saved as a new version, AI governance by model and agent", async () => {

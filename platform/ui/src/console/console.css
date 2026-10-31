@@ -612,6 +612,9 @@ a.cc-btn-link { text-decoration: none; display: inline-flex; align-items: center
 .cc-pane-head { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .cc-pane-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .cc-pane-tools { padding: 8px 12px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
+.cc-tk-update { align-items: center; gap: 8px; flex-wrap: wrap; }
+.cc-tk-update .ui-input, .cc-tk-update input { width: 120px; }
+.cc-tk-update > .cc-none { font-size: 12px; }
 .cc-pane-foot { margin: auto 0 0; padding: 8px 12px; border-top: 1px solid var(--ui-divider); font-size: 12px; color: var(--ui-text-2); }
 .cc-tree, .cc-tree ul { list-style: none; margin: 0; padding: 0; }
 .cc-tree { padding: 4px; overflow: auto; }
