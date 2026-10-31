@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Menu, Select, TextInput, usePersistent } from "../components";
 
 /**
  * Administration > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
  * roles, 31 Oct 2026): the roles with their kind, permissions and holders; create, copy (UiPath's clone), delete
  * selected, export. A role opens as a permission matrix grouped by area, as Blue Prism's tree and UiPath's View /
  * Run / Manage columns, with the people who hold it. Built-in roles are read-only; copy one to change it.
+ * Laid out as the design plan's list pattern and permission matrix (step 4, approved on the canvas 31 Oct 2026):
+ * a lock and a one-line summary on built-in roles, a permission bar, a ⋯ menu per row; the matrix with an icon per
+ * area, a count strip on top (ticked, by kind, high risk), Find a permission, All / None per area, and who holds it.
  */
-type Col = { key: string; label: string; cell: (r: CrRole) => string };
+type Col = { key: string; label: string; cell: (r: CrRole, total: number) => string };
 
 /** Each permission in plain words, by area and kind (see, run, change, administer). */
 type Kind = "see" | "run" | "change" | "admin";
@@ -55,21 +58,36 @@ const PERMS: Record<string, { area: string; kind: Kind; label: string }> = {
 /** Permissions that reach people, secrets or the whole system: marked in the matrix (as AA marks its high-risk ones). */
 const HIGH_RISK = new Set(["users.manage", "settings.manage", "lockers.manage", "repo.production", "repo.permissions", "lifecycle.import", "devices.manage"]);
 const KINDS: [Kind, string][] = [["see", "See"], ["run", "Run"], ["change", "Change"], ["admin", "Administer"]];
+/** The icon tile of each area in the matrix: a short mark on the area's colour (white text at least 4.5:1). */
+const AREA_LOOK: Record<string, [string, string]> = {
+  Agents: ["A", "#2f6fde"], Runs: ["R", "#0f766e"], "Runner Machines": ["M", "#0e7490"], "Schedules and triggers": ["S", "#b45309"],
+  "Work queues": ["Q", "#7c3aed"], "Shared values and vault": ["V", "#be185d"], "Agent APIs": ["P", "#1d4ed8"], Insights: ["I", "#0369a1"],
+  AI: ["AI", "#6d28d9"], Administration: ["Ad", "#475569"],
+};
 const infoOf = (p: string) => PERMS[p] ?? { area: "Other", kind: "admin" as Kind, label: p };
 const ROLE_NAMES: Record<string, string> = { admin: "Administrator", bot_creator: "Agent builder", bot_runner: "Agent runner", viewer: "Viewer" };
+/** What each built-in role is for, in one line. */
+const BUILTIN_FOR: Record<string, string> = {
+  admin: "Everything, including users, settings and the vault",
+  bot_creator: "Builds, checks in and runs agents; schedules, triggers and queues",
+  bot_runner: "Runs agents and works on queue items",
+  viewer: "Sees agents, runs and insights; changes nothing",
+};
 const roleName = (r: string) => ROLE_NAMES[r] ?? r;
+const kindOf = (r: CrRole) => r.builtin ? (r.switched_off ? "Switched off" : "Built-in") : "Custom";
 const when = (t?: string | null) => t ? new Date(t).toLocaleDateString() : "";
 
 const COLS: Col[] = [
   { key: "name", label: "Role", cell: (r) => roleName(r.name) },
-  { key: "kind", label: "Kind", cell: (r) => r.builtin ? (r.switched_off ? "Built-in, switched off" : "Built-in") : "Custom" },
-  { key: "description", label: "Description", cell: (r) => r.builtin ? "" : r.description ?? "" },
-  { key: "perms", label: "Permissions", cell: (r) => String(r.permissions.length) },
+  { key: "kind", label: "Kind", cell: (r) => kindOf(r) },
+  { key: "description", label: "What it is for", cell: (r) => r.builtin ? BUILTIN_FOR[r.name] ?? "" : r.description ?? "" },
+  { key: "perms", label: "Permissions", cell: (r, total) => r.permissions.length + " of " + total },
   { key: "users", label: "Users", cell: (r) => String(r.users ?? 0) },
   { key: "created", label: "Created", cell: (r) => r.builtin ? "" : when(r.created) + (r.created_by ? " by " + r.created_by : "") },
 ];
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+const LOCK = <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
 
 export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [hidden, setHidden] = usePersistent<string[]>("roles.hidden", ["created"]);
@@ -85,6 +103,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   }, [api]);
   useEffect(() => { load(); }, [load]);
 
+  const total = data?.permissions.length ?? 0;
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return (data?.roles ?? []).filter((r) => (!text || (r.name + " " + roleName(r.name) + " " + (r.description ?? "")).toLowerCase().includes(text))
@@ -92,9 +111,11 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   }, [data, f]);
   const chosen = (data?.roles ?? []).filter((r) => selected.includes(r.name));
   const cols = COLS.filter((c) => !hidden.includes(c.key));
+  const filtered = Object.values(f).some(Boolean);
+  const builtins = (data?.roles ?? []).filter((r) => r.builtin).length;
   const exportCsv = () => {
     const rows = chosen.length ? chosen : shown;
-    const text = [[...COLS.map((c) => c.label), "Permission list", "Holders"], ...rows.map((r) => [...COLS.map((c) => c.cell(r)), r.permissions.join(" "), (r.members ?? []).join(" ")])]
+    const text = [[...COLS.map((c) => c.label), "Permission list", "Holders"], ...rows.map((r) => [...COLS.map((c) => c.cell(r, total)), r.permissions.join(" "), (r.members ?? []).join(" ")])]
       .map((l) => l.map(csvCell).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
@@ -108,49 +129,81 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     onNotice("Deleted " + done + " role" + (done === 1 ? "" : "s") + ".");
     setError(failed); setSelected([]); load();
   };
+  const rowMenu = (r: CrRole) => [
+    { key: "open", label: "Open", onSelect: () => setDialog({ kind: "role", role: r }) },
+    { key: "copy", label: "Copy as a new role", onSelect: () => setDialog({ kind: "role", role: null, copyOf: r }) },
+    { key: "delete", label: r.builtin ? "Delete (built-in roles stay)" : "Delete…", disabled: r.builtin, separatorBefore: true,
+      onSelect: () => { setSelected([r.name]); setDialog({ kind: "delete" }); } },
+  ];
+  const cell = (c: Col, r: CrRole) => {
+    if (c.key === "name") return <strong>{roleName(r.name)}</strong>;
+    if (c.key === "kind") return <span className={"cc-kind is-" + (r.builtin ? (r.switched_off ? "off" : "builtin") : "custom")}>{kindOf(r)}</span>;
+    if (c.key === "perms") return <span className="cc-perm"><span className="cc-perm-bar" aria-hidden="true"><span style={{ width: (total ? Math.round(100 * r.permissions.length / total) : 0) + "%" }} /></span>
+      {r.permissions.length} of {total}</span>;
+    const v = c.cell(r, total);
+    return v || <span className="cc-none">–</span>;
+  };
 
   return (
-    <section className="st-page cc-home" aria-labelledby="cc-roles-title">
-      <header className="st-page-head">
-        <div><h1 id="cc-roles-title">Roles</h1><p>What each role lets people see, run, change and administer. A person has every permission of each of their roles.</p></div>
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-roles-title">
+      <header className="cc-list-head">
+        <h1 id="cc-roles-title">Roles</h1>
+        <span className="ov-info" role="img" aria-label="About this page" title="What each role lets people see, run, change and administer. A person has every permission of each of their roles.">i</span>
+        {data && <span className="cc-list-count">{builtins} built-in · {data.roles.length - builtins} custom</span>}
+        <span className="ov-fill" />
         <Button kind="primary" onClick={() => setDialog({ kind: "role", role: null })}>Create role</Button>
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="cc-filters" role="group" aria-label="Filters">
-        <TextInput type="search" aria-label="Search roles" placeholder="Search roles" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        <Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
-          options={[{ value: "", label: "Built-in and custom" }, { value: "builtin", label: "Built-in" }, { value: "custom", label: "Custom" }]} />
-        {data && <Select aria-label="Grants" value={f.perm ?? ""} onChange={(e) => setF({ ...f, perm: e.target.value })}
-          options={[{ value: "", label: "Any permission" }, ...data.permissions.map((p) => ({ value: p, label: infoOf(p).area + ": " + infoOf(p).label }))]} />}
-        {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+      <div className="cc-list-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><TextInput type="search" aria-label="Search roles" placeholder="Search roles" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
+          <span className={"cc-chip" + (f.kind ? " is-on" : "")}><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
+            options={[{ value: "", label: "Kind: Any" }, { value: "builtin", label: "Kind: Built-in" }, { value: "custom", label: "Kind: Custom" }]} /></span>
+          {data && <span className={"cc-chip" + (f.perm ? " is-on" : "")}><Select aria-label="Grants" value={f.perm ?? ""} onChange={(e) => setF({ ...f, perm: e.target.value })}
+            options={[{ value: "", label: "Grants: Any permission" }, ...data.permissions.map((p) => ({ value: p, label: "Grants: " + infoOf(p).area + ", " + infoOf(p).label }))]} /></span>}
+          {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="Roles list tools">
+          <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
+          <Button kind="plain" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
+          <button type="button" className="cc-list-icon" aria-label="Refresh" title="Refresh" onClick={load}>
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></button>
+        </div>
       </div>
-      <div className="cc-bar" role="toolbar" aria-label="Role actions">
-        {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}
-        <Button kind="secondary" disabled={chosen.length !== 1} onClick={() => setDialog({ kind: "role", role: null, copyOf: chosen[0] })}>Copy</Button>
-        <Button kind="danger" disabled={!chosen.length} onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
-        <span className="st-bar-fill" />
-        <Button kind="plain" onClick={load}>Refresh</Button>
-        <Button kind="plain" onClick={() => setDialog({ kind: "columns" })}>Columns</Button>
-        <Button kind="secondary" onClick={exportCsv}>{chosen.length ? "Export selected" : "Export CSV"}</Button>
+      <div className="cc-list-panel">
+        {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Role actions">
+          <strong>{chosen.length} selected</strong>
+          {chosen.length === 1 && <Button kind="secondary" onClick={() => setDialog({ kind: "role", role: null, copyOf: chosen[0] })}>Copy</Button>}
+          <Button kind="danger" onClick={() => setDialog({ kind: "delete" })}>Delete</Button>
+          <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
+        </div>}
+        <div className="cc-list-scroll">
+          <table className="cc-list-table" aria-label="Roles list">
+            <thead><tr>
+              <th scope="col" className="cc-check"><span className="st-sr">Select</span></th>
+              {cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
+              <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
+            </tr></thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.name} className={selected.includes(r.name) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input, button")) setDialog({ kind: "role", role: r }); }}>
+                  <td className="cc-check">{r.builtin ? <span className="cc-lock" role="img" aria-label="Built-in" title="Built-in roles cannot be changed or deleted">{LOCK}</span>
+                    : <input type="checkbox" aria-label={"Select " + r.name} checked={selected.includes(r.name)}
+                      onChange={(e) => setSelected(e.target.checked ? [...selected, r.name] : selected.filter((x) => x !== r.name))} />}</td>
+                  {cols.map((c) => <td key={c.key}>{cell(c, r)}</td>)}
+                  <td className="cc-list-menu"><Menu label={"Actions for " + roleName(r.name)} align="end" items={rowMenu(r)}
+                    trigger={<button type="button" className="cc-list-icon is-row" aria-label={"Actions for " + roleName(r.name)} title="Actions">
+                      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg></button>} /></td>
+                </tr>
+              ))}
+              {data && !shown.length && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none">No roles match these filters.</td></tr>}
+              {!data && !error && <tr className="is-static"><td colSpan={cols.length + 2} className="cc-none" role="status">Loading…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {data && <div className="cc-list-pager"><span>{shown.length} of {data.roles.length}{filtered ? " matching" : ""}</span></div>}
       </div>
-      <div className="cc-table-wrap">
-        <table className="st-table cc-table" aria-label="Roles list">
-          <thead><tr><th scope="col" className="cc-check"><span className="st-sr">Select</span></th>{cols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}</tr></thead>
-          <tbody>
-            {shown.map((r) => (
-              <tr key={r.name} className={selected.includes(r.name) ? "is-selected" : ""} onClick={(e) => { if (!(e.target as HTMLElement).closest("input")) setDialog({ kind: "role", role: r }); }}>
-                <td className="cc-check">{r.builtin ? <span className="st-muted" title="Built-in roles cannot be changed or deleted">—</span>
-                  : <input type="checkbox" aria-label={"Select " + r.name} checked={selected.includes(r.name)}
-                    onChange={(e) => setSelected(e.target.checked ? [...selected, r.name] : selected.filter((x) => x !== r.name))} />}</td>
-                {cols.map((c) => <td key={c.key}>{c.cell(r)}</td>)}
-              </tr>
-            ))}
-            {data && !shown.length && <tr><td colSpan={cols.length + 1} className="st-muted">No roles match these filters.</td></tr>}
-            {!data && !error && <tr><td colSpan={cols.length + 1} className="st-muted" role="status">Loading…</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <p className="st-muted">To copy a built-in role, open it and choose Copy as a new role. Built-in roles can be switched off in Settings; single sign-on groups map to roles there too.</p>
+      <p className="cc-list-hint">Built-in roles cannot be changed: copy one to make your own. They can be switched off in <a href="#/settings">Settings</a>, where single sign-on groups map to roles too.</p>
 
       {dialog?.kind === "columns" && (
         <Dialog open title="Columns" width={360} onClose={() => setDialog(null)} footer={<Button kind="primary" onClick={() => setDialog(null)}>Done</Button>}>
@@ -167,7 +220,8 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
           <p>Delete {chosen.map((r) => r.name).join(", ")}? Roles someone still holds are kept: give those people another role first.</p>
         </Dialog>
       )}
-      {dialog?.kind === "role" && data && <RoleEditor key={dialog.role?.name ?? "new:" + (dialog.copyOf?.name ?? "")} api={api} role={dialog.role} copyOf={dialog.copyOf} all={data.permissions}
+      {dialog?.kind === "role" && data && <RoleEditor key={dialog.role?.name ?? "new:" + (dialog.copyOf?.name ?? "")} api={api} role={dialog.role} copyOf={dialog.copyOf}
+        all={data.permissions} roles={data.roles}
         onClose={() => setDialog(null)} onCopy={(r) => setDialog({ kind: "role", role: null, copyOf: r })}
         onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
@@ -175,53 +229,82 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
 }
 
 /**
- * A role as a matrix: one row per area, one column per kind (see, run, change, administer), a box per permission.
- * Built-in roles are shown read-only, with Copy as a new role.
+ * A role as a matrix: one row per area (with its icon and how many of its permissions are ticked), one column per kind
+ * (see, run, change, administer), a box per permission, All / None per area. Built-in roles are shown read-only, with
+ * Copy as a new role.
  */
-function RoleEditor({ api, role, copyOf, all, onClose, onCopy, onSaved }:
-  { api: CrApi; role: CrRole | null; copyOf?: CrRole; all: string[]; onClose: () => void; onCopy: (r: CrRole) => void; onSaved: (t: string) => void }) {
+function RoleEditor({ api, role, copyOf, all, roles, onClose, onCopy, onSaved }:
+  { api: CrApi; role: CrRole | null; copyOf?: CrRole; all: string[]; roles: CrRole[]; onClose: () => void; onCopy: (r: CrRole) => void; onSaved: (t: string) => void }) {
   const readOnly = !!role?.builtin;
   const [name, setName] = useState(role?.name ?? (copyOf ? (copyOf.name + "_copy").replace(/[^a-z0-9_]/g, "_").slice(0, 40) : ""));
   const [description, setDescription] = useState(role?.description ?? (copyOf ? "Copy of " + roleName(copyOf.name) : ""));
   const [perms, setPerms] = useState<string[]>(role?.permissions ?? copyOf?.permissions ?? []);
+  const [from, setFrom] = useState(copyOf?.name ?? "");
+  const [find, setFind] = useState("");
+  const [onlyTicked, setOnlyTicked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const areas = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const p of all) { const a = infoOf(p).area; m.set(a, [...(m.get(a) ?? []), p]); }
     return [...m.entries()];
   }, [all]);
+  const text = find.trim().toLowerCase();
+  const visible = (p: string) => (!text || (infoOf(p).label + " " + infoOf(p).area + " " + p).toLowerCase().includes(text)) && (!onlyTicked || perms.includes(p));
   const toggle = (p: string, on: boolean) => setPerms(on ? [...perms, p] : perms.filter((x) => x !== p));
+  const risky = perms.filter((p) => HIGH_RISK.has(p)).length;
   const save = () => api.saveRole(name.trim(), description, perms).then(() => onSaved((role ? "Saved" : "Created") + " the role " + name.trim() + "."), (e) => setError(message(e)));
   const title = role ? (readOnly ? "Built-in role " + roleName(role.name) : "Role " + role.name) : "Create role";
-  return (
-    <Dialog open title={title} width={860} onClose={onClose} footer={readOnly ? <Button kind="primary" onClick={() => onCopy(role!)}>Copy as a new role</Button> : <>
+  const members = role?.members ?? [];
+  const footer = <>
+    <div className="cc-held"><strong>Held by</strong>
+      {members.length ? <ul aria-label="Held by">{members.map((m) => <li key={m} className="cc-who"><span className="cc-who-av" aria-hidden="true">{m.slice(0, 2).toUpperCase()}</span>{m}</li>)}</ul>
+        : <span className="cc-held-none">Nobody yet. Give it to people in Users, or map a single sign-on group to it in Settings.</span>}
+    </div>
+    {readOnly ? <Button kind="primary" onClick={() => onCopy(role!)}>Copy as a new role</Button> : <>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
-      <Button kind="primary" disabled={!/^[a-z][a-z0-9_]{2,39}$/.test(name.trim())} onClick={save}>{role ? "Save changes" : "Create role"}</Button></>}>
+      <Button kind="primary" disabled={!/^[a-z][a-z0-9_]{2,39}$/.test(name.trim())} onClick={save}>{role ? "Save changes" : "Create role"}</Button></>}
+  </>;
+  return (
+    <Dialog open title={title} width={1140} onClose={onClose} footer={footer}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      {readOnly && <p className="st-muted">Built-in roles cannot be changed.{role!.switched_off ? " This one is switched off in Settings: it grants nothing." : ""}</p>}
-      {!readOnly && <div className="cc-grid2">
-        <Field label="Name (3-40 lower-case letters, digits, _)">{(id) => <TextInput id={id} value={name} disabled={!!role} maxLength={40} onChange={(e) => setName(e.target.value)} />}</Field>
-        <Field label="Description">{(id) => <TextInput id={id} value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} />}</Field>
+      {readOnly && <p className="cc-list-hint">Built-in roles cannot be changed.{role!.switched_off ? " This one is switched off in Settings: it grants nothing." : ""}</p>}
+      {!readOnly && <div className="cc-role-fields">
+        <label className="cc-role-field">Name<TextInput value={name} disabled={!!role} maxLength={40} placeholder="lower-case letters, digits, _ (3 to 40)" onChange={(e) => setName(e.target.value)} /></label>
+        <label className="cc-role-field">What it is for<TextInput value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} /></label>
+        {!role && <label className="cc-role-field">Start from<Select value={from} onChange={(e) => { setFrom(e.target.value); setPerms(roles.find((r) => r.name === e.target.value)?.permissions ?? []); }}
+          options={[{ value: "", label: "Nothing ticked" }, ...roles.map((r) => ({ value: r.name, label: roleName(r.name) }))]} /></label>}
       </div>}
-      <table className="st-table cc-matrix" aria-label="Permissions">
+      <div className="cc-mx-strip" role="status" aria-label="Permissions ticked">
+        <span><strong>{perms.length} of {all.length}</strong> permissions</span>
+        <span>{KINDS.map(([k, l]) => l + " " + perms.filter((p) => infoOf(p).kind === k).length).join(" · ")}</span>
+        <span className={risky ? "cc-mx-risky" : "cc-mx-safe"}>{risky ? risky + " high-risk permission" + (risky === 1 ? "" : "s") : "No high-risk permissions"}</span>
+        <span className="ov-fill" />
+        <span className="cc-mx-find"><TextInput type="search" aria-label="Find a permission" placeholder="Find a permission" value={find} onChange={(e) => setFind(e.target.value)} /></span>
+        <label className="st-check-line"><input type="checkbox" checked={onlyTicked} onChange={(e) => setOnlyTicked(e.target.checked)} /> Only ticked</label>
+      </div>
+      <table className="cc-mx" aria-label="Permissions">
+        <colgroup><col className="cc-mx-area" />{KINDS.map(([k]) => <col key={k} />)}{!readOnly && <col className="cc-mx-all" />}</colgroup>
         <thead><tr><th scope="col">Area</th>{KINDS.map(([k, l]) => <th key={k} scope="col">{l}</th>)}{!readOnly && <th scope="col"><span className="st-sr">All in the area</span></th>}</tr></thead>
         <tbody>
-          {areas.map(([area, ps]) => (
-            <tr key={area}>
-              <th scope="row">{area}</th>
-              {KINDS.map(([k]) => <td key={k}>{ps.filter((p) => infoOf(p).kind === k).map((p) =>
-                <label key={p} className="st-check-line" title={p}><input type="checkbox" checked={perms.includes(p)} disabled={readOnly} onChange={(e) => toggle(p, e.target.checked)} /> {infoOf(p).label}{HIGH_RISK.has(p) && <span className="cc-risk" title="High risk: reaches people, secrets or the whole system">high risk</span>}</label>)}</td>)}
-              {!readOnly && <td><Button kind="plain" onClick={() => setPerms(ps.every((p) => perms.includes(p)) ? perms.filter((p) => !ps.includes(p)) : [...new Set([...perms, ...ps])])}>
-                {ps.every((p) => perms.includes(p)) ? "None" : "All"}</Button></td>}
-            </tr>
-          ))}
+          {areas.filter(([, ps]) => ps.some(visible)).map(([area, ps]) => {
+            const n = ps.filter((p) => perms.includes(p)).length;
+            const [mark, colour] = AREA_LOOK[area] ?? [area.slice(0, 1), "#475569"];
+            return (
+              <tr key={area}>
+                <th scope="row"><span className="cc-mx-ic" style={{ background: colour }} aria-hidden="true">{mark}</span>{area}<span className="cc-mx-ct">{n} of {ps.length}</span></th>
+                {KINDS.map(([k]) => <td key={k}>{ps.filter((p) => infoOf(p).kind === k && visible(p)).map((p) =>
+                  <label key={p} className="cc-mx-ln" title={p}><input type="checkbox" checked={perms.includes(p)} disabled={readOnly} onChange={(e) => toggle(p, e.target.checked)} />{infoOf(p).label}
+                    {HIGH_RISK.has(p) && <span className="cc-risk" title="High risk: reaches people, secrets or the whole system">high risk</span>}</label>)}</td>)}
+                {!readOnly && <td><span className="cc-mx-seg" role="group" aria-label={"All or none in " + area}>
+                  <button type="button" aria-pressed={n === ps.length} onClick={() => setPerms([...new Set([...perms, ...ps])])}>All</button>
+                  <button type="button" aria-pressed={n === 0} onClick={() => setPerms(perms.filter((p) => !ps.includes(p)))}>None</button></span></td>}
+              </tr>
+            );
+          })}
+          {!areas.some(([, ps]) => ps.some(visible)) && <tr><td colSpan={KINDS.length + 2} className="cc-none">No permission matches.</td></tr>}
         </tbody>
       </table>
-      <p className="st-muted">{perms.length} of {all.length} permissions. Folder permissions (who may see or run what in each agent folder) are set on the folders in Agent Repository.</p>
-      {role && <>
-        <h3 className="cc-log-title">Held by</h3>
-        <p>{(role.members ?? []).length ? role.members!.join(", ") : "Nobody yet."}</p>
-      </>}
+      <p className="cc-list-hint">Folder permissions (who may see or run what in each agent folder) are set on the folders in Agent Repository.</p>
     </Dialog>
   );
 }

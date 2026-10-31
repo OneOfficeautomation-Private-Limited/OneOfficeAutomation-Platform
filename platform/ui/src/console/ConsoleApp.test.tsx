@@ -947,13 +947,18 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "users/u2/reset-mfa" }));
   });
 
-  it("shows Roles as AA's Roles page: kinds, a permission matrix by area, built-in roles read-only and copied, custom roles saved and deleted", async () => {
+  it("shows Roles as AA's Roles page in the list pattern: kinds, a permission matrix by area, built-in roles read-only and copied, custom roles saved and deleted", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
     await go("Roles");
     const list = await screen.findByRole("table", { name: "Roles list" });
     expect(await within(list).findByText("Agent runner")).toBeTruthy();
     expect(within(list).getAllByText("Built-in")).toHaveLength(4);
+    expect(within(list).getAllByRole("img", { name: "Built-in" })).toHaveLength(4);   // a lock, no tick box
+    expect(within(list).getByText("Runs agents and works on queue items")).toBeTruthy();
+    expect(within(list).getByText("3 of 6", { exact: false })).toBeTruthy();
+    expect(screen.getByText("4 built-in · 1 custom")).toBeTruthy();
+    expect(screen.queryByRole("toolbar", { name: "Role actions" })).toBeNull();   // only while custom roles are ticked
     fireEvent.change(screen.getByLabelText("Grants"), { target: { value: "audit.view" } });
     await waitFor(() => expect(within(list).queryByText("Agent runner")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -961,18 +966,31 @@ describe("rebuilt Command Center console", () => {
     fireEvent.click(await within(list).findByText("Agent runner"));
     const b = await screen.findByRole("dialog", { name: "Built-in role Agent runner" });
     expect((within(b).getByLabelText("Start runs") as HTMLInputElement).disabled).toBe(true);
-    expect(within(b).getByText("vic, old")).toBeTruthy();
+    expect(within(within(b).getByRole("list", { name: "Held by" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["VIvic", "OLold"]);
+    expect(within(b).queryByRole("group", { name: "All or none in Runs" })).toBeNull();
     fireEvent.click(within(b).getByRole("button", { name: "Copy as a new role" }));
     const c = await screen.findByRole("dialog", { name: "Create role" });
     expect((within(c).getByLabelText("Start runs") as HTMLInputElement).checked).toBe(true);
+    expect((within(c).getByLabelText("Start from") as HTMLSelectElement).value).toBe("bot_runner");
+    expect(within(c).getByText("No high-risk permissions")).toBeTruthy();
     fireEvent.change(within(c).getByLabelText(/^Name/), { target: { value: "night_runner" } });
     fireEvent.click(within(c).getByLabelText("Check in agents"));
+    // a high-risk permission is counted, then All / None per area
+    fireEvent.click(within(c).getByLabelText(/^Manage users and roles/));
+    expect(within(c).getByText("1 high-risk permission")).toBeTruthy();
+    fireEvent.click(within(within(c).getByRole("group", { name: "All or none in Administration" })).getByRole("button", { name: "None" }));
+    expect(within(c).getByText("No high-risk permissions")).toBeTruthy();
+    // Find a permission narrows the matrix
+    fireEvent.change(within(c).getByLabelText("Find a permission"), { target: { value: "audit" } });
+    expect(within(c).queryByLabelText("Start runs")).toBeNull();
+    fireEvent.change(within(c).getByLabelText("Find a permission"), { target: { value: "" } });
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create role" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "roles/night_runner",
       body: { description: "Copy of Agent runner", permissions: ["repo.view", "runs.view", "runs.start", "repo.checkin"] } }));
-    // custom roles can be selected and deleted
+    // custom roles can be selected and deleted from the bar that shows while they are ticked
     fireEvent.click(await within(list).findByLabelText("Select auditor"));
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const bar = screen.getByRole("toolbar", { name: "Role actions" });
+    fireEvent.click(within(bar).getByRole("button", { name: "Delete" }));
     await act(async () => { fireEvent.click(within(await screen.findByRole("dialog", { name: "Delete roles" })).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "roles/auditor" }));
   });

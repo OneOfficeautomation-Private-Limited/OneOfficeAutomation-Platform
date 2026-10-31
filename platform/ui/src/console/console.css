@@ -118,8 +118,6 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-status.is-active { color: var(--ui-success); }
 .cc-status.is-locked { color: var(--ui-error-text); }
 .cc-status.is-pending { color: var(--ui-text-2); }
-.cc-matrix th[scope="row"] { white-space: nowrap; }
-.cc-matrix td { vertical-align: top; }
 .cc-risk { margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 11px; color: var(--ui-error-text); border: 1px solid currentColor; }
 .cc-tag { margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 11px; background: var(--ui-soft); border: 1px solid var(--ui-divider); }
 .cc-myvalue { margin: 4px 0; }
@@ -394,3 +392,42 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-pill.is-pending { background: var(--ui-running-bg); color: var(--ui-warning-text); }
 .cc-pill.is-disabled, .cc-pill.is-stopped { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
 .cc-role { display: inline-block; height: 20px; line-height: 20px; padding: 0 7px; margin-right: 4px; border-radius: 4px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; }
+/* Roles in the list pattern and the permission matrix (design plan step 4, approved on the canvas 31 Oct 2026) */
+.cc-lock { display: inline-flex; color: var(--ui-text-2); }
+.cc-kind { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cc-kind.is-builtin { background: var(--ui-selected); color: var(--ui-pill-text); }
+.cc-kind.is-custom { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
+.cc-kind.is-off { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
+.cc-perm { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.cc-perm-bar { display: inline-block; width: 110px; height: 8px; border-radius: 4px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; }
+.cc-perm-bar > span { display: block; height: 100%; background: var(--ui-accent); }
+.cc-role-fields { display: grid; grid-template-columns: 240px 1fr 220px; gap: 12px; align-items: end; }
+.cc-role-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ui-heading, var(--ui-text)); min-width: 0; }
+.cc-role-field .ui-input { font-weight: 400; }
+.cc-mx-strip { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 6px 12px; background: var(--ui-tint); border: 1px solid var(--ui-line, var(--ui-divider)); border-radius: var(--ui-radius); font-size: 13px; }
+.cc-mx-safe { color: var(--ui-ok-text); font-weight: 600; }
+.cc-mx-risky { color: var(--ui-error-text); font-weight: 600; }
+.cc-mx-find .ui-input { width: 220px; height: 28px; }
+.cc-mx { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; border: 1px solid var(--ui-border); }
+.cc-mx-area { width: 200px; }
+.cc-mx-all { width: 110px; }
+.cc-mx thead th { height: 30px; padding: 0 10px; text-align: left; font-size: 12px; font-weight: 600; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
+.cc-mx tbody th { padding: 5px 10px; text-align: left; font-weight: 600; white-space: nowrap; vertical-align: top; }
+.cc-mx td { padding: 5px 10px; vertical-align: top; border-left: 1px solid var(--ui-divider); }
+.cc-mx tbody tr { border-bottom: 1px solid var(--ui-divider); }
+.cc-mx-ic { display: inline-flex; width: 20px; height: 20px; border-radius: 5px; color: #ffffff; font-size: 10px; font-weight: 700; align-items: center; justify-content: center; margin-right: 8px; vertical-align: -5px; }
+.cc-mx-ct { display: block; margin: 1px 0 0 28px; font-weight: 400; font-size: 12px; color: var(--ui-text-3); }
+.cc-mx-ln { display: flex; align-items: center; gap: 7px; min-height: 22px; white-space: nowrap; cursor: pointer; }
+.cc-mx-ln input { accent-color: var(--ui-accent); margin: 0; }
+.cc-mx .cc-risk { margin-left: 0; height: 16px; line-height: 16px; border: 0; border-radius: 3px; background: var(--ui-error-bg); font-weight: 600; }
+.cc-mx-seg { display: inline-flex; }
+.cc-mx-seg button { height: 22px; padding: 0 8px; border: 1px solid var(--ui-border); background: var(--ui-bg); color: var(--ui-text); font: 12px var(--ui-font); cursor: pointer; }
+.cc-mx-seg button:first-child { border-radius: 4px 0 0 4px; }
+.cc-mx-seg button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+.cc-mx-seg button[aria-pressed="true"] { background: var(--ui-selected); color: var(--ui-pill-text); font-weight: 600; }
+.cc-held { display: flex; align-items: center; gap: 8px; margin-right: auto; min-width: 0; flex-wrap: wrap; font-size: 12px; }
+.cc-held ul { display: flex; gap: 6px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.cc-held-none { color: var(--ui-text-2); }
+.cc-who { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 3px; border-radius: 11px; background: var(--ui-selected); color: var(--ui-pill-text); }
+.cc-who-av { width: 16px; height: 16px; border-radius: 50%; background: var(--ui-accent); color: #ffffff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 760px) { .cc-role-fields { grid-template-columns: 1fr; } .cc-mx-area { width: 140px; } }
