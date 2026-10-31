@@ -1,30 +1,53 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, PromptSkill, SkillDefinition } from "../api/cr";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
-import { RefreshButton } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
  * 2026): reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new
  * version with a comment. A skill opens with its instructions, prompt (${name} for inputs, found by themselves), answer
  * kind, temperature, connection and its versions. Templates give a starting point.
+ * Review round 2 (1 Nov 2026): one line per skill (its description on hover), a menu per skill (Open, Copy the name,
+ * Delete asked first), and a skill opening as its own page (Prompt; Versions), as AA's skill editor.
  */
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const found = (prompt: string) => [...new Set((prompt.match(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g) ?? []).map((x) => x.slice(2, -1)))];
+
+/** The bar that asks before a skill and its versions are deleted. */
+function AskDelete({ name, onYes, onNo }: { name: string; onYes: () => void; onNo: () => void }) {
+  return <div className="cc-list-bulk" role="alert"><span>Delete {name} and its versions? Agents that run it will fail.</span>
+    <Button kind="danger" onClick={onYes}>Delete</Button><Button kind="plain" onClick={onNo}>Cancel</Button></div>;
+}
 
 export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<PromptSkill[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [who, setWho] = useState("");
-  const [dialog, setDialog] = useState<null | { kind: "skill"; name: string | null } | { kind: "templates" }>(null);
+  const [page, setPage] = useState<null | { name: string | null }>(null);   // a skill's own page (name null: a new one), in place of the list
+  const [templates, setTemplates] = useState(false);
+  const [ask, setAsk] = useState<PromptSkill | null>(null);   // a skill to delete, asked first
   const can = (p: string) => user.permissions.includes(p);
   const load = useCallback(async () => { try { setList(await api.skills()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
   const shown = useMemo(() => (list ?? []).filter((s) => (!q.trim() || (s.name + " " + (s.description ?? "")).toLowerCase().includes(q.trim().toLowerCase()))
     && (!who || (who === "mine" ? s.owner === user.username : who === "shared" ? s.shared : !!s.template))), [list, q, who, user.username]);
+  const canChange = (s: PromptSkill) => can("skills.manage") && (s.owner === user.username || can("skills.all"));
+  const copy = (s: PromptSkill) => (navigator.clipboard?.writeText(s.name) ?? Promise.reject(new Error("no clipboard")))
+    .then(() => onNotice("Copied " + s.name + "."), () => setError("Copying is not allowed here: choose " + s.name + " on the Prompt Skills step."));
+  const del = (s: PromptSkill) => api.deleteSkill(s.name).then(() => { onNotice("Deleted " + s.name + "."); setAsk(null); load(); }, (e) => setError(message(e)));
+  const rowMenu = (s: PromptSkill) => [{ key: "open", label: "Open", onSelect: () => setPage({ name: s.name }) },
+    { key: "copy", label: "Copy the name", onSelect: () => { copy(s); } },
+    ...(canChange(s) ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsk(s) }] : [])];
 
+  if (page) return (
+    <section className="st-page cc-home cc-explorer" aria-label="Prompt Skill">
+      <SkillPage key={page.name ?? "new"} api={api} name={page.name} user={user} onClose={() => { setPage(null); load(); }}
+        onSaved={(t, name) => { onNotice(t); load(); setPage({ name }); }} onDeleted={(t) => { onNotice(t); setPage(null); load(); }} />
+    </section>
+  );
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-sk-title">
       <header className="cc-list-head">
@@ -33,8 +56,8 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
         {list && <span className="cc-list-count">{list.length} skill{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {can("skills.manage") && <>
-          <Button kind="secondary" onClick={() => setDialog({ kind: "templates" })}>From a template</Button>
-          <Button kind="primary" onClick={() => setDialog({ kind: "skill", name: null })}>Create skill</Button></>}
+          <Button kind="secondary" onClick={() => setTemplates(true)}>From a template</Button>
+          <Button kind="primary" onClick={() => setPage({ name: null })}>Create skill</Button></>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-list-tools">
@@ -44,35 +67,40 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      <div className="cc-list-panel"><div className="cc-list-scroll">
+      <div className="cc-list-panel">
+        {ask && <AskDelete name={ask.name} onYes={() => del(ask)} onNo={() => setAsk(null)} />}
+        <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Skills list">
-          <thead><tr><th scope="col">Skill</th><th scope="col">Shared</th><th scope="col">Version</th><th scope="col">Updated</th></tr></thead>
+          <thead><tr><th scope="col">Skill</th><th scope="col">Shared</th><th scope="col">Version</th><th scope="col">Updated</th>
+            <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((s) => (
-              <tr key={s.name} onClick={() => setDialog({ kind: "skill", name: s.name })}>
-                <td>{s.name}{s.template && <span className="cc-tag">template</span>}{s.description && <div className="st-muted">{s.description}</div>}</td>
+              <tr key={s.name} onClick={rowClick(() => setPage({ name: s.name }))}>
+                <td className="cc-clip" title={s.description || undefined}>{s.name}{s.template && <span className="cc-tag">template</span>}</td>
                 <td>{s.shared ? "Shared" : "Private to " + s.owner}</td><td>v{s.version}</td><td>{when(s.updated)}{s.updated_by ? " by " + s.updated_by : ""}</td>
+                <td className="cc-list-menu"><RowMenu label={"Actions for " + s.name} items={rowMenu(s)} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={4} className="cc-none">{list.length ? "No skills match." : "No Prompt Skills yet. Start from a template."}</td></tr>}
-            {!list && !error && <tr className="is-static"><td colSpan={4} className="cc-none" role="status">Loading…</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={5} className="cc-none">{list.length ? "No skills match." : "No Prompt Skills yet. Start from a template."}</td></tr>}
+            {!list && !error && <tr className="is-static"><td colSpan={5} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>
       </div>
         {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
-      {dialog?.kind === "skill" && <SkillEditor key={dialog.name ?? "new"} api={api} name={dialog.name} user={user} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
-      {dialog?.kind === "templates" && <Templates api={api} onClose={() => setDialog(null)} onMade={(n) => { onNotice("Made " + n + " from a template."); load(); setDialog({ kind: "skill", name: n }); }} />}
+      {templates && <Templates api={api} onClose={() => setTemplates(false)} onMade={(n) => { onNotice("Made " + n + " from a template."); setTemplates(false); load(); setPage({ name: n }); }} />}
     </section>
   );
 }
 
-/** A skill: instructions, prompt, answer, temperature, connection, inputs (with those the prompt uses), sharing, versions. */
-function SkillEditor({ api, name, user, onClose, onSaved }: { api: CrApi; name: string | null; user: CrUser; onClose: () => void; onSaved: (t: string) => void }) {
+/** A skill's own page: its prompt (instructions, prompt, answer, temperature, connection, inputs, sharing) and its versions. */
+function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrApi; name: string | null; user: CrUser; onClose: () => void;
+  onSaved: (t: string, name: string) => void; onDeleted: (t: string) => void }) {
   type Full = Awaited<ReturnType<CrApi["skill"]>>;
   const [s, setS] = useState<Full | null>(null);
+  const [tab, setTab] = useState<"prompt" | "versions">("prompt");
   const [v, setV] = useState({ name: "", description: "", connection: "", system: "", prompt: "", output: "text", temperature: "0.2", inputs: "", shared: false, template: false, comment: "" });
   const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [asking, setAsking] = useState(false);
   useEffect(() => {
     if (!name) return;
     api.skill(name).then((x) => { setS(x); const d = x.definition;
@@ -80,7 +108,9 @@ function SkillEditor({ api, name, user, onClose, onSaved }: { api: CrApi; name: 
         temperature: String(d.temperature ?? 0.2), inputs: (d.inputs ?? []).map((i) => i.name + (i.description ? " - " + i.description : "")).join("\n"), shared: x.shared, template: !!x.template, comment: "" }); },
     (e) => setError(message(e)));
   }, [api, name]);
-  if (name && !s) return <Dialog open title="Prompt Skill" width={760} onClose={onClose} footer={null}>{error ? <p className="st-alert" role="alert">{error}</p> : <p className="st-muted" role="status">Loading…</p>}</Dialog>;
+  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the skills" onClick={onClose}>×</button>;
+  if (name && !s) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="Prompt Skill"><div className="cc-agent-head"><h1>{name}</h1><span className="ov-fill" />{close}</div>
+    {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
   const can = (p: string) => user.permissions.includes(p);
   const mine = !s || s.owner === user.username || can("skills.all");
   const editable = mine && can("skills.manage");
@@ -92,40 +122,55 @@ function SkillEditor({ api, name, user, onClose, onSaved }: { api: CrApi; name: 
     if (v.system.trim()) def.system = v.system;
     if (v.connection.trim()) def.connection = v.connection.trim();
     api.saveSkill(v.name.trim(), { description: v.description, definition: def, shared: v.shared, template: v.template, comment: v.comment || null })
-      .then((r) => onSaved("Saved " + r.name + " v" + r.version + "."), (e) => setError(message(e)));
+      .then((r) => onSaved("Saved " + r.name + " v" + r.version + ".", r.name), (e) => setError(message(e)));
   };
+  const remove = () => { setAsking(false); api.deleteSkill(s!.name).then(() => onDeleted("Deleted " + s!.name + "."), (e) => setError(message(e))); };
   const uses = found(v.prompt);
   return (
-    <Dialog open title={s ? s.name + " (v" + s.version + ")" : "Create Prompt Skill"} width={820} onClose={onClose} footer={editable ? <>
-      {s && <Button kind="danger" onClick={() => setConfirm(true)}>Delete</Button>}
-      <span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Cancel</Button>
-      <Button kind="primary" disabled={!/^[A-Za-z0-9_.-]{1,80}$/.test(v.name.trim()) || !v.prompt.trim()} onClick={save}>{s ? "Save as a new version" : "Create skill"}</Button></> : null}>
+    <div className="cc-agent" role="dialog" aria-modal="false" aria-label={s ? s.name + " (v" + s.version + ")" : "Create Prompt Skill"}>
+      <div className="cc-agent-head">
+        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Prompt Skills</button> ›</span>
+        <h1>{s ? s.name : "Create skill"}</h1>
+        {s && <><span className="cc-none">v{s.version}</span>
+          <span className={"cc-pill is-" + (s.shared ? "active" : "disabled")}><span className="cc-pill-dot" />{s.shared ? "Shared" : "Private"}</span>
+          <span className="cc-none">{s.owner === user.username ? "Yours" : "Owned by " + s.owner}{!editable ? " · read only" : ""}</span></>}
+        <span className="ov-fill" />
+        {editable && <Button kind="primary" disabled={!/^[A-Za-z0-9_.-]{1,80}$/.test(v.name.trim()) || !v.prompt.trim()} onClick={save}>{s ? "Save as a new version" : "Create skill"}</Button>}
+        {s && editable && <RowMenu label={"More for " + s.name} items={[{ key: "delete", label: "Delete…", onSelect: () => setAsking(true) }]} />}
+        {close}
+      </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      {confirm && <div className="st-alert" role="alert"><span>Delete {s!.name} and its versions? Agents that run it will fail.</span>
-        <Button kind="danger" onClick={() => api.deleteSkill(s!.name).then(() => onSaved("Deleted " + s!.name + "."), (e) => setError(message(e)))}>Delete</Button>
-        <Button kind="plain" onClick={() => setConfirm(false)}>Cancel</Button></div>}
-      {!editable && s && <p className="st-muted">Owned by {s.owner}: read only.</p>}
-      <div className="cc-grid2">
-        <Field label="Name">{(id) => <TextInput id={id} value={v.name} disabled={!!s} placeholder="summarise_complaint" onChange={set("name")} />}</Field>
-        <Field label="Model connection (empty: the run's default)">{(id) => <TextInput id={id} value={v.connection} disabled={!editable} onChange={set("connection")} />}</Field>
-      </div>
-      <Field label="Description">{(id) => <TextInput id={id} value={v.description} disabled={!editable} onChange={set("description")} />}</Field>
-      <Field label="Instructions for the model (system)">{(id) => <TextArea id={id} rows={3} value={v.system} disabled={!editable} onChange={set("system")} />}</Field>
-      <Field label="Prompt (use ${name} for the values the agent passes in)">{(id) => <TextArea id={id} rows={6} value={v.prompt} disabled={!editable} onChange={set("prompt")} />}</Field>
-      {uses.length > 0 && <p className="st-muted">The prompt uses: {uses.join(", ")}.</p>}
-      <div className="cc-grid2">
-        <Field label="Answer">{(id) => <Select id={id} value={v.output} disabled={!editable} onChange={set("output")} options={[{ value: "text", label: "Text" }, { value: "json", label: "JSON" }]} />}</Field>
-        <Field label="Temperature (0 = steady, 2 = varied)">{(id) => <TextInput id={id} type="number" step="0.1" min={0} max={2} value={v.temperature} disabled={!editable} onChange={set("temperature")} />}</Field>
-      </div>
-      <Field label="Inputs (one per line: name - description)">{(id) => <TextArea id={id} rows={3} value={v.inputs} disabled={!editable} onChange={set("inputs")} />}</Field>
-      <label className="st-check-line"><input type="checkbox" checked={v.shared} disabled={!editable} onChange={(e) => setV({ ...v, shared: e.target.checked })} /> Shared: every agent may use it</label>
-      {can("skills.all") && <label className="st-check-line"><input type="checkbox" checked={v.template} onChange={(e) => setV({ ...v, template: e.target.checked })} /> Template: offered as a starting point</label>}
-      {editable && <Field label="What changed (optional)">{(id) => <TextInput id={id} value={v.comment} onChange={set("comment")} />}</Field>}
-      {s?.versions && s.versions.length > 1 && <>
-        <h3 className="cc-log-title">Versions</h3>
-        <table className="st-table" aria-label="Versions"><tbody>{s.versions.map((x) => <tr key={x.version}><td>v{x.version}</td><td>{x.updated_by ?? ""}</td><td>{when(x.updated)}</td><td>{x.comment ?? ""}</td></tr>)}</tbody></table>
-      </>}
-    </Dialog>
+      {asking && s && <AskDelete name={s.name} onYes={remove} onNo={() => setAsking(false)} />}
+      {s && <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this skill">
+        {([["prompt", "Prompt"], ["versions", "Versions (" + (s.versions?.length ?? 1) + ")"]] as const).map(([k, l]) =>
+          <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
+      </div>}
+      {tab === "prompt" && <div className="cc-agent-tab">
+        <div className="cc-grid2">
+          <Field label="Name">{(id) => <TextInput id={id} value={v.name} disabled={!!s} placeholder="summarise_complaint" onChange={set("name")} />}</Field>
+          <Field label="Model connection (empty: the run's default)">{(id) => <TextInput id={id} value={v.connection} disabled={!editable} onChange={set("connection")} />}</Field>
+        </div>
+        <Field label="Description">{(id) => <TextInput id={id} value={v.description} disabled={!editable} onChange={set("description")} />}</Field>
+        <Field label="Instructions for the model (system)">{(id) => <TextArea id={id} rows={3} value={v.system} disabled={!editable} onChange={set("system")} />}</Field>
+        <Field label="Prompt (use ${name} for the values the agent passes in)">{(id) => <TextArea id={id} rows={6} value={v.prompt} disabled={!editable} onChange={set("prompt")} />}</Field>
+        {uses.length > 0 && <p className="st-muted">The prompt uses: {uses.join(", ")}.</p>}
+        <div className="cc-grid2">
+          <Field label="Answer">{(id) => <Select id={id} value={v.output} disabled={!editable} onChange={set("output")} options={[{ value: "text", label: "Text" }, { value: "json", label: "JSON" }]} />}</Field>
+          <Field label="Temperature (0 = steady, 2 = varied)">{(id) => <TextInput id={id} type="number" step="0.1" min={0} max={2} value={v.temperature} disabled={!editable} onChange={set("temperature")} />}</Field>
+        </div>
+        <Field label="Inputs (one per line: name - description)">{(id) => <TextArea id={id} rows={3} value={v.inputs} disabled={!editable} onChange={set("inputs")} />}</Field>
+        <label className="st-check-line"><input type="checkbox" checked={v.shared} disabled={!editable} onChange={(e) => setV({ ...v, shared: e.target.checked })} /> Shared: every agent may use it</label>
+        {can("skills.all") && <label className="st-check-line"><input type="checkbox" checked={v.template} onChange={(e) => setV({ ...v, template: e.target.checked })} /> Template: offered as a starting point</label>}
+        {editable && <Field label="What changed (optional)">{(id) => <TextInput id={id} value={v.comment} onChange={set("comment")} />}</Field>}
+      </div>}
+      {tab === "versions" && s && <div className="cc-list-scroll">
+        <table className="cc-list-table" aria-label="Versions">
+          <thead><tr><th scope="col">Version</th><th scope="col">Saved by</th><th scope="col">When</th><th scope="col">What changed</th></tr></thead>
+          <tbody>{(s.versions?.length ? s.versions : [{ version: s.version, updated_by: s.updated_by, updated: s.updated, comment: null }]).map((x) =>
+            <tr key={x.version} className="is-static"><td>v{x.version}</td><td>{x.updated_by ?? ""}</td><td>{when(x.updated)}</td><td className="cc-clip" title={x.comment ?? undefined}>{x.comment ?? <span className="cc-none">–</span>}</td></tr>)}</tbody>
+        </table>
+      </div>}
+    </div>
   );
 }
 

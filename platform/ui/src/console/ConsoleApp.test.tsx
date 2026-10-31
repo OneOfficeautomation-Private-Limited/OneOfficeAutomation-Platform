@@ -1616,6 +1616,18 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(sk).getByRole("button", { name: "Save as a new version" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "skills/summarise", body: expect.objectContaining({
       definition: { prompt: "Summarise ${text} for ${reader}", output: "text", temperature: 0.2, inputs: [{ name: "text" }, { name: "reader" }] } }) }));
+    // a skill opens as its own page, with its versions; deleting from the list asks first
+    expect(screen.queryByRole("table", { name: "Skills list" })).toBeNull();
+    fireEvent.click(within(sk).getByRole("tab", { name: /^Versions/ }));
+    expect(within(sk).getByRole("table", { name: "Versions" })).toBeTruthy();
+    fireEvent.click(within(sk).getByRole("button", { name: "Close" }));
+    const skills = await screen.findByRole("table", { name: "Skills list" });
+    expect(within(skills).getByText("summarise").closest("td")!.getAttribute("title")).toBe("Short summary");
+    fireEvent.keyDown(within(skills).getByRole("button", { name: "Actions for summarise" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Delete summarise and its versions?");
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Cancel" }));
+    expect(calls.some((c) => c.method === "DELETE" && c.route === "skills/summarise")).toBe(false);
     fireEvent.click(within(nav).getByRole("button", { name: "AI governance" }));
     expect(await screen.findByText("Calls with personal data masked")).toBeTruthy();
     expect(within(screen.getByRole("table", { name: "Recent AI calls" })).getByText("PERSON")).toBeTruthy();
