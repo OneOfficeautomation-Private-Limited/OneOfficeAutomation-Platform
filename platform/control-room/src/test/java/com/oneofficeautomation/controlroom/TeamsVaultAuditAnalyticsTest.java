@@ -231,4 +231,34 @@ class TeamsVaultAuditAnalyticsTest {
         assertTrue(heat > 140 && heat < 160, "the hours it was busy add up to 150% of an hour: " + heat);
         assertEquals("Asia/Kolkata", ((Map<String, Object>) c.get("heat")).get("time_zone"));
     }
+
+    @Test @Order(6)
+    @SuppressWarnings("unchecked")
+    void workQueueInsights() {
+        Instant now = Instant.now();
+        db.update("INSERT INTO queues (id, name, sla_minutes, max_attempts, processing, created) VALUES (?,?,?,?,?,?)", "q_ins", "Invoices", 60, 1, false, now.minusSeconds(86_000));
+        Object[][] items = { // status, created (minutes ago), finished (minutes ago), run, error
+            {"new", 70, null, null, null}, {"new", 50, null, null, null}, {"retry", 10, null, null, null}, {"in_progress", 5, null, null, null},
+            {"success", 120, 60, "run_q1", null}, {"failed", 30, 5, null, "FILE.NOT_FOUND"}};
+        int n = 0;
+        for (Object[] i : items)
+            db.update("INSERT INTO queue_items (id, queue_id, data, status, priority, attempts, run_id, error, created, updated, finished) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "qi_" + (++n), "q_ins", "{}", i[0], 0, 1, i[3], i[4] == null ? null : JsonLite.write(Map.of("code", i[4], "message", "x")),
+                    now.minusSeconds(60L * (Integer) i[1]), now, i[2] == null ? null : now.minusSeconds(60L * (Integer) i[2]));
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, started, finished, cancel_requested, pause_requested, duration_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "run_q1", "Ops/Backup.flow.json", 1, device, "success", "{}", "admin", "queue:q_ins", now.minusSeconds(6600), now.minusSeconds(6600), now.minusSeconds(3600), false, false, 600_000L);
+        Map<String, Object> qi = ((List<Map<String, Object>>) cr.analytics.queues(admin, Map.of("days", "1")).get("queues")).stream()
+                .filter(x -> "q_ins".equals(x.get("id"))).findFirst().orElseThrow();
+        assertEquals(3L, qi.get("waiting"));
+        assertEquals(1L, qi.get("overdue"));     // waiting 70 minutes, past the hour's target
+        assertEquals(1L, qi.get("at_risk"));     // waiting 50 minutes, past three quarters of it
+        assertEquals(6L, qi.get("added"));
+        assertEquals(2L, qi.get("finished"));
+        assertEquals(50.0, qi.get("success_rate"));
+        assertEquals(100.0, qi.get("in_time_rate"));   // both finished within the hour's target
+        assertEquals(600_000L, qi.get("avg_handling_ms"));
+        assertEquals(600_000L, qi.get("avg_wait_ms"));  // the run started 10 minutes after the item came
+        assertEquals(1L, qi.get("runners_needed"));     // 3 waiting x 10 minutes within an hour
+        assertEquals(List.of(Map.of("code", "FILE.NOT_FOUND", "items", 1L)), qi.get("errors"));
+    }
 }

@@ -274,6 +274,77 @@ public final class Analytics {
         return m;
     }
 
+    /**
+     * Work queue insights (UiPath's queue monitoring and Queues SLA, Blue Prism's queue composition, AA's Workload
+     * dashboard): for each queue the caller may see, the items waiting now, overdue and at risk (waiting more than three
+     * quarters of the target time), the oldest waiting; for the period, items added and finished, completed and failed,
+     * the share finished within the target time, items finished an hour, average handling time (the run's running time)
+     * and wait to start, the failures by error code, items added and finished per day (in tz); and the runners needed to
+     * clear what waits within the target time (waiting items x average handling time / target time).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> queues(User by, Map<String, String> q) {
+        cr.require(by, "queues.view", "view work queues");
+        Instant[] pd = period(q);
+        Instant from = pd[0], to = pd[1], now = now();
+        ZoneId zone = zone(q.get("tz"));
+        double hours = Math.max(1.0 / 60, Duration.between(from, to).toMinutes() / 60.0);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> qu : db.query("SELECT id, name, sla_minutes, processing, bot_path, pool_id FROM queues ORDER BY name")) {
+            String id = (String) qu.get("id");
+            if (!cr.platform.queueAllows(by, id, "view")) continue;
+            int sla = qu.get("sla_minutes") instanceof Number n ? n.intValue() : 0;
+            Map<String, Object> m = new LinkedHashMap<>(qu);
+            Map<String, Object> counts = cr.platform.counts(id);
+            m.put("counts", counts);
+            long waiting = ((Number) counts.get("new")).longValue() + ((Number) counts.get("retry")).longValue();
+            m.put("waiting", waiting);
+            Map<String, Object> oldest = db.one("SELECT MIN(created) AS t FROM queue_items WHERE queue_id = ? AND status IN ('new', 'retry')", id);
+            m.put("oldest_waiting", oldest == null || oldest.get("t") == null ? null : String.valueOf(oldest.get("t")));
+            if (sla > 0) {
+                m.put("overdue", cr.count("SELECT COUNT(*) AS n FROM queue_items WHERE queue_id = ? AND status IN ('new', 'in_progress', 'retry') AND created < ?", id, now.minus(Duration.ofMinutes(sla))));
+                m.put("at_risk", cr.count("SELECT COUNT(*) AS n FROM queue_items WHERE queue_id = ? AND status IN ('new', 'in_progress', 'retry') AND created >= ? AND created < ?",
+                        id, now.minus(Duration.ofMinutes(sla)), now.minus(Duration.ofSeconds(sla * 45L))));
+            }
+            m.put("added", cr.count("SELECT COUNT(*) AS n FROM queue_items WHERE queue_id = ? AND created >= ? AND created < ?", id, from, to));
+            long ok = 0, failed = 0, inTime = 0, handled = 0, handleMs = 0, waited = 0, waitMs = 0;
+            Map<String, Long> errors = new HashMap<>();
+            Map<String, long[]> days = new TreeMap<>();   // day: added, finished
+            for (Map<String, Object> r : db.query("SELECT created FROM queue_items WHERE queue_id = ? AND created >= ? AND created < ?", id, from, to))
+                days.computeIfAbsent(Instant.parse(String.valueOf(r.get("created"))).atZone(zone).toLocalDate().toString(), k -> new long[2])[0]++;
+            for (Map<String, Object> r : db.query("SELECT i.status, i.error, i.created, i.finished, r.started, r.duration_ms FROM queue_items i LEFT JOIN runs r ON r.id = i.run_id "
+                    + "WHERE i.queue_id = ? AND i.finished >= ? AND i.finished < ? AND i.status IN ('success', 'failed')", id, from, to)) {
+                Instant created = Instant.parse(String.valueOf(r.get("created"))), finished = Instant.parse(String.valueOf(r.get("finished")));
+                days.computeIfAbsent(finished.atZone(zone).toLocalDate().toString(), k -> new long[2])[1]++;
+                if ("success".equals(r.get("status"))) ok++;
+                else {
+                    failed++;
+                    String code = "UNKNOWN";
+                    if (r.get("error") != null) { try { Object e = JsonLite.parse((String) r.get("error")); if (e instanceof Map<?, ?> em && em.get("code") != null) code = String.valueOf(em.get("code")); } catch (RuntimeException ignored) { code = "ERROR"; } }
+                    errors.merge(code, 1L, Long::sum);
+                }
+                if (sla > 0 && !finished.isAfter(created.plus(Duration.ofMinutes(sla)))) inTime++;
+                if (r.get("duration_ms") instanceof Number d) { handled++; handleMs += d.longValue(); }
+                if (r.get("started") != null) { waited++; waitMs += Math.max(0, Duration.between(created, Instant.parse(String.valueOf(r.get("started")))).toMillis()); }
+            }
+            long done = ok + failed;
+            m.put("finished", done); m.put("success", ok); m.put("failed", failed);
+            m.put("success_rate", done == 0 ? null : Math.round(1000.0 * ok / done) / 10.0);
+            m.put("in_time_rate", sla == 0 || done == 0 ? null : Math.round(1000.0 * inTime / done) / 10.0);
+            m.put("per_hour", Math.round(10.0 * done / hours) / 10.0);
+            Long aht = handled == 0 ? null : handleMs / handled;
+            m.put("avg_handling_ms", aht);
+            m.put("avg_wait_ms", waited == 0 ? null : waitMs / waited);
+            m.put("runners_needed", sla > 0 && aht != null && waiting > 0 ? (long) Math.ceil((double) waiting * aht / (sla * 60_000.0)) : null);
+            m.put("errors", errors.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).limit(5).map(e -> Map.of("code", e.getKey(), "items", e.getValue())).toList());
+            List<Object> byDay = new ArrayList<>();
+            for (var e : days.entrySet()) byDay.add(Map.of("day", e.getKey(), "added", e.getValue()[0], "finished", e.getValue()[1]));
+            m.put("by_day", byDay);
+            out.add(m);
+        }
+        return Map.of("queues", out, "from", from.toString(), "to", to.toString(), "time_zone", zone.getId());
+    }
+
     /** One agent: its totals and timing, runs per day, the errors it fails with, its runners and its last runs. */
     public Map<String, Object> agent(User by, String path, Map<String, String> q) {
         cr.folders.require(by, path, "view", "view agent statistics");

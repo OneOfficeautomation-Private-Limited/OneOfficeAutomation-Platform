@@ -31,6 +31,11 @@ export type Operations = { totals: RunStats; duration_distribution: { bucket: st
 export type Capacity = { from: string; to: string; enabled_runners: number; busy_ms: number; use: number | null; full_time_people: number; avg_wait_ms: number | null;
   p95_wait_ms: number | null; waiting_now: number; runners: { device_id: string; busy_ms: number; runs: number; use: number; avg_wait_ms: number | null }[];
   heat: { time_zone: string; use: (number | null)[][] }; by_day: { day: string; busy_ms: number }[] };
+/** One work queue's insights for a period (GET analytics/queues). */
+export type QueueInsight = { id: string; name: string; sla_minutes?: number | null; processing: boolean; bot_path?: string | null; pool_id?: string | null;
+  counts: Record<string, number>; waiting: number; oldest_waiting?: string | null; overdue?: number; at_risk?: number; added: number; finished: number; success: number; failed: number;
+  success_rate: number | null; in_time_rate: number | null; per_hour: number; avg_handling_ms: number | null; avg_wait_ms: number | null; runners_needed: number | null;
+  errors: { code: string; items: number }[]; by_day: { day: string; added: number; finished: number }[] };
 /** One agent's statistics for a period (GET analytics/agent). */
 export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
   last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
@@ -479,6 +484,7 @@ export class CrApi {
   async setAlertRuleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "alert-rules/" + encodeURIComponent(id), { enabled }); }
   async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
   testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
+  async queueInsights(params: Record<string, string>) { return (await this.call<{ queues?: QueueInsight[] }>("GET", "analytics/queues?" + new URLSearchParams(params).toString())).queues ?? []; }
   capacity(params: Record<string, string>) { return this.call<Capacity>("GET", "analytics/capacity?" + new URLSearchParams(params).toString()); }
   agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }
   agentVariables(path: string, days: string) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams({ path, days }).toString()); }

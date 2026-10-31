@@ -201,3 +201,8 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-heat td.has-failed { border: 2px solid var(--ui-error-text); }
 /* Operational Insights > Runner capacity */
 .cc-advice { margin-top: 10px; margin-bottom: 0; padding: 8px 12px; border: 1px solid var(--ui-border); border-left: 4px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
+/* Operational Insights > Work queue insights */
+.cc-advice-list { list-style: none; display: grid; gap: 4px; }
+.cc-hbars-two li { grid-template-columns: 50px 1fr auto; }
+.cc-hbar-pair { display: grid; gap: 2px; }
+.cc-hbar-fill.is-done { background: var(--ui-success); }

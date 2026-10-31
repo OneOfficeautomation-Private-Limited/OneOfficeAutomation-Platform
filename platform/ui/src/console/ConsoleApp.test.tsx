@@ -84,6 +84,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
         heat: { time_zone: "UTC", use: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 0 && h === 9 ? 95 : d === 6 ? null : 0)) },
         by_day: [{ day: "2026-10-30", busy_ms: 18_000_000 }] });
     }
+    if (route === "analytics/queues") {
+      const base = { counts: { new: 3, retry: 1, in_progress: 0, review: 0, success: 10, failed: 2, deferred: 0 }, added: 6, finished: 5, success: 3, failed: 2, success_rate: 60,
+        in_time_rate: 80, per_hour: 0.2, avg_handling_ms: 600_000, avg_wait_ms: 120_000, errors: [{ code: "FILE.NOT_FOUND", items: 2 }],
+        by_day: [{ day: "2026-10-30", added: 3, finished: 2 }, { day: "2026-10-31", added: 3, finished: 3 }] };
+      return ok({ queues: [
+        { ...base, id: "q1", name: "Vendor invoices", sla_minutes: 240, processing: false, pool_id: "p1", waiting: 4, oldest_waiting: new Date(Date.now() - 3 * 3_600_000).toISOString(), overdue: 1, at_risk: 1, runners_needed: 1 },
+        { ...base, id: "q2", name: "Claims", sla_minutes: 60, processing: true, pool_id: "p1", waiting: 10, oldest_waiting: null, overdue: 2, at_risk: 0, runners_needed: 3, errors: [] }] });
+    }
     if (route === "analytics/agent") return ok({ bot_path: "Finance/Invoice intake.flow.json", totals: { runs: 5, success: 3, failed: 1, stopped: 1, active: 0, success_rate: 75, total_ms: 9000,
       avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }, by_day: [], errors: [{ code: "EXCEL.NOT_FOUND", runs: 1 }], by_runner: [{ runner: "Runner A", runs: 5, success: 3, failed: 1, stopped: 1,
       active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }], last_run: { id: "r4", status: "success", created: "2026-10-30T08:00:00Z" },
@@ -552,6 +560,25 @@ describe("rebuilt Command Center console", () => {
     expect(within(heat).getByTitle("Sun 09:00 · not in the period").className).toBe("cc-heat-l0");
     fireEvent.change(screen.getByLabelText("Period"), { target: { value: "30" } });
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics/capacity?") && c.route.includes("days=30"))).toBe(true));
+  });
+
+  it("shows Work queue insights as UiPath's queue monitoring: waiting, overdue and at risk, speed, runners needed against the pool, and advice", async () => {
+    const { api } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Work queue insights" }));
+    const figs = await screen.findByRole("group", { name: "Figures" });
+    expect(within(figs).getByText("14")).toBeTruthy();
+    expect(within(figs).getByText("3").className).toBe("cc-err");
+    expect(within(figs).getByText("Finished · 60% completed · last 7 days")).toBeTruthy();
+    const advice = await screen.findByRole("list", { name: "Advice" });
+    expect(within(advice).getByText("Vendor invoices: processing is off and 4 items wait. Turn processing on in Work queues.")).toBeTruthy();
+    expect(within(advice).getByText("Claims: clearing what waits within 60 minutes needs 3 runners; its pool has 1. Add runners to the pool.")).toBeTruthy();
+    const table = screen.getByRole("table", { name: "Queues" });
+    expect(within(within(table).getByRole("row", { name: /Claims/ })).getByText("3 of 1")).toBeTruthy();
+    expect(within(within(table).getByRole("row", { name: /Vendor invoices/ })).getByText("3 h 0 min")).toBeTruthy();   // oldest waiting
+    fireEvent.click(within(table).getByRole("button", { name: "Vendor invoices" }));
+    expect(within(screen.getByRole("table", { name: "Why items failed in Vendor invoices" })).getByText("FILE.NOT_FOUND")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Added and finished per day in Vendor invoices" })).getByText("3 added · 2 finished")).toBeTruthy();
   });
 
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {

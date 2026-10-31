@@ -30,7 +30,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 | --- | --- |
 | Build | Agent Repository (`repo.view`), Agent Templates (`repo.view`), One AgentStudio (new tab), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Agent ToolKits (`toolkits.manage`) |
-| Operational Insights | Overview, Alerts, Operations, Runner capacity, Dashboards (all `analytics.view`) |
+| Operational Insights | Overview, Alerts, Operations, Runner capacity, Dashboards (`analytics.view`); Work queue insights (`queues.view`) |
 | Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Credential vault (members), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Model Connections (`connections.manage`), Prompt Skills (`skills.view`), Document Automation (`repo.view`), AI governance (`audit.view`) |
 
@@ -127,6 +127,21 @@ figures: every run counts and no agent is named.
 `GET /api/analytics/capacity?days=&from=&to=&tz=` returns `runners` (`device_id`, `busy_ms`, `runs`, `use`,
 `avg_wait_ms`), `enabled_runners`, `busy_ms`, `use`, `full_time_people`, `avg_wait_ms`, `p95_wait_ms`, `waiting_now`,
 `heat` (`time_zone`, `use`: per weekday, Monday first, and hour; null for hours outside the period) and `by_day`.
+
+### Work queue insights
+
+**Work queue insights** (`queues.view`, new console; only queues the viewer may see) shows, for the last 24 hours to 30
+days: items waiting, overdue and at risk (waiting more than three quarters of the queue's target time) across queues,
+and items finished with the share completed. Per queue: waiting now, the oldest waiting item's age, overdue, at risk,
+the target time, items finished, the shares completed and finished within the target time, items finished an hour,
+average handling time (the item's run time) and wait to start, the runners needed to clear what waits within the target
+time (waiting items x average handling time / target time, set against the runners of the queue's pool) and whether
+processing is on. A queue opens to its items added and finished per day and its failures by error code. Advice is shown
+when processing is off while items wait, when a queue needs more runners than its pool has, or when items are overdue.
+
+`GET /api/analytics/queues?days=&from=&to=&tz=` returns `queues`, each with `counts`, `waiting`, `oldest_waiting`,
+`overdue`, `at_risk`, `added`, `finished`, `success`, `failed`, `success_rate`, `in_time_rate`, `per_hour`,
+`avg_handling_ms`, `avg_wait_ms`, `runners_needed`, `errors` and `by_day`.
 
 ### Alerts
 
