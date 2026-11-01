@@ -453,7 +453,7 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
               <td className="cc-check"><input type="checkbox" aria-label={"Select the schedule " + s.name} checked={selected.includes(s.id)}
                 onChange={(e) => setSelected(e.target.checked ? [...selected, s.id] : selected.filter((x) => x !== s.id))} /></td>
               <td>{s.enabled && s.next_run ? when(s.next_run) : "Not planned"}</td>
-              <td>{name(s.bot_path)}</td><td>{s.name}</td><td>{repeats(s)}</td><td>{runsOn(s)}</td><td>{s.run_as ?? s.created_by ?? ""}</td>
+              <td>{name(s.bot_path)}</td><td>{s.name}</td><td title={repeats(s)}>{repeats(s, true)}</td><td>{runsOn(s)}</td><td>{s.run_as ?? s.created_by ?? ""}</td>
               <td>{s.holiday_calendar ? "Skips " + s.holiday_calendar : ""}</td>
               <td className={"cc-status is-" + (s.enabled ? "success" : "stopped")}>{s.enabled ? "On" : "Off"}</td>
             </tr>

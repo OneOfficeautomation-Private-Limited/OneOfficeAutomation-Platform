@@ -162,7 +162,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
           measure={() => foldersPanel.current?.getBoundingClientRect().width ?? 260} onChange={setFoldersWidth} />}</>}
         <div className="st-items">
           <table className="st-table">
-            <thead><tr><th scope="col">Agent</th>{q && <th scope="col">Folder</th>}{shownCols.map((c) => <th key={c.key} scope="col" className={c.key === "changed" ? "st-col-changed" : undefined}>{c.label}</th>)}<th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col">Name</th>{q && <th scope="col">Folder</th>}{shownCols.map((c) => <th key={c.key} scope="col" className={c.key === "changed" ? "st-col-changed" : undefined}>{c.label}</th>)}<th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {subfolders.map((f) => <tr key={"f:" + f.id}><td colSpan={cols}>
                 <button type="button" className="st-link st-name" onClick={() => openFolder(f.id)}>{FOLDER_ICON(false)}<span>{f.label}</span></button></td></tr>)}

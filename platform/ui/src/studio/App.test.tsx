@@ -248,7 +248,7 @@ describe("new Studio", () => {
     const row = screen.getByText("Invoice intake").closest("tr")!;
     for (const t of ["UAT v2", "1 warning", "Windows"]) expect(row.textContent).toContain(t);
     // the same columns as One CommandCenter's Public tab, Type first
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent).slice(0, 3)).toEqual(["Agent", "Type", "Platform"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent).slice(0, 3)).toEqual(["Name", "Type", "Platform"]);
     expect(row.textContent).toContain("Agent");
   });
 

@@ -47,6 +47,7 @@ const HELP_RUNNERS: HelpTopic = { title: "Each runner", about: "Every runner's w
     { name: "Time in use", text: "The share of its time spent running agents; 80% or more shows in red." },
     { name: "Average wait", text: "How long runs for this runner waited to start, on average." },
     { name: "CPU now, Memory now", text: "How busy the machine is at this moment. They show on screens wider than 1440 px, and always on Runner Machines." },
+    { name: "Busy (each runner)", text: "Hours spent running agents; on screens wider than 1440 px (Time in use gives the same as a share)." },
     { name: "Actions (⋯)", text: "Open the runner on Runner Machines, or see its runs in Agent Activity." },
   ] };
 const pillOf = (d?: Runner) => !d || d.status === "disabled" ? "disabled" : d.status === "online" && !d.over_limit && !d.maintenance ? "active" : "failed";
@@ -111,7 +112,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
         <div className="cc-list-panel cc-cap-runners">
           <h2 className="cc-cap-title">Each runner<HelpButton topic={HELP_RUNNERS} /></h2>
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Each runner">
-            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
+            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className={"cc-num" + (h === "Busy" ? " cc-wide-only" : "")}>{h}</th>)}
               <th scope="col">Time in use</th><th scope="col" className="cc-num">Average wait</th><th scope="col">Last run</th><th scope="col">Most common error</th>
               {["CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num cc-wide-only">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
@@ -121,7 +122,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
               <td title={d ? undefined : r.device_id}>{nm}</td>
               <td><span className={"cc-pill is-" + pillOf(d)}><span className="cc-pill-dot" />{stateOf(d)}</span></td>
               <td className="cc-clip" title={inPools || undefined}>{inPools}</td>
-              <td className="cc-num">{r.runs}</td><td className="cc-num">{r.success ?? ""}</td><td className={"cc-num" + (r.failed ? " cc-err" : "")}>{r.failed ?? ""}</td><td className="cc-num">{hours(r.busy_ms)}</td>
+              <td className="cc-num">{r.runs}</td><td className="cc-num">{r.success ?? ""}</td><td className={"cc-num" + (r.failed ? " cc-err" : "")}>{r.failed ?? ""}</td><td className="cc-num cc-wide-only">{hours(r.busy_ms)}</td>
               <td className={r.use >= 80 ? "cc-err" : undefined}><span className="cc-use"><progress max={100} value={Math.min(100, r.use)} aria-label={"Time in use of " + nm} /> {r.use}%</span></td>
               <td className="cc-num">{dur(r.avg_wait_ms)}</td>
               <td>{when(r.last_run)}</td>

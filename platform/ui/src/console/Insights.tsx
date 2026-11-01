@@ -5,7 +5,7 @@ import { AREAS, wordsOf } from "./Audit";
 import { BusinessAgents } from "./BusinessAgents";
 import { Capacity } from "./Capacity";
 import { Dashboards } from "./Dashboards";
-import { RefreshButton, rowClick } from "./ListParts";
+import { RefreshButton, rowClick, when } from "./ListParts";
 import { Operations } from "./Operations";
 import { QueueInsights } from "./QueueInsights";
 import { Value } from "./Value";
@@ -79,7 +79,6 @@ const kindName = (k: string) => AREAS.find(([p]) => p === k + ".")?.[1] ?? (k ==
 /** Who did it, in plain words: a runner by its name, System, or the person's user name. */
 const whoName = (actor: string, is?: string) => actor.startsWith("agent:") ? "Runner " + actor.slice(6).split(" for ")[0] : is === "system" || actor === "system" ? (actor === "system" ? "System" : actor) : actor;
 const day = (d: string) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-const when = (t: string) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const detailText = (d?: string | null) => { if (!d) return ""; try { const v = JSON.parse(d); return typeof v === "string" ? v : Object.entries(v).map(([k, x]) => k + ": " + String(x)).join(", "); } catch { return d; } };
 
 /** Bars with counts; a bar is a button when picking it sets a filter. */
@@ -164,9 +163,9 @@ function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs
             <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">What</th><th scope="col">On</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
             <tbody>{a.not_done.map((r: AuditRecord) => <tr key={r.seq} title="Open it in the Audit Trail"
               onClick={rowClick(() => { location.hash = trail({ actor: r.actor, result: r.result, ...(r.object_id ? { object_id: r.object_id } : {}) }); })}>
-              <td>{when(r.ts)}</td><td>{whoName(r.actor)}</td><td>{wordsOf(r.action)}</td><td className="cc-clip" title={r.object_id ?? undefined}>{r.object_id ?? ""}</td>
+              <td>{when(r.ts)}</td><td className="cc-clip cc-clip-sm" title={whoName(r.actor)}>{whoName(r.actor)}</td><td>{wordsOf(r.action)}</td><td className="cc-clip cc-clip-sm" title={r.object_id ?? undefined}>{r.object_id ?? ""}</td>
               <td><span className={"cc-pill is-" + (r.result === "denied" ? "pending" : "failed")}><span className="cc-pill-dot" />{r.result === "denied" ? "Denied" : "Failed"}</span></td>
-              <td className="cc-clip" title={detailText(r.details) || undefined}>{detailText(r.details)}</td></tr>)}
+              <td className="cc-clip cc-clip-sm" title={detailText(r.details) || undefined}>{detailText(r.details)}</td></tr>)}
               {!a.not_done.length && <tr className="is-static"><td colSpan={6} className="cc-none">Nothing failed or was denied in the period.</td></tr>}</tbody>
           </table></div>
         </div>
