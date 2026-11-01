@@ -129,7 +129,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       max_steps: { enabled: true, severity: "error", description: "Agents stay small enough to read", params: { max: 200 } } } });
     if (route === "policies" && (init.method ?? "GET") === "GET") return ok({ policies: [
       { id: "default", name: "Default code analysis", kind: "code", rules: rulesOf(false), folders: [], built_in: true, updated: "2026-10-31T08:00:00Z", updated_by: "admin" },
-      { id: "pol1", name: "Finance: strict", kind: "code", rules: rulesOf(true), folders: ["Finance"], built_in: false, updated: "2026-11-01T08:00:00Z", updated_by: "admin" }] });
+      { id: "pol1", name: "Finance: strict", kind: "code", rules: rulesOf(true), folders: ["Finance"], built_in: false, updated: "2026-11-01T08:00:00Z", updated_by: "admin" },
+      { id: "pol3", name: "Finance AI", kind: "ai", rules: { mask: true, models: ["company-gpt"], content: "block" }, folders: ["Finance"], built_in: false }] });
     if (route.startsWith("policies")) return ok({ id: "pol2" });
     if (route === "repo/analysis") return ok({ path: "Finance/Invoice intake.flow.json", version: 3, errors: 1, warnings: 1, passed: false, analyzed: "2026-10-30T08:00:00Z",
       violations: [{ rule: "max_steps", severity: "error", step: "s9", message: "212 steps; the most allowed is 200" }, { rule: "require_description", severity: "warning", message: "The agent has no description" }] });
@@ -1310,6 +1311,23 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(made).getByRole("button", { name: "Add folder" }));
     await act(async () => { fireEvent.click(within(made).getByRole("button", { name: "Create policy" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "policies", body: expect.objectContaining({ name: "HR rules", kind: "code", folders: ["HR"] }) }));
+    // AI guardrails: masking, the models allowed and the content check, for HR (Finance already has guardrails)
+    const list1 = await screen.findByRole("table", { name: "Policies list" });
+    expect(within(list1).getByText("Finance AI").closest("tr")!.textContent).toContain("masks personal data · 1 model allowed · blocks harmful answers");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Create policy ▾" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /AI guardrails policy/ }));
+    const guard = await screen.findByRole("dialog", { name: "Create AI guardrails policy" });
+    fireEvent.change(within(guard).getByLabelText("Name"), { target: { value: "HR AI" } });
+    expect((within(guard).getByLabelText("Mask personal data before it reaches a model") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(await within(guard).findByRole("checkbox", { name: /company-gpt/ }));
+    fireEvent.change(within(guard).getByLabelText("Content check"), { target: { value: "log" } });
+    fireEvent.click(within(guard).getByRole("tab", { name: "Folders (0)" }));
+    expect([...(within(guard).getByLabelText("Folder to add") as HTMLSelectElement).options].map((o) => o.value)).toEqual(["", "HR"]);
+    fireEvent.change(within(guard).getByLabelText("Folder to add"), { target: { value: "HR" } });
+    fireEvent.click(within(guard).getByRole("button", { name: "Add folder" }));
+    await act(async () => { fireEvent.click(within(guard).getByRole("button", { name: "Create policy" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "policies", body: expect.objectContaining({ name: "HR AI", kind: "ai", folders: ["HR"],
+      rules: { mask: true, models: ["company-gpt"], content: "log" } }) }));
     // deleting asks first; the default cannot be deleted
     const list2 = await screen.findByRole("table", { name: "Policies list" });
     fireEvent.keyDown(within(list2).getByRole("button", { name: "Actions for Default code analysis" }), { key: "Enter" });

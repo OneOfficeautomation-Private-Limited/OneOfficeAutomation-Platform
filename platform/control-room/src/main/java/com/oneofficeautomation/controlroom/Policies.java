@@ -67,7 +67,7 @@ final class Policies {
             for (Object f : (List<Object>) JsonLite.parse((String) other.get("folders")))
                 if (folders.contains(f)) throw new OoaException("CR.CONFLICT", "The folder '" + f + "' already has the " + KINDS.get(kind).toLowerCase(Locale.ROOT) + " policy '" + other.get("name") + "'",
                         "Take the folder out of that policy first, or change that policy instead.");
-        Map<String, Object> rules = kind.equals("code") ? CodeAnalysis.clean(rulesIn) : guardrails(rulesIn);
+        Map<String, Object> rules = kind.equals("code") ? CodeAnalysis.clean(rulesIn) : cleanGuardrails(rulesIn);
         String description = body.get("description") == null ? "" : String.valueOf(body.get("description")).trim();
         if (description.length() > 500) throw new OoaException("CR.BAD_INPUT", "The description is up to 500 characters");
         String pid = id == null ? ControlRoom.id("pol") : id;
@@ -99,8 +99,36 @@ final class Policies {
         }
     }
 
-    /** AI guardrails as saved (step 2 of item 5 fills in what they do); kept as given for now. */
-    static Map<String, Object> guardrails(Map<String, Object> in) { return new LinkedHashMap<>(in); }
+    /**
+     * AI guardrails as saved: mask (personal data always masked, whatever an AI step says), models (the model connections
+     * agents may use; empty: any) and content (how answers are checked for harmful content: off, log or block).
+     */
+    Map<String, Object> cleanGuardrails(Map<String, Object> in) {
+        Map<String, Object> g = new LinkedHashMap<>();
+        g.put("mask", !Boolean.FALSE.equals(in.get("mask")));
+        List<String> models = new ArrayList<>();
+        if (in.get("models") instanceof List<?> l) for (Object o : l) {
+            String n = String.valueOf(o);
+            if (db.one("SELECT name FROM model_connections WHERE name = ?", n) == null)
+                throw new OoaException("CR.BAD_INPUT", "There is no model connection named '" + n + "'", "Pick models from Model Connections.");
+            if (!models.contains(n)) models.add(n);
+        }
+        g.put("models", models);
+        String content = in.get("content") == null ? "off" : String.valueOf(in.get("content"));
+        if (!Set.of("off", "log", "block").contains(content)) throw new OoaException("CR.BAD_INPUT", "The content check is off, log or block");
+        g.put("content", content);
+        return g;
+    }
+
+    /** The AI guardrails for an agent, by its folder, with the policy's name, as sent with its runs; null when there are none. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> guardrailsFor(String agentPath) {
+        Map<String, Object> p = find("ai", Folders.folderOf(agentPath == null ? "" : agentPath));
+        if (p == null) return null;
+        Map<String, Object> g = new LinkedHashMap<>((Map<String, Object>) p.get("rules"));
+        g.put("name", p.get("name"));
+        return g;
+    }
 
     private Map<String, Object> defaultPolicy() {
         Map<String, Object> d = new LinkedHashMap<>();

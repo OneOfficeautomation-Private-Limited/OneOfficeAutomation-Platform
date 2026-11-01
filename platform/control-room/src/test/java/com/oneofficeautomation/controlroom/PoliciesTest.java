@@ -54,6 +54,15 @@ class PoliciesTest {
         assertEquals("CR.BAD_INPUT", code(() -> cr.policies.delete(admin, Policies.DEFAULT_ID, null)));
         // an AI guardrails policy may cover the same folder as a code analysis one
         assertEquals("ok", code(() -> cr.policies.save(admin, null, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance")), null)));
+        // AI guardrails: personal data masked unless switched off, only known model connections, the content check off, log or block;
+        // runs of agents in Finance (and below) get them, others get none
+        Map<String, Object> g = cr.policies.guardrailsFor("Finance/Invoices/Pay.flow.json");
+        assertEquals("Finance AI", g.get("name"));
+        assertEquals(Boolean.TRUE, g.get("mask"));
+        assertEquals("off", g.get("content"));
+        assertNull(cr.policies.guardrailsFor("Sales/Report.flow.json"));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.policies.save(admin, null, Map.of("name", "Bad models", "kind", "ai", "rules", Map.of("models", List.of("nope"))), null)));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.policies.save(admin, null, Map.of("name", "Bad check", "kind", "ai", "rules", Map.of("content", "loud")), null)));
 
         // taking the folder out lets the check-in through; deleting the policy is recorded
         cr.policies.save(admin, (String) strict.get("id"), Map.of("name", "Finance: strict", "folders", List.of(), "rules", strict.get("rules")), null);

@@ -101,6 +101,8 @@ public final class RunWorker {
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
                 // Prompt Skills kept in One CommandCenter; a skill file in the workspace is used when One CommandCenter sends none
                 .service("prompt_skills", (java.util.function.Supplier<Object>) () -> skills)
+                // the folder's AI guardrails (Administration > Policies): masking, models allowed, content check
+                .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.

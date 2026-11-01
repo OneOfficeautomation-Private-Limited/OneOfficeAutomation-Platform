@@ -1683,6 +1683,8 @@ public final class ControlRoom {
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             if (!skills.isEmpty()) job.put("skills", skills);
+            Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
+            if (guardrails != null) job.put("guardrails", guardrails);
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
             return job;
         }

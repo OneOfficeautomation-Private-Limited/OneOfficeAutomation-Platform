@@ -55,4 +55,29 @@ class ModelLimitsTest {
             assertNull(ModelConnections.connectionOf(typed));
         } finally { ModelConnections.clock = clock; ModelConnections.sleeper = sleeper; }
     }
+
+    /** A folder's AI guardrails (Administration > Policies), sent with the run: masking forced on, only the models allowed, the content check's mode. */
+    @Test void aiGuardrailsFromThePolicy() throws Exception {
+        Path w = Files.createTempDirectory("ooa-guardrails");
+        Files.writeString(w.resolve("model-connections.json"), "{\"connections\":[{\"name\":\"azure\",\"provider\":\"azure_openai\",\"model\":\"gpt-4o\"},"
+            + "{\"name\":\"openai\",\"provider\":\"openai\",\"model\":\"gpt-4o-mini\",\"content_check\":\"moderation\"}]}");
+        Map<String, Object> services = new HashMap<>();
+        services.put("ai_guardrails", (java.util.function.Supplier<Object>) () -> Map.of("name", "Finance AI", "mask", true, "models", List.of("azure"), "content", "log"));
+        ActionContext ctx = new ActionContext("run_guard", "s1", "default", w, new HashMap<>(), services, new java.util.concurrent.atomic.AtomicBoolean(), List::of, (l, m) -> { });
+
+        var cfg = ModelConnections.config(ctx, "azure", null, null, null, null, 0, 100, false);
+        assertTrue(cfg.maskPii(), "the step asked not to mask, the guardrails mask anyway");
+        assertEquals("log", ModelConnections.contentCheck(ctx, cfg), "the guardrails' content check wins over the connection's");
+        ActionException other = assertThrows(ActionException.class, () -> ModelConnections.config(ctx, "openai", null, null, null, null, 0, 100, false));
+        assertEquals("AI.MODEL_NOT_ALLOWED", other.code());
+        assertTrue(other.getMessage().contains("Finance AI"), other.getMessage());
+        assertEquals("AI.MODEL_NOT_ALLOWED", assertThrows(ActionException.class, () -> ModelConnections.config(ctx, null, "openai", "gpt-4o", null, null, 0, 100, false)).code(),
+            "a model typed on the step is not an allowed connection");
+
+        // without guardrails: the step's own setting, and the connection's content check
+        ActionContext free = ctx(w, "run_free", new ArrayList<>());
+        var own = ModelConnections.config(free, "openai", null, null, null, null, 0, 100, false);
+        assertFalse(own.maskPii());
+        assertEquals("block", ModelConnections.contentCheck(free, own));
+    }
 }

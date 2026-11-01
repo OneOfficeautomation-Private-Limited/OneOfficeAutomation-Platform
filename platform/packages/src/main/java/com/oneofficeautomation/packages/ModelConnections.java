@@ -32,6 +32,28 @@ final class ModelConnections {
         catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in One AgentStudio."); }
     }
 
+    /**
+     * The AI guardrails for this run (Administration > Policies, 1 Nov 2026), sent by One CommandCenter with the job for
+     * the agent's folder: mask (personal data always masked), models (the model connections allowed; empty: any) and
+     * content (off, log or block). Empty when the folder has none, or outside One CommandCenter.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> guardrails(ActionContext ctx) {
+        try {
+            Supplier<Object> svc = ctx.service("ai_guardrails", Supplier.class);
+            if (svc != null && svc.get() instanceof Map<?, ?> m) return (Map<String, Object>) m;
+        } catch (RuntimeException ignored) { /* no service: no guardrails */ }
+        return Map.of();
+    }
+
+    /** How a model's answer is checked for harmful content: "block", "log", or null (not checked); the guardrails win over the connection. */
+    static String contentCheck(ActionContext ctx, LlmClient.Config cfg) {
+        Object g = guardrails(ctx).get("content");
+        if ("block".equals(g) || "log".equals(g)) return (String) g;
+        if ("off".equals(g)) return null;
+        return "moderation".equals(option(cfg, "content_check")) ? "block" : null;
+    }
+
     /** The named connection, or the default one when the name is "default"; null when name is empty. */
     @SuppressWarnings("unchecked")
     static Map<String, Object> find(ActionContext ctx, String name) {
@@ -55,6 +77,15 @@ final class ModelConnections {
     static LlmClient.Config config(ActionContext ctx, String connection, String provider, String model, Object key, String base, double temp, int max, boolean mask,
                                    Object accessKeyId, String region) {
         Map<String, Object> c = find(ctx, connection);
+        // the folder's AI guardrails: only the models allowed, and personal data always masked
+        Map<String, Object> g = guardrails(ctx);
+        if (g.get("models") instanceof List<?> allowed && !allowed.isEmpty()) {
+            String name = c == null ? null : String.valueOf(c.get("name"));
+            if (name == null || !allowed.contains(name))
+                throw new ActionException("AI.MODEL_NOT_ALLOWED", (name == null ? "A model set on the action" : "The model connection '" + name + "'")
+                        + " is not allowed by the AI guardrails '" + g.get("name") + "'", "Use one of these model connections: " + allowed.stream().map(String::valueOf).reduce((a, b) -> a + ", " + b).orElse("") + ".");
+        }
+        if (Boolean.TRUE.equals(g.get("mask"))) mask = true;
         if (c != null && c.get("blocked") instanceof String why)
             throw new ActionException("AI.BUDGET_REACHED", why, "An administrator raises the budget in Model Connections, or the budget starts again next month.");
         if (c != null) {

@@ -151,9 +151,14 @@ final class LlmClient {
 
     /** The provider's moderation check on an answer (OpenAI and OpenAI-compatible endpoints); a flagged answer fails the step. */
     @SuppressWarnings("unchecked")
-    static void moderate(ActionContext ctx, Config cfg, String provider, String text) {
-        if (!List.of("openai", "openai_compatible", "azure_openai").contains(provider))
+    static void moderate(ActionContext ctx, Config cfg, String provider, String text) { moderate(ctx, cfg, provider, text, true); }
+
+    /** The content check of an answer; with block a flagged answer fails the step, otherwise it is only logged (AI guardrails' Log only). */
+    static void moderate(ActionContext ctx, Config cfg, String provider, String text, boolean block) {
+        if (!List.of("openai", "openai_compatible", "azure_openai").contains(provider)) {
+            if (!block) { ctx.warn("The content check is set to log only, but " + provider + " has no moderation service: the answer was not checked."); return; }
             throw new ActionException(P + ".NO_MODERATION", "The content check uses an OpenAI-style moderation endpoint; " + provider + " has none", "Turn the content check off for this connection.");
+        }
         String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
         HttpJson.Req req = provider.equals("azure_openai") ? HttpJson.req(P, "POST", base + "/openai/moderations?api-version=2024-06-01") : HttpJson.req(P, "POST", base + "/moderations");
         if (cfg.apiKey() instanceof SecureString k) { if (provider.equals("azure_openai")) req.header("api-key", k.reveal()); else req.bearer(k); }
@@ -162,6 +167,7 @@ final class LlmClient {
             List<String> why = new ArrayList<>();
             if (first.get("categories") instanceof Map<?, ?> cats) for (var e : cats.entrySet()) if (Boolean.TRUE.equals(e.getValue())) why.add(String.valueOf(e.getKey()));
             ctx.warn("The model's answer was flagged by the content check: " + why);
+            if (!block) return;
             throw new ActionException("AI.CONTENT_FLAGGED", "The model's answer was flagged by the content check" + (why.isEmpty() ? "" : ": " + String.join(", ", why)),
                 "Rephrase the prompt, or have a person review this case.");
         }
@@ -232,7 +238,8 @@ final class LlmClient {
         if (r.choices() != null) { choices = new ArrayList<>(); for (String c : r.choices()) choices.add(unmask(c, mapping)); }
         Reply out = new Reply(unmask(r.text(), mapping), calls, r.inTokens(), r.outTokens(), counts, choices);
         // the connection's content check: the answer goes to the provider's moderation endpoint before anyone uses it
-        if ("moderation".equals(ModelConnections.option(cfg, "content_check")) && out.text() != null && !out.text().isBlank()) moderate(ctx, cfg, provider, out.text());
+        String check = ModelConnections.contentCheck(ctx, cfg);
+        if (check != null && out.text() != null && !out.text().isBlank()) moderate(ctx, cfg, provider, out.text(), check.equals("block"));
         govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs);
         return out;
     }
