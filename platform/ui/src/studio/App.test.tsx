@@ -135,7 +135,7 @@ function fakeServer() {
     usedBy: [{ path: "Finance/lookup.flow.json" }] });
   routes["POST assistant/build"] = (b) => { created.push({ assistant: b.prompt, connection: b.connection });
     return { notes: "Logs a greeting.", steps: [{ id: "x1", action: "core/log", args: { message: "Hello $who" } }], variables: [{ name: "who", type: "String" }] }; };
-  // the Command Center agent repository: one agent, checked out by nobody; the fake account's password is "letmein"
+  // One CommandCenter agent repository: one agent, checked out by nobody; the fake account's password is "letmein"
   let cr: any = { connected: false, url: "http://cc.example:8720", user: null };
   let locked: string | null = null;
   const apiError = (message: string) => Object.assign(new Error(message), { api: { code: "STUDIO.CR", message } });
@@ -144,10 +144,10 @@ function fakeServer() {
     created.push({ connect: b.url, user: b.username }); cr = { connected: true, url: b.url, user: { username: b.username } }; return cr; };
   routes["POST cr/disconnect"] = () => (cr = { connected: false, url: cr.url, user: null });
   routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked }],
-    mapping: locked ? { "Command Center/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
+    mapping: locked ? { "One CommandCenter/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
   routes["GET cr/versions"] = () => ({ versions: [{ version: 2, author: "asha", created: "2026-10-29T10:00:00Z", comment: "Reads the totals" },
     { version: 1, author: "asha", created: "2026-10-28T10:00:00Z", comment: "First version" }] });
-  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: "Command Center/Invoice intake.flow.json", path: b.path, version: 2 }; };
+  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: "One CommandCenter/Invoice intake.flow.json", path: b.path, version: 2 }; };
   routes["POST cr/undo-checkout"] = (b) => { created.push({ undo: b.path }); locked = null; return { ok: true }; };
   routes["POST cr/checkin"] = (b) => { created.push({ checkin: b }); return { path: "Finance/Invoice intake.flow.json", version: 3, local: b.local, production: b.production }; };
   let windows: unknown[] = [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }];
@@ -187,9 +187,9 @@ function fakeServer() {
 }
 
 describe("new Studio", () => {
-  it("shows the Command Center menu in five sections by task, with links to Command Center pages", async () => {
+  it("shows One CommandCenter menu in five sections by task, with links to One CommandCenter pages", async () => {
     render(<App api={fakeServer().api} />);
-    const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
@@ -288,7 +288,7 @@ describe("new Studio", () => {
   it("folds the menu to icons and back, opens and closes sections, and remembers it", async () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
-    const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));   // one section open at a time
     expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
     expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
@@ -300,7 +300,7 @@ describe("new Studio", () => {
 
     unmount();
     render(<App api={api} />);
-    const again = await screen.findByRole("navigation", { name: "Command Center" });
+    const again = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(again).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(within(again).getByRole("button", { name: "MANAGE" }));   // an icon opens the menu at its section
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
@@ -1437,12 +1437,12 @@ describe("new Studio", () => {
     expect(saved.variables.map((v: any) => v.name)).toEqual(["document", "api_key", "text", "fields"]);
   });
 
-  it("signs in to Command Center on the Public tab, lists the agent repository, and checks an agent out", async () => {
+  it("signs in to One CommandCenter on the Public tab, lists the agent repository, and checks an agent out", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
-    const form = await screen.findByRole("form", { name: "Sign in to Command Center" });
-    expect((within(form).getByLabelText("Command Center address") as HTMLInputElement).value).toBe("http://cc.example:8720");
+    const form = await screen.findByRole("form", { name: "Sign in to One CommandCenter" });
+    expect((within(form).getByLabelText("One CommandCenter address") as HTMLInputElement).value).toBe("http://cc.example:8720");
     fireEvent.change(within(form).getByLabelText("User name"), { target: { value: "ravi" } });
     fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "wrong" } });
     await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Sign in" })); });
@@ -1462,7 +1462,7 @@ describe("new Studio", () => {
     fireEvent.click(within(versions).getAllByRole("button", { name: "Close" }).pop()!);
     await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "Check out" })); });
     expect(created).toContainEqual({ checkout: "Finance/Invoice intake.flow.json" });
-    expect(await screen.findByText(/Checked out v2 into your workspace: Command Center\/Invoice intake.flow.json/)).toBeTruthy();
+    expect(await screen.findByText(/Checked out v2 into your workspace: One CommandCenter\/Invoice intake.flow.json/)).toBeTruthy();
     expect(screen.getByRole("tab", { name: /Invoice intake/, selected: true })).toBeTruthy();
   });
 
@@ -1473,7 +1473,7 @@ describe("new Studio", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("By you");
-    expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: Command Center/Invoice intake.flow.json");
+    expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: One CommandCenter/Invoice intake.flow.json");
     expect(within(row).getByRole("button", { name: "Open my copy" })).toBeTruthy();
     fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));
@@ -1482,7 +1482,7 @@ describe("new Studio", () => {
     expect(created).toContainEqual({ undo: "Finance/Invoice intake.flow.json" });
     await waitFor(() => expect(screen.getByText("Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
-    expect(await screen.findByRole("form", { name: "Sign in to Command Center" })).toBeTruthy();
+    expect(await screen.findByRole("form", { name: "Sign in to One CommandCenter" })).toBeTruthy();
   });
 
   it("checks the open agent in, signing in first and saving unsaved changes", async () => {
@@ -1589,7 +1589,7 @@ describe("new Studio", () => {
     expect(within(within(where).getByRole("group", { name: "Browser windows" })).getAllByRole("button")).toHaveLength(1);   // the agents' window is not offered twice
     // a browser Studio cannot reach: how to connect it, or a new recording window, or record it as an application
     fireEvent.click(within(within(where).getByRole("group", { name: "Browser windows" })).getByRole("button", { name: /Guide.pdf/ }));
-    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to Studio");
+    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to One AgentStudio");
     fireEvent.click(within(where).getByRole("button", { name: "Record a page in a new Microsoft Edge window…" }));
     expect((within(where).getByLabelText("Browser") as HTMLSelectElement).value).toBe("edge");
     // Refresh reads the windows again

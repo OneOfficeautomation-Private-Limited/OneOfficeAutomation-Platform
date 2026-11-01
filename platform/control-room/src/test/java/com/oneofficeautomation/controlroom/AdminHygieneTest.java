@@ -10,7 +10,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Administration hygiene (S11): built-in roles can be switched off; the Command Center's outgoing proxy is set in Settings. */
+/** Administration hygiene (S11): built-in roles can be switched off; One CommandCenter's outgoing proxy is set in Settings. */
 class AdminHygieneTest {
 
     @Test void aSwitchedOffBuiltInRoleGrantsNothingAndCannotBeGiven() throws Exception {

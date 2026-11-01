@@ -108,7 +108,7 @@ Prompt Skills (AI > Prompt Skills) are reviewed prompt templates that agents run
 | From a template | Starts a private skill from a built-in template (summary, request routing, invoice fields) or a template an administrator published |
 
 Runs receive the skills their agents name (shared skills, and the run's person's own private ones). When a step names
-the skill through a variable, every skill the person may use is sent. A skill in the Command Center wins over a skill
+the skill through a variable, every skill the person may use is sent. A skill in One CommandCenter wins over a skill
 file of the same name in the runner's workspace. A missing skill fails the run before it starts.
 
 Permissions: `skills.view` to see and use, `skills.manage` to create and change, `skills.all` to change anyone's.
@@ -206,4 +206,4 @@ only when the name is free; inserted steps get fresh ids and stay selected for r
 - [05 Work queues](05-work-queues.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
 - [12 Agent tests](12-agent-tests.md) (checks suited to AI answers)
-- [Command Center and runner, section 9](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 9](../user-guide/00-README.md)

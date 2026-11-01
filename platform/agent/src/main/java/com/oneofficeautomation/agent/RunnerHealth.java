@@ -21,7 +21,7 @@ import java.nio.file.*;
 import java.util.*;
 
 /**
- * What the Command Center can ask a runner about its own state (Runners page): its CPU and memory use (a moving
+ * What One CommandCenter can ask a runner about its own state (Runners page): its CPU and memory use (a moving
  * average of the last samples, sent with each heartbeat), its recent log lines and newest run logs, and a picture of
  * its screen. Nothing is sent unless asked, except the two percentages.
  */

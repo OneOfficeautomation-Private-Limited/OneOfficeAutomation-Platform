@@ -61,7 +61,7 @@ export function DependenciesPanel({ api, path, dirty, onOpen, onStep }:
   return (
     <div className="st-deps">
       {dirty && <p className="st-alert" role="note">Save the agent to include your latest changes.</p>}
-      <p className="st-muted st-pad">What this agent needs to run, and which agents use it. Check child agents in too before running this agent from Command Center.</p>
+      <p className="st-muted st-pad">What this agent needs to run, and which agents use it. Check child agents in too before running this agent from One CommandCenter.</p>
       {error ? <p className="st-error st-pad" role="alert">{error}</p> : !deps ? <p className="st-muted st-pad">Looking through the workspace…</p> : <>
         {group("Child agents and agent tools", deps.bots, "This agent does not call other agents.", { icon: "bolt", color: "#6d28d9" })}
         {group("Scripts", deps.scripts, "No script files.", { icon: "code", color: "#0f766e" })}

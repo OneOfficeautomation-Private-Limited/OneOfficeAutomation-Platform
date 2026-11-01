@@ -123,7 +123,7 @@ Named group of steps for readability; no runtime effect.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Group title shown in Agent Studio. |
+| Title | `title` | Text | No |  | Main | Group title shown in One AgentStudio. |
 
 *Time limit 60 s.*
 
@@ -189,7 +189,7 @@ Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).
 
 `core/pause` (action)
 
-Pause the run until someone resumes it from Agent Studio or Command Center, or until the optional timeout.
+Pause the run until someone resumes it from One AgentStudio or One CommandCenter, or until the optional timeout.
 
 **Settings**
 

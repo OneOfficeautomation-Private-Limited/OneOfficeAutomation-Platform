@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  * {@code ooa assistant}: the attended desktop app (R13). It sits in the notification area and, as the signed-in
  * person, starts the agents they may run on their own default runner (asking for their inputs), counts the tasks
  * workflows give them, and tells them when a task arrives or one of their runs finishes. It signs in with the person's
- * API key from the Command Center (Your API keys); on Windows the key is kept protected for this Windows user (DPAPI).
+ * API key from One CommandCenter (Your API keys); on Windows the key is kept protected for this Windows user (DPAPI).
  * <pre>
  * ooa assistant [--url https://ooa.company.com]      start (asks for the address and key the first time)
  * ooa assistant --sign-out                           forget the address and key
@@ -103,7 +103,7 @@ final class Assistant {
     static String[] askSignIn(String url) {
         JTextField address = new JTextField(url == null ? "https://" : url, 30);
         JPasswordField key = new JPasswordField(30);
-        Object[] form = {"Command Center address", address, "Your API key (One CommandCenter > your name > API keys)", key};
+        Object[] form = {"One CommandCenter address", address, "Your API key (One CommandCenter > your name > API keys)", key};
         if (JOptionPane.showConfirmDialog(null, form, "Sign in to ONEOFFICEAUTOMATION", JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return null;
         return new String[]{address.getText().strip(), new String(key.getPassword()).strip()};
     }

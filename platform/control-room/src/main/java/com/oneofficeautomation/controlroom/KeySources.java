@@ -15,7 +15,7 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 /**
- * Where the vault master key comes from when it is kept outside the Command Center (S7), named by OOA_MASTER_KEY_SOURCE:
+ * Where the vault master key comes from when it is kept outside One CommandCenter (S7), named by OOA_MASTER_KEY_SOURCE:
  * <ul>
  * <li>{@code azure-keyvault:https://NAME.vault.azure.net/secrets/SECRET} — a Key Vault secret, read with the machine's
  *     managed identity (virtual machine, App Service, Container Apps) or AZURE_TENANT_ID, AZURE_CLIENT_ID and
@@ -24,7 +24,7 @@ import java.util.*;
  *     AWS_SECRET_ACCESS_KEY (and AWS_SESSION_TOKEN), the container's task role or the EC2 instance role;</li>
  * <li>{@code gcp-secret:projects/P/secrets/S/versions/latest} — a Secret Manager secret, read with the machine's
  *     service account;</li>
- * <li>{@code prompt} — nobody stores it: an operator types the key when the Command Center starts (manual unlock).</li>
+ * <li>{@code prompt} — nobody stores it: an operator types the key when One CommandCenter starts (manual unlock).</li>
  * </ul>
  * The secret holds the key as Base64 (32 random bytes), as OOA_MASTER_KEY would. The key only ever lives in memory.
  */
@@ -40,8 +40,8 @@ public final class KeySources {
     static java.util.function.Supplier<char[]> prompt = () -> {
         java.io.Console c = System.console();
         if (c == null) throw new OoaException("CR.VAULT_KEY", "OOA_MASTER_KEY_SOURCE=prompt needs a console to type the key in",
-            "Start the Command Center in a command window (not as a service), or use another key source");
-        return c.readPassword("Vault master key (Base64), typed to unlock the Command Center: ");
+            "Start One CommandCenter in a command window (not as a service), or use another key source");
+        return c.readPassword("Vault master key (Base64), typed to unlock One CommandCenter: ");
     };
 
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();

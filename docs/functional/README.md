@@ -32,7 +32,7 @@ console where they are changed.
 | 11 | [Operations, audit and dashboards](11-operations-audit-and-dashboards.md) | Agent Activity pages, Home, Operations, dashboards and KPIs, Audit Trail, retention, e-mail, backups |
 | 12 | [Agent tests](12-agent-tests.md) | Test sets, cases, expectations and comparisons, scoring, history |
 | 13 | [Licensing and editions](13-licensing-and-editions.md) | Evaluation, licence files and states, seats, enforcement, SaaS subscription seats |
-| 14 | [One AgentStudio](14-studio-features.md) | Explorer, editor views, step settings, validation, run and debug, Run from here, child agents, recorder and capture, assistant, Command Center link |
+| 14 | [One AgentStudio](14-studio-features.md) | Explorer, editor views, step settings, validation, run and debug, Run from here, child agents, recorder and capture, assistant, One CommandCenter link |
 
 ## Product parts named in this collection
 
@@ -40,9 +40,9 @@ console where they are changed.
 | --- | --- |
 | One CommandCenter | The central server and its web console: repository, runs, runners, schedules, triggers, queues, workflows, vault, users, audit, settings. Its API is under `/api/`. |
 | One AgentStudio | The browser-based designer for agents and other automation items, served at `/studio/` by `ooa server`, working on a private workspace on the designer's computer. |
-| OneRunner | The service on each machine that takes runs from the Command Center and runs each agent in its own worker process. Called "runner" or "device" in the API. |
-| Credential vault | The encrypted credential store of the Command Center. |
-| Workflow | The workflow designer (in Studio) and runtime (in the Command Center) with the Task inbox. |
+| OneRunner | The service on each machine that takes runs from One CommandCenter and runs each agent in its own worker process. Called "runner" or "device" in the API. |
+| Credential vault | The encrypted credential store of One CommandCenter. |
+| Workflow | The workflow designer (in Studio) and runtime (in One CommandCenter) with the Task inbox. |
 | Model Connections | Named connections to AI model providers. |
 | Audit Trail | The hash-chained record of every sign-in, change, run and credential use. |
 
@@ -59,7 +59,7 @@ console where they are changed.
 
 ## Related documents
 
-- [Command Center and runner: setup and daily use](../user-guide/00-README.md)
+- [One CommandCenter and runner: setup and daily use](../user-guide/00-README.md)
 - [Architecture](../architecture/README.md)
 - [Command catalogue](../COMMAND_CATALOG.md) and the generated toolkit reference in [../reference/toolkits/](../reference/toolkits/)
 - [Licensing](13-licensing-and-editions.md)

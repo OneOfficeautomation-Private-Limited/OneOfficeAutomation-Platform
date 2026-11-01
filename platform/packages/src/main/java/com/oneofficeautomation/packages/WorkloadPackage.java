@@ -17,7 +17,7 @@ import java.util.*;
 /**
  * Work queues: a dispatcher bot adds items, performer bots take them one by one, and each item ends completed or
  * failed, with automatic retries. Locally the queue is queues/<name>.json in the workspace, locked so several bots on
- * one device can share it safely; in Control Center the same commands use central queues with SLAs across devices.
+ * one device can share it safely; in One CommandCenter the same commands use central queues with SLAs across devices.
  */
 @OoaPackage(id = "ooa.workload", name = "Work queues", version = "1.0.0", description = "Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries.")
 public final class WorkloadPackage {

@@ -1,20 +1,20 @@
 # Log to file
 
-Toolkit `ooa.log`, version 1.0.0. Write timestamped lines to a log file or to the run log in Command Center; secrets are masked automatically.
+Toolkit `ooa.log`, version 1.0.0. Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically.
 
 [All toolkits](README.md)
 
 ## Contents
 
-- **Logging**: Log to Command Center, Log variables to file, Log to file
+- **Logging**: Log to One CommandCenter, Log variables to file, Log to file
 
 ## Logging
 
-### Log to Command Center
+### Log to One CommandCenter
 
 `ooa.log/log_to_command_center` (action)
 
-Add a message, with optional details, to this run's log so it appears in Command Center with the run's activity.
+Add a message, with optional details, to this run's log so it appears in One CommandCenter with the run's activity.
 
 **Settings**
 

@@ -67,7 +67,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-lic-title">
       <header className="cc-list-head">
         <h1 id="cc-lic-title">Licenses</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="The licence of this Command Center and who holds which seat.">i</span>
+        <span className="ov-info" role="img" aria-label="About this page" title="The licence of this One CommandCenter and who holds which seat.">i</span>
         {lic && <span className={"cc-pill is-" + stateCls}><span className="cc-pill-dot" />{stateText}</span>}
         {lic?.expires && <span className="cc-list-count">Valid until {lic.expires}{lic.days_left !== undefined && lic.days_left >= 0 ? " · " + lic.days_left + " days left" : ""}</span>}
         <span className="ov-fill" />
@@ -123,7 +123,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                       {lic.grace_days !== undefined && <><dt>Grace period</dt><dd>{lic.grace_days} days, until {lic.grace_until}</dd></>}
                       {lic.bound_to && <><dt>Issued for</dt><dd>{lic.bound_to}</dd></>}
                     </dl>}
-                {lic.install_id && <p className="cc-list-sub">Install id of this Command Center: <code>{lic.install_id}</code>. Send it with a licence request; a licence issued for it works only here.</p>}
+                {lic.install_id && <p className="cc-list-sub">Install id of this One CommandCenter: <code>{lic.install_id}</code>. Send it with a licence request; a licence issued for it works only here.</p>}
               </div>
             </section>
           </div>

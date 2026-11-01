@@ -308,7 +308,7 @@ public final class Runner {
         }
 
         /**
-         * Saved connections by name: from the connections service (Command Center) or connections.json in the
+         * Saved connections by name: from the connections service (One CommandCenter) or connections.json in the
          * workspace. Each is {"package": "ooa.servicenow", "values": {input: value}, "credentials": {input: vault ref}}.
          */
         @SuppressWarnings("unchecked")
@@ -329,7 +329,7 @@ public final class Runner {
         Map<String, Object> withConnection(String name, String pid, ActionSpec spec, Map<String, Object> raw) {
             if (!(connections().get(name) instanceof Map<?, ?> found))
                 throw new OoaException("CONNECTION.NOT_FOUND", "There is no saved connection named '" + name + "'",
-                        "Create it under Connections (Command Center or Studio), or choose another connection on the step.");
+                        "Create it under Connections (One CommandCenter or One AgentStudio), or choose another connection on the step.");
             Map<String, Object> conn = (Map<String, Object>) found;
             Object pkgOf = conn.get("package");
             if (pkgOf instanceof String cp && !cp.isBlank() && !cp.equals(pid))
@@ -510,7 +510,7 @@ public final class Runner {
         Object lookup(String name) { return scope.get(name); }
 
         void check() {
-            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from Control Center");
+            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter");
             if (pause.get()) {
                 emit("run.paused", null, data());
                 while (pause.get() && !cancel.get()) {
@@ -756,7 +756,7 @@ public final class Runner {
             sleep("milliseconds".equals(unit) ? wait / 1000 : "minutes".equals(unit) ? wait * 60 : wait);
         }
 
-        /** core/pause: the same pause the Control Center button uses, started from inside the agent. */
+        /** core/pause: the same pause One CommandCenter button uses, started from inside the agent. */
         void pauseHere(Map<String, Object> a, String sid) {
             String msg = optText(a.get("message"));
             Object t = resolve(a.get("timeout_seconds"));

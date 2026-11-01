@@ -17,7 +17,7 @@ import java.util.stream.Stream;
  * AI Skills (ai-skills/*.json, where the AI Skills package reads them) and scripts (*.py, *.ps1, *.vbs, *.js).
  * Every path is relative to the root and is checked to stay inside it; hidden entries (such as the
  * .trash folder) are never listed or addressable. Delete moves items to .trash so nothing is lost by accident.
- * In Control Center this becomes the private/shared repository with check-in, versions and permissions.
+ * In One CommandCenter this becomes the private/shared repository with check-in, versions and permissions.
  */
 final class Workspace {
     static final String BOT_SUFFIX = ".flow.json";
@@ -173,7 +173,7 @@ final class Workspace {
     String readItem(String path) throws IOException {
         Path p = resolve(path);
         if (!Files.isRegularFile(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "Agent Studio cannot open this kind of file: " + path, "Open it with another program.");
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot open this kind of file: " + path, "Open it with another program.");
         if (Files.size(p) > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The file is larger than 2 MB: " + path);
         return Files.readString(p, java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -181,7 +181,7 @@ final class Workspace {
     /** Saves a text item atomically; JSON items must stay valid JSON objects. */
     String writeItem(String path, String text, java.util.function.Function<String, Object> parseJson) throws IOException {
         Path p = resolve(path);
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "Agent Studio cannot save this kind of file: " + path);
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot save this kind of file: " + path);
         if (p.getParent() == null || !Files.isDirectory(p.getParent())) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found for " + path);
         if (text == null) throw new OoaException("WORKSPACE.BAD_CONTENT", "Nothing to save");
         if (text.length() > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The content is larger than 2 MB");

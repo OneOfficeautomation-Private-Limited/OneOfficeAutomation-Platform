@@ -10,7 +10,7 @@ import java.sql.*;
 import java.util.*;
 
 /**
- * {@code ooa db}: sets up and looks after the Command Center database. The server itself signs in with the runtime
+ * {@code ooa db}: sets up and looks after One CommandCenter database. The server itself signs in with the runtime
  * account (data rights only); these commands sign in with the setup account to create, upgrade and fill the schema.
  * <pre>
  * ooa db configure --engine sqlserver --host H [--port 1433] [--instance I] [--database D] --user ooa_app --setup-user ooa_setup [--tls required|off] [--tls-ca FILE] [--trust-any-certificate]
@@ -19,9 +19,9 @@ import java.util.*;
  * ooa db init                                     create the database and schema, give the runtime account data rights
  * ooa db migrate                                  upgrade the schema after an update
  * ooa db script [--engine sqlserver|postgresql|h2] print the schema SQL for a DBA
- * ooa db copy --from DIR [--replace]              copy the data of an embedded H2 Command Center into the configured database
+ * ooa db copy --from DIR [--replace]              copy the data of an embedded H2 One CommandCenter into the configured database
  * </pre>
- * Every command takes [--data DIR] (the Command Center data folder) and [--config FILE] (default DIR\config\ooa-db.properties).
+ * Every command takes [--data DIR] (One CommandCenter data folder) and [--config FILE] (default DIR\config\ooa-db.properties).
  */
 final class DbCommand {
     private DbCommand() { }
@@ -84,7 +84,7 @@ final class DbCommand {
             Files.write(file, lines);
         } catch (java.io.IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage()); }
         System.out.println("Wrote " + file);
-        if (v.containsKey("auth")) System.out.println("Windows sign-in: give the Command Center's account (for example DOMAIN\\ooa-svc$) a login and db_owner, then run ooa db init as that account" + (v.containsKey("setup.user") ? " (or set the setup password: ooa db set-password --setup)." : "."));
+        if (v.containsKey("auth")) System.out.println("Windows sign-in: give One CommandCenter's account (for example DOMAIN\\ooa-svc$) a login and db_owner, then run ooa db init as that account" + (v.containsKey("setup.user") ? " (or set the setup password: ooa db set-password --setup)." : "."));
         else if (!engine.equals("h2")) System.out.println("Next: ooa db set-password, ooa db set-password --setup, then ooa db init.");
         return 0;
     }
@@ -161,7 +161,7 @@ final class DbCommand {
         }
         int r = migrate(cfg, data);
         if (r == 0 && !runtime.isEmpty()) grantRuntime(cfg, data, vault, runtime);
-        else if (r == 0 && win) System.out.println("Give the Command Center's Windows account a login with db_datareader and db_datawriter in " + db + ", or add windows.login to " + cfg.file + " and run ooa db init again.");
+        else if (r == 0 && win) System.out.println("Give One CommandCenter's Windows account a login with db_datareader and db_datawriter in " + db + ", or add windows.login to " + cfg.file + " and run ooa db init again.");
         return r;
     }
 
@@ -208,7 +208,7 @@ final class DbCommand {
     }
 
     /**
-     * Copies every table of an embedded H2 Command Center into the configured database, in one transaction, then
+     * Copies every table of an embedded H2 One CommandCenter into the configured database, in one transaction, then
      * compares the row counts. The vault values stay encrypted, so the server must keep using the same master key.
      */
     static int copy(DbConfig cfg, Path data, Map<String, String> o) {

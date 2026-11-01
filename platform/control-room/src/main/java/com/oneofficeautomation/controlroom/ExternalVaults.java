@@ -25,7 +25,7 @@ import javax.crypto.spec.SecretKeySpec;
  * Reads secrets from an external vault linked to a vault folder. The folder keeps its owners, consumers and audit trail;
  * only the values live outside. A credential "name/attribute" in a linked folder maps to secret "name", field "attribute".
  *
- * Providers: hashicorp (KV v2), azure_keyvault, aws_secrets_manager, cyberark_ccp. The secret that lets the Command Center
+ * Providers: hashicorp (KV v2), azure_keyvault, aws_secrets_manager, cyberark_ccp. The secret that lets One CommandCenter
  * sign in to the external vault (token, client secret, AWS secret key) is stored encrypted in our own vault.
  */
 public final class ExternalVaults {
@@ -74,7 +74,7 @@ public final class ExternalVaults {
         } catch (OoaException e) {
             throw e;
         } catch (java.io.IOException e) {
-            throw new OoaException("VAULT.EXTERNAL_UNREACHABLE", "The external vault did not answer: " + e.getMessage(), "Check the vault URL and network access from the Command Center.", true, null);
+            throw new OoaException("VAULT.EXTERNAL_UNREACHABLE", "The external vault did not answer: " + e.getMessage(), "Check the vault URL and network access from One CommandCenter.", true, null);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new OoaException("VAULT.EXTERNAL_UNREACHABLE", "Interrupted while reading the external vault");
@@ -91,7 +91,7 @@ public final class ExternalVaults {
         HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
         if (r.statusCode() == 404) throw new OoaException("VAULT.NOT_FOUND", what + " was not found in the external vault");
         if (r.statusCode() == 401 || r.statusCode() == 403) throw new OoaException("VAULT.EXTERNAL_DENIED", "The external vault refused access to " + what + " (HTTP " + r.statusCode() + ")",
-                "Check the sign-in secret and the vault's access policy for the Command Center.");
+                "Check the sign-in secret and the vault's access policy for One CommandCenter.");
         if (r.statusCode() >= 300) throw new OoaException("VAULT.EXTERNAL", "The external vault answered HTTP " + r.statusCode() + " for " + what, null, r.statusCode() == 429 || r.statusCode() >= 500, null);
         Object o = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body());
         @SuppressWarnings("unchecked") Map<String, Object> m = o instanceof Map<?, ?> ? (Map<String, Object>) o : Map.of("value", o);

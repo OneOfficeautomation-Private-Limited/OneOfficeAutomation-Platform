@@ -14,7 +14,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * "ooa server" registers this computer's runner once per Command Center. Two Command Centers on one computer (a test
+ * "ooa server" registers this computer's runner once per One CommandCenter. Two One CommandCenter installations on one computer (a test
  * install next to the real one) used to share one registration file and kept making each other register again: the
  * real one ended up with several runners of the same name, most of them offline, and runs sent to those waited forever.
  */
@@ -54,7 +54,7 @@ class LocalRunnerRegistrationTest {
             assertEquals(1, dbA.query("SELECT id FROM devices").size(), "a new port is no new runner");
             assertEquals(urlA2, ((Map<String, Object>) JsonLite.parse(Files.readString(cfgA))).get("url"));
 
-            // the shared file of earlier versions is taken over by the Command Center it belongs to, not registered again
+            // the shared file of earlier versions is taken over by One CommandCenter it belongs to, not registered again
             Path legacy = cfgA.resolveSibling("local-agent.json");
             Files.move(cfgA, legacy);
             Ooa.startLocalAgent(a, urlA2, cfgA, home.resolve("work")).stop();

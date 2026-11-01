@@ -102,7 +102,7 @@ It runs as you, so it can only do what you may do in One CommandCenter.
 1. In One CommandCenter, open the user menu (your name) > **API keys** and create a key. Copy it; it is shown once.
 2. Start the assistant: your IT department may have put it in your Startup folder; otherwise run `ooa assistant` from
    the installation's `bin` folder (or ask IT for a shortcut).
-3. In **Sign in to ONEOFFICEAUTOMATION**, enter the **Command Center address** and **Your API key**, and press OK.
+3. In **Sign in to ONEOFFICEAUTOMATION**, enter the **One CommandCenter address** and **Your API key**, and press OK.
 4. The ONEOFFICEAUTOMATION icon appears in the notification area. The key is kept protected for your Windows user only.
 
 **Right-click the icon** for the menu:
@@ -159,7 +159,7 @@ Click the notification (or the icon) to open the matching page in One CommandCen
 ## Related guides
 
 - [User guide overview](00-README.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)
 - [AI in agents](13-ai-in-agents.md) (validating extracted values)
 - [Getting started](01-getting-started.md)
 - [Operators guide](05-operators-guide.md)

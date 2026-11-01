@@ -56,7 +56,7 @@ public final class CorePackage {
 
     @Action(id = "step", name = "Step", category = "Logic", description = "Named group of steps for readability; no runtime effect.")
     public Map<String, Object> step(ActionContext c,
-            @Input(name = "title", type = OoaType.STRING, required = false, description = "Group title shown in Agent Studio.") String title) { return interp(); }
+            @Input(name = "title", type = OoaType.STRING, required = false, description = "Group title shown in One AgentStudio.") String title) { return interp(); }
 
     @Action(id = "parallel", name = "Parallel", category = "Logic", description = "Run each child step as a concurrent branch and wait for all branches.")
     public Map<String, Object> parallel(ActionContext c,
@@ -116,7 +116,7 @@ public final class CorePackage {
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"success\"", enumValues = {"success", "failed"},
                     description = "success ends the agent normally; failed ends it with error AGENT.STOPPED.") String status) { return interp(); }
 
-    @Action(id = "pause", name = "Pause agent", category = "Agent", description = "Pause the run until someone resumes it from Agent Studio or Command Center, or until the optional timeout.")
+    @Action(id = "pause", name = "Pause agent", category = "Agent", description = "Pause the run until someone resumes it from One AgentStudio or One CommandCenter, or until the optional timeout.")
     public Map<String, Object> pause(ActionContext c,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Why the run is waiting; shown with the paused run.") String message,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, min = 0, description = "Resume by itself after this many seconds; waits until resumed when empty.") Object timeout) { return interp(); }

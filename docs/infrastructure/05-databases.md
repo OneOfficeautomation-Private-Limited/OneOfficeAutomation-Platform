@@ -2,7 +2,7 @@
 
 ## What this covers / audience
 
-The database engines the Command Center supports, the accounts and rights it needs, Windows integrated sign-in with
+The database engines One CommandCenter supports, the accounts and rights it needs, Windows integrated sign-in with
 a service account or gMSA, the `ooa db` commands, every connection setting, moving data from the evaluation
 database, and schema upgrades. For database administrators and server administrators.
 
@@ -47,7 +47,7 @@ logs, audit checkpoints and archives. Back these up with the database (see [07](
 | Account | Example | Rights | Used by |
 | --- | --- | --- | --- |
 | Setup | `ooa_setup` | SQL Server: `dbcreator` server role (it then owns the OOA database). PostgreSQL: may create databases. | `ooa db init`, `ooa db migrate`, `ooa db copy`, `ooa backup restore` |
-| Runtime | `ooa_app` | SQL Server: `db_datareader` and `db_datawriter` on the OOA database only. PostgreSQL: `USAGE` on schema `public` and `SELECT, INSERT, UPDATE, DELETE` on its tables. | The Command Center itself |
+| Runtime | `ooa_app` | SQL Server: `db_datareader` and `db_datawriter` on the OOA database only. PostgreSQL: `USAGE` on schema `public` and `SELECT, INSERT, UPDATE, DELETE` on its tables. | One CommandCenter itself |
 
 `ooa db init` and `ooa db migrate` grant the runtime account its rights. If the setup and runtime accounts are the
 same, the commands say so; use a separate data-only account in production. `ooa db test` reports whether the runtime
@@ -66,7 +66,7 @@ ALTER SERVER ROLE dbcreator ADD MEMBER ooa_setup;
 CREATE LOGIN ooa_app WITH PASSWORD = N'...', CHECK_POLICY = ON;
 ```
 
-Then, with the Command Center stopped, from `bin`:
+Then, with One CommandCenter stopped, from `bin`:
 
 ```
 ooa db configure --engine sqlserver --host sql01 --port 1433 --database ooa_command_center --user ooa_app --setup-user ooa_setup --tls required --tls-ca C:\certs\db-ca.crt --data D:\OOA\cc
@@ -105,7 +105,7 @@ ooa db init --data /var/lib/ooa
 
 ## 6. Windows sign-in (service account or gMSA)
 
-The Command Center can sign in to SQL Server as the Windows account its service runs as; no password is stored.
+One CommandCenter can sign in to SQL Server as the Windows account its service runs as; no password is stored.
 
 1. Run the service as that account:
    `ooa service install --mode server --account CORP\ooa-svc$ --host 0.0.0.0 --data D:\OOA\cc` (a gMSA, ending in `$`,
@@ -117,11 +117,11 @@ The Command Center can sign in to SQL Server as the Windows account its service 
    Windows login for `CORP\ooa-svc$` if needed, and gives it `db_datareader` and `db_datawriter`.
 
 The driver's sign-in library `lib\mssql-jdbc_auth-12.8.1.x64.dll` ships with the product and is loaded by the start
-scripts and services. Windows sign-in works only when the Command Center runs on Windows.
+scripts and services. Windows sign-in works only when One CommandCenter runs on Windows.
 
 ## 7. The `ooa db` commands
 
-Stop the Command Center first. Every command takes `--data DIR` and `--config FILE` (default
+Stop One CommandCenter first. Every command takes `--data DIR` and `--config FILE` (default
 `DIR\config\ooa-db.properties`).
 
 | Command | Does |
@@ -228,7 +228,7 @@ The schema is versioned (this release: version 23). At start:
 Upgrade procedure:
 
 1. Back up (`ooa backup now` and the database's own backup).
-2. Stop every Command Center node.
+2. Stop every One CommandCenter node.
 3. Install the new release (the setup package runs `ooa db migrate` itself when it finds the settings file).
 4. `ooa db migrate` (signs in with the setup account; add `setup.password` again if it was removed).
 5. Start the nodes.

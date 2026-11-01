@@ -155,7 +155,7 @@ public final class Platform {
     }
 
     /**
-     * The Command Center's own outgoing connections (single sign-on, SAML metadata, Git, model connections, external
+     * One CommandCenter's own outgoing connections (single sign-on, SAML metadata, Git, model connections, external
      * vaults, webhooks it calls) go through this proxy when set: http://host:port, with host names to reach directly.
      * Applied at start and when the setting changes, through Java's proxy settings.
      */
@@ -1028,7 +1028,7 @@ public final class Platform {
     /**
      * A queue's definition as a file: its settings, work item model and members, and optionally its waiting items
      * (new, retry and deferred, which become new). The runner pool is named, not linked, since pools differ between
-     * Command Centers.
+     * One CommandCenter installations.
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> exportQueue(User by, String qid, boolean withItems) {
@@ -1216,7 +1216,7 @@ public final class Platform {
         return purge(runDays, logDays, by.username(), ip);
     }
 
-    /** What this Command Center is and holds: the edition from the license (or the evaluation) and what it has in use. */
+    /** What this One CommandCenter is and holds: the edition from the license (or the evaluation) and what it has in use. */
     public Map<String, Object> license(User by) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("product", "ONEOFFICEAUTOMATION One CommandCenter");
@@ -1606,7 +1606,7 @@ public final class Platform {
         if (off.isEmpty()) return;
         for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
             String pid = String.valueOf(s.get("action")).split("/")[0];
-            if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this Command Center (step " + s.get("id") + ")",
+            if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this One CommandCenter (step " + s.get("id") + ")",
                     "Ask an administrator to switch it on under Toolkits, or remove the step.");
         }
     }

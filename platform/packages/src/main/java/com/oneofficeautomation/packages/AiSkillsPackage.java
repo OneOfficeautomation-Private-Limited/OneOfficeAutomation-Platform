@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 @OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt templates (Prompt Skills) with your values.")
 public final class AiSkillsPackage {
 
-    /** Skills sent by Command Center with the run ({name: definition}); empty when running from Studio. */
+    /** Skills sent by One CommandCenter with the run ({name: definition}); empty when running from Studio. */
     @SuppressWarnings("unchecked")
     static Map<String, Object> central(ActionContext ctx) {
         try {
@@ -103,7 +103,7 @@ public final class AiSkillsPackage {
         return run(ctx, name, values, connection, key, model, base, awsKeyId, awsRegion, null, null, true, 0);
     }
 
-    @Action(id = "list", name = "List Prompt Skills", category = "Prompt Skills", idempotent = true, description = "List the Prompt Skills this run can use (from Command Center and the workspace) with their descriptions.")
+    @Action(id = "list", name = "List Prompt Skills", category = "Prompt Skills", idempotent = true, description = "List the Prompt Skills this run can use (from One CommandCenter and the workspace) with their descriptions.")
     @Output(name = "skills", type = OoaType.TABLE, description = "Columns: name, description, model, output.")
     public Map<String, Object> list(ActionContext ctx) {
         List<Object> rows = new ArrayList<>();

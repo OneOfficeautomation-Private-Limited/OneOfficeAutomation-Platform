@@ -156,7 +156,7 @@ first few) go under More options.
 
 Input properties may also carry `default`, `enum`, `pattern`, `minimum`, `maximum`, `examples` and
 `x-ooa-visible-when`. Consumers of the manifest: Studio (Actions panel, settings panels, validation), `FlowValidator`,
-the Studio AI assistant, the Command Center's Toolkits page and code analysis, `connection-kinds`, MCP tool schemas,
+the Studio AI assistant, One CommandCenter's Toolkits page and code analysis, `connection-kinds`, MCP tool schemas,
 `ooa manifest`, and `docs/COMMAND_CATALOG.md`.
 
 ## 9. Registry, signing and versions
@@ -171,7 +171,7 @@ the Studio AI assistant, the Command Center's Toolkits page and code analysis, `
   `resolve(id, range)` uses the default if it satisfies the agent's `requires.packages` range, else the newest version
   that does (`PKG.VERSION_MISMATCH` otherwise). Ranges: `^1.2.0`, `~1.2.0`, `>=1.2.0`, exact, `*`, `latest`.
 - `recordUsage` keeps which agents used which version, for the Toolkits page.
-- Toolkits can be **switched off** per Command Center (`toolkit_settings`); check-in refuses agents that use a
+- Toolkits can be **switched off** per One CommandCenter (`toolkit_settings`); check-in refuses agents that use a
   switched-off toolkit.
 
 ## 10. First-party toolkits
@@ -196,7 +196,7 @@ it, write a test against a local fake server, add the toolkit to `docs/COMMAND_C
 sequenceDiagram
     participant Dev as Toolkit developer
     participant Adm as Administrator
-    participant CC as Command Center
+    participant CC as One CommandCenter
     participant R as Runner / RunWorker
     Dev->>Dev: ooa toolkit keygen --publisher acme  (acme.key, acme.pub)
     Dev->>Dev: build jar with the SDK; ooa toolkit sign --jar crm.jar --class com.acme.CrmPackage --key acme.key

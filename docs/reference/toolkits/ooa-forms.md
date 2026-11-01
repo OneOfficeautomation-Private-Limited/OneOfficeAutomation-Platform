@@ -104,7 +104,7 @@ Show a form from the form designer to the person at the runner. Wait until they 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Form | `form` | File path | Yes |  | Main | The form (.form.json) made in Studio's form designer. Example: `Forms/Leave request.form.json` |
+| Form | `form` | File path | Yes |  | Main | The form (.form.json) made in One AgentStudio's form designer. Example: `Forms/Leave request.form.json` |
 | Name | `name` | Text | No |  | More options | Name to refer to the open form by; the form's id when empty. |
 | Title | `title` | Text | No |  | More options | Window title; the form's name when empty. |
 | Values | `values` | Dictionary | No |  | More options | Values to fill in first, by field id (the designer's defaults otherwise). |

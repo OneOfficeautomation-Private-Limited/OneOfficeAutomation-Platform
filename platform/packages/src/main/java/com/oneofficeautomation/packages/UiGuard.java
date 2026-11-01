@@ -92,7 +92,7 @@ public final class UiGuard {
 
             public void runAgent(InterruptRules.Rule r) {
                 if (!(ctx.sessions().get(ChildAgents.SESSION) instanceof ChildAgents agents))
-                    throw new ActionException("INTERRUPT.NO_REPOSITORY", "This run cannot start child agents", "Run the agent from Agent Studio or the Command Center.");
+                    throw new ActionException("INTERRUPT.NO_REPOSITORY", "This run cannot start child agents", "Run the agent from One AgentStudio or One CommandCenter.");
                 agents.run(r.target(), r.inputs());
             }
         };

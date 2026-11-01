@@ -271,7 +271,7 @@ class _Run:
 
     def _check(self) -> None:
         if self.cancel.is_set():
-            raise RunCancelled("Run was stopped from Control Center")
+            raise RunCancelled("Run was stopped from One CommandCenter")
         if self.deadline and time.monotonic() > self.deadline:
             raise StepTimeoutError("Run exceeded its maximum duration", code="RUN.TIMEOUT", retryable=False,
                                    suggested_fix="Raise the run time limit or split the bot.")

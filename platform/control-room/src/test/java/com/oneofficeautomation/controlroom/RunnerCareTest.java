@@ -63,7 +63,7 @@ class RunnerCareTest {
             assertEquals("CPU use 95% is above its limit of 80%", runner(busy, "x").get("over_limit"));
             String pool = (String) cr.platform.savePool(admin, null, "Care pool", "", List.of(busy[0], calm[0]), null).get("id");
             assertEquals(calm[0], cr.platform.pickDevice(pool), "the pool sends work to the runner below its limit");
-            // the runner's own limit wins over the Command Center's
+            // the runner's own limit wins over One CommandCenter's
             cr.updateDevices(admin, List.of(busy[0]), Map.of("cpu_max", 99), null);
             assertNull(runner(busy, "x").get("over_limit"));
             assertNotNull(cr.claimNext(row(busy)));

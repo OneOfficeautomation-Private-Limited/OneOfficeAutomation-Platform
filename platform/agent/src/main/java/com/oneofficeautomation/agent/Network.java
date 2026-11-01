@@ -14,10 +14,10 @@ import java.security.cert.*;
 import java.util.*;
 
 /**
- * How the runner reaches the Command Center: the proxy and the certificates it trusts. Kept in the runner's config file.
+ * How the runner reaches One CommandCenter: the proxy and the certificates it trusts. Kept in the runner's config file.
  * <ul>
  * <li>{@code proxy}: {@code system} (default: the Windows proxy, including automatic configuration scripts and WPAD
- * through WinHTTP), {@code none}, or {@code http://host:port}. A Command Center on this computer is never reached
+ * through WinHTTP), {@code none}, or {@code http://host:port}. One CommandCenter on this computer is never reached
  * through a proxy.</li>
  * <li>{@code proxy_user} and {@code proxy_password}: for a proxy that asks for a user name and password (Basic). The
  * password is stored encrypted with Windows DPAPI for this computer ({@code dpapi:}); on Linux and macOS in its own
@@ -57,7 +57,7 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
         if (proxyUser != null && !proxyUser.isBlank()) { cfg.put("proxy_user", proxyUser); if (proxyPassword != null) cfg.put("proxy_password", proxyPassword); }
     }
 
-    /** Sets the proxy, the proxy sign-in and the trusted certificates on a client for this Command Center address. */
+    /** Sets the proxy, the proxy sign-in and the trusted certificates on a client for this One CommandCenter address. */
     void apply(HttpClient.Builder b, String baseUrl) {
         b.sslContext(trust(ca));
         URI target = URI.create(baseUrl);
@@ -140,7 +140,7 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
             return ctx;
         } catch (OoaException e) { throw e; }
         catch (Exception e) {
-            throw new OoaException("AGENT.CA", "Cannot use the certificate file " + ca + ": " + e.getMessage(), "Export it on the Command Center with: ooa tls export-cert --out ooa.cer");
+            throw new OoaException("AGENT.CA", "Cannot use the certificate file " + ca + ": " + e.getMessage(), "Export it on One CommandCenter with: ooa tls export-cert --out ooa.cer");
         }
     }
 }

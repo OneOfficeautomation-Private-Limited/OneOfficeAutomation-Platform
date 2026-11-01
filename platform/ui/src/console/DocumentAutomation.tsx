@@ -30,7 +30,7 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
       )}
       {plugin === null && (
         <div className="cc-card">
-          <h2>Not installed on this Command Center</h2>
+          <h2>Not installed on this One CommandCenter</h2>
           <p>Document Automation is an add-on module. Once it is installed, its pages open here, and agents can use it.</p>
           <ul>
             <li>A learning instance for each kind of document: the fields to extract, how text is read, and the AI model that extracts it.</li>

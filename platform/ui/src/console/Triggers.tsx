@@ -5,9 +5,9 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
  * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
- * triggers and Blue Prism, 31 Oct 2026): each trigger with its event, where it listens (a runner, or the Command Center,
+ * triggers and Blue Prism, 31 Oct 2026): each trigger with its event, where it listens (a runner, or One CommandCenter,
  * UiPath-style, so no runner waits), its health (listening, paused, error) with the last firing, and Check now for the
- * Command Center ones. Create in sections: event, its settings, agent, runner and run-as. Refreshes every 30 seconds.
+ * One CommandCenter ones. Create in sections: event, its settings, agent, runner and run-as. Refreshes every 30 seconds.
  * Laid out as the design plan's list pattern (applied 31 Oct 2026): a count with errors, chips, a ⋯ menu per row.
  * Review round 2 (31 Oct 2026): one line per trigger, the last problem and the last firing in columns of their own
  * (Check now is in the row's menu), and the agent with its icon.
@@ -31,22 +31,22 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
   hotkey: { label: "Hotkey pressed", fields: [["hotkey", "Key combination", "CTRL+ALT+F9"]], help: "Windows runners with a signed-in desktop. The combination must not be used by another program. Input: trigger_hotkey." },
   email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
     ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...MAIL_FILTERS, INTERVAL],
-    help: "Checked by the Command Center. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
+    help: "Checked by One CommandCenter. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
   outlook: { label: "New email (Microsoft 365 Outlook)", fields: [["token_ref", "Graph access token (vault reference)", "m365/graph/token"], ["mailbox", "Mailbox (blank for the token's own)", "invoices@contoso.com"],
     ["tenant_id", "Or app sign-in: tenant id"], ["client_id", "Application (client) id"], ["client_secret_ref", "Client secret (vault reference)", "m365/app/secret"],
     ["mail_folder", "Mail folder", "inbox", "inbox"], ...MAIL_FILTERS, INTERVAL],
-    help: "Checked by the Command Center through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
+    help: "Checked by One CommandCenter through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
   servicenow: { label: "ServiceNow record new or updated", fields: [["instance_url", "Instance URL", "https://yourcompany.service-now.com"], ["table", "Table", "incident", "incident"],
     ["query", "Encoded query (optional)", "active=true^priority=1"], ["username", "User name", "integration.user"], ["password_ref", "Password (vault reference)", "snow/api/password"],
     ["token_ref", "Or OAuth token (vault reference)"], INTERVAL],
-    help: "Checked by the Command Center through the Table API. Each new or changed record starts the agent once, with its fields in trigger_record." },
+    help: "Checked by One CommandCenter through the Table API. Each new or changed record starts the agent once, with its fields in trigger_record." },
   http_poll: { label: "Universal poller (call a web address)", fields: [["url", "URL to call (GET)", "https://api.example.com/orders?status=new"], ["items_path", "Items JSON path", "$.items[*]", "$"],
     ["id_field", "Id field of each item", "id", "id"], ["auth_ref", "Bearer token (vault reference, optional)"], INTERVAL],
-    help: "Checked by the Command Center. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
+    help: "Checked by One CommandCenter. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
   webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the address and secret after creating it." },
 };
 const GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey"]],
-  ["On the Command Center", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
+  ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
 const kindName = (k: string) => KINDS[k]?.label ?? k;
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
@@ -102,7 +102,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-trig-title">
       <header className="cc-list-head">
         <h1 id="cc-trig-title">Triggers</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Start agents on events: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and polled web data checked by the Command Center; or a webhook call.">i</span>
+        <span className="ov-info" role="img" aria-label="About this page" title="Start agents on events: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and polled web data checked by One CommandCenter; or a webhook call.">i</span>
         {list && <span className="cc-list-count">{list.length} trigger{list.length === 1 ? "" : "s"} · {listening} listening{errors ? " · " + errors + " with an error" : ""}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create trigger</Button>}
@@ -112,7 +112,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search triggers" placeholder="Search triggers, agents, events" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
           <span className={"cc-chip" + (f.where ? " is-on" : "")}><Select aria-label="Listens on" value={f.where ?? ""} onChange={(e) => setF({ ...f, where: e.target.value })}
-            options={[{ value: "", label: "Listens on: Anywhere" }, { value: "runner", label: "Listens on: A runner" }, { value: "server", label: "Listens on: The Command Center" }]} /></span>
+            options={[{ value: "", label: "Listens on: Anywhere" }, { value: "runner", label: "Listens on: A runner" }, { value: "server", label: "Listens on: One CommandCenter" }]} /></span>
           <span className={"cc-chip" + (f.health ? " is-on" : "")}><Select aria-label="Health" value={f.health ?? ""} onChange={(e) => setF({ ...f, health: e.target.value })}
             options={[{ value: "", label: "Health: Any" }, ...Object.entries(HEALTH).map(([value, label]) => ({ value, label: "Health: " + label }))]} /></span>
           {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
@@ -133,7 +133,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                   <td title={t.last_error ?? undefined}><span className={"cc-pill is-" + (health(t) === "listening" ? "active" : health(t) === "error" ? "failed" : "disabled")}><span className="cc-pill-dot" />{HEALTH[health(t)]}</span></td>
                   <td><strong>{t.name}</strong>{t.run_as && <span className="cc-none"> · runs as {t.run_as}</span>}</td>
                   <td>{kindName(t.kind)}</td>
-                  <td>{t.evaluated_on === "server" ? "The Command Center" : runnerName(t.device_id) + (t.windows_only ? " (Windows)" : "")}</td>
+                  <td>{t.evaluated_on === "server" ? "One CommandCenter" : runnerName(t.device_id) + (t.windows_only ? " (Windows)" : "")}</td>
                   <td><span className="cc-aico" aria-hidden="true">A</span>{agentName(t.bot_path)}</td>
                   <td className="cc-clip cc-trig-details ui-mono" title={details(t)}>{details(t)}</td>
                   <td className="cc-num">{t.fire_count ?? 0}</td>
@@ -151,7 +151,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       </div>
       {dialog?.kind === "new" && <NewTrigger api={api} runners={runners} onClose={() => setDialog(null)}
         onCreated={(t, hook) => { onNotice(t); load(); setDialog(hook ? { kind: "hook", ...hook } : null); }} />}
-      {dialog?.kind === "edit" && <EditTrigger key={dialog.t.id} api={api} t={dialog.t} manage={manage} where={dialog.t.evaluated_on === "server" ? "The Command Center" : runnerName(dialog.t.device_id)}
+      {dialog?.kind === "edit" && <EditTrigger key={dialog.t.id} api={api} t={dialog.t} manage={manage} where={dialog.t.evaluated_on === "server" ? "One CommandCenter" : runnerName(dialog.t.device_id)}
         onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "hook" && (
         <Dialog open title="Webhook created" width={560} onClose={() => setDialog(null)} footer={<Button kind="primary" onClick={() => setDialog(null)}>Done</Button>}>

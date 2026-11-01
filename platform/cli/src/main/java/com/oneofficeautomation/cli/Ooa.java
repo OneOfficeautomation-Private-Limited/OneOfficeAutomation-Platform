@@ -56,7 +56,7 @@ public final class Ooa {
     /** Control Room's database and services, opened from the command-line options shared by `control-room` and `server`. */
     record ControlRoomSetup(com.oneofficeautomation.controlroom.ControlRoom cr, com.oneofficeautomation.controlroom.Db db, Path data, String firstPassword, String dbLabel) {}
 
-    /** The Command Center data folder: --data, else the folder of earlier versions when it holds a database, else ~/OOA Command Center. */
+    /** One CommandCenter data folder: --data, else the folder of earlier versions when it holds a database, else ~/OOA Command Center. */
     static Path dataDir(Map<String, String> o) {
         // Keep using the folder of earlier versions ("OOA Control Room") when it holds a database, so an upgrade never starts empty.
         Path legacy = Path.of(System.getProperty("user.home"), "OOA Control Room");
@@ -99,7 +99,7 @@ public final class Ooa {
         ControlRoomSetup s;
         try { s = openControlRoom(o); }
         catch (Exception e) {
-            System.err.println("Cannot open the Command Center database. Stop ONEOFFICEAUTOMATION first (Ctrl+C in its window), then run this again.");
+            System.err.println("Cannot open One CommandCenter database. Stop ONEOFFICEAUTOMATION first (Ctrl+C in its window), then run this again.");
             System.err.println("  (" + e.getMessage() + ")");
             return 2;
         }
@@ -124,7 +124,7 @@ public final class Ooa {
     }
 
     /**
-     * ooa vault rekey: with the Command Center stopped, re-encrypts every stored secret with a new master key taken
+     * ooa vault rekey: with One CommandCenter stopped, re-encrypts every stored secret with a new master key taken
      * from an environment variable, for a key kept outside the data folder (OOA_MASTER_KEY or a key store), which the
      * console's Rotate cannot change. The new key is never printed.
      */
@@ -143,7 +143,7 @@ public final class Ooa {
         ControlRoomSetup s;
         try { s = openControlRoom(o); }
         catch (Exception e) {
-            System.err.println("Cannot open the Command Center database. Stop the Command Center first, then run this again.");
+            System.err.println("Cannot open One CommandCenter database. Stop One CommandCenter first, then run this again.");
             System.err.println("  (" + e.getMessage() + ")");
             return 2;
         }
@@ -154,7 +154,7 @@ public final class Ooa {
             if (Boolean.TRUE.equals(r.get("key_file"))) System.out.println("The key file holds the new key; the old one is kept next to it as master.key.old-<time>.");
             else {
                 System.out.println("Now replace the old key where it is kept (" + source + ") with the new one from " + var + ",");
-                System.out.println("then start the Command Center. Until then it cannot read its secrets.");
+                System.out.println("then start One CommandCenter. Until then it cannot read its secrets.");
             }
             return 0;
         } catch (OoaException e) {
@@ -213,7 +213,7 @@ public final class Ooa {
         System.out.println("  Database:          " + s.dbLabel());
         if (tls != null) System.out.println("  HTTPS:             " + tls);
         if (!host.equals("127.0.0.1") && !host.equals("localhost") && !server.https())
-            System.out.println("  WARNING: Command Center listens on " + host + " without TLS; set up HTTPS (ooa tls) or a reverse proxy before other machines use it.");
+            System.out.println("  WARNING: One CommandCenter listens on " + host + " without TLS; set up HTTPS (ooa tls) or a reverse proxy before other machines use it.");
         printFirstStart(s);
         System.out.println("  Press Ctrl+C (or close this window) to stop everything.");
         if (!o.containsKey("no-browser")) openBrowser(open);
@@ -232,8 +232,8 @@ public final class Ooa {
     }
 
     /**
-     * The registration of this computer's runner with the Command Center of a data folder: one file per data folder, so
-     * Command Centers on other data folders (tests, a second install) never overwrite it and make it register again.
+     * The registration of this computer's runner with One CommandCenter of a data folder: one file per data folder, so
+     * One CommandCenter installations on other data folders (tests, a second install) never overwrite it and make it register again.
      * The file of earlier versions (local-agent.json, shared by all) is taken over by the data folder whose Command
      * Center it belongs to (startLocalAgent checks that).
      */
@@ -250,12 +250,12 @@ public final class Ooa {
 
     /**
      * Registers this computer once (its own config file, so a separately registered agent is never touched) and runs the
-     * agent. A registration this Command Center still knows is kept even when its address changed (another port): only
+     * agent. A registration this One CommandCenter still knows is kept even when its address changed (another port): only
      * the address in the file is updated, so restarting on another port does not add a runner.
      */
     @SuppressWarnings("unchecked")
     static com.oneofficeautomation.agent.Agent startLocalAgent(com.oneofficeautomation.controlroom.ControlRoom cr, String url, Path config, Path workspace) throws Exception {
-        // the shared file of earlier versions: kept when it is this Command Center's runner
+        // the shared file of earlier versions: kept when it is this One CommandCenter's runner
         Path legacy = config.resolveSibling("local-agent.json");
         if (!Files.exists(config) && !config.equals(legacy) && Files.exists(legacy) && knownTo(cr, legacy)) Files.copy(legacy, config);
         boolean registered = Files.exists(config) && knownTo(cr, config);
@@ -271,7 +271,7 @@ public final class Ooa {
         return agent;
     }
 
-    /** Whether a runner registration file is one this Command Center knows (its device and secret). */
+    /** Whether a runner registration file is one this One CommandCenter knows (its device and secret). */
     @SuppressWarnings("unchecked")
     static boolean knownTo(com.oneofficeautomation.controlroom.ControlRoom cr, Path config) {
         try {
@@ -302,7 +302,7 @@ public final class Ooa {
                     }
                 }
                 if (o.get("key") == null || o.get("key").isBlank())
-                    throw new OoaException("CLI.BAD_INPUT", "A registration key is needed: this computer has no registration the Command Center accepts", "Create one in Command Center > Runners > Register a runner, and pass it with --key.");
+                    throw new OoaException("CLI.BAD_INPUT", "A registration key is needed: this computer has no registration One CommandCenter accepts", "Create one in One CommandCenter > Runners > Register a runner, and pass it with --key.");
                 Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null,
                     o.get("proxy"), o.get("proxy-user"), proxyPassword(o));
                 System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
@@ -325,13 +325,13 @@ public final class Ooa {
                 return 0;
             }
             case "move" -> {
-                // the Command Center moved (new server, cloud) with its data: keep this runner's registration
+                // One CommandCenter moved (new server, cloud) with its data: keep this runner's registration
                 String old = com.oneofficeautomation.agent.Agent.moveTo(config, o.get("url"), o.containsKey("ca") ? Path.of(o.get("ca")) : null);
                 System.out.println("This runner now uses " + o.get("url") + " (was " + old + "). Restart the runner for it to take effect.");
                 return 0;
             }
             case "diagnose" -> {
-                // why this runner cannot reach or work with its Command Center
+                // why this runner cannot reach or work with its One CommandCenter
                 int fails = 0;
                 for (var l : com.oneofficeautomation.agent.Diagnose.run(config, Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString())))) {
                     System.out.printf("%-5s %-18s %s%n", l.level(), l.what(), l.detail());
@@ -394,7 +394,7 @@ public final class Ooa {
             try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }
             inputs.put(kv.substring(0, eq), val);
         }
-        // Credential inputs ({"$credential": "folder/credential/attribute"}) are read from OOA_SECRET_... variables, as in Agent Studio.
+        // Credential inputs ({"$credential": "folder/credential/attribute"}) are read from OOA_SECRET_... variables, as in One AgentStudio.
         Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false)).service("vault", new EnvVault())
                 .schemaValidator(schemaValidator()).workDir(Path.of(".")).build();
         RunResult r = runner.run(flow, inputs);

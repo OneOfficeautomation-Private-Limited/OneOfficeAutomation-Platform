@@ -14,7 +14,7 @@ Toolkit `ooa.ai_skills`, version 1.0.0. Run saved, reusable prompt templates (Pr
 
 `ooa.ai_skills/list` (action)
 
-List the Prompt Skills this run can use (from Command Center and the workspace) with their descriptions.
+List the Prompt Skills this run can use (from One CommandCenter and the workspace) with their descriptions.
 
 No settings.
 

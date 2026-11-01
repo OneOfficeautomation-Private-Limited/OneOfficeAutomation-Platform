@@ -11,7 +11,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * Code analysis: checks agents against the Command Center's policy, a set of rules each switched on with a severity
+ * Code analysis: checks agents against One CommandCenter's policy, a set of rules each switched on with a severity
  * (error or warning) and its own settings. Analysis runs on demand, and at every check-in; when the policy says so, a
  * check-in with errors is refused. Each analysed version's report is stored, and a report of the whole repository can
  * be downloaded. Workflows and forms are not analysed (they have no steps).

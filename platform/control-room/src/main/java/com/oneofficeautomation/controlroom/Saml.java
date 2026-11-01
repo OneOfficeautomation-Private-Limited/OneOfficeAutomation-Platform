@@ -24,9 +24,9 @@ import java.util.zip.Deflater;
  * <p>What is checked: the XML is parsed with DTDs and external entities off; the document holds exactly one assertion,
  * a direct child of the response, and it, or the response, carries a valid signature by the configured identity provider
  * certificate whose one reference points at that element (enveloped and exclusive canonicalisation transforms only,
- * the JDK's secure validation on); the status is Success; the issuer, the audience (this Command Center's entity id), the
+ * the JDK's secure validation on); the status is Success; the issuer, the audience (this One CommandCenter's entity id), the
  * recipient and destination (the assertion consumer address), the validity window (2 minutes of clock skew) and that it
- * answers a sign-in this Command Center started (InResponseTo; sign-ins started at the identity provider are refused).
+ * answers a sign-in this One CommandCenter started (InResponseTo; sign-ins started at the identity provider are refused).
  * Each assertion is accepted once. Encrypted assertions are not supported.
  * <p>Settings: saml_idp_sso_url, saml_idp_entity_id, saml_idp_certificate (PEM), saml_sp_entity_id (default: the
  * metadata address), saml_label; new people get sso_default_role, as with OpenID Connect.
@@ -47,13 +47,13 @@ final class Saml {
 
     Map<String, Object> info() { return Map.of("enabled", enabled(), "label", s("saml_label").isEmpty() ? "Sign in with SAML" : s("saml_label")); }
 
-    /** This Command Center's entity id: the setting, else the metadata address. */
+    /** This One CommandCenter's entity id: the setting, else the metadata address. */
     String spEntityId(String origin) { return s("saml_sp_entity_id").isEmpty() ? origin + "/api/auth/saml/metadata" : s("saml_sp_entity_id"); }
 
     /** The address to send the person to: the identity provider with a deflated, Base64 AuthnRequest. */
     String start(String origin) { return start(origin, "/"); }
 
-    /** As above, coming back to returnTo (a page of this Command Center) after sign-in. */
+    /** As above, coming back to returnTo (a page of this One CommandCenter) after sign-in. */
     String start(String origin, String returnTo) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets it up in Administration > Settings.");
         String id = "_" + Security.token(18).replace('-', 'a').replace('_', 'b');
@@ -149,7 +149,7 @@ final class Saml {
         if (!scd.hasAttribute("NotOnOrAfter") || !now.minusSeconds(SKEW_SECONDS).isBefore(Instant.parse(scd.getAttribute("NotOnOrAfter")))) throw bad("The sign-in has expired");
         String inResponseTo = scd.hasAttribute("InResponseTo") ? scd.getAttribute("InResponseTo") : resp.getAttribute("InResponseTo");
         String started = inResponseTo.isEmpty() ? null : cr.cluster.take("saml", inResponseTo);
-        if (started == null) throw bad("This sign-in was not started here, or was used already", "Start the sign-in from the Command Center's sign-in page.");
+        if (started == null) throw bad("This sign-in was not started here, or was used already", "Start the sign-in from One CommandCenter's sign-in page.");
         // once only
         String aid = as.getAttribute("ID");
         java.time.Duration keep = java.time.Duration.between(now, Instant.parse(scd.getAttribute("NotOnOrAfter")).plusSeconds(SKEW_SECONDS));

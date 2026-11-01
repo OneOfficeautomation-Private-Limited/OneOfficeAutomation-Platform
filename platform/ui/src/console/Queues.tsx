@@ -295,7 +295,7 @@ function DeferDialog({ count, onClose, onDefer }: { count: number; onClose: () =
   );
 }
 
-/** Add items from pasted JSON or CSV, or a CSV, JSON or Excel file (the Command Center reads CSV and Excel by the item model). */
+/** Add items from pasted JSON or CSV, or a CSV, JSON or Excel file (One CommandCenter reads CSV and Excel by the item model). */
 function AddItems({ api, queue: x, onClose, onAdded }: { api: CrApi; queue: WorkQueue; onClose: () => void; onAdded: (n: number) => void }) {
   const [text, setText] = useState("");
   const [book, setBook] = useState<{ name: string; data: string } | null>(null);
@@ -480,7 +480,7 @@ function ModelForm({ api, model: m, onClose, onSaved }: { api: CrApi; model: Ite
   );
 }
 
-/** Import a queue definition exported from a Command Center: settings, model, members and waiting items. */
+/** Import a queue definition exported from One CommandCenter: settings, model, members and waiting items. */
 function ImportQueue({ api, onClose, onDone }: { api: CrApi; onClose: () => void; onDone: (t: string) => void }) {
   const [def, setDef] = useState<unknown>(null);
   const [name, setName] = useState("");
@@ -490,7 +490,7 @@ function ImportQueue({ api, onClose, onDone }: { api: CrApi; onClose: () => void
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!def} onClick={() => api.importQueue(def, name.trim() || null).then((r) => onDone("Made " + r.name + " with " + r.items + " item(s)." + (r.notes?.length ? " " + r.notes.join(" ") : "")), (e) => setError(message(e)))}>Import</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="cc-list-hint">A queue definition exported from a Command Center. The agent and runner pool are linked when they exist here.</p>
+      <p className="cc-list-hint">A queue definition exported from One CommandCenter. The agent and runner pool are linked when they exist here.</p>
       <input type="file" aria-label="Queue definition file" accept=".json,application/json" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { setDef(JSON.parse(await f.text())); setError(null); } catch { setError("The file is not JSON."); } }} />
       <Field label="Name here (empty: the name in the file)">{(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
     </Dialog>

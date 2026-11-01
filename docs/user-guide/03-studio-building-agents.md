@@ -147,7 +147,7 @@ Variables hold values while the agent runs. Open the **Variables** panel from th
      **Use as output** (returned when the agent ends). Neither ticked: a working value inside the agent.
    - **Required: the agent cannot start without a value** (inputs only).
    - **Business figure (KPI)** (Number, String or Boolean outputs): each successful run records it for dashboards in One
-     Command Center.
+     One CommandCenter.
    - **Default value**: an editor that suits the type.
    - **Allowed values** (String and Number inputs): a comma-separated list; people then pick from it.
    - **Description**: what it holds. People running the agent, and AI agents, read it.

@@ -165,7 +165,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
 /** Missed times and overlapping runs: the two rules a schedule follows (UiPath's and Blue Prism's options). */
 function RuleFields({ missed, overlap, onMissed, onOverlap }: { missed: string; overlap: string; onMissed: (v: string) => void; onOverlap: (v: string) => void }) {
   return <div className="cc-grid2">
-    <Field label="Times missed while the Command Center was down">{(id) => <Select id={id} value={missed} onChange={(e) => onMissed(e.target.value)} options={[{ value: "once", label: "Run once for them" }, { value: "skip", label: "Skip them" }]} />}</Field>
+    <Field label="Times missed while One CommandCenter was down">{(id) => <Select id={id} value={missed} onChange={(e) => onMissed(e.target.value)} options={[{ value: "once", label: "Run once for them" }, { value: "skip", label: "Skip them" }]} />}</Field>
     <Field label="When the previous run is still going">{(id) => <Select id={id} value={overlap} onChange={(e) => onOverlap(e.target.value)} options={[{ value: "allow", label: "Start another run" }, { value: "skip", label: "Skip this time" }]} />}</Field>
   </div>;
 }

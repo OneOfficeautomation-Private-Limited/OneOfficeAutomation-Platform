@@ -8,14 +8,14 @@ import java.util.Locale;
 
 /**
  * Development vault: reference locker/credential/attribute reads the environment variable
- * OOA_SECRET_LOCKER_CREDENTIAL_ATTRIBUTE. Production uses the Control Center vault (OpenBao or external).
+ * OOA_SECRET_LOCKER_CREDENTIAL_ATTRIBUTE. Production uses One CommandCenter vault (OpenBao or external).
  */
 final class EnvVault implements CredentialVault {
     @Override public SecureString getSecret(String ref, String principal) {
         String key = "OOA_SECRET_" + ref.replace('/', '_').replace('-', '_').toUpperCase(Locale.ROOT);
         String v = System.getenv(key);
         if (v == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found",
-                "For local testing set the environment variable " + key + " before starting Agent Studio.");
+                "For local testing set the environment variable " + key + " before starting One AgentStudio.");
         return new SecureString(v, ref);
     }
 }

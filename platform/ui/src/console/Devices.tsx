@@ -21,7 +21,7 @@ const STATUS: Record<string, string> = { online: "Online", busy: "Busy", mainten
 /** The status shown: disabled, maintenance, offline, busy (above a CPU or memory limit) or online. */
 const stateOf = (d: Runner) => d.status === "disabled" ? "disabled" : d.maintenance ? "maintenance" : d.status === "offline" ? "offline" : d.over_limit ? "busy" : "online";
 const pct = (v?: number | null) => v == null ? "" : v + "%";
-const TYPE: Record<string, string> = { single_user: "Single-user", multi_user: "Multi-user", serverless: "Serverless (in the Command Center)" };
+const TYPE: Record<string, string> = { single_user: "Single-user", multi_user: "Multi-user", serverless: "Serverless (in One CommandCenter)" };
 const SCREEN: Record<string, string> = { unlocked: "Unlocked", locked: "Locked", no_desktop: "No desktop (service)" };
 const AFTER_RUN: Record<string, string> = { nothing: "Leave the screen as it is", lock: "Lock the screen", sign_out: "Sign out" };
 const LOG_LEVELS = ["error", "warning", "info", "debug"];
@@ -42,7 +42,7 @@ const COLS: Col[] = [
   { key: "users", label: "Default users", cell: (d) => (d.default_users ?? []).join(", ") },
   { key: "running", label: "Running", cell: (d) => String(d.running ?? 0) },
   { key: "cpu", label: "CPU", cell: (d) => pct(d.cpu_pct) },
-  { key: "version", label: "Runner version", cell: (d) => (d.agent_version ?? "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center)" : "")
+  { key: "version", label: "Runner version", cell: (d) => (d.agent_version ?? "") + (d.version_status && d.version_status !== "ok" ? " (newer than One CommandCenter)" : "")
     + (d.up_to_date === false ? (d.update_requested ? " · updating" : " · update available") : "") },
   { key: "seen", label: "Last seen", cell: (d) => ago(d.last_seen) },
   { key: "nickname", label: "Nickname", cell: (d) => d.nickname ?? "" },
@@ -301,8 +301,8 @@ function RunnerDetails({ api, runner: d, pools, manage, onClose, onChanged }:
       {manage && <DescribeRunner api={api} runner={d} onChanged={onChanged} />}
       <h3 className="cc-log-title">Health</h3>
       <dl className="cc-facts">
-        <dt>CPU</dt><dd>{d.cpu_pct == null ? "Not reported yet" : d.cpu_pct + "%"}{d.cpu_limit ? " (takes no new work above " + d.cpu_limit + "%" + (d.cpu_max == null ? ", Command Center setting" : "") + ")" : ""}</dd>
-        <dt>Memory</dt><dd>{d.mem_pct == null ? "Not reported yet" : d.mem_pct + "%"}{d.mem_limit ? " (takes no new work above " + d.mem_limit + "%" + (d.mem_max == null ? ", Command Center setting" : "") + ")" : ""}</dd>
+        <dt>CPU</dt><dd>{d.cpu_pct == null ? "Not reported yet" : d.cpu_pct + "%"}{d.cpu_limit ? " (takes no new work above " + d.cpu_limit + "%" + (d.cpu_max == null ? ", One CommandCenter setting" : "") + ")" : ""}</dd>
+        <dt>Memory</dt><dd>{d.mem_pct == null ? "Not reported yet" : d.mem_pct + "%"}{d.mem_limit ? " (takes no new work above " + d.mem_limit + "%" + (d.mem_max == null ? ", One CommandCenter setting" : "") + ")" : ""}</dd>
         {d.maintenance && <><dt>Maintenance</dt><dd>{d.maintenance === "stop" ? "Runs stopped" : "Runs allowed to finish"}; since {when(d.maintenance_since)}{d.maintenance_by ? " by " + d.maintenance_by : ""}. Runs queued for it wait until it ends.</dd></>}
         {d.over_limit && <><dt>No new work</dt><dd className="cc-err">{d.over_limit}</dd></>}
       </dl>
@@ -317,7 +317,7 @@ function RunnerDetails({ api, runner: d, pools, manage, onClose, onChanged }:
       <h3 className="cc-log-title">Logs and program</h3>
       <dl className="cc-facts">
         <dt>Log level</dt><dd>{d.log_level ?? "info"}</dd>
-        <dt>Version</dt><dd>{d.agent_version ?? ""}{d.version_status && d.version_status !== "ok" ? " (newer than the Command Center: it gets no work until the Command Center is updated)" : ""}</dd>
+        <dt>Version</dt><dd>{d.agent_version ?? ""}{d.version_status && d.version_status !== "ok" ? " (newer than One CommandCenter: it gets no work until One CommandCenter is updated)" : ""}</dd>
         <dt>Program</dt><dd>{program(d) || "No update information"}</dd>
         <dt>Toolkits</dt><dd>{d.toolkits ? d.toolkits.split(",").length + " installed" : "None reported"}</dd>
       </dl>
@@ -413,7 +413,7 @@ function PoolDialog({ api, pool, members: initial, runners, chooseOwners, onClos
   );
 }
 
-const LIMITS = (keep: { value: string; label: string }) => [keep, { value: "0", label: "The Command Center's setting" },
+const LIMITS = (keep: { value: string; label: string }) => [keep, { value: "0", label: "One CommandCenter's setting" },
   ...[50, 60, 70, 75, 80, 85, 90, 95].map((v) => ({ value: String(v), label: v + "%" }))];
 
 /** Maintenance for the selected runners: they take no new work; their runs finish, or are stopped after the current step. */

@@ -20,10 +20,10 @@ type Section = { id: string; title: string; about: string; mark: string; colour:
 
 const VAULT_REF = "A vault reference: folder/credential/attribute. The value stays in the vault.";
 const SECTIONS: Section[] = [
-  { id: "general", title: "General", mark: "G", colour: "#2f6fde", about: "What everyone sees, and the address of this Command Center.", groups: [
+  { id: "general", title: "General", mark: "G", colour: "#2f6fde", about: "What everyone sees, and the address of this One CommandCenter.", groups: [
     { title: "For everyone", settings: [
       { key: "announcement", label: "Announcement", hint: "Shown to everyone at the top of the page. Empty: none.", kind: "area", placeholder: "Maintenance on Saturday 10:00–12:00 UTC" },
-      { key: "public_url", label: "Public address", hint: "Of this Command Center, for sign-in redirects and links in e-mails.", kind: "text", placeholder: "https://ooa.example.com" }] },
+      { key: "public_url", label: "Public address", hint: "Of this One CommandCenter, for sign-in redirects and links in e-mails.", kind: "text", placeholder: "https://ooa.example.com" }] },
     { title: "Limits", settings: [
       { key: "max_upload_mb", label: "Largest upload", hint: "1 to 1024.", unit: "MB", kind: "number", min: 1, max: 1024 },
       { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 }] },
@@ -61,7 +61,7 @@ const SECTIONS: Section[] = [
     { title: "SAML 2.0", settings: [
       { key: "saml_idp_sso_url", label: "Identity provider sign-in address", kind: "text", placeholder: "https://login.microsoftonline.com/<tenant>/saml2" },
       { key: "saml_idp_entity_id", label: "Identity provider entity id", hint: "Its issuer.", kind: "text" },
-      { key: "saml_sp_entity_id", label: "This Command Center's entity id", hint: "Empty: the metadata address.", kind: "text" },
+      { key: "saml_sp_entity_id", label: "This One CommandCenter's entity id", hint: "Empty: the metadata address.", kind: "text" },
       { key: "saml_label", label: "SAML button text", kind: "text", placeholder: "Sign in with SAML" },
       { key: "saml_idp_certificate", label: "Identity provider signing certificate", hint: "PEM.", kind: "area", placeholder: "-----BEGIN CERTIFICATE-----" }] },
     { title: "New people and groups", settings: [
@@ -70,7 +70,7 @@ const SECTIONS: Section[] = [
   ] },
   { id: "runners", title: "Runner Machines", mark: "M", colour: "#0e7490", about: "Updates, temporary runners, secrets, limits and screen pictures for every runner (a runner can have its own limits).", groups: [
     { title: "Updates and secrets", settings: [
-      { key: "runner_auto_update", label: "Update runners automatically", hint: "To this Command Center's version, when they are idle.", kind: "check" },
+      { key: "runner_auto_update", label: "Update runners automatically", hint: "To this One CommandCenter's version, when they are idle.", kind: "check" },
       { key: "runner_secret_days", label: "Give runners a new secret every", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 365 },
       { key: "temporary_runner_hours", label: "Remove temporary runners after", hint: "Hours without contact. 1 to 720.", unit: "hours", kind: "number", min: 1, max: 720 }] },
     { title: "Limits", settings: [
@@ -101,7 +101,7 @@ const SECTIONS: Section[] = [
       { key: "mcp_oauth_audience", label: "Token audience", hint: "Empty: API keys only.", kind: "text", placeholder: "api://ooa-mcp" },
       { key: "mcp_oauth_scope", label: "Scope the token must carry", hint: "Optional.", kind: "text", placeholder: "mcp.use" }] },
   ] },
-  { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "The Command Center's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
+  { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "One CommandCenter's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
     { title: "E-mail", settings: [
       { key: "mail_smtp_host", label: "Outgoing mail server", kind: "text", placeholder: "smtp.office365.com" },
       { key: "mail_smtp_port", label: "Port", hint: "1 to 65535.", kind: "number", min: 1, max: 65535 },
@@ -129,7 +129,7 @@ const SECTIONS: Section[] = [
       { key: "backup_keep_days", label: "Keep backups for", hint: "1 to 3650.", unit: "days", kind: "number", min: 1, max: 3650 },
       { key: "backup_folder", label: "Backup folder", hint: "Empty: the data folder's backups folder.", kind: "text" }] },
   ] },
-  { id: "about", title: "This Command Center", mark: "i", colour: "#475569", about: "The database and the nodes serving this Command Center (read-only here; the database is changed with the ooa db command).", groups: [] },
+  { id: "about", title: "This One CommandCenter", mark: "i", colour: "#475569", about: "The database and the nodes serving this One CommandCenter (read-only here; the database is changed with the ooa db command).", groups: [] },
 ];
 const ROLES: [string, string][] = [["bot_creator", "Agent builder"], ["bot_runner", "Agent runner"], ["viewer", "Viewer"]];
 const settingsOf = (s: Section) => s.groups.flatMap((g) => g.settings);

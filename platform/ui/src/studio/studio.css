@@ -20,7 +20,7 @@
 
 .st-body { flex: 1; display: flex; min-height: 0; }
 
-/* Command Center menu */
+/* One CommandCenter menu */
 .st-menu { background: var(--ui-frame-2); width: 200px; flex: none; padding: 8px 6px; overflow-y: auto; display: flex; flex-direction: column; }
 .st-menu-home { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--ui-radius); color: var(--ui-frame-text); font-weight: 700; text-decoration: none; }
 .st-menu-home:hover { background: rgba(255, 255, 255, .08); }
@@ -446,7 +446,7 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-right .ui-tab-list { flex-wrap: nowrap; overflow-x: auto; }
 .st-right .ui-tab { flex: 1 1 auto; padding: 0 8px; white-space: nowrap; }
 
-/* Automation page: Private (the workspace) and Public (the Command Center agent repository) */
+/* Automation page: Private (the workspace) and Public (One CommandCenter agent repository) */
 .st-page-tabs { display: flex; gap: 0; padding: 0 16px; border-bottom: 1px solid var(--ui-border); background: var(--ui-bg); }
 .st-page-tab { height: 34px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ui-text); font: inherit; font-weight: 600; cursor: pointer; }
 .st-page-tab[aria-selected="true"] { border-bottom-color: var(--ui-accent); color: var(--ui-accent); }

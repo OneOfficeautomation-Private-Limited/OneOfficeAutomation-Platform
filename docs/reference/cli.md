@@ -109,29 +109,29 @@ Commands:
   license            Check license files, and make them (vendor build).
   release            Check a release before installing it, and sign releases
                        (vendor build).
-  server             Start everything on this computer: the Command Center,
-                       Agent Studio (/studio) and a runner.
-  studio             Start Agent Studio on its own (http://localhost:8710).
-  control-room       Start the Command Center (http://localhost:8720).
+  server             Start everything on this computer: One CommandCenter,
+                       One AgentStudio (/studio) and a runner.
+  studio             Start One AgentStudio on its own (http://localhost:8710).
+  control-room       Start One CommandCenter (http://localhost:8720).
   reset-admin        Print a new one-time password for a user who forgot
                        theirs. Stop the server first.
   agent              Register and run a runner (Bot Agent) on this computer.
-  db                 Set up and look after the Command Center database
+  db                 Set up and look after One CommandCenter database
                        (docs/infrastructure/05-databases.md).
   region             Run the SaaS service: a region with its tenants
                        (docs/infrastructure/09-saas-and-multi-region-operations.
                        md).
   directory          The global directory of a SaaS service with several
                        regions.
-  check              Check whether this computer is ready for a Command Center.
+  check              Check whether this computer is ready for One CommandCenter.
   vault              Look after the vault's master key.
-  backup             Back up and restore the Command Center.
-  tls                HTTPS for the Command Center. Stop the server first; it
+  backup             Back up and restore One CommandCenter.
+  tls                HTTPS for One CommandCenter. Stop the server first; it
                        uses the settings at its next start.
   toolkit            Make and check signed custom toolkits.
   assistant          Start the desktop assistant in the notification area, to
                        run your automations.
-  service            Run the Command Center or a runner as a Windows service.
+  service            Run One CommandCenter or a runner as a Windows service.
   service-run        Started by the Windows service manager.
   browser-connector  The browser extension's link to this computer (shows its
                        status).
@@ -309,14 +309,14 @@ Usage: ooa server [-h] [--no-agent] [--no-browser] [--agent-config=FILE]
                   [--agent-workspace=DIR] [--data=DIR] [--db-config=FILE]
                   [--db-password-env=VAR] [--db-url=URL] [--db-user=NAME]
                   [--host=HOST] [--port=N] [--workspace=DIR]
-Start everything on this computer: the Command Center, Agent Studio (/studio)
+Start everything on this computer: One CommandCenter, One AgentStudio (/studio)
 and a runner.
       --agent-config=FILE   The local runner's registration (default: one file
                               per data folder in ~/.ooa-agent).
       --agent-workspace=DIR The local runner's workspace (default: ~/OOA Agent
                               Workspace).
-      --data=DIR            The Command Center data folder (default: ~/OOA
-                              Command Center).
+      --data=DIR            One CommandCenter data folder (default: ~/OOA
+                              One CommandCenter).
       --db-config=FILE      Database settings other than DIR/config/ooa-db.
                               properties.
       --db-password-env=VAR The environment variable with that account's
@@ -329,14 +329,14 @@ and a runner.
       --no-agent            Do not start the runner for this computer.
       --no-browser          Do not open the browser.
       --port=N              The port (default 8720).
-      --workspace=DIR       Agent Studio's workspace (default: ~/OOA Workspace).
+      --workspace=DIR       One AgentStudio's workspace (default: ~/OOA Workspace).
 ```
 
 ## ooa studio
 
 ```text
 Usage: ooa studio [-h] [--port=N] [--workspace=DIR]
-Start Agent Studio on its own (http://localhost:8710).
+Start One AgentStudio on its own (http://localhost:8710).
   -h, --help            Show this help.
       --port=N          The port (default 8710).
       --workspace=DIR   The workspace (default: ~/OOA Workspace).
@@ -348,8 +348,8 @@ Start Agent Studio on its own (http://localhost:8710).
 Usage: ooa control-room [-h] [--data=DIR] [--db-config=FILE]
                         [--db-password-env=VAR] [--db-url=URL] [--db-user=NAME]
                         [--host=HOST] [--port=N]
-Start the Command Center (http://localhost:8720).
-      --data=DIR         The Command Center data folder (default: ~/OOA Command
+Start One CommandCenter (http://localhost:8720).
+      --data=DIR         One CommandCenter data folder (default: ~/OOA Command
                            Center).
       --db-config=FILE   Database settings other than DIR/config/ooa-db.
                            properties.
@@ -371,7 +371,7 @@ Usage: ooa reset-admin [-h] [--data=DIR] [--db-config=FILE]
                        [--user=NAME]
 Print a new one-time password for a user who forgot theirs. Stop the server
 first.
-      --data=DIR         The Command Center data folder (default: ~/OOA Command
+      --data=DIR         One CommandCenter data folder (default: ~/OOA Command
                            Center).
       --db-config=FILE   Database settings other than DIR/config/ooa-db.
                            properties.
@@ -390,10 +390,10 @@ Usage: ooa agent [-h] [COMMAND]
 Register and run a runner (Bot Agent) on this computer.
   -h, --help   Show this help.
 Commands:
-  register        Register this computer as a runner with a Command Center.
+  register        Register this computer as a runner with One CommandCenter.
   start           Run the registered runner until stopped.
   network         Show or change the runner's proxy and trusted certificate.
-  move            Point the runner at the Command Center's new address, keeping
+  move            Point the runner at One CommandCenter's new address, keeping
                     its registration.
   diagnose        Find why the runner cannot reach or work with its Command
                     Center.
@@ -409,14 +409,14 @@ Usage: ooa agent register [-h] [--keep-existing] [--ca=FILE] [--config=FILE]
                           [--key=KEY] [--name=NAME] [--proxy=PROXY]
                           [--proxy-password-env=VAR] [--proxy-user=NAME]
                           --url=URL
-Register this computer as a runner with a Command Center.
-      --ca=FILE           A certificate to trust for the Command Center (its
+Register this computer as a runner with One CommandCenter.
+      --ca=FILE           A certificate to trust for One CommandCenter (its
                             own, or the company's CA).
       --config=FILE       Where the registration is saved (default: ~/.
                             ooa-agent/agent.json).
   -h, --help              Show this help.
       --keep-existing     Keep this computer's registration with the same
-                            Command Center when it still works (setup run
+                            One CommandCenter when it still works (setup run
                             again).
       --key=KEY           A registration key (Runners > Register a runner); not
                             needed with --keep-existing when the registration
@@ -426,7 +426,7 @@ Register this computer as a runner with a Command Center.
       --proxy-password-env=VAR
                           The environment variable with the proxy password.
       --proxy-user=NAME   The proxy account.
-      --url=URL           The Command Center, such as https://commandcenter:
+      --url=URL           One CommandCenter, such as https://commandcenter:
                             8720.
 ```
 
@@ -446,7 +446,7 @@ Run the registered runner until stopped.
 Usage: ooa agent network [-h] [--ca=FILE] [--config=FILE] [--proxy=PROXY]
                          [--proxy-password-env=VAR] [--proxy-user=NAME]
 Show or change the runner's proxy and trusted certificate.
-      --ca=FILE           A certificate to trust for the Command Center (its
+      --ca=FILE           A certificate to trust for One CommandCenter (its
                             own, or the company's CA).
       --config=FILE       The registration.
   -h, --help              Show this help.
@@ -460,7 +460,7 @@ Show or change the runner's proxy and trusted certificate.
 
 ```text
 Usage: ooa agent move [-h] [--ca=FILE] [--config=FILE] --url=URL
-Point the runner at the Command Center's new address, keeping its registration.
+Point the runner at One CommandCenter's new address, keeping its registration.
       --ca=FILE       The certificate to trust for it.
       --config=FILE   The registration.
   -h, --help          Show this help.
@@ -471,7 +471,7 @@ Point the runner at the Command Center's new address, keeping its registration.
 
 ```text
 Usage: ooa agent diagnose [-h] [--config=FILE] [--workspace=DIR]
-Find why the runner cannot reach or work with its Command Center.
+Find why the runner cannot reach or work with its One CommandCenter.
       --config=FILE     The registration.
   -h, --help            Show this help.
       --workspace=DIR   The runner's workspace.
@@ -499,7 +499,7 @@ Stop starting the runner at sign-in.
 
 ```text
 Usage: ooa db [-h] [COMMAND]
-Set up and look after the Command Center database
+Set up and look after One CommandCenter database
 (docs/infrastructure/05-databases.md).
   -h, --help   Show this help.
 Commands:
@@ -512,7 +512,7 @@ Commands:
                   its rights.
   migrate       Upgrade the schema after an update.
   script        Print the schema SQL for a database administrator.
-  copy          Copy the data of a built-in (H2) Command Center into the
+  copy          Copy the data of a built-in (H2) One CommandCenter into the
                   configured database.
 ```
 
@@ -529,8 +529,8 @@ Save the database settings: SQL Server or PostgreSQL, the server and the
 accounts.
       --config=FILE         The settings file (default DIR/config/ooa-db.
                               properties).
-      --data=DIR            The Command Center data folder (default: ~/OOA
-                              Command Center).
+      --data=DIR            One CommandCenter data folder (default: ~/OOA
+                              One CommandCenter).
       --database=NAME       The database (default ooa_command_center).
       --engine=ENGINE       sqlserver (default) or postgresql.
   -h, --help                Show this help.
@@ -558,7 +558,7 @@ Usage: ooa db set-password [-h] [--setup] [--config=FILE] [--data=DIR]
                            [--from-env=VAR]
 Store a database password, encrypted with the vault key.
       --config=FILE    The settings file (default DIR/config/ooa-db.properties).
-      --data=DIR       The Command Center data folder (default: ~/OOA Command
+      --data=DIR       One CommandCenter data folder (default: ~/OOA Command
                          Center).
       --from-env=VAR   Read it from this environment variable instead of asking.
   -h, --help           Show this help.
@@ -571,7 +571,7 @@ Store a database password, encrypted with the vault key.
 Usage: ooa db test [-h] [--config=FILE] [--data=DIR]
 Connect with the runtime account and report the version, encryption and rights.
       --config=FILE   The settings file (default DIR/config/ooa-db.properties).
-      --data=DIR      The Command Center data folder (default: ~/OOA Command
+      --data=DIR      One CommandCenter data folder (default: ~/OOA Command
                         Center).
   -h, --help          Show this help.
 ```
@@ -582,7 +582,7 @@ Connect with the runtime account and report the version, encryption and rights.
 Usage: ooa db init [-h] [--config=FILE] [--data=DIR]
 Create the database and schema, and give the runtime account its rights.
       --config=FILE   The settings file (default DIR/config/ooa-db.properties).
-      --data=DIR      The Command Center data folder (default: ~/OOA Command
+      --data=DIR      One CommandCenter data folder (default: ~/OOA Command
                         Center).
   -h, --help          Show this help.
 ```
@@ -593,7 +593,7 @@ Create the database and schema, and give the runtime account its rights.
 Usage: ooa db migrate [-h] [--config=FILE] [--data=DIR]
 Upgrade the schema after an update.
       --config=FILE   The settings file (default DIR/config/ooa-db.properties).
-      --data=DIR      The Command Center data folder (default: ~/OOA Command
+      --data=DIR      One CommandCenter data folder (default: ~/OOA Command
                         Center).
   -h, --help          Show this help.
 ```
@@ -605,7 +605,7 @@ Usage: ooa db script [-h] [--config=FILE] [--data=DIR] [--engine=ENGINE]
 Print the schema SQL for a database administrator.
       --config=FILE     The settings file (default DIR/config/ooa-db.
                           properties).
-      --data=DIR        The Command Center data folder (default: ~/OOA Command
+      --data=DIR        One CommandCenter data folder (default: ~/OOA Command
                           Center).
       --engine=ENGINE   sqlserver, postgresql or h2.
   -h, --help            Show this help.
@@ -615,11 +615,11 @@ Print the schema SQL for a database administrator.
 
 ```text
 Usage: ooa db copy [-h] [--replace] [--config=FILE] [--data=DIR] --from=DIR
-Copy the data of a built-in (H2) Command Center into the configured database.
+Copy the data of a built-in (H2) One CommandCenter into the configured database.
       --config=FILE   The settings file (default DIR/config/ooa-db.properties).
-      --data=DIR      The Command Center data folder (default: ~/OOA Command
+      --data=DIR      One CommandCenter data folder (default: ~/OOA Command
                         Center).
-      --from=DIR      The data folder of the built-in Command Center.
+      --from=DIR      The data folder of the built-in One CommandCenter.
   -h, --help          Show this help.
       --replace       Delete the rows already there first.
 ```
@@ -831,8 +831,8 @@ Start the directory (config/ooa-directory.properties lists the regions).
 
 ```text
 Usage: ooa check [-h] [--data=DIR] [--port=N]
-Check whether this computer is ready for a Command Center.
-      --data=DIR   The Command Center data folder (default: ~/OOA Command
+Check whether this computer is ready for One CommandCenter.
+      --data=DIR   One CommandCenter data folder (default: ~/OOA Command
                      Center).
   -h, --help       Show this help.
       --port=N     The port it will use (default 8720).
@@ -856,8 +856,8 @@ Usage: ooa vault rekey [-h] [--data=DIR] [--db-config=FILE]
                        [--db-password-env=VAR] [--db-url=URL] [--db-user=NAME]
                        --new-key-env=VAR
 Re-encrypt every stored secret with a new master key. Stop the server first.
-      --data=DIR          The Command Center data folder (default: ~/OOA
-                            Command Center).
+      --data=DIR          One CommandCenter data folder (default: ~/OOA
+                            One CommandCenter).
       --db-config=FILE    Database settings other than DIR/config/ooa-db.
                             properties.
       --db-password-env=VAR
@@ -873,7 +873,7 @@ Re-encrypt every stored secret with a new master key. Stop the server first.
 
 ```text
 Usage: ooa backup [-h] [COMMAND]
-Back up and restore the Command Center.
+Back up and restore One CommandCenter.
   -h, --help   Show this help.
 Commands:
   now      Make a backup into the backup folder.
@@ -887,7 +887,7 @@ Commands:
 Usage: ooa backup now [-h] [--data=DIR] [--db-config=FILE]
                       [--db-password-env=VAR] [--db-url=URL] [--db-user=NAME]
 Make a backup into the backup folder.
-      --data=DIR         The Command Center data folder (default: ~/OOA Command
+      --data=DIR         One CommandCenter data folder (default: ~/OOA Command
                            Center).
       --db-config=FILE   Database settings other than DIR/config/ooa-db.
                            properties.
@@ -904,7 +904,7 @@ Make a backup into the backup folder.
 Usage: ooa backup list [-h] [--data=DIR] [--db-config=FILE]
                        [--db-password-env=VAR] [--db-url=URL] [--db-user=NAME]
 List the backups, newest first.
-      --data=DIR         The Command Center data folder (default: ~/OOA Command
+      --data=DIR         One CommandCenter data folder (default: ~/OOA Command
                            Center).
       --db-config=FILE   Database settings other than DIR/config/ooa-db.
                            properties.
@@ -923,7 +923,7 @@ Usage: ooa backup restore [-h] [--replace] [--data=DIR] [--db-config=FILE]
                           [--db-user=NAME] FILE
 Put a backup back. Stop the server first.
       FILE               The backup file.
-      --data=DIR         The Command Center data folder (default: ~/OOA Command
+      --data=DIR         One CommandCenter data folder (default: ~/OOA Command
                            Center).
       --db-config=FILE   Database settings other than DIR/config/ooa-db.
                            properties.
@@ -939,7 +939,7 @@ Put a backup back. Stop the server first.
 
 ```text
 Usage: ooa tls [-h] [COMMAND]
-HTTPS for the Command Center. Stop the server first; it uses the settings at
+HTTPS for One CommandCenter. Stop the server first; it uses the settings at
 its next start.
   -h, --help   Show this help.
 Commands:
@@ -960,7 +960,7 @@ Commands:
 Usage: ooa tls configure [-h] [--data=DIR] --pfx=FILE
 Use the company's certificate (a .pfx or .p12 with its private key); then
 set-password.
-      --data=DIR   The Command Center data folder (default: ~/OOA Command
+      --data=DIR   One CommandCenter data folder (default: ~/OOA Command
                      Center).
   -h, --help       Show this help.
       --pfx=FILE   The certificate file.
@@ -971,7 +971,7 @@ set-password.
 ```text
 Usage: ooa tls set-password [-h] [--data=DIR] [--from-env=VAR]
 Store the certificate file's password, encrypted with the vault key.
-      --data=DIR       The Command Center data folder (default: ~/OOA Command
+      --data=DIR       One CommandCenter data folder (default: ~/OOA Command
                          Center).
       --from-env=VAR   Read it from this environment variable instead of asking.
   -h, --help           Show this help.
@@ -982,7 +982,7 @@ Store the certificate file's password, encrypted with the vault key.
 ```text
 Usage: ooa tls self-signed [-h] [--data=DIR] [--days=N] [--host=NAME]
 Make a certificate for tests (browsers warn; runners need --ca).
-      --data=DIR    The Command Center data folder (default: ~/OOA Command
+      --data=DIR    One CommandCenter data folder (default: ~/OOA Command
                       Center).
       --days=N      How long it is valid (default 825).
   -h, --help        Show this help.
@@ -994,7 +994,7 @@ Make a certificate for tests (browsers warn; runners need --ca).
 ```text
 Usage: ooa tls show [-h] [--data=DIR]
 Show the certificate in use: its names and validity.
-      --data=DIR   The Command Center data folder (default: ~/OOA Command
+      --data=DIR   One CommandCenter data folder (default: ~/OOA Command
                      Center).
   -h, --help       Show this help.
 ```
@@ -1005,7 +1005,7 @@ Show the certificate in use: its names and validity.
 Usage: ooa tls export-cert [-h] [--data=DIR] --out=FILE
 Save the certificate without its key, for runners (agent register --ca) and
 browsers.
-      --data=DIR   The Command Center data folder (default: ~/OOA Command
+      --data=DIR   One CommandCenter data folder (default: ~/OOA Command
                      Center).
   -h, --help       Show this help.
       --out=FILE   The .cer file to write.
@@ -1016,7 +1016,7 @@ browsers.
 ```text
 Usage: ooa tls off [-h] [--data=DIR]
 Back to plain HTTP (the settings file is renamed, not deleted).
-      --data=DIR   The Command Center data folder (default: ~/OOA Command
+      --data=DIR   One CommandCenter data folder (default: ~/OOA Command
                      Center).
   -h, --help       Show this help.
 ```
@@ -1072,14 +1072,14 @@ Usage: ooa assistant [-h] [--sign-out] [--url=URL]
 Start the desktop assistant in the notification area, to run your automations.
   -h, --help       Show this help.
       --sign-out   Forget the saved sign-in.
-      --url=URL    The Command Center (asked the first time).
+      --url=URL    One CommandCenter (asked the first time).
 ```
 
 ## ooa service
 
 ```text
 Usage: ooa service [-h] [COMMAND]
-Run the Command Center or a runner as a Windows service.
+Run One CommandCenter or a runner as a Windows service.
   -h, --help   Show this help.
 Commands:
   install    Install the service (an administrator prompt appears).
@@ -1100,8 +1100,8 @@ Install the service (an administrator prompt appears).
       --account=USER        The account the service runs as (default
                               LocalSystem).
       --agent-config=FILE   The runner's registration (agent mode).
-      --data=DIR            The Command Center data folder (default: ~/OOA
-                              Command Center).
+      --data=DIR            One CommandCenter data folder (default: ~/OOA
+                              One CommandCenter).
   -h, --help                Show this help.
       --host=HOST           The address to listen on.
       --mode=MODE           server (default), control-room or agent.

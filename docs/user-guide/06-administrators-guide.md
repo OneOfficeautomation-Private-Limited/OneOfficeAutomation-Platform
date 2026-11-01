@@ -32,13 +32,13 @@ administrator-only permissions are `repo.production`, `repo.approve`, `repo.perm
 
 ## 1. Before you go live
 
-A checklist for a production Command Center:
+A checklist for a production One CommandCenter:
 
 1. **Install it on a server** with the setup package as a service:
    `Install.cmd -Silent -Role CommandCenter -AllUsers -Service -Port 8720`, or the MSI
    `msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720`. Both make a service that listens on every
    network card, so runners on other machines reach it (`-ListenAddress 127.0.0.1` / `LISTEN_ADDRESS=127.0.0.1` keeps
-   it on this computer only); the MSI keeps the data in `%ProgramData%\OneOfficeAutomation\Command Center` unless you
+   it on this computer only); the MSI keeps the data in `%ProgramData%\OneOfficeAutomation\One CommandCenter` unless you
    give `DATA_DIR`. Installing again keeps an existing service and its settings; to change them, run
    `ooa service uninstall` and install again. Or, from an installed `bin` folder,
    `ooa service install --mode control-room --data D:\OOA\cr --port 8720` (`--mode server` adds Studio; a service has no
@@ -56,13 +56,13 @@ A checklist for a production Command Center:
 4. **Turn on HTTPS** (below) before other machines connect. A service made by the installers already listens on
    every network card; one made with `ooa service install` needs `--host 0.0.0.0`.
 5. Run `bin\ooa.bat check`. Fix every **FAIL**.
-6. Set the **Public address of the Command Center** in Settings (needed for single sign-on redirects).
+6. Set the **Public address of One CommandCenter** in Settings (needed for single sign-on redirects).
 7. Set up backups, e-mail, password rules and two-step sign-in in **Settings** (section 12).
 8. Install the licence and give out seats (section 13).
 
 ### HTTPS and network access
 
-Stop the Command Center, then from `bin`:
+Stop One CommandCenter, then from `bin`:
 
 | Command | What it does |
 | --- | --- |
@@ -165,7 +165,7 @@ All in **Administration > Settings** unless stated; press **Save settings** at t
 | **Sign-in session length (hours)** | 8 by default, up to 720 |
 | **Disable users inactive for (days)** | 0 = never |
 | **IP allow list** | Addresses or CIDR ranges (`10.0.0.0/8, 203.0.113.7`). Empty lets every address in; this computer is always allowed |
-| **Trusted proxies** | The addresses or CIDR ranges of your load balancers and reverse proxies (`10.0.5.10, 10.0.6.0/24`). Requests through them are counted under the client's own address (from `X-Forwarded-For`) for the allow list, the sign-in limits and the audit trail. Leave empty when nothing sits in front of the Command Center |
+| **Trusted proxies** | The addresses or CIDR ranges of your load balancers and reverse proxies (`10.0.5.10, 10.0.6.0/24`). Requests through them are counted under the client's own address (from `X-Forwarded-For`) for the allow list, the sign-in limits and the audit trail. Leave empty when nothing sits in front of One CommandCenter |
 
 Single sign-on users are not affected by password rules.
 
@@ -193,10 +193,10 @@ which also clears it).
 1. Give the identity provider (Entra ID, Okta, ADFS ...) the metadata address `<public address>/api/auth/saml/metadata`
    (sign-in address `/api/auth/saml/acs`).
 2. Fill in **Identity provider sign-in address (SAML SSO URL)**, **Identity provider entity id (issuer)**,
-   **This Command Center's entity id** (empty = the metadata address), **Button text** and **Identity provider
+   **This One CommandCenter's entity id** (empty = the metadata address), **Button text** and **Identity provider
    signing certificate (PEM)**.
 3. Have the provider sign the assertion or the response, and not encrypt it: encrypted assertions are refused.
-   Sign-ins must start at the Command Center's sign-in page.
+   Sign-ins must start at One CommandCenter's sign-in page.
 
 ### Other security switches
 
@@ -259,7 +259,7 @@ and press **Save**.
 **Vault key** (needs `lockers.manage`) shows where the master key comes from, its fingerprint and how many values it
 protects. **Rotate key** makes a new key and encrypts every stored value again in one transaction (shared values,
 people's own values and external-vault secrets); the old key file stays as `master.key.old-...`. With
-`OOA_MASTER_KEY` or a key store, stop the Command Center and run `ooa vault rekey --new-key-env VAR` (the new key in
+`OOA_MASTER_KEY` or a key store, stop One CommandCenter and run `ooa vault rekey --new-key-env VAR` (the new key in
 the variable `VAR`), then replace the old key where it is kept and start again. Keep the key apart from backups: a
 backup never holds it.
 
@@ -347,7 +347,7 @@ These are in **Build > Agent Repository**; builders use it daily (see
   **Refuse check-ins that have errors**. **Report for all agents (CSV)** downloads the findings.
 - **Git sync of the agent repository** (Settings): **Remote**, **Branch**, **User name**, **Access token (vault
   reference)** and **Push after every check-in, production change and deletion**; **Save and sync now** pushes at once.
-  The Command Center stays the source of truth: changes made in Git are overwritten.
+  One CommandCenter stays the source of truth: changes made in Git are overwritten.
 
 ## 11. Templates
 
@@ -363,19 +363,19 @@ file**.
 
 | Group | What you set |
 | --- | --- |
-| General | Announcement; inactive-user days; **Sign-in session length**; **Largest upload (MB)** (25 by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval (seconds)**; **Minutes saved per successful run** (the default for Home's "hours saved"); **Public address of the Command Center** |
+| General | Announcement; inactive-user days; **Sign-in session length**; **Largest upload (MB)** (25 by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval (seconds)**; **Minutes saved per successful run** (the default for Home's "hours saved"); **Public address of One CommandCenter** |
 | Single sign-on | OpenID Connect and SAML 2.0 (section 5) |
 | Git sync | Section 10 |
 | AI assistants (Model Context Protocol) | **Agents offered as tools** (paths, or `*`), **Runner or runner pool id**, **Wait for a result (seconds)**, **Token audience** and **Scope** for OAuth sign-in. Assistants connect to `/api/mcp` with a user's API key |
 | Security | Section 5, plus **Update runners automatically**, **Remove temporary runners after this many hours without contact** (8 by default) and **Give runners a new secret every (days)** (30 by default) |
-| Outgoing connections | **Proxy (http://host:port)** and **Reach these directly** for the Command Center's own connections (single sign-on, Git, AI, external vaults). Runners have their own proxy (`ooa agent network`) |
+| Outgoing connections | **Proxy (http://host:port)** and **Reach these directly** for One CommandCenter's own connections (single sign-on, Git, AI, external vaults). Runners have their own proxy (`ooa agent network`) |
 | Audit forwarding (SIEM) | Section 5 |
 | E-mail | **Outgoing mail server**, **Port**, **Security** (STARTTLS, SSL/TLS, None on a trusted network only), **Account**, **Password (vault reference)**, **Sender address**, **Also send licence reminders to**; **Send a test e-mail**. Used for licence reminders and workflow e-mail steps |
 | Several nodes | Lists the nodes and which one leads background work; **Shared folder for repository files** (for example `\\fileserver\ooa\repo-files`). Every node needs the same `OOA_MASTER_KEY` |
 | Template catalogue | Section 11 |
 | Backups | **Back up every (hours, 0 = never)**, **Keep backups for (days)** (7 by default), **Backup folder**; **Back up now**. One zip holds every table, the repository files and the configuration, never the vault key |
 | Run history | **Keep step logs for**, **Keep runs for**, **Keep audit entries for** (at least 90 days, older ones archived to `audit-archive`), **Keep AI call records for**, **Keep finished work-queue items for** (0 = always); **Remove now** |
-| This Command Center | Edition, limits, active users, runners, agents and toolkits (read only) |
+| This One CommandCenter | Edition, limits, active users, runners, agents and toolkits (read only) |
 | Database | Engine, server, database, account, encryption, schema version, size (read only; changed with `ooa db`) |
 
 Backups from the command line: `ooa backup now`, `ooa backup list`, and with the server stopped
@@ -388,9 +388,9 @@ Backups from the command line: `ooa backup now`, `ooa backup list`, and with the
 
 ### Install a licence
 
-1. Make sure the Command Center runs on SQL Server (or PostgreSQL). On the built-in database the page shows the
+1. Make sure One CommandCenter runs on SQL Server (or PostgreSQL). On the built-in database the page shows the
    **Move to Microsoft SQL Server before licensing** steps instead of the install form.
-2. Copy the **Install id of this Command Center** (`OOA-XXXX-XXXX-XXXX-XXXX`) and send it with your licence request.
+2. Copy the **Install id of this One CommandCenter** (`OOA-XXXX-XXXX-XXXX-XXXX`) and send it with your licence request.
    A licence issued for it works only here.
 3. When the `.lic` file arrives, check it if you like with `bin\ooa.bat license show yourfile.lic`.
 4. Under **Install a license**, choose the **License file** (or paste its text) and press **Install license**.
@@ -463,7 +463,7 @@ AI calls** with the prompt's fingerprint (SHA-256). Prompts are never stored.
 
 ## 16. Languages
 
-The Command Center and Studio are available in English, Deutsch, Français, Español and 日本語. Each person chooses under
+One CommandCenter and Studio are available in English, Deutsch, Français, Español and 日本語. Each person chooses under
 **Language** in the user menu; the choice is kept per browser, and without one the browser's language is used when
 available. Names, ids, data, code and server messages are not translated.
 
@@ -486,4 +486,4 @@ available. Names, ids, data, code and server messages are not translated.
 - [01 Getting started](01-getting-started.md)
 - [05 Operator's guide](05-operators-guide.md)
 - [07 Runner guide](07-runner-guide.md)
-- [15 Publishing to the Command Center](15-publishing-to-command-center.md)
+- [15 Publishing to One CommandCenter](15-publishing-to-command-center.md)

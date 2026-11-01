@@ -114,7 +114,7 @@ Rules enforced by the engine (`Runner.Scope`):
 - `sys` and `global` are reserved names. `$sys.*` is computed at the moment of use (date, time, now, today, year …
   timestamp, os, os_version, machine, user, user_domain, home_folder, temp_folder, workspace, processors, CPU and RAM
   use, run_id, bot_id, bot_name, principal, newline, tab, empty). `$global.*` comes from the `global_values` service
-  (Command Center shared values, with a person's own value where the value is changeable) or `global-values.json` in
+  (One CommandCenter shared values, with a person's own value where the value is changeable) or `global-values.json` in
   the workspace. Both are read-only (`VAR.READ_ONLY`).
 
 ## 4. Steps
@@ -216,7 +216,7 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
   that implement `AutoCloseable` are closed when the run ends, unless a child agent borrowed its parent's sessions.
 - **Saved connections** hold a toolkit's address and other values plus vault references for its credentials. A step
   names one with `connection`; empty inputs are filled from it, and credentials are fetched from the vault at that
-  moment. Connections come from the `connections` service (Command Center table `connections`, sent with each job) or
+  moment. Connections come from the `connections` service (One CommandCenter table `connections`, sent with each job) or
   `connections.json` in the workspace. A connection for another toolkit gives `CONNECTION.WRONG_TOOLKIT`.
 
 ## 9. Error handling and retries
@@ -257,7 +257,7 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
 - The parent's secrets are added to the child's mask list, and pause, cancel and the debugger pass down.
 - Nesting is limited to `Runner.MAX_CHILD_DEPTH` = 10 (`CHILD.DEPTH`).
 - Child definitions come from the `repository` service (`AutomationRepository.get(id, version)`). On a runner, the
-  Command Center sends the production versions of all child agents with the job (collected transitively, at most 10
+  One CommandCenter sends the production versions of all child agents with the job (collected transitively, at most 10
   levels and 100 agents).
 - Toolkit actions can also start a child agent through `ChildAgents` (session key `ooa.child_agents`), for example the
   interrupt handlers that run a recovery agent when an unexpected window appears.
@@ -279,7 +279,7 @@ Each event is a `RunEvent(runId, seq, type, ts, stepId, data)`; `seq` increases 
 | `run.finished` | `status`, `durationMs`, `error`, `outputs` |
 
 `EventSink` implementations: an in-memory list (tests, Studio), a console printer (`ooa run`), and the run worker's
-JSON-line stream to the runner, which posts batches to the Command Center (`run_events`).
+JSON-line stream to the runner, which posts batches to One CommandCenter (`run_events`).
 
 The `RunResult` holds `runId`, `automationId`, `status` (`success`, `failed`, `stopped`), `outputs` (all `output` and
 `in_out` variables), `error`, `durationMs`, `planHash` and `stepsExecuted`. At the end of a top-level run every
@@ -345,9 +345,9 @@ Runner.builder(registry)
 
 | Host | How it builds the Runner |
 | --- | --- |
-| Studio (`StudioServer`) | In the Studio process; vault from environment variables (`EnvVault`) or the linked Command Center; debugger and value trail |
+| Studio (`StudioServer`) | In the Studio process; vault from environment variables (`EnvVault`) or the linked One CommandCenter; debugger and value trail |
 | Run worker (`RunWorker`) | One JVM per job. Line protocol with the runner: stdin carries the job, then `credential` answers and `cancel`/`pause`/`resume`; stdout carries `event` lines, `credential` requests (`{id, ref}`) and the final `result`. Secrets arrive only on request and live only in memory |
-| Command Center (`ServerlessRuns`) | Serverless Agent APIs on the virtual runner `dev_serverless`, with a limited toolkit list, paths confined to the run's temporary workspace (`confine_paths`), 4 at once, 5 minutes each |
+| One CommandCenter (`ServerlessRuns`) | Serverless Agent APIs on the virtual runner `dev_serverless`, with a limited toolkit list, paths confined to the run's temporary workspace (`confine_paths`), 4 at once, 5 minutes each |
 | Command line | `ooa run FILE` with a console sink; `ooa validate`; `ooa conformance DIR` |
 
 ## 16. Python reference runner and conformance

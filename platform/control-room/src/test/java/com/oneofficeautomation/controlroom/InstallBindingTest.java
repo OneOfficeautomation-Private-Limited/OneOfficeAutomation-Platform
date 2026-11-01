@@ -11,7 +11,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** A license with an install id works only on that Command Center; one without works anywhere. */
+/** A license with an install id works only on that One CommandCenter; one without works anywhere. */
 class InstallBindingTest {
 
     static String license(PrivateKey key, String id, String installId) {

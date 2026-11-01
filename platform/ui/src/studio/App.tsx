@@ -40,7 +40,7 @@ const SCRIPT_LANGUAGE: Record<string, string> = { py: "Python script", ps1: "Pow
 const SCRIPT_ACTION: Record<string, { action: string; name: string }> = { py: { action: "ooa.script/run_python", name: "Run Python" },
   ps1: { action: "ooa.script/run_powershell", name: "Run PowerShell" }, vbs: { action: "ooa.script/run_vbscript", name: "Run VBScript" }, js: { action: "ooa.script/run_javascript", name: "Run JavaScript" } };
 
-/** The new Studio (docs/architecture/12-ui-redesign.md): Command Center menu, Automation page, agents in tabs. */
+/** The new Studio (docs/architecture/12-ui-redesign.md): One CommandCenter menu, Automation page, agents in tabs. */
 export function App({ api: given }: { api?: StudioApi }) {
   // one client for the life of the page: a new one on every render would reload the data in a loop
   const [api] = useState(() => given ?? new StudioApi());
@@ -63,7 +63,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [connections, setConnections] = useState<ModelConnections | null>(null);
   const [wizard, setWizard] = useState(false);
   const [asSteps, setAsSteps] = useState<string[]>([]);
-  const [cr, setCr] = useState<CrStatus>({ connected: false });   // the Command Center sign-in, for the Public tab and Check in
+  const [cr, setCr] = useState<CrStatus>({ connected: false });   // One CommandCenter sign-in, for the Public tab and Check in
   const [checkingIn, setCheckingIn] = useState(false);
   // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
@@ -275,7 +275,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     setTabs(rest);
     if (active === path) setActive(rest.length ? rest[rest.length - 1].path : null);
   };
-  // ---- the Command Center agent repository ----
+  // ---- One CommandCenter agent repository ----
   const crHome = info?.controlRoom ?? "../";
   /** Check out (or open my copy): the repository's version becomes the private copy in the workspace, and opens. */
   const checkOut = async (repoPath: string, local?: string) => {
@@ -408,7 +408,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                       <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer">Run</Button>
                       <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints (or at the first step)">Debug</Button>
                     </>}
-                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to the Command Center agent repository as a new version">Check in</Button>}
+                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>}
         </div>

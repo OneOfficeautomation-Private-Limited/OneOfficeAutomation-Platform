@@ -1,9 +1,9 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
-// Studio and the rebuilt Command Center console (docs/architecture/12-ui-redesign.md), one build with two pages that
+// Studio and the rebuilt One CommandCenter console (docs/architecture/12-ui-redesign.md), one build with two pages that
 // share their files: index.html is Studio, served at <base>/ (the root, or /studio/ under ooa server); console.html is
-// the console, served by the Command Center at /next/. Asset paths are relative and nothing is inlined: the security
+// the console, served by One CommandCenter at /next/. Asset paths are relative and nothing is inlined: the security
 // policy allows only the servers' own files.
 export default defineConfig({
   plugins: [react()],

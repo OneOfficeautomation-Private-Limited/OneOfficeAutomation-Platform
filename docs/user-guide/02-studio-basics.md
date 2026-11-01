@@ -32,7 +32,7 @@ but it only works on your own computer: it reads and writes your private workspa
   element*.
 - Actions come in **toolkits** (Excel, Browser, Email, Salesforce and so on). The Actions panel shows them in groups.
 - Your workspace is private. When an agent is ready to share or to run on other computers, you **check it in** to One
-  Command Center (see [Publishing to Command Center](15-publishing-to-command-center.md)).
+  One CommandCenter (see [Publishing to One CommandCenter](15-publishing-to-command-center.md)).
 
 Besides agents, the workspace holds **forms**, **workflows**, **document intelligence** items, **Prompt Skills**,
 **scripts** (Python, PowerShell, VBScript, JavaScript) and ordinary files such as workbooks and CSV files.
@@ -49,7 +49,7 @@ Besides agents, the workspace holds **forms**, **workflows**, **document intelli
 narrow rail of icons on the left, and the list of everything in your workspace in the middle.
 
 > **Tip:** Studio only answers browsers on the same computer. Opening it from another machine gives
-> "Agent Studio is only available on this computer". This is on purpose: your workspace is private.
+> "One AgentStudio is only available on this computer". This is on purpose: your workspace is private.
 
 The first time Studio starts with an empty workspace, it copies in the sample agents so you have something to look at.
 
@@ -105,7 +105,7 @@ The rail on the far left switches the side panel:
 
 | Rail button | Side panel |
 | --- | --- |
-| **Explorer** (folder) | Your workspace as a tree, with **+ Create**, **+ Folder**, **Rename**, **Delete**, **↻** (Refresh) and **Agent check-in**. Below the tree: the workspace folder path and the **Command Center** section. |
+| **Explorer** (folder) | Your workspace as a tree, with **+ Create**, **+ Folder**, **Rename**, **Delete**, **↻** (Refresh) and **Agent check-in**. Below the tree: the workspace folder path and the **One CommandCenter** section. |
 | **Actions** (four squares) | Every action you can add, in groups under section headings (Flow and control, Data and variables, Office documents, Web and desktop, APIs and databases, AI and so on). |
 | **Variables** (braces) | The open agent's variables, grouped as **Inputs**, **Outputs**, **Inside the agent**, plus **System variables** and **Shared Global values**. |
 | **Triggers** (lightning) | Local triggers that start agents while Studio runs. |
@@ -296,9 +296,9 @@ field).
 
 | What you see | What to do |
 | --- | --- |
-| "Cannot reach Agent Studio server: …" | ONEOFFICEAUTOMATION is not running, or was stopped. Start it again and reload the page. |
+| "Cannot reach One AgentStudio server: …" | ONEOFFICEAUTOMATION is not running, or was stopped. Start it again and reload the page. |
 | The page does not open; "port … is already in use" in the start window | Another Studio is still running. Close it, or start this one on another port (`--port`). |
-| "Agent Studio is only available on this computer" | Open Studio on the computer where it runs. |
+| "One AgentStudio is only available on this computer" | Open Studio on the computer where it runs. |
 | "Open or create an agent first (Explorer tab)." | You clicked an action with no agent open. Open or create one. |
 | "Select a file or folder to rename." | Select an item in the Explorer first; the top **Workspace** row cannot be renamed. |
 | An upload fails with "Uploads are limited to 50 MB per file" | Split or compress the file, or keep it on a shared drive and use its full path. |
@@ -311,4 +311,4 @@ field).
 - [Building agents in Studio](03-studio-building-agents.md)
 - [Running and debugging](04-studio-running-and-debugging.md)
 - [Child agents](09-child-agents.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)

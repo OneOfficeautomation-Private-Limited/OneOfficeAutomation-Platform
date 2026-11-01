@@ -15,7 +15,7 @@ public final class Steps {
             if (!(o instanceof Map)) continue;
             Map<String, Object> s = (Map<String, Object>) o;
             out.add(s);
-            // in the order Agent Studio shows them, so a step's place in this list is its line number:
+            // in the order One AgentStudio shows them, so a step's place in this list is its line number:
             // children, else-if branches, else, catch blocks, finally
             if (s.get("children") instanceof List<?> l) out.addAll(walk((List<Object>) l));
             if (s.get("elseIf") instanceof List<?> l)

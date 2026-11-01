@@ -2,10 +2,10 @@
 
 ## What this covers
 
-The Command Center's agent repository: the public, versioned store of agents, workflows, forms and their files. This
+One CommandCenter's agent repository: the public, versioned store of agents, workflows, forms and their files. This
 document specifies folders and folder permissions, check-out and check-in, versions and their checksums, labels, the
 live production version and approval before production, delete, recover, move, copy and rename, repository files,
-dependencies, code analysis, the Git mirror, moving agents between Command Centers, and the templates catalogue.
+dependencies, code analysis, the Git mirror, moving agents between One CommandCenter installations, and the templates catalogue.
 
 ## Contents
 
@@ -30,10 +30,10 @@ dependencies, code analysis, the Git mirror, moving agents between Command Cente
 
 | | Studio workspace (My Workspace) | Agent Repository |
 | --- | --- | --- |
-| Where | The designer's computer | The Command Center database |
+| Where | The designer's computer | One CommandCenter database |
 | Who sees it | Only the designer | Everyone allowed by role and folder permissions |
 | History | One working copy per item (deleted items go to the workspace trash) | Every version kept |
-| What runs from it | Studio test runs | Every Command Center run (live production version) |
+| What runs from it | Studio test runs | Every One CommandCenter run (live production version) |
 
 Repository paths are `Folder/Sub-folder/Name.flow.json` (or `.process.json`, `.form.json`); `..` and other invalid
 paths are refused (`CR.BAD_PATH`).
@@ -65,9 +65,9 @@ How they apply:
 | --- | --- |
 | Check-out | Locks a public item for the person and copies its latest version into their workspace. Refused while someone else has it (`CR.LOCKED`, naming who and since when). Others see "Checked out by NAME". Needs folder access edit. |
 | Check-in | Validates the item ([document 01](01-agents-and-automation-items.md), section 11; workflows and forms by their own rules) and applies the code analysis policy. Problems block it (`CR.INVALID_BOT`, with the list). An existing item must be checked out by the same person (`CR.NOT_CHECKED_OUT`). Stores a new version with a comment and releases the lock. Needs a Developer or Citizen Developer seat while a licence is in force. |
-| Check-in as production | Also makes the new version live (needs folder access manage), or asks for approval when approval before production is on. Studio's **Agent check-in** does this only when **Make this the live version** is ticked (off by default); **Publish to Command Center** for workflows and forms always does. |
+| Check-in as production | Also makes the new version live (needs folder access manage), or asks for approval when approval before production is on. Studio's **Agent check-in** does this only when **Make this the live version** is ticked (off by default); **Publish to One CommandCenter** for workflows and forms always does. |
 | Undo check-out | Releases the lock without a new version; by the person who has it, or someone with `repo.production` |
-| Publish to Command Center (workflows, forms) | Checks the item in as the live production version |
+| Publish to One CommandCenter (workflows, forms) | Checks the item in as the live production version |
 | First check-in | Creates the item at version 1 |
 
 An agent's id must be unique across the repository (`CR.DUPLICATE_ID`). Checking in at the path of a deleted item is
@@ -183,7 +183,7 @@ or any Git server).
 
 The mirror holds the latest version of every item as indented JSON under `agents/`, and `ooa-repository.json` listing
 each item's latest and live version. Each change (check-in, live version, delete) becomes a commit with its comment and
-author. The Command Center stays the source of truth: changes made in Git are overwritten at the next sync.
+author. One CommandCenter stays the source of truth: changes made in Git are overwritten at the next sync.
 
 ## 13. Export, import and promote (lifecycle)
 
@@ -191,7 +191,7 @@ author. The Command Center stays the source of truth: changes made in Git are ov
 | --- | --- |
 | Export | A bundle of the ticked items at a version (production, latest, a number or a label) and optionally every agent they call. Each item's content carries its SHA-256; the bundle has a checksum. Needs `lifecycle.export` and view access. |
 | Import | First shows what the bundle holds: each agent, its version, whether it was included because another calls it, where it will go (its own folders under the folder chosen) and whether it is already here. Then checks the bundle and validates every item as check-in does, with folder permissions. Stores all of them or none. An existing item is skipped or gets a new version; history is never replaced. Can place items under another folder and make the versions live (or request approval). Needs `lifecycle.import`. |
-| Promote | Export and import in one step against another Command Center, using an API key of someone allowed to import there, kept in a vault folder here; the key is read from the vault and sent only to that address |
+| Promote | Export and import in one step against another One CommandCenter, using an API key of someone allowed to import there, kept in a vault folder here; the key is read from the vault and sent only to that address |
 
 ## 14. Templates
 
@@ -236,4 +236,4 @@ permission changes, file uploads and deletes.
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
 - [14 One AgentStudio](14-studio-features.md)
-- [Command Center and runner, sections 4 and 10i](../user-guide/00-README.md)
+- [One CommandCenter and runner, sections 4 and 10i](../user-guide/00-README.md)

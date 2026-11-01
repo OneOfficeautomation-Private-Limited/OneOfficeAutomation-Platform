@@ -54,7 +54,7 @@ secrets, the audit chain key and the install id. It is looked up in this order:
 
 - The secret in a key store holds the key as Base64, like the variable. It is read once at start and kept only in
   memory. Give the machine's identity read access to that one secret only.
-- If the key store cannot be reached at start, the Command Center does not start (`CR.VAULT_KEY`). Plan network
+- If the key store cannot be reached at start, One CommandCenter does not start (`CR.VAULT_KEY`). Plan network
   access to the key store (and a proxy in `JAVA_OPTS` if needed).
 - The start-up lines and Administration > Vault key show where the key came from and its fingerprint (first 12 hex
   digits of its SHA-256), never the key.
@@ -75,14 +75,14 @@ the key in the store without re-encrypting would make every stored value unreada
 during a maintenance window:
 
 1. Take a backup (`ooa backup now`) and keep the current key.
-2. Stop the Command Center on every node.
+2. Stop One CommandCenter on every node.
 3. Put a new key (32 random bytes, Base64) in an environment variable, for example `OOA_NEW_KEY`, in the same prompt
    that still has the current key (`OOA_MASTER_KEY` or `OOA_MASTER_KEY_SOURCE`).
 4. Run `ooa vault rekey --new-key-env OOA_NEW_KEY [--data DIR]`. It re-encrypts every stored value with the new key,
    prints the new key's fingerprint (never the key) and is audited as `vault.rekey`. It refuses while the Command
    Center has the database open.
 5. Replace the old key where it is kept (the variable or the key store) with the new one, on every node, and start
-   the nodes. Until then the Command Center cannot read its secrets.
+   the nodes. Until then One CommandCenter cannot read its secrets.
 6. Archive the old key with the backups made before the rotation.
 
 With a key file, `ooa vault rekey` also works: it writes the new key into `master.key` and keeps the old one as
@@ -105,8 +105,8 @@ With a key file, `ooa vault rekey` also works: it writes the new key into `maste
 
 | Component | Account | Rights it needs |
 | --- | --- | --- |
-| Command Center service | A dedicated domain account or gMSA (`--account`), rather than Local System | Read the program folder; read/write the data folder and backup folder; read/write the shared repository folder; network access to database and configured services; no local administrator |
-| Command Center on Linux | `ooa` system user (systemd unit) | Write only `/var/lib/ooa` (`ProtectSystem=strict`) |
+| One CommandCenter service | A dedicated domain account or gMSA (`--account`), rather than Local System | Read the program folder; read/write the data folder and backup folder; read/write the shared repository folder; network access to database and configured services; no local administrator |
+| One CommandCenter on Linux | `ooa` system user (systemd unit) | Write only `/var/lib/ooa` (`ProtectSystem=strict`) |
 | Container | `ooa` user, non-root; program owned by root | Write only `/data` |
 | Database runtime account | `ooa_app` or the gMSA | `db_datareader`, `db_datawriter` only |
 | Database setup account | `ooa_setup` | `dbcreator`; keep its password out of the settings file between upgrades (remove `setup.password`) |
@@ -140,7 +140,7 @@ for narrow duties; switch off unused built-in roles (`switched_off_roles`).
 | `max_sessions_per_user` | 1 to 50 | 5 | 3 |
 | `inactive_user_days` | 0 to 3650 | 0 | 90 |
 | `sso_issuer`, `sso_client_id`, `sso_client_secret_ref` | OpenID Connect | - | Use the company identity provider (PKCE, signature, issuer, audience, expiry and nonce checked); client secret as a vault reference |
-| SAML settings (`saml_idp_*`) | SAML 2.0 | - | Signed assertion or response, unencrypted; sign-ins start at the Command Center |
+| SAML settings (`saml_idp_*`) | SAML 2.0 | - | Signed assertion or response, unencrypted; sign-ins start at One CommandCenter |
 | `sso_default_role` | A role | Empty | Empty (existing accounts only) or the least role |
 
 Built in, not configurable:
@@ -166,7 +166,7 @@ Single sign-on users follow the identity provider's MFA policy; enforce it there
 | Trusted proxies | `trusted_proxies`: addresses or CIDR ranges of your load balancers and reverse proxies. Only requests from these (or from this computer) may name the client with `X-Forwarded-For`; the last address that is not a trusted proxy counts for the allow list, rate limits and audit trail. Do not list networks where clients sit. |
 | Listen address | `127.0.0.1` behind a local reverse proxy (the default of `ooa server` and `ooa service install`; for the installers pass `-ListenAddress 127.0.0.1` / `LISTEN_ADDRESS=127.0.0.1`), or `0.0.0.0` with HTTPS (the installers' default for a service) |
 | Outgoing traffic | `outbound_proxy` plus egress firewall rules; serverless tasks can reach any address the server can, so make them only for trusted agents |
-| Runner networks | No inbound ports; outbound to the Command Center only |
+| Runner networks | No inbound ports; outbound to One CommandCenter only |
 | SaaS | NetGuard refuses private, loopback, link-local, CGNAT and unique-local targets for tenants; add network egress rules too ([09](09-saas-and-multi-region-operations.md)) |
 | Response headers | Built in: Content-Security-Policy (`default-src 'self'`, `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` |
 
@@ -217,11 +217,11 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
 - `max_upload_mb` (1 to 1024, default 25) limits request size.
 - Vault attributes: keep **Masked** on; use **Password fields only** for passwords.
 
-Checks the Command Center makes on its own:
+Checks One CommandCenter makes on its own:
 
 - The SHA-256 of each agent version, taken at check-in, is checked again whenever the version is read. A version
   changed in the database is never sent to a runner or an editor (`CR.AGENT_TAMPERED`).
-- A runner newer than the Command Center gets no work; the Runners page marks it "update the Command Center".
+- A runner newer than One CommandCenter gets no work; the Runners page marks it "update One CommandCenter".
 - A run goes only to a runner that has the toolkits (and versions) the agent needs, otherwise it fails with
   `RUN.TOOLKIT_MISSING`. Custom toolkits travel with the job and are checked again on the runner.
 - Licence seats apply to check-in and runs while a licence is installed; deleting a runner, or removing a temporary
@@ -241,8 +241,8 @@ security-relevant settings are checked:
 | `runner_secret_days` | 0 to 365 (default 30, 0 never) | Days after which a runner's secret is replaced |
 | `backup_hours`, `backup_folder` | 0 to 168, a folder | Automatic backups and where they go (no folder choice in SaaS) |
 | `repo_files_folder` | A folder | Shared storage for repository files when several nodes run (no folder choice in SaaS) |
-| `outbound_proxy`, `outbound_proxy_bypass` | `http://host:port`; host names | The Command Center's own outgoing connections; this computer is always reached directly |
-| `mail_smtp_host`, `mail_smtp_port`, `mail_smtp_security`, `mail_smtp_password_ref`, `mail_from`, `license_mail_to` | Host name, port, `starttls`/`ssl`/`none`, a vault reference, addresses | Mail sent by the Command Center; the password is a vault reference, never a value |
+| `outbound_proxy`, `outbound_proxy_bypass` | `http://host:port`; host names | One CommandCenter's own outgoing connections; this computer is always reached directly |
+| `mail_smtp_host`, `mail_smtp_port`, `mail_smtp_security`, `mail_smtp_password_ref`, `mail_from`, `license_mail_to` | Host name, port, `starttls`/`ssl`/`none`, a vault reference, addresses | Mail sent by One CommandCenter; the password is a vault reference, never a value |
 | `syslog_target`, `syslog_protocol` | `host:port`; `udp` or `tcp` | Audit forwarding (section 9) |
 | `public_url`, `sso_issuer` | `https://` addresses (`http://` only on a test system) | |
 | `sso_default_role` | An existing role | |

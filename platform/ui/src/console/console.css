@@ -1,4 +1,4 @@
-/* The rebuilt Command Center console (C0). Layout and menu come from studio.css; colours from theme.css. */
+/* The rebuilt One CommandCenter console (C0). Layout and menu come from studio.css; colours from theme.css. */
 
 .cc-loading { padding: 24px; color: var(--ui-text-2); }
 .cc-preview { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--ui-frame-2); color: var(--ui-frame-text); }

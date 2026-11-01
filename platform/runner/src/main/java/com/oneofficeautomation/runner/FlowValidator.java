@@ -71,7 +71,7 @@ public final class FlowValidator {
         for (Map<String, Object> step : Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
             String sid = String.valueOf(step.get("id"));
             String act = String.valueOf(step.get("action"));
-            if (!seen.add(sid)) p.add(sid, null, "Duplicate step id '" + sid + "'", "Step ids must be unique; Agent Studio regenerates them on paste.");
+            if (!seen.add(sid)) p.add(sid, null, "Duplicate step id '" + sid + "'", "Step ids must be unique; One AgentStudio regenerates them on paste.");
             if (!ACTION.matcher(act).matches()) { p.add(sid, "action", "Invalid action address '" + act + "'", "Use package/action, e.g. ooa.excel/get_cell."); continue; }
             String pid = act.substring(0, act.indexOf('/')), aid = act.substring(act.indexOf('/') + 1);
             Map<String, Object> args = step.get("args") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();

@@ -104,7 +104,7 @@
   --dur-fast: 100ms; --dur: 160ms; --dur-slow: 240ms; --ease: cubic-bezier(.2, 0, 0, 1);
 }
 
-/* ---------- 4. dark theme (Command Center: data-theme="dark"; Agent Studio: data-theme="midnight") ---------- */
+/* ---------- 4. dark theme (One CommandCenter: data-theme="dark"; One AgentStudio: data-theme="midnight") ---------- */
 [data-theme="dark"], [data-theme="midnight"] {
   color-scheme: dark;
   --surface-canvas: #11151e;

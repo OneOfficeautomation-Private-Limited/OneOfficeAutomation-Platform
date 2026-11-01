@@ -106,7 +106,7 @@ listing on addons.mozilla.org) and pushed with Firefox policy.
 
 | State | Meaning |
 | --- | --- |
-| Green dot, **Connected** | "Agents and Agent Studio can see and automate the tabs of this browser" |
+| Green dot, **Connected** | "Agents and One AgentStudio can see and automate the tabs of this browser" |
 | Red dot, **Not connected** | The host is not installed or not reachable. The text tells you to run `ooa browser-connector install` and restart the browser, with the error |
 | **Not available** | The extension's background worker did not answer; reload the extension |
 

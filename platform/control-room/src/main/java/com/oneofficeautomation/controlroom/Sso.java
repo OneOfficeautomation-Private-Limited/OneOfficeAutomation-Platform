@@ -78,7 +78,7 @@ final class Sso {
     /** Builds the provider's sign-in URL and remembers the PKCE verifier and nonce for the state. */
     String start(String redirectUri) { return start(redirectUri, "/"); }
 
-    /** As above, coming back to returnTo (a page of this Command Center, from {@link ControlRoom#safeReturn}) after sign-in. */
+    /** As above, coming back to returnTo (a page of this One CommandCenter, from {@link ControlRoom#safeReturn}) after sign-in. */
     String start(String redirectUri, String returnTo) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "Single sign-on is not set up", "An administrator sets it up in Administration > Settings.");
         SecureRandom rnd = new SecureRandom();

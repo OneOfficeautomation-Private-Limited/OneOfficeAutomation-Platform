@@ -3,7 +3,7 @@ import { Icon, IconTile, Splitter, usePanelSize, usePersistent } from "../compon
 import { canSee, type MenuPage, type MenuSection, type MenuViewer } from "./menu";
 
 /**
- * The Command Center menu (approved look), used by Studio and the console: Home, then the sections. A page the app
+ * One CommandCenter menu (approved look), used by Studio and the console: Home, then the sections. A page the app
  * shows itself (`local`) is a button; any other page is a link (`hrefFor`), or plain text when there is nowhere to go.
  * The whole menu folds to a column of icons, and each section opens and closes on its heading; both are remembered.
  * While something is being edited (`editing`) the menu folds, as AA's editor hides the Control Room menu, so the work
@@ -63,7 +63,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const found = query ? shown.flatMap((s) => s.pages.filter((p) => p.label.toLowerCase().includes(query)).map((p) => ({ p, sec: s.label }))) : [];
 
   return (<>
-    <nav className={`st-menu${mini ? " is-mini" : ""}${inConsole ? " is-console" : ""}`} aria-label="Command Center" style={inConsole && !mini ? { width: w } : undefined}>
+    <nav className={`st-menu${mini ? " is-mini" : ""}${inConsole ? " is-console" : ""}`} aria-label="One CommandCenter" style={inConsole && !mini ? { width: w } : undefined}>
       {!inConsole && fold}
       {inConsole && !mini && <input type="search" className="st-menu-find" aria-label="Find a page" placeholder="Find a page" value={find}
         onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setFind(""); }} />}

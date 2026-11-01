@@ -1,11 +1,11 @@
-# Use cases: One Agent Studio compared with Automation Anywhere
+# Use cases: One One AgentStudio compared with Automation Anywhere
 
 Twenty-six automations: fifteen everyday ones, five larger web processes on demo applications (W6-W10) and six on real public websites (P1-P6), built as real agents in `examples/use-cases/` (open them in Studio from the
 **Use cases** folder of the workspace) and run as tests by `CommandSamplesTest`
 (`platform/cli/src/test/resources/command-samples/20-use-cases.json`, 16 runs: W3 is run with and without results;
 `21-big-web-processes.json` for W6-W10; `22-public-websites.json` for P1-P6).
 
-How the comparison was made: each agent was built and run in One Agent Studio. The AA column describes how the same
+How the comparison was made: each agent was built and run in One One AgentStudio. The AA column describes how the same
 task is built from AA's actions (from the action-by-action comparison in `command-comparison.md`), in our own words.
 On 2026-10-24 the same 26 cases were also built as bots in the user's AA Community Edition (folder **Bots\Use cases**)
 and run on the user's Bot Agent; see [Built and run in AA](#built-and-run-in-aa).
@@ -150,7 +150,7 @@ What building them in AA showed (in addition to the differences below):
 
 ## Differences found while building them
 
-What is simpler in One Agent Studio:
+What is simpler in One One AgentStudio:
 
 - **One action per element step.** Web steps take a CSS selector or a captured object directly; AA records a capture for
   each element and then picks the action inside it.

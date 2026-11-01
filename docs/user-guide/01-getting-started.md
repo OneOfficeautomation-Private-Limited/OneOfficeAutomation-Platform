@@ -1,10 +1,10 @@
 # Getting started
 
 **Audience:** everyone, on their first day with ONEOFFICEAUTOMATION. Administrators and builders will follow every
-step; business users and operators can skip the install part if someone has already set the Command Center up.
+step; business users and operators can skip the install part if someone has already set One CommandCenter up.
 
 **What you will have at the end:** ONEOFFICEAUTOMATION running on one computer, your own administrator password, a
-tour of the menu, and a first agent that you built in One AgentStudio, checked in to the Command Center, ran on a
+tour of the menu, and a first agent that you built in One AgentStudio, checked in to One CommandCenter, ran on a
 runner and looked at in **Agent Runs**.
 
 ## Contents
@@ -26,7 +26,7 @@ runner and looked at in **Agent Runs**.
 You need:
 
 - A Windows 10 or 11 computer, or Windows Server, where you may install programs. Agents that drive the desktop
-  need a Windows runner; the Command Center itself also runs on Linux (see [Installation on Linux and in containers](../infrastructure/03-installation-linux-and-containers.md)).
+  need a Windows runner; One CommandCenter itself also runs on Linux (see [Installation on Linux and in containers](../infrastructure/03-installation-linux-and-containers.md)).
 - One of the install packages from your ONEOFFICEAUTOMATION releases page:
 
   | Package | Contains | Choose it when |
@@ -38,8 +38,8 @@ You need:
 - A free port, 8720 by default. The browser opens `http://localhost:8720`.
 - About 1 GB of free disk space, more for the data that builds up.
 
-> **Tip.** For a first look, one computer does everything: the Command Center, Studio and a runner. Later you move
-> the Command Center to a server and add runners on other machines ([07 Runner guide](07-runner-guide.md)).
+> **Tip.** For a first look, one computer does everything: One CommandCenter, Studio and a runner. Later you move
+> One CommandCenter to a server and add runners on other machines ([07 Runner guide](07-runner-guide.md)).
 
 ## 2. Install on one computer
 
@@ -47,7 +47,7 @@ You need:
 
 1. Unzip `ooa-setup-<version>.zip` into a temporary folder.
 2. Double-click **Install.cmd**.
-3. When asked what this computer is, choose **Command Center**.
+3. When asked what this computer is, choose **One CommandCenter**.
 4. Accept the suggested install folder or type another. Without administrator rights the product goes to your own
    Programs folder (`%LOCALAPPDATA%\Programs\ONEOFFICEAUTOMATION`); with `-AllUsers` it goes to Program Files.
 5. Setup first checks the computer with `bin\ooa.bat check` (Java, memory, free disk space, the port, the data folder,
@@ -79,21 +79,21 @@ What happens:
 1. A console window opens. It starts **One CommandCenter**, **One AgentStudio** (at `/studio/`) and a **One
    Runner** for this computer, all on `http://localhost:8720`.
 2. The runner for this computer registers itself, so you need no registration key on this computer.
-3. Your browser opens the Command Center sign-in page.
+3. Your browser opens One CommandCenter sign-in page.
 
 After 30 to 60 seconds (longer the first time) the window shows:
 
 ```
 ONEOFFICEAUTOMATION is running.
   Open:             http://localhost:8720
-  Command Center:   http://localhost:8720/
-  Agent Studio:     http://localhost:8720/studio/   (this computer only)
+  One CommandCenter:   http://localhost:8720/
+  One AgentStudio:     http://localhost:8720/studio/   (this computer only)
   OneRunner:       this computer, connected
   My Workspace:     C:\Users\<you>\OOA Workspace
   Database:         ...
 ```
 
-Studio answers only on this computer, even when the Command Center is opened to the network.
+Studio answers only on this computer, even when One CommandCenter is opened to the network.
 
 Keep the console window open while you work: closing it, or pressing Ctrl+C in it, stops everything (answer **Y** if
 Windows asks "Terminate batch job"). To copy text from the window, select it with the mouse and right-click; Ctrl+C
@@ -105,7 +105,7 @@ Options for `ooa server` (and `START-OOA.cmd`, which passes them on):
 | --- | --- |
 | `--port 8730` | Use another port (8720 by default), for example when another copy is still running |
 | `--host 0.0.0.0` | Accept connections from other machines (turn on HTTPS first). The default, 127.0.0.1, is this computer only |
-| `--data D:\OOA\cc` | Keep the Command Center's data in another folder |
+| `--data D:\OOA\cc` | Keep One CommandCenter's data in another folder |
 | `--workspace D:\Agents` | Another folder for Studio's **My Workspace** |
 | `--agent-workspace DIR` | Another working folder for this computer's runner |
 | `--no-agent` | Do not start the runner for this computer |
@@ -117,7 +117,7 @@ that folder is used instead, so an upgrade never starts empty. Back this folder 
 
 | Folder | Contents |
 | --- | --- |
-| `C:\Users\<you>\OOA Command Center` | The Command Center's database, vault key file, repository files and backups (back this up) |
+| `C:\Users\<you>\OOA Command Center` | One CommandCenter's database, vault key file, repository files and backups (back this up) |
 | `C:\Users\<you>\OOA Workspace` | Your private Studio workspace (**My Workspace**) |
 | `C:\Users\<you>\OOA Agent Workspace` | This computer's runner: its working files, and one log file per run in `logs` |
 
@@ -161,7 +161,7 @@ password.
 
 ### The top bar
 
-- **Open One AgentStudio** opens the designer in a new tab (shown when Studio runs with this Command Center).
+- **Open One AgentStudio** opens the designer in a new tab (shown when Studio runs with this One CommandCenter).
 - The half-moon button switches between a light and a dark theme.
 - Your name opens the user menu: **API keys**, **Change password**, **Two-step sign-in**, **Language** (English,
   Deutsch, Français, Español, 日本語) and **Sign out**.
@@ -192,11 +192,11 @@ browser remembers it) and **Export CSV**.
 
 ## 6. Your first agent, end to end
 
-You will build an agent that takes a name and writes a greeting to the run log, then run it from the Command Center.
+You will build an agent that takes a name and writes a greeting to the run log, then run it from One CommandCenter.
 
 ### 6.1 Build it in One AgentStudio
 
-1. In the Command Center, click **Open One AgentStudio** (or **Build > One AgentStudio**). Studio opens in a new tab.
+1. In One CommandCenter, click **Open One AgentStudio** (or **Build > One AgentStudio**). Studio opens in a new tab.
 2. In the **Explorer** on the left, press **+ Create** and choose **Agent**. Give it the name `Hello`.
 3. Open the **Variables** panel (the `{ }` button on the left rail) and add a variable `name`, type **String**,
    direction **input**. Add a second one, `greeting`, type **String**, direction **output**.
@@ -210,29 +210,29 @@ You will build an agent that takes a name and writes a greeting to the run log, 
 
 ### 6.2 Check it in
 
-1. At the bottom of the Explorer, open the **Command Center** section. Because Studio and the Command Center run
-   together here, it says you can use your Command Center sign-in: press **Open Command Center to sign in** if needed,
-   then **I have signed in**. (Against another Command Center, fill in **Address**, **User name**, **Password** and, if
+1. At the bottom of the Explorer, open the **One CommandCenter** section. Because Studio and One CommandCenter run
+   together here, it says you can use your One CommandCenter sign-in: press **Open One CommandCenter to sign in** if needed,
+   then **I have signed in**. (Against another One CommandCenter, fill in **Address**, **User name**, **Password** and, if
    asked, **Two-step code**, then press **Connect**.)
 2. With `Hello` open, press **Agent check-in** in the Explorer toolbar.
 3. In the **Agent check-in** dialog, type a comment such as `First version`, tick **Make this the live version**, and
    press **Check in**. Studio reports "Checked in ... as version 1; it is now the live version".
 
 Without the tick, a check-in stores a new version only and the live version stays as it was; a new agent then has no
-live version and cannot run from the Command Center yet. With the tick, the new version becomes the **live production
+live version and cannot run from One CommandCenter yet. With the tick, the new version becomes the **live production
 version** straight away, unless your administrator has turned on **Approval before production**; then the version
 waits for a second person to approve it (**Build > Agent Repository > Production approvals**).
 
-### 6.3 Run it from the Command Center
+### 6.3 Run it from One CommandCenter
 
-1. In the Command Center open **Build > Agent Repository**. The `Hello` agent shows **Latest** `v1` and
+1. In One CommandCenter open **Build > Agent Repository**. The `Hello` agent shows **Latest** `v1` and
    **Live production** `v1`.
 2. Press **Run** on its row. The **Run Hello** dialog opens.
 3. **Run on**: leave **A runner** and choose your computer's runner (it shows as online).
-4. Fill in the input `name`, for example `Command Center`.
+4. Fill in the input `name`, for example `One CommandCenter`.
 5. Optional: open **Run mode, priority and result callback** to choose **Attended**, **Unattended** or **Headless**,
    a priority, or a callback URL. Leave the defaults for now.
-6. Press **Run now**. The Command Center opens **Manage > Agent Runs** on the **Live** tab and the run's details.
+6. Press **Run now**. One CommandCenter opens **Manage > Agent Runs** on the **Live** tab and the run's details.
 
 ### 6.4 Look at the result
 
@@ -256,7 +256,7 @@ attended runners and 2 unattended runners. Seats are given out automatically the
 runner takes work. Administrators see a banner with the days left (red in the last 7 days). After 60 days runs stop
 and only administrators can sign in, to install a licence.
 
-To license the product, an administrator moves the Command Center to SQL Server, sends the **install id** from
+To license the product, an administrator moves One CommandCenter to SQL Server, sends the **install id** from
 **Administration > Licenses** to ONEOFFICEAUTOMATION and installs the `.lic` file received. See
 [06 Administrator's guide](06-administrators-guide.md#licences-and-seats).
 
@@ -276,7 +276,7 @@ To license the product, an administrator moves the Command Center to SQL Server,
 
 ## 9. Where to go next
 
-- Builders: [02 Studio basics](02-studio-basics.md) and [15 Publishing to the Command Center](15-publishing-to-command-center.md).
+- Builders: [02 Studio basics](02-studio-basics.md) and [15 Publishing to One CommandCenter](15-publishing-to-command-center.md).
 - Operators: [05 Operator's guide](05-operators-guide.md).
 - Administrators: [06 Administrator's guide](06-administrators-guide.md), then [07 Runner guide](07-runner-guide.md)
   to add runners on other machines.

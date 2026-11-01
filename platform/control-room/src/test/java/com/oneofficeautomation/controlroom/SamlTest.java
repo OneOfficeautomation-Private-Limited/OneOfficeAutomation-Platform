@@ -63,7 +63,7 @@ class SamlTest {
     /** Starts a sign-in and returns the request id the identity provider must answer. */
     String startSignIn() throws Exception { return startSignIn("/"); }
 
-    /** The same, coming back to a page of the Command Center after sign-in. */
+    /** The same, coming back to a page of One CommandCenter after sign-in. */
     String startSignIn(String back) throws Exception {
         String url = cr.saml.start(ORIGIN, back);
         assertTrue(url.startsWith(IDP + "/sso?SAMLRequest="));

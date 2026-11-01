@@ -5,7 +5,7 @@ no build step, no external fonts or CDNs (the console's content-security policy 
 
 The new Studio (`platform/ui`, [architecture/12-ui-redesign.md](architecture/12-ui-redesign.md)) uses the denser,
 higher-contrast look approved on 2026-10-29: its colours and sizes are in `platform/ui/src/theme.css`, its components in
-`platform/ui/src/components`. The Command Center moves to it after Studio.
+`platform/ui/src/components`. One CommandCenter moves to it after Studio.
 
 ## Files
 

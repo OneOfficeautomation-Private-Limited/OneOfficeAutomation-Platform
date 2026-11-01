@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.oneofficeautomation.com/flow/v1.json",
   "title": "OOA Flow v1",
-  "description": "Versioned definition of a ONEOFFICEAUTOMATION automation. Shared by Studio, Recorder, Runner, the AI co-pilot, the agent runtime, Git sync and import/export. Changes within v1 are additive only.",
+  "description": "Versioned definition of a ONEOFFICEAUTOMATION automation. Shared by One AgentStudio, Recorder, Runner, the AI co-pilot, the agent runtime, Git sync and import/export. Changes within v1 are additive only.",
   "type": "object",
   "required": ["kind", "id", "name"],
   "additionalProperties": false,
@@ -13,7 +13,7 @@
       "enum": ["TaskBot", "ApiTask", "Process", "Form", "Agent"]
     },
     "id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$", "description": "Stable automation identifier, unique per tenant."},
-    "name": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Human-readable name shown in Control Center and used as the MCP tool title."},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Human-readable name shown in One CommandCenter and used as the MCP tool title."},
     "description": {"type": "string", "description": "What the automation does. Required for publishing as an agent tool, because the model reads it to decide when to call the tool."},
     "version": {"type": "integer", "minimum": 0, "description": "Repository version number; assigned on check-in."},
     "tags": {"type": "array", "items": {"type": "string"}, "description": "Free-form tags for search."},
@@ -28,7 +28,7 @@
           "additionalProperties": {"type": "string"}
         },
         "runtime": {"type": "string", "description": "Runner version range."},
-        "files": {"type": "array", "items": {"type": "string"}, "description": "Files of the Command Center repository the agent uses (for example Templates/invoice.xlsx); they are placed at the same path in the runner's workspace before the run."},
+        "files": {"type": "array", "items": {"type": "string"}, "description": "Files of One CommandCenter repository the agent uses (for example Templates/invoice.xlsx); they are placed at the same path in the runner's workspace before the run."},
         "capabilities": {
           "type": "array",
           "description": "Device capabilities needed. ApiTask flows must not require 'desktop'.",
@@ -83,7 +83,7 @@
         "kpi": {
           "type": "boolean",
           "default": false,
-          "description": "For outputs: the value is a business figure; each successful run records it for dashboards in the Command Center."
+          "description": "For outputs: the value is a business figure; each successful run records it for dashboards in One CommandCenter."
         },
         "enum": {"type": "array", "description": "Allowed values for an input."}
       }
@@ -127,7 +127,7 @@
             "properties": {
               "codes": {"type": "array", "items": {"type": "string"}, "description": "Error codes or prefixes ending in '*'. Empty = catch all."},
               "message_to": {"type": "string", "description": "Variable that receives the error message (String)."},
-              "line_to": {"type": "string", "description": "Variable that receives the line number of the step that failed (Number), as numbered in Agent Studio's list."},
+              "line_to": {"type": "string", "description": "Variable that receives the line number of the step that failed (Number), as numbered in One AgentStudio's list."},
               "as": {"type": "string", "description": "Variable that receives the error as a Dictionary (code, message, suggestedFix, stepId, line, action and, with screenshot, the picture's path)."},
               "screenshot": {"type": ["boolean", "string"], "description": "Take a screenshot when this block catches an error: true saves it under screenshots/ in the workspace, a text value is the file path to use. Never fails the Catch."},
               "continueOnError": {"type": "boolean", "default": false, "description": "Errors raised by steps inside this Catch block are logged and skipped."},
@@ -139,7 +139,7 @@
         "finally": {"$ref": "#/$defs/stepList"},
         "retry": {"$ref": "#/$defs/retry"},
         "timeoutSeconds": {"type": "number", "exclusiveMinimum": 0, "description": "Overrides the action's manifest timeout."},
-        "connection": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$", "description": "Name of a saved connection (Command Center or connections.json) that supplies this step's address and sign-in inputs."},
+        "connection": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$", "description": "Name of a saved connection (One CommandCenter or connections.json) that supplies this step's address and sign-in inputs."},
         "continueOnError": {"type": "boolean", "default": false}
       }
     },

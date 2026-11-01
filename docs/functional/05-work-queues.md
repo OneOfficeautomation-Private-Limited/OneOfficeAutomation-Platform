@@ -101,7 +101,7 @@ Transitions:
 - **Start processing** needs an agent and a runner pool (`CR.BAD_INPUT` otherwise). The person who starts it becomes
   the queue's run-as user: runs are requested by them, with their role, permissions and credentials. Stop processing
   turns it off; items in progress finish.
-- The leading Command Center node gives work every few seconds (setting `queue_poll_seconds`, 3-3600, default 15) and
+- The leading One CommandCenter node gives work every few seconds (setting `queue_poll_seconds`, 3-3600, default 15) and
   again at once when a queue run ends.
 - Each idle online runner of the pool (nothing queued or running on it) gets the next item: highest priority first,
   then oldest.
@@ -192,4 +192,4 @@ Audited: `queue.save`, `queue.delete`, `queue.start`, `queue.stop`, `queue.add_i
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [09 AI features](09-ai-features.md) (document extraction and confidence)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
-- [Command Center and runner, section 6](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 6](../user-guide/00-README.md)

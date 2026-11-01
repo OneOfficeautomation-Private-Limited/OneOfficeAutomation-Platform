@@ -52,7 +52,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Kafka](ooa-kafka.md) | `ooa.kafka` | 6 | 0 | 0 | Send messages to Kafka topics, read messages, and create or inspect topics through a Kafka REST Proxy. |
 | [Knowledge Q&A](ooa-knowledge.md) | `ooa.knowledge` | 3 | 0 | 0 | Index your documents and answer questions from them, with the passages each answer comes from. |
 | [List](ooa-list.md) | `ooa.list` | 12 | 2 | 0 | Add, read, remove, sort and join list items. |
-| [Log to file](ooa-log.md) | `ooa.log` | 3 | 0 | 0 | Write timestamped lines to a log file or to the run log in Command Center; secrets are masked automatically. |
+| [Log to file](ooa-log.md) | `ooa.log` | 3 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
 | [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 94 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 15 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |

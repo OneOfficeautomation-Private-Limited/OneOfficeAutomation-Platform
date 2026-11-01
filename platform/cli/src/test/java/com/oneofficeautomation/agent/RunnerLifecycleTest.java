@@ -88,7 +88,7 @@ class RunnerLifecycleTest {
     }
     @Test @SuppressWarnings("unchecked")
     void aRunnerFollowsTheCommandCenterToANewAddressOnlyWhenItKnowsTheRunner() throws Exception {
-        // the "moved" Command Center serves the same data on another address; a fresh one does not know the runner
+        // the "moved" One CommandCenter serves the same data on another address; a fresh one does not know the runner
         ControlRoomServer old = new ControlRoomServer(cr, "127.0.0.1", 0), moved = new ControlRoomServer(cr, "127.0.0.1", 0);
         Path otherData = Files.createDirectories(root.resolve("other"));
         Db otherDb = Db.embedded(otherData);
@@ -124,7 +124,7 @@ class RunnerLifecycleTest {
             Map<String, Object> kept = Agent.existingRegistration(url + "/", conf);
             assertEquals(id, kept.get("device_id"));
             assertEquals("R-keep", kept.get("name"));
-            assertNull(Agent.existingRegistration("http://127.0.0.1:1", conf), "another Command Center: register anew");
+            assertNull(Agent.existingRegistration("http://127.0.0.1:1", conf), "another One CommandCenter: register anew");
 
             cr.setDeviceEnabled(admin, id, false, null);
             assertNull(Agent.existingRegistration(url, conf), "a disabled runner is not kept");

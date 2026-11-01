@@ -9,7 +9,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * Prompt Skills kept in the Command Center: named, reviewed prompt templates ({system, prompt, connection, output,
+ * Prompt Skills kept in One CommandCenter: named, reviewed prompt templates ({system, prompt, connection, output,
  * temperature, inputs}) that agents run with ooa.ai_skills/run. Each save is a new version. A skill is private to its
  * owner until shared; templates are starting points people copy. Runs receive the skills their agents name (shared
  * ones, and the owner's own private ones).

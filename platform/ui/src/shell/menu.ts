@@ -1,7 +1,7 @@
 import type { IconName } from "../components";
 
 /**
- * The Command Center menu (V6.1), shared by Studio and the console so the two never differ: Home, then five sections
+ * One CommandCenter menu (V6.1), shared by Studio and the console so the two never differ: Home, then five sections
  * by task. Page ids are the console's (`/?page=<id>` opens one in today's console); `perm` is the permission a page
  * needs (several joined by "|": any of them; "team_lead" means the person leads a team), as today's console checks.
  */

@@ -17,7 +17,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Git sync of the agent repository (K2): the Command Center stays the source of truth and mirrors its repository to a Git
+ * Git sync of the agent repository (K2): One CommandCenter stays the source of truth and mirrors its repository to a Git
  * remote (GitHub, GitLab, Azure DevOps, any Git server). Each sync makes the branch hold the latest version of every
  * agent, workflow and form as indented JSON under {@code agents/}, and {@code ooa-repository.json} with each one's latest
  * and live production version and SHA-256. A sync commits only when something changed, with the change's comment and
@@ -47,7 +47,7 @@ public final class GitSync {
     public Map<String, Object> syncNow(User by, String ip) throws Exception {
         cr.require(by, "settings.manage", "sync the agent repository to Git");
         if (!configured()) throw new OoaException("CR.BAD_INPUT", "Set the Git remote first (Administration > Settings > Git)");
-        try { return worker.submit(() -> sync(by.username(), "Sync from ONEOFFICEAUTOMATION Command Center")).get(5, TimeUnit.MINUTES); }
+        try { return worker.submit(() -> sync(by.username(), "Sync from ONEOFFICEAUTOMATION One CommandCenter")).get(5, TimeUnit.MINUTES); }
         catch (ExecutionException e) { throw e.getCause() instanceof Exception x ? x : e; }
     }
 
@@ -91,8 +91,8 @@ public final class GitSync {
                 String commit = null;
                 if (dirty || git.getRepository().resolve("HEAD") == null) {
                     PersonIdent author = new PersonIdent(who + " (ONEOFFICEAUTOMATION)", who.replaceAll("[^A-Za-z0-9._-]", "_") + "@ooa.invalid");
-                    RevCommit c = git.commit().setMessage(message == null || message.isBlank() ? "Sync from ONEOFFICEAUTOMATION Command Center" : message)
-                        .setAuthor(author).setCommitter(new PersonIdent("ONEOFFICEAUTOMATION Command Center", "command-center@ooa.invalid")).setAllowEmpty(!remoteHasBranch).call();
+                    RevCommit c = git.commit().setMessage(message == null || message.isBlank() ? "Sync from ONEOFFICEAUTOMATION One CommandCenter" : message)
+                        .setAuthor(author).setCommitter(new PersonIdent("ONEOFFICEAUTOMATION One CommandCenter", "command-center@ooa.invalid")).setAllowEmpty(!remoteHasBranch).call();
                     if (!branch.equals(git.getRepository().getBranch())) git.branchRename().setNewName(branch).call();
                     commit = c.getName();
                 }
@@ -159,7 +159,7 @@ public final class GitSync {
         }
         Files.writeString(tree.resolve("ooa-repository.json"), pretty(Map.of("format", "ooa-git-sync-1", "agents", index)) + "\n", StandardCharsets.UTF_8);
         if (!Files.exists(tree.resolve("README.md")))
-            Files.writeString(tree.resolve("README.md"), "# Agent Repository\n\nMirrored from a ONEOFFICEAUTOMATION Command Center. Change agents in the Command Center:"
+            Files.writeString(tree.resolve("README.md"), "# Agent Repository\n\nMirrored from a ONEOFFICEAUTOMATION One CommandCenter. Change agents in One CommandCenter:"
                 + " changes made here are overwritten by the next sync.\n", StandardCharsets.UTF_8);
         return index.size();
     }

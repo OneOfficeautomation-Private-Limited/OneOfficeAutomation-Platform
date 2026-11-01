@@ -25,7 +25,7 @@ stores that hold no secrets themselves: saved connections and shared values (glo
 
 ## 1. Principles
 
-- Values are encrypted with AES-256-GCM under the Command Center's vault key. Each value is bound to its own reference,
+- Values are encrypted with AES-256-GCM under One CommandCenter's vault key. Each value is bound to its own reference,
   so an encrypted value cannot be moved to another credential or person.
 - A secret is never shown again after it is stored, never written into settings, steps, schedules or inputs (only vault
   references `folder/credential/attribute` are), and is masked as `****` in every log, event, variable view and error.
@@ -87,8 +87,8 @@ stores that hold no secrets themselves: saved connections and shared values (glo
 
 ## 7. How a run receives a secret
 
-1. The step needs a Credential input; the runner asks the Command Center for `folder/credential/attribute` with the run id.
-2. The Command Center checks: the run is running, on this runner; the reference has three parts; the folder exists; the
+1. The step needs a Credential input; the runner asks One CommandCenter for `folder/credential/attribute` with the run id.
+2. One CommandCenter checks: the run is running, on this runner; the reference has three parts; the folder exists; the
    run's user (run-as user, else requester) is a consumer directly, through a role or through a team.
 3. It then reads the value: live from the external vault when the folder is linked; the person's own value for a
    user-provided attribute; otherwise the shared value.
@@ -104,10 +104,10 @@ Errors: `VAULT.DENIED` ("Credentials are only available to running agents", or "
 
 | Where | Reads as |
 | --- | --- |
-| Command Center triggers (IMAP password, Graph token or client secret, ServiceNow, poller authorisation) | The trigger's owner, who must be a consumer |
+| One CommandCenter triggers (IMAP password, Graph token or client secret, ServiceNow, poller authorisation) | The trigger's owner, who must be a consumer |
 | Model connection keys | The run's user at run time; the person testing the connection for **Test connection** |
 | Saved connections | The run's user at run time |
-| Command Center settings (SSO client secret, Git token, mail password, promotion API key) | The Command Center itself |
+| One CommandCenter settings (SSO client secret, Git token, mail password, promotion API key) | One CommandCenter itself |
 
 ## 9. External vaults
 
@@ -123,11 +123,11 @@ audit trail work as before.
 
 - A credential name is the secret's name; the attribute is a field of it (`value` for single-value secrets). Secrets
   that hold JSON objects are read field by field.
-- The secret the Command Center uses to sign in to the external vault is stored encrypted and never shown; leaving it
+- The secret One CommandCenter uses to sign in to the external vault is stored encrypted and never shown; leaving it
   empty when changing the link keeps the old one.
 - **Test reading** (owners) reads one credential and reports success and the value's length, never the value.
 - Linking, unlinking and tests are audited (`locker.link_external`, `locker.unlink_external`, `locker.test_external`).
-- The Command Center's outgoing proxy applies to calls to external vaults.
+- One CommandCenter's outgoing proxy applies to calls to external vaults.
 
 ## 10. The vault key
 
@@ -136,12 +136,12 @@ environment variable `OOA_MASTER_KEY`, or a key store through `OOA_MASTER_KEY_SO
 the vault holds.
 
 **Rotate key** makes a new key and re-encrypts, in one transaction, every shared value, every person's own value and
-every external-vault sign-in secret, and the encrypted entries of the Command Center's configuration files. The new key
+every external-vault sign-in secret, and the encrypted entries of One CommandCenter's configuration files. The new key
 is written next to the old one first, then replaces it; the old key file is kept as `master.key.old-…` until an
 administrator removes it. With `OOA_MASTER_KEY` or a key store, the key cannot be rotated here (`CR.VAULT_KEY`).
-Instead, stop the Command Center and run `ooa vault rekey --new-key-env VAR`, with the new key (32 random bytes,
+Instead, stop One CommandCenter and run `ooa vault rekey --new-key-env VAR`, with the new key (32 random bytes,
 Base64) in the environment variable `VAR`: every stored value is re-encrypted with it (`vault.rekey` is recorded, the
-key itself is never printed). Then put the new key where the old one is kept and start the Command Center again; until
+key itself is never printed). Then put the new key where the old one is kept and start One CommandCenter again; until
 then it cannot read its secrets. With a key file, the command writes the new key into it and keeps the old one as
 `master.key.old-…`.
 
@@ -187,4 +187,4 @@ credential detail and member changes, people's own values, `global.set`, `global
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [04 Schedules and triggers](04-schedules-and-triggers.md)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
-- [Command Center and runner, section 8](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 8](../user-guide/00-README.md)

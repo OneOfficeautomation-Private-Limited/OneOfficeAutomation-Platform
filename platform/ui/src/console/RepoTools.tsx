@@ -5,7 +5,7 @@ import { Button, Dialog, Field, Select, TextInput } from "../components";
 /**
  * Agent Repository, part 2 (checked 31 Oct 2026 against AA's Bot Lifecycle Management and code analysis, UiPath's
  * Automation Ops governance (analyzer before publish) and Blue Prism's Release Manager): export agents as a bundle with
- * the agents they call, or promote them straight to another Command Center; import a bundle after seeing what it holds;
+ * the agents they call, or promote them straight to another One CommandCenter; import a bundle after seeing what it holds;
  * the code analysis policy and a report for all agents; an agent's own analysis; and the files kept in a folder.
  */
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
@@ -30,7 +30,7 @@ function Results({ r, label }: { r: ImportResult["results"]; label: string }) {
   </table>;
 }
 
-/** Export ticked agents as a bundle file, or promote them to another Command Center (AA's export, Blue Prism's release). */
+/** Export ticked agents as a bundle file, or promote them to another One CommandCenter (AA's export, Blue Prism's release). */
 export function ExportAgents({ api, onClose, onNotice }: { api: CrApi; onClose: () => void; onNotice: (t: string) => void }) {
   const [agents, setAgents] = useState<RepoAgent[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
@@ -50,14 +50,14 @@ export function ExportAgents({ api, onClose, onNotice }: { api: CrApi; onClose: 
     const res = (r.result?.results ?? []) as ImportResult["results"];
     setResult(res);
     if (r.ok) onNotice("Promoted " + res.length + " agent" + (res.length === 1 ? "" : "s") + " to " + r.target + ".");
-    else setError("Not promoted (" + r.status + "): " + (res.filter((x) => x.error).map((x) => agentName(x.path) + ": " + x.error!.message).join("; ") || "the other Command Center refused it"));
+    else setError("Not promoted (" + r.status + "): " + (res.filter((x) => x.error).map((x) => agentName(x.path) + ": " + x.error!.message).join("; ") || "the other One CommandCenter refused it"));
   }, (e) => setError(message(e)));
   return (
     <Dialog open title="Export or promote agents" width={720} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!picked.length} onClick={download}>Download bundle</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">A bundle holds each agent's exact version with a checksum and, when ticked, every agent it calls. Import it in another Command Center, or promote straight to one. Shared values, credentials and files are not included: the other Command Center needs its own.</p>
+      <p className="st-muted">A bundle holds each agent's exact version with a checksum and, when ticked, every agent it calls. Import it in another One CommandCenter, or promote straight to one. Shared values, credentials and files are not included: the other One CommandCenter needs its own.</p>
       <div className="cc-bar cc-bar-tight">
         <TextInput type="search" aria-label="Search agents to export" placeholder="Search agents" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button kind="plain" onClick={() => setPicked([...new Set([...picked, ...shown.map((a) => a.path)])])}>Tick all shown</Button>
@@ -71,7 +71,7 @@ export function ExportAgents({ api, onClose, onNotice }: { api: CrApi; onClose: 
         <Field label="Version" hint="production (the live one), latest, a number or a label">{(id) => <TextInput id={id} value={v.version} onChange={(e) => setV({ ...v, version: e.target.value })} />}</Field>
         <label className="st-check-line cc-gap"><input type="checkbox" checked={v.deps} onChange={(e) => setV({ ...v, deps: e.target.checked })} /> Include the agents they call</label>
       </div>
-      <button type="button" className="cc-link cc-gap" aria-expanded={promoteOpen} onClick={() => setPromoteOpen(!promoteOpen)}>Promote to another Command Center</button>
+      <button type="button" className="cc-link cc-gap" aria-expanded={promoteOpen} onClick={() => setPromoteOpen(!promoteOpen)}>Promote to another One CommandCenter</button>
       {promoteOpen && <div className="cc-promote">
         <p className="st-muted">Make an API key there (as someone allowed to import) and keep it in a vault folder here; it is read from the vault and sent only to that address.</p>
         <div className="cc-grid2">

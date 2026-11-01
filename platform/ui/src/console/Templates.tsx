@@ -8,7 +8,7 @@ import { FolderIcon } from "./Repository";
  * Build > Agent Templates, built as AA's Bot Store and UiPath's Marketplace (checked 31 Oct 2026): ready-made agents to
  * install into the agent repository and adapt, from ONEOFFICEAUTOMATION and, where the service allows, shared in your
  * region. Cards by category with search; Install into a folder (agents already there are kept); share an agent as a
- * template (approved by the operators); a signed catalogue file for a Command Center without internet access.
+ * template (approved by the operators); a signed catalogue file for One CommandCenter without internet access.
  * Laid out exactly as Automation (review round 2, 31 Oct 2026): a category tree on the left, the templates in one
  * table on the right (installed or not, and where), and a template's own page when you open one. Administrators make,
  * rename and delete folders (nested, as in Automation) and move templates between them; the catalogue's categories are
@@ -194,7 +194,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + t.name} items={rowMenu(t)} /></td>
                   </tr>); })}
                 {data && !shown.length && !subfolders.length && <tr className="is-static"><td colSpan={8} className="cc-none">{all.length ? (q.trim() || state ? "No template matches." : "No templates in this folder.") : "No templates to show." + (can("settings.manage")
-                  ? " Set the address of a template catalogue in Settings (General), or use Manage > Upload a catalogue file for a Command Center without internet access." : " An administrator sets up the template catalogue in Settings.")}</td></tr>}
+                  ? " Set the address of a template catalogue in Settings (General), or use Manage > Upload a catalogue file for One CommandCenter without internet access." : " An administrator sets up the template catalogue in Settings.")}</td></tr>}
                 {!data && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
@@ -297,7 +297,7 @@ function Catalogue({ api, onClose, onDone }: { api: CrApi; onClose: () => void; 
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!text} onClick={() => api.uploadCatalogue(text!).then((r) => onDone(r.templates + " templates available."), (e) => setError(message(e)))}>Upload</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">For a Command Center without internet access: download templates.json from the releases page and upload it here. It must carry ONEOFFICEAUTOMATION's signature.</p>
+      <p className="st-muted">For One CommandCenter without internet access: download templates.json from the releases page and upload it here. It must carry ONEOFFICEAUTOMATION's signature.</p>
       <input type="file" accept=".json,application/json" aria-label="Catalogue file" onChange={async (e) => { const f = e.target.files?.[0]; setText(f ? await f.text() : null); }} />
     </Dialog>
   );

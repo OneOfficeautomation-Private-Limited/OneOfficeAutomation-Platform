@@ -65,7 +65,7 @@ public final class TriggerLoopPackage {
         };
     }
 
-    /** Sleeps in short slices so a stop request from Control Center ends the wait promptly. */
+    /** Sleeps in short slices so a stop request from One CommandCenter ends the wait promptly. */
     static void sleepUntil(ActionContext ctx, long deadlineNanos) {
         while (true) {
             ctx.checkCancelled();

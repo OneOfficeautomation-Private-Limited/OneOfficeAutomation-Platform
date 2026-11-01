@@ -353,14 +353,14 @@ export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefre
           <div className="st-where-head">Browser windows ({browserWindows.length})</div>
           {browserWindows.map((w, i) => <button key={i} type="button" className={`st-where${unreached === w ? " is-on" : ""}`} aria-pressed={unreached === w}
             onClick={() => setUnreached(w)}>
-            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to Studio"}</span></button>)}
+            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to One AgentStudio"}</span></button>)}
         </div>}
         {!tabs.length && !programs.length && !browserWindows.length && <p className="st-muted">{mode === "record"
           ? "No open window was found. Open the application or page first and press Refresh, or open a new page."
           : "No open browser window: open a new page."}</p>}
       </div>
       {unreached && <div className="st-where-help" role="status">
-        <p><strong>{BROWSER_NAMES[ub]} is not connected to Studio</strong>, so its pages cannot be recorded as web steps.
+        <p><strong>{BROWSER_NAMES[ub]} is not connected to One AgentStudio</strong>, so its pages cannot be recorded as web steps.
           Add the ONEOFFICEAUTOMATION Browser Connector to {BROWSER_NAMES[ub]} and press Refresh: its tabs then appear above.</p>
         <div className="st-cr-acts">
           {ub !== "firefox" && <Button kind="primary" onClick={() => { setBrowser(ub === "chrome" ? "chrome" : "edge"); setAsking(true); setUnreached(null); }}>Record a page in a new {BROWSER_NAMES[ub]} window…</Button>}

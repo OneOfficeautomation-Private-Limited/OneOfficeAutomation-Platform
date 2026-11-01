@@ -19,12 +19,12 @@ folders, and the CI workflow). Where an older document says something different,
 | Part | What it is | Where it runs | Network |
 | --- | --- | --- | --- |
 | **One CommandCenter** | The central Java server: web console, REST API, the runner API, webhooks, Agent APIs, the MCP endpoint, schedules, triggers, work queues, vault, audit trail | Windows Server, or Linux (package or container) | Listens on TCP 8720 by default (HTTP or HTTPS) |
-| **One AgentStudio** | The agent editor, served by the Command Center at `/studio/` when started with `ooa server`, or on its own with `ooa studio` (port 8710) | The builder's own computer | Loopback (127.0.0.1) only |
-| **OneRunner** | The process that takes work from the Command Center and runs agents, each in its own worker process | Windows (desktop or service); headless runners also on Linux and macOS | Outbound only, to the Command Center |
-| **Database** | Everything the Command Center keeps: users, agents, runs, schedules, vault values, audit trail | SQL Server 2019+, PostgreSQL 14+, or the embedded H2 for evaluation | The Command Center connects out to it |
+| **One AgentStudio** | The agent editor, served by One CommandCenter at `/studio/` when started with `ooa server`, or on its own with `ooa studio` (port 8710) | The builder's own computer | Loopback (127.0.0.1) only |
+| **OneRunner** | The process that takes work from One CommandCenter and runs agents, each in its own worker process | Windows (desktop or service); headless runners also on Linux and macOS | Outbound only, to One CommandCenter |
+| **Database** | Everything One CommandCenter keeps: users, agents, runs, schedules, vault values, audit trail | SQL Server 2019+, PostgreSQL 14+, or the embedded H2 for evaluation | One CommandCenter connects out to it |
 | **Data folder** | Configuration files, the vault key file (if used), repository files, backups, logs, audit checkpoints | Local disk, or shared storage for several nodes | - |
 | **Browser connector** | Extension plus a native messaging host so agents can drive the user's own Edge, Chrome or Firefox | Runner and builder computers | Local only |
-| **SaaS region / directory** | Multi-tenant operation of the Command Center for many customers | Containers on any cloud, with PostgreSQL | One port per region behind a load balancer |
+| **SaaS region / directory** | Multi-tenant operation of One CommandCenter for many customers | Containers on any cloud, with PostgreSQL | One port per region behind a load balancer |
 
 ## The documents
 
@@ -35,7 +35,7 @@ folders, and the CI workflow). Where an older document says something different,
 | 03 | [Installation on Linux and in containers](03-installation-linux-and-containers.md) | use the Linux package with systemd, or the container image and compose files |
 | 04 | [Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md) | open firewalls, set up proxies, turn on HTTPS, make runners trust certificates |
 | 05 | [Databases](05-databases.md) | choose and set up SQL Server or PostgreSQL, accounts, Windows sign-in, schema upgrades |
-| 06 | [High availability and scaling](06-high-availability-and-scaling.md) | run several Command Center nodes, plan load balancers, scale runners |
+| 06 | [High availability and scaling](06-high-availability-and-scaling.md) | run several One CommandCenter nodes, plan load balancers, scale runners |
 | 07 | [Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md) | plan backups, restore, build a second site and rehearse failover |
 | 08 | [Security hardening](08-security-hardening.md) | protect the vault key, TLS, accounts, audit trail and network |
 | 09 | [SaaS and multi-region operations](09-saas-and-multi-region-operations.md) | operate the multi-tenant service in India, US and EU regions |
@@ -51,9 +51,9 @@ next with a backup and restore (see [07](07-backup-restore-and-disaster-recovery
 
 | Need | Topology | Database | How to install |
 | --- | --- | --- | --- |
-| Try the product, build first agents on one PC | **A. Single computer, all in one** (`ooa server`: Command Center, Studio and a local runner in one process) | Embedded H2 | Setup package, guided, or `START-OOA.cmd` |
+| Try the product, build first agents on one PC | **A. Single computer, all in one** (`ooa server`: One CommandCenter, Studio and a local runner in one process) | Embedded H2 | Setup package, guided, or `START-OOA.cmd` |
 | A pilot or a small team, a few runners | **B. One CommandCenter server, separate runners** | SQL Server or PostgreSQL (needed for a licence) | Setup package `-Service -DbServer ...`, or MSI and `ooa db` commands |
-| Production in one data centre | **C. Two or more Command Center nodes behind a load balancer** | SQL Server (Always On) or PostgreSQL with high availability | As B on each node, shared repository folder, same vault key |
+| Production in one data centre | **C. Two or more One CommandCenter nodes behind a load balancer** | SQL Server (Always On) or PostgreSQL with high availability | As B on each node, shared repository folder, same vault key |
 | Production with a second site | **D. Active site plus a cold standby site** | SQL Server availability group with an asynchronous replica, log shipping, or PostgreSQL streaming replication | As C on both sites, standby nodes stopped |
 | Your own cloud account (AWS, Azure, Google Cloud) | **B or C on cloud machines or containers** | Managed SQL Server or PostgreSQL | Windows VM with the MSI ([02](02-installation-windows.md), section 13), Linux package with systemd, or the container image ([03](03-installation-linux-and-containers.md)) |
 | Run OOA as a service for many customers | **E. SaaS region(s)** | PostgreSQL per region | Container image with `region start`; optional global directory |
@@ -65,25 +65,25 @@ next with a backup and restore (see [07](07-backup-restore-and-disaster-recovery
 | The screen (keyboard, mouse, windows, images, desktop dialogs) | A Windows computer with a signed-in, unlocked session, started at sign-in (`ooa agent install-task`). A Windows service has no desktop. |
 | Only web services, files and data (no screen) | A Windows service (`ooa service install --mode agent`, or the MSI with `ROLE=Runner`), or a headless runner on Linux or macOS |
 | Pooled virtual desktops or short-lived machines | Register with **Temporary runner** ticked; offline runners are removed after `temporary_runner_hours` (8 by default) |
-| Calls to web services only, no runner at all | Serverless Agent APIs inside the Command Center (at most 4 at once per node, 5 minutes each) |
+| Calls to web services only, no runner at all | Serverless Agent APIs inside One CommandCenter (at most 4 at once per node, 5 minutes each) |
 
 ### Step 3: which constraints apply?
 
 | Constraint | Consequence |
 | --- | --- |
-| A licence will be installed | The Command Center must run on SQL Server or PostgreSQL; the embedded database refuses a licence (`LICENSE.DB_REQUIRED`). |
-| Other machines connect to the Command Center | Turn on HTTPS (`ooa tls`) or put a TLS load balancer or reverse proxy in front, and make the server listen on more than 127.0.0.1 (see [02](02-installation-windows.md) and [04](04-network-ports-proxies-and-certificates.md)). |
+| A licence will be installed | One CommandCenter must run on SQL Server or PostgreSQL; the embedded database refuses a licence (`LICENSE.DB_REQUIRED`). |
+| Other machines connect to One CommandCenter | Turn on HTTPS (`ooa tls`) or put a TLS load balancer or reverse proxy in front, and make the server listen on more than 127.0.0.1 (see [02](02-installation-windows.md) and [04](04-network-ports-proxies-and-certificates.md)). |
 | The vault key must not be on disk | Use `OOA_MASTER_KEY`, or `OOA_MASTER_KEY_SOURCE` with Azure Key Vault, AWS Secrets Manager, Google Secret Manager, or `prompt` (see [08](08-security-hardening.md)). |
 | Several nodes | SQL Server or PostgreSQL, a shared `repo_files_folder`, the same vault key on every node. |
 | Runners sit behind a proxy | Runners use the Windows proxy by default, or a fixed proxy with optional user name and password; NTLM-only proxies are not supported. |
-| Windows sign-in to SQL Server (service account or gMSA) | The Command Center must run on Windows; the Linux package and container cannot use it. |
+| Windows sign-in to SQL Server (service account or gMSA) | One CommandCenter must run on Windows; the Linux package and container cannot use it. |
 
 ### Typical layouts
 
 ```
 A. Evaluation                 B. One server                     C. Several nodes
 +----------------------+      +---------------+   +---------+   +----+  +--------------+   +-------------+
-| PC: ooa server       |      | Command Center|-->| SQL/PG  |   | LB |->| CC node 1..n |-->| SQL Server  |
+| PC: ooa server       |      | One CommandCenter|-->| SQL/PG  |   | LB |->| CC node 1..n |-->| SQL Server  |
 |  CC + Studio + runner|      | (service)     |   +---------+   +----+  +--------------+   | or PG (HA)  |
 |  embedded H2         |      +---------------+                   ^          |             +-------------+
 +----------------------+         ^       ^                        |          v
@@ -94,7 +94,7 @@ A. Evaluation                 B. One server                     C. Several nodes
 ## Conventions used in these pages
 
 - `ooa` means `bin\ooa.bat` on Windows and `bin/ooa` on Linux, in the installed product folder.
-- `DATA` means the Command Center data folder. Unless `--data` is given, it is `%USERPROFILE%\OOA Command Center`
+- `DATA` means One CommandCenter data folder. Unless `--data` is given, it is `%USERPROFILE%\OOA Command Center`
   (or `~/OOA Command Center`) of the account that runs the command. An older folder named `OOA Control Room` is still
   used when it already holds a database. Because the default depends on the account, always pass `--data` on
   servers.
@@ -103,7 +103,7 @@ A. Evaluation                 B. One server                     C. Several nodes
 
 ## Related documents
 
-- [Command Center and runner setup and daily use](../user-guide/00-README.md)
+- [One CommandCenter and runner setup and daily use](../user-guide/00-README.md)
 - [Enterprise checks and validations](08-security-hardening.md)
 - [Security review pack](../architecture/06-security-architecture.md#14-independent-security-review)
 - [Licensing and editions (functional 13, with the vendor's licence issuing)](../functional/13-licensing-and-editions.md)

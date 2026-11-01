@@ -56,7 +56,7 @@ one counts. `source <(ooa completion)` adds Tab completion to bash and zsh. The 
 `.\gradlew.bat :cli:nativeExecutable` builds `cli\build\native\ooa.exe` (or `ooa` on Linux and macOS) with GraalVM
 for JDK 21 (`GRAALVM_HOME`, or `JAVA_HOME` pointing at GraalVM; on Windows run it from a Visual Studio developer
 prompt). It starts at once and needs no Java runtime, for build pipelines and quick checks, and has the commands that
-need no Command Center: `validate`, `run`, `manifest`, `conformance`, `license show` and `release verify`. It knows
+need no One CommandCenter: `validate`, `run`, `manifest`, `conformance`, `license show` and `release verify`. It knows
 every toolkit's commands, so `validate` checks any automation, but `run` runs only the built-in toolkits: an Office,
 email, PDF, browser or Windows desktop step stops with `ACTION.NOT_IN_THIS_PROGRAM`; run those with the full install
 (`bin\ooa.bat`) or on a runner. CI builds it on Linux and Windows, checks that it gives the Java program's answers,

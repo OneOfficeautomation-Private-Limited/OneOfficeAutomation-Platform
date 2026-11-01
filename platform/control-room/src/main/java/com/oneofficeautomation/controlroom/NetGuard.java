@@ -10,14 +10,14 @@ import java.net.UnknownHostException;
 import java.util.Locale;
 
 /**
- * Addresses a SaaS tenant's Command Center may connect to (C3): when it is a tenant, the mail server, syslog
+ * Addresses a SaaS tenant's One CommandCenter may connect to (C3): when it is a tenant, the mail server, syslog
  * collector, external vault, identity provider, trigger sources, webhooks, Git remote and promotion target a tenant
  * sets must be on the public internet. Loopback, private, link-local (cloud metadata), carrier-grade NAT, unique-local
  * and multicast addresses are refused, so a tenant cannot reach the region's own network through the server. On an
  * on-premises install (no tenant) everything is allowed, as before.
  * <p>
  * The name is resolved here and again when connecting, so the region's network must also block those ranges for the
- * Command Center's outgoing traffic (docs/infrastructure/09-saas-and-multi-region-operations.md); this check gives the tenant a clear message first.
+ * One CommandCenter's outgoing traffic (docs/infrastructure/09-saas-and-multi-region-operations.md); this check gives the tenant a clear message first.
  */
 final class NetGuard {
     private NetGuard() { }
@@ -76,6 +76,6 @@ final class NetGuard {
 
     private static OoaException blocked(String what, String host) {
         return new OoaException("SAAS.ADDRESS_BLOCKED", what + " at " + (host.isEmpty() ? "(no address)" : host) + " is not on the public internet",
-            "The SaaS Command Center connects only to public addresses. For systems in your own network, use a runner there.");
+            "The SaaS One CommandCenter connects only to public addresses. For systems in your own network, use a runner there.");
     }
 }

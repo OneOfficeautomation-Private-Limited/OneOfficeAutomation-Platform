@@ -2,9 +2,9 @@ import { CommandMenu as Menu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 
 /**
- * Studio's Command Center menu: the console's menu (shell/menu.ts), with BUILD holding only Studio's own Automation
+ * Studio's One CommandCenter menu: the console's menu (shell/menu.ts), with BUILD holding only Studio's own Automation
  * page (workflows, forms and the rest are made there with Create and called from agents' steps). The other pages
- * open in the Command Center Studio is connected to. Since 1 Nov 2026 it has the console's look too: find a page,
+ * open in One CommandCenter Studio is connected to. Since 1 Nov 2026 it has the console's look too: find a page,
  * favourites, one section open at a time, Collapse and the width at the foot.
  */
 export type StudioView = "automation";
@@ -17,6 +17,6 @@ export function CommandMenu({ view, onView, controlRoom, editing = false }:
   return (
     <Menu sections={SECTIONS} current={view} local={LOCAL} onLocal={(id) => onView(id as StudioView)} editing={editing}
       hrefFor={(page) => controlRoom ? controlRoom + "?page=" + page : undefined} home={{ href: controlRoom ?? undefined }}
-      offTitle="Connect Studio to a Command Center to open this page" console />
+      offTitle="Connect One AgentStudio to One CommandCenter to open this page" console />
   );
 }

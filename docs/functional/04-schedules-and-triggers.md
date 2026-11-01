@@ -3,9 +3,9 @@
 ## What this covers
 
 How agents are started without a person: schedules (every N minutes, daily, weekly) with time zones and holiday
-calendars, and triggers that react to events on a runner, on remote systems polled by the Command Center, or through
+calendars, and triggers that react to events on a runner, on remote systems polled by One CommandCenter, or through
 webhooks. It specifies who a scheduled or triggered run belongs to, which values the agent receives, how failures are
-reported, and what happens with overlapping runs and with occurrences missed while the Command Center was down.
+reported, and what happens with overlapping runs and with occurrences missed while One CommandCenter was down.
 Triggers that live inside an agent (trigger loops, interrupt rules) are in [document 01](01-agents-and-automation-items.md).
 
 ## Contents
@@ -17,7 +17,7 @@ Triggers that live inside an agent (trigger loops, interrupt rules) are in [docu
 5. Triggers: common rules
 6. Trigger kinds
 7. Runner triggers
-8. Command Center triggers (polled)
+8. One CommandCenter triggers (polled)
 9. Webhook triggers
 10. Values the agent receives
 11. Trigger monitoring and states
@@ -59,7 +59,7 @@ zone), not on CALENDAR"), owner and run-as user, and next and last run.
 
 ## 3. How a schedule fires
 
-The leading Command Center node checks schedules on its clock. For every enabled schedule whose next run time has come:
+The leading One CommandCenter node checks schedules on its clock. For every enabled schedule whose next run time has come:
 
 1. The next run time is computed first and stored (only one node can claim an occurrence).
 2. On a holiday the occurrence is skipped (section 2).
@@ -89,8 +89,8 @@ from that moment; disabling clears it.
 | The previous run of the same schedule is still queued or running | By default (**When the previous run is still going: Start another run**, `overlap` empty or `allow`) a new run is queued anyway. On a single runner it waits its turn (a runner does one run at a time, by priority then age). With a pool it may start on another idle runner and run alongside. With **Skip this time** (`overlap` = `skip`) no run is started and `schedule.skip_overlap` is recorded; the next time is computed as usual. |
 | The runner is offline at the scheduled time | The run is queued on that runner and starts when the runner comes back. |
 | A pool has no online runner | The start is refused (`CR.NO_RUNNER`), recorded as a failed `schedule.fire`, and not retried. |
-| The Command Center was stopped over one or more scheduled times | On restart, a schedule whose time has passed fires **once**; the occurrences in between are not caught up, and the next time is computed from the restart. With **Times missed while the Command Center was down: Skip them** (`missed_runs` = `skip`) a time more than 15 minutes in the past is not run at all (`schedule.skip_missed`); the default is **Run once for them** (`missed_runs` empty or `once`). |
-| Several Command Center nodes | Only the leading node fires schedules; another node takes over within about 30 seconds if it stops. |
+| One CommandCenter was stopped over one or more scheduled times | On restart, a schedule whose time has passed fires **once**; the occurrences in between are not caught up, and the next time is computed from the restart. With **Times missed while One CommandCenter was down: Skip them** (`missed_runs` = `skip`) a time more than 15 minutes in the past is not run at all (`schedule.skip_missed`); the default is **Run once for them** (`missed_runs` empty or `once`). |
+| Several One CommandCenter nodes | Only the leading node fires schedules; another node takes over within about 30 seconds if it stops. |
 
 ## 5. Triggers: common rules
 
@@ -107,7 +107,7 @@ A trigger (Manage > Triggers) starts the live production version of an agent whe
 | Settings | Per kind (sections 7-9). Secrets are always vault references, never values. |
 
 A trigger can be renamed, handed over, given a run-as user, paused, resumed and deleted. Resuming clears the last
-error and polls a Command Center trigger again soon. Over the API: `POST /api/triggers/{id}/pause` and `/resume`;
+error and polls One CommandCenter trigger again soon. Over the API: `POST /api/triggers/{id}/pause` and `/resume`;
 `GET /api/triggers` lists triggers with their fire count, last fired time and last error.
 
 ## 6. Trigger kinds
@@ -126,11 +126,11 @@ error and polls a Command Center trigger again soon. Over the API: `POST /api/tr
 | `service_started` | Service started | Runner | Yes |
 | `service_stopped` | Service stopped | Runner | Yes |
 | `hotkey` | Hotkey pressed | Runner | Yes (needs the Window toolkit) |
-| `email` | New email (IMAP) | Command Center | No |
-| `outlook` | New email (Microsoft 365 Outlook) | Command Center | No |
-| `servicenow` | ServiceNow record | Command Center | No |
-| `http_poll` | Universal poller (HTTP) | Command Center | No |
-| `webhook` | Webhook | Command Center, on call | No |
+| `email` | New email (IMAP) | One CommandCenter | No |
+| `outlook` | New email (Microsoft 365 Outlook) | One CommandCenter | No |
+| `servicenow` | ServiceNow record | One CommandCenter | No |
+| `http_poll` | Universal poller (HTTP) | One CommandCenter | No |
+| `webhook` | Webhook | One CommandCenter, on call | No |
 
 ## 7. Runner triggers
 
@@ -151,7 +151,7 @@ records what is there**; later looks fire for differences, so files present when
 When the runner cannot watch a trigger (folder missing, hotkey taken, kind not supported on that system) it reports the
 reason, which shows as the trigger's last error; when it can again, the error clears.
 
-## 8. Command Center triggers (polled)
+## 8. One CommandCenter triggers (polled)
 
 | Setting | Rule |
 | --- | --- |
@@ -160,7 +160,7 @@ reason, which shows as the trigger's last error; when it can again, the error cl
 | Per poll | At most 50 events fire per poll; the rest fire at the next poll |
 | First poll | Only records where things stand (the newest message, record or item), unless the setting `fire_existing` is on, in which case existing items fire too |
 | Secrets | Read from the vault as the trigger's owner, who must be a consumer of the vault folder (`VAULT.DENIED` otherwise); every read is audited |
-| Network | ServiceNow and universal poller addresses must pass the Command Center's outbound address check |
+| Network | ServiceNow and universal poller addresses must pass One CommandCenter's outbound address check |
 | Poll now | `POST /api/triggers/{id}/poll` checks the trigger at once |
 
 | Kind | Settings |
@@ -207,7 +207,7 @@ disabled runner …) keeps the error ("Could not start the agent: …").
 
 ## 12. Studio's local triggers
 
-One AgentStudio has its own Triggers panel for development, separate from the Command Center's: file arrives in a
+One AgentStudio has its own Triggers panel for development, separate from One CommandCenter's: file arrives in a
 folder (with a pattern), schedule (every N minutes or daily at HH:mm), and local webhook (a secret shown once). They
 start agents of the workspace only while Studio is running, can be switched on and off, test-run, and show their
 recent activity.
@@ -232,4 +232,4 @@ agent used by one cannot be deleted.
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [01 Agents and automation items, section 9](01-agents-and-automation-items.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
-- [Command Center and runner, section 5](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 5](../user-guide/00-README.md)

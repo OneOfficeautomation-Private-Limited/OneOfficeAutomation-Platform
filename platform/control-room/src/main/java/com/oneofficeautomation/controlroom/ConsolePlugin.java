@@ -3,7 +3,7 @@ package com.oneofficeautomation.controlroom;
 import java.util.*;
 
 /**
- * A page an optional module adds to the Command Center, found on the class path with {@link ServiceLoader}: Document
+ * A page an optional module adds to One CommandCenter, found on the class path with {@link ServiceLoader}: Document
  * Automation first (AI > Document Automation, as in AA's Control Room). The console keeps the menu entry whether or
  * not the module is there; without it, the page says what the module does and that it is not installed. A module
  * lists itself in {@code META-INF/services/com.oneofficeautomation.controlroom.ConsolePlugin} and serves its own

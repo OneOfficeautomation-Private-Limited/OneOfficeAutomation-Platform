@@ -275,7 +275,7 @@ system and instance health checks.
 
 ### 14.4 Schedule it
 
-1. Check the agent in (see [Publishing to Command Center](15-publishing-to-command-center.md)).
+1. Check the agent in (see [Publishing to One CommandCenter](15-publishing-to-command-center.md)).
 2. In One CommandCenter > **Schedules**, create two **Weekly** schedules for the agent on a runner (or runner pool), in
    your time zone, with Monday to Friday ticked:
    - at 07:30 with `action` = `start`;
@@ -310,5 +310,5 @@ system and instance health checks.
 - [Building agents](03-studio-building-agents.md)
 - [Office files, email and documents](11-working-with-office-files-email-and-documents.md)
 - [AI in agents](13-ai-in-agents.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)
 - [Running and debugging](04-studio-running-and-debugging.md)

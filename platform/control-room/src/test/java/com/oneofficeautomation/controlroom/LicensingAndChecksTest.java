@@ -203,7 +203,7 @@ class LicensingAndChecksTest {
         // an agent changed in the database after check-in is never sent anywhere
         db.update("UPDATE bot_versions SET content = REPLACE(content, '\"lb\"', '\"lx\"') WHERE path = 'L/B.flow.json'");
         assertEquals("CR.AGENT_TAMPERED", code(() -> cr.content("L/B.flow.json", "production")));
-        // a runner newer than the Command Center gets no work
+        // a runner newer than One CommandCenter gets no work
         assertTrue(ControlRoom.compareVersions("0.10.0", "0.9.2") > 0);
         assertEquals("ok", ControlRoom.versionStatus("0.2.0"));
         assertEquals("newer_than_command_center", ControlRoom.versionStatus("9.0.0"));

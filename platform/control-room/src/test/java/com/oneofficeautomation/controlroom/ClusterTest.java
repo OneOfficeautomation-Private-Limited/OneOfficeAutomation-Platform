@@ -10,7 +10,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Two Command Center nodes on one database: one leader at a time, takeover, and sign-ins that finish on the other node. */
+/** Two One CommandCenter nodes on one database: one leader at a time, takeover, and sign-ins that finish on the other node. */
 class ClusterTest {
     Db db; ControlRoom a, b; ControlRoom.User admin;
 

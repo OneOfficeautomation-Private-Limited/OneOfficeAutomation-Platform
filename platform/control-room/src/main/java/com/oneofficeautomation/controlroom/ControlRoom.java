@@ -34,7 +34,7 @@ public final class ControlRoom {
     public final ServerlessRuns serverless;
     /** Repository folders and folder permissions. */
     final Folders folders;
-    /** Export, import and promotion of agents between Command Centers. */
+    /** Export, import and promotion of agents between One CommandCenter installations. */
     public final Lifecycle lifecycle;
     public final Templates templates;
     /** Teams of people, named team:x in access rules. */
@@ -51,7 +51,7 @@ public final class ControlRoom {
     public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
     public final RepoFiles repoFiles;
-    /** Prompt Skills kept in the Command Center. */
+    /** Prompt Skills kept in One CommandCenter. */
     public final PromptSkills promptSkills;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
@@ -102,11 +102,11 @@ public final class ControlRoom {
         return m;
     }
 
-    /** The SaaS tenant this Command Center serves (its id in the region's catalog), or null for an on-premises install. */
+    /** The SaaS tenant this One CommandCenter serves (its id in the region's catalog), or null for an on-premises install. */
     public final String tenant;
 
     /**
-     * Whether serverless Agent APIs may run in this Command Center. Always on premises; for a SaaS tenant only when the
+     * Whether serverless Agent APIs may run in this One CommandCenter. Always on premises; for a SaaS tenant only when the
      * region allows them (its network then limits where the server may connect, docs/infrastructure/09-saas-and-multi-region-operations.md).
      */
     public volatile boolean serverlessAllowed = true;
@@ -169,7 +169,7 @@ public final class ControlRoom {
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
-    static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask a Command Center administrator for the right role."); }
+    static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask One CommandCenter administrator for the right role."); }
     static OoaException notFound(String what) { return new OoaException("CR.NOT_FOUND", what + " not found"); }
 
     public void require(User u, String permission, String what) { if (!can(u, permission)) throw denied(what); }
@@ -358,7 +358,7 @@ public final class ControlRoom {
      * default role. Without a default role only existing accounts may sign in.
      */
     /**
-     * Where to go after a single sign-on: a page of this Command Center (a path starting with one "/", no scheme, host
+     * Where to go after a single sign-on: a page of this One CommandCenter (a path starting with one "/", no scheme, host
      * or backslash), else its start page, so a sign-in link can never send people to another site.
      */
     static String safeReturn(String to) {
@@ -371,7 +371,7 @@ public final class ControlRoom {
      * The role an identity provider's groups give (setting sso_group_roles, one "group = role" a line, first match
      * wins; group names compared without case), or null when no group matches or nothing is set. As UiPath's and AA's
      * group rules do, the mapping decides the role at every sign-in, so a change of group in the identity provider
-     * reaches the Command Center the next time the person signs in.
+     * reaches One CommandCenter the next time the person signs in.
      */
     String roleFromGroups(Object groups) {
         String rules = String.valueOf(platform.setting("sso_group_roles")).trim();
@@ -412,7 +412,7 @@ public final class ControlRoom {
                 if (mapped != null) defaultRole = mapped;
                 if (defaultRole.isEmpty() || !roleExists(defaultRole) || roleSwitchedOff(defaultRole)) {
                     audit.record(String.valueOf(email != null ? email : preferred), "auth.sso", "user", null, "no account", "failed", ip);
-                    throw new OoaException("SSO.NO_ACCOUNT", "There is no Command Center account for " + (email != null ? email : preferred), "Ask an administrator to create your account.");
+                    throw new OoaException("SSO.NO_ACCOUNT", "There is no One CommandCenter account for " + (email != null ? email : preferred), "Ask an administrator to create your account.");
                 }
                 String username = (email != null ? email : preferred != null ? preferred : String.valueOf(claims.get("sub"))).replaceAll("[^A-Za-z0-9_.@-]", "_");
                 if (username.length() < 3) username = "sso_" + username;
@@ -441,7 +441,7 @@ public final class ControlRoom {
 
     /**
      * MCP over OAuth (S10): the person an access token from the company's identity provider stands for. The token must
-     * be signed by the single sign-on issuer, meant for this Command Center (Settings mcp_oauth_audience), unexpired and,
+     * be signed by the single sign-on issuer, meant for this One CommandCenter (Settings mcp_oauth_audience), unexpired and,
      * when mcp_oauth_scope is set, carry that scope. Only existing accounts are used (linked by single sign-on, or with
      * the same e-mail or user name); none is created or changed here.
      */
@@ -461,7 +461,7 @@ public final class ControlRoom {
             if (r != null) break;
             if (claims.get(k) instanceof String v && !v.isBlank()) r = db.one("SELECT * FROM users WHERE LOWER(username) = ?", v.trim().toLowerCase(Locale.ROOT));
         }
-        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "No Command Center account belongs to this access token", "Sign in to the Command Center once with single sign-on, or ask an administrator for an account.");
+        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "No One CommandCenter account belongs to this access token", "Sign in to One CommandCenter once with single sign-on, or ask an administrator for an account.");
         if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled");
         User u = user(r);
         licensing.checkSignIn(u);
@@ -469,7 +469,7 @@ public final class ControlRoom {
         return new User(u.id(), u.username(), u.role(), u.displayName(), false, u.mfaEnabled(), true);
     }
 
-    /** A credential the Command Center itself needs (for example the SSO client secret), from a vault folder or its external vault. */
+    /** A credential One CommandCenter itself needs (for example the SSO client secret), from a vault folder or its external vault. */
     String systemCredential(String ref) {
         String[] p = ref.split("/");
         if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "Use a vault reference: vault folder/credential/attribute");
@@ -483,7 +483,7 @@ public final class ControlRoom {
     }
 
     /**
-     * Local recovery for a forgotten password, run from the console of the Command Center machine (`ooa reset-admin`):
+     * Local recovery for a forgotten password, run from the console of One CommandCenter machine (`ooa reset-admin`):
      * gives the user a new one-time password, re-enables and unlocks the account, ends its sessions and records it in
      * the Audit Trail. Only someone who can open the data folder can run it.
      */
@@ -796,7 +796,7 @@ public final class ControlRoom {
         if (row == null) throw notFound("Version " + v + " of " + path);
         // the checksum taken at check-in must still match: a version changed in the database is never sent to a runner or editor
         if (row.get("sha256") != null && !Security.sha256((String) row.get("content")).equals(row.get("sha256")))
-            throw new OoaException("CR.AGENT_TAMPERED", "Version " + v + " of " + path + " was changed after check-in (checksum mismatch)", "Check the audit trail, then check the agent in again from Studio.");
+            throw new OoaException("CR.AGENT_TAMPERED", "Version " + v + " of " + path + " was changed after check-in (checksum mismatch)", "Check the audit trail, then check the agent in again from One AgentStudio.");
         return Map.of("version", row.get("version"), "flow", JsonLite.parse((String) row.get("content")));
     }
 
@@ -871,7 +871,7 @@ public final class ControlRoom {
         boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
-                "Fix the problems in Agent Studio (Validate) before checking in.", false, Map.of("problems", problems));
+                "Fix the problems in One AgentStudio (Validate) before checking in.", false, Map.of("problems", problems));
         codeAnalysis.atCheckin(path, flow);
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
@@ -1118,7 +1118,7 @@ public final class ControlRoom {
             Map<String, Object> k = key == null ? null : db.one("SELECT * FROM registration_keys WHERE key_hash = ?", Security.sha256(key));
             if (k == null || k.get("used_by") != null || Instant.parse(k.get("expires").toString()).isBefore(now())) {
                 audit.record("agent:" + hostname, "device.register", "device", name, null, "failed", ip);
-                throw new OoaException("CR.BAD_REGISTRATION_KEY", "The registration key is wrong, expired or already used", "Create a new key in Control Room > Devices.");
+                throw new OoaException("CR.BAD_REGISTRATION_KEY", "The registration key is wrong, expired or already used", "Create a new key in One CommandCenter > Runner Machines.");
             }
             String deviceId = id("dev"), secret = Security.token(32);
             String nm = name == null || name.isBlank() ? hostname : name;
@@ -1230,7 +1230,7 @@ public final class ControlRoom {
         if (type != null && !type.equals("single_user") && !type.equals("multi_user")) throw new OoaException("CR.BAD_INPUT", "The runner type is single_user or multi_user");
         String after = b.get("after_run") == null ? null : String.valueOf(b.get("after_run"));
         if (after != null && !AFTER_RUN.contains(after)) throw new OoaException("CR.BAD_INPUT", "After a run the runner does one of " + AFTER_RUN);
-        // CPU and memory limits in %: 1-100, or 0 for the Command Center's setting
+        // CPU and memory limits in %: 1-100, or 0 for One CommandCenter's setting
         Integer cpuMax = limitIn(b, "cpu_max"), memMax = limitIn(b, "mem_max");
         int n = db.tx(() -> {
             int k = 0;
@@ -1258,7 +1258,7 @@ public final class ControlRoom {
 
     private static Integer limitIn(Map<String, Object> b, String key) {
         if (b.get(key) == null) return null;
-        if (!(b.get(key) instanceof Number n) || n.intValue() < 0 || n.intValue() > 100) throw new OoaException("CR.BAD_INPUT", "A limit is 1 to 100 %, or 0 for the Command Center's setting");
+        if (!(b.get(key) instanceof Number n) || n.intValue() < 0 || n.intValue() > 100) throw new OoaException("CR.BAD_INPUT", "A limit is 1 to 100 %, or 0 for One CommandCenter's setting");
         return n.intValue();
     }
 
@@ -1510,7 +1510,7 @@ public final class ControlRoom {
 
     /** Atomically assigns the oldest queued run of this device and returns its job (bot bundle, inputs, global values). */
     @SuppressWarnings("unchecked")
-    /** The release of this Command Center; runners may be this release or older, never newer (they may use what it does not know). */
+    /** The release of this One CommandCenter; runners may be this release or older, never newer (they may use what it does not know). */
     public static final String VERSION = com.oneofficeautomation.sdk.BuildInfo.VERSION;
 
     /** Compares dotted versions numerically (0.10.0 is newer than 0.9.2); missing parts count as 0. */
@@ -1523,7 +1523,7 @@ public final class ControlRoom {
         return 0;
     }
 
-    /** "ok", or why the runner's version may not take work (a runner newer than the Command Center). */
+    /** "ok", or why the runner's version may not take work (a runner newer than One CommandCenter). */
     static String versionStatus(Object runnerVersion) {
         if (runnerVersion == null || String.valueOf(runnerVersion).isBlank() || "null".equals(String.valueOf(runnerVersion))) return "ok";
         return compareVersions(String.valueOf(runnerVersion), VERSION) > 0 ? "newer_than_command_center" : "ok";
@@ -1563,7 +1563,7 @@ public final class ControlRoom {
      * The next job for a runner, waiting up to {@code waitMs} for one (a long poll: the runner gets work the moment it is
      * queued, without asking every few seconds). Answers {job}, {job: false}, or {job: false, check: true} when the runner
      * should send a heartbeat at once (a run of its own was stopped or paused). Checks again every 2 seconds in any case,
-     * for work queued without a wake-up (runner pools, other Command Center nodes).
+     * for work queued without a wake-up (runner pools, other One CommandCenter nodes).
      */
     public Map<String, Object> nextJob(Map<String, Object> d, long waitMs) {
         String did = (String) d.get("id");
@@ -1611,7 +1611,7 @@ public final class ControlRoom {
 
     public Map<String, Object> claimNext(Map<String, Object> d) {
         String did = (String) d.get("id");
-        // a runner newer than this Command Center gets no work until the Command Center is updated
+        // a runner newer than this One CommandCenter gets no work until One CommandCenter is updated
         Map<String, Object> ver = db.one("SELECT agent_version FROM devices WHERE id = ?", did);
         if (ver != null && !"ok".equals(versionStatus(ver.get("agent_version")))) return null;
         if (!runnerCare.takesWork(did)) return null;   // in maintenance, or above its CPU or memory limit
@@ -2081,7 +2081,7 @@ public final class ControlRoom {
         audit.record(by.username(), "schedule.delete", "schedule", sid, null, "ok", ip);
     }
 
-    /** What a schedule does with times it missed (the Command Center was down): run once for them (default), or skip them. */
+    /** What a schedule does with times it missed (One CommandCenter was down): run once for them (default), or skip them. */
     static final List<String> MISSED_RUNS = List.of("once", "skip");
     /** What a schedule does when its previous run is still queued or running: start another (default), or skip this time. */
     static final List<String> OVERLAP = List.of("allow", "skip");

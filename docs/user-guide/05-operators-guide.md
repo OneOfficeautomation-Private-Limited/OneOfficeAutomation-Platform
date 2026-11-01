@@ -148,7 +148,7 @@ last minute. The useful columns for operators:
 | --- | --- |
 | **Status** | online or offline |
 | **Running** | how many agents it runs now |
-| **Type** | Single-user, Multi-user, Serverless (in the Command Center); **Temporary** for runners removed by themselves |
+| **Type** | Single-user, Multi-user, Serverless (in One CommandCenter); **Temporary** for runners removed by themselves |
 | **Default users** | whose default runner it is |
 | **Screen** | **Unlocked** (usable), **Locked** (screen agents cannot start), **No desktop** (a Windows service) |
 | **After a run** | what it does after unattended runs |
@@ -179,7 +179,7 @@ With `pools.manage`, **New runner pool** asks for a name, description and the ru
    the days, Monday to Friday ticked by default).
 6. **Time zone** (your browser's, by default) and **Skip the dates of a holiday calendar**.
 7. **Inputs (JSON, optional)**, for example `{"region": "EU"}`.
-8. **Times missed while the Command Center was down**: **Run once for them** (default) or **Skip them** (a time more
+8. **Times missed while One CommandCenter was down**: **Run once for them** (default) or **Skip them** (a time more
    than 15 minutes in the past is not run).
 9. **When the previous run is still going**: **Start another run** (default) or **Skip this time**.
 10. Press **Create**. A toast shows the next run time.
@@ -226,7 +226,7 @@ happens.
    | Service started, Service stopped (Windows) | Windows service name (from `sc query`, not the display name) | `trigger_service` |
    | Hotkey pressed (Windows, signed-in desktop) | Key combination, such as `CTRL+ALT+F9` | `trigger_hotkey` |
 
-   **On the Command Center** (checked every interval, 15 seconds or more):
+   **On One CommandCenter** (checked every interval, 15 seconds or more):
 
    | Event | Fields | Agent input |
    | --- | --- | --- |
@@ -244,7 +244,7 @@ happens.
 
 ### Watching triggers
 
-Columns: **Trigger**, **Kind** ("Checked by the Command Center" or "Watched on the runner"), **Agent**, **Runner**
+Columns: **Trigger**, **Kind** ("Checked by One CommandCenter" or "Watched on the runner"), **Agent**, **Runner**
 (and run-as user), **Details**, **Monitoring** (times fired, when last, the last error) and **Status** (**active**,
 **paused** or **error**). Row buttons: **Check now** (server triggers: check at once instead of waiting),
 **Pause**/**Resume**, **Edit** (name, owner, run-as user) and **Delete**.
@@ -325,7 +325,7 @@ filled in and submitted, approved or rejected, or marked as read. See [14 Busine
 **Build > Agent APIs** (needs `apitasks.manage`) put an agent behind its own web address and token for other systems.
 
 1. Press **New API task**: **Name**, **Agent**, and either a **Runner** / **Or a runner pool**, or tick **Run on the
-   Command Center, with no runner (serverless)** for agents that only call web services and work on data (at most 5
+   One CommandCenter, with no runner (serverless)** for agents that only call web services and work on data (at most 5
    minutes per run, four at a time per node, files only in the run's own workspace).
 2. **Wait for the result up to (seconds, 1-300)**.
 3. Press **Create**. Copy the **Address** and the **Token** (shown once) and the example `curl` command.
@@ -406,7 +406,7 @@ figure (KPI)** on an output in Studio; each successful run then records its valu
 | Symptom | Likely cause |
 | --- | --- |
 | Runs stay **queued** on one runner | The runner is offline, disabled, or busy with a long run; check **Manage > Runners** |
-| A runner shows "update the Command Center" in **Agent** | The runner is newer than the Command Center and gets no work until the Command Center is updated |
+| A runner shows "update One CommandCenter" in **Agent** | The runner is newer than One CommandCenter and gets no work until One CommandCenter is updated |
 | Scheduled runs never appear | The schedule is disabled, its owner is disabled, today is in its holiday calendar, or the agent has no live version |
 | A trigger shows **error** | Read **Monitoring**: often a wrong vault reference, a password change, or an unreachable server; fix it and press **Check now** |
 | Every run is refused after a date | The licence or evaluation expired; tell an administrator |
@@ -418,4 +418,4 @@ figure (KPI)** on an output in Studio; each successful run then records its valu
 - [06 Administrator's guide](06-administrators-guide.md)
 - [07 Runner guide](07-runner-guide.md)
 - [14 Business users](14-business-users.md)
-- [15 Publishing to the Command Center](15-publishing-to-command-center.md)
+- [15 Publishing to One CommandCenter](15-publishing-to-command-center.md)

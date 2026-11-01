@@ -5,12 +5,12 @@ which the automated tests cannot have: they use simulators and in-memory servers
 those tests by hand. Record each result (date, version, pass or fail, notes) in the table at the end, and file a fix
 for every failure.
 
-Use test tenants and test accounts only. Keep their passwords in the Command Center vault, never in agents or in
+Use test tenants and test accounts only. Keep their passwords in One CommandCenter vault, never in agents or in
 this repository.
 
 ## Before you start
 
-- A test Command Center on SQL Server with HTTPS (see [Security architecture](architecture/06-security-architecture.md#14-independent-security-review), section 2), and one
+- A test One CommandCenter on SQL Server with HTTPS (see [Security architecture](architecture/06-security-architecture.md#14-independent-security-review), section 2), and one
   desktop runner (Install.cmd -Role Runner), signed in and unlocked.
 - `public_url` set in Administration > Settings to the address people use.
 - For each system below: a test account, and its secrets stored in a vault folder that the test agents can read.
@@ -41,7 +41,7 @@ For each one also check that the secret never appears in run logs, outputs, the 
 
 | What | Set up | Check |
 | --- | --- | --- |
-| Vault key in Azure Key Vault | A secret with `openssl rand -base64 32`; the VM's managed identity with Get on secrets | `OOA_MASTER_KEY_SOURCE=azure-keyvault:https://...` starts the Command Center; Settings shows the source; a wrong secret name fails at start with a clear error |
+| Vault key in Azure Key Vault | A secret with `openssl rand -base64 32`; the VM's managed identity with Get on secrets | `OOA_MASTER_KEY_SOURCE=azure-keyvault:https://...` starts One CommandCenter; Settings shows the source; a wrong secret name fails at start with a clear error |
 | Vault key in AWS Secrets Manager | A secret; an EC2 instance role with `secretsmanager:GetSecretValue` | As above with `aws-secrets:REGION/ID` |
 | Vault key in Google Secret Manager | A secret; the VM's service account with Secret Accessor | As above with `gcp-secret:projects/...` |
 | Windows sign-in to SQL Server | A gMSA installed on the server; the service running as it | `ooa db configure --windows-auth --windows-login DOMAIN\gmsa$`, `ooa db init`, the service starts, runs work; no password in `config` |

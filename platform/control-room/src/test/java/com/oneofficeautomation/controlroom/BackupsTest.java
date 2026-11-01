@@ -40,7 +40,7 @@ class BackupsTest {
         cr.triggerPollers.stop();
         db.close();
 
-        // a new Command Center with the same vault key (copied, as the docs say)
+        // a new One CommandCenter with the same vault key (copied, as the docs say)
         Path data2 = Files.createTempDirectory("ooa-backup-dst");
         Files.copy(data.resolve("master.key"), data2.resolve("master.key"));
         try (Db target = Db.h2File(data2)) {

@@ -33,7 +33,7 @@ const foundBy = (m: string[]) => m.map((x) => x.replace(/^uses [^/]+\/(.+)$/, (_
  * folder's sub-folders and items; they can be selected (Ctrl+click, Shift+click), opened, renamed, copied, cut and
  * pasted, duplicated, dragged onto a folder to move them, and moved to the trash, from the ⋮ menu, a right-click or
  * the keyboard. A search finds items by name, and agents by their description, id, actions and variables too.
- * As in AA, Private is the workspace and Public is the Command Center agent repository (publicView).
+ * As in AA, Private is the workspace and Public is One CommandCenter agent repository (publicView).
  * Review round 2 (1 Nov 2026), in the console's look: the title with what the page is for on hover and a count, a Type
  * filter, one line per item with its kind's mark, a tick box per item, and Copy, Cut, Duplicate, Rename, Delete and
  * Paste in a bar only while items are ticked or copied (no greyed-out buttons).
@@ -197,7 +197,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       <header className="st-page-head">
         <div className="st-head-row">
           <h1 id="st-page-title">{title}</h1>
-          <span className="st-head-info" role="img" aria-label="About this page" title={isPublic ? "Agents shared through Command Center. Check one out to work on it here."
+          <span className="st-head-info" role="img" aria-label="About this page" title={isPublic ? "Agents shared through One CommandCenter. Check one out to work on it here."
             : "Your workspace on this computer. Pick a folder, then press Create; double-click or click a name to open it."}>i</span>
           {!isPublic && <span className="st-head-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
             : count(everything(tree).filter((n) => n.type !== "folder").length) + " · " + everything(tree).filter((n) => n.type === "bot").length + " agents"}</span>}
@@ -211,7 +211,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
         </div>}
       </header>
       {publicView && <div className="st-page-tabs" role="tablist" aria-label="Where">
-        {([["private", "Private", "Your workspace on this computer"], ["public", "Public", "The Command Center agent repository"]] as const).map(([k, t, tip]) =>
+        {([["private", "Private", "Your workspace on this computer"], ["public", "Public", "One CommandCenter agent repository"]] as const).map(([k, t, tip]) =>
           <button key={k} type="button" role="tab" className="st-page-tab" aria-selected={(k === "public") === isPublic} title={tip} onClick={() => setPlace(k)}>{t}</button>)}
       </div>}
       {isPublic ? publicView : <div className="st-page-body">

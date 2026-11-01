@@ -1,6 +1,6 @@
 <#
 Removes ONEOFFICEAUTOMATION from this computer: its Windows services, the runner's sign-in task, the Start menu entries,
-the Apps and Features entry and the program folder. Data is kept: the Command Center data folder, runner settings
+the Apps and Features entry and the program folder. Data is kept: One CommandCenter data folder, runner settings
 (.ooa-agent in the user profile) and workspaces. -Silent asks nothing. Log: %TEMP%\ooa-install.log.
 #>
 param([switch]$Silent, [switch]$KeepFiles)   # -KeepFiles: used by the MSI, which removes its own files, shortcut and Apps entry

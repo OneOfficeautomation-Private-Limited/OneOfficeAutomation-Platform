@@ -41,7 +41,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     } catch (e) { setError(message(e)); }
   }, [api]);
   useEffect(() => { load(); }, [load]);
-  const where = (t: AgentApi) => t.serverless ? "The Command Center (serverless)" : t.pool_id ? "Pool " + (pools.find((p) => p.id === t.pool_id)?.name ?? t.pool_id) : runners.find((r) => r.id === t.device_id)?.name ?? t.device_id ?? "";
+  const where = (t: AgentApi) => t.serverless ? "One CommandCenter (serverless)" : t.pool_id ? "Pool " + (pools.find((p) => p.id === t.pool_id)?.name ?? t.pool_id) : runners.find((r) => r.id === t.device_id)?.name ?? t.device_id ?? "";
   const shown = useMemo(() => (list ?? []).filter((t) => (!q.trim() || (t.name + " " + t.bot_path).toLowerCase().includes(q.trim().toLowerCase()))
     && (!folder || t.bot_path.startsWith(folder + "/")) && (!state || (state === "on") === t.enabled)), [list, q, folder, state]);
   /** The agents' folders and every folder above them, so the tree has its parents. */
@@ -162,7 +162,7 @@ function NewApi({ api, runners, pools, preset, onClose, onCreated }: { api: CrAp
         <Field label="Agent (its live version)">{(id) => <Select id={id} value={v.bot} onChange={set("bot")} options={agents.length ? agents.map((a) => ({ value: a, label: agentName(a) })) : [{ value: "", label: "No agent is live yet" }]} />}</Field>
       </div>
       <div role="radiogroup" aria-label="Runs on" className="cc-inline">
-        {([["runner", "A runner"], ["pool", "A runner pool"], ["serverless", "The Command Center (serverless)"]] as const).map(([k, l]) =>
+        {([["runner", "A runner"], ["pool", "A runner pool"], ["serverless", "One CommandCenter (serverless)"]] as const).map(([k, l]) =>
           <label key={k} className="st-check-line"><input type="radio" name="apiwhere" checked={v.where === k} onChange={() => setV({ ...v, where: k })} /> {l}</label>)}
       </div>
       {v.where === "runner" && <Field label="Runner">{(id) => <Select id={id} value={v.device} onChange={set("device")} options={runners.map((r) => ({ value: r.id, label: r.name + " (" + r.status + ")" }))} />}</Field>}

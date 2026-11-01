@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * Runs ONEOFFICEAUTOMATION as Windows services, so the Command Center (or a runner) starts with Windows, keeps running
+ * Runs ONEOFFICEAUTOMATION as Windows services, so One CommandCenter (or a runner) starts with Windows, keeps running
  * when nobody is signed in, and restarts by itself if it stops.
  * <pre>
  * ooa service install [--mode server|control-room|agent] [--name NAME] [--port 8720] [--host H] [--data DIR]
@@ -120,8 +120,8 @@ final class WindowsService {
             try (ServiceRef s = new ServiceRef(svc)) {
                 Winsvc.SERVICE_DESCRIPTION d = new Winsvc.SERVICE_DESCRIPTION();
                 d.lpDescription = mode.equals("agent")
-                    ? "Runs ONEOFFICEAUTOMATION agents sent by the Command Center (headless agents; desktop agents need a signed-in runner)."
-                    : "ONEOFFICEAUTOMATION Command Center" + (mode.equals("server") ? " and Agent Studio" : "") + " on port " + o.getOrDefault("port", "8720") + ".";
+                    ? "Runs ONEOFFICEAUTOMATION agents sent by One CommandCenter (headless agents; desktop agents need a signed-in runner)."
+                    : "ONEOFFICEAUTOMATION One CommandCenter" + (mode.equals("server") ? " and One AgentStudio" : "") + " on port " + o.getOrDefault("port", "8720") + ".";
                 api.ChangeServiceConfig2(svc, SERVICE_CONFIG_DESCRIPTION, d);
                 // restart one minute after an unexpected stop; the failure count resets after a day
                 List<Winsvc.SC_ACTION> actions = new ArrayList<>();
@@ -205,7 +205,7 @@ final class WindowsService {
     }
 
     /**
-     * "ooa service-run MODE ARGS": started by the service manager. Connects to it, starts the Command Center or the
+     * "ooa service-run MODE ARGS": started by the service manager. Connects to it, starts One CommandCenter or the
      * runner in this process, and stops cleanly on a stop or shut-down request. Output goes to a log file.
      */
     static int serviceRun(String[] a) throws Exception {
@@ -277,7 +277,7 @@ final class WindowsService {
         String ps = "$a = New-ScheduledTaskAction -Execute '" + java.replace("'", "''") + "' -Argument '" + args.replace("'", "''") + "' -WorkingDirectory '" + home.toString().replace("'", "''") + "';"
             + "$t = New-ScheduledTaskTrigger -AtLogOn -User \"$env:USERDOMAIN\\$env:USERNAME\";"
             + "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew;"
-            + "Register-ScheduledTask -TaskName 'OOA Runner' -Action $a -Trigger $t -Settings $s -Force -Description 'ONEOFFICEAUTOMATION runner: runs agents from the Command Center in this signed-in session.' | Out-Null;"
+            + "Register-ScheduledTask -TaskName 'OOA Runner' -Action $a -Trigger $t -Settings $s -Force -Description 'ONEOFFICEAUTOMATION runner: runs agents from One CommandCenter in this signed-in session.' | Out-Null;"
             + "Start-ScheduledTask -TaskName 'OOA Runner'";
         int rc = exec(List.of("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps));
         if (rc == 0) System.out.println("The runner starts when you sign in (task 'OOA Runner') and is starting now. Remove it with: ooa agent uninstall-task");

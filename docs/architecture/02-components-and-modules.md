@@ -35,7 +35,7 @@ oneofficeautomation/
 │  ├─ control-room/ agent/ cli/ vendor-tools/
 │  ├─ browser-extension/        Edge/Chrome/Firefox extension (plain JavaScript)
 │  ├─ docker/                   Dockerfile, compose.yaml, compose.saas.yaml, entrypoint
-│  ├─ linux/                    systemd unit for the Command Center
+│  ├─ linux/                    systemd unit for One CommandCenter
 │  ├─ customer/                 START-OOA.cmd and README.txt for the customer zip
 │  ├─ customer-setup/           Install.cmd, Install-OOA.ps1, Uninstall-OOA.ps1
 │  └─ scripts/                  start-ooa.bat, desktop shortcut, runner task, License Studio launcher
@@ -105,10 +105,10 @@ The rules are enforced by `cli/src/test/java/com/oneofficeautomation/cli/Archite
 
 | Test | Rule |
 | --- | --- |
-| `moduleBoundaries` | `sdk` imports no other OOA module. `runner` imports neither toolkits, Studio, the Command Center nor the runner service. Built-in `packages` never import Studio or optional modules. Each optional module imports only the SDK, the runner, built-in packages and itself. `cli` never imports optional modules directly (it loads them by class name). `control-room` imports neither `cli` nor `agent`. `agent` imports neither `cli` nor `controlroom`: it talks to the Command Center only over HTTP. |
+| `moduleBoundaries` | `sdk` imports no other OOA module. `runner` imports neither toolkits, Studio, One CommandCenter nor the runner service. Built-in `packages` never import Studio or optional modules. Each optional module imports only the SDK, the runner, built-in packages and itself. `cli` never imports optional modules directly (it loads them by class name). `control-room` imports neither `cli` nor `agent`. `agent` imports neither `cli` nor `controlroom`: it talks to One CommandCenter only over HTTP. |
 | `noShellExecutionAnywhere` | No `Runtime.exec`, no `cmd /c`, `sh -c` or `bash -c`: programs start with argument lists. |
 | `xmlParsingOnlyThroughTheHardenedParser` | All XML parsing in toolkits goes through `XmlSupport`, which blocks external entities. |
-| `controlRoomUsesOnlyParameterisedSql` | Command Center SQL is built from constants and `?` placeholders only. |
+| `controlRoomUsesOnlyParameterisedSql` | One CommandCenter SQL is built from constants and `?` placeholders only. |
 | `packagesNeverPrintToTheConsole` | Toolkits log through `ActionContext`, so secrets are masked. |
 | `everyCommandIsDocumentedAndConsistentlyNamed` | First-party toolkit ids start with `ooa.` (except `core`), every toolkit and action has a description, ids are snake case. |
 
@@ -126,7 +126,7 @@ ooa.optionalModules=packages-office,packages-email,packages-pdf,packages-browser
   compile time.
 - `FirstPartyPackages.OPTIONAL` names the optional toolkit classes as strings. `FirstPartyPackages.registry()` tries
   `Class.forName` for each and skips the ones that are missing (`ClassNotFoundException` or `LinkageError`).
-- Each runner reports the toolkits it has (`id@version`) in its heartbeat. The Command Center refuses to send a job to
+- Each runner reports the toolkits it has (`id@version`) in its heartbeat. One CommandCenter refuses to send a job to
   a runner that lacks a toolkit the agent uses (`RUN.TOOLKIT_MISSING`), except custom toolkits, which travel with the
   job.
 
@@ -183,16 +183,16 @@ optional module.
 | Developer run | `gradlew :cli:run --args="server"` | Everything, from source |
 | Full install (vendor build) | `gradlew :cli:installDist` → `cli/build/install/ooa` | Product plus `vendor-tools` |
 | Customer zip | `gradlew :cli:customerDistZip` → `ooa-customer-<version>.zip` | Product without `vendor-tools`; `START-OOA.cmd`, `README.txt` |
-| Native executable | `gradlew :cli:nativeExecutable` → `cli/build/native/ooa(.exe)` | Commands that need no Command Center; runs only built-in toolkits (others stop with `ACTION.NOT_IN_THIS_PROGRAM`) |
+| Native executable | `gradlew :cli:nativeExecutable` → `cli/build/native/ooa(.exe)` | Commands that need no One CommandCenter; runs only built-in toolkits (others stop with `ACTION.NOT_IN_THIS_PROGRAM`) |
 | SBOM | `gradlew :cli:sbom` | CycloneDX bill of materials, also inside each package as `sbom.cdx.json` |
-| Container image | `docker/Dockerfile` | Command Center image, entrypoint `docker-entrypoint.sh` |
+| Container image | `docker/Dockerfile` | One CommandCenter image, entrypoint `docker-entrypoint.sh` |
 | Release manifest | `ooa release sign` (vendor) / `ooa release verify` | Ed25519-signed list of release files with SHA-256 |
 
 ## 9. Front ends
 
 | UI | File | Served from | Notes |
 | --- | --- | --- | --- |
-| Command Center console | `control-room/src/main/resources/console/cr.js` | `/` on the Command Center | Pages registered in `PAGES` and `VIEWS`; helpers `h()`, `header()`, `dataTable()`, `modal()`, `openDrawer()`, `tabStrip()`; live updates by a long request to `/api/changes` |
+| One CommandCenter console | `control-room/src/main/resources/console/cr.js` | `/` on One CommandCenter | Pages registered in `PAGES` and `VIEWS`; helpers `h()`, `header()`, `dataTable()`, `modal()`, `openDrawer()`, `tabStrip()`; live updates by a long request to `/api/changes` |
 | One AgentStudio | `platform/ui` (TypeScript and React, built into the CLI) | `/studio/` inside `ooa server`, or `ooa studio` on port 8710 | Automation page, agent steps (list or flow), Actions panel by toolkit family, settings panels built from manifests (`x-ooa-panel`), debugger, output panel, capture and record |
 | Browser extension | `browser-extension/background.js`, `content.js` | Loaded unpacked or by policy | Manifest V3 for Edge/Chrome, `manifest.firefox.json` for Firefox |
 

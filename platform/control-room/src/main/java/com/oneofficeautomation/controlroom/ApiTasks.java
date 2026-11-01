@@ -49,7 +49,7 @@ public final class ApiTasks {
         cr.folders.require(by, path, "run", "make Agent APIs for agents");
         String device = b.get("device_id") instanceof String d && !d.isBlank() ? d : null, pool = b.get("pool_id") instanceof String p && !p.isBlank() ? p : null;
         if (Boolean.TRUE.equals(b.get("serverless")) || ServerlessRuns.DEVICE.equals(device)) {
-            // run inside the Command Center: only agents that keep to web services and data toolkits
+            // run inside One CommandCenter: only agents that keep to web services and data toolkits
             cr.serverless.check((Map<String, Object>) cr.content(path, "production").get("flow"));
             device = (String) cr.serverless.device().get("id");
             pool = null;

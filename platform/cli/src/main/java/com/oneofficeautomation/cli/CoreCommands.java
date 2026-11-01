@@ -3,7 +3,7 @@ package com.oneofficeautomation.cli;
 import java.nio.file.Path;
 
 /**
- * The commands that need no Command Center, database or desktop: checking and running automations, the shared
+ * The commands that need no One CommandCenter, database or desktop: checking and running automations, the shared
  * conformance cases, and checking license files and releases. They are also in the native executable (OoaNative).
  */
 final class CoreCommands {

@@ -47,7 +47,7 @@ runner, its inputs, its status and, when it ends, its duration, steps run, outpu
 | `mcp` | An AI assistant over the Model Context Protocol |
 | `rerun` | **Rerun** of an earlier run |
 
-Studio runs on the designer's own computer are local test runs; they do not appear in the Command Center.
+Studio runs on the designer's own computer are local test runs; they do not appear in One CommandCenter.
 
 ## 2. Starting a run: the checks
 
@@ -61,7 +61,7 @@ In this order; the first failing check refuses the run and nothing is queued:
 | The mode is `unattended`, `attended` or `headless` | `CR.BAD_INPUT` |
 | A run-as user exists and is enabled; without a runner or pool, they have a default runner | `CR.NOT_FOUND`, `CR.NO_DEFAULT_RUNNER` |
 | A pool has an online runner | `CR.NO_RUNNER` (temporary error) |
-| Only serverless Agent APIs may use the Command Center's virtual runner | `CR.BAD_INPUT` |
+| Only serverless Agent APIs may use One CommandCenter's virtual runner | `CR.BAD_INPUT` |
 | A callback URL is `http(s)://` | `CR.BAD_INPUT` |
 | The agent has a live production version and is not deleted | `CR.NO_PRODUCTION`, `CR.DELETED` |
 | No switched-off toolkit is used | `CR.TOOLKIT_DISABLED` |
@@ -123,7 +123,7 @@ error}` (3 attempts, 1 s and 2 s apart; each delivery is audited).
 | Stop | `runs.stop` | A queued run becomes `stopped` at once; a running one is asked to stop and ends `stopped` after its current action; Finally blocks still run |
 | Rerun | `runs.start` | Starts the current live production version again on the same runner with the same inputs (source `rerun`) |
 
-Controls reach the runner within seconds: a runner waiting for work keeps one request open, which the Command Center
+Controls reach the runner within seconds: a runner waiting for work keeps one request open, which One CommandCenter
 answers as soon as a run of that runner is queued, paused, resumed or stopped.
 
 ## 6. Priorities and the order of work on a runner
@@ -132,7 +132,7 @@ answers as soon as a run of that runner is queued, paused, resumed or stopped.
 - Queued runs of a runner are taken in order of priority (higher first), then age.
 - Priorities set by the product: manual and scheduled runs 0 (a manual run may set another value), workflow agent tasks
   3, API task calls and AI assistant runs 5. Work queue items have their own priority within the queue (document 05).
-- A runner whose version is newer than the Command Center's gets no work until the Command Center is updated; the
+- A runner whose version is newer than One CommandCenter's gets no work until One CommandCenter is updated; the
   Runners list shows it.
 
 ## 7. Run-as users and deploying to several targets
@@ -162,29 +162,29 @@ An API task (Build > Agent APIs, `apitasks.manage`) puts an agent behind its own
 | --- | --- |
 | Name | 1-120 characters |
 | Agent | A `.flow.json` agent; its live production version runs |
-| Where | A runner or a runner pool (required), or the Command Center (serverless) |
+| Where | A runner or a runner pool (required), or One CommandCenter (serverless) |
 | Runs as | The person who made the task; refused if that person is disabled |
 | Time limit | 1-300 seconds (default 60): the call waits that long for the result |
 | Token | Shown once, stored as a hash, works only for its task, replaceable (the old one stops at once) |
 | Switch | A task can be switched off |
 | Call | `POST /api/apitasks/{id}/run` with header `X-OOA-Task-Token` and `{"inputs": {...}}` |
-| Answer | 200 with `{status, run_id, outputs, error}` when the run finished in time; 202 with the run id otherwise (also at once when 8 calls are already waiting on that Command Center node); then `GET /api/apitasks/{id}/runs/{run_id}` with the same token |
+| Answer | 200 with `{status, run_id, outputs, error}` when the run finished in time; 202 with the run id otherwise (also at once when 8 calls are already waiting on that One CommandCenter node); then `GET /api/apitasks/{id}/runs/{run_id}` with the same token |
 
-**Serverless Agent APIs** (tick **Run on the Command Center**) run inside the Command Center on the virtual runner
-"Command Center (serverless)", made with the first such task and usable only by serverless Agent APIs.
+**Serverless Agent APIs** (tick **Run on One CommandCenter**) run inside One CommandCenter on the virtual runner
+"One CommandCenter (serverless)", made with the first such task and usable only by serverless Agent APIs.
 
 | Rule | Detail |
 | --- | --- |
 | Allowed toolkits | core, text, numbers, booleans, dates, lists, dictionaries, tables, JSON, CSV, XML, log, crypto, fuzzy, currency, shared values, PGP, REST, SOAP, generative AI, Prompt Skills, Knowledge Q&A, work queues, PDF, Excel, Word, PowerPoint, e-mail, Microsoft 365, Google, Salesforce, ServiceNow, Jira, Slack, Workday, GitHub, Azure DevOps, Asana, Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka, custom connectors |
 | Refused | Any other toolkit (desktop, browser, programs, scripts, databases, server files, custom toolkits) in the agent or any agent it calls: `CR.NOT_SERVERLESS` |
 | Files | Every path stays inside the run's own temporary workspace (`FILE.OUTSIDE_WORKSPACE`), removed afterwards |
-| Concurrency | At most 4 serverless runs at once per Command Center node; more wait queued |
+| Concurrency | At most 4 serverless runs at once per One CommandCenter node; more wait queued |
 | Duration | At most 5 minutes |
 | Licence | The virtual runner needs an Unattended Runner seat while a licence is installed |
 | Node stops | A run cut off by a stopped node is failed once it is past the longest time a run may take |
 
 Serverless runs leave the desktop and the file system alone, but through REST, SOAP and the cloud apps they can still
-reach any address the Command Center itself can reach, from inside its network. Make serverless tasks only for agents
+reach any address One CommandCenter itself can reach, from inside its network. Make serverless tasks only for agents
 whose addresses you trust.
 
 ## 10. Runners: registration and identity
@@ -195,7 +195,7 @@ whose addresses you trust.
 - Registering stores the runner's name, host name, operating system and version, and gives it its own secret. The key
   then shows which runner used it.
 - `ooa server` registers a runner for its own computer by itself, with a one-hour key nobody sees.
-- A runner can be pointed at a Command Center that moved (`ooa agent move`) and keeps its registration, provided the
+- A runner can be pointed at One CommandCenter that moved (`ooa agent move`) and keeps its registration, provided the
   new address accepts its credentials.
 
 ## 11. Online, offline and disabled runners
@@ -276,7 +276,7 @@ the user out). The runner picks the setting up with its next heartbeat and appli
 | Log level | error, warning, info (default), debug | Next heartbeat |
 | After unattended runs | nothing, lock, sign out | Next heartbeat |
 | Runner type | single-user, multi-user | At once |
-| CPU and memory limits | 50-95 %, or the Command Center's setting | At once |
+| CPU and memory limits | 50-95 %, or One CommandCenter's setting | At once |
 
 Each runner also has a **nickname** and **description** (its details).
 
@@ -291,7 +291,7 @@ until Settings `runner_screen_pictures` allows them. The latest of each is kept;
   secret keeps working for a short while in case saving the new one is interrupted.
 - **Toolkits on the runner**: each runner reports its toolkit ids and versions; runs needing one it lacks fail with
   `RUN.TOOLKIT_MISSING`.
-- **Updates**: the Runners list shows whether each runner has the Command Center's program files ("Up to date" or
+- **Updates**: the Runners list shows whether each runner has One CommandCenter's program files ("Up to date" or
   "Update available"). **Update** on a runner, or the setting `runner_auto_update`, tells an idle runner to download
   the files it lacks, check every SHA-256, swap its program folder and restart. The bundled Java is not updated this
   way; a development build offers nothing.
@@ -320,4 +320,4 @@ uses it (`CR.IN_USE`, listing them). Removal takes it off pools and default runn
 - [05 Work queues](05-work-queues.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [Command Center and runner, sections 3 and 5](../user-guide/00-README.md)
+- [One CommandCenter and runner, sections 3 and 5](../user-guide/00-README.md)

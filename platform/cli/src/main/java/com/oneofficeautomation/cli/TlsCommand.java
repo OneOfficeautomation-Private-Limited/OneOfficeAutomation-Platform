@@ -8,7 +8,7 @@ import java.security.SecureRandom;
 import java.util.*;
 
 /**
- * {@code ooa tls}: HTTPS for the Command Center (config/ooa-tls.properties in the data folder). Stop the server first;
+ * {@code ooa tls}: HTTPS for One CommandCenter (config/ooa-tls.properties in the data folder). Stop the server first;
  * it serves HTTPS on its port from its next start.
  * <pre>
  * ooa tls configure --pfx FILE        use the company's certificate (PKCS#12 .pfx/.p12 with the private key); then set-password
@@ -80,7 +80,7 @@ final class TlsCommand {
         System.out.println("Made a self-signed certificate for " + (host.equalsIgnoreCase("localhost") ? "localhost" : host + " (and localhost)") + " in " + pfx + ".");
         System.out.println("Browsers will warn about it, and runners on other machines must trust it: ooa tls export-cert --out ooa.cer,");
         System.out.println("then on each runner: ooa agent register --url https://" + host + ":8720 --key ... --ca ooa.cer");
-        System.out.println("Restart the Command Center to serve HTTPS.");
+        System.out.println("Restart One CommandCenter to serve HTTPS.");
         return 0;
     }
 

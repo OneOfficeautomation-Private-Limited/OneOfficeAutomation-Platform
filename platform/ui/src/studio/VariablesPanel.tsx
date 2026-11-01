@@ -199,7 +199,7 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
           <label className="st-check-line"><input type="checkbox" checked={isOutput(v)} onChange={(e) => setUse(isInput(v), e.target.checked)} /> Use as output: returned when the agent ends</label>
           {isInput(v) && <label className="st-check-line"><input type="checkbox" checked={!!v.required} onChange={(e) => put({ required: e.target.checked || undefined })} /> Required: the agent cannot start without a value</label>}
           {isOutput(v) && ["Number", "String", "Boolean"].includes(v.type) && <label className="st-check-line"><input type="checkbox" checked={!!v.kpi}
-            onChange={(e) => put({ kpi: e.target.checked || undefined })} /> Business figure: each successful run records it for Command Center dashboards</label>}
+            onChange={(e) => put({ kpi: e.target.checked || undefined })} /> Business figure: each successful run records it for One CommandCenter dashboards</label>}
         </fieldset>
         {isInput(v) && ["String", "Number"].includes(v.type) && <Field label="Allowed values" hint="Optional: the only values a caller may give, separated by commas.">{(id) =>
           <TextInput id={id} value={allowed} onChange={(e) => setAllowed(e.target.value)} />}</Field>}
@@ -288,7 +288,7 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
         );
       })}
       {builtin("System variables", "$sys.", builtins.sys, "Read-only values from the platform at run time, such as today's date or the machine name.")}
-      {builtin("Shared Global values", "$global.", builtins.global, "Shared by all agents; managed in Command Center under Shared Global values.")}
+      {builtin("Shared Global values", "$global.", builtins.global, "Shared by all agents; managed in One CommandCenter under Shared Global values.")}
       <div className="st-pad"><Button kind="plain" onClick={onRefresh}>Refresh system and shared values</Button></div>
       {editing && <VariableDialog flow={flow} existing={editing} onClose={() => setEditing(null)} onSave={(next) => { onEdit(next); setEditing(null); }} />}
     </div>

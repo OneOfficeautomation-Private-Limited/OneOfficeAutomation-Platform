@@ -46,7 +46,7 @@ public final class RunnerCare {
         return null;
     }
 
-    /** The runner's own limit, or the Command Center's when it has none. */
+    /** The runner's own limit, or One CommandCenter's when it has none. */
     int limit(Object own, String setting) { return own instanceof Number n ? n.intValue() : cr.platform.intSetting(setting); }
 
     /** Whether the runner takes new work now. */

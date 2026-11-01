@@ -61,7 +61,7 @@ New items go into the selected folder (or the folder of the selected file). Clos
   move after Cut; an open agent follows a move), Copy path, Upload file(s)… (a taken name gets " (2)"), Download (files
   as they are, folders as .zip), Delete (to the workspace trash, after confirmation).
 - **Search** finds agents by name, description or action.
-- Agents checked out from the Command Center are copied under `Control Room/<repository path>`; the mapping is
+- Agents checked out from One CommandCenter are copied under `Control Room/<repository path>`; the mapping is
   remembered so check-in sends the copy back to the right path.
 
 ## 4. Editor views of an agent
@@ -144,7 +144,7 @@ Text with a bare `$name` inside other text gets a note that it is sent literally
 - **Run** shows the agent's inputs in the Run tab (with defaults as placeholders; Credential inputs take a vault
   reference) and **Run agent** starts a local test run on this computer with the saved or open agent.
 - Studio runs use the workspace (files, `global-values.json`, Studio's model and saved connections) and last at most
-  one hour (24 hours when debugging). They do not appear in the Command Center.
+  one hour (24 hours when debugging). They do not appear in One CommandCenter.
 - While running: steps are highlighted as they run, finish or fail, and the canvas keeps the running step in view. When
   the run ends, the result, the Run log and the final Variables are shown, and a toast gives the status and duration.
 - A run that cannot start (for example validation problems) shows the error and opens the Problems tab.
@@ -239,10 +239,10 @@ listed. They work only while Studio runs ([document 04](04-schedules-and-trigger
 - **Agent check-in** saves the open agent and opens a dialog with **What changed** (shown in the version history) and
   the tick **Make this the live version**, off by default. Off: a new version only; the live version is unchanged.
   On: the new version becomes the live production version (or, with approval before production, a request: "sent for
-  approval before it goes live"). An agent with no live version yet gets its first one live even with the tick off. The Command Center validates it first; problems open the Problems tab. Check-in
+  approval before it goes live"). An agent with no live version yet gets its first one live even with the tick off. One CommandCenter validates it first; problems open the Problems tab. Check-in
   needs `repo.checkin`, edit access on the folder (manage access too when the tick is on), and a Developer or Citizen
   Developer seat. A new agent checked in with the tick off has no live version until one is set.
-- Workflows and forms are published with **Publish to Command Center** in their editors. Publishing always makes the
+- Workflows and forms are published with **Publish to One CommandCenter** in their editors. Publishing always makes the
   new version live (or asks for approval).
 
 ## 20. Other item editors
@@ -264,5 +264,5 @@ Esc closes menus.
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
 - [04 Schedules and triggers](04-schedules-and-triggers.md)
-- [Command Center and runner, section 4](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 4](../user-guide/00-README.md)
 - [Browser Connector](../user-guide/08-browser-connector-guide.md)

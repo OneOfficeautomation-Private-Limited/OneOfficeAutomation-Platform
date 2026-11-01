@@ -2,7 +2,7 @@
 
 ## What this covers / who it is for
 
-This document describes the Command Center's database: the supported engines, how the schema is created and
+This document describes One CommandCenter's database: the supported engines, how the schema is created and
 upgraded, every table grouped by business area with its purpose and key columns, what is kept outside the database,
 and how a SaaS region gives each tenant its own schema. It is for database administrators, developers adding features
 and security reviewers who need to know where sensitive data is stored. Table and column names come from
@@ -217,7 +217,7 @@ A SaaS region uses one PostgreSQL database:
 | Schema | Content |
 | --- | --- |
 | `ooa_catalog` | `tenants` (`id`, `slug` unique, `name`, `status` active/suspended, `region`, `admin_email`, `seats`, `key_ciphertext` (the tenant's vault key encrypted with the region's master key), timestamps) and `shared_templates` (`name`, `category`, `tenant_id`, `publisher`, `bundle`, `status` pending/approved/rejected, review fields) |
-| `t_<tenant id>` | The full Command Center schema above, one per tenant |
+| `t_<tenant id>` | The full One CommandCenter schema above, one per tenant |
 
 Each tenant's `Db` is bound to its own schema with a small pool (up to 3 connections, closed after 10 idle minutes).
 Because every query of a tenant runs inside its own schema, a missing filter cannot return another tenant's rows.
@@ -232,7 +232,7 @@ The optional **directory** service has its own small database with one table `di
 - Write portable SQL (PostgreSQL style); check that `SqlServerDialect` covers it.
 - Use `?` placeholders; never concatenate values into SQL.
 - Store secrets encrypted with the vault, or as hashes; never in clear text.
-- Run the Command Center tests on SQL Server and PostgreSQL with `-Pooa.test.db=...` as well as on H2.
+- Run One CommandCenter tests on SQL Server and PostgreSQL with `-Pooa.test.db=...` as well as on H2.
 
 ## Related documents
 

@@ -2,7 +2,7 @@
 
 ## What this covers
 
-Who can use the Command Center and what they may do: user accounts and their life cycle, built-in and custom roles,
+Who can use One CommandCenter and what they may do: user accounts and their life cycle, built-in and custom roles,
 the complete permission list, further roles per person, switching off built-in roles, teams, the ways to sign in
 (password, single sign-on with OpenID Connect or SAML, two-step sign-in), password and session rules, API keys and
 session tokens, address allow-lists and the other security settings.
@@ -39,10 +39,10 @@ session tokens, address allow-lists and the other security settings.
 Life cycle:
 
 - **New user** gives a one-time temporary password, which must be changed at the first sign-in.
-- The first start of a new Command Center creates the user `admin` with a one-time password printed on the console.
+- The first start of a new One CommandCenter creates the user `admin` with a one-time password printed on the console.
 - **Inactive accounts**: with `inactive_user_days` (0-3650, 0 = never) accounts that have not signed in for that many
   days are disabled automatically.
-- Rules that protect the Command Center: nobody can disable themselves or remove their own administrator role, and at
+- Rules that protect One CommandCenter: nobody can disable themselves or remove their own administrator role, and at
   least one enabled administrator must remain.
 - **Delete** a user is refused while they own schedules, triggers, Agent APIs, running work queues or vault folders
   where they are the only owner (`CR.IN_USE`, listing them); hand those over or disable the user instead. Deleting
@@ -178,7 +178,7 @@ Passwords are stored as PBKDF2-SHA256 hashes. Single sign-on users are not affec
 | --- | --- | --- |
 | Settings | Issuer URL, client id, client secret (vault reference), default role, button label | Identity provider sign-in address (`https://`), entity id, signing certificate (PEM), our entity id, button label |
 | Provider set-up | Register the redirect address shown | Give the provider the metadata address `/api/auth/saml/metadata` |
-| Checks | Signature, issuer, audience, expiry, one-time nonce, PKCE | Signed assertion or response; encrypted assertions are refused; sign-ins must start at the Command Center |
+| Checks | Signature, issuer, audience, expiry, one-time nonce, PKCE | Signed assertion or response; encrypted assertions are refused; sign-ins must start at One CommandCenter |
 
 On the first sign-in an existing account with the same verified e-mail address or user name is linked; otherwise a new
 account is made with the role for new people (`sso_default_role`). With no default role, only existing accounts may sign
@@ -191,7 +191,7 @@ first match sets the person's role. A role change is audited as `user.role`. Wit
 role and existing people keep theirs. Every role named must exist.
 
 **Coming back.** A single sign-on started from a page of the new console returns to that page afterwards. Only a path
-on this Command Center is accepted as the place to return to; anything else returns to the home page.
+on this One CommandCenter is accepted as the place to return to; anything else returns to the home page.
 
 **Local accounts.** Accounts with a password, such as the first administrator, can always sign in with it, even with
 single sign-on on, so a broken identity provider never locks everyone out.
@@ -222,12 +222,12 @@ administrator.
 | Maximum upload (`max_upload_mb`, 1-1024, default 25) | The largest request body |
 | Announcement | A banner shown to everyone |
 | Approval before production (`production_approval`) | [document 08](08-repository-versions-and-templates.md) |
-| Outgoing proxy (`outbound_proxy`, `outbound_proxy_bypass`) | The Command Center's own outgoing connections go through `http://host:port`, except listed hosts and this computer |
+| Outgoing proxy (`outbound_proxy`, `outbound_proxy_bypass`) | One CommandCenter's own outgoing connections go through `http://host:port`, except listed hosts and this computer |
 | Syslog (`syslog_target`, `syslog_protocol` udp or tcp) | Audit records are forwarded to `host:port` |
 
 ## 13. Recovery
 
-`ooa reset-admin` (or `--user NAME`), run on the Command Center's machine with it stopped, gives a one-time password,
+`ooa reset-admin` (or `--user NAME`), run on One CommandCenter's machine with it stopped, gives a one-time password,
 re-enables and unlocks the account, clears two-step sign-in, ends its sessions and records the reset in the audit trail.
 
 ## 14. Permissions and audit
@@ -244,5 +244,5 @@ changes, user and role changes, team changes, API key creation and revocation, a
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [Command Center and runner, section 2](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 2](../user-guide/00-README.md)
 - [Security review](../architecture/06-security-architecture.md#14-independent-security-review)

@@ -1,4 +1,4 @@
-# Command-by-command review: One Agent Studio against AA
+# Command-by-command review: One One AgentStudio against AA
 
 Source: the 26 use cases built in both products on 2026-10-24. Ours are in `examples/use-cases/`; AA's are in
 **Bots\Use cases**. For each case, every step was compared:

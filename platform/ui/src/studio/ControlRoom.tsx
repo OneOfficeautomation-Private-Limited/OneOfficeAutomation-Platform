@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ApiFailure, type CrStatus, type RepoAgent, type RepoVersion, type StudioApi } from "../api/client";
 import { Button, Dialog, Field, Icon, IconTile, Menu, TextInput } from "../components";
 
-/** The server's message, with what to do when it says ("Check the address and that Command Center is running."). */
+/** The server's message, with what to do when it says ("Check the address and that One CommandCenter is running."). */
 const message = (e: unknown) => e instanceof ApiFailure ? e.error.message + (e.error.suggestedFix ? ". " + e.error.suggestedFix : "") : String(e);
 const shortName = (path: string) => path.replace(/\.flow\.json$/, "");
 /** An agent's name and its folder, as Automation shows them. */
@@ -10,8 +10,8 @@ const nameOf = (path: string) => shortName(path).split("/").pop()!;
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 
 /**
- * Signing in to Command Center, for the public agent repository. The person types their own password; Studio sends it
- * once and keeps only the session. When Studio and Command Center run together, the browser's Command Center sign-in
+ * Signing in to One CommandCenter, for the public agent repository. The person types their own password; Studio sends it
+ * once and keeps only the session. When Studio and One CommandCenter run together, the browser's One CommandCenter sign-in
  * is used instead and there is nothing to type here.
  */
 export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; status: CrStatus; home: string; onSignedIn: (s: CrStatus) => void }) {
@@ -23,11 +23,11 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   const [error, setError] = useState<string | null>(null);
   if (status.sameServer) return (
     <div className="st-cr-form">
-      <p className="ui-field-hint">Agent Studio and Command Center run together here. Sign in to Command Center in this browser, and Studio uses that sign-in for check-in and check-out.</p>
+      <p className="ui-field-hint">One AgentStudio and One CommandCenter run together here. Sign in to One CommandCenter in this browser, and Studio uses that sign-in for check-in and check-out.</p>
       <div className="st-cr-acts">
-        <a className="ui-btn ui-btn-primary" href={home} target="ooa-control-room">Open Command Center to sign in</a>
+        <a className="ui-btn ui-btn-primary" href={home} target="ooa-control-room">Open One CommandCenter to sign in</a>
         <Button kind="secondary" onClick={async () => {
-          try { const s = await api.crStatus(); if (s.connected) onSignedIn(s); else setError("Not signed in yet. Sign in in the Command Center tab, then press this again."); }
+          try { const s = await api.crStatus(); if (s.connected) onSignedIn(s); else setError("Not signed in yet. Sign in in One CommandCenter tab, then press this again."); }
           catch (e) { setError(message(e)); }
         }}>I have signed in</Button>
       </div>
@@ -42,8 +42,8 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
     finally { setBusy(false); }
   };
   return (
-    <form className="st-cr-form" aria-label="Sign in to Command Center" onSubmit={connect}>
-      <Field label="Command Center address">{(id) => <TextInput id={id} value={url} onChange={(e) => setUrl(e.target.value)} />}</Field>
+    <form className="st-cr-form" aria-label="Sign in to One CommandCenter" onSubmit={connect}>
+      <Field label="One CommandCenter address">{(id) => <TextInput id={id} value={url} onChange={(e) => setUrl(e.target.value)} />}</Field>
       <Field label="User name">{(id) => <TextInput id={id} autoComplete="username" value={user} onChange={(e) => setUser(e.target.value)} />}</Field>
       <Field label="Password">{(id) => <TextInput id={id} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
       <Field label="Two-step code" hint="Only if your account asks for one.">{(id) => <TextInput id={id} inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />}</Field>
@@ -54,7 +54,7 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
 }
 
 /**
- * The Public tab of the Automation page: the Command Center agent repository. Check out an agent to get a private copy
+ * The Public tab of the Automation page: One CommandCenter agent repository. Check out an agent to get a private copy
  * in the workspace (others cannot check it in meanwhile); check it back in from the agent's Check in button.
  */
 export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNotice, onError }:
@@ -74,8 +74,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   }, [api, status.connected, q, tick]);
   if (!status.connected) return (
     <div className="st-cr">
-      <p className="st-muted">Your workspace is private. Sign in to Command Center to share agents through its agent repository, with check-out and check-in.</p>
-      <SignIn api={api} status={status} home={home} onSignedIn={(s) => { onStatus(s); onNotice("Signed in to Command Center."); }} />
+      <p className="st-muted">Your workspace is private. Sign in to One CommandCenter to share agents through its agent repository, with check-out and check-in.</p>
+      <SignIn api={api} status={status} home={home} onSignedIn={(s) => { onStatus(s); onNotice("Signed in to One CommandCenter."); }} />
     </div>
   );
   const me = status.user?.username;
@@ -86,8 +86,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
         <span className="st-items-count">{status.url} · signed in as {me}</span>
         <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
         <button type="button" className="st-tool" aria-label="Refresh" title="Refresh" onClick={reload}><Icon name="loop" size={15} /></button>
-        {status.sameServer ? <span className="st-muted">Signed in through Command Center</span>
-          : <Button kind="plain" onClick={async () => { try { onStatus(await api.crDisconnect()); setList(null); onNotice("Signed out of Command Center."); } catch (e) { onError(e); } }}>Sign out</Button>}
+        {status.sameServer ? <span className="st-muted">Signed in through One CommandCenter</span>
+          : <Button kind="plain" onClick={async () => { try { onStatus(await api.crDisconnect()); setList(null); onNotice("Signed out of One CommandCenter."); } catch (e) { onError(e); } }}>Sign out</Button>}
       </div>
       {failed && <p className="st-cr-error" role="alert">{failed}</p>}
       <table className="st-table">
@@ -156,7 +156,7 @@ export function CheckInDialog({ api, name, status, home, onStatus, onClose, onCh
       footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button>
         {status.connected && <Button kind="primary" onClick={send} disabled={busy}>{busy ? "Checking in…" : "Check in"}</Button>}</>}>
       {!status.connected
-        ? <><p className="st-muted">Sign in to Command Center first. The agent is saved, then checked in as a new version.</p>
+        ? <><p className="st-muted">Sign in to One CommandCenter first. The agent is saved, then checked in as a new version.</p>
             <SignIn api={api} status={status} home={home} onSignedIn={onStatus} /></>
         : <>
             <p className="st-muted">To {status.url}, as {status.user?.username}. Unsaved changes are saved first.</p>
@@ -164,7 +164,7 @@ export function CheckInDialog({ api, name, status, home, onStatus, onClose, onCh
               <TextInput id={id} value={comment} placeholder="What changed in this version?" onChange={(e) => setComment(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !busy) send(); }} />}</Field>
             <label className="st-check-line"><input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Make this the live version (runs, schedules and triggers use it from now on)</label>
-            <p className="ui-field-hint">Leave it off to add a new version only; the live version can be changed later in Command Center. An agent's first version is always live. With approval before production switched on, ticking it sends a request instead.</p>
+            <p className="ui-field-hint">Leave it off to add a new version only; the live version can be changed later in One CommandCenter. An agent's first version is always live. With approval before production switched on, ticking it sends a request instead.</p>
           </>}
     </Dialog>
   );

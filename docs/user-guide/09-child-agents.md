@@ -149,7 +149,7 @@ calls) and **Used by** (the agents that call it). Click a row to open it.
   (`production` by default).
 - So **check in every child agent** as well as the parent, and make sure each has a live version (tick **Make this
   the live version** at check-in, or set it in the repository). The **Dependencies** tab of the parent lists them and reminds
-  you: "Agent check-in child agents too before running this agent from Command Center."
+  you: "Agent check-in child agents too before running this agent from One CommandCenter."
 - If you duplicate an agent in the Explorer, the copy gets a new agent id so it does not replace the original as a
   child.
 
@@ -170,4 +170,4 @@ calls) and **Used by** (the agents that call it). Click a row to open it.
 - [Building agents](03-studio-building-agents.md)
 - [Running and debugging](04-studio-running-and-debugging.md)
 - [Studio basics](02-studio-basics.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)

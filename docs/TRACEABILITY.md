@@ -62,7 +62,7 @@ requirements; where a row above says Planned or Partial, this table is the curre
 | FR-CC-AUT004/005 | Check-in, versions, live production version | Built | `ControlRoom.checkin` | Agents, workflows and forms; H2 or PostgreSQL |
 | FR-CC-RES003/004 | Credentials and vault folders | Built | `ControlRoom`, `ExternalVaults` | HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, CyberArk CCP |
 | FR-CC-ADM004 | Roles with scopes | Built | `Rbac`, `Platform` custom roles | Fine-grained permissions per custom role |
-| FR-AI-001 | Model connections | Built | `ModelConnections`, Command Center connections | Keys only as vault or environment references |
+| FR-AI-001 | Model connections | Built | `ModelConnections`, One CommandCenter connections | Keys only as vault or environment references |
 | FR-AI-004 | AI governance log | Built | `LlmClient.govern`, `Platform.aiGovernance` | Stored centrally per run; no prompts, only a SHA-256 fingerprint |
 | FR-AI-007 | Human approval for tools | Built | `AiAgentPackage.approve` | Desktop approval with timeout; Workflow approvals in the Task inbox |
 | FR-AI-009 | MCP server | Built | `McpServer` (`POST /api/mcp`) | HTTP transport with API keys, administrator-chosen agents, run as the caller |

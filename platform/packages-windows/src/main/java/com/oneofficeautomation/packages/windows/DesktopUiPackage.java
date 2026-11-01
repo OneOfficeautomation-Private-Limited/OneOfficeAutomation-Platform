@@ -22,7 +22,7 @@ public final class DesktopUiPackage {
     public static final String SESSION = "ooa.desktop_ui.bridge";
     static final long CALL_TIMEOUT_MS = 30_000;
 
-    static final String D_OBJECT = "The captured object (from Pick object or Studio's desktop capture): window, properties with match and use, path and index.";
+    static final String D_OBJECT = "The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index.";
     static final String D_TIMEOUT = "How long to wait for the object to appear, in seconds.";
 
     static void windows() {

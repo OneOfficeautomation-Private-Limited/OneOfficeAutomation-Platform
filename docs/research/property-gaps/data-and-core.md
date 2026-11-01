@@ -31,7 +31,7 @@ Scope summary:
 | Step | Optional title; no runtime effect. | title | Nothing missing. | - |
 | Comment | Note text; ignored at run time. | text | Nothing missing. | - |
 | Run Agent (Task Bot > Run) | Which agent, input values (quick map), outputs to one dictionary or mapped to variables, repeat (n times / for a time / until stopped), delay between repeats, continue on error. | automation, version, inputs; outputs dictionary and status | **output_map** (child output to parent variable, checked by the validator), **timeout_seconds** (CHILD.TIMEOUT), **same_session** (child shares and keeps the parent's open sessions), **fail_on_error** (false: status failed + **error** output, run carries on), **repeat**, **repeat_delay_seconds**, output **runs**. | Repeat "for a time" and "until stopped": use a loop around the step. Running the current agent recursively is limited by the child depth guard. |
-| Task Bot > Pause | Wait until a person resumes. | Only the Control Center pause button | New **core/pause** (message, optional timeout_seconds); resumes from Studio/Command Center like the pause button. | - |
+| Task Bot > Pause | Wait until a person resumes. | Only One CommandCenter pause button | New **core/pause** (message, optional timeout_seconds); resumes from Studio/One CommandCenter like the pause button. | - |
 | Task Bot > Stop | End the agent; Finally still runs. | - | New **core/stop** (message, status success or failed with AGENT.STOPPED); Finally blocks run; ends only the current agent. | - |
 | System variables ($sys) | Date parts down to millisecond, machine, OS name, user, CPU and RAM usage, total RAM, clipboard, Control Room URL, bot name, newline/tab. | date, time, now, today, year, month, day, weekday, hour, user, machine, os, run_id, bot_id, bot_name, principal, workspace, temp_folder, newline, tab, empty | **minute, second, millisecond, day_of_year, timestamp, os_version, processors, user_domain, home_folder, file_separator, cpu_usage, total_ram_mb, ram_usage_mb**. | Clipboard needs a desktop session (ooa.desktop clipboard actions). Control Room URL is a deployment setting, not a run value. |
 
@@ -160,7 +160,7 @@ Scope summary:
 
 | Action | AA options | Ours before | Added | Skipped |
 | --- | --- | --- | --- | --- |
-| Global values | Typed (String, Number, Boolean, DateTime, user group), user override allowed or not. | get (default), get_all; workspace file only | **type** conversion on get; prefix filter on get_all; condition **is_defined**; reads the Command Center `global_values` service when present (same source as `$global`). | Per-user overrides and the user-group type: Command Center features, not toolkit options. |
+| Global values | Typed (String, Number, Boolean, DateTime, user group), user override allowed or not. | get (default), get_all; workspace file only | **type** conversion on get; prefix filter on get_all; condition **is_defined**; reads One CommandCenter `global_values` service when present (same source as `$global`). | Per-user overrides and the user-group type: One CommandCenter features, not toolkit options. |
 
 ### Run context (`ooa.run_context`)
 

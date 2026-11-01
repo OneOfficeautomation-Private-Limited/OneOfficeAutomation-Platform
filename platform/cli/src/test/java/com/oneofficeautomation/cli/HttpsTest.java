@@ -18,7 +18,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Built-in HTTPS: "ooa tls self-signed" makes a certificate, the Command Center serves HTTPS with it, the certificate
+ * Built-in HTTPS: "ooa tls self-signed" makes a certificate, One CommandCenter serves HTTPS with it, the certificate
  * exported by "ooa tls export-cert" lets a runner register ("--ca"), a runner without it is refused, and this
  * machine's own runner and Studio use the plain loopback listener.
  */

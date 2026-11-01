@@ -5,7 +5,7 @@ runners out. Business users with an attended runner on their own PC will find th
 assistant useful.
 
 **You need:** on the runner computer, rights to install programs (administrator rights for a Windows service or an
-all-users install). In the Command Center, `devices.manage` to register, change and remove runners (administrators),
+all-users install). In One CommandCenter, `devices.manage` to register, change and remove runners (administrators),
 and `pools.manage` for runner pools.
 
 ## Contents
@@ -15,7 +15,7 @@ and `pools.manage` for runner pools.
 3. [Register a runner](#3-register-a-runner)
 4. [Start it at sign-in or as a service](#4-start-it-at-sign-in-or-as-a-service)
 5. [Proxies and certificates](#5-proxies-and-certificates)
-6. [The runner in the Command Center](#6-the-runner-in-the-command-center)
+6. [The runner in One CommandCenter](#6-the-runner-in-the-command-center)
 7. [The screen: locked screens and after-run actions](#7-the-screen-locked-screens-and-after-run-actions)
 8. [Default users and the default runner of a person](#default-users-and-the-default-runner-of-a-person)
 9. [Runner pools](#9-runner-pools)
@@ -23,18 +23,18 @@ and `pools.manage` for runner pools.
 11. [Updates, toolkits and secrets](#11-updates-toolkits-and-secrets)
 12. [The assistant in the notification area](#12-the-assistant-in-the-notification-area)
 13. [Diagnosing problems: ooa agent diagnose](#13-diagnosing-problems-ooa-agent-diagnose)
-14. [Moving a runner to a new Command Center address](#14-moving-a-runner-to-a-new-command-center-address)
+14. [Moving a runner to a new One CommandCenter address](#14-moving-a-runner-to-a-new-command-center-address)
 15. [Removing a runner](#15-removing-a-runner)
 16. [Related guides](#related-guides)
 
 ## 1. What a runner is
 
-OneRunner is the program that runs agents. It registers once with a Command Center, then:
+OneRunner is the program that runs agents. It registers once with One CommandCenter, then:
 
 - sends a heartbeat every few seconds (a runner is **online** when it checked in during the last minute);
 - keeps one request open so that queued work, and stop or pause requests, reach it at once;
 - runs each agent in its own process, so a crashing agent never stops the runner;
-- reports every step, log line and variable back to the Command Center;
+- reports every step, log line and variable back to One CommandCenter;
 - watches its own machine for runner triggers (files, windows, processes, services, hotkeys) every two seconds.
 
 Its workspace is `C:\Users\<you>\OOA Agent Workspace`; log files are in its `logs` folder (one file per run, named by
@@ -57,7 +57,7 @@ Attended and unattended are about who sits at the machine and how runs are start
 how the runner process itself runs. An unattended runner that uses the screen is a signed-in runner with a dedicated
 account that stays unlocked.
 
-**Seats:** a runner needs an **Unattended Runner** seat to take Command Center work (manual, scheduled, triggered,
+**Seats:** a runner needs an **Unattended Runner** seat to take One CommandCenter work (manual, scheduled, triggered,
 API, queue). A person with an **Attended Runner** seat (or a Developer or Citizen Developer seat) may run agents by
 hand on their own default runner. Administrators assign seats on **Administration > Licenses**.
 
@@ -65,7 +65,7 @@ hand on their own default runner. Administrators assign seats on **Administratio
 
 ### Step 1: make a registration key (administrator)
 
-1. In the Command Center open **Manage > Runners** and press **Register a runner**.
+1. In One CommandCenter open **Manage > Runners** and press **Register a runner**.
 2. Tick **Temporary runner (VDI or pooled desktop)** only for runners that come and go (section 10).
 3. Press **Create key**. The dialog shows the key and three ready-made commands. The key works **once**, expires in
    **24 hours** and is shown only now:
@@ -145,13 +145,13 @@ The proxy password is read from the environment variable. On Windows it is store
 macOS it is stored in the file `proxy-password` next to the runner's settings, readable only by the account that owns
 it. Proxies that only accept Windows (NTLM) sign-in are not supported. Restart the runner after a change.
 
-**Certificates.** A Command Center certificate from a company authority that Windows and Java already trust needs
+**Certificates.** One CommandCenter certificate from a company authority that Windows and Java already trust needs
 nothing. For a self-signed certificate, get `ooa.cer` from the administrator (`ooa tls export-cert --out ooa.cer`) and
 add `--ca ooa.cer` when registering (or `ooa agent network --ca ooa.cer`). The runner keeps a copy beside its settings
 and trusts it from then on. Runners on Windows also trust the Windows certificate store, so a company authority rolled
 out by Group Policy needs nothing more.
 
-## 6. The runner in the Command Center
+## 6. The runner in One CommandCenter
 
 **Manage > Runners** lists every runner. Columns: **Runner** (name, host name, operating system), **Status**,
 **Running**, **Agent** (the runner's version), **Type**, **Default users**, **Log level**, **Screen**, **After a run**,
@@ -161,8 +161,8 @@ Click a runner for its details: host name, operating system, agent version, last
 log level, screen, after unattended runs, **Toolkits** (the list it reported), registered by, runner id, **Now** and
 **History**. Buttons: **Run an agent here**, **Rename**, **Disable**/**Enable**, **Remove**.
 
-If **Agent** shows a red "update the Command Center" pill, the runner is newer than the Command Center and gets no
-work until the Command Center is updated.
+If **Agent** shows a red "update One CommandCenter" pill, the runner is newer than One CommandCenter and gets no
+work until One CommandCenter is updated.
 
 ### Change settings for several runners at once
 
@@ -230,7 +230,7 @@ Remove temporary runners after this many hours without contact** (8 by default),
 ## 11. Updates, toolkits and secrets
 
 **Program updates.** The **Program** column says **Up to date** or **Update available**. **Update** on a runner (or
-**Settings > Update runners automatically to this Command Center's version when they are idle**) makes an idle runner
+**Settings > Update runners automatically to this One CommandCenter's version when they are idle**) makes an idle runner
 download the files it needs, check every checksum, swap its program folder and start again: a service is restarted by
 Windows, a signed-in runner by its task. The bundled Java is not updated this way. A runner installed for all users
 but started at a user's sign-in may not be allowed to write to Program Files: update it with the MSI instead.
@@ -247,8 +247,8 @@ every (days)**, 0 = never). The runner saves the new secret safely; the old one 
 For people who work beside their agents, `ooa assistant` (Windows, from `bin`) puts ONEOFFICEAUTOMATION in the
 notification area. It runs as the signed-in person.
 
-1. In the Command Center, make an API key under your name > **API keys**.
-2. Run `bin\ooa.bat assistant`. The first start asks for the Command Center address and the API key. They are stored
+1. In One CommandCenter, make an API key under your name > **API keys**.
+2. Run `bin\ooa.bat assistant`. The first start asks for One CommandCenter address and the API key. They are stored
    in `%APPDATA%\ONEOFFICEAUTOMATION\assistant.json`, protected for your Windows user with DPAPI.
 3. Right-click the icon. The menu has **Signed in as ...**, **Run an agent** (the agents with a live version you may
    see; it asks for each input and starts the agent on your default runner, as you), **Task inbox** (with a count of
@@ -273,18 +273,18 @@ problems:
 | Check | A FAIL or WARN usually means |
 | --- | --- |
 | Runner settings | Not registered yet: `ooa agent register` |
-| Name lookup | The Command Center's host name is unknown here: DNS or a typo in the address |
+| Name lookup | One CommandCenter's host name is unknown here: DNS or a typo in the address |
 | Proxy | Which proxy is used |
-| Network | The port does not answer: firewall, or the Command Center is stopped |
+| Network | The port does not answer: firewall, or One CommandCenter is stopped |
 | Certificate | Not trusted: register with `--ca FILE`, or install the company authority in Windows |
-| Command Center | No answer or an error; if a proxy asks for a sign-in, set it with `ooa agent network` |
+| One CommandCenter | No answer or an error; if a proxy asks for a sign-in, set it with `ooa agent network` |
 | Clock | More than a minute apart: set both clocks from the same time server |
 | Runner sign-in | The runner was deleted or disabled: register it again |
 | Screen | Locked or no desktop: screen agents will not start |
 | Free disk space | Less than about 1 GB free |
 | Toolkits | How many toolkits are installed |
 
-For the Command Center computer itself use `bin\ooa.bat check`.
+For One CommandCenter computer itself use `bin\ooa.bat check`.
 
 ### Other common problems
 
@@ -296,15 +296,15 @@ For the Command Center computer itself use `bin\ooa.bat check`.
 | The runner stops when you sign out | Expected for a signed-in runner; use a service runner for screenless work |
 | Need more detail | Set **Log level** to debug (**Update runners**) and read the runner's log in its workspace `logs` folder |
 
-## 14. Moving a runner to a new Command Center address
+## 14. Moving a runner to a new One CommandCenter address
 
-When the Command Center moves to a new server or a new address with its data, keep each runner's registration:
+When One CommandCenter moves to a new server or a new address with its data, keep each runner's registration:
 
 ```
 ooa agent move --url https://new-address:8720 [--ca new.cer]
 ```
 
-Then restart the runner. Runners that reach the Command Center through a DNS name you repoint need nothing. See
+Then restart the runner. Runners that reach One CommandCenter through a DNS name you repoint need nothing. See
 [Installation on Linux and in containers](../infrastructure/03-installation-linux-and-containers.md).
 
 ## 15. Removing a runner

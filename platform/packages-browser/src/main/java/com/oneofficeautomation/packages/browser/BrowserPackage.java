@@ -65,7 +65,7 @@ public final class BrowserPackage {
         Map<String, Object> a = new LinkedHashMap<>(opts);
         if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); o.remove("window_shot"); a.put("object", o); }
         else if (sel != null && !sel.isBlank()) a.put("selector", sel);
-        else throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in Agent Studio, or type a selector.");
+        else throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in One AgentStudio, or type a selector.");
         a.put("action", action);
         if (value != null) a.put("value", value instanceof SecureString ss ? ss.reveal() : value instanceof List<?> ? value : Values.text(value));
         a.put("timeout_ms", BigDecimal.valueOf((long) timeoutMs));
@@ -91,7 +91,7 @@ public final class BrowserPackage {
     static ActionException pwPublic(PlaywrightException e, String what) { return pw(e, what); }
 
     private static final String D_SEL = "Element selector: CSS (#id, .class), text=\"Sign in\", role=button[name=\"Save\"] or xpath=//input[@name='q'].";
-    private static final String D_OBJ = "The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: "
+    private static final String D_OBJ = "The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: "
             + "equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given.";
     private static final String D_SEL_OPT = "Element selector, used when no captured object is given: CSS (#id, .class), text=\"Sign in\", role=button[name=\"Save\"] or xpath=//input[@name='q'].";
     private static final String D_TIMEOUT = "How long to wait for the element, in milliseconds.";
@@ -133,7 +133,7 @@ public final class BrowserPackage {
     /** The element from the captured object when given, otherwise from the selector (with its recorded alternatives). */
     static Locator target(ActionContext ctx, String session, Object object, String sel, Map<String, Object> alternatives, double timeoutMs) {
         if (object != null) return WebObjects.locate(ctx, s(ctx, session), WebObjects.object(object), timeoutMs, false);
-        if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Pick or Capture in Agent Studio, or type a selector.");
+        if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Pick or Capture in One AgentStudio, or type a selector.");
         return element(ctx, session, sel, alternatives, timeoutMs);
     }
 
@@ -204,7 +204,7 @@ public final class BrowserPackage {
             @Input(name = "download_folder", type = OoaType.FILE, required = false, visibleWhen = "open_in=new_window", description = "Where downloads are saved.") String downloads,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "keep_open", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
-                    description = "Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let Studio and later agents reach it. "
+                    description = "Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let One AgentStudio and later agents reach it. "
                             + "False closes the browser with the run, as before.") boolean keepOpen,
             @Input(name = "engine", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "connector", "playwright"},
                     description = "connector: open a window in the person's own Edge, Chrome or Firefox through the ONEOFFICEAUTOMATION Browser Connector extension; "
@@ -1167,7 +1167,7 @@ public final class BrowserPackage {
             @Input(name = "full_page", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Whole scrollable page.") boolean full,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = "Only this element (selector).") String sel,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "Only this element: the captured object from Capture or Pick in Agent Studio.") Object object,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "Only this element: the captured object from Capture or Pick in One AgentStudio.") Object object,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         Path p = ctx.resolvePath(path);
@@ -1405,7 +1405,7 @@ public final class BrowserPackage {
 
     @Action(id = "list_windows", name = "List windows (design time)", category = "Browser", timeoutSeconds = 60, idempotent = true, capabilities = "browser",
             description = "List the browser tabs an agent can reach (in this run's sessions and in browsers with a debugging port) and, on Windows, the titles of "
-                    + "open desktop windows. Used by Agent Studio to offer windows to choose from.",
+                    + "open desktop windows. Used by One AgentStudio to offer windows to choose from.",
             panel = "endpoints, include_desktop")
     @Output(name = "windows", type = OoaType.LIST, description = "One entry per window: source (browser or application), title, url and browser.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows listed.")
@@ -1815,7 +1815,7 @@ public final class BrowserPackage {
     @Output(name = "result", description = "Value returned by get, is, count, wait and coordinate actions.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the element was not found (if_not_found = continue).")
     public Map<String, Object> elementAction(ActionContext ctx,
-            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "The captured object from Capture in Agent Studio: the properties to match "
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "The captured object from Capture in One AgentStudio: the properties to match "
                     + "(each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard, regex), search_by (properties, css or xpath), "
                     + "index when several elements match, and iframes. Used instead of the selector when given.") Object objectArg,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL + " Used when no captured object is given.") String sel,
@@ -1825,7 +1825,7 @@ public final class BrowserPackage {
                     "is_checked", "is_visible", "is_enabled", "is_present", "count", "scroll_into_view", "highlight", "wait_to_appear", "wait_to_disappear",
                     "drag_to", "upload_file", "screenshot", "get_status", "toggle", "select", "get_selected_index", "get_total_items", "get_total_rows", "get_total_columns",
                     "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "set_position", "get_control_type"},
-                    description = "What to do with the element. Studio lists the actions that suit the captured control type.") String action,
+                    description = "What to do with the element. One AgentStudio lists the actions that suit the captured control type.") String action,
             @Input(name = "value", required = false, description = "Depends on the action: the text to type, the key (e.g. Enter, Ctrl+A), the attribute or property name, "
                     + "the option text, value or index, the target selector for drag_to, the file path(s) for upload_file, or the image path for screenshot. Credentials allowed for set_text.") Object value,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
@@ -1917,7 +1917,7 @@ public final class BrowserPackage {
         }
         Map<String, Object> object = objectArg == null ? null : WebObjects.object(objectArg);
         if (object == null && (sel == null || sel.isBlank()))
-            throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in Agent Studio, or type a selector.");
+            throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in One AgentStudio, or type a selector.");
         String what = object != null ? "the captured object " + WebObjects.describe(object) : sel;
         boolean ask = action.equals("count") || action.equals("is_visible") || action.equals("is_present");
         Locator l = null;
@@ -2352,7 +2352,7 @@ public final class BrowserPackage {
 
     @SuppressWarnings("unchecked")
     @Action(id = "pick_element", name = "Pick element (design time)", category = "Capture", timeoutSeconds = 900, capabilities = "browser",
-            description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by Agent Studio's Pick button.",
+            description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by One AgentStudio's Pick button.",
             panel = "url, browser | timeout_minutes, endpoint, tab_title, tab_url, tab_id")
     @Output(name = "selector", type = OoaType.STRING, description = "Selector for the clicked element.")
     @Output(name = "element", type = OoaType.DICTIONARY, description = "tag, text, type, name and id of the element.")
@@ -2658,7 +2658,7 @@ public final class BrowserPackage {
             "left", "top", "width", "height", "visible", "enabled", "checked", "selected", "in_frame", "frame_url", "inner_html", "outer_html");
 
     @Action(id = "test_object", name = "Test captured object (design time)", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
-            description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by Agent Studio's Test button.",
+            description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by One AgentStudio's Test button.",
             panel = "url, object, browser | wait_seconds, show_seconds")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many elements match.")
     @Output(name = "first", type = OoaType.DICTIONARY, description = "All properties of the element at the object's index, when it exists.")

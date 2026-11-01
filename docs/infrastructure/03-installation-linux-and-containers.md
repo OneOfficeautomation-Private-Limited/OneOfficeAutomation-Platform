@@ -2,7 +2,7 @@
 
 ## What this covers / audience
 
-How to run the Command Center on a Linux server with systemd, and as a container image: building the image, its
+How to run One CommandCenter on a Linux server with systemd, and as a container image: building the image, its
 environment variables, volumes, health checks and non-root user, and the three compose files (single server, SQL
 Server, SaaS region). For Linux administrators and platform engineers.
 
@@ -26,7 +26,7 @@ Runners that use the screen stay on Windows. Headless runners (web services, fil
 
 | Component | Linux | Notes |
 | --- | --- | --- |
-| Command Center | Yes | Package with systemd, or the container image |
+| One CommandCenter | Yes | Package with systemd, or the container image |
 | SaaS region and directory | Yes | Container image recommended (`region start`, `directory start`) |
 | Headless runner | Yes | `ooa agent register` and `ooa agent start`; screen agents are refused |
 | Runner for screen agents | No | Windows only |
@@ -75,7 +75,7 @@ First sign-in: the one-time `admin` password is in the journal (`journalctl -u o
 | `User=ooa`, `Group=ooa` | Runs as the unprivileged `ooa` account |
 | `EnvironmentFile=-/etc/ooa/ooa.env` | Reads `OOA_MASTER_KEY` (or `OOA_MASTER_KEY_SOURCE`) and database passwords; optional file |
 | `Environment=JAVA_OPTS=-Xmx2g -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true` | 2 GB heap; exits on out-of-memory so systemd restarts it |
-| `ExecStart=/opt/ooa/bin/ooa control-room --host 0.0.0.0 --port 8720 --data /var/lib/ooa` | Command Center only, on all interfaces |
+| `ExecStart=/opt/ooa/bin/ooa control-room --host 0.0.0.0 --port 8720 --data /var/lib/ooa` | One CommandCenter only, on all interfaces |
 | `After=`/`Wants=network-online.target` | Starts after the network is up |
 | `Restart=on-failure`, `RestartSec=10` | Restarted 10 seconds after a failure |
 | `NoNewPrivileges=true` | No privilege escalation |
@@ -173,13 +173,13 @@ docker run --rm -v ooa-data:/data -v /backups:/backups -e OOA_MASTER_KEY=... -e 
 docker run --rm ooa-command-center:0.2.0 region token
 ```
 
-Stop the Command Center container before a restore.
+Stop One CommandCenter container before a restore.
 
 ## 9. Compose files
 
 All three read secrets from a `.env` file next to the compose file. Never commit it.
 
-### `docker/compose.yaml`: Command Center with SQL Server 2022
+### `docker/compose.yaml`: One CommandCenter with SQL Server 2022
 
 ```
 docker compose -f docker/compose.yaml up -d
@@ -218,7 +218,7 @@ at `NAME.in.localtest.me:8720`. See [09](09-saas-and-multi-region-operations.md)
 | Google GKE or Cloud Run | Service account for `gcp-secret:`; Filestore for shared storage; HTTPS load balancer. Cloud Run: minimum instances at least 1 and CPU always allocated. |
 | Kubernetes in general | Liveness probe `/api/health`, readiness probe `/api/health/ready`; a `PersistentVolumeClaim` for `/data`; a NetworkPolicy for egress (required for SaaS) |
 
-Never let the Command Center scale to zero: schedules, triggers and queues run in the background.
+Never let One CommandCenter scale to zero: schedules, triggers and queues run in the background.
 
 ## 11. Limits on Linux
 

@@ -36,7 +36,7 @@ customers do not need this page.
 | Router | All tenants on one port; the host name picks the tenant: `acme.in.example.com` is tenant `acme` in region `in` |
 | Directory (optional) | Maps address name to region only; `https://example.com/t/acme` redirects to the right region. No customer data. |
 
-Each tenant runs the same Command Center code as an on-premises install. Separate schemas mean a missed filter
+Each tenant runs the same One CommandCenter code as an on-premises install. Separate schemas mean a missed filter
 cannot show one tenant's rows to another; CI checks isolation with two tenants that use identical names.
 
 Customers' runners stay in their own networks and connect out to their tenant address:
@@ -239,7 +239,7 @@ administrator frees one in Administration > Licenses or asks for more.
 2. Upgrade one region at a time, a week apart, starting with the smallest.
 3. In a region: back up PostgreSQL, stop all nodes, roll out the new image, start one node (it upgrades each tenant
    schema as it opens it), check `/healthz` and a tenant sign-in, then start the other nodes.
-4. Tell tenants to update their runners from Runners > Update (runners newer than the Command Center get no work, so
+4. Tell tenants to update their runners from Runners > Update (runners newer than One CommandCenter get no work, so
    the region goes first).
 5. Upgrade the directory independently; it holds only the name table.
 

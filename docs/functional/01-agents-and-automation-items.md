@@ -24,18 +24,18 @@ repository are covered in later documents.
 ## 1. Kinds of automation item
 
 Every item lives as a file in the designer's Studio workspace and, once checked in, as a versioned entry in the
-Command Center's agent repository. The file name ending decides how the repository treats it.
+One CommandCenter's agent repository. The file name ending decides how the repository treats it.
 
 | Item (Studio "Create" menu) | Stored as | Kind field | Purpose | Runs where |
 | --- | --- | --- | --- | --- |
 | Agent | `Name.flow.json` | `TaskBot` | Automates applications, files, the desktop and the web | A runner (attended, unattended or headless) |
 | Agent from a blueprint | `Name.flow.json` | `TaskBot` | A new agent started from a ready-made pattern | As an agent |
-| Headless API agent | `Name.flow.json` | `ApiTask` | Automation that needs no desktop; may not use actions that need one | A runner, or the Command Center as a serverless API task |
+| Headless API agent | `Name.flow.json` | `ApiTask` | Automation that needs no desktop; may not use actions that need one | A runner, or One CommandCenter as a serverless API task |
 | AI agent definition | `Name.flow.json` | `Agent` | A flow with an `agent` section instead of steps, used by the AI agent action | Called by other agents |
 | Form | `Name.form.json` | `Form` | Fields people fill in: workflow start forms and human tasks | Inside a workflow (the Task inbox) |
-| Workflow | `Name.process.json` | `Process` | Chains agents, forms, approvals, decisions and notifications | The Command Center workflow engine |
+| Workflow | `Name.process.json` | `Process` | Chains agents, forms, approvals, decisions and notifications | One CommandCenter workflow engine |
 | Document intelligence | workspace item | | Defines fields to extract from documents with AI | Used by the document actions of agents |
-| Prompt Skill | workspace item, or kept in the Command Center | | A reviewed prompt template run by the Prompt Skills toolkit | Used by agents (see [document 09](09-ai-features.md)) |
+| Prompt Skill | workspace item, or kept in One CommandCenter | | A reviewed prompt template run by the Prompt Skills toolkit | Used by agents (see [document 09](09-ai-features.md)) |
 | Python script, PowerShell script, VBScript, JavaScript | script file in the workspace | | A script run by the Scripts toolkit actions | Inside an agent step |
 
 Rules that follow from the file kind:
@@ -118,7 +118,7 @@ value and an optional description.
   value is refused. The runner fetches the secret just in time, as the run's user ([document 07](07-vault-credentials-and-connections.md)).
 - When a run ends, the values of all `output` and `in_out` variables are returned as the run's outputs. They are shown
   in the run details, returned to API callers and callback URLs, kept with work items and merged into workflow data.
-- Inputs that the Command Center fills by itself, when the agent declares them:
+- Inputs that One CommandCenter fills by itself, when the agent declares them:
 
 | Input name | Filled by |
 | --- | --- |
@@ -136,7 +136,7 @@ value and an optional description.
 | Run | `run_id`, `bot_id`, `bot_name`, `principal` (the person the run is for), `workspace` |
 | Text | `newline`, `tab`, `empty` |
 
-`$global.NAME` reads a shared value from the Command Center (or, in Studio, the workspace's `global-values.json`). A
+`$global.NAME` reads a shared value from One CommandCenter (or, in Studio, the workspace's `global-values.json`). A
 person's own value wins for shared values that people may change for themselves ([document 07](07-vault-credentials-and-connections.md)).
 
 ## 6. The core actions (flow and control)
@@ -158,7 +158,7 @@ The core toolkit is always present and cannot be switched off.
 | `core/comment` | Comment | A note; does nothing |
 | `core/break`, `core/continue` | Exit loop, Continue loop | Leave or skip to the next pass of the innermost loop, or of the loop with the given label |
 | `core/stop` | Stop agent | Ends the current agent at once with status success, or failed with `AGENT.STOPPED`; Finally blocks still run |
-| `core/pause` | Pause agent | Pauses the run until resumed from Studio or the Command Center, or until the optional timeout |
+| `core/pause` | Pause agent | Pauses the run until resumed from Studio or One CommandCenter, or until the optional timeout |
 | `core/run_bot` | Run Agent | Runs a child agent (section 7) |
 
 A disabled step is skipped and its variables keep their values.
@@ -182,7 +182,7 @@ Rules:
 - Child agents run inside the parent's run, with their own variable scope (only inputs and outputs cross over). Stop and
   pause apply to the children too; stopping a child stops the parent.
 - Nesting is limited to 10 levels (`CHILD.DEPTH`).
-- When a run is sent to a runner, the Command Center adds the live production versions of every agent it calls
+- When a run is sent to a runner, One CommandCenter adds the live production versions of every agent it calls
   (Run Agent steps and the tools of AI agent steps), followed transitively up to 10 levels and 100 agents. A child
   without a live production version is left out, and the runner reports it when the step is reached.
 - A deleted agent cannot be used as a child (`CR.DELETED`).
@@ -200,7 +200,7 @@ refuses check-in and runs with `CR.TOOLKIT_DISABLED`.
 
 ## 9. Event handling inside an agent
 
-Besides the Command Center's triggers ([document 04](04-schedules-and-triggers.md)), an agent can react to events while it runs:
+Besides One CommandCenter's triggers ([document 04](04-schedules-and-triggers.md)), an agent can react to events while it runs:
 
 - **Trigger loop** (`ooa.triggerloop` iterators used in a Loop): the loop waits for events (for example files or
   e-mails) and runs its body once per event while the agent is running. The range options of the loop are applied as

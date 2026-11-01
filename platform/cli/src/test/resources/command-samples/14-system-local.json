@@ -870,7 +870,7 @@
  },
  {
   "command": "ooa.log/log_to_command_center",
-  "name": "without Command Center goes to the run log",
+  "name": "without One CommandCenter goes to the run log",
   "steps": [
    {
     "action": "ooa.log/log_to_command_center",

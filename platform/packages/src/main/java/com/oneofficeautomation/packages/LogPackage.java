@@ -9,7 +9,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-@OoaPackage(id = "ooa.log", name = "Log to file", version = "1.0.0", description = "Write timestamped lines to a log file or to the run log in Command Center; secrets are masked automatically.")
+@OoaPackage(id = "ooa.log", name = "Log to file", version = "1.0.0", description = "Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically.")
 public final class LogPackage {
     private static final Object LOCK = new Object();
 
@@ -105,8 +105,8 @@ public final class LogPackage {
         };
     }
 
-    @Action(id = "log_to_command_center", name = "Log to Command Center", category = "Logging",
-            description = "Add a message, with optional details, to this run's log so it appears in Command Center with the run's activity.",
+    @Action(id = "log_to_command_center", name = "Log to One CommandCenter", category = "Logging",
+            description = "Add a message, with optional details, to this run's log so it appears in One CommandCenter with the run's activity.",
             panel = "message, details, level | source")
     public Map<String, Object> logToCommandCenter(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,

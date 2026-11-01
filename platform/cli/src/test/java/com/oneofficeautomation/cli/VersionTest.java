@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** One release number everywhere: the build's, as the Command Center, the runner and ooa --version report it. */
+/** One release number everywhere: the build's, as One CommandCenter, the runner and ooa --version report it. */
 class VersionTest {
     @Test void everyPartReportsTheBuildVersion() {
         assertTrue(BuildInfo.VERSION.matches("^\\d+\\.\\d+\\.\\d+.*$"), BuildInfo.VERSION);

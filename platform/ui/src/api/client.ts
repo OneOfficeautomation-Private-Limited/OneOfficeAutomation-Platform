@@ -1,6 +1,6 @@
 /**
  * Typed client for the Studio API. The screens call the server only through here. The base is the folder the API
- * lives in: locally Studio's own /api/ (or /studio/api/ under `ooa server`); later the Command Center (V2).
+ * lives in: locally Studio's own /api/ (or /studio/api/ under `ooa server`); later One CommandCenter (V2).
  */
 
 export type ApiError = { code: string; message: string; hint?: string; suggestedFix?: string | null };
@@ -95,9 +95,9 @@ export type Proposal = { steps?: FlowStep[]; variables?: FlowVariable[]; notes?:
 export type ModelConnection = { name: string; provider: string; model?: string; base_url?: string; api_key_env?: string; api_key?: { $credential: string }; description?: string };
 export type ModelConnections = { default: string; connections: ModelConnection[] };
 
-/** The Command Center link: signed in or not, and when Studio and Command Center run together, the browser's own sign-in. */
+/** One CommandCenter link: signed in or not, and when Studio and One CommandCenter run together, the browser's own sign-in. */
 export type CrStatus = { connected: boolean; url?: string | null; user?: { username: string } | null; sameServer?: boolean };
-/** An agent in the Command Center agent repository (the public one): its latest version, and who has it checked out. */
+/** An agent in One CommandCenter agent repository (the public one): its latest version, and who has it checked out. */
 export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null };
 export type RepoVersion = { version: number; author: string; created: string; comment?: string };
 /** A check-in: the new version, and whether it became live or waits for approval first. */
@@ -226,7 +226,7 @@ export class StudioApi {
   async duplicate(path: string) { return (await this.call<{ path: string }>("POST", "files/duplicate", { path })).path; }
   /** Agents whose name, description, id, actions or variables match, with what matched. */
   async search(q: string) { return (await this.call<{ results: { path: string; matches: string[] }[] }>("GET", "search?q=" + encodeURIComponent(q))).results; }
-  // ---- the Command Center agent repository: sign in, check out, check in ----
+  // ---- One CommandCenter agent repository: sign in, check out, check in ----
   crStatus() { return this.call<CrStatus>("GET", "cr/status"); }
   crConnect(url: string, username: string, password: string, code: string) { return this.call<CrStatus>("POST", "cr/connect", { url, username, password, code }); }
   crDisconnect() { return this.call<CrStatus>("POST", "cr/disconnect"); }

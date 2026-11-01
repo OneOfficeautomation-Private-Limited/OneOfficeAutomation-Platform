@@ -255,4 +255,4 @@ The assistant needs a model connection; without one it offers **Set up a Model C
 - [Cloud and business apps](12-cloud-and-business-apps.md)
 - [Child agents](09-child-agents.md)
 - [Business users: tasks and notifications](14-business-users.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)

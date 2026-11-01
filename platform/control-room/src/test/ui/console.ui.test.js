@@ -65,7 +65,7 @@ async function page() {
   check("AI holds model connections, Prompt Skills, Document Automation and AI governance", ai.join("|") === "Model Connections|Prompt Skills|Document Automation|AI governance", ai.join("|"));
   nav("Document Automation");
   check("Document Automation is a plug-in page: without the module it says what it does and that it is not installed",
-    await until(() => d.getElementById("main").textContent.includes("Not installed on this Command Center") && d.getElementById("main").textContent.includes("learning instance")));
+    await until(() => d.getElementById("main").textContent.includes("Not installed on this One CommandCenter") && d.getElementById("main").textContent.includes("learning instance")));
   nav("Licenses");
   check("Licenses says no license is installed and lists seats, people and runners", await until(() => { const t = d.getElementById("main").textContent; return t.includes("No license installed") && t.includes("Unattended Runner") && t.includes("Install license"); }),
     d.getElementById("main").textContent.slice(0, 300));

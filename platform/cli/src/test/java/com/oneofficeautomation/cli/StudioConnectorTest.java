@@ -7,7 +7,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Agent Studio's custom connector endpoints: import (JSON and YAML), list, get and delete. */
+/** One AgentStudio's custom connector endpoints: import (JSON and YAML), list, get and delete. */
 class StudioConnectorTest {
     static final String SPEC_JSON = "{\"openapi\":\"3.0.1\",\"info\":{\"title\":\"Weather Desk\",\"version\":\"1\"},"
             + "\"servers\":[{\"url\":\"https://weather.example.test\"}],"

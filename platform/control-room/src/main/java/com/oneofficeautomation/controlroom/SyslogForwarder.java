@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Forwards every audit entry to a SIEM over syslog (RFC 5424), UDP or TCP (RFC 6587 octet counting), when Settings
  * names a target (syslog_target host:port, syslog_protocol udp|tcp). Sending happens on its own thread with a bounded
- * queue, so a slow or absent collector never slows the Command Center; entries that do not fit are counted as dropped.
+ * queue, so a slow or absent collector never slows One CommandCenter; entries that do not fit are counted as dropped.
  */
 final class SyslogForwarder {
     private final Platform platform;
@@ -42,7 +42,7 @@ final class SyslogForwarder {
         if (target.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Set the syslog target (host:port) first");
         try {
             send(target, String.valueOf(platform.setting("syslog_protocol")), format(Map.of("seq", 0, "ts", Instant.now().toString(), "actor", by, "action", "syslog.test",
-                "object_type", "settings", "object_id", "", "details", "Test message from the Command Center", "result", "ok", "ip", "")));
+                "object_type", "settings", "object_id", "", "details", "Test message from One CommandCenter", "result", "ok", "ip", "")));
             return Map.of("ok", true, "sent", sent.get(), "dropped", dropped.get(), "failed", failed.get());
         } catch (Exception e) {
             throw new OoaException("CR.SYSLOG_FAILED", "The syslog collector at " + target + " could not be reached: " + e.getMessage(), "Check the host, port, protocol and firewall");

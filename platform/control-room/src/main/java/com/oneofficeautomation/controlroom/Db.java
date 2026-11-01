@@ -379,7 +379,7 @@ public final class Db implements AutoCloseable {
     /**
      * Version 7: repository files, credential attribute details (description, masked, password fields only), several
      * roles per user and name details, shared values people may change for themselves, runner log level and type,
-     * roles allowed to use a model connection, and Prompt Skills kept in the Command Center.
+     * roles allowed to use a model connection, and Prompt Skills kept in One CommandCenter.
      */
     private static final String[] SCHEMA_V7 = {
         "CREATE TABLE repo_files (path VARCHAR(400) PRIMARY KEY, size BIGINT NOT NULL, sha256 VARCHAR(64) NOT NULL, content_type VARCHAR(120), created TIMESTAMP NOT NULL, " +

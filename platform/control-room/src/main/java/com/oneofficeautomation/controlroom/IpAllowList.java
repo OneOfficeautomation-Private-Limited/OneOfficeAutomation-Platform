@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The addresses allowed to use the Command Center API (Settings: ip_allow_list): single addresses or CIDR ranges,
+ * The addresses allowed to use One CommandCenter API (Settings: ip_allow_list): single addresses or CIDR ranges,
  * IPv4 or IPv6, separated by commas, spaces or new lines. An empty list allows everyone; this computer is always allowed.
  */
 final class IpAllowList {

@@ -515,7 +515,7 @@ function VaultKey({ api, onClose, onNotice }: { api: CrApi; onClose: () => void;
           <dt>Company vault links</dt><dd>{st.external_links}</dd>
         </dl>
         <p className="st-muted">{st.can_rotate ? "Rotating makes a new master key and encrypts every stored value again with it, in one transaction. The old key file is kept beside the new one until you remove it; back it up with the database."
-          : "The key is kept outside the data folder, so it cannot be changed here. Stop the Command Center, run ooa vault rekey --new-key-env VAR, put the new key where the old one is kept, and start again."}</p>
+          : "The key is kept outside the data folder, so it cannot be changed here. Stop One CommandCenter, run ooa vault rekey --new-key-env VAR, put the new key where the old one is kept, and start again."}</p>
       </>}
     </Dialog>
   );

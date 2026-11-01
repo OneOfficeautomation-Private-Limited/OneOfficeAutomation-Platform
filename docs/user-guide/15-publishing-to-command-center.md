@@ -35,24 +35,24 @@ it is **check-out**; it locks the agent for you so nobody else changes it at the
 
 ## 2. Connect Studio to One CommandCenter
 
-The **Command Center** section is at the bottom of the Explorer. Its heading shows who you are connected as, or
+The **One CommandCenter** section is at the bottom of the Explorer. Its heading shows who you are connected as, or
 "(not connected)".
 
 **When Studio and One CommandCenter run together** (Studio opened from One CommandCenter, at `/studio/`):
 
-1. Studio says "Agent Studio and Command Center run together here. Sign in to Command Center in this browser and Agent
+1. Studio says "One AgentStudio and One CommandCenter run together here. Sign in to One CommandCenter in this browser and Agent
    Studio uses that sign-in for check-in and check-out."
-2. Click **Open Command Center to sign in** and sign in there.
+2. Click **Open One CommandCenter to sign in** and sign in there.
 3. Back in Studio, click **I have signed in**.
 
 **When Studio runs on its own:**
 
 1. Fill in **Address** (for example `http://localhost:8720` or your company's address), **User name**, **Password**,
    and **Two-step code** if your account uses two-step sign-in.
-2. Click **Connect** (or press Enter). The toast says "Connected to Command Center".
+2. Click **Connect** (or press Enter). The toast says "Connected to One CommandCenter".
 
 Once connected, the section shows the address, **Search the agent repository**, the list of repository agents,
-**Refresh** and **Disconnect** (or "Signed in through Command Center").
+**Refresh** and **Disconnect** (or "Signed in through One CommandCenter").
 
 ## 3. Before you check in
 
@@ -93,7 +93,7 @@ If the check-in is refused for validation problems, Studio opens the **Problems*
 Workflows and forms are published from their designers:
 
 1. Open the workflow (or form) in Studio.
-2. Click **Publish to Command Center** at the top right ("Check in to the Command Center as the live production
+2. Click **Publish to One CommandCenter** at the top right ("Check in to One CommandCenter as the live production
    version").
 3. Type what changed and press OK. The toast says "Published <path> as version n".
 
@@ -102,7 +102,7 @@ Workflow** in One CommandCenter, and get their steps in the Task inbox (see [Bus
 
 ## 6. Check out, edit and check in again
 
-In the Command Center section of the Explorer, each repository agent shows its path, its latest version, and who has it
+In One CommandCenter section of the Explorer, each repository agent shows its path, its latest version, and who has it
 checked out:
 
 | Button | What it does |
@@ -202,7 +202,7 @@ itself (see [Studio basics](02-studio-basics.md)).
 
 | What you see | Cause and fix |
 | --- | --- |
-| "Connect to Command Center first (bottom of the Explorer)." | Connect in the Command Center section. |
+| "Connect to One CommandCenter first (bottom of the Explorer)." | Connect in One CommandCenter section. |
 | "Open the agent you want to check in." | Open the agent on the canvas first. |
 | The check-in is refused with validation problems | The Problems tab opens; fix them and check in again. |
 | `CR.POLICY_VIOLATION` | The code-analysis policy refused it; the message lists the findings (for example a password typed into a step). |

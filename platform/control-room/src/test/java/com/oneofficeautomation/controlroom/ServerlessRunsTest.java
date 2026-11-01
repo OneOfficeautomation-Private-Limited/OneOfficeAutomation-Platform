@@ -10,7 +10,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** C7: Agent APIs that run inside the Command Center with no runner, limited to web and data toolkits and their own workspace. */
+/** C7: Agent APIs that run inside One CommandCenter with no runner, limited to web and data toolkits and their own workspace. */
 class ServerlessRunsTest {
 
     @SuppressWarnings("unchecked")

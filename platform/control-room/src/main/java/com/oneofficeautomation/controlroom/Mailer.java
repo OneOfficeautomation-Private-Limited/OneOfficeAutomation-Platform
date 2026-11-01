@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * E-mail sent by the Command Center itself (licence expiry, workflow steps), through the company's SMTP server. A small
+ * E-mail sent by One CommandCenter itself (licence expiry, workflow steps), through the company's SMTP server. A small
  * SMTP client with no third-party library: EHLO, STARTTLS or implicit TLS, AUTH PLAIN/LOGIN, one plain-text message.
  * Settings: mail_smtp_host, mail_smtp_port (587), mail_smtp_security (starttls, ssl or none), mail_smtp_user,
  * mail_smtp_password_ref (a vault reference folder/credential/attribute, never the password itself) and mail_from.
@@ -89,7 +89,7 @@ final class Mailer {
         }
         if (addr.isBlank()) throw new OoaException("MAIL.NO_RECIPIENT", "Give an address to send the test to", "Or add your own e-mail address to your user");
         try {
-            send(List.of(addr), "ONEOFFICEAUTOMATION test e-mail", "This is a test e-mail from the ONEOFFICEAUTOMATION Command Center, sent by " + by.username() + ". E-mail is set up correctly.");
+            send(List.of(addr), "ONEOFFICEAUTOMATION test e-mail", "This is a test e-mail from the ONEOFFICEAUTOMATION One CommandCenter, sent by " + by.username() + ". E-mail is set up correctly.");
         } catch (OoaException e) {
             cr.audit.record(by.username(), "mail.test", "settings", null, Map.of("to", addr), "failed", ip);
             throw e;

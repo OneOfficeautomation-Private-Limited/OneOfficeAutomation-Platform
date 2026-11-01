@@ -63,7 +63,7 @@ public final class Templates {
     Templates(ControlRoom cr) { this(cr, () -> License.publicKey(License.VENDOR_PUBLIC_KEY)); }
     Templates(ControlRoom cr, Supplier<PublicKey> key) { this.cr = cr; this.key = key; }
 
-    /** Templates of a Command Center that trust another catalogue key (tests of the vendor's catalogue). */
+    /** Templates of One CommandCenter that trust another catalogue key (tests of the vendor's catalogue). */
     public static Templates withKey(ControlRoom cr, PublicKey key) { return new Templates(cr, () -> key); }
 
     // ------------------------------------------------------------ feeds
@@ -307,7 +307,7 @@ public final class Templates {
         return Map.of("folders", List.copyOf(seen), "placed", place);
     }
 
-    /** Uploads a signed catalogue file (administrators; for a Command Center without internet access). */
+    /** Uploads a signed catalogue file (administrators; for One CommandCenter without internet access). */
     public Map<String, Object> upload(User by, String text, String ip) {
         cr.require(by, "settings.manage", "upload a template catalogue");
         if (text == null || text.length() > MAX_FEED_BYTES) throw new OoaException("CR.BAD_INPUT", "Upload the catalogue file (templates.json, at most 20 MB)");

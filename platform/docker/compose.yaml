@@ -1,8 +1,8 @@
-# A Command Center with SQL Server 2022 for a test or small production set-up:
+# One CommandCenter with SQL Server 2022 for a test or small production set-up:
 #   docker compose -f docker/compose.yaml up -d
 # Set the passwords and the vault key in a .env file beside this file (never commit it):
 #   SA_PASSWORD=...        the SQL Server administrator (used once by ooa-db-init to create the database and account)
-#   OOA_DB_PASSWORD=...    the Command Center's own database account
+#   OOA_DB_PASSWORD=...    One CommandCenter's own database account
 #   OOA_MASTER_KEY=...     the vault key: openssl rand -base64 32 (keep a copy apart from backups)
 services:
   sql:

@@ -3,7 +3,7 @@
 ## What this covers / who it is for
 
 This document is for developers who change the product itself: how to build and run it from source, how the test
-suites are organised and run, how to add a toolkit, a Command Center feature, a Studio capability, a trigger kind or a
+suites are organised and run, how to add a toolkit, One CommandCenter feature, a Studio capability, a trigger kind or a
 model provider, how Studio's own API and UI are put together, the rules every change follows, and the known limits of
 the current design. Customers who only add actions should read
 [10-extensibility-and-integration.md](10-extensibility-and-integration.md#7-custom-toolkits-with-the-sdk) instead.
@@ -13,7 +13,7 @@ the current design. Customers who only add actions should read
 1. [Build and run from source](#1-build-and-run-from-source)
 2. [Tests](#2-tests)
 3. [Adding a first-party toolkit](#3-adding-a-first-party-toolkit)
-4. [Adding a Command Center feature](#4-adding-a-command-center-feature)
+4. [Adding One CommandCenter feature](#4-adding-a-command-center-feature)
 5. [Adding a Studio capability](#5-adding-a-studio-capability)
 6. [Adding a trigger kind or a model provider](#6-adding-a-trigger-kind-or-a-model-provider)
 7. [Inside Studio](#7-inside-studio)
@@ -29,7 +29,7 @@ All commands run from `platform/` in PowerShell (`gradlew` on Linux and macOS).
 
 | Task | Command |
 | --- | --- |
-| Everything on one port (Command Center, Studio, a local runner) | `.\gradlew.bat :cli:run --args="server"`, or `scripts\start-ooa.bat` |
+| Everything on one port (One CommandCenter, Studio, a local runner) | `.\gradlew.bat :cli:run --args="server"`, or `scripts\start-ooa.bat` |
 | Any other `ooa` command | `.\gradlew.bat :cli:run --args="<command> <options>"` |
 | An installed copy to run without Gradle | `.\gradlew.bat :cli:installDist`, then `cli\build\install\ooa\bin\ooa.bat` |
 | Customer zip, setup package, MSI, native executable, SBOM | See [02-components-and-modules.md](02-components-and-modules.md#8-builds-and-distributions) |
@@ -49,14 +49,14 @@ or `master.key` in the data folder. The other folders and settings are listed in
 
 | Suite | How to run (from `platform`) | Covers |
 | --- | --- | --- |
-| All Java tests | `.\gradlew.bat test` (or `build`, which also builds) | The runner, every toolkit against local fake services, the Command Center end to end (`ControlRoomE2ETest`, `PlatformTest`, `EnterpriseFeaturesTest`, `UnifiedServerTest`, trigger tests), the debugger, the architecture rules |
+| All Java tests | `.\gradlew.bat test` (or `build`, which also builds) | The runner, every toolkit against local fake services, One CommandCenter end to end (`ControlRoomE2ETest`, `PlatformTest`, `EnterpriseFeaturesTest`, `UnifiedServerTest`, trigger tests), the debugger, the architecture rules |
 | One module or class | `.\gradlew.bat :packages:test --tests "*GitHubPackageTest*"` | |
-| Command Center on SQL Server or PostgreSQL | `.\gradlew.bat :control-room:test "-Pooa.test.db=jdbc:..." -Pooa.test.db.user=U -Pooa.test.db.password=P` | Each test data folder gets its own `ooa_t_*` database |
+| One CommandCenter on SQL Server or PostgreSQL | `.\gradlew.bat :control-room:test "-Pooa.test.db=jdbc:..." -Pooa.test.db.user=U -Pooa.test.db.password=P` | Each test data folder gets its own `ooa_t_*` database |
 | Load test | `.\gradlew.bat :cli:loadTest "-Pooa.load.runners=20" "-Pooa.load.items=300" "-Pooa.load.audit=2000"` | Many runners, a work queue and the audit trail; tests tagged `load` run only here |
 | Conformance cases | `.\gradlew.bat :cli:run --args="conformance ../contracts/conformance/cases"` | The shared runner cases (see [03-agent-model-and-runner.md](03-agent-model-and-runner.md#16-python-reference-runner-and-conformance)) |
 | Console UI | `node console.ui.test.js` in `control-room/src/test/ui`, against a running `ooa control-room`; variables `CONSOLE_DIR`, `CR_URL`, `CR_ADMIN_PASSWORD` | The console in jsdom |
 | Studio screens | `npm run check` in `platform/ui` (also run by `:cli:uiBuild`) | Studio's screens in jsdom against a fake server (`src/studio/App.test.tsx`), panel layouts, the contrast of every colour pair |
-| Studio server | `.\gradlew.bat :cli:test --tests "*Studio*" --tests "*UnifiedServerTest*"` | Studio's API as the page uses it: files and the trash, paths that leave the workspace, items, triggers and webhook secrets, runs, Command Center check-in |
+| Studio server | `.\gradlew.bat :cli:test --tests "*Studio*" --tests "*UnifiedServerTest*"` | Studio's API as the page uses it: files and the trash, paths that leave the workspace, items, triggers and webhook secrets, runs, One CommandCenter check-in |
 
 The UI tests need Node.js with `jsdom` on the module path.
 
@@ -67,13 +67,13 @@ The UI tests need Node.js with `jsdom` on the module path.
 | Job | Platform | What it checks |
 | --- | --- | --- |
 | `build-test` | Windows | The whole build and every Java test on H2, a short load test, the customer zip and setup package (no vendor files; Java, installer and SBOM present), the SBOM as an artefact |
-| `sqlserver`, `postgres` | Linux | The Command Center tests against throwaway SQL Server 2022 and PostgreSQL 16 containers |
+| `sqlserver`, `postgres` | Linux | One CommandCenter tests against throwaway SQL Server 2022 and PostgreSQL 16 containers |
 | `python` | Linux | The Python reference runner's tests, conformance cases included |
-| `headless` | Linux on every push, macOS on `master` | A Command Center and a headless runner end to end, the runner and SDK tests and the conformance cases |
+| `headless` | Linux on every push, macOS on `master` | One CommandCenter and a headless runner end to end, the runner and SDK tests and the conformance cases |
 | `native` | Linux and Windows | The GraalVM executable gives the same answers as the Java program |
 | `container` | Linux | The image alone and with PostgreSQL, backup and restore into another database, a SaaS region with two tenants |
 | `ui` | Linux | The console and Studio UI tests against servers started from the build |
-| `msi` | Windows | Builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls |
+| `msi` | Windows | Builds the MSI, installs it as One CommandCenter service, adds a runner service, uninstalls |
 
 ### 2.3 Conventions
 
@@ -100,10 +100,10 @@ The UI tests need Node.js with `jsdom` on the module path.
 5. Regenerate the toolkit reference (`docs/reference/toolkits/`, made from the manifests by
    `docs/research/tools/make-reference.py`; never edited by hand). Give it a row in `BY_TOOLKIT` in
    `platform/ui/src/studio/toolkits.ts` (colour and icon of its family). Without one it gets the plain default mark.
-6. Nothing else is needed. Studio's action list and panels, validation, the AI assistant and the Command Center's
+6. Nothing else is needed. Studio's action list and panels, validation, the AI assistant and One CommandCenter's
    Toolkits page all read the manifest.
 
-## 4. Adding a Command Center feature
+## 4. Adding One CommandCenter feature
 
 1. **Data:** add a new array `SCHEMA_Vn` in `Db.java`, append it to `SCHEMA` and raise `Db.LATEST`. Never edit an
    earlier array: it may already be applied to someone's database. Use SQL that `SqlServerDialect` can translate, and
@@ -144,7 +144,7 @@ The UI tests need Node.js with `jsdom` on the module path.
 ### 7.1 Studio API (`/studio/api/...`)
 
 `StudioServer` answers on 127.0.0.1 only, refuses other `Host` headers and cross-site `Origin` values, and inside
-`ooa server` reuses the browser's Command Center sign-in (see
+`ooa server` reuses the browser's One CommandCenter sign-in (see
 [06-security-architecture.md](06-security-architecture.md#9-studio-and-local-components)).
 
 | Area | Routes |
@@ -155,7 +155,7 @@ The UI tests need Node.js with `jsdom` on the module path.
 | Runs | `POST run` (waits for the result, 5 minutes at most); `POST runs` (in the background) with `flow`, `inputs`, `debug`, `breakpoints`, `start_at`, `only_step`, `carry_over`, `run_window`, `record_objects`; `GET runs/{id}?after=n` (new events, state, result); `POST runs/{id}/{pause, resume, stop, debug, breakpoints, variable}`; `GET runs/{id}/objects` (elements found by selector, for "Selectors to objects") |
 | Capture and record | `capture`, `capture/test`, `capture-desktop`, `windows`, `record` (`target: "desktop"` for desktop), `record/progress`, `record/cancel` |
 | Connections | `connections` (saved connector connections, `connections.json`), `model-connections` (`model-connections.json`), `connectors` (custom connectors) |
-| Command Center link | `cr/status`, `cr/connect`, `cr/disconnect`, `cr/repo`, `cr/versions`, `cr/checkout`, `cr/checkin` (`production` true makes the version live), `cr/undo-checkout` |
+| One CommandCenter link | `cr/status`, `cr/connect`, `cr/disconnect`, `cr/repo`, `cr/versions`, `cr/checkout`, `cr/checkin` (`production` true makes the version live), `cr/undo-checkout` |
 | Other | `assistant/build` (AI assistant), `clipboard` (steps shared between Studio windows, `.ooa/shared-clipboard.json`), `triggers`, `triggers/{id}/run`, `hooks/{id}` (local test triggers) |
 
 Run limits: at most four background runs at once (`STUDIO.TOO_MANY_RUNS`); a run may take an hour, a debug run a
@@ -178,8 +178,8 @@ Studio is built in TypeScript and React ([12-ui-redesign.md](12-ui-redesign.md))
 | `src/studio/CaptureEditor.tsx` | A captured object, its picture and window (see [07-toolkit-architecture.md](07-toolkit-architecture.md#14-captured-objects-and-window-choice)) |
 | `src/studio/WorkspaceTools.tsx` | Saved connections and custom connectors |
 | `src/components` | Buttons, fields, dialogs, menus, tabs, trees, splitters (Radix for behaviour, our CSS for the look) |
-| `src/shell` | The Command Center menu (sections, pages, who may see each), shared by Studio and the console |
-| `console.html`, `src/console` | The rebuilt Command Center console, a second page of the same build, served by the Command Center at `/next/` (C0: sign-in, menu, Home); `src/api/cr.ts` is its API client |
+| `src/shell` | One CommandCenter menu (sections, pages, who may see each), shared by Studio and the console |
+| `console.html`, `src/console` | The rebuilt One CommandCenter console, a second page of the same build, served by One CommandCenter at `/next/` (C0: sign-in, menu, Home); `src/api/cr.ts` is its API client |
 | `StudioDebugger` (Java) | Pauses the runner thread before a step and resumes it on the UI's commands |
 
 | Task | Command (in `platform/ui`) |
@@ -200,16 +200,16 @@ to `cli/build/generated/ui/studio-next` and into the jar; the npm packages that 
   [02-components-and-modules.md](02-components-and-modules.md#4-dependencies-between-modules)).
 - **Secrets:** never take a secret as plain text (use Credential inputs or vault references), never log one, never
   return a stored secret to the browser.
-- Every user-facing text uses the product names (agent, OneRunner, Command Center), never "bot".
+- Every user-facing text uses the product names (agent, OneRunner, One CommandCenter), never "bot".
 - Every action and input has a description; ids are snake case; secret inputs are `OoaType.CREDENTIAL`.
 - No new library without need. A new one must have a permissive licence (Apache-2.0, MIT or similar) and, when heavy,
   goes into an optional module.
-- Programs start with argument lists, never through a shell; XML is parsed only through `XmlSupport`; Command Center
+- Programs start with argument lists, never through a shell; XML is parsed only through `XmlSupport`; One CommandCenter
   SQL uses `?` placeholders only.
 
 ### Interface languages
 
-The Command Center console shows its texts in English, German, French, Spanish and Japanese (Agent Studio is in
+One CommandCenter console shows its texts in English, German, French, Spanish and Japanese (One AgentStudio is in
 English for now). After a change to visible texts:
 
 1. `python scripts/i18n-extract.py` (in `platform`) refreshes the list of texts,

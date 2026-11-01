@@ -190,7 +190,7 @@ export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: 
       settings={<>
         <TextField label="Name" value={str(data.name)} onCommit={(v) => onChange(withKey(data, "name", v))} />
         <TextField label="Description" multiline value={str(data.description)} onCommit={(v) => onChange(withKey(data, "description", v))} />
-        <p className="st-muted">Stages run from top to bottom; decisions and approvals can jump to another stage. Publish the workflow with its agents and forms to the Command Center to start it there.</p>
+        <p className="st-muted">Stages run from top to bottom; decisions and approvals can jump to another stage. Publish the workflow with its agents and forms to One CommandCenter to start it there.</p>
       </>}
       partSettings={(s, set) => {
         const t = str(s.type);

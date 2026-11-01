@@ -1,5 +1,5 @@
 /**
- * The typed client for the Command Center API (the same routes today's console uses). The browser keeps the session
+ * The typed client for One CommandCenter API (the same routes today's console uses). The browser keeps the session
  * in an HttpOnly cookie; every change carries X-OOA-Request, which the server needs against cross-site requests.
  */
 export type CrUser = { id: string; username: string; display_name: string; role: string; permissions: string[]; roles?: string[];
@@ -48,7 +48,7 @@ export type DashWidget = { title?: string; type?: "number" | "bars" | "line" | "
 export type CustomDashboard = { id: string; name: string; description?: string | null; owner: string; shared_with: string[]; widgets: DashWidget[]; can_edit: boolean; updated?: string };
 /** A widget with its figures: value for a number, points for the others, or why it could not be worked out. */
 export type WidgetData = DashWidget & { value?: number | null; points?: { label: string; value: number | null }[]; error?: string };
-/** An export bundle: each agent's exact version with a checksum (and the agents they call), to import in another Command Center. */
+/** An export bundle: each agent's exact version with a checksum (and the agents they call), to import in another One CommandCenter. */
 export type AgentBundle = { format: string; format_version?: number; exported_at?: string; exported_by?: string; source?: string; checksum?: string; toolkits?: string[];
   agents: { path: string; bot_id?: string; name?: string; version: number; production?: boolean; included_as?: string; sha256?: string; content?: unknown }[] };
 /** What happened to each agent of an import (or promotion): created, updated, skipped, failed or not imported. */
@@ -120,7 +120,7 @@ export type VaultStatus = { key_source: string; key_source_detail?: string; key_
 /** One audit record: who did what to which object, with what result, from where; hash-chained. */
 export type AuditRecord = { seq: number; ts: string; actor: string; action: string; object_type?: string | null; object_id?: string | null;
   details?: string | null; result: string; ip?: string | null };
-/** The licence of this Command Center (unlicensed, evaluation, active, expiring, grace, expired …) and its seats. */
+/** The licence of this One CommandCenter (unlicensed, evaluation, active, expiring, grace, expired …) and its seats. */
 export type LicenseInfo = { state: string; customer?: string; edition?: string; id?: string; issued?: string; expires?: string; days_left?: number; evaluation_ends?: string;
   grace_days?: number; grace_until?: string; bound_to?: string; problem?: string; install_id?: string; requires_server_database?: boolean; database_steps?: string;
   seats?: Record<string, { total: number; used: number }> };
@@ -142,7 +142,7 @@ export type Schedule = { id: string; name: string; bot_path: string; device_id?:
   created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null;
   /** Its last run, and how that run ended (queued, running, success, failed or stopped). */
   last_run_id?: string | null; last_status?: string | null };
-/** A trigger: an event that starts an agent, watched on a runner or checked by the Command Center (evaluated_on). */
+/** A trigger: an event that starts an agent, watched on a runner or checked by One CommandCenter (evaluated_on). */
 export type Trigger = { id: string; name: string; kind: string; bot_path: string; device_id?: string | null; run_as?: string | null; created_by?: string; enabled: boolean;
   status?: string | null; evaluated_on?: "runner" | "server" | null; windows_only?: boolean; fire_count?: number; last_fired?: string | null; last_error?: string | null;
   folder?: string | null; pattern?: string | null; config?: Record<string, unknown> | null };
@@ -194,7 +194,7 @@ export class CrFailure extends Error {
 }
 
 export class CrApi {
-  /** base: where the API is, "/api/" when the console is served by the Command Center. */
+  /** base: where the API is, "/api/" when the console is served by One CommandCenter. */
   constructor(readonly base = "/api/", private readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
 
   private async call<T>(method: string, route: string, body?: unknown): Promise<T> {
@@ -218,13 +218,13 @@ export class CrApi {
     const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string } }>("GET", "auth/sso");
     return { oidc: r.enabled ? r.label || "Sign in with your organisation account" : null, saml: r.saml?.enabled ? r.saml.label || "Sign in with SAML" : null };
   }
-  /** Where a single sign-on starts; the person comes back to `back`, a page of this Command Center. */
+  /** Where a single sign-on starts; the person comes back to `back`, a page of this One CommandCenter. */
   ssoStart(kind: "oidc" | "saml", back: string) { return this.base + (kind === "oidc" ? "auth/sso/start" : "auth/saml/start") + "?return=" + encodeURIComponent(back); }
   async changePassword(current: string, next: string) { await this.call("POST", "auth/password", { current, new: next }); }
   /** Two-step sign-in: a new key for an authenticator app, then turning it on with a code (gives recovery codes once). */
   mfaSetup() { return this.call<{ secret: string; otpauth_uri: string }>("POST", "auth/mfa/setup"); }
   mfaEnable(code: string) { return this.call<{ recovery_codes: string[] }>("POST", "auth/mfa/enable", { code }); }
-  /** Whether Agent Studio is offered on this computer (it lives beside the Command Center under ooa server). */
+  /** Whether One AgentStudio is offered on this computer (it lives beside One CommandCenter under ooa server). */
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
@@ -359,13 +359,13 @@ export class CrApi {
   async deleteCalendar(name: string) { await this.call("DELETE", "calendars/" + encodeURIComponent(name)); }
   /** Agents with their live (production) version, for choosing what a schedule, trigger or queue runs. */
   async liveAgents() { return ((await this.call<{ bots?: { path: string; production_version?: number | null }[] }>("GET", "repo")).bots ?? []).filter((b) => b.production_version && b.path.endsWith(".flow.json")); }
-  // ---- Triggers: events on a runner (files, windows, processes, services, hotkeys) or checked by the Command Center ----
+  // ---- Triggers: events on a runner (files, windows, processes, services, hotkeys) or checked by One CommandCenter ----
   async triggers() { return (await this.call<{ triggers?: Trigger[] }>("GET", "triggers")).triggers ?? []; }
   /** A webhook trigger answers with its address and secret, shown once. */
   createTrigger(b: Record<string, unknown>) { return this.call<{ id: string; url?: string; secret?: string }>("POST", "triggers", b); }
   async updateTrigger(id: string, b: Record<string, unknown>) { await this.call("PUT", "triggers/" + encodeURIComponent(id), b); }
   async pauseTrigger(id: string, pause: boolean) { await this.call("POST", "triggers/" + encodeURIComponent(id) + (pause ? "/pause" : "/resume")); }
-  /** Checks a Command Center trigger now instead of waiting for its interval. */
+  /** Checks One CommandCenter trigger now instead of waiting for its interval. */
   pollTrigger(id: string) { return this.call<{ fired?: number; error?: string }>("POST", "triggers/" + encodeURIComponent(id) + "/poll"); }
   async deleteTrigger(id: string) { await this.call("DELETE", "triggers/" + encodeURIComponent(id)); }
   // ---- Work queues: queues, their items, item models (AA's work item templates), members ----

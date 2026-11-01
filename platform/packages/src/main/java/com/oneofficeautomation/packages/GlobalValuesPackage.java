@@ -8,13 +8,13 @@ import java.util.*;
 
 /**
  * Shared Global values read by many bots (for example a reports folder or an approval threshold). In Studio they live in
- * global-values.json in the workspace; in Control Center they are managed centrally with permissions.
+ * global-values.json in the workspace; in One CommandCenter they are managed centrally with permissions.
  */
 @OoaPackage(id = "ooa.global_values", name = "Shared Global values", version = "1.0.0", description = "Read shared values that many agents use, such as folders, thresholds or URLs.")
 public final class GlobalValuesPackage {
     static final String FILE = "global-values.json";
 
-    /** The platform's global values service (Command Center) when the run has one, otherwise global-values.json in the workspace, as $global does. */
+    /** The platform's global values service (One CommandCenter) when the run has one, otherwise global-values.json in the workspace, as $global does. */
     @SuppressWarnings("unchecked")
     static Map<String, Object> load(ActionContext ctx) {
         try {

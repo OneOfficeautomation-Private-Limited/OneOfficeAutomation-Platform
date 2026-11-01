@@ -2,10 +2,10 @@
 
 ## What this covers
 
-What the Command Center shows and keeps about the work it does: the console menu and live updates, Home, the Agent
+What One CommandCenter shows and keeps about the work it does: the console menu and live updates, Home, the Agent
 Runs pages (Live and History) and run details, the Operations analytics, dashboards built on business figures (KPIs),
 the Audit Trail with its integrity check, export and forwarding, retention of runs, logs, AI calls, work items and
-audit records, e-mail from the Command Center, backups, and the Command Center details page.
+audit records, e-mail from One CommandCenter, backups, and One CommandCenter details page.
 
 ## Contents
 
@@ -17,9 +17,9 @@ audit records, e-mail from the Command Center, backups, and the Command Center d
 6. Business figures (KPIs) and dashboards
 7. Audit Trail
 8. Retention
-9. E-mail from the Command Center
+9. E-mail from One CommandCenter
 10. Backups
-11. This Command Center and several nodes
+11. This One CommandCenter and several nodes
 12. Permissions
 
 ## 1. The console menu and live updates
@@ -221,7 +221,7 @@ are shown only to people who may see it. Overview shows the open alerts.
   range, newest or oldest first, paging (up to 1,000 per page) with the total.
 - **Export CSV** downloads the search, up to 50,000 records; the export is itself recorded (`audit.export`).
 - **Forwarding**: with a syslog target, every record is also sent to a SIEM (RFC 5424 over UDP or TCP) from a bounded
-  queue, so a slow collector never slows the Command Center; records that do not fit are counted as dropped. Settings
+  queue, so a slow collector never slows One CommandCenter; records that do not fit are counted as dropped. Settings
   has a test message.
 - API (`audit.view`): `GET /api/audit?q=&actor=&action=&object_type=&object_id=&result=&from=&to=&sort=&limit=&offset=`,
   `GET /api/audit/export` with the same filters (CSV), and `GET /api/audit/verify`.
@@ -241,11 +241,11 @@ All in Administration > Settings; 0 keeps everything. Applied at most once an ho
 Queued and running runs are never removed; work items keep their results. **Remove now** applies given run and log
 periods at once (`settings.manage`). Every removal is audited (`runs.purge`, `ai.calls_purged`, `queue.items_purged`).
 
-## 9. E-mail from the Command Center
+## 9. E-mail from One CommandCenter
 
 Administration > Settings > E-mail: mail server, port (default 587), security (`starttls`, `ssl`, or `none` on a trusted
 network only), account, password as a vault reference, and sender address. **Send a test e-mail** checks it. The
-Command Center uses it for workflow notifications to e-mail addresses and for licence reminders (to administrators with
+One CommandCenter uses it for workflow notifications to e-mail addresses and for licence reminders (to administrators with
 an e-mail address and `license_mail_to`). Messages are plain text; the server's certificate must name the server.
 
 ## 10. Backups
@@ -256,9 +256,9 @@ an e-mail address and `license_mail_to`). Messages are plain text; the server's 
   never included. Restore refuses a backup made with another vault key.
 - In the SaaS service, choosing a folder on the server is refused.
 
-## 11. This Command Center and several nodes
+## 11. This One CommandCenter and several nodes
 
-Settings shows **This Command Center**: the edition (from the licence or the evaluation), and counts of enabled users,
+Settings shows **This One CommandCenter**: the edition (from the licence or the evaluation), and counts of enabled users,
 enabled runners, agents, toolkits and switched-off toolkits. With several nodes on one database, **Several nodes** lists
 the nodes and the leader, which runs schedules, triggers, queues, housekeeping and backups; another node takes over
 within about 30 seconds.
@@ -278,5 +278,5 @@ within about 30 seconds.
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [09 AI features](09-ai-features.md)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
-- [Command Center and runner, sections 10 to 10d](../user-guide/00-README.md)
+- [One CommandCenter and runner, sections 10 to 10d](../user-guide/00-README.md)
 - [Database](../infrastructure/05-databases.md)

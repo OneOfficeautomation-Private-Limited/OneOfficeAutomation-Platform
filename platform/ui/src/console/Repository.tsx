@@ -387,7 +387,7 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onFolder, onRun
       </> : null}
       </>}
       {tab === "deps" && (deps ? <dl className="cc-facts">
-        <dt>Calls</dt><dd>{deps.agents.length ? deps.agents.map((d) => <span key={d.bot_id} className={d.found ? "cc-tag" : "cc-risk"} title={d.found ? undefined : "Not in this Command Center"}>{d.path ? agentName(d.path) : d.bot_id}</span>) : "No other agent"}</dd>
+        <dt>Calls</dt><dd>{deps.agents.length ? deps.agents.map((d) => <span key={d.bot_id} className={d.found ? "cc-tag" : "cc-risk"} title={d.found ? undefined : "Not in this One CommandCenter"}>{d.path ? agentName(d.path) : d.bot_id}</span>) : "No other agent"}</dd>
         <dt>Called by</dt><dd>{deps.called_by.length ? deps.called_by.map((p) => <span key={p} className="cc-tag">{agentName(p)}</span>) : "No other agent"}</dd>
         <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl> : <p className="cc-none" role="status">Loading…</p>)}
       {tab === "findings" && kind !== "File" && <AgentAnalysis api={api} path={a.path} />}

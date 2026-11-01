@@ -279,7 +279,7 @@ function renderNav() {
   $("nav").replaceChildren(...parts.filter(Boolean));
 }
 
-/** The administrator's announcement, shown to everyone at the top of the Command Center (dismissable per browser session). */
+/** The administrator's announcement, shown to everyone at the top of One CommandCenter (dismissable per browser session). */
 function showAnnouncement(text) {
   const bar = $("announcement");
   if (!bar) return;
@@ -314,7 +314,7 @@ function tabStrip(items, current, onPick) {
 function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } S.live = null; }
 
 /**
- * Live updates: the open page's refresh (S.live) runs as soon as the Command Center reports a change (a long request
+ * Live updates: the open page's refresh (S.live) runs as soon as One CommandCenter reports a change (a long request
  * to /api/changes that it answers at once when something changes), at most every 1.5 seconds. Each page's own timer
  * stays as a slower fallback. Started once after sign-in; stops when the person is signed out.
  */
@@ -640,7 +640,7 @@ const VIEWS = {
       S.approvalOn || pr.requests.length ? h("button", { type: "button", class: toDecide ? "primary" : "", onclick: () => approvalsDialog().catch((e) => toast(e.message, true)) },
         "Production approvals" + (pr.requests.length ? " (" + pr.requests.length + " waiting)" : "")) : null,
       h("button", { type: "button", onclick: () => policyDialog() }, "Code analysis")),
-      dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.", tools,
+      dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In One AgentStudio, open an agent and press Agent check-in.", tools,
         columns: [
           { label: "Agent", value: (b) => botName(b.path), render: (b) => { const k = kindOf(b.path); return h("div", { class: "name-cell" }, ic(k[1], k[2], "sm"), h("div", {}, h("strong", { text: botName(b.path) }),
             k[0] !== "Agent" ? h("span", { class: "tag", text: k[0] }) : null, h("div", { class: "muted small", text: b.description || "" }))); } },
@@ -774,10 +774,10 @@ const VIEWS = {
           { label: "Status", value: (d) => d.status, render: (d) => pill(d.status) },
           { label: "Running", value: (d) => d.running, render: (d) => d.running ? h("span", { class: "pill running", text: d.running + " agent" }) : "\u2014" },
           { label: "Agent", value: (d) => d.agent_version || "", render: (d) => d.version_status && d.version_status !== "ok"
-            ? h("span", { class: "pill failed", title: "This runner is newer than the Command Center and gets no work until the Command Center is updated", text: (d.agent_version || "") + " – update the Command Center" })
+            ? h("span", { class: "pill failed", title: "This runner is newer than One CommandCenter and gets no work until One CommandCenter is updated", text: (d.agent_version || "") + " – update One CommandCenter" })
             : h("span", { text: d.agent_version || "" }) },
-          { label: "Type", value: (d) => (d.device_type === "serverless" ? "Serverless (in the Command Center)" : d.device_type === "single_user" ? "Single-user" : "Multi-user") + (d.lifespan === "temporary" ? ", temporary" : ""),
-            render: (d) => h("span", {}, d.device_type === "serverless" ? "Serverless (in the Command Center)" : d.device_type === "single_user" ? "Single-user" : "Multi-user", d.lifespan === "temporary" ? [" ", h("span", { class: "pill pending", title: "Removed by itself after a time without contact (Settings)", text: "Temporary" })] : null) },
+          { label: "Type", value: (d) => (d.device_type === "serverless" ? "Serverless (in One CommandCenter)" : d.device_type === "single_user" ? "Single-user" : "Multi-user") + (d.lifespan === "temporary" ? ", temporary" : ""),
+            render: (d) => h("span", {}, d.device_type === "serverless" ? "Serverless (in One CommandCenter)" : d.device_type === "single_user" ? "Single-user" : "Multi-user", d.lifespan === "temporary" ? [" ", h("span", { class: "pill pending", title: "Removed by itself after a time without contact (Settings)", text: "Temporary" })] : null) },
           { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
           { label: "Log level", value: (d) => d.log_level || "info" },
           { label: "Screen", value: (d) => SCREEN[d.session_state] || "", render: (d) => d.session_state ? h("span", { class: "pill " + (d.session_state === "unlocked" ? "online" : d.session_state === "locked" ? "locked" : "offline"), title: SCREEN_HELP[d.session_state], text: SCREEN[d.session_state] }) : "—" },
@@ -862,7 +862,7 @@ const VIEWS = {
     const stLabel = { running: "running", waiting: "waiting", completed: "success", failed: "failed", cancelled: "stopped" };
     main.replaceChildren(...header("Workflow", "Workflows chain agents, people and decisions. Design them in One AgentStudio, check them in, then start them here; people get their steps in the Task inbox.",
       can("runs.start") && defs.length ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog() }, "Start a workflow") : null),
-      defs.length ? null : h("p", { class: "muted", text: "No workflows are checked in yet. In One AgentStudio create a Workflow, then press Publish to Command Center." }),
+      defs.length ? null : h("p", { class: "muted", text: "No workflows are checked in yet. In One AgentStudio create a Workflow, then press Publish to One CommandCenter." }),
       dataTable({ rows: r.runs, search: "Search workflow runs", exportName: "workflow-runs", onRow: openWorkflowRun, empty: "No workflow runs yet.",
         columns: [
           { label: "Workflow", value: (w) => botName(w.path), render: (w) => h("div", { class: "name-cell" }, ic("process", "#7c3aed", "sm"), h("div", {}, h("strong", { text: botName(w.path) + " v" + w.version }), h("div", { class: "muted small mono", text: w.id }))) },
@@ -888,7 +888,7 @@ const VIEWS = {
       return;
     }
     main.replaceChildren(...head, h("div", { class: "card" },
-      h("h2", { text: "Not installed on this Command Center" }),
+      h("h2", { text: "Not installed on this One CommandCenter" }),
       h("p", { text: "Document Automation is an add-on module. Once it is installed, its pages open here, and agents can use it." }),
       h("ul", {},
         h("li", { text: "A learning instance for each kind of document: the fields to extract, how text is read, and the AI model that extracts it." }),
@@ -995,22 +995,22 @@ const VIEWS = {
         h("div", { class: "grid2" }, h("label", {}, "Disable users inactive for (days, 0 = never)", inactive), h("label", {}, "Sign-in session length (hours)", session),
           h("label", {}, "Largest upload (MB)", upload), h("label", {}, "Work queue check interval (seconds)", poll),
           h("label", {}, "Minutes saved per successful run (default for agents without their own value)", saved),
-          h("label", {}, "Public address of the Command Center (for sign-in redirects)", pub)),
+          h("label", {}, "Public address of One CommandCenter (for sign-in redirects)", pub)),
         h("h3", {}, ic("key", "#2563eb", "sm"), "Single sign-on (OpenID Connect)"),
         h("p", { class: "muted", text: "Works with Microsoft Entra ID, Okta, Google, Keycloak and other OpenID Connect providers. Register this redirect address with the provider: " + (st.public_url || location.origin) + "/api/auth/sso/callback" }),
         h("div", { class: "grid2" }, h("label", {}, "Issuer URL", ssoIssuer), h("label", {}, "Client id", ssoClient),
           h("label", {}, "Client secret (vault reference folder/credential/attribute)", ssoSecret), h("label", {}, "Role for new people (empty = existing accounts only)", ssoRole),
           h("label", {}, "Button text", ssoLabel)),
         h("h3", {}, ic("key", "#2563eb", "sm"), "Single sign-on (SAML 2.0)"),
-        h("p", { class: "muted", text: "For Entra ID, Okta, ADFS and other SAML identity providers. Give the provider this Command Center's metadata: " + (st.public_url || location.origin) + "/api/auth/saml/metadata (sign-in address " + (st.public_url || location.origin) + "/api/auth/saml/acs). Sign the assertion or the response; do not encrypt it. New people get the role for new people above." }),
+        h("p", { class: "muted", text: "For Entra ID, Okta, ADFS and other SAML identity providers. Give the provider this One CommandCenter's metadata: " + (st.public_url || location.origin) + "/api/auth/saml/metadata (sign-in address " + (st.public_url || location.origin) + "/api/auth/saml/acs). Sign the assertion or the response; do not encrypt it. New people get the role for new people above." }),
         h("div", { class: "grid2" }, h("label", {}, "Identity provider sign-in address (SAML SSO URL)", samlUrl), h("label", {}, "Identity provider entity id (issuer)", samlIdp),
-          h("label", {}, "This Command Center's entity id (empty = the metadata address)", samlSp), h("label", {}, "Button text", samlLabel)),
+          h("label", {}, "This One CommandCenter's entity id (empty = the metadata address)", samlSp), h("label", {}, "Button text", samlLabel)),
         h("label", {}, "Identity provider signing certificate (PEM)", samlCert),
         h("h4", { text: "Groups to roles (both kinds of single sign-on)" }),
         h("p", { class: "muted", text: "One line per group: group = role (for example: Finance Automation = bot_runner). At every sign-in the first group the person is in decides their role, so a change in the identity provider reaches here the next time they sign in. People in none of these groups keep their role; new ones get the role for new people. Local accounts, such as the administrator, always sign in with their password." }),
         h("label", {}, "Groups to roles", ssoGroups),
         h("h3", {}, ic("code", "#475569", "sm"), "Git sync of the agent repository"),
-        h("p", { class: "muted", text: "Mirrors the agent repository to a Git branch (GitHub, GitLab, Azure DevOps): the latest version of every agent as JSON, and which version is live. The Command Center stays the source of truth; changes made in Git are overwritten. Keep the access token in the vault." }),
+        h("p", { class: "muted", text: "Mirrors the agent repository to a Git branch (GitHub, GitLab, Azure DevOps): the latest version of every agent as JSON, and which version is live. One CommandCenter stays the source of truth; changes made in Git are overwritten. Keep the access token in the vault." }),
         h("div", { class: "grid2" }, h("label", {}, "Remote (https://...git)", gitUrl), h("label", {}, "Branch", gitBranch),
           h("label", {}, "User name", gitUser), h("label", {}, "Access token (vault reference folder/credential/attribute)", gitToken),
           h("label", { class: "check" }, gitAuto, "Push after every check-in, production change and deletion"),
@@ -1027,13 +1027,13 @@ const VIEWS = {
         h("p", { class: "muted", text: "Sign-in with OAuth: assistants can also send an access token from your identity provider (the single sign-on issuer above), meant for the audience below. The person must already have an account here. Assistants find this at " + location.origin + "/.well-known/oauth-protected-resource." }),
         h("div", { class: "grid2" }, h("label", {}, "Token audience (the application id URI of the MCP app in your identity provider)", mcpAud), h("label", {}, "Scope the token must carry", mcpScope)),
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
-        h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
+        h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use One CommandCenter. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
           h("label", {}, "Passwords that cannot be used again (the last N, 0 = no rule)", pwHist), h("label", {}, "Change passwords every (days, 0 = never)", pwDays),
           h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
           h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads"),
           h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live"),
-          h("label", { class: "check" }, autoUpdate, "Update runners automatically to this Command Center's version when they are idle"),
+          h("label", { class: "check" }, autoUpdate, "Update runners automatically to this One CommandCenter's version when they are idle"),
           h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
           h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays),
           h("label", {}, "A runner above this CPU use takes no new work (%, 0 = no limit; a runner can have its own)", cpuMax),
@@ -1044,7 +1044,7 @@ const VIEWS = {
         h("p", { class: "muted", text: "Switch off built-in roles you do not use: they then give no permissions and cannot be given to anyone. People who still have one keep only their other roles." }),
         h("div", { class: "grid2" }, roleOff.map(([, box, l]) => h("label", { class: "check" }, box, "Switch off " + l))),
         h("h3", {}, ic("globe", "#475569", "sm"), "Outgoing connections"),
-        h("p", { class: "muted", text: "The Command Center's own connections to the internet (single sign-on, Git, AI model connections, external vaults) go through this proxy when set. This computer is always reached directly. Runners have their own proxy setting (ooa agent network)." }),
+        h("p", { class: "muted", text: "One CommandCenter's own connections to the internet (single sign-on, Git, AI model connections, external vaults) go through this proxy when set. This computer is always reached directly. Runners have their own proxy setting (ooa agent network)." }),
         h("div", { class: "grid2" }, h("label", {}, "Proxy (http://host:port, empty = direct)", proxy), h("label", {}, "Reach these directly (host names, * allowed)", proxyBypass)),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
         h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
@@ -1053,7 +1053,7 @@ const VIEWS = {
             try { await api("PUT", "settings", { syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value }); await api("POST", "settings/syslog-test"); toast("Test message sent to " + syslogTarget.value.trim()); }
             catch (e) { toast(e.message, true); } } }, "Send a test message"))),
         h("h3", {}, ic("inbox", "#475569", "sm"), "E-mail"),
-        h("p", { class: "muted", text: "The Command Center sends its own e-mail (licence expiry reminders to administrators, workflow e-mail steps) through your mail server. The password is a vault reference, never typed here." }),
+        h("p", { class: "muted", text: "One CommandCenter sends its own e-mail (licence expiry reminders to administrators, workflow e-mail steps) through your mail server. The password is a vault reference, never typed here." }),
         h("div", { class: "grid2" }, h("label", {}, "Outgoing mail server", mailHost), h("label", {}, "Port", mailPort), h("label", {}, "Security", mailSec),
           h("label", {}, "Account (empty = no sign-in)", mailUser), h("label", {}, "Password (vault reference folder/credential/attribute)", mailPw), h("label", {}, "Sender address", mailFrom),
           h("label", {}, "Also send licence reminders to (addresses, separated by commas)", licMailTo),
@@ -1062,7 +1062,7 @@ const VIEWS = {
             try { await api("PUT", "settings", mailSettings()); const r = await api("POST", "settings/mail-test", { to: mailTestTo.value.trim() }); toast("Test e-mail sent to " + r.to); }
             catch (e) { toast(e.message, true); } } }, "Send a test e-mail"))),
         h("h3", {}, ic("desktop", "#475569", "sm"), "Several nodes"),
-        h("p", { class: "muted", text: "Start more Command Centers on the same database behind a load balancer for high availability. Each serves everything; one leads the background work and another takes over within about 30 seconds if it stops. Put repository files in a shared folder every node can reach." }),
+        h("p", { class: "muted", text: "Start more One CommandCenter installations on the same database behind a load balancer for high availability. Each serves everything; one leads the background work and another takes over within about 30 seconds if it stops. Put repository files in a shared folder every node can reach." }),
         nodesBox, h("label", {}, "Shared folder for repository files (empty = the data folder)", repoShared),
         h("label", {}, "Template catalogue (an https address of templates.json)", tplUrl),
         h("h3", {}, ic("download", "#475569", "sm"), "Backups"),
@@ -1084,7 +1084,7 @@ const VIEWS = {
             if (!d && !l) { toast("Set a number of days first", true); return; }
             if (!confirm("Remove run history older than these periods now?")) return;
             try { const r = await api("POST", "runs/purge", { run_days: d, log_days: l }); toast("Removed " + r.runs_removed + " run(s) and " + r.log_lines_removed + " log line(s)"); } catch (e) { toast(e.message, true); } } }, "Remove now"))),
-        lic ? [h("h3", {}, ic("shield", "#475569", "sm"), "This Command Center"), kv([["Edition", lic.edition], ["Limits", lic.limits], ["Active users", String(lic.users)], ["Runners", String(lic.runners)],
+        lic ? [h("h3", {}, ic("shield", "#475569", "sm"), "This One CommandCenter"), kv([["Edition", lic.edition], ["Limits", lic.limits], ["Active users", String(lic.users)], ["Runners", String(lic.runners)],
           ["Agents", String(lic.agents)], ["Toolkits", lic.toolkits + (lic.toolkits_switched_off ? " (" + lic.toolkits_switched_off + " switched off)" : "")]])] : null,
         dbi ? [h("h3", {}, ic("desktop", "#475569", "sm"), "Database"),
           h("p", { class: "muted", text: dbi.note || "Read-only here. The connection is set in config\\ooa-db.properties in the data folder and changed with the ooa db command." }),
@@ -1199,13 +1199,13 @@ const VIEWS = {
     await loadRefs();
     const r = await api("GET", "triggers");
     const act = async (fn) => { try { await fn(); } catch (e) { toast(e.message, true); } go("triggers"); };
-    main.replaceChildren(...header("Triggers", "Start agents on events: files and folders, windows, processes, services and hotkeys on a runner; new email, ServiceNow records and polled web data on the Command Center; or a webhook call. Agent Studio also has its own local triggers for development.",
+    main.replaceChildren(...header("Triggers", "Start agents on events: files and folders, windows, processes, services and hotkeys on a runner; new email, ServiceNow records and polled web data on One CommandCenter; or a webhook call. One AgentStudio also has its own local triggers for development.",
       can("triggers.manage") ? h("button", { type: "button", class: "primary", onclick: triggerDialog }, "New trigger") : null),
       dataTable({ rows: r.triggers, search: "Search triggers", exportName: "triggers", empty: "No triggers yet.",
         columns: [
           { label: "Trigger", value: (t) => t.name, render: (t) => h("div", { class: "name-cell" }, ic("bolt", "#d97706", "sm"), h("strong", { text: t.name })) },
           { label: "Kind", value: (t) => triggerKindLabel(t.kind), render: (t) => h("div", {}, h("div", { text: triggerKindLabel(t.kind) }),
-            h("div", { class: "muted small", text: t.evaluated_on === "server" ? "Checked by the Command Center" : t.evaluated_on === "runner" ? "Watched on the runner" + (t.windows_only ? " (Windows)" : "") : "" })) },
+            h("div", { class: "muted small", text: t.evaluated_on === "server" ? "Checked by One CommandCenter" : t.evaluated_on === "runner" ? "Watched on the runner" + (t.windows_only ? " (Windows)" : "") : "" })) },
           { label: "Agent", value: (t) => botName(t.bot_path) }, { label: "Runner", value: (t) => deviceName(t.device_id), render: (t) => h("span", {}, deviceName(t.device_id), t.run_as ? h("div", { class: "muted small", text: "runs as " + t.run_as }) : null) },
           { label: "Details", value: (t) => triggerDetails(t), render: (t) => h("span", { class: "mono small", text: triggerDetails(t) }) },
           { label: "Monitoring", value: (t) => (t.fire_count || 0) + " " + (t.last_fired || "") + " " + (t.last_error || ""), render: (t) => h("div", { class: "small" },
@@ -1350,7 +1350,7 @@ const VIEWS = {
       h("button", { type: "button", class: "primary", onclick: () => dashboardDialog(null) }, "New dashboard")),
       r.dashboards.length ? h("div", { class: "toolbar" }, pick, cur && cur.can_edit ? h("button", { type: "button", onclick: () => dashboardDialog(cur) }, "Edit") : null,
         cur && cur.can_edit ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the dashboard " + cur.name + "?")) return; try { await api("DELETE", "dashboards/" + cur.id); S.dashId = null; go("dashboards"); } catch (e) { toast(e.message, true); } } }, "Delete") : null,
-        cur && cur.shared_with.length ? h("span", { class: "muted small", text: "Shared with " + cur.shared_with.join(", ") }) : null) : h("p", { class: "muted", text: "No dashboards yet. Mark an agent's outputs as KPI in Agent Studio, then make a dashboard." }),
+        cur && cur.shared_with.length ? h("span", { class: "muted small", text: "Shared with " + cur.shared_with.join(", ") }) : null) : h("p", { class: "muted", text: "No dashboards yet. Mark an agent's outputs as KPI in One AgentStudio, then make a dashboard." }),
       grid);
     if (!cur) return;
     let tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) { /* UTC */ }
@@ -1390,7 +1390,7 @@ const VIEWS = {
         columns: [
           { label: "API task", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: "POST " + location.origin + t.url })) },
           { label: "Agent", value: (t) => botName(t.bot_path) },
-          { label: "Runs on", value: (t) => t.serverless ? "Command Center (serverless)" : t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
+          { label: "Runs on", value: (t) => t.serverless ? "One CommandCenter (serverless)" : t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
           { label: "Waits up to", value: (t) => t.timeout_seconds, render: (t) => t.timeout_seconds + " s" },
           { label: "Calls", value: (t) => t.calls, render: (t) => h("span", {}, String(t.calls), t.last_used ? h("span", { class: "muted small", text: " \u00B7 last " + ago(t.last_used) }) : null) },
           { label: "Status", value: (t) => t.enabled ? "On" : "Off", render: (t) => pill(t.enabled ? "active" : "paused") },
@@ -1447,7 +1447,7 @@ const VIEWS = {
       catch (e) { toast(e.message, true); }
     };
     const seats = L.seats || {};
-    main.replaceChildren(...header("Licenses", "The license of this Command Center and who holds which seat. Developer and Citizen Developer seats let people check in agents; a runner needs an Unattended Runner seat to take scheduled, triggered, API and queue work; an Attended Runner seat lets a person run agents on their own runner."),
+    main.replaceChildren(...header("Licenses", "The license of this One CommandCenter and who holds which seat. Developer and Citizen Developer seats let people check in agents; a runner needs an Unattended Runner seat to take scheduled, triggered, API and queue work; an Attended Runner seat lets a person run agents on their own runner."),
       h("div", { class: "card" },
         h("div", { class: "card-head" }, h("h2", { text: "License" }), h("span", { class: "pill " + stateCls, text: stateText })),
         L.state === "unlicensed" ? h("p", { class: "muted", text: "No license is installed, so nothing is limited. Install the license file you received from ONEOFFICEAUTOMATION to apply its seats and expiry date." })
@@ -1456,7 +1456,7 @@ const VIEWS = {
           : kv([["Licensed to", L.customer], ["Edition", L.edition], ["License id", L.id], ["Valid", (L.issued || "") + " to " + (L.expires || "") + (L.days_left !== undefined && L.days_left >= 0 ? " (" + L.days_left + " days left)" : "")],
             ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null], ["Issued for", L.bound_to]]),
         L.problem ? h("p", { class: "error", text: L.problem }) : null,
-        L.install_id ? h("p", { class: "muted" }, "Install id of this Command Center: ", h("code", { text: L.install_id }), ". Send it with a license request; a license issued for it works only here.") : null,
+        L.install_id ? h("p", { class: "muted" }, "Install id of this One CommandCenter: ", h("code", { text: L.install_id }), ". Send it with a license request; a license issued for it works only here.") : null,
         L.requires_server_database ? h("div", { class: "note warn" }, h("strong", { text: "Move to Microsoft SQL Server before licensing. " }),
           h("span", { text: "The evaluation runs on the built-in database; a licensed installation runs on SQL Server (PostgreSQL also works). " + L.database_steps })) : null,
         can("settings.manage") && !L.requires_server_database ? h("div", { class: "form-card" }, h("h3", { text: "Install a license" }), h("label", {}, "License file", fileInput), paste,
@@ -1699,7 +1699,7 @@ async function openBot(b) {
       outputs.length ? [h("h3", { text: "Outputs" }), table(["Name", "Type", "Description"], outputs.map((v) => ({ data: v, cells: [h("code", { text: v.name }), v.type, v.description || ""] })))] : null,
       roiBox(b),
       deps ? [h("h3", { text: "Dependencies" }), kv([
-        ["Calls these agents", deps.agents.length ? h("div", { class: "chips" }, deps.agents.map((a) => h("span", { class: "chip" + (a.found ? "" : " missing"), title: a.found ? "" : "Not in this Command Center", text: a.path ? botName(a.path) : a.bot_id }))) : "none"],
+        ["Calls these agents", deps.agents.length ? h("div", { class: "chips" }, deps.agents.map((a) => h("span", { class: "chip" + (a.found ? "" : " missing"), title: a.found ? "" : "Not in this One CommandCenter", text: a.path ? botName(a.path) : a.bot_id }))) : "none"],
         ["Called by", deps.called_by.length ? h("div", { class: "chips" }, deps.called_by.map((p) => h("span", { class: "chip", text: botName(p) }))) : "no other agent"],
         ["Toolkits", deps.toolkits.length ? h("div", { class: "chips" }, deps.toolkits.map((t) => h("span", { class: "chip", text: t }))) : "built-in actions only"]])] : null,
       h("h3", { text: "Recent runs" }), runTable(runs.runs, (r) => openRun(r.id)),
@@ -1723,7 +1723,7 @@ async function openDevice(d) {
   try {
     const [active, hist] = can("runs.view") ? await Promise.all([api("GET", "runs?filter=active&device=" + encodeURIComponent(d.id)), api("GET", "runs?filter=history&limit=15&device=" + encodeURIComponent(d.id))]) : [{ runs: [] }, { runs: [] }];
     body.replaceChildren(
-      kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", (d.agent_version || "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center: it gets no work until the Command Center is updated)" : "")], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
+      kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", (d.agent_version || "") + (d.version_status && d.version_status !== "ok" ? " (newer than One CommandCenter: it gets no work until One CommandCenter is updated)" : "")], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
         ["Type", d.device_type === "single_user" ? "Single-user" : "Multi-user"], ["Default runner of", (d.default_users || []).join(", ") || "nobody"], ["Log level", d.log_level || "info"],
         ["Screen", d.session_state ? SCREEN[d.session_state] + ": " + SCREEN_HELP[d.session_state] : "not reported yet"], ["After unattended runs", AFTER_RUN[d.after_run || "nothing"]], ["Toolkits", d.toolkits ? h("details", {}, h("summary", { text: d.toolkits.split(",").length + " toolkits" }), h("div", { class: "muted", text: d.toolkits.split(",").join(", ") })) : "not reported yet"],
         ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
@@ -1989,22 +1989,22 @@ const TRIGGER_KINDS = {
   hotkey: { label: "Hotkey pressed", fields: [["hotkey", "Key combination", "CTRL+ALT+F9"]], help: "Windows runners with a signed-in desktop. The combination must not be used by another program. Input: trigger_hotkey." },
   email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
     ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...TRIGGER_MAIL_FILTERS, TRIGGER_INTERVAL],
-    help: "Checked by the Command Center. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
+    help: "Checked by One CommandCenter. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
   outlook: { label: "New email (Microsoft 365 Outlook)", fields: [["token_ref", "Graph access token (vault reference)", "m365/graph/token"], ["mailbox", "Mailbox (blank for the token's own)", "invoices@contoso.com"],
     ["tenant_id", "Or app sign-in: tenant id", ""], ["client_id", "Application (client) id", ""], ["client_secret_ref", "Client secret (vault reference)", "m365/app/secret"],
     ["mail_folder", "Mail folder", "inbox", "inbox"], ...TRIGGER_MAIL_FILTERS, TRIGGER_INTERVAL],
-    help: "Checked by the Command Center through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
+    help: "Checked by One CommandCenter through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
   servicenow: { label: "ServiceNow record new or updated", fields: [["instance_url", "Instance URL", "https://yourcompany.service-now.com"], ["table", "Table", "incident", "incident"],
     ["query", "Encoded query (optional)", "active=true^priority=1"], ["username", "User name", "integration.user"], ["password_ref", "Password (vault reference)", "snow/api/password"],
     ["token_ref", "Or OAuth token (vault reference)", ""], TRIGGER_INTERVAL],
-    help: "Checked by the Command Center through the Table API. Each new or changed record starts the agent once, with its fields and change (new or updated) in trigger_record." },
+    help: "Checked by One CommandCenter through the Table API. Each new or changed record starts the agent once, with its fields and change (new or updated) in trigger_record." },
   http_poll: { label: "Universal poller (call a web address)", fields: [["url", "URL to call (GET)", "https://api.example.com/orders?status=new"], ["items_path", "Items JSON path", "$.items[*]", "$"],
     ["id_field", "Id field of each item", "id", "id"], ["auth_ref", "Bearer token (vault reference, optional)", ""], TRIGGER_INTERVAL],
-    help: "Checked by the Command Center. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
+    help: "Checked by One CommandCenter. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
   webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the URL and secret after creating it." },
 };
 const TRIGGER_GROUPS = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey"]],
-  ["On the Command Center", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
+  ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
 
 function triggerKindLabel(k) { return TRIGGER_KINDS[k] ? TRIGGER_KINDS[k].label : k; }
 
@@ -2119,7 +2119,7 @@ async function vaultKeyDialog() {
   modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : st.key_source === "environment" ? "OOA_MASTER_KEY environment variable" : st.key_source_detail], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
     ["Vault folders", String(st.vault_folders)], ["Shared Global values", String(st.values)], ["People's own values", String(st.personal_values)], ["External vault links", String(st.external_links)]]),
     h("p", { class: "muted", text: st.can_rotate ? "Rotating makes a new master key and encrypts every stored value again with it, in one transaction. The old key file is kept beside the new one (master.key.old-…) until you remove it; back it up with the database." :
-      "The key is kept outside the data folder, so it cannot be changed here. To change it: stop the Command Center, run ooa vault rekey --new-key-env VAR (every value is encrypted again with the new key), put the new key where the old one is kept, and start again." })],
+      "The key is kept outside the data folder, so it cannot be changed here. To change it: stop One CommandCenter, run ooa vault rekey --new-key-env VAR (every value is encrypted again with the new key), put the new key where the old one is kept, and start again." })],
   st.can_rotate ? [h("button", { type: "button", class: "danger", onclick: async () => {
     if (!confirm("Rotate the vault master key now? Agents keep working; every value is encrypted again.")) return;
     try { const r = await api("POST", "vault/rotate"); toast("Key rotated: " + r.re_encrypted + " values encrypted again. New fingerprint " + r.key_fingerprint); vaultKeyDialog(); } catch (e) { toast(e.message, true); } } }, "Rotate key")] : []);
@@ -2132,7 +2132,7 @@ function apiTaskDialog() {
   const runners = h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool));
   const serverless = h("input", { type: "checkbox", onchange: () => { runners.hidden = serverless.checked; } });
   modal("New API task", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot),
-    h("label", { class: "check" }, serverless, " Run on the Command Center, with no runner (serverless)"),
+    h("label", { class: "check" }, serverless, " Run on One CommandCenter, with no runner (serverless)"),
     h("p", { class: "muted small", text: "Serverless suits agents that only call web services and work on data: REST, SOAP, the cloud apps, Excel, PDF, JSON and the like. They run for at most 5 minutes, four at a time, with files only in their own workspace." }),
     runners, h("label", {}, "Wait for the result up to (seconds, 1-300)", timeout),
     h("p", { class: "muted", text: "Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again." })],
@@ -2326,7 +2326,7 @@ function registerRunnerDialog() {
         secretBox("With the MSI (runs as a Windows service)", "msiexec /i ooa.msi /qn ROLE=Runner URL=" + url + " REGISTRATION_KEY=" + k.key, ""),
         secretBox("With the setup package", "Install.cmd -Silent -Role Runner -Url " + url + " -RegistrationKey " + k.key, ""),
         k.temporary ? h("p", { class: "note warn", text: "Temporary: this runner is removed after the time set in Settings without contact." }) : null,
-        h("p", { class: "muted", text: "On the Command Center computer itself you do not need this: ooa server (START-OOA.cmd) registers a runner for it." })], []);
+        h("p", { class: "muted", text: "On One CommandCenter computer itself you do not need this: ooa server (START-OOA.cmd) registers a runner for it." })], []);
     } catch (e) { toast(e.message, true); }
   } }, "Create key")]);
 }
@@ -2512,7 +2512,7 @@ function scheduleOptionSelects(s) {
   const missed = h("select", { "aria-label": "Missed times" }, h("option", { value: "once", text: "Run once for them" }), h("option", { value: "skip", text: "Skip them" }));
   const overlap = h("select", { "aria-label": "Previous run still going" }, h("option", { value: "allow", text: "Start another run" }), h("option", { value: "skip", text: "Skip this time" }));
   missed.value = (s && s.missed_runs) || "once"; overlap.value = (s && s.overlap) || "allow";
-  return { missed, overlap, row: h("div", { class: "grid2" }, h("label", {}, "Times missed while the Command Center was down", missed), h("label", {}, "When the previous run is still going", overlap)) };
+  return { missed, overlap, row: h("div", { class: "grid2" }, h("label", {}, "Times missed while One CommandCenter was down", missed), h("label", {}, "When the previous run is still going", overlap)) };
 }
 
 async function scheduleEditDialog(s) {
@@ -2603,7 +2603,7 @@ function addItemsDialog(q, after) {
     const f = file.files[0]; if (!f) return;
     workbook = null; sheetBox.hidden = true;
     if (/\.xlsx$/i.test(f.name)) {
-      // the Command Center reads the workbook; it is sent as Base64
+      // One CommandCenter reads the workbook; it is sent as Base64
       const buf = new Uint8Array(await f.arrayBuffer()); let bin = "";
       for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
       workbook = btoa(bin); text.value = ""; sheetBox.hidden = false; preview.textContent = f.name + " loaded (Excel).";
@@ -2614,7 +2614,7 @@ function addItemsDialog(q, after) {
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
       const t = text.value.trim();
-      // CSV and Excel are read by the Command Center, which converts each cell to its field's type in the work item model
+      // CSV and Excel are read by One CommandCenter, which converts each cell to its field's type in the work item model
       const r = workbook ? await api("POST", "queues/" + q.id + "/items/xlsx", { file: workbook, sheet: sheet.value.trim() || null })
         : t.startsWith("[") || t.startsWith("{") ? await api("POST", "queues/" + q.id + "/items", { items: [].concat(parseJson(t, [])) })
           : await api("POST", "queues/" + q.id + "/items/csv", { csv: t });
@@ -2742,9 +2742,9 @@ function exportDialog(bots) {
   const conflict = h("select", {}, h("option", { value: "skip", text: "Skip agents that are already there" }), h("option", { value: "overwrite", text: "Add a new version of agents that are already there" }));
   const live = h("input", { type: "checkbox" });
   const req = () => { if (!picked.size) throw new Error("Tick at least one agent"); return { paths: [...picked], version: version.value.trim() || "production", include_dependencies: deps.checked }; };
-  modal("Export or promote agents", [h("p", { class: "muted", text: "A bundle holds each agent's exact version with a checksum, and (when ticked) every agent it calls. Import it in another Command Center, or promote straight to one." }),
+  modal("Export or promote agents", [h("p", { class: "muted", text: "A bundle holds each agent's exact version with a checksum, and (when ticked) every agent it calls. Import it in another One CommandCenter, or promote straight to one." }),
     list, h("div", { class: "grid2" }, h("label", {}, "Version (production, latest, a number or a label)", version), h("label", { class: "check" }, deps, "Include the agents they call")),
-    h("details", {}, h("summary", { text: "Promote to another Command Center" }),
+    h("details", {}, h("summary", { text: "Promote to another One CommandCenter" }),
       h("div", { class: "grid2" }, h("label", {}, "Its address", target), h("label", {}, "Its API key (vault reference)", key), h("label", {}, "If an agent is already there", conflict), h("label", { class: "check" }, live, "Make the versions live there")),
       h("p", { class: "muted", text: "Create an API key there (Your API keys) as someone allowed to import, and store it in a vault folder here. The key is read from the vault and sent only to that address." }),
       h("button", { type: "button", class: "primary", onclick: async () => {
@@ -2791,7 +2791,7 @@ async function shareTemplateDialog() {
 
 function uploadCatalogueDialog() {
   const file = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Catalogue file" });
-  modal("Upload a template catalogue", [h("p", { class: "muted", text: "For a Command Center without internet access: download templates.json from the releases page and upload it here. It must carry ONEOFFICEAUTOMATION's signature." }), file],
+  modal("Upload a template catalogue", [h("p", { class: "muted", text: "For One CommandCenter without internet access: download templates.json from the releases page and upload it here. It must carry ONEOFFICEAUTOMATION's signature." }), file],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
       const f = file.files[0]; if (!f) throw new Error("Choose the catalogue file");
@@ -2806,7 +2806,7 @@ function importDialog() {
   const conflict = h("select", {}, h("option", { value: "skip", text: "Skip agents that are already here" }), h("option", { value: "overwrite", text: "Add a new version of agents that are already here" }));
   const live = h("input", { type: "checkbox" });
   const out = h("div");
-  modal("Import agents", [h("p", { class: "muted", text: "Import a bundle exported from a Command Center. Every agent is checked first (checksum, validation, folder permissions); nothing is imported unless all of them pass. History is kept: an agent that exists gets a new version." }),
+  modal("Import agents", [h("p", { class: "muted", text: "Import a bundle exported from One CommandCenter. Every agent is checked first (checksum, validation, folder permissions); nothing is imported unless all of them pass. History is kept: an agent that exists gets a new version." }),
     file, h("div", { class: "grid2" }, h("label", {}, "Put them under folder", folder), h("label", {}, "If an agent is already here", conflict), h("label", { class: "check" }, live, "Make the imported versions live")), out],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
@@ -2843,7 +2843,7 @@ function importQueueDialog() {
   const file = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Queue definition file" });
   const name = h("input", { placeholder: "(the name in the file)" });
   const out = h("div");
-  modal("Import a work queue", [h("p", { class: "muted", text: "A queue definition exported from a Command Center: settings, work item model, members and, when exported with them, waiting items. The agent and runner pool are linked when they exist here." }),
+  modal("Import a work queue", [h("p", { class: "muted", text: "A queue definition exported from One CommandCenter: settings, work item model, members and, when exported with them, waiting items. The agent and runner pool are linked when they exist here." }),
     file, h("label", {}, "Name here", name), out],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
@@ -3124,7 +3124,7 @@ async function dashboardDialog(d) {
   modal(d ? "Edit " + d.name : "New dashboard", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Share with", shared)), h("label", {}, "Description", desc),
     h("label", {}, "Widgets (JSON)", widgets),
     h("p", { class: "muted small", text: "A widget: title; type number, bars, line or table; source kpi (with kpi, agg sum/avg/count/min/max/last, optionally bot) or runs (metric runs, success_rate, failed, avg_seconds, hours_saved); group none, day, week, month, agent or value (with by: another KPI of the same run); days 1 to 365." }),
-    k.kpis.length ? h("p", { class: "muted small", text: "KPIs recorded so far: " + k.kpis.map((x) => x.name + " (" + botName(x.bot_path) + ")").join(", ") }) : h("p", { class: "muted small", text: "No KPI values yet: mark outputs as KPI in Agent Studio and run the agent." })],
+    k.kpis.length ? h("p", { class: "muted small", text: "KPIs recorded so far: " + k.kpis.map((x) => x.name + " (" + botName(x.bot_path) + ")").join(", ") }) : h("p", { class: "muted small", text: "No KPI values yet: mark outputs as KPI in One AgentStudio and run the agent." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try { const body = { name: name.value.trim(), description: desc.value.trim(), shared_with: shared.value.split(",").map((x) => x.trim()).filter(Boolean), widgets: parseJson(widgets.value, []) };
       const r = await api(d ? "PUT" : "POST", "dashboards" + (d ? "/" + d.id : ""), body); S.dashId = r.id; closeModal(); go("dashboards"); } catch (e) { toast(e.message, true); } } }, "Save")]);
@@ -3274,7 +3274,7 @@ async function apiKeysDialog() {
   const r = await api("GET", "apikeys");
   const name = h("input", { placeholder: "Nightly ERP sync" }), days = h("select", {}, [["30", "30 days"], ["90", "90 days"], ["365", "1 year"], ["0", "Never expires"]].map(([v, l]) => h("option", { value: v, text: l })));
   days.value = "90";
-  modal("Your API keys", [h("p", { class: "muted", text: "API keys let other systems call the Command Center as you (Authorization: Bearer <key>), with your role's permissions. A key is shown only once." }),
+  modal("Your API keys", [h("p", { class: "muted", text: "API keys let other systems call One CommandCenter as you (Authorization: Bearer <key>), with your role's permissions. A key is shown only once." }),
     table(["Name", "Created", "Expires", "Last used", ""], r.keys.map((k) => ({ data: k, cells: [h("strong", { text: k.name }), ago(k.created), k.expires ? local(k.expires) : "never", k.last_used ? ago(k.last_used) : "never",
       h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Revoke key " + k.name + "? Systems using it stop working.")) { await api("DELETE", "apikeys/" + k.id); apiKeysDialog(); } } }, "Revoke")] }))),
     h("div", { class: "card inset" }, h("h3", { text: "New key" }), h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Valid for", days)))],

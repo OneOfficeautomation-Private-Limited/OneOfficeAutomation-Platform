@@ -327,7 +327,7 @@ public final class VaultAdmin {
         cr.require(by, "lockers.manage", "administer the vault");
         Path file = cr.vault.keyFile;
         if (file == null) throw new OoaException("CR.VAULT_KEY", "The master key comes from " + cr.vault.keySource + ", so it cannot be changed here",
-                "Stop the Command Center, run: ooa vault rekey --new-key-env VAR (re-encrypts every value with the new key), put the new key where it is kept, and start again.");
+                "Stop One CommandCenter, run: ooa vault rekey --new-key-env VAR (re-encrypts every value with the new key), put the new key where it is kept, and start again.");
         Vault next = Vault.fresh();
         Path nextFile = file.resolveSibling("master.key.next");
         try { Files.writeString(nextFile, next.keyBase64()); } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot write the new key: " + e.getMessage()); }
@@ -352,7 +352,7 @@ public final class VaultAdmin {
 
     /**
      * Re-encrypts everything with a key the administrator brings (Base64, 32 bytes), for a master key kept outside the
-     * data folder (OOA_MASTER_KEY or a key store), where the console cannot change it. Run with the Command Center
+     * data folder (OOA_MASTER_KEY or a key store), where the console cannot change it. Run with One CommandCenter
      * stopped (ooa vault rekey); afterwards the new key must replace the old one where it is kept before the next start.
      * With a key file, the new key is written to it and the old one kept as master.key.old-&lt;time&gt;.
      */
@@ -401,7 +401,7 @@ public final class VaultAdmin {
                 db.update("UPDATE lockers SET external_secret = ? WHERE name = ?", next.encrypt(cr.vault.decrypt((String) l.get("external_secret"), bound), bound), l.get("name"));
                 k++;
             }
-            // values the Command Center keeps for itself: evaluation start, install id, audit chain key
+            // values One CommandCenter keeps for itself: evaluation start, install id, audit chain key
             for (String[] s : new String[][] { {"evaluation_started", "evaluation"}, {"install_id", "install-id"}, {"audit_chain_key", "audit-chain"} }) {
                 Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = ?", s[0]);
                 if (r == null) continue;

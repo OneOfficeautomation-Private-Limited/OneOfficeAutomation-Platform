@@ -72,7 +72,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [System overview](architecture/01-system-overview.md) | Context, parts, deployment shapes |
 | [Components and modules](architecture/02-components-and-modules.md) | Modules, dependencies, technology |
 | [Agent model and runner](architecture/03-agent-model-and-runner.md) | Flow format, execution, events |
-| [Command Center internals](architecture/04-command-center-internals.md) | Server, dispatch, scheduler, queues |
+| [One CommandCenter internals](architecture/04-command-center-internals.md) | Server, dispatch, scheduler, queues |
 | [Data model](architecture/05-data-model.md) | Tables and databases |
 | [Security architecture](architecture/06-security-architecture.md) | Sign-in, permissions, vault, audit |
 | [Toolkit architecture](architecture/07-toolkit-architecture.md) | How toolkits are built and loaded |

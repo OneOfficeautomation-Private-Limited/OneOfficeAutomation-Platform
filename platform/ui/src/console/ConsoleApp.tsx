@@ -47,7 +47,7 @@ const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, "").split("?
 const TODAY = "../";
 
 /**
- * The rebuilt Command Center console (C0, docs/architecture/12-ui-redesign.md): sign-in, the menu by task shared with
+ * The rebuilt One CommandCenter console (C0, docs/architecture/12-ui-redesign.md): sign-in, the menu by task shared with
  * Studio, and Home. A page that is not rebuilt yet opens in today's console from the menu, so nothing here is a
  * placeholder; both consoles share the session, so no second sign-in is needed.
  */
@@ -86,7 +86,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       <div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }}
-          offTitle="Agent Studio runs beside the Command Center (ooa server), on the same computer" console />
+          offTitle="One AgentStudio runs beside One CommandCenter (ooa server), on the same computer" console />
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {page === "insights" && <Overview api={api} user={user} pageHref={hrefFor} />}

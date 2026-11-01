@@ -48,18 +48,18 @@ public final class ControlRoomServer {
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
 
-    /** A tenant's Command Center inside a SaaS region: no port of its own; the region's server hands it requests (TenantHost). */
+    /** A tenant's One CommandCenter inside a SaaS region: no port of its own; the region's server hands it requests (TenantHost). */
     static ControlRoomServer forTenant(ControlRoom cr) { return new ControlRoomServer(cr, null, 0); }
 
-    /** True when the browser reached the Command Center over HTTPS: served here directly, or through a TLS proxy that says so. */
+    /** True when the browser reached One CommandCenter over HTTPS: served here directly, or through a TLS proxy that says so. */
     private static boolean overHttps(HttpExchange ex) { return ex instanceof HttpsExchange || "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
 
-    /** The Secure cookie flag whenever the Command Center is used over HTTPS, so the session cookie never travels in clear text. */
+    /** The Secure cookie flag whenever One CommandCenter is used over HTTPS, so the session cookie never travels in clear text. */
     private String secureFlag(HttpExchange ex) {
         return overHttps(ex) || String.valueOf(cr.platform.setting("public_url")).toLowerCase(Locale.ROOT).startsWith("https://") ? "; Secure" : "";
     }
 
-    /** The address people use to reach the Command Center (Settings: public_url), for single sign-on redirects. */
+    /** The address people use to reach One CommandCenter (Settings: public_url), for single sign-on redirects. */
     private String origin(HttpExchange ex) {
         String pub = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
         if (!pub.isEmpty()) return pub;
@@ -120,7 +120,7 @@ public final class ControlRoomServer {
             }
         }
         catch (java.net.BindException e) {
-            throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Command Center may still be running", "Stop it, or start with --port " + (port + 1) + ".");
+            throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another One CommandCenter may still be running", "Stop it, or start with --port " + (port + 1) + ".");
         }
         // one virtual thread per request: runners waiting for work (long polls) cost almost nothing while they wait
         server.setExecutor(Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("ooa-cr-http-", 0).factory()));
@@ -188,7 +188,7 @@ public final class ControlRoomServer {
         } catch (RuntimeException | Error e) {
             // Any failure still gets an answer, so a client never sees a dropped connection.
             e.printStackTrace();
-            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see the Command Center console log"))); }
+            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
     }
@@ -251,7 +251,7 @@ public final class ControlRoomServer {
     }
 
     /**
-     * OAuth protected resource metadata (RFC 9728) for MCP clients: this Command Center's MCP address and the identity
+     * OAuth protected resource metadata (RFC 9728) for MCP clients: this One CommandCenter's MCP address and the identity
      * provider that issues tokens for it. Empty of authorization servers until MCP over OAuth is set up.
      */
     private void protectedResource(HttpExchange ex) throws IOException {
@@ -264,7 +264,7 @@ public final class ControlRoomServer {
         m.put("bearer_methods_supported", List.of("header"));
         String scope = String.valueOf(cr.platform.setting("mcp_oauth_scope")).trim();
         if (!scope.isEmpty()) m.put("scopes_supported", List.of(scope));
-        m.put("resource_name", "ONEOFFICEAUTOMATION Command Center (MCP)");
+        m.put("resource_name", "ONEOFFICEAUTOMATION One CommandCenter (MCP)");
         sendJson(ex, 200, m);
     }
 
@@ -302,7 +302,7 @@ public final class ControlRoomServer {
         if (!route.startsWith("health") && !fromHere) {
             IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
             if (!allow.isEmpty() && !allow.allows(ip)) {
-                sendJson(ex, 403, Map.of("error", Map.of("code", "CR.IP_BLOCKED", "message", "This address may not use the Command Center", "retryable", false)));
+                sendJson(ex, 403, Map.of("error", Map.of("code", "CR.IP_BLOCKED", "message", "This address may not use One CommandCenter", "retryable", false)));
                 return;
             }
         }
@@ -814,7 +814,7 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
-            case "cluster" -> { cr.require(u, "settings.manage", "see the Command Center nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
+            case "cluster" -> { cr.require(u, "settings.manage", "see One CommandCenter nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
             case "backups" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.backups.backupNow(u, ip));
@@ -1019,7 +1019,7 @@ public final class ControlRoomServer {
         String name = path.equals("/") ? "index.html" : path.substring(1);
         if (!name.matches("^[A-Za-z0-9_.-]+$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
         // The shared design system (ooa-tokens.css, ooa-components.css) and the interface languages (ooa-i18n.js and its
-        // catalogs) live in /ooa-ui/; Agent Studio serves the same files.
+        // catalogs) live in /ooa-ui/; One AgentStudio serves the same files.
         String folder = name.startsWith("ooa-") && name.matches(".*\\.(css|js|json)$") ? "/ooa-ui/" : "/console/";
         try (InputStream in = ControlRoomServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }

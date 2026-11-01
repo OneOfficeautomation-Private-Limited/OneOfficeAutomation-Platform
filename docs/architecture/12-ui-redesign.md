@@ -1,17 +1,17 @@
 # 12. UI redesign: TypeScript and React, Studio first
 
 Status: **approved** (2026-10-29): screens and build decisions (section 7). Building has started with P0. Pending items V1 (screens in TypeScript with React, Studio first), V2
-(Studio from the Command Center later) and V6 (easy UI, gap list in `docs/research/easy-ui-study.md`).
+(Studio from One CommandCenter later) and V6 (easy UI, gap list in `docs/research/easy-ui-study.md`).
 
 ## 1. Goal
 
-Make Studio, then the Command Center, as easy to use as the best of AA, UiPath and Blue Prism, without losing what
+Make Studio, then One CommandCenter, as easy to use as the best of AA, UiPath and Blue Prism, without losing what
 works today (strict security policy, offline installs, the shared look, 278 Studio UI checks) and without building
 any screen twice.
 
 ## 2. What stays
 
-- **The servers and their APIs.** `StudioServer` and the Command Center keep every endpoint. The new screens are
+- **The servers and their APIs.** `StudioServer` and One CommandCenter keep every endpoint. The new screens are
   another client of the same API.
 - **The design tokens** (`ooa-tokens.css`): colours, spacing, type, light, dark and Studio themes. New components are
   built on them, so the new screens look like OOA, not like a library's default.
@@ -29,9 +29,9 @@ platform/ui/                one npm project, built by Gradle (:cli:uiBuild)
   src/
     theme.css     the approved look as CSS variables (colours, sizes, radius)
     components/   buttons, fields, tabs, menus, dialogs, tree, icons; Radix for behaviour, our CSS for the look
-    api/          typed client for the Studio API; one base URL (local now, Command Center later)
+    api/          typed client for the Studio API; one base URL (local now, One CommandCenter later)
     studio/       the Studio application
-    console/      the Command Center application (after Studio)
+    console/      One CommandCenter application (after Studio)
   built into cli/build/generated/ui/studio-next, served by Studio at its root
 ```
 
@@ -52,7 +52,7 @@ become packages later if another product needs the components.
 Flow, TypeScript, Vite, Vitest. CI runs `npm audit` and fails on high findings.
 
 **One client, two places (V2).** The API client (`src/api`) takes a base URL. Locally it is `StudioServer`; later, Studio served by the
-Command Center uses the same screens, with the Runner as the local helper for recording and test runs. Designing this
+One CommandCenter uses the same screens, with the Runner as the local helper for recording and test runs. Designing this
 seam now means the cloud designer needs no second rebuild.
 
 ## 4. New Studio layout (approved 2026-10-29)
@@ -76,7 +76,7 @@ The design canvas https://claude.ai/artifact/HafD989gNmovYiwHkHmZrB has four cli
 2026-10-29: the workbench, Automation with Create, the AI agent editor and the model connection wizard.
 
 **Layout, as in AA's Control Room and bot editor**
-- The left menu is the Command Center's own: Home, then four sections in this order, BUILD (Automation only:
+- The left menu is One CommandCenter's own: Home, then four sections in this order, BUILD (Automation only:
   workflows, forms and the rest are made there with Create and called from agents' steps), MANAGE (Activity, Runners, Schedules and triggers, Work queues, Task inbox), ADMINISTRATION
   (Users and roles, Vault, Audit, Licenses, Settings) and AI (Model connections, Prompt Skills, AI governance). Headings are bold
   white capitals with a coloured icon and a divider; items are indented under a guide line; the current one is solid
@@ -110,7 +110,7 @@ New and changed screens from the V6 gap list that live in Studio:
 | V6.5 Model connections | Wizard with dropdowns: service, region, model, separate vault keys, test on the server, default use, on or off |
 | V6.7 Filters and saved views | Explorer, action library and run history |
 | V6.11 Wizards with drafts | New agent from template, new connection, new trigger |
-| V6.1 Menu | Command Center menu by task: BUILD, MANAGE, INSIGHTS, ADMINISTRATION, AI. **Done in today's console 2026-10-30** (the user chose Insights as its own section; the Vault under Administration, runs, schedules, triggers and queues under Manage); the rebuilt console keeps it |
+| V6.1 Menu | One CommandCenter menu by task: BUILD, MANAGE, INSIGHTS, ADMINISTRATION, AI. **Done in today's console 2026-10-30** (the user chose Insights as its own section; the Vault under Administration, runs, schedules, triggers and queues under Manage); the rebuilt console keeps it |
 | V6.2 Work for people | Forms and workflows made in Automation and called from agents; the Task inbox under MANAGE |
 
 ## 5. Moving over without a big bang
@@ -126,14 +126,14 @@ one at `/studio/` behind a "Try the new Studio" switch, the old one as "Classic"
 | P3 | Action library, variables, triggers, run, debug, bottom panel. **Done 2026-10-29**: Run (asking for the agent's inputs), live run output and outputs, Debug with breakpoints (F9), Continue, Step over, into and out, values at the stopped step, the running step highlighted; schedule, folder and webhook triggers per agent; Problems, Run output and Debug values in the bottom panel | L |
 | P4 | Other editors: form, workflow, document type, Prompt Skill, script. **Done 2026-10-29**: forms (13 field kinds, ids, options, limits), workflows (agent tasks, human tasks, approvals, decisions, notifications), document types (provider, model, accepted files, fields to extract), Prompt Skills and scripts, each with undo, save and the unsaved check; new items open in their editor; a JSON file that does not parse opens as text to repair. Still in Classic: Create extraction agent from a document type, and running a script on its own | L |
 | P5 | AI agent editor (new, V6.6) and model connections (V6.5). **Done 2026-10-29**: Create → AI agent makes an agent with one AI step and opens it in its own editor: a plain brief that can write the role, instructions and plan through the default connection; tabs for instructions, tools (other agents, with approval before sensitive ones), model, outputs and limits; a Try it panel with the answer, status and each step it took; Show as steps for the ordinary view. New connection is a four-step wizard (service, model and address, sign-in from the vault or an environment variable, never the key itself; save, then a one-prompt test) | M |
-| P6 | Parity with Classic (section 5.1, groups E1 to E8); make it the default; remove Classic. **Done 2026-10-30**: default, then Classic removed once real capture, recording and Command Center check-in had been tried in the new Studio | L |
+| P6 | Parity with Classic (section 5.1, groups E1 to E8); make it the default; remove Classic. **Done 2026-10-30**: default, then Classic removed once real capture, recording and One CommandCenter check-in had been tried in the new Studio | L |
 
-Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6.7 to V6.10), in these steps (agreed
+Then One CommandCenter, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6.7 to V6.10), in these steps (agreed
 2026-10-30):
 
 | Step | What | Size |
 | --- | --- | --- |
-| C0 | The console's shell beside today's, at `/next/`: sign-in (with the two-step code), the menu by task shared with Studio (`ui/src/shell`), Home. **Done 2026-10-30**: `console.html` is a second page of the same build; the Command Center serves it with its own style nonce; pages not rebuilt yet open in today's console from the menu, so nothing is a placeholder. Rebuilt since (2026-10-30, the five changes of the AA comparison): AI > Document Automation (a plug-in page), Agent Runs (AA's Activity: In progress, Completed), sign-in (single sign-on coming back to the page, groups to roles, a new password and two-step setup in the console), and Runners (AA's Devices: search in a chosen field, status and pool filters, columns, settings, program update, out of service and back, delete, details, pools made from selected runners) | M |
+| C0 | The console's shell beside today's, at `/next/`: sign-in (with the two-step code), the menu by task shared with Studio (`ui/src/shell`), Home. **Done 2026-10-30**: `console.html` is a second page of the same build; One CommandCenter serves it with its own style nonce; pages not rebuilt yet open in today's console from the menu, so nothing is a placeholder. Rebuilt since (2026-10-30, the five changes of the AA comparison): AI > Document Automation (a plug-in page), Agent Runs (AA's Activity: In progress, Completed), sign-in (single sign-on coming back to the page, groups to roles, a new password and two-step setup in the console), and Runners (AA's Devices: search in a chosen field, status and pool filters, columns, settings, program update, out of service and back, delete, details, pools made from selected runners) | M |
 | C1 | One table for every list, with column filters and saved views (V6.7): runs, runners, queues, tasks | M |
 | C2 | Work for people (V6.2) and bulk approve and reject (V6.8) | L |
 | C3 | Roles in plain words (V6.3) and settings in short pages with search (V6.4) | M |
@@ -162,7 +162,7 @@ outside the workspace and webhook secrets, keep passing whatever the screen):
 | **E5 Run options**: Run from here, Run this step only, with default values | 219-222 | **Done 2026-10-30**: in the step menu, Run from here (the skipped steps' variables take the last run's values at that step), Run from here with default values, and Run this step only; the agent's inputs are asked for first, as for Run |
 | **E6 Web and desktop objects**: Capture, the recorder, the captured object and window editors, anchors, selectors, numbered window and value variables, run in background | 53, 96, 131-152, 182-183, 225-228, 268-269 | **Done 2026-10-30**, with 179: Record (a connected browser tab, a new page or a desktop application, with a live count and Cancel) and Capture (web element or desktop control) on the steps toolbar; the captured object editor (Recapture, Test, Main and Anchor, only the ticked properties at first with readable names, Use and Match per property, your own properties, search by properties, CSS or XPath, which match, ignore case, self-heal, the page); the desktop window with presets (the window with the title, in front, desktop, taskbar), title match, process, program, Resize window and one shared window variable; numbered Window_1, Text_1 and Choice_1 variables from captures and recordings, a $password credential, and the offer to shorten long names from older recordings; Use a selector instead, with its own Capture. A real capture or recording was not run in this check (it opens a browser or waits for keys on the desktop); the server side is Classic's, already tested |
 | **E7 Agents together**: open the agent a Run agent step runs and come back, "Run by", Dependencies, templates, the flow diagram, the assistant, document type to extraction agent, run a script | 106-108, 110-115, 125-128, 271-274 | **Done 2026-10-30**: a Run agent step shows the agent it runs and opens it (step menu, or Open this agent) with a breadcrumb back to the step; an agent says which agents run it (Run by); the Dependencies tab (child agents, scripts, Prompt Skills, files, used by); the flow diagram (List or Flow; If parts side by side, blocks framed, drop on a line); the assistant (Build from a description with a Model Connection, Explain this agent); Create extraction agent from a document type; Run script with its output, and Copy as an agent step. Templates and the AI agent were already in P1 and P5 |
-| **E8 Control Room**: sign in and check in from the Studio | 275-277 | **Done 2026-10-30**: as in AA, the Automation page has Private (the workspace) and Public (the Command Center agent repository). Public signs in (or uses the browser's Command Center sign-in when both run together), lists the repository with Check out, Open my copy, Undo check-out and Versions; an open agent has Check in (signs in first when needed, saves, then a new version, live only when ticked). Sign-in errors say what to do |
+| **E8 Control Room**: sign in and check in from the Studio | 275-277 | **Done 2026-10-30**: as in AA, the Automation page has Private (the workspace) and Public (One CommandCenter agent repository). Public signs in (or uses the browser's One CommandCenter sign-in when both run together), lists the repository with Check out, Open my copy, Undo check-out and Versions; an open agent has Check in (signs in first when needed, saves, then a new version, live only when ticked). Sign-in errors say what to do |
 | **Classic-only options**: theme switch, compact density, dock right, floating or minimised, drag handles to resize panels, the logo | 1-2, 39-49, 94-95, 248-251 | **Done 2026-10-30** (kept by decision): drag the edge of the folders, actions, details and output panels (or focus it and use the arrow keys; a double-click puts it back), sizes remembered in the browser; the output panel at the bottom, on the right, floating (moved by its grip, resized at its corner) or minimised to a bar with the problem count and run state; the Display menu in the top bar for a light or dark theme (on 2026-10-31 reduced to these two choices, the Theme menu; compact density was dropped for simplicity), and a full-screen button at the top right of the canvas. Colours are theme tokens, and tools/check-contrast.mjs checks every text and border pair in both themes by calculation in `npm run check`. Classic's other colour themes and the logo choice were not kept |
 | Library groups by technology | 97, 184-191 | Have (toolkit families) |
 
@@ -170,7 +170,7 @@ The new Studio becomes the default when E1 to E8 and the kept Classic options ar
 
 **Default since 2026-10-30.** E1 to E8 and the kept options are done, so the new Studio is served at Studio's root (`/studio/` under `ooa server`), and the preview's address `/next/` redirects there.
 
-**Classic removed 2026-10-30**, after the new Studio's capture, recording and Command Center sign-in and check-in were tried for real. A last comparison of the server routes each Studio called found five things only Classic still did; they were added first: saved connections (list, new, edit, delete, from the More menu or a connector step's Manage connections…), custom connectors (import an OpenAPI, Swagger or Postman file, browse its operations, add a Call operation step, delete), Test the condition in the condition builder, Upload files, Download and Show in File Explorer on the Automation page, and Check the agent without saving. Classic's page, files and `/classic/` route are gone (Studio answers 404 there). The server checks of its page test now live in `StudioServerRoutesTest` (the seeded workspace and a run, folders and agents, the trash, names and paths that leave the workspace, items, the shared clipboard, search, dependencies, file, schedule and webhook triggers with their secrets). Its texts left the translation key list.
+**Classic removed 2026-10-30**, after the new Studio's capture, recording and One CommandCenter sign-in and check-in were tried for real. A last comparison of the server routes each Studio called found five things only Classic still did; they were added first: saved connections (list, new, edit, delete, from the More menu or a connector step's Manage connections…), custom connectors (import an OpenAPI, Swagger or Postman file, browse its operations, add a Call operation step, delete), Test the condition in the condition builder, Upload files, Download and Show in File Explorer on the Automation page, and Check the agent without saving. Classic's page, files and `/classic/` route are gone (Studio answers 404 there). The server checks of its page test now live in `StudioServerRoutesTest` (the seeded workspace and a run, folders and agents, the trash, names and paths that leave the workspace, items, the shared clipboard, search, dependencies, file, schedule and webhook triggers with their secrets). Its texts left the translation key list.
 
 ## 6. Quality bar (checked at every step)
 

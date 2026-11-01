@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Load and soak (Q5): one Command Center over HTTP with many runners (heartbeats and long polls), a long work queue
+ * Load and soak (Q5): one One CommandCenter over HTTP with many runners (heartbeats and long polls), a long work queue
  * and a large audit trail. Not part of the normal build: gradlew :cli:loadTest (-Pooa.load.runners=100
  * -Pooa.load.items=2000 -Pooa.load.audit=100000; -Pooa.test.db=... for SQL Server or PostgreSQL). The figures go to
  * the console and build/reports/load.txt.

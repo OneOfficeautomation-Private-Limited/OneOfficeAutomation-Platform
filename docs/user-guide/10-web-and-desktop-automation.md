@@ -74,7 +74,7 @@ Add **Open browser** (group **Browser**). Its settings start with **Run mode**:
 | Run mode | Use it |
 | --- | --- |
 | **Watch while building** | Edge or Chrome on the desktop; it stays open after the run so you can look at the page. |
-| **Unattended** | The built-in browser without a window, closed when the agent ends. For Command Center and scheduled runs. |
+| **Unattended** | The built-in browser without a window, closed when the agent ends. For One CommandCenter and scheduled runs. |
 | **Custom** | Set **Engine**, **Headless** and **Keep open** yourself under More options. |
 
 Then:

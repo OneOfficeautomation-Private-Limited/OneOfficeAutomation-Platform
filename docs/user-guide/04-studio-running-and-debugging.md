@@ -205,7 +205,7 @@ The **Triggers** panel (lightning icon) starts agents automatically while Studio
 2. Click **Add trigger**.
 3. Each trigger has an **On** tick, **Run now** (test it) and **Delete**. **Recent activity** lists what fired.
 
-Triggers for production belong in One CommandCenter (see [Publishing to Command Center](15-publishing-to-command-center.md)).
+Triggers for production belong in One CommandCenter (see [Publishing to One CommandCenter](15-publishing-to-command-center.md)).
 
 ## 11. If it goes wrong
 
@@ -227,4 +227,4 @@ Triggers for production belong in One CommandCenter (see [Publishing to Command 
 - [Building agents](03-studio-building-agents.md)
 - [Child agents](09-child-agents.md)
 - [Web and desktop automation](10-web-and-desktop-automation.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)

@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  * Center code stays as it is and one tenant's data cannot reach another's through a missed filter.
  * <p>
  * The catalog (schema ooa_catalog) lists each tenant: id, address name (slug: acme in acme.in.example.com), name,
- * status (active, suspended), its seats, its admin's e-mail address. A tenant's Command Center is opened when the
+ * status (active, suspended), its seats, its admin's e-mail address. A tenant's One CommandCenter is opened when the
  * region starts (so its schedules and triggers run) or on first use, and handed requests by {@link TenantHost}.
  */
 public final class Tenants implements AutoCloseable {
@@ -40,7 +40,7 @@ public final class Tenants implements AutoCloseable {
         }
     }
 
-    /** An open tenant: its Command Center and the server that answers its requests. */
+    /** An open tenant: its One CommandCenter and the server that answers its requests. */
     public static final class Tenant {
         public final Info info;
         public final ControlRoom cr;
@@ -58,7 +58,7 @@ public final class Tenants implements AutoCloseable {
     private final Supplier<PackageRegistry> registries;
     private final FlowSchemaValidator schema;
     private final Map<String, Tenant> open = new ConcurrentHashMap<>();
-    /** Whether tenants may run agents in the Command Center (serverless Agent APIs): off unless the region's network allows it. */
+    /** Whether tenants may run agents in One CommandCenter (serverless Agent APIs): off unless the region's network allows it. */
     public volatile boolean serverless = false;
     /** The global directory (several regions): a name is reserved there first, so it is used in one region only. */
     public volatile RegionDirectory.Client directory;
@@ -135,7 +135,7 @@ public final class Tenants implements AutoCloseable {
     Path folderOf(String id) { return root.resolve("tenants").resolve(id); }
 
     /**
-     * Makes a tenant: its schema with the Command Center tables, its folder, its key, and the first administrator.
+     * Makes a tenant: its schema with One CommandCenter tables, its folder, its key, and the first administrator.
      * Returns the tenant and that administrator's one-time password (shown once, as on a new install).
      */
     public Map<String, Object> create(String slug, String name, String adminEmail, Map<String, Object> seats, String by) {
