@@ -6,12 +6,13 @@ import type { ItemType } from "./itemTypes";
 /**
  * Step 3 of creating, in AA's order: the folder is already chosen, the type picked from Create; here the name, and
  * for an agent what to start from (blank or a blueprint). Templates live only here, not in the menu. The folder is
- * shown, with Change to go back and pick another.
+ * shown; Change picks another here, from every folder of the workspace (type to search).
  */
-export function CreateDialog({ type, folderPath, blueprints = [], onCreate, onClose, onChangeFolder }:
-  { type: ItemType | null; folderPath: string; blueprints?: Blueprint[]; onCreate: (kind: NewItemKind, name: string, from: Blueprint | null) => Promise<void>;
-    onClose: () => void; onChangeFolder: () => void }) {
+export function CreateDialog({ type, folderPath, folders, blueprints = [], onCreate, onClose, onChangeFolder }:
+  { type: ItemType | null; folderPath: string; folders: string[]; blueprints?: Blueprint[]; onCreate: (kind: NewItemKind, name: string, from: Blueprint | null) => Promise<void>;
+    onClose: () => void; onChangeFolder: (path: string) => void }) {
   const [name, setName] = useState("");
+  const [picking, setPicking] = useState(false);
   const [start, setStart] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,11 +45,13 @@ export function CreateDialog({ type, folderPath, blueprints = [], onCreate, onCl
               if (b && !name.trim()) setName(b.name);   // a sensible name to start with; it can be changed
             }} options={[{ value: "", label: "Blank agent", description: "An empty agent." }, ...offers.map((b) => ({ value: b.id, label: b.name, description: b.description }))]} />}</Field>
         )}
-        <Field label="Folder">{(id) => (
-          <div className="st-folder-line" id={id}>
+        <Field label="Folder" hint={picking ? "Type to search the folders." : undefined}>{(id) => picking
+          ? <SearchSelect id={id} value={folderPath} placeholder="Search folders" onChange={(v) => { onChangeFolder(v); setPicking(false); }}
+              options={["", ...folders.filter((f) => f !== "")].map((f) => ({ value: f, label: f ? f.replace(/\//g, " › ") : "Workspace", description: f ? undefined : "The top of the workspace" }))} />
+          : <div className="st-folder-line" id={id}>
             <IconTile name="folder" color="#a16207" size={20} /><span className="st-folder-name">{folderPath ? folderPath.replace(/\//g, " › ") : "Workspace"}</span>
-            <Button kind="plain" onClick={onChangeFolder}>Change</Button>
-          </div>)}</Field>
+            <Button kind="plain" onClick={() => setPicking(true)}>Change</Button>
+          </div>}</Field>
         {error && <p role="alert" className="st-error">{error}</p>}
         <button type="submit" hidden />
       </form>

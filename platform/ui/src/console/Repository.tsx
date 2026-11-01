@@ -73,7 +73,7 @@ const HELP_AGENT: HelpTopic = { title: "Agent",
       + "make versions live." },
   ] };
 
-export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
+export function Repository({ api, user, onNotice, studio = false }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; studio?: boolean }) {
   const [agents, setAgents] = useState<RepoAgent[] | null>(null);
   const [folders, setFolders] = useState<RepoFolder[]>([]);
   const [requests, setRequests] = useState<{ requests: ProductionRequest[]; approval_on: boolean }>({ requests: [], approval_on: false });
@@ -169,6 +169,15 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
         <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />
         <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />
       </header>
+      {/* AA's one Automation page: Public (agents checked in, to run) and Private (a developer's workspace in One AgentStudio,
+          for people who build agents); everyone sees the same page, only what they may open differs */}
+      <div className="ov-tabs cc-ins-tabs" role="tablist" aria-label="Where">
+        <button type="button" role="tab" className="ov-tab" aria-selected title="One CommandCenter agent repository: agents checked in, to run">Public</button>
+        {studio && user.permissions.includes("repo.checkin")
+          ? <a className="ov-tab" role="tab" aria-selected={false} href="../studio/#private" title="Your workspace in One AgentStudio: build and test">Private</a>
+          : <span className="ov-tab is-off" role="tab" aria-selected={false} aria-disabled title={!user.permissions.includes("repo.checkin")
+            ? "Private workspaces are for people who build agents" : "One AgentStudio runs beside One CommandCenter, on the same computer"}>Private</span>}
+      </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-explorer-body">
         <nav className="cc-tree-pane" aria-label="Folders">

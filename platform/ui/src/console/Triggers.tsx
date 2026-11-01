@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 
 /**
  * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
@@ -12,41 +13,6 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * Review round 2 (31 Oct 2026): one line per trigger, the last problem and the last firing in columns of their own
  * (Check now is in the row's menu), and the agent with its icon.
  */
-type F = [key: string, label: string, placeholder?: string, value?: string, type?: "number" | "check", checked?: boolean];
-const FOLDER: F[] = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
-const INTERVAL: F = ["interval_seconds", "Check every (seconds, 15 or more)", "60", "60", "number"];
-const MAIL_FILTERS: F[] = [["from_contains", "From contains (optional)", "billing@"], ["subject_contains", "Subject contains (optional)", "Invoice"]];
-export const KINDS: Record<string, { label: string; fields: F[]; help: string }> = {
-  file: { label: "File arrives in a folder", fields: FOLDER, help: "Watched on the runner. The agent gets the path in trigger_file and all details in trigger_event." },
-  file_changed: { label: "File changed", fields: FOLDER, help: "Fires when a matching file's size or time changes, once it stops changing. Input: trigger_file." },
-  file_deleted: { label: "File deleted", fields: FOLDER, help: "Fires when a matching file disappears. Input: trigger_file." },
-  folder_created: { label: "Folder created", fields: FOLDER, help: "Fires when a matching sub-folder appears. Input: trigger_file (the folder path)." },
-  folder_deleted: { label: "Folder deleted", fields: FOLDER, help: "Fires when a matching sub-folder disappears. Input: trigger_file." },
-  window_opened: { label: "Window opened", fields: [["title", "Window title pattern", "*Invoice*"]], help: "Windows runners. Text the title contains, a pattern with * and ?, or re: and a regular expression. Input: trigger_window." },
-  window_closed: { label: "Window closed", fields: [["title", "Window title pattern", "*Invoice*"]], help: "Windows runners. Fires when a matching window goes away. Input: trigger_window." },
-  process_started: { label: "Process started", fields: [["process", "Process name", "excel.exe"]], help: "Fires when a new process with this name starts on the runner. Input: trigger_process." },
-  process_stopped: { label: "Process stopped", fields: [["process", "Process name", "excel.exe"]], help: "Fires when a process with this name ends. Input: trigger_process." },
-  service_started: { label: "Service started", fields: [["service", "Windows service name", "Spooler"]], help: "Windows runners. Use the service name (sc query), not the display name. Input: trigger_service." },
-  service_stopped: { label: "Service stopped", fields: [["service", "Windows service name", "Spooler"]], help: "Windows runners. Input: trigger_service." },
-  hotkey: { label: "Hotkey pressed", fields: [["hotkey", "Key combination", "CTRL+ALT+F9"]], help: "Windows runners with a signed-in desktop. The combination must not be used by another program. Input: trigger_hotkey." },
-  email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
-    ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...MAIL_FILTERS, INTERVAL],
-    help: "Checked by One CommandCenter. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
-  outlook: { label: "New email (Microsoft 365 Outlook)", fields: [["token_ref", "Graph access token (vault reference)", "m365/graph/token"], ["mailbox", "Mailbox (blank for the token's own)", "invoices@contoso.com"],
-    ["tenant_id", "Or app sign-in: tenant id"], ["client_id", "Application (client) id"], ["client_secret_ref", "Client secret (vault reference)", "m365/app/secret"],
-    ["mail_folder", "Mail folder", "inbox", "inbox"], ...MAIL_FILTERS, INTERVAL],
-    help: "Checked by One CommandCenter through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
-  servicenow: { label: "ServiceNow record new or updated", fields: [["instance_url", "Instance URL", "https://yourcompany.service-now.com"], ["table", "Table", "incident", "incident"],
-    ["query", "Encoded query (optional)", "active=true^priority=1"], ["username", "User name", "integration.user"], ["password_ref", "Password (vault reference)", "snow/api/password"],
-    ["token_ref", "Or OAuth token (vault reference)"], INTERVAL],
-    help: "Checked by One CommandCenter through the Table API. Each new or changed record starts the agent once, with its fields in trigger_record." },
-  http_poll: { label: "Universal poller (call a web address)", fields: [["url", "URL to call (GET)", "https://api.example.com/orders?status=new"], ["items_path", "Items JSON path", "$.items[*]", "$"],
-    ["id_field", "Id field of each item", "id", "id"], ["auth_ref", "Bearer token (vault reference, optional)"], INTERVAL],
-    help: "Checked by One CommandCenter. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
-  webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the address and secret after creating it." },
-};
-const GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey"]],
-  ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
 const kindName = (k: string) => KINDS[k]?.label ?? k;
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
@@ -91,7 +57,11 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const [runners, setRunners] = useState<Runner[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, string>>({});
-  const [dialog, setDialog] = useState<null | { kind: "new" } | { kind: "edit"; t: Trigger } | { kind: "hook"; url: string; secret: string }>(null);
+  // One AgentStudio's command list opens #/triggers?new=<event>&bot=<agent>: Create trigger, for that agent and event
+  const [dialog, setDialog] = useState<null | { kind: "new"; event?: string; bot?: string } | { kind: "edit"; t: Trigger } | { kind: "hook"; url: string; secret: string }>(() => {
+    const q = new URLSearchParams(location.hash.split("?")[1] ?? "");
+    return q.get("new") && KINDS[q.get("new")!] ? { kind: "new", event: q.get("new")!, bot: q.get("bot") ?? undefined } : null;
+  });
   const manage = user.permissions.includes("triggers.manage");
 
   const load = useCallback(async () => {
@@ -169,7 +139,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         </div>
         {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{filtered ? " matching" : ""} · refreshes every 30 seconds</span></div>}
       </div>
-      {dialog?.kind === "new" && <NewTrigger api={api} runners={runners} onClose={() => setDialog(null)}
+      {dialog?.kind === "new" && <NewTrigger api={api} runners={runners} event={dialog.event} agent={dialog.bot} onClose={() => setDialog(null)}
         onCreated={(t, hook) => { onNotice(t); load(); setDialog(hook ? { kind: "hook", ...hook } : null); }} />}
       {dialog?.kind === "edit" && <EditTrigger key={dialog.t.id} api={api} t={dialog.t} manage={manage} where={dialog.t.evaluated_on === "server" ? "One CommandCenter" : runnerName(dialog.t.device_id)}
         onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
@@ -185,11 +155,12 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
 }
 
 /** Create trigger in sections: the event and its settings, then the agent, the runner and run-as. */
-function NewTrigger({ api, runners, onClose, onCreated }: { api: CrApi; runners: Runner[]; onClose: () => void; onCreated: (t: string, hook?: { url: string; secret: string }) => void }) {
+function NewTrigger({ api, runners, event, agent, onClose, onCreated }: { api: CrApi; runners: Runner[]; event?: string; agent?: string; onClose: () => void;
+  onCreated: (t: string, hook?: { url: string; secret: string }) => void }) {
   const [agents, setAgents] = useState<string[]>([]);
-  const [kind, setKind] = useState("file");
+  const [kind, setKind] = useState(event ?? "file");
   const [name, setName] = useState("");
-  const [bot, setBot] = useState("");
+  const [bot, setBot] = useState(agent ?? "");
   const [device, setDevice] = useState(runners[0]?.id ?? "");
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [error, setError] = useState<string | null>(null);

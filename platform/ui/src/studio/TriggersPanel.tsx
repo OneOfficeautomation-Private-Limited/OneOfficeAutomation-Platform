@@ -25,10 +25,11 @@ function newSecret(): string {
  * The triggers that start this agent on their own. The workspace keeps one list of triggers for every agent; this
  * panel shows and changes only this agent's, and saves the whole list back (the server checks each trigger).
  */
-export function TriggersPanel({ api, path }: { api: StudioApi; path: string }) {
+export function TriggersPanel({ api, path, kind: asked }: { api: StudioApi; path: string; kind?: string }) {
   const [all, setAll] = useState<Trigger[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [kind, setKind] = useState<Trigger["type"]>("schedule");
+  useEffect(() => { if (asked && KINDS.some((k) => k.value === asked)) setKind(asked as Trigger["type"]); }, [asked]);   // chosen in the command list
   const [every, setEvery] = useState("60");
   const [daily, setDaily] = useState("");
   const [folder, setFolder] = useState("");

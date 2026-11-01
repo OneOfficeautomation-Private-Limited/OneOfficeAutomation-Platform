@@ -70,6 +70,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [folder, setFolder] = useState("");
   const [expanded, setExpanded] = useState(() => new Set([""]));
   const [creating, setCreating] = useState<ItemType | null>(null);
+  const [createIn, setCreateIn] = useState("");   // the folder a new item goes in: the open folder, or one chosen in the dialog
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
   const [hiddenCols, setHiddenCols] = usePersistent<string[]>("automation.private.columns.hidden", ["platform", "label", "analysis", "size", "by"]);
   const [choosingCols, setChoosingCols] = useState(false);
@@ -86,6 +87,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
   const [kind, setKind] = useState("");   // Type filter
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
+  // the console's Automation page opens Studio on its Private tab (../studio/#private), as AA's one Automation page
+  useEffect(() => { const h = location.hash.replace("#", ""); if (h === "private" || h === "public") { setPlace(h); history.replaceState(null, "", location.pathname); } }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
   const folderNode = find(tree, folder) ?? tree;
@@ -260,11 +263,11 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
           <Menu label="Create" title={"Create in " + folderName}
             trigger={<Button kind="primary">Create ▾</Button>}
             items={ITEM_TYPES.map((t) => ({ key: t.kind, label: t.name, description: t.description, icon: <IconTile name={t.icon} color={t.color} size={28} />,
-              onSelect: () => setCreating(t) }))} />
+              onSelect: () => { setCreateIn(folder); setCreating(t); } }))} />
         </div>}
       </header>
       {publicView && <div className="st-page-tabs" role="tablist" aria-label="Where">
-        {([["private", "Private", "Your workspace on this computer"], ["public", "Public", "One CommandCenter agent repository"]] as const).map(([k, t, tip]) =>
+        {([["public", "Public", "One CommandCenter agent repository: agents checked in, to run"], ["private", "Private", "Your workspace on this computer: build and test"]] as const).map(([k, t, tip]) =>
           <button key={k} type="button" role="tab" className="st-page-tab" aria-selected={(k === "public") === isPublic} title={tip} onClick={() => setPlace(k)}>{t}</button>)}
       </div>}
       {isPublic ? publicView : <div className="st-page-body">
@@ -350,8 +353,9 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       </div>}
       {choosingCols && <ColumnsDialog columns={COLUMNS.filter((c) => !!repo || !FROM_REPO.includes(c.key))} hidden={hiddenCols} onChange={setHiddenCols}
         onClose={() => setChoosingCols(false)} />}
-      <CreateDialog type={creating} folderPath={folder} blueprints={blueprints} onClose={() => setCreating(null)} onChangeFolder={() => setCreating(null)}
-        onCreate={async (kind, name, from) => { await onCreated(kind, folder, name, from); setCreating(null); }} />
+      <CreateDialog type={creating} folderPath={createIn} folders={everything(tree).filter((n) => n.type === "folder").map((n) => n.path)} blueprints={blueprints}
+        onClose={() => setCreating(null)} onChangeFolder={setCreateIn}
+        onCreate={async (kind, name, from) => { await onCreated(kind, createIn, name, from); setCreating(null); }} />
       {renaming && <RenameDialog node={renaming} onClose={() => setRenaming(null)} onRename={async (name) => {
         try {
           const to = await api.rename(renaming.path, name);

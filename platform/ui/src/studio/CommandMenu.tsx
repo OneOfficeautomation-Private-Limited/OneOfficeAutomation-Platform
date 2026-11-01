@@ -2,15 +2,16 @@ import { CommandMenu as Menu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 
 /**
- * Studio's One CommandCenter menu: the console's menu (shell/menu.ts), with BUILD holding only Studio's own Automation
- * page (workflows, forms and the rest are made there with Create and called from agents' steps). The other pages
- * open in the One CommandCenter console Studio is connected to (next/#/<page>; ?page=<id> would be the classic
- * console). Since 1 Nov 2026 it has the console's look too: find a page, favourites, one section open at a time,
- * Collapse and the width at the foot.
+ * Studio's One CommandCenter menu: the console's menu (shell/menu.ts), the same for administrators and developers as
+ * in AA (only what a person may open differs). BUILD > Automation is Studio's own page (Public and Private tabs, as
+ * AA's one Automation page); the other pages open in the One CommandCenter console Studio is connected to
+ * (next/#/<page>). Since 1 Nov 2026 it has the console's look too: find a page, one section open at a time, Collapse
+ * and the width at the foot.
  */
 export type StudioView = "automation";
 
-const SECTIONS = MENU_SECTIONS.map((s) => s.id === "build" ? { ...s, pages: [{ id: "automation", label: "Automation" }] } : s);
+// the console's BUILD pages, without One AgentStudio (this is it)
+const SECTIONS = MENU_SECTIONS.map((s) => s.id === "build" ? { ...s, pages: s.pages.filter((p) => p.id !== "studio") } : s);
 const LOCAL = new Set(["automation"]);
 
 export function CommandMenu({ view, onView, controlRoom, editing = false }:

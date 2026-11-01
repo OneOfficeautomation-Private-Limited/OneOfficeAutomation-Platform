@@ -149,7 +149,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "skills" && <Skills api={api} user={user} onNotice={setNotice} />}
           {page === "governance" && <Governance api={api} onNotice={setNotice} />}
           {page === "apitasks" && <AgentApis api={api} user={user} onNotice={setNotice} />}
-          {page === "automation" && <Repository api={api} user={user} onNotice={setNotice} />}
+          {page === "automation" && <Repository api={api} user={user} onNotice={setNotice} studio={studio} />}
           {page === "tests" && <Tests api={api} user={user} onNotice={setNotice} />}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
         </main>
