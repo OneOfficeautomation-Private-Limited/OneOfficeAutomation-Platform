@@ -30,20 +30,23 @@ import { Toolkits } from "./Toolkits";
 import { Triggers } from "./Triggers";
 import { Users } from "./Users";
 import { Alerts } from "./Alerts";
-import { Capacity } from "./Capacity";
-import { Dashboards } from "./Dashboards";
-import { Operations } from "./Operations";
+import { BusinessPage, OperationsPage } from "./Insights";
 import { Overview } from "./Overview";
 import { EnvironmentLabel, TopBar } from "./TopBar";
-import { QueueInsights } from "./QueueInsights";
-import { Value } from "./Value";
 import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "audit", "automation", "capacity", "connections", "credentials", "dashboards", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "operations", "queueinsights", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "value", "workflows", "users"]);
+const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
+/** Pages that became tabs of Operations and Business (item 7, 1 Nov 2026): their old addresses open the tab, so links keep working. */
+const MOVED: Record<string, [string, string]> = { capacity: ["operations", "runners"], queueinsights: ["operations", "queues"], value: ["business", "value"], dashboards: ["business", "dashboards"] };
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
-const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, "").split("?")[0]; return LOCAL.has(id) ? id : "home"; };
+const pageOf = (hash: string) => {
+  const [id, query] = hash.replace(/^#\/?/, "").split("?");
+  const moved = MOVED[id];
+  if (moved) { const q = new URLSearchParams(query ?? ""); q.set("tab", moved[1]); history.replaceState(null, "", "#/" + moved[0] + "?" + q.toString()); return moved[0]; }
+  return LOCAL.has(id) ? id : "home";
+};
 /** Today's console, which this one is served beside (at <base>/next/). */
 const TODAY = "../";
 
@@ -112,13 +115,10 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           offTitle="One AgentStudio runs beside One CommandCenter (ooa server), on the same computer" console />
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
-          {page === "insights" && <Overview api={api} user={user} pageHref={hrefFor} />}
+          {page === "insights" && <Overview api={api} user={user} />}
           {page === "alerts" && <Alerts api={api} user={user} onNotice={setNotice} />}
-          {page === "operations" && <Operations api={api} user={user} />}
-          {page === "capacity" && <Capacity api={api} user={user} />}
-          {page === "queueinsights" && <QueueInsights api={api} user={user} />}
-          {page === "value" && <Value api={api} user={user} onNotice={setNotice} />}
-          {page === "dashboards" && <Dashboards api={api} user={user} onNotice={setNotice} />}
+          {page === "operations" && <OperationsPage api={api} user={user} />}
+          {page === "business" && <BusinessPage api={api} user={user} onNotice={setNotice} />}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}
           {page === "docautomation" && <DocumentAutomation api={api} />}

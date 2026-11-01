@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, ValueReport, ValueRow } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
@@ -43,7 +43,7 @@ const HELP: HelpTopic = { title: "Value",
     { name: "Its runs in Agent Activity", text: "Lists the agent's successful runs, the ones counted here." },
   ] };
 
-export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
+export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; title?: string; tabs?: ReactNode }) {
   const [days, setDays] = usePersistent("value.days", "30");
   const [tab, setTab] = useState<"agents" | "folders">("agents");
   const [folder, setFolder] = useState("");   // By agent, only this top folder's agents (a folder row's choice)
@@ -82,9 +82,10 @@ export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-val-title">
       <header className="cc-list-head">
-        <h1 id="cc-val-title">Value</h1>
+        <h1 id="cc-val-title">{title ?? "Value"}</h1>
         <HelpButton topic={HELP} />
       </header>
+      {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([d, l]) => ({ value: d, label: l }))} /></span>

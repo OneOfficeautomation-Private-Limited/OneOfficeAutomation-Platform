@@ -35,8 +35,16 @@ export type Operations = { totals: RunStats; duration_distribution: { bucket: st
   previous?: RunStats };
 /** Runner capacity for a period (GET analytics/capacity): busy time, share in use, waits to start, a weekday-by-hour use heatmap. */
 export type Capacity = { from: string; to: string; enabled_runners: number; busy_ms: number; use: number | null; full_time_people: number; avg_wait_ms: number | null;
-  p95_wait_ms: number | null; waiting_now: number; runners: { device_id: string; busy_ms: number; runs: number; use: number; avg_wait_ms: number | null }[];
-  heat: { time_zone: string; use: (number | null)[][] }; by_day: { day: string; busy_ms: number }[] };
+  p95_wait_ms: number | null; waiting_now: number; runners: { device_id: string; busy_ms: number; runs: number; use: number; avg_wait_ms: number | null;
+    /** AA's Devices dashboard: its name and state now, how its runs ended, its last run and most common error. */
+    name?: string | null; os?: string | null; status?: string; success?: number; failed?: number; stopped?: number; last_run?: string | null; top_error?: string | null }[];
+  heat: { time_zone: string; use: (number | null)[][] }; by_day: { day: string; busy_ms: number }[];
+  online?: number; offline?: number; schedules?: number; next_schedule?: string | null; top_errors?: { code: string; runs: number }[] };
+/** Audit figures for a period (GET analytics/audit), as AA's Audit dashboard. */
+export type AuditFigures = { from: string; to: string; time_zone: string; entries: number; capped: boolean; people: number; sign_ins: number; failed_sign_ins: number;
+  by_kind: { kind: string; entries: number }[]; by_actor: { actor: string; entries: number; is: "person" | "runner" | "system" }[];
+  by_result: { result: string; entries: number }[]; by_day: { day: string; entries: number }[]; busiest_day: { day: string; entries: number } | null;
+  not_done: AuditRecord[] };
 /** One work queue's insights for a period (GET analytics/queues). */
 export type QueueInsight = { id: string; name: string; sla_minutes?: number | null; processing: boolean; bot_path?: string | null; pool_id?: string | null;
   counts: Record<string, number>; waiting: number; oldest_waiting?: string | null; overdue?: number; at_risk?: number; added: number; finished: number; success: number; failed: number;
@@ -537,6 +545,7 @@ export class CrApi {
   /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */
   async setMinutesSaved(path: string, minutes: number | null) { await this.call("POST", "repo/roi", { path, minutes_saved: minutes }); }
   capacity(params: Record<string, string>) { return this.call<Capacity>("GET", "analytics/capacity?" + new URLSearchParams(params).toString()); }
+  auditFigures(params: Record<string, string>) { return this.call<AuditFigures>("GET", "analytics/audit?" + new URLSearchParams(params).toString()); }
   agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }
   agentVariables(path: string, days: string) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams({ path, days }).toString()); }
   /** One Operations list as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */

@@ -19,7 +19,7 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 type Col = { key: string; label: string; cell: (a: AuditRecord) => string };
 
 /** Areas by the first part of the action (user.create is Users), with the mark and colour of their icon tile. */
-const AREAS: [string, string, string, string][] = [["auth.", "Sign-ins", "In", "#2f6fde"], ["user.", "Users", "U", "#1d4ed8"], ["role.", "Roles", "Ro", "#475569"],
+export const AREAS: [string, string, string, string][] = [["auth.", "Sign-ins", "In", "#2f6fde"], ["user.", "Users", "U", "#1d4ed8"], ["role.", "Roles", "Ro", "#475569"],
   ["team.", "Teams", "T", "#475569"], ["locker.", "Vault folders", "V", "#be185d"], ["vault.", "Credential vault", "V", "#be185d"], ["credential.", "Credentials", "V", "#be185d"],
   ["repo.", "Agent Repository", "A", "#2f6fde"], ["lifecycle.", "Export and import", "A", "#2f6fde"], ["template.", "Templates", "A", "#2f6fde"], ["run.", "Runs", "R", "#0f766e"],
   ["device.", "Runner Machines", "M", "#0e7490"], ["pool.", "Runner pools", "M", "#0e7490"], ["schedule.", "Schedules", "S", "#b45309"], ["trigger.", "Triggers", "S", "#b45309"],
@@ -45,7 +45,7 @@ const RESULTS: [string, string, string][] = [["ok", "Succeeded", "success"], ["f
 const RANGES: [string, string][] = [["1", "24 hours"], ["7", "7 days"], ["30", "30 days"], ["all", "Any time"], ["custom", "Dates…"]];
 const RANGE_WORDS: Record<string, string> = { "1": "in the last 24 hours", "7": "in the last 7 days", "30": "in the last 30 days", all: "in all", custom: "between the chosen dates" };
 const areaOf = (action: string) => AREAS.find(([p]) => action.startsWith(p));
-const wordsOf = (action: string) => WORDS[action] ?? ((areaOf(action)?.[1] ?? action.split(".")[0]) + ": " + action.split(".").slice(1).join(" ").replace(/_/g, " "));
+export const wordsOf = (action: string) => WORDS[action] ?? ((areaOf(action)?.[1] ?? action.split(".")[0]) + ": " + action.split(".").slice(1).join(" ").replace(/_/g, " "));
 const resultOf = (r: string) => RESULTS.find(([k]) => k === r) ?? [r, r, "pending"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (t: string) => { const d = new Date(t); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
@@ -129,12 +129,23 @@ function Who({ actor }: { actor: string }) {
 }
 const ResultPill = ({ result }: { result: string }) => { const [, label, cls] = resultOf(result); return <span className={"cc-pill is-" + cls}><span className="cc-pill-dot" />{label}</span>; };
 
+/** Filters given in the address (#/audit?actor=admin&result=failed&area=auth.), as Operations > Audit links here. */
+const fromAddress = () => {
+  const q = new URLSearchParams(location.hash.split("?")[1] ?? ""), f: Record<string, string> = {};
+  for (const k of ["q", "actor", "object_type", "object_id", "result", "area", "action"]) { const v = q.get(k); if (v) f[k] = v; }
+  return f;
+};
+
 export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [hidden, setHidden] = usePersistent<string[]>("audit.hidden2", ["details"]);
   const [range, setRange] = usePersistent<string>("audit.range", "1");
   const [hideCheckpoints, setHideCheckpoints] = usePersistent<boolean>("audit.hideCheckpoints", true);
-  const [f, setF] = useState<Record<string, string>>({});
-  const [more, setMore] = useState(false);
+  const [f, setF] = useState<Record<string, string>>(fromAddress);
+  const [more, setMore] = useState(() => { const a = fromAddress(); return !!(a.object_type || a.object_id || a.action); });
+  useEffect(() => {   // a period given in the address, as Operations > Audit links here
+    const r = new URLSearchParams(location.hash.split("?")[1] ?? "").get("range");
+    if (r && RANGES.some(([v]) => v === r)) setRange(r);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ records: AuditRecord[]; total: number } | null>(null);
   const [actors, setActors] = useState<string[]>([]);

@@ -58,7 +58,7 @@ function readyMade(kpis: Kpi[]): { id: string; name: string; description: string
   return out;
 }
 
-export function Dashboards({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
+export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; title?: string; tabs?: ReactNode }) {
   const [list, setList] = useState<CustomDashboard[] | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
   const [data, setData] = useState<WidgetData[] | null>(null);
@@ -88,11 +88,12 @@ export function Dashboards({ api, user, onNotice }: { api: CrApi; user: CrUser; 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-db-title">
       <header className="cc-list-head">
-        <h1 id="cc-db-title">Dashboards</h1>
+        <h1 id="cc-db-title">{title ?? "Dashboards"}</h1>
         <HelpButton topic={HELP} />
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>
       </header>
+      {tabs}
       {error && <p className="st-alert" role="alert">{error}</p>}
       {list && !list.length && <p className="st-muted cc-pad">No dashboards yet. Make one, or start from a ready-made one with New dashboard.</p>}
       {list && list.length > 0 && <div className="cc-list-tools">

@@ -60,7 +60,7 @@ function save(fileName: string, text: string) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
+export function Operations({ api, user, tabs }: { api: CrApi; user: CrUser; tabs?: ReactNode }) {
   const [days, setDays] = usePersistent("operations.days", "30");
   const [tab, setTab] = usePersistent<ListTab>("operations.list", "most_run");
   const [f, setF] = useState<Record<string, string>>({});
@@ -102,6 +102,7 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => csv("run_history")}>Run history CSV</Button>
       </header>
+      {tabs}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
@@ -118,16 +119,20 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
       {!o && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {o && t && <>
         <div className="cc-sums" role="group" aria-label="Figures">
-          <a className="cc-sum" href={activity({})}><strong>{t.runs.toLocaleString()}</strong><span>Runs · {[t.active ? t.active + " still active" : "", change(t.runs, p?.runs)].filter(Boolean).join(" · ") || label}</span></a>
-          <a className="cc-sum" href={activity({ status: "failed" })}><strong>{rate(t.success_rate)}</strong>
-            <span>Completed: {t.success} completed, {t.failed} failed, {t.stopped} stopped{p && p.success_rate != null && t.success_rate != null ? " · " + change(t.success_rate, p.success_rate, true) : ""}</span></a>
-          <div className="cc-sum is-static"><strong>{dur(t.total_ms)}</strong><span>Run time · average {dur(t.avg_ms)}{p?.avg_ms != null && t.avg_ms != null ? " · average " + change(t.avg_ms, p.avg_ms) : ""}</span></div>
-          <div className="cc-sum is-static"><strong>{dur(t.p95_ms)}</strong><span>95% of runs finish within · longest {dur(t.max_ms)}</span></div>
+          {/* AA's Bots dashboard order: all runs, then succeeded, in progress, failed and stopped */}
+          <a className="cc-sum" href={activity({})}><strong>{t.runs.toLocaleString()}</strong><span>Runs · {change(t.runs, p?.runs) || label}</span></a>
+          <a className="cc-sum" href={activity({ status: "success" })}><strong>{t.success.toLocaleString()}</strong>
+            <span>Succeeded · {rate(t.success_rate)}{p && p.success_rate != null && t.success_rate != null ? " · " + change(t.success_rate, p.success_rate, true) : ""}</span></a>
+          <a className="cc-sum" href="#/activity?tab=progress"><strong>{t.active}</strong><span>In progress or waiting</span></a>
+          <a className="cc-sum" href={activity({ status: "failed" })}><strong className={t.failed ? "cc-err" : undefined}>{t.failed}</strong>
+            <span>Failed{o.failure_reasons?.length ? " · " + o.failure_reasons.length + (o.failure_reasons.length === 1 ? " reason" : " reasons") : ""}</span></a>
+          <a className="cc-sum" href={activity({ status: "stopped" })}><strong>{t.stopped}</strong><span>Stopped by someone</span></a>
+          <div className="cc-sum is-static"><strong>{dur(t.avg_ms)}</strong><span>Average run · 95% within {dur(t.p95_ms)} · total {dur(t.total_ms)}</span></div>
         </div>
         <div className="cc-ops-charts">
           <div className="cc-card cc-card-flat"><h2>How long runs take</h2><Bars items={o.duration_distribution.map((x) => ({ label: x.bucket, value: x.runs }))} label="How long runs take" /></div>
-          <div className="cc-card cc-card-flat"><h2>Runs per day</h2>
-            {o.by_day.length ? <Bars items={o.by_day.slice(-31).map((x) => ({ label: x.day.slice(5), value: x.runs, bad: x.failed }))} label="Runs per day" /> : <p className="st-muted">No runs in the period.</p>}</div>
+          <div className="cc-card cc-card-flat"><h2>Runs by week</h2>
+            {o.by_day.length ? <WeekBars days={o.by_day} /> : <p className="st-muted">No runs in the period.</p>}</div>
           {o.by_hour && <div className="cc-card cc-card-flat"><h2>When runs start</h2><Heatmap h={o.by_hour} /></div>}
         </div>
         <div className="cc-list-panel cc-ops-lists">
@@ -191,6 +196,30 @@ function StatTable<R extends RunStats>({ rows, first, cell, label, extra = [] }:
     <tbody>{rows.map((r, i) => <tr key={i}><td>{cell(r)}</td><td>{r.runs}</td><td>{rate(r.success_rate)}</td><td>{dur(r.avg_ms)}</td><td>{dur(r.p95_ms)}</td><td>{dur(r.total_ms)}</td>
       {extra.map(([h, f]) => <td key={h}>{f(r)}</td>)}</tr>)}</tbody>
   </table></div>;
+}
+
+/** Runs per week (from Monday, the latest 8), each bar split by how its runs ended, as AA's weekly status chart. */
+function WeekBars({ days }: { days: OpsData["by_day"] }) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const weeks = new Map<string, { label: string; success: number; failed: number; stopped: number; runs: number }>();
+  for (const d of days) {
+    const t = new Date(d.day + "T12:00:00");
+    t.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+    const k = t.getFullYear() + "-" + pad(t.getMonth() + 1) + "-" + pad(t.getDate());
+    const w = weeks.get(k) ?? { label: "From " + t.toLocaleDateString(undefined, { day: "numeric", month: "short" }), success: 0, failed: 0, stopped: 0, runs: 0 };
+    w.success += d.success; w.failed += d.failed; w.stopped += d.stopped; w.runs += d.runs;
+    weeks.set(k, w);
+  }
+  const rows = [...weeks.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-8).map(([, w]) => w);
+  const max = Math.max(1, ...rows.map((w) => w.runs));
+  const seg = (n: number, cls: string, what: string) => n ? <span className={"cc-seg " + cls} style={{ width: (100 * n / max) + "%" }} title={n + " " + what} /> : null;
+  return <>
+    <ul className="cc-hbars cc-week" aria-label="Runs by week">{rows.map((w) => <li key={w.label} aria-label={w.label + ": " + w.runs + " runs, " + w.success + " succeeded, " + w.failed + " failed, " + w.stopped + " stopped"}>
+      <span className="cc-hbar-label">{w.label}</span>
+      <span className="cc-hbar-track">{seg(w.success, "is-ok", "succeeded")}{seg(w.failed, "is-bad", "failed")}{seg(w.stopped, "is-off", "stopped")}</span>
+      <span className="cc-hbar-value">{w.runs}</span></li>)}</ul>
+    <p className="cc-legend" aria-hidden="true"><span><i className="cc-seg is-ok" />Succeeded</span><span><i className="cc-seg is-bad" />Failed</span><span><i className="cc-seg is-off" />Stopped</span></p>
+  </>;
 }
 
 /** Horizontal bars, each with its count (and failed runs, when given). */

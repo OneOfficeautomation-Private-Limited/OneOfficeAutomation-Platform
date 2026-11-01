@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, QueueInsight, RunnerPool } from "../api/cr";
 import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
@@ -57,7 +57,7 @@ const HELP: HelpTopic = { title: "Work queue insights",
     { name: "Open the queue", text: "Opens the queue in Work queues, where you can see its items and change it." },
   ] };
 
-export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
+export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: CrUser; title?: string; tabs?: ReactNode }) {
   const [days, setDays] = usePersistent("queueinsights.days", "7");
   const [list, setList] = useState<QueueInsight[] | null>(null);
   const [pools, setPools] = useState<RunnerPool[]>([]);
@@ -81,9 +81,10 @@ export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-qi-title">
       <header className="cc-list-head">
-        <h1 id="cc-qi-title">Work queue insights</h1>
+        <h1 id="cc-qi-title">{title ?? "Work queue insights"}</h1>
         <HelpButton topic={HELP} />
       </header>
+      {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>

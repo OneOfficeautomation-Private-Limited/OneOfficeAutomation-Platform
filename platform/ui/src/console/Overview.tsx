@@ -74,7 +74,7 @@ const Tile = ({ kind }: { kind: Kind }) => <span className="ov-ic" style={{ back
 
 type Tab = "summary" | "alerts" | "failed" | "runners" | "queues";
 
-export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pageHref: (page: string) => string | undefined }) {
+export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
   const [days, setDays] = useState("1");
   const [d, setD] = useState<Dashboard | null>(null);
   const [ops, setOps] = useState<Operations | null>(null);
@@ -131,7 +131,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
     queues && !queues.length && can("queues.manage") && { kind: "queue" as Kind, text: "No work queues yet", link: "Create one", href: "#/queues" },
     ai && !ai.length && { kind: "ai" as Kind, text: "No model connections yet", link: "Add one", href: "#/connections" },
     rules && !rules.length && can("alerts.manage") && { kind: "alert" as Kind, text: "No alert rules yet", link: "Make one", href: "#/alerts" },
-    d && d.hours_saved_30d === 0 && { kind: "hours" as Kind, text: "No hours saved counted yet", link: "Set minutes saved", href: "#/value" },
+    d && d.hours_saved_30d === 0 && { kind: "hours" as Kind, text: "No hours saved counted yet", link: "Set minutes saved", href: "#/business?tab=value" },
   ].filter(Boolean) as { kind: Kind; text: string; link: string; href: string }[];
   const figs: { kind: Kind; label: string; value: string; meta: string; href?: string; bad?: boolean }[] = [
     ...(alerts ? [{ kind: "alert" as Kind, label: "Open alerts", value: String(alerts.open), meta: critical ? critical + " critical" : "none critical", href: "#/alerts", bad: alerts.open > 0 }] : []),
@@ -139,9 +139,9 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
     ...(t ? [{ kind: "ok" as Kind, label: "Completed", value: t.success_rate == null ? "–" : t.success_rate + "%", meta: finished ? "of " + finished + " finished" : "no run finished", href: activity({ tab: "completed", period: period[2] }) },
       { kind: "failed" as Kind, label: "Failed", value: String(t.failed), meta: "last " + period[1], href: activity({ tab: "completed", status: "failed", period: period[2] }), bad: t.failed > 0 }] : []),
     ...(runners ? [{ kind: "runner" as Kind, label: "Runners", value: online + " / " + live.length, meta: attention.length ? attention.length + " need attention" : "all fine", href: "#/devices", bad: attention.length > 0 }] : []),
-    ...(queues ? [{ kind: "queue" as Kind, label: "Queue items", value: String(queues.reduce((n, q) => n + waiting(q), 0)), meta: overdue + " overdue", href: "#/queueinsights", bad: overdue > 0 }] : []),
+    ...(queues ? [{ kind: "queue" as Kind, label: "Queue items", value: String(queues.reduce((n, q) => n + waiting(q), 0)), meta: overdue + " overdue", href: "#/operations?tab=queues", bad: overdue > 0 }] : []),
     ...(ai ? [{ kind: "ai" as Kind, label: "AI tokens", value: short(tokens), meta: budget ? Math.round(100 * tokens / budget) + "% of budget" : "this month", href: "#/connections", bad: budget > 0 && tokens >= 0.8 * budget }] : []),
-    ...(d?.hours_saved_30d != null ? [{ kind: "hours" as Kind, label: "Hours saved", value: String(Math.round(d.hours_saved_30d)), meta: "last 30 days", href: pageHref("value") }] : []),
+    ...(d?.hours_saved_30d != null ? [{ kind: "hours" as Kind, label: "Hours saved", value: String(Math.round(d.hours_saved_30d)), meta: "last 30 days", href: "#/business?tab=value" }] : []),
   ];
   const next = (schedules ?? []).filter((s) => s.enabled && s.next_run).sort((x, y) => x.next_run!.localeCompare(y.next_run!)).slice(0, 5);
   /** The runner a run ran on: its name, or "Removed runner" once it is gone (its id on hover). */
@@ -184,7 +184,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
               {t && t.failed > 0 && <li><Tile kind="failed" /><a href={activity({ tab: "completed", status: "failed", period: period[2] })}>{t.failed} run{t.failed === 1 ? "" : "s"} failed in the last {period[1]}</a>
                 <span className="ov-r">{reasons[0] ? "mostly " + reasons[0].code : ""}</span></li>}
               {attention.map(({ x, why }) => <li key={x.id}><Tile kind="runner" /><a href="#/devices">{x.nickname || x.name}</a><span className="ov-r ov-bad">{why}</span></li>)}
-              {lateQueues.map((q) => <li key={q.id}><Tile kind="queue" /><a href="#/queueinsights">{q.name}</a>
+              {lateQueues.map((q) => <li key={q.id}><Tile kind="queue" /><a href="#/operations?tab=queues">{q.name}</a>
                 <span className="ov-r ov-bad">{q.overdue ? q.overdue + " overdue" : "processing is off, " + waiting(q) + " waiting"}</span></li>)}
             </ul> : <p className="ov-ok"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="m5 12 5 5 9-10" /></svg>Nothing needs attention in the last {period[1]}.</p>)}
             {tab === "alerts" && ((alerts?.alerts.length ?? 0) ? <table className="ov-t" aria-label="Open alerts">
@@ -204,7 +204,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
             </table> : <p className="ov-ok">{live.length === 1 ? "Your runner is online, up to date and within its limits." : "All " + live.length + " runners are online, up to date and within their limits."}</p>)}
             {tab === "queues" && (lateQueues.length ? <table className="ov-t" aria-label="Work queues behind">
               <thead><tr><th>Queue</th><th className="n">Waiting</th><th className="n">Overdue</th><th>Processing</th></tr></thead>
-              <tbody>{lateQueues.map((q) => <tr key={q.id}><td><a href="#/queueinsights">{q.name}</a></td><td className="n">{waiting(q)}</td>
+              <tbody>{lateQueues.map((q) => <tr key={q.id}><td><a href="#/operations?tab=queues">{q.name}</a></td><td className="n">{waiting(q)}</td>
                 <td className={"n" + (q.overdue ? " ov-bad" : "")}>{q.overdue ?? 0}</td><td className={q.processing ? undefined : "ov-bad"}>{q.processing ? "On" : "Off"}</td></tr>)}</tbody>
             </table> : <p className="ov-ok">{queues?.length ? "Every queue is within its target time." : "No work queues yet."}</p>)}
           </div>
@@ -239,7 +239,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
               {!next.length && <li>Nothing is scheduled.</li>}</ul>
           </div>}
           {queues && queues.length > 0 && <div className="ov-panel">
-            <div className="ov-ph"><h2>Work queues</h2><a href="#/queueinsights" className="ov-more">Work queue insights ›</a></div>
+            <div className="ov-ph"><h2>Work queues</h2><a href="#/operations?tab=queues" className="ov-more">Work queue insights ›</a></div>
             <ul className="ov-rows">{queues.slice(0, 5).map((q) => <li key={q.id}>{q.name}<span className="ov-r">{waiting(q)} waiting{q.overdue ? <> · <span className="ov-bad">{q.overdue} overdue</span></> : ""}</span></li>)}</ul>
           </div>}
           {ai && ai.length > 0 && <div className="ov-panel">

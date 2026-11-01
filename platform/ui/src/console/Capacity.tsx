@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Capacity as CapacityData, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
 import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
@@ -26,12 +26,14 @@ const HELP: HelpTopic = { title: "Runner capacity", about: "How much of your run
   + "and when runners are busy or free. Use it to decide whether you need more runners or can move schedules to quieter hours.",
   items: [
     { name: "Period", text: "Pick the last 24 hours, 7, 30 or 90 days; every figure and chart covers that period. The page refreshes every minute." },
-    { name: "Runners online", text: "How many runners are online now out of those switched on. Click it to open Runner Machines." },
+    { name: "Online now, Offline now", text: "How many of the switched-on runners are connected now, and how many are not. Click either to open Runner Machines." },
+    { name: "Schedules on", text: "How many schedules are switched on, and when the next one runs. Click it to open Schedules." },
     { name: "Of runner time in use", text: "The share of the switched-on runners' time spent running agents. At 80% or more, runs start to wait; "
       + "plain advice shows under the figures." },
     { name: "Busy", text: "The total time runners spent running agents, also shown as full-time people working 40 hours a week." },
-    { name: "Runs waiting for a runner now", text: "Runs queued at this moment. Click it to see them in Agent Activity." },
-    { name: "Average wait to start", text: "How long runs waited for a runner on average, and the time within which 95% of them started." },
+    { name: "Waiting for a runner now", text: "Runs queued at this moment, how long runs waited for a runner on average, and the time within which 95% of them started. "
+      + "Click it to see the waiting runs in Agent Activity." },
+    { name: "Most common errors on runners", text: "The errors that ended runs in the period, on any runner. Click an error to see those runs." },
     { name: "When runners are busy", text: "A heatmap by weekday and hour, in your time zone: darker means more of the runners' time in use. "
       + "Lighter hours suit new schedules." },
     { name: "Busy hours per day", text: "How many hours runners were busy on each day of the period (the last 31 days at most)." },
@@ -58,7 +60,7 @@ function advice(c: CapacityData): string | null {
   return null;
 }
 
-export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
+export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser; title?: string; tabs?: ReactNode }) {
   const [days, setDays] = usePersistent("capacity.days", "7");
   const [c, setC] = useState<CapacityData | null>(null);
   const [devices, setDevices] = useState<Runner[]>([]);
@@ -81,9 +83,10 @@ export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-cap-title">
       <header className="cc-list-head">
-        <h1 id="cc-cap-title">Runner capacity</h1>
+        <h1 id="cc-cap-title">{title ?? "Runner capacity"}</h1>
         <HelpButton topic={HELP} />
       </header>
+      {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
@@ -94,34 +97,40 @@ export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
       {!c && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {c && <>
         <div className="cc-sums" role="group" aria-label="Figures">
-          <a className="cc-sum" href="#/devices"><strong>{devices.length ? online + " of " + devices.filter((d) => d.status !== "disabled").length : c.enabled_runners}</strong>
-            <span>{devices.length ? "Runners online" : "Runners switched on"}</span></a>
+          {/* AA's Devices dashboard: online, offline and scheduled first */}
+          <a className="cc-sum" href="#/devices"><strong>{c.online ?? online}</strong><span>Online now · of {c.enabled_runners} switched on</span></a>
+          <a className="cc-sum" href="#/devices"><strong className={c.offline ? "cc-err" : undefined}>{c.offline ?? 0}</strong><span>Offline now</span></a>
+          <a className="cc-sum" href="#/schedules"><strong>{c.schedules ?? 0}</strong>
+            <span>{c.schedules === 1 ? "Schedule" : "Schedules"} on{c.next_schedule ? " · next " + new Date(c.next_schedule).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span></a>
           <div className="cc-sum is-static"><strong className={(c.use ?? 0) >= 80 ? "cc-err" : undefined}>{c.use == null ? "–" : c.use + "%"}</strong><span>Of runner time in use · {label}</span></div>
           <div className="cc-sum is-static"><strong>{hours(c.busy_ms)}</strong><span>Busy · as {c.full_time_people} full-time {c.full_time_people === 1 ? "person" : "people"} (40 h a week)</span></div>
-          <a className="cc-sum" href="#/activity?tab=progress&status=queued"><strong className={c.waiting_now ? "cc-err" : undefined}>{c.waiting_now}</strong><span>Runs waiting for a runner now</span></a>
-          <div className="cc-sum is-static"><strong>{dur(c.avg_wait_ms)}</strong><span>Average wait to start · 95% within {dur(c.p95_wait_ms)}</span></div>
+          <a className="cc-sum" href="#/activity?tab=progress&status=queued"><strong className={c.waiting_now ? "cc-err" : undefined}>{c.waiting_now}</strong>
+            <span>Waiting for a runner now · average wait {dur(c.avg_wait_ms)}, 95% within {dur(c.p95_wait_ms)}</span></a>
         </div>
         {tip && <p className="cc-advice cc-pad-x" role="note">{tip}</p>}
         <div className="cc-list-panel cc-cap-runners">
           <h2 className="cc-cap-title">Each runner<HelpButton topic={HELP_RUNNERS} /></h2>
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Each runner">
-            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Busy"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
-              <th scope="col">Time in use</th>{["Average wait", "CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
+            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
+              <th scope="col">Time in use</th><th scope="col" className="cc-num">Average wait</th><th scope="col">Last run</th><th scope="col">Most common error</th>
+              {["CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
-            <tbody>{c.runners.map((r) => { const d = device(r.device_id); const nm = d ? d.nickname || d.name : "Removed runner"; const inPools = pools.filter((p) => p.devices.includes(r.device_id)).map((p) => p.name).join(", ");
+            <tbody>{c.runners.map((r) => { const d = device(r.device_id); const nm = d ? d.nickname || d.name : r.name ? r.name + " (removed)" : "Removed runner"; const inPools = pools.filter((p) => p.devices.includes(r.device_id)).map((p) => p.name).join(", ");
               const open = () => { location.hash = "#/devices?runner=" + encodeURIComponent(r.device_id); };
               return <tr key={r.device_id} className={d ? undefined : "is-static"} title={d ? "Open the runner on Runner Machines" : undefined} onClick={rowClick(() => { if (d) open(); })}>
               <td title={d ? undefined : r.device_id}>{nm}</td>
               <td><span className={"cc-pill is-" + pillOf(d)}><span className="cc-pill-dot" />{stateOf(d)}</span></td>
               <td className="cc-clip" title={inPools || undefined}>{inPools}</td>
-              <td className="cc-num">{r.runs}</td><td className="cc-num">{hours(r.busy_ms)}</td>
+              <td className="cc-num">{r.runs}</td><td className="cc-num">{r.success ?? ""}</td><td className={"cc-num" + (r.failed ? " cc-err" : "")}>{r.failed ?? ""}</td><td className="cc-num">{hours(r.busy_ms)}</td>
               <td className={r.use >= 80 ? "cc-err" : undefined}><span className="cc-meter"><progress max={100} value={Math.min(100, r.use)} aria-label={"Time in use of " + nm} /> {r.use}%</span></td>
               <td className="cc-num">{dur(r.avg_wait_ms)}</td>
+              <td>{r.last_run ? new Date(r.last_run).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</td>
+              <td className="ui-mono">{r.top_error ?? ""}</td>
               <td className="cc-num">{d?.cpu_pct != null ? Math.round(d.cpu_pct) + "%" : ""}</td><td className="cc-num">{d?.mem_pct != null ? Math.round(d.mem_pct) + "%" : ""}</td>
               <td className="cc-list-menu"><RowMenu label={"Actions for " + nm} items={[...(d ? [{ key: "open", label: "Open the runner", onSelect: open }] : []),
                 { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = "#/activity?" + new URLSearchParams({ tab: "completed", device: r.device_id }).toString(); } }]} /></td>
             </tr>; })}
-              {!c.runners.length && <tr className="is-static"><td colSpan={10} className="cc-none">No runners yet.</td></tr>}</tbody>
+              {!c.runners.length && <tr className="is-static"><td colSpan={14} className="cc-none">No runners yet.</td></tr>}</tbody>
           </table></div>
         </div>
         <div className="cc-two cc-pad">
@@ -131,6 +140,12 @@ export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
               <span className="cc-hbar-label">{x.day.slice(5)}</span>
               <span className="cc-hbar-track"><span className="cc-hbar-fill" style={{ width: (100 * x.busy_ms / maxDay) + "%" }} /></span>
               <span className="cc-hbar-value">{hours(x.busy_ms)}</span></li>)}</ul> : <p className="st-muted">No runs in the period.</p>}
+          </div>
+          <div className="cc-card cc-card-flat"><h2>Most common errors on runners</h2>
+            {c.top_errors?.length ? <ul className="cc-hbars" aria-label="Most common errors on runners">{c.top_errors.map((x) => <li key={x.code}>
+              <a className="cc-hbar-label ui-mono" href={"#/activity?" + new URLSearchParams({ tab: "completed", status: "failed", q: x.code }).toString()}>{x.code}</a>
+              <span className="cc-hbar-track"><span className="cc-hbar-fill is-bad" style={{ width: (100 * x.runs / Math.max(1, ...c.top_errors!.map((e) => e.runs))) + "%" }} /></span>
+              <span className="cc-hbar-value">{x.runs}</span></li>)}</ul> : <p className="st-muted">No run failed in the period.</p>}
           </div>
         </div>
       </>}

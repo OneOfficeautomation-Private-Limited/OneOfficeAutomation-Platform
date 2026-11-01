@@ -57,15 +57,17 @@ public final class Analytics {
                 String.join(" AND ", where) + " ORDER BY r.created LIMIT ?", p.toArray())) {
             String bot = (String) r.get("bot_path");
             if (!visible.computeIfAbsent(bot, b -> !cr.folders.accessToFolder(mine, by.role(), Folders.folderOf(b), perms).equals("none"))) continue;
-            String code = null;
-            if (r.get("error") != null) {
-                try { Object e = JsonLite.parse((String) r.get("error")); if (e instanceof Map<?, ?> em && em.get("code") != null) code = String.valueOf(em.get("code")); }
-                catch (IllegalArgumentException ignored) { code = "ERROR"; }
-            }
             out.add(new Run((String) r.get("id"), bot, (String) r.get("device_id"), (String) r.get("device_name"), (String) r.get("status"), String.valueOf(r.get("created")),
-                    r.get("duration_ms") instanceof Number n ? n.longValue() : null, (String) r.get("source"), (String) r.get("requested_by"), code));
+                    r.get("duration_ms") instanceof Number n ? n.longValue() : null, (String) r.get("source"), (String) r.get("requested_by"), errorCode(r.get("error"))));
         }
         return out;
+    }
+
+    /** A run's error code from its stored error (JSON with a code); ERROR when the error cannot be read, null when there is none. */
+    static String errorCode(Object error) {
+        if (error == null) return null;
+        try { Object e = JsonLite.parse(String.valueOf(error)); return e instanceof Map<?, ?> em && em.get("code") != null ? String.valueOf(em.get("code")) : null; }
+        catch (IllegalArgumentException ignored) { return "ERROR"; }
     }
 
     static String sourceGroup(String s) { if (s == null) return "manual"; int i = s.indexOf(':'); return i < 0 ? s : s.substring(0, i); }
@@ -238,6 +240,30 @@ public final class Analytics {
         }
         for (ZonedDateTime t = from.atZone(zone).truncatedTo(java.time.temporal.ChronoUnit.HOURS); t.toInstant().isBefore(to); t = t.plusHours(1))
             slots[t.getDayOfWeek().getValue() - 1][t.getHour()]++;
+        // AA's Devices dashboard: how each runner's runs of the period ended, its last run and its most common error
+        Map<String, long[]> ends = new HashMap<>();   // device: succeeded, failed, stopped
+        Map<String, String> lastRun = new HashMap<>();
+        Map<String, Map<String, Long>> errors = new HashMap<>();
+        Map<String, Long> allErrors = new HashMap<>();
+        for (Map<String, Object> r : db.query("SELECT device_id, status, created, error FROM runs WHERE device_id IS NOT NULL AND created >= ? AND created <= ? LIMIT " + MAX_ROWS, from, to)) {
+            String dev = (String) r.get("device_id"), status = String.valueOf(r.get("status")), created = String.valueOf(r.get("created"));
+            per.computeIfAbsent(dev, k -> new long[4]);
+            long[] e = ends.computeIfAbsent(dev, k -> new long[3]);
+            if (status.equals("success")) e[0]++; else if (status.equals("failed")) e[1]++; else if (status.equals("stopped")) e[2]++;
+            if (created.compareTo(lastRun.getOrDefault(dev, "")) > 0) lastRun.put(dev, created);
+            if (status.equals("failed")) {
+                String code = Objects.requireNonNullElse(errorCode(r.get("error")), "UNKNOWN");
+                errors.computeIfAbsent(dev, k -> new HashMap<>()).merge(code, 1L, Long::sum);
+                allErrors.merge(code, 1L, Long::sum);
+            }
+        }
+        Map<String, Map<String, Object>> devices = new HashMap<>();
+        for (Map<String, Object> d : db.query("SELECT id, name, os, enabled, last_seen FROM devices")) devices.put((String) d.get("id"), d);
+        int online = 0, offline = 0;
+        for (Map<String, Object> d : devices.values()) {
+            if (!Boolean.TRUE.equals(d.get("enabled"))) continue;
+            if (d.get("last_seen") != null && Instant.parse(d.get("last_seen").toString()).isAfter(now().minus(ONLINE))) online++; else offline++;
+        }
         long period = Math.max(1, Duration.between(from, to).toMillis()), total = 0;
         List<Map<String, Object>> runners = new ArrayList<>();
         for (var e : per.entrySet()) {
@@ -247,6 +273,15 @@ public final class Analytics {
             m.put("device_id", e.getKey()); m.put("busy_ms", c[0]); m.put("runs", c[1]);
             m.put("use", Math.round(1000.0 * c[0] / period) / 10.0);
             m.put("avg_wait_ms", c[3] == 0 ? null : c[2] / c[3]);
+            Map<String, Object> d = devices.get(e.getKey());
+            m.put("name", d == null ? null : d.get("name"));
+            m.put("os", d == null ? null : d.get("os"));
+            boolean on = d != null && d.get("last_seen") != null && Instant.parse(d.get("last_seen").toString()).isAfter(now().minus(ONLINE));
+            m.put("status", d == null ? "removed" : !Boolean.TRUE.equals(d.get("enabled")) ? "disabled" : on ? "online" : "offline");
+            long[] end = ends.getOrDefault(e.getKey(), new long[3]);
+            m.put("success", end[0]); m.put("failed", end[1]); m.put("stopped", end[2]);
+            m.put("last_run", lastRun.get(e.getKey()));
+            m.put("top_error", errors.getOrDefault(e.getKey(), Map.of()).entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null));
             runners.add(m);
         }
         runners.sort(by("busy_ms"));
@@ -267,11 +302,86 @@ public final class Analytics {
         m.put("avg_wait_ms", waits.isEmpty() ? null : waits.stream().mapToLong(Long::longValue).sum() / waits.size());
         m.put("p95_wait_ms", waits.isEmpty() ? null : percentile(waits, 95));
         m.put("waiting_now", cr.count("SELECT COUNT(*) AS n FROM runs WHERE status = 'queued'"));
+        m.put("online", online);
+        m.put("offline", offline);
+        m.put("schedules", cr.count("SELECT COUNT(*) AS n FROM schedules WHERE enabled = TRUE"));
+        Map<String, Object> next = db.one("SELECT MIN(next_run) AS next_run FROM schedules WHERE enabled = TRUE");
+        m.put("next_schedule", next == null || next.get("next_run") == null ? null : String.valueOf(next.get("next_run")));
+        List<Map<String, Object>> top = new ArrayList<>();
+        allErrors.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).limit(10)
+            .forEach(x -> top.add(Map.of("code", x.getKey(), "runs", x.getValue())));
+        m.put("top_errors", top);
         m.put("heat", Map.of("time_zone", zone.getId(), "use", heat));
         List<Object> days = new ArrayList<>();
         for (var e : perDay.entrySet()) days.add(Map.of("day", e.getKey(), "busy_ms", e.getValue()));
         m.put("by_day", days);
         return m;
+    }
+
+    /**
+     * Audit figures (AA's Audit dashboard): for the period, the audit entries by kind of activity (the part of the action
+     * before the dot), by who, with each one's kind (a person, a runner or the system), by result and by day (in tz); the
+     * people who acted, the sign-ins and failed sign-ins, the busiest day; and the latest entries that failed or were
+     * denied. Filters: actor, kind and result. Needs the Audit Trail's permission.
+     */
+    public Map<String, Object> audit(User by, Map<String, String> q) {
+        cr.require(by, "audit.view", "view audit figures");
+        Instant[] pd = period(q);
+        ZoneId zone = zone(q.get("tz"));
+        List<String> parts = new ArrayList<>(List.of("ts >= ?", "ts <= ?"));
+        List<Object> p = new ArrayList<>(List.of(pd[0], pd[1]));
+        if (q.get("actor") != null && !q.get("actor").isBlank()) { parts.add("actor = ?"); p.add(q.get("actor")); }
+        if (q.get("kind") != null && !q.get("kind").isBlank()) { parts.add("action LIKE ?"); p.add(q.get("kind").replaceAll("[%_\\\\]", "") + ".%"); }
+        if (q.get("result") != null && !q.get("result").isBlank()) { parts.add("result = ?"); p.add(q.get("result")); }
+        String where = String.join(" AND ", parts);
+        Set<String> people = new HashSet<>();
+        for (Map<String, Object> u : db.query("SELECT username FROM users")) people.add((String) u.get("username"));
+        Map<String, Long> kinds = new HashMap<>(), results = new HashMap<>(), days = new TreeMap<>();
+        Map<String, Long> actors = new HashMap<>();
+        Set<String> acted = new HashSet<>();
+        long entries = 0, signIns = 0, failedSignIns = 0;
+        for (Map<String, Object> a : db.query("SELECT ts, actor, action, result FROM audit WHERE " + where + " ORDER BY seq DESC LIMIT " + MAX_ROWS, p.toArray())) {
+            entries++;
+            String action = String.valueOf(a.get("action")), actor = String.valueOf(a.get("actor")), result = String.valueOf(a.get("result"));
+            int dot = action.indexOf('.');
+            kinds.merge(dot < 0 ? action : action.substring(0, dot), 1L, Long::sum);
+            results.merge(result, 1L, Long::sum);
+            actors.merge(actor, 1L, Long::sum);
+            if (people.contains(actor)) acted.add(actor);
+            days.merge(Instant.parse(String.valueOf(a.get("ts"))).atZone(zone).toLocalDate().toString(), 1L, Long::sum);
+            if (action.equals("auth.login") || action.startsWith("auth.sso") || action.startsWith("auth.saml")) { signIns++; if (!result.equals("ok")) failedSignIns++; }
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("from", pd[0].toString()); m.put("to", pd[1].toString());
+        m.put("time_zone", zone.getId());
+        m.put("entries", entries);
+        m.put("capped", entries >= MAX_ROWS);
+        m.put("people", acted.size());
+        m.put("sign_ins", signIns);
+        m.put("failed_sign_ins", failedSignIns);
+        m.put("by_kind", counted(kinds, "kind"));
+        List<Map<String, Object>> who = counted(actors, "actor");
+        for (Map<String, Object> w : who) {
+            String a = (String) w.get("actor");
+            w.put("is", a.startsWith("agent:") ? "runner" : people.contains(a) ? "person" : "system");
+        }
+        m.put("by_actor", who);
+        m.put("by_result", counted(results, "result"));
+        List<Map<String, Object>> perDay = new ArrayList<>();
+        for (var e : days.entrySet()) perDay.add(new LinkedHashMap<>(Map.of("day", e.getKey(), "entries", e.getValue())));
+        m.put("by_day", perDay);
+        m.put("busiest_day", perDay.stream().max(Comparator.comparingLong(x -> (Long) x.get("entries"))).orElse(null));
+        p.add(20);
+        m.put("not_done", db.query("SELECT seq, ts, actor, action, object_type, object_id, details, result FROM audit WHERE " + where + " AND result <> 'ok' ORDER BY seq DESC LIMIT ?", p.toArray()));
+        return m;
+    }
+
+    /** Counts as a list, the largest first: [{key: name, entries: n}]. */
+    private static List<Map<String, Object>> counted(Map<String, Long> counts, String key) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        counts.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+            .forEach(e -> { Map<String, Object> x = new LinkedHashMap<>(); x.put(key, e.getKey()); x.put("entries", e.getValue()); out.add(x); });
+        return out;
     }
 
     /**

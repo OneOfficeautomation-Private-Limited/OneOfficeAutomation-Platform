@@ -82,9 +82,20 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "analytics/capacity") {
       calls.push({ method: "GET", route: "analytics/capacity?" + (url.split("?")[1] ?? "") });
       return ok({ from: "2026-10-24T00:00:00Z", to: "2026-10-31T00:00:00Z", enabled_runners: 2, busy_ms: 36_000_000, use: 85, full_time_people: 1.8, avg_wait_ms: 120_000,
-        p95_wait_ms: 900_000, waiting_now: 1, runners: [{ device_id: "d1", busy_ms: 30_000_000, runs: 12, use: 92, avg_wait_ms: 60_000 }, { device_id: "d2", busy_ms: 6_000_000, runs: 3, use: 15, avg_wait_ms: null }],
+        p95_wait_ms: 900_000, waiting_now: 1, online: 1, offline: 1, schedules: 2, next_schedule: "2026-11-02T03:00:00Z", top_errors: [{ code: "AGENT.LOST", runs: 2 }],
+        runners: [{ device_id: "d1", busy_ms: 30_000_000, runs: 12, use: 92, avg_wait_ms: 60_000, success: 9, failed: 2, stopped: 1, last_run: "2026-10-30T09:00:00Z", top_error: "AGENT.LOST" },
+          { device_id: "d2", busy_ms: 6_000_000, runs: 3, use: 15, avg_wait_ms: null, success: 3, failed: 0, stopped: 0, last_run: null, top_error: null }],
         heat: { time_zone: "UTC", use: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 0 && h === 9 ? 95 : d === 6 ? null : 0)) },
         by_day: [{ day: "2026-10-30", busy_ms: 18_000_000 }] });
+    }
+    if (route === "analytics/audit") {
+      calls.push({ method: "GET", route: "analytics/audit?" + (url.split("?")[1] ?? "") });
+      return ok({ from: "2026-10-02T00:00:00Z", to: "2026-11-01T00:00:00Z", time_zone: "UTC", entries: 136, capped: false, people: 3, sign_ins: 37, failed_sign_ins: 11,
+        by_kind: [{ kind: "auth", entries: 37 }, { kind: "run", entries: 23 }], by_actor: [{ actor: "admin", entries: 83, is: "person" }, { actor: "agent:PRABHU", entries: 21, is: "runner" }],
+        by_result: [{ result: "ok", entries: 122 }, { result: "failed", entries: 12 }, { result: "denied", entries: 2 }], by_day: [{ day: "2026-10-27", entries: 46 }],
+        busiest_day: { day: "2026-10-27", entries: 46 },
+        not_done: [{ seq: 9, ts: "2026-10-31T19:15:00Z", actor: "adminA", action: "auth.login", object_type: "user", object_id: "adminA", details: null, result: "failed" },
+          { seq: 8, ts: "2026-10-27T19:49:00Z", actor: "agent:PRABHU", action: "credential.read", object_type: "credential", object_id: "testing/gmail/password", details: "{\"run\":\"r1\"}", result: "denied" }] });
     }
     if (route === "analytics/queues") {
       const base = { counts: { new: 3, retry: 1, in_progress: 0, review: 0, success: 10, failed: 2, deferred: 0 }, added: 6, finished: 5, success: 3, failed: 2, success_rate: 60,
@@ -661,7 +672,12 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Operations");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(await within(figs).findByText("Runs · +150% on before")).toBeTruthy();
-    expect(within(figs).getByText("Completed: 3 completed, 1 failed, 1 stopped · +25 points on before")).toBeTruthy();
+    // AA's order: all runs, succeeded, in progress, failed, stopped
+    expect(within(figs).getByText(/^Succeeded · \d+% · \+25 points on before$/)).toBeTruthy();
+    expect(within(figs).getByText("In progress or waiting")).toBeTruthy();
+    expect(within(figs).getByText("Stopped by someone")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Runs by week" })).toBeTruthy();
+    expect(within(screen.getByRole("tablist", { name: "Operations" })).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Agents", "Runners", "Work queues", "Audit"]);
     const heat = screen.getByRole("table", { name: "When runs start, by weekday and hour (UTC)" });
     const busy = within(heat).getByTitle("Mon 09:00 · 4 runs, 1 failed");
     expect(busy.className).toBe("cc-heat-l4 has-failed");
@@ -688,15 +704,43 @@ describe("rebuilt One CommandCenter console", () => {
       "#/activity?tab=completed&bot=Finance%2FInvoice+intake.flow.json"]);
   });
 
+  it("shows Operations > Audit as AA's Audit dashboard, and opens the old Insights pages' addresses in their tabs", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    location.hash = "#/capacity";   // an old address: the Runners tab
+    render(<ConsoleApp api={api} />);
+    expect(await screen.findByRole("tab", { name: "Runners", selected: true })).toBeTruthy();
+    expect(location.hash).toBe("#/operations?tab=runners");
+    fireEvent.click(screen.getByRole("tab", { name: "Audit" }));
+    const figs = (await screen.findByText("Sign-ins · 11 failed")).closest("[role=group]") as HTMLElement;
+    expect(figs.getAttribute("aria-label")).toBe("Figures");
+    expect(within(figs).getByText("Not done · 12 failed, 2 denied")).toBeTruthy();
+    // a bar sets the filter
+    fireEvent.click(within(screen.getByRole("list", { name: "Audit entries by activity" })).getByRole("button", { name: "Sign-ins" }));
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics/audit?") && c.route.includes("kind=auth"))).toBe(true));
+    const notDone = screen.getByRole("table", { name: "Failed and denied" });
+    expect(within(notDone).getByText("Runner PRABHU")).toBeTruthy();
+    expect(within(notDone).getByText("run: r1")).toBeTruthy();
+    // a row opens the Audit Trail with its filters
+    await act(async () => { fireEvent.click((within(notDone).getAllByRole("row")[1] as HTMLTableRowElement).cells[0]); });
+    expect(location.hash).toContain("#/audit?");
+    expect(location.hash).toContain("actor=adminA");
+    expect(location.hash).toContain("area=auth.");
+    location.hash = "";
+  });
+
   it("shows Runner capacity as Blue Prism's utilisation views: time in use, waits, each runner with its pools, when runners are busy, advice when short", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    await go("Runner capacity");
-    const figs = await screen.findByRole("group", { name: "Figures" });
-    expect(await within(figs).findByText("1 of 2")).toBeTruthy();
+    await go("Operations");
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Operations" })).getByRole("tab", { name: "Runners" }));
+    expect(location.hash).toBe("#/operations?tab=runners");
+    const figs = (await screen.findByText("Online now · of 2 switched on")).closest("[role=group]") as HTMLElement;   // AA's Devices dashboard: online, offline, scheduled
+    expect(within(figs).getByText("Offline now")).toBeTruthy();
+    expect(within(figs).getByText(/^Schedules on · next /)).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Most common errors on runners" })).getByRole("link", { name: "AGENT.LOST" })).toBeTruthy();
     expect(within(figs).getByText("85%").className).toBe("cc-err");
     expect(within(figs).getByText("Busy · as 1.8 full-time people (40 h a week)")).toBeTruthy();
-    expect(within(figs).getByText("Average wait to start · 95% within 15 min 0 s")).toBeTruthy();
+    expect(within(figs).getByText(/average wait 2 min 0 s, 95% within 15 min 0 s$/)).toBeTruthy();
     expect(screen.getByRole("note").textContent).toContain("Runners are busy most of the time and runs wait 15 min 0 s or more to start");
     const each = screen.getByRole("table", { name: "Each runner" });
     const a = within(each).getByRole("row", { name: /Runner A/ });
@@ -720,8 +764,9 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Work queue insights as UiPath's queue monitoring: waiting, overdue and at risk, speed, runners needed against the pool, and advice", async () => {
     const { api } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    await go("Work queue insights");
-    const figs = await screen.findByRole("group", { name: "Figures" });
+    await go("Operations");
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Operations" })).getByRole("tab", { name: "Work queues" }));
+    const figs = (await screen.findByText("Finished · 60% completed · last 7 days")).closest("[role=group]") as HTMLElement;
     expect(within(figs).getByText("14")).toBeTruthy();
     expect(within(figs).getByText("3").className).toBe("cc-err");
     expect(within(figs).getByText("Finished · 60% completed · last 7 days")).toBeTruthy();
@@ -748,7 +793,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by agent and folder in tabs, minutes saved changed in a dialog", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.production"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Value");
+    await go("Business");   // Value is its first tab
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(within(figs).getByText("Hours saved · +25% on before")).toBeTruthy();
     expect(within(figs).getByText(/7,500/)).toBeTruthy();
@@ -774,7 +819,8 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Dashboards with widgets made in a form: ready-made ones, a pie of the largest parts, a CSV per widget, copies and deletes", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    await go("Dashboards");
+    await go("Business");
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Dashboards" }));
     expect(await screen.findByText("Yours · shared with role:viewer")).toBeTruthy();
     expect(within(await screen.findByRole("article", { name: "Amount paid" })).getByText("1,200")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Runs per day: from 3 (2026-10-29) to 5 (2026-10-30)" })).toBeTruthy();
@@ -926,7 +972,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByRole("separator", { name: "Menu width" })).toBeTruthy();   // the edge can be dragged too
     fireEvent.change(within(menu).getByLabelText("Find a page"), { target: { value: "queue" } });
     const found = within(menu).getByRole("list", { name: "Pages found" });
-    expect(within(found).getAllByRole("button").map((b) => b.textContent)).toEqual(["Work queuesMANAGE", "Work queue insightsOPERATIONAL INSIGHTS"]);
+    expect(within(found).getAllByRole("button").map((b) => b.textContent)).toEqual(["Work queuesMANAGE"]);
     fireEvent.click(within(found).getByRole("button", { name: /^Work queues/ }));
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Work queues"));
 
