@@ -148,6 +148,10 @@ function fakeServer() {
   routes["GET cr/versions"] = () => ({ versions: [{ version: 2, author: "asha", created: "2026-10-29T10:00:00Z", comment: "Reads the totals" },
     { version: 1, author: "asha", created: "2026-10-28T10:00:00Z", comment: "First version" }] });
   routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: b.path, path: b.path, version: 2 }; };
+  let edited = false;
+  routes["GET cr/states"] = () => ({ connected: cr.connected, states: locked
+    ? { "Finance/Invoices/Invoice intake.flow.json": { status: edited ? "checked_out_edited" : "checked_out", path: "Finance/Invoice intake.flow.json" } } : {} });
+  routes["POST cr/revert"] = (b) => { created.push({ revert: b.local }); edited = false; return { local: b.local, path: "Finance/Invoice intake.flow.json", version: 2 }; };
   routes["POST cr/undo-checkout"] = (b) => { created.push({ undo: b.path }); locked = null; return { ok: true }; };
   routes["POST cr/checkin"] = (b) => { created.push({ checkin: b }); return { path: "Finance/Invoice intake.flow.json", version: 3, local: b.local, production: b.production }; };
   let windows: unknown[] = [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }];
@@ -183,7 +187,7 @@ function fakeServer() {
     try { return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 }); }
     catch (e: any) { if (e?.api) return new Response(JSON.stringify({ error: e.api }), { status: 400 }); throw e; }
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; } };
+  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; }, setEdited: (e: boolean) => { edited = e; } };
 }
 
 describe("new Studio", () => {
@@ -1496,6 +1500,50 @@ describe("new Studio", () => {
     await waitFor(() => expect(screen.getByText("Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
     expect(await screen.findByRole("form", { name: "Sign in to One CommandCenter" })).toBeTruthy();
+  });
+
+  it("shows each private item's status as AA's, and checks in, undoes a check-out and reverts edits from the list", async () => {
+    const { api, created } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    const intake = (await screen.findByRole("button", { name: "Invoice intake" })).closest("tr")!;
+    await waitFor(() => expect(within(intake).getByText("Checked out")).toBeTruthy());
+    const approve = screen.getByRole("button", { name: "Approve" }).closest("tr")!;
+    expect(within(approve).getByText("New")).toBeTruthy();   // never checked in
+    // two ticked items check in together, with one comment
+    fireEvent.click(within(intake).getByRole("checkbox"));
+    fireEvent.click(within(approve).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByRole("toolbar", { name: "Selected items" })).getByRole("button", { name: "Check in…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Check in 2 items" });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Check in" })); });
+    expect((created as Record<string, unknown>[]).filter((c) => "checkin" in c).map((c) => (c as { checkin: { local: string } }).checkin.local))
+      .toEqual(["Finance/Invoices/Invoice intake.flow.json", "Finance/Invoices/Approve.process.json"]);
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    // a row's menu: Undo check-out asks first
+    fireEvent.keyDown(within(intake).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));
+    const ask = await screen.findByRole("dialog", { name: "Undo check-out of Finance/Invoices/Invoice intake.flow.json?" });
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Undo check-out" })); });
+    expect(created).toContainEqual({ undo: "Finance/Invoice intake.flow.json" });
+  });
+
+  it("reverts edits to a checked-out agent after asking", async () => {
+    const { api, created, setEdited } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
+    setEdited(true);
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    const intake = (await screen.findByRole("button", { name: "Invoice intake" })).closest("tr")!;
+    await waitFor(() => expect(within(intake).getByText("Checked out · edited")).toBeTruthy());
+    fireEvent.keyDown(within(intake).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Revert edits…" }));
+    const ask = await screen.findByRole("dialog", { name: "Revert edits to Finance/Invoices/Invoice intake.flow.json?" });
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Revert edits" })); });
+    expect(created).toContainEqual({ revert: "Finance/Invoices/Invoice intake.flow.json" });
+    await waitFor(() => expect(within(screen.getByRole("button", { name: "Invoice intake" }).closest("tr")!).getByText("Checked out")).toBeTruthy());
   });
 
   it("checks the open agent in, signing in first and saving unsaved changes", async () => {

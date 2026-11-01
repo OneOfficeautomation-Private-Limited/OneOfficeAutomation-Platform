@@ -10,6 +10,8 @@ export const AUTOMATION_HELP: HelpTopic = {
     { name: "Type", text: "Shows only one kind of item, such as Agents or Folders. Any shows everything." },
     { name: "Tick boxes", text: "Tick items to act on several at once: the bar above the list then offers Copy, Cut, Duplicate, Rename and Delete. Ctrl+click and Shift+click also select." },
     { name: "⋮ on a row", text: "Everything you can do with that item: open, rename (F2), copy, cut, duplicate, download, show in File Explorer, delete. Right-click a row for the same menu." },
+    { name: "Status", text: "Shown while you are signed in to One CommandCenter. New: not in the repository yet. Checked out: yours to change; edited means you changed it since. Checked in: the same as in the repository. Edited, not checked out: check it out on the Public tab first (your changes are kept)." },
+    { name: "Check in, Undo check-out, Revert edits", text: "In a row's ⋮ menu. Check in sends the item to the same folder in the repository as a new version; tick up to 10 items to check them in together. Undo check-out lets others check it out again. Revert edits throws away your changes and goes back to the checked-out version, after asking." },
     { name: "Moving items", text: "Drag items onto a folder in the tree, or Cut them and Paste into a folder." },
     { name: "Delete", text: "Moves items to the workspace's trash folder, after asking. To get one back, move it out of trash in File Explorer." },
     { name: "Search", text: "The search box at the top (Ctrl+K) looks through the whole workspace, not just the open folder." },

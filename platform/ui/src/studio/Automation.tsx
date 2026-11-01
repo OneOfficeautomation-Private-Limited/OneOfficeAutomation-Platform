@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { Blueprint, NewItemKind, StudioApi, WorkspaceNode } from "../api/client";
+import type { Blueprint, NewItemKind, RepoState, StudioApi, WorkspaceNode } from "../api/client";
 import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
 import { CreateDialog } from "./CreateDialog";
@@ -41,9 +41,22 @@ const foundBy = (m: string[]) => m.map((x) => x.replace(/^uses [^/]+\/(.+)$/, (_
  */
 /** Each kind's mark, as on Create. */
 const markOf = (n: WorkspaceNode) => ITEM_TYPES.find((t) => n.type === "bot" ? t.kind === (n.kind ?? "TaskBot") : t.kind === (n.type === "script" ? (/\.ps1$/i.test(n.name) ? "script-powershell" : "script-python") : n.type));
+/** Check-in and check-out from the Private list (1 Nov 2026, as AA's Private workspace): each item's status and its actions. */
+export type RepoHooks = { states: Record<string, RepoState>; onCheckIn: (paths: string[]) => void; onUndo: (local: string, repoPath: string) => void;
+  onRevert: (local: string) => void };
+/** What can be checked in: agents, workflows and forms. */
+const CHECKS_IN = ["bot", "process", "form"];
+const STATUS: Record<RepoState["status"], [string, string]> = {
+  new: ["New", "Not in the repository yet: Check in puts it there, in the same folder."],
+  linked: ["In the repository", "A copy of an agent in the repository. Sign in to One CommandCenter to see whether it is checked out."],
+  checked_out: ["Checked out", "Checked out to you, unchanged since."],
+  checked_out_edited: ["Checked out · edited", "Checked out to you, with changes not checked in yet."],
+  checked_in: ["Checked in", "The same as in the repository; not checked out. Check it out on the Public tab to change it."],
+  edited: ["Edited, not checked out", "Changed, but not checked out: check it out on the Public tab (your changes are kept), then check it in."],
+};
 const KINDS: [string, string][] = [["", "Type: Any"], ["folder", "Folders"], ["bot", "Agents"], ["process", "Workflows"], ["form", "Forms"], ["document", "Document types"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Other files"]];
-export function Automation({ api, view, tree, search = "", blueprints = [], publicView, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
-  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; onOpen: (n: WorkspaceNode) => void;
+export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
+  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void; onMoved: (from: string, to: string) => void; onChanged: () => Promise<unknown>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
@@ -154,12 +167,20 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     const raw = e.dataTransfer.getData(PATHS_DRAG);
     if (raw) act.move(JSON.parse(raw) as string[], to);
   };
+  const statusOf = (n: WorkspaceNode) => repo?.states[n.path]?.status ?? (CHECKS_IN.includes(n.type) ? "new" : null);
+  const canCheckIn = (n: WorkspaceNode | null) => !!n && !!repo && CHECKS_IN.includes(n.type) && ["new", "checked_out", "checked_out_edited"].includes(statusOf(n) ?? "");
   const rowMenu = (n: WorkspaceNode): MenuItem[] => {
     const many = selected.includes(n.path) && chosen.length > 1;
     const list = many ? chosen : [n.path];
     const items: MenuItem[] = [];
     if (!many && (n.type === "folder" || OPENS.includes(n.type))) items.push({ key: "open", label: "Open", onSelect: () => open(n) });
     if (!many) items.push({ key: "rename", label: "Rename…", shortcut: "F2", onSelect: () => setRenaming(n) });
+    // the repository: Check in (several at once, up to 10), Undo check-out and Revert edits, as AA's Private workspace
+    const st = repo?.states[n.path];
+    if (repo && list.length <= 10 && list.every((p) => canCheckIn(find(tree, p))))
+      items.push({ key: "checkin", label: many ? "Check in " + list.length + " items…" : "Check in…", separatorBefore: true, onSelect: () => repo.onCheckIn(list) });
+    if (repo && !many && st?.status.startsWith("checked_out")) items.push({ key: "undo", label: "Undo check-out…", onSelect: () => repo.onUndo(n.path, st.path) });
+    if (repo && !many && st?.status === "checked_out_edited") items.push({ key: "revert", label: "Revert edits…", onSelect: () => repo.onRevert(n.path) });
     items.push(
       { key: "dup", label: "Duplicate", onSelect: () => act.duplicate(list) },
       { key: "copy", label: "Copy", shortcut: "Ctrl+C", separatorBefore: true, onSelect: () => act.copy(list) },
@@ -246,6 +267,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
               <Button kind="plain" onClick={() => act.copy()} title="Ctrl+C">Copy</Button>
               <Button kind="plain" onClick={() => act.cut()} title="Ctrl+X">Cut</Button>
               <Button kind="plain" onClick={() => act.duplicate()}>Duplicate</Button>
+              {repo && chosenNodes.length <= 10 && chosenNodes.every(canCheckIn) && <Button kind="plain" onClick={() => repo.onCheckIn(chosen)}>Check in…</Button>}
               {chosenNodes.length === 1 && <Button kind="plain" onClick={() => setRenaming(chosenNodes[0])} title="F2">Rename</Button>}
               <Button kind="plain" icon="trash" onClick={() => act.remove()} title="Delete">Delete…</Button>
             </>}
@@ -255,7 +277,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
           </div>}
           <table className="st-table">
             <thead><tr><th scope="col" className="st-tick"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
-              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col">Type</th>{repo && <th scope="col">Status</th>}<th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {listed.map(({ node: n, why }) => {
                 const isSel = selected.includes(n.path);
@@ -276,6 +298,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                       : <span>{displayName(n)}</span>}</span>
                       {q && <div className="st-item-path">{parentOf(n.path) || "Workspace"}</div>}</td>
                     <td>{n.type === "folder" ? "Folder" : typeLabel(n)}</td>
+                    {repo && <td>{(() => { const s = statusOf(n); return s && <span className={"st-pill st-status is-" + s} title={STATUS[s][1]}>{STATUS[s][0]}</span>; })()}</td>}
                     <td>{q ? why : n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
                     <td className="st-row-actions" onClick={(e) => e.stopPropagation()}>
                       <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path}
@@ -285,7 +308,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                   </tr>
                 );
               })}
-              {!listed.length && <tr><td colSpan={5} className="st-empty">{q || kind ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
+              {!listed.length && <tr><td colSpan={repo ? 6 : 5} className="st-empty">{q || kind ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
             </tbody>
           </table>
         </div>

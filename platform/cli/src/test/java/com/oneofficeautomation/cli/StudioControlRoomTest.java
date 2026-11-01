@@ -73,11 +73,19 @@ class StudioControlRoomTest {
             assertEquals("CR.NOT_CHECKED_OUT", ((Map<String, Object>) call(sa, "POST", "/api/cr/checkin", Map.of("local", "My Bots/Invoice bot.flow.json", "comment", "x"), null).get("error")).get("code"));
 
             Path bobCopy = wsB.resolve("My Bots/Invoice bot.flow.json");
+            assertEquals("checked_out", stateOf(sb, "My Bots/Invoice bot.flow.json"), "AA's statuses: checked out to Bob, unchanged");
+            Files.writeString(bobCopy, Files.readString(bobCopy).replace("\"v1\"", "\"draft\""));
+            assertEquals("checked_out_edited", stateOf(sb, "My Bots/Invoice bot.flow.json"));
+            // Revert edits: the copy goes back to the checked-out version
+            assertEquals(200, call(sb, "POST", "/api/cr/revert", Map.of("local", "My Bots/Invoice bot.flow.json"), null).get("_status"));
+            assertFalse(Files.readString(bobCopy).contains("draft"));
+            assertEquals("checked_out", stateOf(sb, "My Bots/Invoice bot.flow.json"));
             Files.writeString(bobCopy, Files.readString(bobCopy).replace("\"v1\"", "\"v2 by bob\""));
             Map<String, Object> in2 = call(sb, "POST", "/api/cr/checkin", Map.of("local", "My Bots/Invoice bot.flow.json", "comment", "bob's change", "production", false), null);
             assertEquals(2, ((Number) in2.get("version")).intValue(), "the private copy goes back to the same repository path");
             assertEquals("My Bots/Invoice bot.flow.json", in2.get("path"));
             assertEquals(Boolean.FALSE, in2.get("production"));
+            assertEquals("checked_in", stateOf(sb, "My Bots/Invoice bot.flow.json"), "after check-in the copy is unchanged and no longer checked out");
             Map<String, Object> listed = (Map<String, Object>) ((List<Object>) call(sb, "GET", "/api/cr/repo", null, null).get("bots")).get(0);
             assertEquals(1, ((Number) listed.get("production_version")).intValue(), "checked in without 'live': version 1 stays the live one");
             // a new agent's first version becomes live even without the tick, or nothing could run it
@@ -111,5 +119,11 @@ class StudioControlRoomTest {
             assertEquals("CR.INVALID_BOT", ((Map<String, Object>) bad.get("error")).get("code"));
             assertTrue(String.valueOf(bad.get("error")).contains("not declared"), "the problem list explains why");
         } finally { server.stop(); db.close(); }
+    }
+
+    @SuppressWarnings("unchecked")
+    static String stateOf(String studio, String local) throws Exception {
+        Map<String, Object> st = (Map<String, Object>) ((Map<String, Object>) call(studio, "GET", "/api/cr/states", null, null).get("states")).get(local);
+        return st == null ? "new" : String.valueOf(st.get("status"));
     }
 }

@@ -308,6 +308,8 @@ public final class StudioServer {
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
             else if (method.equals("POST") && r.equals("checkout")) sendJson(ex, 200, cr.checkout((String) ((Map<String, Object>) body(ex)).get("path"), json));
             else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), json)); }
+            else if (method.equals("GET") && r.equals("states")) sendJson(ex, 200, cr.states(json));
+            else if (method.equals("POST") && r.equals("revert")) sendJson(ex, 200, cr.revert((String) ((Map<String, Object>) body(ex)).get("local"), json));
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");
         } else if (method.equals("POST") && route.equals("runs")) {

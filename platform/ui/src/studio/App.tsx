@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
+  ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
 import { Automation, find as findNode } from "./Automation";
@@ -64,7 +64,10 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [wizard, setWizard] = useState(false);
   const [asSteps, setAsSteps] = useState<string[]>([]);
   const [cr, setCr] = useState<CrStatus>({ connected: false });   // One CommandCenter sign-in, for the Public tab and Check in
-  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkingIn, setCheckingIn] = useState<string[] | null>(null);   // the items being checked in (the open agent, or ticked items)
+  const [repoStates, setRepoStates] = useState<Record<string, RepoState>>({});   // each private copy's state against the repository
+  const [undoing, setUndoing] = useState<{ local: string; repoPath: string } | null>(null);
+  const [reverting, setReverting] = useState<string | null>(null);
   // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
@@ -313,15 +316,38 @@ export function App({ api: given }: { api?: StudioApi }) {
       : `Checked out v${r.version} into your workspace: ${r.local}.`);
   };
   /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
+  const loadStates = useCallback(() => { api.crStates().then((r) => setRepoStates(r.states), () => setRepoStates({})); }, [api]);
+  useEffect(() => { loadStates(); }, [loadStates, cr.connected, tree]);
+  /** Check in one item or several (up to 10, from the Private list): each is saved first when it has unsaved changes. */
   const checkIn = async (comment: string, live: boolean) => {
-    if (!agent) return;
-    if (isDirty(agent) && !(await save(agent.path))) { setCheckingIn(false); return; }
+    const paths = checkingIn ?? [];
+    const done: string[] = [], failed: string[] = [];
+    let last: Awaited<ReturnType<StudioApi["crCheckin"]>> | null = null;
+    for (const path of paths) {
+      const tab = tabsRef.current.find((t) => t.path === path);
+      if (tab && isDirty(tab) && !(await save(path))) { failed.push(path.split("/").pop() + ": not saved"); continue; }
+      try { last = await api.crCheckin(path, comment, live); done.push(last.path.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "") + " v" + last.version); }
+      catch (e) { failed.push(path.split("/").pop() + ": " + (e instanceof ApiFailure ? e.error.message : String(e))); }
+    }
+    if (paths.length === 1 && last) setNotice(`Checked in ${last.path} as version ${last.version}` + (last.production_request ? "; it waits for approval before it goes live."
+      : last.production ? "; it is now the live version." : "; the live version is unchanged."));
+    else if (done.length) setNotice("Checked in " + done.join(", ") + ".");
+    if (failed.length) setError("Not checked in: " + failed.join("; "));
+    setCheckingIn(null);
+    loadStates();
+  };
+  /** Revert edits: the private copy goes back to the checked-out version, and an open tab shows it. */
+  const revert = async (local: string) => {
+    setReverting(null);
     try {
-      const r = await api.crCheckin(agent.path, comment, live);
-      setNotice(`Checked in ${r.path} as version ${r.version}` + (r.production_request ? "; it waits for approval before it goes live."
-        : r.production ? "; it is now the live version." : "; the live version is unchanged."));
+      const r = await api.crRevert(local);
+      if (tabsRef.current.some((t) => t.path === local)) {
+        const flow = await api.bot(local);
+        patch(local, (t) => t.kind === "agent" ? { ...t, flow, saved: JSON.stringify(flow), past: [], future: [], problems: [], checked: false } : t);
+      }
+      setNotice(`Reverted ${local} to the checked-out version ${r.version}.`);
+      await reloadTree();
     } catch (e) { fail(e); }
-    setCheckingIn(false);
   };
 
   const close = (path: string) => {
@@ -426,7 +452,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                       <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer (Ctrl+F5)">Run</Button>
                       <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints, or at the first step (F5)">Debug</Button>
                     </>}
-                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
+                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>}
         </div>
@@ -473,13 +499,25 @@ export function App({ api: given }: { api?: StudioApi }) {
             : tree
               ? <Automation view={view} tree={tree}
                   publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
-                  api={api} onMoved={moved} onChanged={reloadTree} onNotice={setNotice} onError={fail} />
+                  repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
+                  api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
         <HelpPanel page={active ?? view} />
       </div></HelpProvider>
 
-      {checkingIn && agent && <CheckInDialog api={api} name={agent.name} status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(false)} onCheckIn={checkIn} />}
+      {checkingIn && <CheckInDialog api={api} name={checkingIn.length === 1 ? displayName({ name: checkingIn[0].split("/").pop()!, path: checkingIn[0], type: "bot" }) : checkingIn.length + " items"}
+        status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(null)} onCheckIn={checkIn} />}
+      {undoing && <Dialog open onClose={() => setUndoing(null)} title={"Undo check-out of " + undoing.local + "?"} width={480}
+        footer={<><Button kind="secondary" onClick={() => setUndoing(null)}>Cancel</Button>
+          <Button kind="primary" onClick={async () => { const u = undoing; setUndoing(null);
+            try { await api.crUndoCheckout(u.repoPath); setNotice("Check-out undone. Your private copy stays in the workspace."); loadStates(); } catch (e) { fail(e); } }}>Undo check-out</Button></>}>
+        <p>Others can check the agent out again. Your private copy stays in the workspace; changes in it are not checked in.</p>
+      </Dialog>}
+      {reverting && <Dialog open onClose={() => setReverting(null)} title={"Revert edits to " + reverting + "?"} width={480}
+        footer={<><Button kind="secondary" onClick={() => setReverting(null)}>Cancel</Button><Button kind="danger" onClick={() => revert(reverting)}>Revert edits</Button></>}>
+        <p>Your changes since you checked it out are thrown away, and the private copy goes back to the checked-out version. This cannot be undone.</p>
+      </Dialog>}
       <NewFolderDialog parent={newFolderIn} onClose={() => setNewFolderIn(null)}
         onCreate={async (name) => { await api.createFolder(newFolderIn ?? "", name); await reloadTree(); setNewFolderIn(null); }} />
 

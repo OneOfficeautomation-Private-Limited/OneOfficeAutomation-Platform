@@ -231,5 +231,51 @@ final class ControlRoomLink {
         catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
+    /**
+     * Each private copy linked to the repository, with its state as AA's statuses (1 Nov 2026): checked out to me,
+     * unchanged or edited; checked in (an unchanged copy, not checked out); edited but not checked out (check it out again
+     * to check the changes in: they are kept). An item with no link is new; so is one whose agent left the repository.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> states(JsonCodec json) throws IOException {
+        Map<String, Object> locks = new HashMap<>();
+        if (connected()) for (Object o : (List<Object>) repo("").getOrDefault("bots", List.of())) {
+            Map<String, Object> b = (Map<String, Object>) o;
+            locks.put(String.valueOf(b.get("path")), b.get("locked_by") == null ? "" : String.valueOf(b.get("locked_by")));
+        }
+        String me = user == null ? null : String.valueOf(user.get("username"));
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : mapping().entrySet()) {
+            String local = e.getKey(), repoPath = String.valueOf(e.getValue());
+            if (!Files.isRegularFile(ws.resolve(local))) continue;
+            boolean edited = edited(local, json);
+            // signed out, the locks are not known: the copy is only "linked" (or edited)
+            String status = !connected() ? (edited ? "edited" : "linked")
+                    : !locks.containsKey(repoPath) ? "new"
+                    : !Objects.equals(me, locks.get(repoPath)) ? (edited ? "edited" : "checked_in")
+                    : edited ? "checked_out_edited" : "checked_out";
+            Map<String, Object> st = new LinkedHashMap<>();
+            st.put("status", status);
+            st.put("path", repoPath);
+            Object by = locks.get(repoPath);
+            if (by != null && !"".equals(by)) st.put("locked_by", by);
+            out.put(local, st);
+        }
+        return Map.of("states", out, "connected", connected());
+    }
+
+    /** Revert edits: the private copy goes back to the repository's latest version, as it was checked out. */
+    Map<String, Object> revert(String local, JsonCodec json) throws IOException {
+        Object repoPath = mapping().get(local);
+        if (repoPath == null) throw new OoaException("STUDIO.NOT_LINKED", local + " is not a copy of an agent in the repository", "Only checked-out agents can go back to their checked-out version.");
+        Map<String, Object> r = call("GET", "repo/bot?path=" + enc(String.valueOf(repoPath)), null, true);
+        String text = json.write(r.get("flow"), true);
+        Path p = ws.resolve(local), tmp = p.resolveSibling("." + p.getFileName() + ".saving");
+        Files.writeString(tmp, text, StandardCharsets.UTF_8);
+        Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
+        markSynced(local, text);
+        return Map.of("local", local, "path", repoPath, "version", r.get("version"));
+    }
+
     void undoCheckout(String repoPath) { call("POST", "repo/undo-checkout", Map.of("path", repoPath), true); }
 }

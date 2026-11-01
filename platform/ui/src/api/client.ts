@@ -99,6 +99,8 @@ export type ModelConnections = { default: string; connections: ModelConnection[]
 export type CrStatus = { connected: boolean; url?: string | null; user?: { username: string } | null; sameServer?: boolean };
 /** An agent in One CommandCenter agent repository (the public one): its latest version, and who has it checked out. */
 export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null };
+/** A private copy's state against the repository, as AA's statuses (1 Nov 2026). "linked": signed out, so the locks are not known. */
+export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited"; path: string; locked_by?: string };
 export type RepoVersion = { version: number; author: string; created: string; comment?: string };
 /** A check-in: the new version, and whether it became live or waits for approval first. */
 export type CheckIn = { path: string; version: number; local: string; production: boolean; production_request?: unknown };
@@ -234,6 +236,10 @@ export class StudioApi {
   async crRepo(q = "") { const r = await this.call<{ bots?: RepoAgent[]; mapping?: Record<string, string> }>("GET", "cr/repo?q=" + encodeURIComponent(q)); return { agents: r.bots ?? [], mapping: r.mapping ?? {} }; }
   async crVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "cr/versions?path=" + encodeURIComponent(path))).versions ?? []; }
   crCheckout(path: string) { return this.call<{ local: string; path: string; version: number; kept?: boolean }>("POST", "cr/checkout", { path }); }
+  /** Each private copy linked to the repository, with its state (checked out, edited, checked in …); unlinked items are new. */
+  crStates() { return this.call<{ states: Record<string, RepoState>; connected: boolean }>("GET", "cr/states"); }
+  /** Revert edits: the private copy goes back to the version that was checked out. */
+  crRevert(local: string) { return this.call<{ local: string; path: string; version: number }>("POST", "cr/revert", { local }); }
   crUndoCheckout(path: string) { return this.call<{ ok: boolean }>("POST", "cr/undo-checkout", { path }); }
   crCheckin(local: string, comment: string, production: boolean) { return this.call<CheckIn>("POST", "cr/checkin", { local, comment, production }); }
 
