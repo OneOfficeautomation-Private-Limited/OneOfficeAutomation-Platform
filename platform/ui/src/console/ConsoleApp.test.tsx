@@ -876,6 +876,26 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
+  it("shows Automation as AA's one page: Public on the left, Private (One AgentStudio) on the right for people who build agents", async () => {
+    render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin"] } as typeof admin }).api} />);
+    await go("Automation");
+    const where = await screen.findByRole("tablist", { name: "Where" });
+    expect(within(where).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Public", "Private"]);
+    await waitFor(() => expect(within(where).getByRole("tab", { name: "Private" }).getAttribute("href")).toBe("../studio/#private"));
+    cleanup();
+    render(<ConsoleApp api={fakeServer({ signedIn: viewer }).api} />);   // no right to build agents: Private is shown, off
+    await go("Automation");
+    expect(within(await screen.findByRole("tablist", { name: "Where" })).getByRole("tab", { name: "Private" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("opens Create trigger for an agent and event from One AgentStudio's command list", async () => {
+    location.hash = "#/triggers?new=email&bot=" + encodeURIComponent("Finance/Invoice intake.flow.json");
+    render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.view", "triggers.manage"] } as typeof admin }).api} />);
+    const d = await screen.findByRole("dialog", { name: /trigger/i });
+    expect(within(d).getByDisplayValue("New email (IMAP mailbox)")).toBeTruthy();
+    location.hash = "";
+  });
+
   it("moves through a list with the keys, opens a row with Enter, and shows the shortcuts with ?", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     await go("Business");
@@ -1371,7 +1391,7 @@ describe("rebuilt One CommandCenter console", () => {
     // what happened in plain words beside its code, rows grouped by day, history checkpoints left out by default
     expect(await within(list).findByText("Created a user")).toBeTruthy();
     expect(within(list).getByText("Signed in")).toBeTruthy();
-    expect(within(list).getAllByRole("row").some((r) => /^(Today|Yesterday) · |^\w{3} \d/.test(r.textContent ?? ""))).toBe(true);
+    expect(within(list).getAllByRole("row").some((r) => /^(Today|Yesterday) · |^\w{3},? \w/.test(r.textContent ?? ""))).toBe(true);   // a day heading, whatever today is
     expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from=") && c.route.includes("checkpoints=hide"))).toBe(true);   // the last 24 hours
     fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
     await waitFor(() => expect(within(list).queryByText("user.create")).toBeNull());

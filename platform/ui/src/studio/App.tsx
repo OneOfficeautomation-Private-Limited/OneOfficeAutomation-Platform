@@ -79,7 +79,8 @@ export function App({ api: given }: { api?: StudioApi }) {
     choice("dark", "Dark theme", theme === "dark", () => setTheme("dark"), "Dark panels, easier on the eyes in a dim room"),
     { key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), separatorBefore: true, onSelect: () => setShowKeys(true) },
   ];
-  const [showKeys, setShowKeys] = useState(false);   // AI agents shown as plain steps instead of in the AI agent editor
+  const [showKeys, setShowKeys] = useState(false);
+  const [askTrigger, setAskTrigger] = useState<{ kind: string; n: number } | null>(null);   // a workspace trigger picked in the command list   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => {
@@ -476,7 +477,13 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
-        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} />}
+        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} onTrigger={(kind, where) => {
+          if (where === "studio") { setAskTrigger({ kind, n: Date.now() }); return; }
+          // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
+          const cr = info?.controlRoom;
+          if (!cr) { setNotice("Connect One AgentStudio to One CommandCenter to add this trigger."); return; }
+          window.open(cr + "next/#/triggers?" + new URLSearchParams({ new: kind, bot: agent.path }).toString(), "_blank", "noopener");
+        }} />}
         <main className="st-main">
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
@@ -497,7 +504,7 @@ export function App({ api: given }: { api?: StudioApi }) {
             : agent
             ? <>{isAiAgent(agent.flow) && <div className="st-ai-note"><span>This is an AI agent, shown as its steps.</span>
                 <Button kind="secondary" icon="spark" onClick={() => setAsSteps(asSteps.filter((p) => p !== agent.path))}>Open in the AI agent editor</Button></div>}
-              <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected}
+              <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected} askTrigger={askTrigger}
                 onSelect={(ids) => patch(agent.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}

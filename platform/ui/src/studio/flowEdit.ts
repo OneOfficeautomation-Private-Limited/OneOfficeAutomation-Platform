@@ -433,3 +433,36 @@ export function setFolded(flow: Flow, ids: string[], folded: boolean): Flow {
 
 /** Every block in the agent (for Fold all). */
 export function blockIds(flow: Flow): string[] { return [...every(flow.steps)].filter((s) => isBlock(s.action)).map((s) => s.id); }
+
+/** The keys of a step that are not its settings: never changed by find and replace. */
+const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "disabled", "connection"]);
+
+/**
+ * Find and replace (AA's Ctrl+H) in the steps' settings and names: every text in their settings (args, outputs, notes,
+ * conditions), in the steps given and the steps inside them (all steps when ids is empty). Ids, actions and the
+ * structure are never touched. Returns the new agent and how many places changed.
+ */
+export function replaceInSteps(flow: Flow, find: string, replace: string, matchCase: boolean, ids: string[] = []): { flow: Flow; count: number } {
+  if (!find) return { flow, count: 0 };
+  let count = 0;
+  const pattern = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), matchCase ? "g" : "gi");
+  const text = (v: string) => v.replace(pattern, () => { count++; return replace; });
+  const deep = (v: unknown): unknown => typeof v === "string" ? text(v) : Array.isArray(v) ? v.map(deep)
+    : v && typeof v === "object" ? Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, deep(x)])) : v;
+  const step = (st: FlowStep, inScope: boolean): FlowStep => {
+    const on = inScope || ids.includes(st.id);
+    const out: FlowStep = { ...st };
+    for (const [k, v] of Object.entries(st)) {
+      if (k === "children" || k === "else" || k === "finally") (out as Record<string, unknown>)[k] = (v as FlowStep[]).map((c) => step(c, on));
+      else if (k === "elseIf" || k === "catch") (out as Record<string, unknown>)[k] = (v as { children?: FlowStep[] }[]).map((b) => {
+        const nb: Record<string, unknown> = { ...b };
+        for (const [bk, bv] of Object.entries(b)) nb[bk] = bk === "children" ? (bv as FlowStep[]).map((c) => step(c, on)) : on && bk !== "codes" ? deep(bv) : bv;
+        return nb;
+      });
+      else if (on && !STRUCTURE.has(k)) (out as Record<string, unknown>)[k] = deep(v);
+    }
+    return out;
+  };
+  const steps = flow.steps.map((st) => step(st, ids.length === 0));
+  return { flow: count ? { ...flow, steps } : flow, count };
+}

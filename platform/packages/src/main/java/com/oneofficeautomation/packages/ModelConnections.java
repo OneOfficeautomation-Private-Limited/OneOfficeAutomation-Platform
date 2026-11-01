@@ -46,6 +46,12 @@ final class ModelConnections {
         return Map.of();
     }
 
+    /** The kinds of personal data the guardrails mask (names, contacts, payment, government, network); null: every kind. */
+    static Set<String> maskKinds(ActionContext ctx) {
+        if (guardrails(ctx).get("mask_kinds") instanceof List<?> l && !l.isEmpty()) { Set<String> s = new LinkedHashSet<>(); for (Object o : l) s.add(String.valueOf(o)); return s; }
+        return null;
+    }
+
     /** How a model's answer is checked for harmful content: "block", "log", or null (not checked); the guardrails win over the connection. */
     static String contentCheck(ActionContext ctx, LlmClient.Config cfg) {
         Object g = guardrails(ctx).get("content");

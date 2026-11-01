@@ -599,6 +599,11 @@ export class CrApi {
     return this.call<{ ok: boolean; status: number; target: string; result?: Partial<ImportResult> & Record<string, unknown> }>("POST", "lifecycle/promote", b); }
   codePolicy() { return this.call<CodePolicy>("GET", "repo/policy"); }
   async policies() { return (await this.call<{ policies?: Policy[] }>("GET", "policies")).policies ?? []; }
+  /** What an AI guardrails policy stopped (steps, latest first) and masked (by kind) over the last days. */
+  policyStopped(id: string, days: string) {
+    return this.call<{ stopped: { run_id: string; agent: string; created: string; code: string; message: string }[]; stopped_total: number; masked: Record<string, number>; calls_masked: number }>(
+      "GET", "policies/" + encodeURIComponent(id) + "/stopped?days=" + encodeURIComponent(days));
+  }
   savePolicy(id: string | null, b: { name?: string; kind?: string; description?: string; folders?: string[]; rules: unknown }) {
     return id ? this.call<Policy>("PUT", "policies/" + encodeURIComponent(id), b) : this.call<Policy>("POST", "policies", b);
   }

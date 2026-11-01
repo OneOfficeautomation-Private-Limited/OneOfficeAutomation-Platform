@@ -28,10 +28,10 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 
 | Section | Pages (permission) |
 | --- | --- |
-| Build | Agent Repository (`repo.view`), Agent Templates (`repo.view`), One AgentStudio (new tab), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
-| Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Agent ToolKits (`toolkits.manage`) |
+| Build | Automation (`repo.view`; Public, and Private in One AgentStudio for `repo.checkin`), Agent Templates (`repo.view`), One AgentStudio, Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
+| Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Credential vault (members), Agent ToolKits (`toolkits.manage`) |
 | Operational Insights | Overview, Alerts, Operations (Agents, Runners, Work queues with `queues.view`, Audit with `audit.view`, AI usage), Business (Agents, Value, Dashboards) (`analytics.view`) |
-| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Credential vault (members), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
+| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Policies (`settings.manage`), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Model Connections (`connections.manage`), Prompt Skills (`skills.view`), Document Automation (`repo.view`), AI governance (`audit.view`) |
 
 The section of the current page is open; the menu can be narrowed to icons. Pages redraw themselves within about a
@@ -246,7 +246,8 @@ estimated_runs_month}`, `POST /api/analytics/queue-savings` `{queue_id, minutes_
   Making, changing and copying dashboards needs `insights.design`.
 - The address names the dashboard shown (`#/business?tab=dashboards&dashboard=ID`), so a link opens it.
 - **Print or save as PDF** opens the browser's print window with only the dashboard, its name and the time.
-- **E-mail it on a schedule…** sends the dashboard's figures (each widget's number, or its first ten parts) and a link
+- **E-mail it on a schedule…** sends the dashboard's figures (each widget's number, or its first ten parts), the same
+  figures as an attached PDF (`<dashboard>.pdf`, written without a PDF library) and a link
   each day, week (on a weekday) or month (its first day) at a time in a time zone, to `user:…`, `role:…` or e-mail
   addresses (at most 50). The figures are those its maker sees. Each schedule shows its next time, the last sending
   or what went wrong; **Send now** checks it. Needs `insights.design` and e-mail set up (section 9). API:

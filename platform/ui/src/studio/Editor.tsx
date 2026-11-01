@@ -9,11 +9,12 @@ import { ConditionEditor } from "./ConditionEditor";
 import {
   addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
   pasteSteps, readClip, removeBranch, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded,
-  setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
+  replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
 import { TriggersPanel } from "./TriggersPanel";
+import { KINDS, TRIGGER_GROUPS } from "../shell/triggerKinds";
 import { lastValues } from "./variables";
 import { ConnectorsDialog, SavedConnectionsDialog } from "./WorkspaceTools";
 import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
@@ -35,7 +36,10 @@ const ACTION_DRAG = "application/x-ooa-action";
  * The action library on the left: toolkits with their mark and count, searchable, one open at a time. Clicking an
  * action adds it after the selected step (or inside it, when it is a block); dragging puts it where it is dropped.
  */
-export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[]; onAdd: (action: string) => void }) {
+/** The triggers in the command list: the workspace's own (Details > Triggers) and One CommandCenter's (after check-in). */
+const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["file", "When a file arrives in a folder"], ["webhook", "When a web address is called (webhook)"]];
+
+export function ActionsPanel({ packages, onAdd, onTrigger }: { packages: PackageManifest[]; onAdd: (action: string) => void; onTrigger?: (kind: string, where: "studio" | "server") => void }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
@@ -57,6 +61,25 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
       <p className="st-panel-hint">Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match.</p>
       <ul className="st-groups">
+        {onTrigger && (() => {
+          // as AA's editor, the triggers that start the agent sit beside its actions
+          type Item = [kind: string, label: string, where: "studio" | "server"];
+          const all: [string, Item[]][] = [["In this workspace", STUDIO_TRIGGERS.map(([k, l]): Item => [k, l, "studio"])],
+            ...TRIGGER_GROUPS.map(([g, ks]): [string, Item[]] => ["One CommandCenter: " + g.toLowerCase() + " (after check-in)", ks.map((k): Item => [k, KINDS[k]?.label ?? k, "server"])])];
+          const kinds = all.map(([g, ks]): [string, Item[]] => [g, ks.filter(([, l]) => !q || l.toLowerCase().includes(q) || "trigger".includes(q))]).filter(([, ks]) => ks.length);
+          if (!kinds.length) return null;
+          const isOpen = open === "triggers" || (!!q && list.length <= 3);
+          return <li>
+            <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : "triggers")}>
+              <IconTile name="bolt" color="#b45309" size={22} /><span className="st-group-name">Triggers</span><span className="st-count">{kinds.reduce((n, [, ks]) => n + ks.length, 0)}</span>
+            </button>
+            {isOpen && <ul className="st-group-actions">{kinds.map(([g, ks]) => <li key={g}>
+              <span className="st-trigger-where">{g}</span>
+              <ul>{ks.map(([k, l, where]) => <li key={where + k}><button type="button" className="st-action"
+                title={where === "studio" ? "Add it in Details > Triggers" : "Opens One CommandCenter's Create trigger for this agent"} onClick={() => onTrigger(k, where)}>{l}</button></li>)}</ul>
+            </li>)}</ul>}
+          </li>;
+        })()}
         {list.map(({ p, actions }) => {
           const isOpen = open === p.id || (!!q && list.length <= 3);
           const m = toolkitMark(p.id);
@@ -99,11 +122,13 @@ export type StepsClipboard = Clip & { system: boolean };
  * selected step, the agent's variables, and the problems the last save found. Ctrl+click adds a step to the
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
-export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
+export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo, askTrigger,
   run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, onChecked, dirty }:
   { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
+    /** A workspace trigger kind picked in the command list (n changes each time). */
+    askTrigger?: { kind: string; n: number } | null;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
     onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
@@ -127,6 +152,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const folded = useMemo(() => foldedSet(flow), [flow]);
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
+  useEffect(() => { if (askTrigger) { setRightTab("triggers"); setRightHidden(false); } }, [askTrigger]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
   const [rightWidth, setRightWidth] = usePanelSize("details");
   // the output panel: at the bottom, on the right or floating (moved by its grip), or minimised to a bar
@@ -342,6 +368,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     else if (is(e, "steps.settings") && chosen.length) act.settings();
     else if (is(e, "steps.details")) setRightHidden(!rightHidden);
     else if (is(e, "steps.find")) setFinding("");
+    else if (is(e, "steps.replace")) setReplacing(true);
+    else if (is(e, "steps.rename") && chosen.length === 1) act.note();
     else if (is(e, "steps.record") && !recording) record();
     else if (is(e, "steps.duplicate")) act.duplicate();
     else if (is(e, "steps.all")) onSelect(ids);
@@ -373,6 +401,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     return rows.flatMap((r) => "step" in r && ((shown.get(r.step.id) ?? "").includes(t) || JSON.stringify(r.step).toLowerCase().includes(t)) ? [r.step.id] : []);
   };
   const [hits, setHits] = useState<string[]>([]);
+  const [replacing, setReplacing] = useState(false);   // Find and replace (Ctrl+H)
   const onPaste = (e: ClipboardEvent) => {
     if ((e.target as HTMLElement).closest("input, textarea, select")) return;
     pasted.current = true;
@@ -400,6 +429,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     items.push(
       { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any One AgentStudio window", separatorBefore: true, onSelect: act.share },
       { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
+      { key: "rename", label: "Rename", description: "Shown on the step", shortcut: keyOf("steps.rename"), onSelect: act.note },
       { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },
       { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: keyOf("steps.disable"), onSelect: act.disable },
       { key: "delete", label: "Delete", shortcut: keyOf("steps.delete"), onSelect: act.remove },
@@ -425,6 +455,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     <div className={`st-agent-wrap is-out-${outMin ? "min" : outAt}${full ? " is-full" : ""}`} ref={wrapRef}
       onKeyDown={(e) => { if (e.key === "Escape" && full && !document.fullscreenElement) setFull(false); }}>
       <div className="st-agent">
+        {replacing && <ReplaceDialog flow={flow} selected={chosen} onClose={() => setReplacing(false)}
+          onReplace={(next, n) => { onEdit(next); setReplacing(false); onNotice(n + (n === 1 ? " place" : " places") + " changed. " + keyOf("app.undo") + " undoes it."); }} />}
         <section className="st-steps" aria-label="Agent steps" onKeyDown={onKeys} onPaste={onPaste}>
           {/* review round 2 (1 Nov 2026): one line, icons with their name and shortcut on hover (as AA's editor), the step
               actions only while steps are selected and Paste only while something is copied; the count is at the list's foot */}
@@ -451,6 +483,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               ...(breakpoints.length ? [{ key: "nobp", label: "Remove every breakpoint", shortcut: keyOf("run.clearBreakpoints"), onSelect: () => breakpoints.forEach(onToggleBreakpoint) }] : []),
               { key: "all", label: "Select all", shortcut: keyOf("steps.all"), onSelect: () => onSelect(ids) },
               { key: "find", label: "Find in this agent", shortcut: keyOf("steps.find"), onSelect: () => setFinding("") },
+              { key: "replace", label: "Find and replace…", shortcut: keyOf("steps.replace"), onSelect: () => setReplacing(true) },
               ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", shortcut: keyOf("steps.foldAll"), separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
               ...(folded.size ? [{ key: "unfold", label: "Unfold all", shortcut: keyOf("steps.unfoldAll"), onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
@@ -584,7 +617,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
             </TabPanel>
             <TabPanel value="variables"><VariablesPanel flow={flow} builtins={builtins} last={last} onEdit={onEdit} onRefresh={loadBuiltins} /></TabPanel>
             <TabPanel value="triggers">
-              <TriggersPanel api={api} path={path} />
+              <TriggersPanel api={api} path={path} kind={askTrigger?.kind} />
             </TabPanel>
             <TabPanel value="deps">
               {rightTab === "deps" && <DependenciesPanel api={api} path={path} dirty={dirty} onOpen={onOpenPath} onStep={(id) => { selectOne(id); setRightTab("properties"); }} />}
@@ -665,6 +698,26 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
 }
 
 /** The parts an If or a Try can have, with buttons to add them; each new part is selected so clicked actions go in it. */
+/** Find and replace (AA's Ctrl+H) in the steps' settings: the whole agent or the selected steps; the count shows first. */
+function ReplaceDialog({ flow, selected, onClose, onReplace }: { flow: Flow; selected: string[]; onClose: () => void; onReplace: (next: Flow, count: number) => void }) {
+  const [find, setFind] = useState("");
+  const [to, setTo] = useState("");
+  const [matchCase, setMatchCase] = useState(false);
+  const [onlySelected, setOnlySelected] = useState(selected.length > 1);
+  const result = useMemo(() => replaceInSteps(flow, find, to, matchCase, onlySelected ? selected : []), [flow, find, to, matchCase, onlySelected, selected]);
+  return (
+    <Dialog open title="Find and replace" width={520} onClose={onClose} footer={<>
+      <span className="st-muted">{find ? result.count + (result.count === 1 ? " place" : " places") + (onlySelected ? " in the selected steps" : " in this agent") : ""}</span>
+      <span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Cancel</Button>
+      <Button kind="primary" disabled={!result.count} onClick={() => onReplace(result.flow, result.count)}>Replace all</Button></>}>
+      <Field label="Find" hint="In the steps' settings, outputs and names; not in ids or actions.">{(id) => <TextInput id={id} autoFocus value={find} onChange={(e) => setFind(e.target.value)} />}</Field>
+      <Field label="Replace with">{(id) => <TextInput id={id} value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
+      <label className="st-check-line"><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case</label>
+      {selected.length > 0 && <label className="st-check-line"><input type="checkbox" checked={onlySelected} onChange={(e) => setOnlySelected(e.target.checked)} /> Only the {selected.length} selected step{selected.length === 1 ? "" : "s"} (and the steps inside them)</label>}
+    </Dialog>
+  );
+}
+
 function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally") => void }) {
   if (step.action !== "core/if" && step.action !== "core/try") return null;
   return <>

@@ -52,6 +52,8 @@ export const SHORTCUTS: Shortcut[] = [
   S("steps.foldAll", "Ctrl+[", "Fold every block", "Agent steps", "studio", "studio/Editor.tsx"),
   S("steps.unfoldAll", "Ctrl+]", "Unfold every block", "Agent steps", "studio", "studio/Editor.tsx"),
   S("steps.find", "Ctrl+Shift+F", "Find in this agent", "Agent steps", "studio", "studio/Editor.tsx"),
+  S("steps.replace", "Ctrl+H", "Find and replace in the steps' settings", "Agent steps", "studio", "studio/Editor.tsx"),
+  S("steps.rename", "F2", "Rename the step (Shown on the step)", "Agent steps", "studio", "studio/Editor.tsx"),
   S("steps.record", "Ctrl+Shift+R", "Record", "Agent steps", "studio", "studio/Editor.tsx"),
   S("fields.variable", "Ctrl+Space", "Insert a variable in a field", "Agent steps", "studio", "studio/ValueSources.tsx"),
 

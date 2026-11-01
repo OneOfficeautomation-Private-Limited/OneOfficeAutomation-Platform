@@ -224,6 +224,13 @@ ids, selected for review), and **Explain this agent**.
 
 ## 18. Local triggers
 
+Since 2 Nov 2026 the editor's command list (the Actions panel) has a **Triggers** group, as AA's editor lists triggers
+beside actions: the workspace's own triggers (schedule, file, webhook) open Details > Triggers with that kind chosen;
+One CommandCenter's triggers (on the runner: files, folders, windows, processes, services, hotkey; checked by One
+CommandCenter: e-mail, Outlook, ServiceNow, universal poller, webhook) open its **Create trigger** for this agent in a
+new tab (`next/#/triggers?new=<event>&bot=<agent>`), for the agent once it is checked in. Both lists come from one list
+of trigger kinds (`ui/src/shell/triggerKinds.ts`).
+
 The Triggers panel keeps Studio's own triggers: file arrives in a folder (pattern), schedule (every N minutes or daily
 at HH:mm), local webhook (secret shown once). Each can be switched on or off, test-run and deleted; recent activity is
 listed. They work only while Studio runs ([document 04](04-schedules-and-triggers.md)).
@@ -260,6 +267,14 @@ or the Display menu), and a test fails if a key is shown without a handler. Run 
 Shift+F5, F10 or F6, F11, Shift+F11); the step list follows AA's editor (Enter, Space, `[` `]`, Ctrl+`[` `]`, Shift+F9,
 Ctrl+Shift+F, Ctrl+Shift+R). Single-character keys can be switched off per person (WCAG 2.1.4); no key the browser keeps
 for itself is used. See the user guide, Studio basics, section 10.
+
+Also since 2 Nov 2026: **Ctrl+H** Find and replace changes text in the steps' settings, outputs and names (the whole agent
+or the selected steps and those inside them; Match case; the count shows before Replace all; Ctrl+Z undoes it), never ids
+or actions. **F2** renames the selected step (its *Shown on the step*). **Create**'s dialog picks the folder itself
+(Change lists every folder of the workspace; it used to close the dialog). The **Automation** page has **Public** (left)
+and **Private** (right) tabs in both apps, as AA's one Automation page: in One CommandCenter, Private opens One
+AgentStudio for people who build agents (`repo.checkin`) and is shown switched off for others; Studio's menu lists the
+same BUILD pages as the console's, so administrators and developers see one layout and differ only in what they may open.
 
 ## Related documents
 

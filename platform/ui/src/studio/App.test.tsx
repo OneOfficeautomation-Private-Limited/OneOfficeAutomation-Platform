@@ -263,6 +263,15 @@ describe("new Studio", () => {
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
     expect(within(dialog).getByText("Finance")).toBeTruthy();
     expect(document.activeElement).toBe(within(dialog).getByLabelText("Name"));
+    // Change picks another folder in the dialog (it once closed the dialog instead), then back to Finance
+    fireEvent.click(within(dialog).getByRole("button", { name: "Change" }));
+    fireEvent.focus(within(dialog).getByLabelText("Folder"));
+    fireEvent.mouseDown(within(dialog).getByRole("option", { name: /^Workspace/ }));
+    expect(within(dialog).getByText("Workspace")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Change" }));
+    fireEvent.focus(within(dialog).getByLabelText("Folder"));
+    fireEvent.mouseDown(within(dialog).getByRole("option", { name: "Finance" }));
+    expect(within(dialog).getByText("Finance")).toBeTruthy();
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice intake Germany" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
 
@@ -746,6 +755,18 @@ describe("new Studio", () => {
     expect(screen.queryByLabelText("Find in this agent")).toBeNull();
     fireEvent.keyDown(stepButton(steps, "Open workbook"), { key: "Enter" });
     await waitFor(() => expect(screen.getByRole("complementary", { name: /Properties, variables and triggers/ }).contains(document.activeElement)).toBe(true));
+  });
+
+  it("lists the triggers beside the actions, as AA's editor: a workspace trigger opens Details, One CommandCenter's its Create trigger", async () => {
+    render(<App api={fakeServer().api} />);
+    await openIntake();
+    fireEvent.click(screen.getByRole("button", { name: /^Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: "When a file arrives in a folder" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Triggers" }).getAttribute("aria-selected")).toBe("true"));
+    const opened: string[] = [];
+    window.open = ((u: string) => { opened.push(u); return null; }) as typeof window.open;
+    fireEvent.click(screen.getByRole("button", { name: "New email (IMAP mailbox)" }));
+    expect(opened[0]).toMatch(/^\/next\/#\/triggers\?new=email&bot=/);
   });
 
   it("adds a schedule trigger for this agent only", async () => {

@@ -93,6 +93,8 @@ Permissions marked "admin only" belong to administrators unless a custom role gr
 | `lockers.manage` (admin only) | Administer every vault folder; vault key status and rotation |
 | `analytics.view` | Overview, Operations, dashboards, alerts, Home figures |
 | `alerts.manage` (admin only) | Make, change, test and delete alert rules |
+| `insights.design` (admin only) | Make, change, share, copy and e-mail dashboards (AA's Insight designer) |
+| `insights.admin` (admin only) | Savings per agent and work queue, and the yearly goal (Business > Value) |
 | `apitasks.manage` | Manage Agent APIs |
 | `skills.view` | See and use Prompt Skills |
 | `skills.manage` | Create and change own Prompt Skills |
@@ -142,7 +144,9 @@ A principal that does not exist is refused when a rule is saved.
 ## 7. Signing in with a password
 
 - A wrong user name or password answers `CR.LOGIN_FAILED`. Every fifth failure in a row (passwords or two-step codes)
-  locks the account for 15 minutes (`CR.LOCKED_OUT`).
+  locks the account for 15 minutes (`CR.LOCKED_OUT`). Both are Settings since 1 Nov 2026 (`lockout_attempts`, 0 never
+  locks; `lockout_minutes`), with the password rules, idle sign-out, the sign-in notice and the API key lifetime
+  (Settings > Sign-in and security; see the user guide for administrators, section 5).
 - A disabled account is refused (`CR.USER_DISABLED`).
 - A person whose password is temporary or has expired must choose a new one before doing anything else.
 - After the licence's grace period only administrators can sign in ([document 13](13-licensing-and-editions.md)).

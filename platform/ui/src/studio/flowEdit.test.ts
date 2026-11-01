@@ -6,6 +6,7 @@ import {
   addBranch, copySteps, moveManyTo, moveSelection, pasteSteps, readClip, removeBranch, sectionKey, setFolded, spotFor, START, topSteps,
 } from "./flowEdit";
 import { stepRows } from "./toolkits";
+import { replaceInSteps } from "./flowEdit";
 
 const packages: PackageManifest[] = [
   { id: "core", name: "Core", version: "1", actions: [
@@ -167,5 +168,30 @@ describe("E1 step editing", () => {
     const rows = stepRows(f.steps, new Set(["s2"]));
     expect(rows.map((r) => r.kind === "step" ? r.n + (r.folded ? "+" + r.hidden : "") : "-")).toEqual(["1", "2+1", "4"]);
     expect(setFolded(f, ["s2"], false).ui).toBeUndefined();
+  });
+});
+
+describe("find and replace (Ctrl+H)", () => {
+  const f: Flow = { kind: "TaskBot", id: "b", name: "B", steps: [
+    { id: "s1", action: "core/log", args: { message: "Invoice from Acme" }, note: "Acme log" },
+    { id: "s2", action: "core/if", args: { condition: "$vendor == 'acme'" }, children: [{ id: "s3", action: "core/log", args: { message: "ACME again", list: ["acme", 2] } }],
+      else: [{ id: "s4", action: "core/log", args: { message: "not acme" } }] }] };
+
+  it("replaces in settings, names and the steps inside blocks, never ids or actions", () => {
+    const r = replaceInSteps(f, "acme", "Globex", false);
+    expect(r.count).toBe(6);
+    expect(r.flow.steps[0]).toEqual({ id: "s1", action: "core/log", args: { message: "Invoice from Globex" }, note: "Globex log" });
+    expect(r.flow.steps[1].children![0].args).toEqual({ message: "Globex again", list: ["Globex", 2] });
+    expect(r.flow.steps[1].else![0].args!.message).toBe("not Globex");
+    expect(replaceInSteps(f, "core", "x", false).flow.steps[0].action).toBe("core/log");
+  });
+
+  it("matches case when asked, and only in the selected steps and the steps inside them", () => {
+    expect(replaceInSteps(f, "acme", "x", true).count).toBe(3);
+    const only = replaceInSteps(f, "acme", "x", false, ["s2"]);
+    expect(only.count).toBe(4);
+    expect(only.flow.steps[0].args!.message).toBe("Invoice from Acme");
+    expect(replaceInSteps(f, "a.c", "x", false).count).toBe(0);   // the words, not a pattern
+    expect(replaceInSteps(f, "nothing", "x", false).flow).toBe(f);
   });
 });

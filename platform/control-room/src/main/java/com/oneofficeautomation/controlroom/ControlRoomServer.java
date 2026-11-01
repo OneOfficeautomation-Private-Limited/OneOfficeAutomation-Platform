@@ -562,6 +562,7 @@ public final class ControlRoomServer {
             case "policies" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("policies", cr.policies.list(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.policies.get(u, seg[1]));
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("stopped")) sendJson(ex, 200, cr.policies.stopped(u, seg[1], q));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.policies.save(u, null, map(body(ex)), ip));
                 else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.policies.save(u, seg[1], map(body(ex)), ip));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.policies.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }

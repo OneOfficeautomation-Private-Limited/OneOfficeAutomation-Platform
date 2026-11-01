@@ -806,6 +806,9 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-signin-notice { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); padding: 8px 10px; font-size: 12.5px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
 .cc-signin-notice p { margin: 0 0 6px; }
 .cc-signin-note { margin: 0; color: var(--ui-text); font-size: 12.5px; }
+/* AA's one Automation page: Public and Private tabs; Private links to One AgentStudio, or is off with the reason */
+a.ov-tab { text-decoration: none; }
+.ov-tab.is-off { color: var(--ui-text-3); cursor: not-allowed; }
 /* SCIM provisioning in Settings > Single sign-on (item 4f) */
 .cc-scim { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--ui-line, var(--ui-divider)); display: flex; flex-direction: column; gap: 8px; }
 .cc-scim h3 { margin: 0; font-size: 14px; }

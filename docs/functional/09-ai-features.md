@@ -67,6 +67,13 @@ against its budget, key reference and last change.
   and AI governance.
 - **Content check** `moderation` sends each answer to the provider's moderation endpoint; a flagged answer fails the
   step with `AI.CONTENT_FLAGGED`, naming the categories.
+- **AI guardrails policies** (Administration > Policies, given to folders) apply to every AI step of the agents in those
+  folders when they run: masking always on, the model connections allowed (`AI.MODEL_NOT_ALLOWED` otherwise) and the
+  content check (off, log or block). Since 2 Nov 2026 a policy chooses the **personal data to mask**: names and places
+  (with a Presidio analyzer), e-mail addresses and phone numbers, card numbers and IBANs, government ids, IP addresses
+  (`mask_kinds`; all by default). Each AI guardrails policy has **What it stopped**: over 7 days to a year, the steps it
+  stopped (a model not allowed, an answer flagged; with links to the runs) and the personal data masked by kind
+  (`GET /api/policies/{id}/stopped?days=`).
 
 ## 4. Testing a connection
 

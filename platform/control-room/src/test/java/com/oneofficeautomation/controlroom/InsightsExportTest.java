@@ -65,7 +65,14 @@ class InsightsExportTest {
             assertEquals(1, smtp.messages.size());
             assertEquals(Set.of("asha@example.com", "cfo@example.com"), new HashSet<>(smtp.rcpts));
             assertEquals("Dashboard: Ops", LicenseMailAndUsageTest.subject(smtp.messages.get(0)));
-            String body = LicenseMailAndUsageTest.body(smtp.messages.get(0));
+            // two parts: the figures as text, and the same as a PDF to keep or forward
+            String raw = smtp.messages.get(0);
+            assertTrue(raw.contains("Content-Type: multipart/mixed"), raw.substring(0, Math.min(400, raw.length())));
+            assertTrue(raw.contains("Content-Type: application/pdf; name=\"Ops.pdf\""));
+            String[] parts = raw.split("\n\n");
+            String body = new String(Base64.getMimeDecoder().decode(parts[2].substring(0, parts[2].indexOf("--")).trim()), java.nio.charset.StandardCharsets.UTF_8);
+            String pdf = new String(Base64.getMimeDecoder().decode(parts[3].substring(0, parts[3].indexOf("--")).trim()), java.nio.charset.StandardCharsets.ISO_8859_1);
+            assertTrue(pdf.startsWith("%PDF-1.4") && pdf.contains("(Runs: 5)") && pdf.trim().endsWith("%%EOF"), pdf.substring(0, Math.min(300, pdf.length())));
             assertTrue(body.contains("Runs: 5"), body);   // the figures its maker (an administrator) sees
             assertTrue(body.contains("  Ops/Report: 4"), body);
             assertTrue(body.contains("https://ooa.example.com/next/#/business?tab=dashboards&dashboard=" + dash), body);

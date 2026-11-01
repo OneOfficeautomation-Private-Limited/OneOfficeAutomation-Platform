@@ -57,6 +57,20 @@ class ModelLimitsTest {
     }
 
     /** A folder's AI guardrails (Administration > Policies), sent with the run: masking forced on, only the models allowed, the content check's mode. */
+    /** A policy can mask only some kinds of personal data (Administration > Policies). */
+    @Test void maskingByKind() {
+        String text = "Mail ann@example.com, card 4111 1111 1111 1111, from 10.0.0.1";
+        Map<String, String> map = new java.util.LinkedHashMap<>();
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        String all = LlmClient.mask(text, map, counts);
+        assertFalse(all.contains("ann@example.com") || all.contains("4111") || all.contains("10.0.0.1"), all);
+        map.clear(); counts.clear();
+        String some = LlmClient.mask(text, map, counts, java.util.Set.of("payment"));
+        assertTrue(some.contains("ann@example.com") && some.contains("10.0.0.1"), some);
+        assertFalse(some.contains("4111"), some);
+        assertEquals(java.util.Set.of("CREDIT_CARD"), counts.keySet());
+    }
+
     @Test void aiGuardrailsFromThePolicy() throws Exception {
         Path w = Files.createTempDirectory("ooa-guardrails");
         Files.writeString(w.resolve("model-connections.json"), "{\"connections\":[{\"name\":\"azure\",\"provider\":\"azure_openai\",\"model\":\"gpt-4o\"},"

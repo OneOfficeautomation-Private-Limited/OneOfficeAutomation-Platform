@@ -570,6 +570,8 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-items tbody tr.is-selected .st-row-actions, .st-items tbody tr.is-selected:hover .st-row-actions { background: var(--ui-selected); }
 @container (max-width: 560px) { .st-col-changed { display: none; } }
 @container (max-width: 420px) { .st-col-type { display: none; } }
+/* the Triggers group of the command list: where each set of triggers listens */
+.st-trigger-where { display: block; padding: 6px 10px 2px 36px; font-size: 11px; font-weight: 700; color: var(--ui-text-2); text-transform: none; }
 /* Find in this agent (Ctrl+Shift+F): a small box in the steps toolbar; the steps found are selected */
 .st-find { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
 .st-find input { height: 26px; width: 190px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--ui-field); border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; }

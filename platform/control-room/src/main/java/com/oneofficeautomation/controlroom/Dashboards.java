@@ -269,8 +269,8 @@ public final class Dashboards {
         for (String r : String.valueOf(s.get("recipients")).split(",")) if (r.contains("@") && !r.startsWith("user:") && !r.startsWith("role:")) to.add(r); else people.add(r);
         for (String a : cr.addressesOf(people)) if (!to.contains(a)) to.add(a);
         if (to.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "None of the people or roles has an e-mail address");
-        StringBuilder body = new StringBuilder(String.valueOf(d.get("name"))).append(", ")
-            .append(LocalDate.now(ZoneId.of(String.valueOf(s.get("time_zone")))).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH))).append("\n\n");
+        String dated = String.valueOf(d.get("name")) + ", " + LocalDate.now(ZoneId.of(String.valueOf(s.get("time_zone")))).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH));
+        StringBuilder body = new StringBuilder(dated).append("\n\n");
         for (Object o : (List<Object>) d.get("widgets")) {
             Map<String, Object> w = (Map<String, Object>) o;
             String title = String.valueOf(w.getOrDefault("title", w.getOrDefault("kpi", w.getOrDefault("metric", "Figure"))));
@@ -286,7 +286,10 @@ public final class Dashboards {
         String link = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
         body.append("\n").append(link.isEmpty() ? "Open it in One CommandCenter: Operational Insights > Business > Dashboards."
             : "Open it: " + link + "/next/#/business?tab=dashboards&dashboard=" + dashboardId).append("\n");
-        cr.mailer.send(to, "Dashboard: " + d.get("name"), body.toString());
+        // the same figures as a PDF too, to keep or forward
+        byte[] pdf = TextPdf.of(dated, Arrays.asList(body.substring(dated.length() + 2).split("\n", -1)));
+        String file = String.valueOf(d.get("name")).replaceAll("[^A-Za-z0-9 ._-]", "_").trim();
+        cr.mailer.send(to, "Dashboard: " + d.get("name"), body.toString(), List.of(new Mailer.Attachment((file.isEmpty() ? "dashboard" : file) + ".pdf", "application/pdf", pdf)));
         return to.size();
     }
 

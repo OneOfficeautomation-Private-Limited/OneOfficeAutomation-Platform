@@ -100,10 +100,26 @@ final class LlmClient {
         catch (Exception e) { throw new IllegalStateException(e); }
     }
 
+    /** The kinds of personal data an AI guardrails policy can choose to mask, and the patterns of each (names: the analyzer). */
+    static final Map<String, List<String>> MASK_KINDS = new LinkedHashMap<>();
+    static {
+        MASK_KINDS.put("names", List.of());   // names, places and the like: what a Presidio analyzer finds
+        MASK_KINDS.put("contacts", List.of("EMAIL", "PHONE"));
+        MASK_KINDS.put("payment", List.of("CREDIT_CARD", "IBAN"));
+        MASK_KINDS.put("government", List.of("US_SSN"));
+        MASK_KINDS.put("network", List.of("IP_ADDRESS"));
+    }
+
     /** Masks text in place; fills mapping (token → original) and counts. */
-    static String mask(String text, Map<String, String> mapping, Map<String, Integer> counts) {
+    static String mask(String text, Map<String, String> mapping, Map<String, Integer> counts) { return mask(text, mapping, counts, null); }
+
+    /** Masks only the patterns of these kinds (null: every kind). */
+    static String mask(String text, Map<String, String> mapping, Map<String, Integer> counts, Set<String> kinds) {
+        Set<String> only = null;
+        if (kinds != null) { only = new HashSet<>(); for (String k : kinds) only.addAll(MASK_KINDS.getOrDefault(k, List.of())); }
         String out = text;
         for (var e : PII.entrySet()) {
+            if (only != null && !only.contains(e.getKey())) continue;
             Matcher m = e.getValue().matcher(out);
             StringBuilder sb = new StringBuilder();
             while (m.find()) {
@@ -198,16 +214,17 @@ final class LlmClient {
         ModelConnections.beforeCall(ctx, cfg);
         Map<String, String> mapping = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
-        String analyzer = ModelConnections.option(cfg, "pii_analyzer_url");
+        Set<String> kinds = ModelConnections.maskKinds(ctx);   // the guardrails' chosen kinds; null: all
+        String analyzer = kinds != null && !kinds.contains("names") ? null : ModelConnections.option(cfg, "pii_analyzer_url");
         List<Map<String, Object>> msgs = new ArrayList<>();
         for (Map<String, Object> m : messages) {
             Map<String, Object> c = new LinkedHashMap<>(m);
-            if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", presidio(ctx, analyzer, mask(s, mapping, counts), mapping, counts));
+            if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", presidio(ctx, analyzer, mask(s, mapping, counts, kinds), mapping, counts));
             if (cfg.maskPii() && m.get("content") instanceof List<?> parts) {
                 List<Object> masked = new ArrayList<>();
                 for (Object p : parts) {
                     Map<String, Object> part = new LinkedHashMap<>((Map<String, Object>) p);
-                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", presidio(ctx, analyzer, mask(s, mapping, counts), mapping, counts));
+                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", presidio(ctx, analyzer, mask(s, mapping, counts, kinds), mapping, counts));
                     masked.add(part);
                 }
                 c.put("content", masked);
@@ -216,7 +233,7 @@ final class LlmClient {
                 List<Object> masked = new ArrayList<>();
                 for (Object t : tcs) {
                     Map<String, Object> tc = new LinkedHashMap<>((Map<String, Object>) t);
-                    tc.put("args", JsonLite.parse(mask(JsonLite.write(tc.get("args")), mapping, counts)));
+                    tc.put("args", JsonLite.parse(mask(JsonLite.write(tc.get("args")), mapping, counts, kinds)));
                     masked.add(tc);
                 }
                 c.put("tool_calls", masked);
