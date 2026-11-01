@@ -17,14 +17,14 @@ export const MENU_SECTIONS: MenuSection[] = [
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
     { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "workflows", label: "Workflow", perm: "runs.view" },
     { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
-    { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
+    { id: "credentials", label: "Credential vault" }, { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
   { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [
     { id: "insights", label: "Overview", perm: "analytics.view" }, { id: "alerts", label: "Alerts", perm: "analytics.view" }, { id: "operations", label: "Operations", perm: "analytics.view" },
     { id: "capacity", label: "Runner capacity", perm: "analytics.view" }, { id: "queueinsights", label: "Work queue insights", perm: "queues.view" },
     { id: "value", label: "Value", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }] },
   { id: "administration", label: "ADMINISTRATION", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
-    { id: "teams", label: "Teams", perm: "teams.manage|team_lead" }, { id: "credentials", label: "Credential vault" },
+    { id: "teams", label: "Teams", perm: "teams.manage|team_lead" },
     { id: "audit", label: "Audit Trail", perm: "audit.view" }, { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }] },
   { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [

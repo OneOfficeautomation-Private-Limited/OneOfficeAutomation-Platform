@@ -660,7 +660,7 @@ describe("new Studio", () => {
     fireEvent.click(stepButton(steps, "Loop"));
     fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9" });
     expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Debug" }));
+    fireEvent.keyDown(window, { key: "F5" });   // F5 debugs, as the Debug button
     const dialog = await screen.findByRole("dialog", { name: "Debug Invoice intake" });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Debug" })); });
     expect(runs[0]).toMatchObject({ debug: true, breakpoints: ["loop"], stopAtStart: false });
@@ -669,7 +669,8 @@ describe("new Studio", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Debug values" }));
     expect((await screen.findByText("$workbook")).closest("tr")!.textContent).toContain("C:/in.xlsx");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Run output" }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
+    expect(screen.getByRole("button", { name: "Continue" }).title).toContain("F5");
+    await act(async () => { fireEvent.keyDown(window, { key: "F5" }); });   // F5 continues while the run waits at a step
     expect(runs[1]).toEqual({ command: "continue" });
     expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
   });

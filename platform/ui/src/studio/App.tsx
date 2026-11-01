@@ -165,12 +165,24 @@ export function App({ api: given }: { api?: StudioApi }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  // Ctrl+S saves, Ctrl+Z and Ctrl+Y undo and redo (outside text fields, which keep their own undo)
-  const keys = useRef({ save, undo, redo, current });
-  keys.current = { save, undo, redo, current };
+  // Ctrl+S saves, Ctrl+Z and Ctrl+Y undo and redo (outside text fields, which keep their own undo); the run and debug keys
+  // are UiPath's (F5 debug or continue, Ctrl+F5 run, Shift+F5 stop, F10 step over, F11 step into, Shift+F11 step out),
+  // with AA's F6 as step over too
+  const keys = useRef({ save, undo, redo, current, runKey: (_e: KeyboardEvent): boolean => false });
+  keys.current = { save, undo, redo, current, runKey: (e: KeyboardEvent) => {
+    if (!agent || !/^F(5|6|10|11)$/.test(e.key)) return false;
+    const run = agent.run && !isFinished(agent.run) ? agent.run : null, ctrl = e.ctrlKey || e.metaKey;
+    if (e.key === "F5" && e.shiftKey) { if (run) stopRun(); }
+    else if (e.key === "F5") { if (run?.stopped) debugCommand("continue"); else if (!run) startRun(!ctrl); }
+    else if (!run?.stopped) return true;   // the step keys work while the run waits at a step
+    else if (e.key === "F11") debugCommand(e.shiftKey ? "stepOut" : "stepInto");
+    else debugCommand("stepOver");
+    return true;
+  } };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { current: tab } = keys.current;
+      if (tab && keys.current.runKey(e)) { e.preventDefault(); return; }
       if (!tab || !(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
       const inField = (e.target as HTMLElement | null)?.closest?.("input, textarea, select");
@@ -403,10 +415,10 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current && <>
                 <Button kind="primary" icon="save" onClick={() => save(current.path)} title="Save (Ctrl+S)">Save</Button>
                 {!agent ? null : running
-                  ? <Button kind="light" onClick={stopRun}>Stop run</Button>
+                  ? <Button kind="light" onClick={stopRun} title="Stop the run (Shift+F5)">Stop run</Button>
                   : <>
-                      <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer">Run</Button>
-                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints (or at the first step)">Debug</Button>
+                      <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer (Ctrl+F5)">Run</Button>
+                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints, or at the first step (F5)">Debug</Button>
                     </>}
                 {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>

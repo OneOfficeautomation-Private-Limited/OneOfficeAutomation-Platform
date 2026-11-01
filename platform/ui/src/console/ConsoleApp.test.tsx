@@ -397,7 +397,8 @@ describe("rebuilt One CommandCenter console", () => {
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).getByRole("button", { name: "Runner Machines" })).toBeTruthy();
-    expect(within(menu).queryByText("ADMINISTRATION")).not.toBeNull();   // the vault is for everyone
+    expect(within(menu).getByRole("button", { name: "Credential vault" })).toBeTruthy();   // the vault is for everyone, under MANAGE as AA's
+    expect(within(menu).queryByText("ADMINISTRATION")).toBeNull();   // no page in it is open to a viewer
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
     expect(within(menu).queryByText("OPERATIONAL INSIGHTS")).toBeNull();   // no page in it is open to a viewer
     fireEvent.click(within(menu).getByRole("button", { name: "AI" }));
@@ -888,7 +889,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).getByRole("button", { name: "MANAGE" }).getAttribute("aria-expanded")).toBe("false");   // one section open
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();   // opening another closes it
-    expect(within(menu).getByText("Pinned pages show here.")).toBeTruthy();
+    expect(within(menu).queryByText("Favourites")).toBeNull();   // taken out on 1 Nov 2026
     expect(within(within(menu).getByRole("group", { name: "Menu width" }).parentElement!).getByRole("button", { name: "Collapse menu" })).toBeTruthy();   // at the bottom
     expect(menu.style.width).toBe("232px");
     fireEvent.click(within(menu).getByRole("button", { name: "Wider menu" }));
