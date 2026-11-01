@@ -806,7 +806,10 @@ public final class ControlRoom {
         return content(path, version);
     }
 
-    public Map<String, Object> checkout(User by, String path, String ip) {
+    public Map<String, Object> checkout(User by, String path, String ip) { return checkout(by, path, null, ip); }
+
+    /** Checks an agent out: locks it for the person and gives its latest version, or the version asked for (AA's check-out of a chosen version). */
+    public Map<String, Object> checkout(User by, String path, Object version, String ip) {
         require(by, "repo.checkin", "check out agents");
         folders.require(by, path, "edit", "check out agents");
         return db.tx(() -> {
@@ -815,8 +818,9 @@ public final class ControlRoom {
             if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by")))
                 throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by") + " since " + b.get("locked_at"), "Ask them to check it in, or an administrator to undo the check-out.");
             db.update("UPDATE bots SET locked_by = ?, locked_at = ? WHERE path = ?", by.username(), now(), path);
-            audit.record(by.username(), "repo.checkout", "bot", path, null, "ok", ip);
-            return content(path, "latest");
+            Map<String, Object> got = content(path, version == null || "".equals(version) ? "latest" : version);
+            audit.record(by.username(), "repo.checkout", "bot", path, Map.of("version", got.get("version")), "ok", ip);
+            return got;
         });
     }
 
@@ -883,6 +887,7 @@ public final class ControlRoom {
             String json = JsonLite.write(flow);
             int version;
             if (b == null) {
+                if (checkedOut) folders.makeForCheckIn(by, path, ip);   // a new folder in the repository, made and recorded
                 version = 1;
                 db.update("INSERT INTO bots (path, bot_id, name, description, latest_version, production_version, created, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
                         path, botId, String.valueOf(flow.getOrDefault("name", botId)), String.valueOf(flow.getOrDefault("description", "")), 1, makeProduction ? 1 : null, now(), now(), by.username());

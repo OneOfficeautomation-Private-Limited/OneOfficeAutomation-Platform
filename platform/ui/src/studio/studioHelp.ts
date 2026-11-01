@@ -26,6 +26,8 @@ export const PUBLIC_HELP: HelpTopic = {
     { name: "Latest and Live", text: "Latest is the newest version checked in; Live is the one that runs. They differ when a new version waits to be made live." },
     { name: "Checked out", text: "Who is working on the agent now. Only they, or an administrator, can check it in or undo the check-out." },
     { name: "Versions", text: "In the row's ⋮ menu: every version with who checked it in, when and what changed." },
+    { name: "Check out a version", text: "In the row's ⋮ menu: pick an earlier version to check out. Check it in again to make it the newest version, for example to bring back one that worked." },
+    { name: "Agents it runs", text: "Checking out an agent also copies the agents it runs into your workspace when you do not have them yet. They are not checked out, so others can still change them." },
     { name: "Undo check-out", text: "In the row's ⋮ menu, for your own check-outs: lets others check the agent out again. Your private copy stays; its changes are not checked in." },
     { name: "Sign in", text: "The Public tab needs a sign-in to One CommandCenter. When One AgentStudio runs on the same server, your browser sign-in is used." },
   ] };
@@ -41,7 +43,7 @@ export const EDITOR_HELP: HelpTopic = {
     { name: "Record and Capture", text: "Record clicks and typing in a browser or a Windows application and turn them into steps; Capture adds one step for a single web element or desktop control." },
     { name: "Assistant", text: "Describe what the agent should do and it suggests steps, or ask it to explain the agent." },
     { name: "Run and Debug", text: "Run (Ctrl+F5) runs the agent on this computer as it is in the editor. Debug (F5) stops at breakpoints (F9) so you can step through with F10, F11 and Shift+F11; Shift+F5 stops." },
-    { name: "Save and Check in", text: "Save (Ctrl+S) keeps the agent in your workspace. Check in sends it to One CommandCenter as a new version for others to run." },
+    { name: "Save and Check in", text: "Save (Ctrl+S) keeps the agent in your workspace. Check in sends it to One CommandCenter as a new version for others to run. The dialog lists the agents it runs: new ones are checked in with it, first, and ones checked out to you can be ticked to go in too." },
     { name: "Undo and Redo", text: "Ctrl+Z and Ctrl+Y, or the arrows at the left of the toolbar." },
   ] };
 

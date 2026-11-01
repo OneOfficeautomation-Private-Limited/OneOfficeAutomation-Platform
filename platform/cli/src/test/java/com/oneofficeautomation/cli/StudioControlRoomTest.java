@@ -114,6 +114,30 @@ class StudioControlRoomTest {
             assertEquals(200, call(sa, "POST", "/api/cr/checkout", Map.of("path", "My Bots/Fresh.flow.json"), null).get("_status"), "Bob's refused check-out locked nothing");
             assertEquals(200, call(sa, "POST", "/api/cr/undo-checkout", Map.of("path", "My Bots/Fresh.flow.json"), null).get("_status"));
 
+            // check out a chosen version: Alice's copy becomes version 1 again (to bring it back, she would check it in)
+            Map<String, Object> v1 = call(sa, "POST", "/api/cr/checkout", Map.of("path", "My Bots/Invoice bot.flow.json", "version", 1), null);
+            assertEquals(1, ((Number) v1.get("version")).intValue(), String.valueOf(v1));
+            assertFalse(Files.readString(wsA.resolve("My Bots/Invoice bot.flow.json")).contains("v2 by bob"), "the private copy is version 1");
+            assertEquals(200, call(sa, "POST", "/api/cr/undo-checkout", Map.of("path", "My Bots/Invoice bot.flow.json"), null).get("_status"));
+
+            // a check-in into a new folder makes it in the repository, recorded as made by Alice
+            Files.createDirectories(wsA.resolve("Shared"));
+            Files.writeString(wsA.resolve("Shared/Child.flow.json"), bot.replace("invoice_bot", "child_bot").replace("Invoice bot", "Child"));
+            Files.writeString(wsA.resolve("Shared/Main.flow.json"), "{\"kind\":\"TaskBot\",\"id\":\"main_bot\",\"name\":\"Main\",\"variables\":[],"
+                    + "\"steps\":[{\"id\":\"s1\",\"action\":\"core/run_bot\",\"args\":{\"automation\":\"child_bot\"}}]}");
+            for (String f : List.of("Shared/Child.flow.json", "Shared/Main.flow.json"))
+                assertEquals(200, call(sa, "POST", "/api/cr/checkin", Map.of("local", f, "comment", "shared"), null).get("_status"), f);
+            String aliceToken = (String) call(crUrl, "POST", "/api/auth/login", Map.of("username", "alice", "password", "alice-Passw0rd-99"), null).get("token");
+            Map<String, Object> shared = ((List<Map<String, Object>>) call(crUrl, "GET", "/api/repo/folders", null, aliceToken).get("folders")).stream()
+                    .filter(f -> "Shared".equals(f.get("path"))).findFirst().orElseThrow();
+            assertEquals("alice", shared.get("created_by"), "the folder made by the check-in is recorded");
+            // checking out an agent copies the agents it runs that the workspace does not have yet, without checking them out
+            Map<String, Object> main = call(sb, "POST", "/api/cr/checkout", Map.of("path", "Shared/Main.flow.json"), null);
+            assertEquals(List.of("Shared/Child.flow.json"), main.get("cloned"), String.valueOf(main));
+            assertTrue(Files.exists(wsB.resolve("Shared/Child.flow.json")));
+            assertEquals("checked_out", stateOf(sb, "Shared/Main.flow.json"));
+            assertEquals("checked_in", stateOf(sb, "Shared/Child.flow.json"), "the copied agent is not checked out");
+
             Files.writeString(wsA.resolve("My Bots/Broken.flow.json"), "{\"kind\":\"TaskBot\",\"id\":\"broken_bot\",\"name\":\"b\",\"variables\":[],\"steps\":[{\"id\":\"s1\",\"action\":\"core/log\",\"args\":{\"message\":\"$nope\"}}]}");
             Map<String, Object> bad = call(sa, "POST", "/api/cr/checkin", Map.of("local", "My Bots/Broken.flow.json"), null);
             assertEquals("CR.INVALID_BOT", ((Map<String, Object>) bad.get("error")).get("code"));

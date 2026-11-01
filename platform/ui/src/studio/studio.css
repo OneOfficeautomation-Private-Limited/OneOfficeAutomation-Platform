@@ -116,6 +116,9 @@ button.st-marker-row { cursor: pointer; }
 .st-step-row .st-step { padding-right: 68px; }
 .st-step-tools { position: absolute; top: 4px; right: 6px; display: flex; gap: 2px; }
 .st-pill { flex: none; padding: 1px 8px; border-radius: 10px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 11px; font-weight: 700; white-space: nowrap; }
+/* the agents a checked-in agent runs, reviewed in the Check in dialog */
+.st-deps { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 4px 10px 8px; margin: 12px 0 0; }
+.st-deps legend { font-weight: 600; padding: 0 4px; }
 /* a private item's state against the repository (Status column, 1 Nov 2026): the console's pill colours */
 .st-status.is-checked_out { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
 .st-status.is-checked_out_edited, .st-status.is-edited { background: var(--ui-running-bg); color: var(--ui-warning-text); }

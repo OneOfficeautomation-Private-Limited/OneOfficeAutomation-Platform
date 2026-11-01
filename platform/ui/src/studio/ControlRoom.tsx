@@ -78,12 +78,13 @@ const FOLDER_ICON = (sel: boolean) => <span style={{ color: sel ? "#ffffff" : "#
  * in meanwhile); check it back in from the agent's Check in button. A search looks through every folder.
  */
 export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNotice, onError }:
-  { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string, mine?: boolean) => Promise<void>;
+  { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string, mine?: boolean, version?: number) => Promise<void>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
   const [q, setQ] = useState("");
   const [list, setList] = useState<{ agents: RepoAgent[]; mapping: Record<string, string> } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [versions, setVersions] = useState<{ agent: RepoAgent; list: RepoVersion[] } | null>(null);
+  const [picking, setPicking] = useState<{ agent: RepoAgent; list: RepoVersion[]; version: number } | null>(null);   // check out a chosen version
   const [undoing, setUndoing] = useState<RepoAgent | null>(null);
   const [tick, setTick] = useState(0);
   const reload = () => setTick((t) => t + 1);
@@ -152,6 +153,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
                         {mine ? "Open my copy" : "Check out"}</Button>}
                       <Menu label={nameOf(a.path) + " menu"} align="end" items={[
                         { key: "versions", label: "Versions", onSelect: async () => { try { setVersions({ agent: a, list: await api.crVersions(a.path) }); } catch (e) { onError(e); } } },
+                    ...(!a.locked_by || mine ? [{ key: "pick", label: "Check out a version…", description: "An earlier version, to change it or to bring it back",
+                      onSelect: async () => { try { setPicking({ agent: a, list: await api.crVersions(a.path), version: a.latest_version }); } catch (e) { onError(e); } } }] : []),
                         ...(mine ? [{ key: "undo", label: "Undo check-out…", separatorBefore: true, onSelect: () => setUndoing(a) }] : []),
                       ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for " + nameOf(a.path)} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} />
                     </td>
@@ -176,6 +179,23 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
           </table>
         </Dialog>
       )}
+      {picking && (
+        <Dialog open onClose={() => setPicking(null)} title={"Check out a version of " + shortName(picking.agent.path)} width={620}
+          footer={<><Button kind="secondary" onClick={() => setPicking(null)}>Cancel</Button>
+            <Button kind="primary" onClick={async () => { const p = picking; setPicking(null);
+              try { await onCheckOut(p.agent.path, localOf(p.agent.path), false, p.version); reload(); } catch (e) { onError(e); } }}>Check out v{picking.version}</Button></>}>
+          <p className="st-muted">Your private copy becomes this version. Check it in to make it the newest version again, for example to bring back an earlier one.</p>
+          <table className="st-table" aria-label="Versions">
+            <thead><tr><th scope="col"><span className="st-sr">Choose</span></th><th scope="col">Version</th><th scope="col">By</th><th scope="col">When</th><th scope="col">What changed</th></tr></thead>
+            <tbody>{picking.list.map((v) => (
+              <tr key={v.version} onClick={() => setPicking({ ...picking, version: v.version })}>
+                <td><input type="radio" name="st-pick-version" aria-label={"Version " + v.version} checked={picking.version === v.version}
+                  onChange={() => setPicking({ ...picking, version: v.version })} /></td>
+                <td>v{v.version}{v.version === picking.agent.production_version && <strong> · live</strong>}</td><td>{v.author}</td>
+                <td>{v.created ? new Date(v.created).toLocaleString() : ""}</td><td>{v.comment}</td></tr>))}</tbody>
+          </table>
+        </Dialog>
+      )}
       {undoing && (
         <Dialog open onClose={() => setUndoing(null)} title={"Undo check-out of " + shortName(undoing.path) + "?"} width={480}
           footer={<><Button kind="secondary" onClick={() => setUndoing(null)}>Cancel</Button>
@@ -190,14 +210,26 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   );
 }
 
-/** Check in: the open agent becomes a new version in the repository; signs in first when needed. */
-export function CheckInDialog({ api, name, status, home, onStatus, onClose, onCheckIn }:
-  { api: StudioApi; name: string; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onClose: () => void;
-    onCheckIn: (comment: string, live: boolean) => Promise<void> }) {
+/**
+ * An agent the checked-in agent runs, for the dependency review (as AA's Review dependencies): a new one goes in with
+ * it (it cannot run without it), one checked out to the person may go in too, and one already in the repository is shown.
+ */
+export type CheckInDep = { path: string; name: string; status: string };
+const DEP_STATUS: Record<string, string> = { new: "New: checked in with it", checked_out: "Checked out to you", checked_out_edited: "Checked out to you, edited",
+  checked_in: "Already in the repository", linked: "Already in the repository", edited: "Edited, not checked out: check it out first" };
+
+/** Check in: the agent (or several items) becomes a new version in the repository; signs in first when needed. */
+export function CheckInDialog({ api, name, status, home, deps = [], onStatus, onClose, onCheckIn }:
+  { api: StudioApi; name: string; status: CrStatus; home: string; deps?: CheckInDep[]; onStatus: (s: CrStatus) => void; onClose: () => void;
+    onCheckIn: (comment: string, live: boolean, withDeps: string[]) => Promise<void> }) {
   const [comment, setComment] = useState("");
   const [live, setLive] = useState(false);
   const [busy, setBusy] = useState(false);
-  const send = async () => { setBusy(true); try { await onCheckIn(comment.trim(), live); } finally { setBusy(false); } };
+  const optional = (d: CheckInDep) => d.status === "checked_out" || d.status === "checked_out_edited";
+  const [extra, setExtra] = useState<string[]>([]);
+  // the review's list arrives after the dialog opens: new and checked-out agents are ticked, without losing what was typed
+  useEffect(() => { setExtra(deps.filter((d) => d.status === "new" || optional(d)).map((d) => d.path)); }, [deps]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const send = async () => { setBusy(true); try { await onCheckIn(comment.trim(), live, extra); } finally { setBusy(false); } };
   return (
     <Dialog open onClose={onClose} title={"Check in " + name} width={520}
       footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button>
@@ -212,6 +244,14 @@ export function CheckInDialog({ api, name, status, home, onStatus, onClose, onCh
                 onKeyDown={(e) => { if (e.key === "Enter" && !busy) send(); }} />}</Field>
             <label className="st-check-line"><input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Make this the live version (runs, schedules and triggers use it from now on)</label>
             <p className="ui-field-hint">Leave it off to add a new version only; the live version can be changed later in One CommandCenter. An agent's first version is always live. With approval before production switched on, ticking it sends a request instead.</p>
+            {deps.length > 0 && <fieldset className="st-deps">
+              <legend>Agents it runs</legend>
+              {deps.map((d) => <label key={d.path} className="st-check-line" title={d.path}>
+                <input type="checkbox" checked={extra.includes(d.path)} disabled={!optional(d)}
+                  onChange={(e) => setExtra(e.target.checked ? [...extra, d.path] : extra.filter((x) => x !== d.path))} />
+                {d.name} <span className="st-muted">· {DEP_STATUS[d.status] ?? d.status}</span></label>)}
+              <p className="ui-field-hint">Ticked agents are checked in first, with the same comment, so the agent finds them in the repository.</p>
+            </fieldset>}
           </>}
     </Dialog>
   );

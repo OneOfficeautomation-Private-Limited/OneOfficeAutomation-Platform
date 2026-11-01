@@ -4,7 +4,7 @@ import {
 } from "../api/client";
 import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
 import { Automation, find as findNode } from "./Automation";
-import { CheckInDialog, PublicRepository } from "./ControlRoom";
+import { CheckInDialog, PublicRepository, type CheckInDep } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
@@ -68,6 +68,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [repoStates, setRepoStates] = useState<Record<string, RepoState>>({});   // each private copy's state against the repository
   const [undoing, setUndoing] = useState<{ local: string; repoPath: string } | null>(null);
   const [reverting, setReverting] = useState<string | null>(null);
+  const [checkInDeps, setCheckInDeps] = useState<CheckInDep[]>([]);   // the agents one checked-in agent runs, for the review
   // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
@@ -296,12 +297,12 @@ export function App({ api: given }: { api?: StudioApi }) {
    * Check out: the repository's version becomes the private copy at the same folder path, and opens. Open my copy (an
    * agent already checked out to me, with its copy here) opens that copy as it is, so changes not checked in stay.
    */
-  const checkOut = async (repoPath: string, local?: string, mine = false) => {
+  const checkOut = async (repoPath: string, local?: string, mine = false, version?: number) => {
     const node = local && tree ? findNode(tree, local) : null;
-    if (mine && node) { await open(node); return; }
+    if (mine && node && !version) { await open(node); return; }
     const open1 = local ? tabsRef.current.find((t) => t.path === local) : undefined;
     if (open1 && isDirty(open1)) { setError(open1.name + " has unsaved changes. Save or close it before checking out again."); return; }
-    const r = await api.crCheckout(repoPath);
+    const r = await api.crCheckout(repoPath, version);
     await reloadTree();
     const flow = await api.bot(r.local);
     if (tabsRef.current.some((t) => t.path === r.local))
@@ -312,15 +313,24 @@ export function App({ api: given }: { api?: StudioApi }) {
         selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
     }
     setActive(r.local);
-    setNotice(r.kept ? `Checked out to you. Your private copy ${r.local} has changes that were not checked in, so it was kept as it is.`
-      : `Checked out v${r.version} into your workspace: ${r.local}.`);
+    const also = r.cloned?.length ? ` Also copied ${r.cloned.length === 1 ? "the agent" : r.cloned.length + " agents"} it runs (not checked out): ${r.cloned.join(", ")}.` : "";
+    setNotice((r.kept ? `Checked out to you. Your private copy ${r.local} has changes that were not checked in, so it was kept as it is.`
+      : `Checked out v${r.version} into your workspace: ${r.local}.`) + also);
   };
   /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
   const loadStates = useCallback(() => { api.crStates().then((r) => setRepoStates(r.states), () => setRepoStates({})); }, [api]);
   useEffect(() => { loadStates(); }, [loadStates, cr.connected, tree]);
-  /** Check in one item or several (up to 10, from the Private list): each is saved first when it has unsaved changes. */
-  const checkIn = async (comment: string, live: boolean) => {
-    const paths = checkingIn ?? [];
+  // one agent checked in: the agents it runs, with their states, for the review in the dialog
+  useEffect(() => {
+    setCheckInDeps([]);
+    const one = checkingIn?.length === 1 ? checkingIn[0] : null;
+    if (!one?.endsWith(".flow.json")) return;
+    api.deps(one).then((d) => setCheckInDeps(d.bots.filter((b) => b.path).map((b) => ({ path: b.path!,
+      name: displayName({ name: b.path!.split("/").pop()!, path: b.path!, type: "bot" }), status: repoStates[b.path!]?.status ?? "new" }))), () => {});
+  }, [api, checkingIn]);   // eslint-disable-line react-hooks/exhaustive-deps
+  /** Check in one item or several (up to 10, from the Private list), the agents ticked in the review first; each is saved first when it has unsaved changes. */
+  const checkIn = async (comment: string, live: boolean, withDeps: string[] = []) => {
+    const paths = [...withDeps.filter((p) => !(checkingIn ?? []).includes(p)), ...(checkingIn ?? [])];
     const done: string[] = [], failed: string[] = [];
     let last: Awaited<ReturnType<StudioApi["crCheckin"]>> | null = null;
     for (const path of paths) {
@@ -507,6 +517,7 @@ export function App({ api: given }: { api?: StudioApi }) {
       </div></HelpProvider>
 
       {checkingIn && <CheckInDialog api={api} name={checkingIn.length === 1 ? displayName({ name: checkingIn[0].split("/").pop()!, path: checkingIn[0], type: "bot" }) : checkingIn.length + " items"}
+        deps={checkInDeps}
         status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(null)} onCheckIn={checkIn} />}
       {undoing && <Dialog open onClose={() => setUndoing(null)} title={"Undo check-out of " + undoing.local + "?"} width={480}
         footer={<><Button kind="secondary" onClick={() => setUndoing(null)}>Cancel</Button>

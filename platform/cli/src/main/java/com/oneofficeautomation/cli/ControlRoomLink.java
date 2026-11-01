@@ -150,8 +150,11 @@ final class ControlRoomLink {
      * agent's copy is never overwritten (the check-out is refused before anything is locked); this agent's own copy with
      * changes that were not checked in is kept as it is, so nothing typed is lost ("kept": true).
      */
+    Map<String, Object> checkout(String repoPath, JsonCodec json) throws IOException { return checkout(repoPath, null, json); }
+
+    /** As above, for a chosen version (null: the latest); the agents it runs that are not in the workspace yet are copied too. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> checkout(String repoPath, JsonCodec json) throws IOException {
+    Map<String, Object> checkout(String repoPath, Object version, JsonCodec json) throws IOException {
         Map<String, Object> m = mapping();
         String local = m.entrySet().stream().filter(e -> repoPath.equals(e.getValue())).map(Map.Entry::getKey)
                 .filter(k -> Files.exists(ws.resolve(k))).findFirst().orElse(repoPath);
@@ -159,7 +162,7 @@ final class ControlRoomLink {
         if (Files.exists(p) && !repoPath.equals(m.get(local)))
             throw new OoaException("STUDIO.NAME_TAKEN", "Your workspace already has your own " + local + ", which is not a copy of this agent",
                     "Rename or move your own item, then check out again.");
-        Map<String, Object> r = call("POST", "repo/checkout", Map.of("path", repoPath), true);
+        Map<String, Object> r = call("POST", "repo/checkout", version == null ? Map.of("path", repoPath) : Map.of("path", repoPath, "version", version), true);
         String text = json.write(r.get("flow"), true);
         boolean kept = Files.exists(p) && edited(local, json) && !normal(local, json).equals(text);
         if (!kept) {
@@ -171,7 +174,64 @@ final class ControlRoomLink {
         }
         m.put(local, repoPath);
         saveMapping(m);
-        return Map.of("local", local, "path", repoPath, "version", r.get("version"), "kept", kept);
+        List<String> cloned = cloneDependencies((Map<String, Object>) r.get("flow"), json);
+        return Map.of("local", local, "path", repoPath, "version", r.get("version"), "kept", kept, "cloned", cloned);
+    }
+
+    /**
+     * The agents a checked-out agent runs (Run agent steps and an AI agent's tools, found by id in the repository) are
+     * copied into the workspace at their own folder paths when they are not there yet, as AA's check-out clones its
+     * dependencies: they are not checked out, so others can still change them. The agents those run come too (up to 50).
+     * A private item already at such a path is left as it is; an agent the person may not see is skipped.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> cloneDependencies(Map<String, Object> flow, JsonCodec json) throws IOException {
+        Map<String, String> pathById = new HashMap<>();
+        for (Object o : (List<Object>) repo("").getOrDefault("bots", List.of())) {
+            Map<String, Object> b = (Map<String, Object>) o;
+            if (b.get("bot_id") != null) pathById.put(String.valueOf(b.get("bot_id")), String.valueOf(b.get("path")));
+        }
+        List<String> cloned = new ArrayList<>();
+        Deque<Map<String, Object>> todo = new ArrayDeque<>(List.of(flow));
+        Set<String> seen = new HashSet<>();
+        while (!todo.isEmpty() && seen.size() < 50) {
+            for (String id : idsUsedBy(todo.poll())) {
+                String path = pathById.get(id);
+                if (path == null || !seen.add(path)) continue;
+                Path p = ws.resolve(path);
+                if (Files.exists(p)) {
+                    try { todo.add((Map<String, Object>) json.parse(Files.readString(p))); } catch (RuntimeException unreadable) { /* its own item */ }
+                    continue;
+                }
+                Map<String, Object> got;
+                try { got = call("GET", "repo/bot?path=" + enc(path), null, true); } catch (OoaException notAllowed) { continue; }
+                String text = json.write(got.get("flow"), true);
+                Files.createDirectories(p.getParent());
+                Path tmp = p.resolveSibling("." + p.getFileName() + ".saving");
+                Files.writeString(tmp, text, StandardCharsets.UTF_8);
+                Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
+                Map<String, Object> m = mapping();
+                m.put(path, path);
+                saveMapping(m);
+                markSynced(path, text);
+                cloned.add(path);
+                todo.add((Map<String, Object>) got.get("flow"));
+            }
+        }
+        return cloned;
+    }
+
+    /** The ids of the agents a flow runs: Run agent steps and an AI agent's tools, in blocks too. */
+    @SuppressWarnings("unchecked")
+    static List<String> idsUsedBy(Map<String, Object> flow) {
+        List<String> ids = new ArrayList<>();
+        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+            Map<String, Object> args = step.get("args") instanceof Map ? (Map<String, Object>) step.get("args") : Map.of();
+            if ("core/run_bot".equals(step.get("action")) && args.get("automation") instanceof String a) ids.add(a);
+            if ("ooa.ai_agent/run".equals(step.get("action")))
+                for (String k : List.of("tools", "sensitive_tools")) if (args.get(k) instanceof List<?> l) for (Object x : l) if (x instanceof String s) ids.add(s);
+        }
+        return ids;
     }
 
     @SuppressWarnings("unchecked")

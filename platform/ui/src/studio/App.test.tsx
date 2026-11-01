@@ -1560,12 +1560,17 @@ describe("new Studio", () => {
     dialog = screen.getByRole("dialog", { name: "Check in Invoice intake" });
     expect(within(dialog).getByText(/as ravi/)).toBeTruthy();
     fireEvent.change(within(dialog).getByLabelText("What changed"), { target: { value: "Adds a note" } });
-    fireEvent.click(within(dialog).getByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Make this the live version/ }));
+    // the review of the agents it runs (AA's Review dependencies): a new one goes in with it, first
+    const review = within(dialog).getByRole("group", { name: "Agents it runs" });
+    const lookup = within(review).getByRole("checkbox") as HTMLInputElement;
+    expect(lookup.checked && lookup.disabled).toBe(true);
+    expect(review.textContent).toContain("New: checked in with it");
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Check in" })); });
-    const order = created.map((c: any) => c.saved ? "saved" : c.checkin ? "checkin" : "").filter(Boolean);
-    expect(order).toEqual(["saved", "checkin"]);   // saved first, so the new version has the change
+    const order = created.map((c: any) => c.saved ? "saved" : c.checkin ? "checkin:" + c.checkin.local : "").filter(Boolean);
+    expect(order).toEqual(["checkin:Finance/lookup.flow.json", "saved", "checkin:Finance/Invoices/Invoice intake.flow.json"]);   // the agent it runs first; saved before its own check-in
     expect(created).toContainEqual({ checkin: { local: "Finance/Invoices/Invoice intake.flow.json", comment: "Adds a note", production: true } });
-    expect(await screen.findByText(/Checked in Finance\/Invoice intake.flow.json as version 3; it is now the live version/)).toBeTruthy();
+    expect(await screen.findByText(/Checked in .*Invoice intake v3/)).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 

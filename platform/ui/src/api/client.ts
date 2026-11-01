@@ -235,7 +235,9 @@ export class StudioApi {
   /** The repository's agents (matching q), and which workspace file is the private copy of which repository agent. */
   async crRepo(q = "") { const r = await this.call<{ bots?: RepoAgent[]; mapping?: Record<string, string> }>("GET", "cr/repo?q=" + encodeURIComponent(q)); return { agents: r.bots ?? [], mapping: r.mapping ?? {} }; }
   async crVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "cr/versions?path=" + encodeURIComponent(path))).versions ?? []; }
-  crCheckout(path: string) { return this.call<{ local: string; path: string; version: number; kept?: boolean }>("POST", "cr/checkout", { path }); }
+  crCheckout(path: string, version?: number) {
+    return this.call<{ local: string; path: string; version: number; kept?: boolean; cloned?: string[] }>("POST", "cr/checkout", version ? { path, version } : { path });
+  }
   /** Each private copy linked to the repository, with its state (checked out, edited, checked in …); unlinked items are new. */
   crStates() { return this.call<{ states: Record<string, RepoState>; connected: boolean }>("GET", "cr/states"); }
   /** Revert edits: the private copy goes back to the version that was checked out. */
