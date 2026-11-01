@@ -318,11 +318,18 @@ public final class Analytics {
         return m;
     }
 
+    /** Who acts for One CommandCenter itself in the Audit Trail (anything else that is not a runner is a person, known or not). */
+    static final Set<String> SYSTEM_ACTORS = Set.of("system", "scheduler", "workflow", "webhook", "mcp", "api task", "api key", "ooa vault rekey");
+
+    /** A runner by its name: "agent:PC-1 for alice" is the runner PC-1 acting for alice. */
+    static String runnerOf(String actor) { int i = actor.indexOf(" for "); return actor.startsWith("agent:") && i > 0 ? actor.substring(0, i) : actor; }
+
     /**
      * Audit figures (AA's Audit dashboard): for the period, the audit entries by kind of activity (the part of the action
-     * before the dot), by who, with each one's kind (a person, a runner or the system), by result and by day (in tz); the
-     * people who acted, the sign-ins and failed sign-ins, the busiest day; and the latest entries that failed or were
-     * denied. Filters: actor, kind and result. Needs the Audit Trail's permission.
+     * before the dot), by who, with each one's kind (a person, a runner or the system; a runner once, whoever it acted
+     * for), by result and by day (in tz); the people who acted (sign-in attempts with unknown names count too), the
+     * sign-ins and failed sign-ins, the busiest day; and the latest entries that failed or were denied. Filters: actor
+     * (a runner with everyone it acted for), kind and result. Needs the Audit Trail's permission.
      */
     public Map<String, Object> audit(User by, Map<String, String> q) {
         cr.require(by, "audit.view", "view audit figures");
@@ -330,24 +337,26 @@ public final class Analytics {
         ZoneId zone = zone(q.get("tz"));
         List<String> parts = new ArrayList<>(List.of("ts >= ?", "ts <= ?"));
         List<Object> p = new ArrayList<>(List.of(pd[0], pd[1]));
-        if (q.get("actor") != null && !q.get("actor").isBlank()) { parts.add("actor = ?"); p.add(q.get("actor")); }
+        if (q.get("actor") != null && !q.get("actor").isBlank()) {
+            String actor = q.get("actor");
+            if (actor.startsWith("agent:")) { parts.add("(actor = ? OR actor LIKE ?)"); p.add(actor); p.add(actor.replaceAll("[%_\\[\\]\\\\]", "_") + " for %"); }
+            else { parts.add("actor = ?"); p.add(actor); }
+        }
         if (q.get("kind") != null && !q.get("kind").isBlank()) { parts.add("action LIKE ?"); p.add(q.get("kind").replaceAll("[%_\\\\]", "") + ".%"); }
         if (q.get("result") != null && !q.get("result").isBlank()) { parts.add("result = ?"); p.add(q.get("result")); }
         String where = String.join(" AND ", parts);
-        Set<String> people = new HashSet<>();
-        for (Map<String, Object> u : db.query("SELECT username FROM users")) people.add((String) u.get("username"));
         Map<String, Long> kinds = new HashMap<>(), results = new HashMap<>(), days = new TreeMap<>();
         Map<String, Long> actors = new HashMap<>();
         Set<String> acted = new HashSet<>();
         long entries = 0, signIns = 0, failedSignIns = 0;
         for (Map<String, Object> a : db.query("SELECT ts, actor, action, result FROM audit WHERE " + where + " ORDER BY seq DESC LIMIT " + MAX_ROWS, p.toArray())) {
             entries++;
-            String action = String.valueOf(a.get("action")), actor = String.valueOf(a.get("actor")), result = String.valueOf(a.get("result"));
+            String action = String.valueOf(a.get("action")), actor = runnerOf(String.valueOf(a.get("actor"))), result = String.valueOf(a.get("result"));
             int dot = action.indexOf('.');
             kinds.merge(dot < 0 ? action : action.substring(0, dot), 1L, Long::sum);
             results.merge(result, 1L, Long::sum);
             actors.merge(actor, 1L, Long::sum);
-            if (people.contains(actor)) acted.add(actor);
+            if (isOf(actor).equals("person")) acted.add(actor);
             days.merge(Instant.parse(String.valueOf(a.get("ts"))).atZone(zone).toLocalDate().toString(), 1L, Long::sum);
             if (action.equals("auth.login") || action.startsWith("auth.sso") || action.startsWith("auth.saml")) { signIns++; if (!result.equals("ok")) failedSignIns++; }
         }
@@ -363,7 +372,7 @@ public final class Analytics {
         List<Map<String, Object>> who = counted(actors, "actor");
         for (Map<String, Object> w : who) {
             String a = (String) w.get("actor");
-            w.put("is", a.startsWith("agent:") ? "runner" : people.contains(a) ? "person" : "system");
+            w.put("is", isOf(a));
         }
         m.put("by_actor", who);
         m.put("by_result", counted(results, "result"));
@@ -375,6 +384,8 @@ public final class Analytics {
         m.put("not_done", db.query("SELECT seq, ts, actor, action, object_type, object_id, details, result FROM audit WHERE " + where + " AND result <> 'ok' ORDER BY seq DESC LIMIT ?", p.toArray()));
         return m;
     }
+
+    static String isOf(String actor) { return actor.startsWith("agent:") ? "runner" : SYSTEM_ACTORS.contains(actor) || actor.startsWith("system") ? "system" : "person"; }
 
     /** Counts as a list, the largest first: [{key: name, entries: n}]. */
     private static List<Map<String, Object>> counted(Map<String, Long> counts, String key) {
