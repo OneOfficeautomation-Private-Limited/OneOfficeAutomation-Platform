@@ -1816,6 +1816,17 @@ public final class ControlRoom {
      */
     List<String> mailPeople(Collection<String> people, String subject, String body, String objectType, String objectId) {
         if (!mailer.configured()) return List.of();
+        List<String> to = addressesOf(people);
+        if (to.isEmpty()) return to;
+        Thread.ofVirtual().start(() -> {
+            try { mailer.send(to, subject, body); audit.record("system", "mail.notify", objectType, objectId, Map.of("to", to.size()), "ok", null); }
+            catch (RuntimeException e) { audit.record("system", "mail.notify", objectType, objectId, String.valueOf(e.getMessage()), "failed", null); }
+        });
+        return to;
+    }
+
+    /** The e-mail addresses of people named as user names, user:NAME or role:NAME (at most 50; not role:*, disabled accounts or people without one). */
+    List<String> addressesOf(Collection<String> people) {
         Set<String> names = new LinkedHashSet<>();
         for (String p : people) {
             String t = p == null ? "" : p.trim();
@@ -1832,11 +1843,6 @@ public final class ControlRoom {
             if (u != null && u.get("email") instanceof String e && !e.isBlank() && !to.contains(e.trim())) to.add(e.trim());
             if (to.size() == 50) break;
         }
-        if (to.isEmpty()) return to;
-        Thread.ofVirtual().start(() -> {
-            try { mailer.send(to, subject, body); audit.record("system", "mail.notify", objectType, objectId, Map.of("to", to.size()), "ok", null); }
-            catch (RuntimeException e) { audit.record("system", "mail.notify", objectType, objectId, String.valueOf(e.getMessage()), "failed", null); }
-        });
         return to;
     }
 
@@ -2066,6 +2072,7 @@ public final class ControlRoom {
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { alerts.checkIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { dashboards.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================

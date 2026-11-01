@@ -10,6 +10,7 @@ import java.math.RoundingMode;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -161,6 +162,135 @@ public final class Dashboards {
     }
 
     // ---------- figures ----------
+
+    // ---------- e-mailed on a schedule (Operational Insights step 3; UiPath's scheduled dashboard e-mails) ----------
+
+    static final Map<String, DayOfWeek> WEEKDAYS = Map.of("MON", DayOfWeek.MONDAY, "TUE", DayOfWeek.TUESDAY, "WED", DayOfWeek.WEDNESDAY, "THU", DayOfWeek.THURSDAY,
+        "FRI", DayOfWeek.FRIDAY, "SAT", DayOfWeek.SATURDAY, "SUN", DayOfWeek.SUNDAY);
+
+    /** The next time after a moment: each day at the time, each week on the weekday, or each month on its first day. */
+    static Instant nextSend(Map<String, Object> s, Instant after) {
+        ZoneId zone = ZoneId.of(String.valueOf(s.get("time_zone")));
+        ZonedDateTime base = after.atZone(zone);
+        ZonedDateTime c = base.toLocalDate().atTime(LocalTime.parse(String.valueOf(s.get("at_time")))).atZone(zone);
+        switch (String.valueOf(s.get("every"))) {
+            case "week" -> { c = c.with(TemporalAdjusters.nextOrSame(WEEKDAYS.get(String.valueOf(s.get("weekday"))))); if (!c.isAfter(base)) c = c.plusWeeks(1); }
+            case "month" -> { c = c.withDayOfMonth(1); if (!c.isAfter(base)) c = c.plusMonths(1).withDayOfMonth(1); }
+            default -> { if (!c.isAfter(base)) c = c.plusDays(1); }
+        }
+        return c.toInstant();
+    }
+
+    /** A dashboard's e-mail schedules, for people who may see the dashboard. */
+    public List<Map<String, Object>> mailList(User by, String dashboardId) {
+        cr.require(by, "analytics.view", "view dashboards");
+        Map<String, Object> d = db.one("SELECT * FROM dashboards WHERE id = ?", dashboardId);
+        if (d == null) throw notFound("Dashboard");
+        if (!mayView(by, d)) throw cr.denied("view this dashboard");
+        return db.query("SELECT id, recipients, every, at_time, weekday, time_zone, created_by, created, next_send, last_sent, last_error FROM dashboard_mail WHERE dashboard_id = ? ORDER BY created", dashboardId);
+    }
+
+    /**
+     * E-mails a dashboard on a schedule: recipients are user:NAME, role:NAME or e-mail addresses (at most 50); every is
+     * day, week (with weekday MON..SUN) or month (its first day); at_time HH:MM in time_zone. The figures are those the
+     * person setting it up sees. Needs insights.design.
+     */
+    public Map<String, Object> mailSave(User by, String dashboardId, Map<String, Object> b, String ip) {
+        cr.require(by, "insights.design", "e-mail dashboards");
+        Map<String, Object> d = db.one("SELECT * FROM dashboards WHERE id = ?", dashboardId);
+        if (d == null) throw notFound("Dashboard");
+        if (!mayView(by, d)) throw cr.denied("view this dashboard");
+        List<String> to = new ArrayList<>();
+        for (String r : String.valueOf(b.getOrDefault("recipients", "")).split("[,;\\s]+")) {
+            if (r.isBlank()) continue;
+            if (r.startsWith("user:") || r.startsWith("role:")) { if (!r.matches("(user|role):[A-Za-z0-9_.@-]{1,80}") || r.equals("role:*")) throw new OoaException("CR.BAD_INPUT", "Not a person or role: " + r); }
+            else Mailer.address(r);
+            if (!to.contains(r)) to.add(r);
+        }
+        if (to.isEmpty() || to.size() > 50) throw new OoaException("CR.BAD_INPUT", "Send it to 1 to 50 people, roles or addresses");
+        String every = String.valueOf(b.getOrDefault("every", "week"));
+        if (!List.of("day", "week", "month").contains(every)) throw new OoaException("CR.BAD_INPUT", "Send it each day, week or month");
+        String at = String.valueOf(b.getOrDefault("at_time", "08:00"));
+        if (!at.matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_INPUT", "The time looks like 08:30");
+        String weekday = every.equals("week") ? String.valueOf(b.getOrDefault("weekday", "MON")) : null;
+        if (weekday != null && !WEEKDAYS.containsKey(weekday)) throw new OoaException("CR.BAD_INPUT", "The weekday is MON to SUN");
+        String tz = b.get("time_zone") instanceof String z && !z.isBlank() ? z.trim() : cr.defaultTimeZone();
+        try { ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_INPUT", "Unknown time zone " + tz); }
+        Map<String, Object> s = new HashMap<>(Map.of("every", every, "at_time", at, "time_zone", tz));
+        if (weekday != null) s.put("weekday", weekday);
+        String id = id("dmail");
+        db.update("INSERT INTO dashboard_mail (id, dashboard_id, recipients, every, at_time, weekday, time_zone, created_by, created, next_send) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            id, dashboardId, String.join(",", to), every, at, weekday, tz, by.username(), now(), nextSend(s, now()));
+        cr.audit.record(by.username(), "dashboard.mail_schedule", "dashboard", dashboardId, Map.of("to", to, "every", every, "at", at), "ok", ip);
+        return Map.of("id", id);
+    }
+
+    /** Stops an e-mail schedule: the person who set it up, or an administrator. */
+    public void mailDelete(User by, String id, String ip) {
+        Map<String, Object> s = db.one("SELECT dashboard_id, created_by FROM dashboard_mail WHERE id = ?", id);
+        if (s == null) throw notFound("E-mail schedule");
+        if (!by.username().equals(s.get("created_by")) && !cr.can(by, "settings.manage")) throw cr.denied("stop this e-mail");
+        db.update("DELETE FROM dashboard_mail WHERE id = ?", id);
+        cr.audit.record(by.username(), "dashboard.mail_stop", "dashboard", (String) s.get("dashboard_id"), Map.of("schedule", id), "ok", ip);
+    }
+
+    /** Sends one schedule's e-mail now (to check it); the schedule keeps its next time. */
+    public Map<String, Object> mailNow(User by, String id, String ip) {
+        Map<String, Object> s = db.one("SELECT * FROM dashboard_mail WHERE id = ?", id);
+        if (s == null) throw notFound("E-mail schedule");
+        if (!by.username().equals(s.get("created_by")) && !cr.can(by, "settings.manage")) throw cr.denied("send this e-mail");
+        int n = send(s);
+        db.update("UPDATE dashboard_mail SET last_sent = ?, last_error = NULL WHERE id = ?", now(), id);
+        cr.audit.record(by.username(), "dashboard.mailed", "dashboard", (String) s.get("dashboard_id"), Map.of("schedule", id, "to", n), "ok", ip);
+        return Map.of("sent_to", n);
+    }
+
+    /** Once a minute (the leader): sends the schedules that are due, and moves each to its next time. */
+    void mailIfDue() {
+        if (!cr.mailer.configured()) return;
+        for (Map<String, Object> s : db.query("SELECT * FROM dashboard_mail WHERE next_send <= ? ORDER BY next_send", now())) {
+            String error = null;
+            int n = 0;
+            try { n = send(s); } catch (RuntimeException e) { error = String.valueOf(e.getMessage()); }
+            db.update("UPDATE dashboard_mail SET next_send = ?, last_sent = ?, last_error = ? WHERE id = ?", nextSend(s, now()), error == null ? now() : s.get("last_sent"),
+                error == null ? null : error.substring(0, Math.min(1000, error.length())), s.get("id"));
+            cr.audit.record("system", "dashboard.mailed", "dashboard", (String) s.get("dashboard_id"), error == null ? Map.of("schedule", s.get("id"), "to", n) : error, error == null ? "ok" : "failed", null);
+        }
+    }
+
+    /** The e-mail: each widget's figure (a number, or its first ten parts) and a link; worked out as its maker sees it. */
+    @SuppressWarnings("unchecked")
+    private int send(Map<String, Object> s) {
+        Map<String, Object> u = db.one("SELECT * FROM users WHERE username = ? AND enabled = TRUE", s.get("created_by"));
+        if (u == null) throw new OoaException("CR.MAIL_OWNER_GONE", "The person who set up this e-mail is no longer active", "Set it up again as someone active.");
+        String dashboardId = (String) s.get("dashboard_id");
+        Map<String, Object> d = data(ControlRoom.user(u), dashboardId, String.valueOf(s.get("time_zone")));
+        List<String> people = new ArrayList<>(), to = new ArrayList<>();
+        for (String r : String.valueOf(s.get("recipients")).split(",")) if (r.contains("@") && !r.startsWith("user:") && !r.startsWith("role:")) to.add(r); else people.add(r);
+        for (String a : cr.addressesOf(people)) if (!to.contains(a)) to.add(a);
+        if (to.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "None of the people or roles has an e-mail address");
+        StringBuilder body = new StringBuilder(String.valueOf(d.get("name"))).append(", ")
+            .append(LocalDate.now(ZoneId.of(String.valueOf(s.get("time_zone")))).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH))).append("\n\n");
+        for (Object o : (List<Object>) d.get("widgets")) {
+            Map<String, Object> w = (Map<String, Object>) o;
+            String title = String.valueOf(w.getOrDefault("title", w.getOrDefault("kpi", w.getOrDefault("metric", "Figure"))));
+            if (w.get("error") != null) body.append(title).append(": ").append(w.get("error")).append("\n");
+            else if (w.containsKey("value")) body.append(title).append(": ").append(figure(w.get("value"))).append("\n");
+            else {
+                body.append(title).append(":\n");
+                List<Map<String, Object>> pts = (List<Map<String, Object>>) w.getOrDefault("points", List.of());
+                for (Map<String, Object> p : pts.subList(0, Math.min(10, pts.size()))) body.append("  ").append(p.get("label")).append(": ").append(figure(p.get("value"))).append("\n");
+                if (pts.size() > 10) body.append("  and ").append(pts.size() - 10).append(" more\n");
+            }
+        }
+        String link = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
+        body.append("\n").append(link.isEmpty() ? "Open it in One CommandCenter: Operational Insights > Business > Dashboards."
+            : "Open it: " + link + "/next/#/business?tab=dashboards&dashboard=" + dashboardId).append("\n");
+        cr.mailer.send(to, "Dashboard: " + d.get("name"), body.toString());
+        return to.size();
+    }
+
+    private static String figure(Object v) { return v instanceof BigDecimal b ? b.stripTrailingZeros().toPlainString() : v == null ? "-" : String.valueOf(v); }
 
     /** Each widget's figures: {value} for number, {points: [{label, value}]} for bars, line, table and pie. */
     @SuppressWarnings("unchecked")

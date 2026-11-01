@@ -749,6 +749,83 @@ public final class Analytics {
         return Map.of("bot_path", path, "runs", n, "variables", out, "recent", recent);
     }
 
+    // ---------- the analytics data API (Operational Insights step 3): pages of rows for Power BI, Tableau or a data warehouse ----------
+
+    static final int PAGE_MAX = 1000;
+
+    /** A page cursor: the last row's time and id, so the next page starts after it even when times repeat. */
+    static String cursor(Object ts, Object id) { return Base64.getUrlEncoder().withoutPadding().encodeToString((ts + "|" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+    static String[] uncursor(String c) {
+        if (c == null || c.isBlank()) return new String[] { Instant.EPOCH.toString(), "" };
+        try { String[] p = new String(Base64.getUrlDecoder().decode(c), java.nio.charset.StandardCharsets.UTF_8).split("\\|", 2); Instant.parse(p[0]); return p; }
+        catch (RuntimeException e) { throw new OoaException("CR.BAD_INPUT", "Not a page cursor: use the next value of the page before"); }
+    }
+    static int limit(Map<String, String> q) { return Math.max(1, Math.min(PAGE_MAX, intOr(q.get("limit"), 500))); }
+
+    /**
+     * Runs, a page at a time, oldest first: id, agent, version, status, times, run time, runner, how started, who, the
+     * error code and the outputs (business values). Only agents the caller may see. Filters: from, to (default: all).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> dataRuns(User by, Map<String, String> q) {
+        cr.require(by, "analytics.view", "read run data");
+        Instant from = q.get("from") == null ? Instant.EPOCH : instant(q.get("from"), false), to = q.get("to") == null ? now() : instant(q.get("to"), true);
+        String[] after = uncursor(q.get("after"));
+        int n = limit(q);
+        List<Map<String, Object>> rows = db.query("SELECT r.id, r.bot_path, r.version, r.status, r.created, r.started, r.finished, r.duration_ms, d.name AS runner, r.source, r.requested_by, r.error, r.outputs "
+            + "FROM runs r LEFT JOIN devices d ON d.id = r.device_id WHERE r.created >= ? AND r.created <= ? AND (r.created > ? OR (r.created = ? AND r.id > ?)) ORDER BY r.created, r.id LIMIT ?",
+            from, to, Instant.parse(after[0]), Instant.parse(after[0]), after[1], n);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            if (!cr.folders.mayView(by, (String) r.get("bot_path"))) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", r.get("id")); m.put("agent", r.get("bot_path")); m.put("version", r.get("version")); m.put("status", r.get("status"));
+            m.put("created", r.get("created")); m.put("started", r.get("started")); m.put("finished", r.get("finished")); m.put("duration_ms", r.get("duration_ms"));
+            m.put("runner", r.get("runner")); m.put("source", sourceGroup((String) r.get("source"))); m.put("started_by", r.get("requested_by")); m.put("error_code", errorCode(r.get("error")));
+            Object out = null;
+            if (r.get("outputs") != null) try { out = JsonLite.parse(String.valueOf(r.get("outputs"))); } catch (IllegalArgumentException ignored) { }
+            m.put("outputs", out instanceof Map<?, ?> ? out : Map.of());
+            items.add(m);
+        }
+        Map<String, Object> last = rows.isEmpty() ? null : rows.get(rows.size() - 1);
+        return page(items, rows.size() == n && last != null ? cursor(String.valueOf(last.get("created")), last.get("id")) : null);
+    }
+
+    /** KPI values agents recorded, a page at a time, oldest first: run, agent, name, number or text, time. */
+    public Map<String, Object> dataKpis(User by, Map<String, String> q) {
+        cr.require(by, "analytics.view", "read KPI data");
+        Instant from = q.get("from") == null ? Instant.EPOCH : instant(q.get("from"), false), to = q.get("to") == null ? now() : instant(q.get("to"), true);
+        String[] after = uncursor(q.get("after"));
+        int n = limit(q);
+        List<Map<String, Object>> rows = db.query("SELECT id, run_id, bot_path, name, num, text_value, ts FROM kpi_values WHERE ts >= ? AND ts <= ? AND (ts > ? OR (ts = ? AND id > ?)) ORDER BY ts, id LIMIT ?",
+            from, to, Instant.parse(after[0]), Instant.parse(after[0]), after[1], n);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            if (!cr.folders.mayView(by, (String) r.get("bot_path"))) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("run_id", r.get("run_id")); m.put("agent", r.get("bot_path")); m.put("name", r.get("name")); m.put("number", r.get("num")); m.put("text", r.get("text_value")); m.put("time", r.get("ts"));
+            items.add(m);
+        }
+        Map<String, Object> last = rows.isEmpty() ? null : rows.get(rows.size() - 1);
+        return page(items, rows.size() == n && last != null ? cursor(String.valueOf(last.get("ts")), last.get("id")) : null);
+    }
+
+    /** Audit entries, a page at a time, oldest first, after a sequence number. Needs the Audit Trail's permission. */
+    public Map<String, Object> dataAudit(User by, Map<String, String> q) {
+        cr.require(by, "audit.view", "read audit data");
+        long after = q.get("after") == null || q.get("after").isBlank() ? 0 : Long.parseLong(q.get("after").replaceAll("[^0-9]", "0"));
+        int n = limit(q);
+        List<Map<String, Object>> rows = db.query("SELECT seq, ts, actor, action, object_type, object_id, details, result, ip FROM audit WHERE seq > ? ORDER BY seq LIMIT ?", after, n);
+        return page(rows, rows.size() == n ? String.valueOf(rows.get(rows.size() - 1).get("seq")) : null);
+    }
+
+    private static Map<String, Object> page(List<Map<String, Object>> items, String next) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("items", items);
+        m.put("next", next);
+        return m;
+    }
+
     /** A report as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */
     @SuppressWarnings("unchecked")
     public String csv(User by, String report, Map<String, String> q) {

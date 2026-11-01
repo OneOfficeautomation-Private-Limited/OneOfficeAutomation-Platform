@@ -30,7 +30,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 | --- | --- |
 | Build | Agent Repository (`repo.view`), Agent Templates (`repo.view`), One AgentStudio (new tab), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Agent ToolKits (`toolkits.manage`) |
-| Operational Insights | Overview, Alerts, Operations, Runner capacity, Value, Dashboards (`analytics.view`); Work queue insights (`queues.view`) |
+| Operational Insights | Overview, Alerts, Operations (Agents, Runners, Work queues with `queues.view`, Audit with `audit.view`, AI usage), Business (Agents, Value, Dashboards) (`analytics.view`) |
 | Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Credential vault (members), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Model Connections (`connections.manage`), Prompt Skills (`skills.view`), Document Automation (`repo.view`), AI governance (`audit.view`) |
 
@@ -91,12 +91,18 @@ against each connection's budget (80% or more is marked). Each figure and error 
 matching filter (Agent Activity takes `tab`, `status`, `period`, `q` and `bot` in its address). Cards a viewer may not
 see are left out; the screen refreshes every 30 seconds.
 
-**Operations** (`analytics.view`, in the new console) shows how agents ran over a period (24 hours to a year), for all
+Since 1 Nov 2026 the menu follows AA's split of its dashboards into operations and business: **Overview · Alerts ·
+Operations · Business**. Operations has the tabs **Agents**, **Runners**, **Work queues** and **Audit**, and **AI usage**
+opens AI governance; Business has **Agents**, **Value** and **Dashboards**. The tab is in the address
+(`#/operations?tab=runners`), and the old pages' addresses (`#/capacity`, `#/queueinsights`, `#/value`, `#/dashboards`)
+open their tab.
+
+**Operations > Agents** (`analytics.view`) shows how agents ran over a period (24 hours to a year), for all
 agents or one agent, runner or way of starting, counting only agents the viewer may see:
 
-- runs, success rate, total and average run time, and the time within which 95% of runs finish, each compared with the
-  period just before (as long as this one);
-- the distribution of run times and runs per day;
+- in AA's order: runs, succeeded (with the success rate), in progress or waiting, failed and stopped, then the average
+  run time and the time within which 95% of runs finish, compared with the period just before (as long as this one);
+- the distribution of run times, and runs by week split by how they ended;
 - when runs start: a weekday-by-hour heatmap in the viewer's time zone, with hours that had failed runs outlined;
 - why runs failed (as on Overview), and the agents run most, that take longest and that fail most (with their most
   common errors);
@@ -113,9 +119,20 @@ and average.
 | `GET /api/analytics/variables?path=` | One agent's variable profile |
 | `GET /api/analytics/export?report=` | One list as CSV: `most_run`, `longest`, `most_failed`, `by_runner`, `by_day`, `by_source` or `run_history` |
 
+**Operations > Audit** (`audit.view`), as AA's Audit dashboard: for a period, the audit entries, the people who acted
+(sign-in attempts with unknown names count), sign-ins and failed sign-ins, actions not done (failed or denied) and the
+busiest day; entries by activity, by who (a runner once, whoever it acted for) and by result, and per day; and the
+latest 20 that failed or were denied. Bars set filters (who, activity, result); rows and figures open the Audit Trail
+with the same filters (it reads `actor`, `area`, `result`, `object_id` and `range` from its address).
+`GET /api/analytics/audit?days=&actor=&kind=&result=&tz=`.
+
+**Operations > Runners** adds AA's Devices dashboard figures to Runner capacity: runners online and offline now,
+schedules switched on and the next one, each runner's succeeded and failed runs, last run and most common error, and
+the most common errors on runners.
+
 ### Runner capacity
 
-**Runner capacity** (`analytics.view`, new console) shows, for the last 24 hours to 90 days: the share of the switched-on
+**Runner capacity** (now Operations > Runners; `analytics.view`, new console) shows, for the last 24 hours to 90 days: the share of the switched-on
 runners' time in use; busy hours and what they equal in full-time people (40 hours a week); runs waiting for a runner
 now; how long runs waited to start (average and 95%); each runner with its state, pools, runs, busy time, share of the
 period, average wait and current CPU and memory; the share of runner time in use per weekday and hour (in the viewer's
@@ -130,7 +147,7 @@ figures: every run counts and no agent is named.
 
 ### Work queue insights
 
-**Work queue insights** (`queues.view`, new console; only queues the viewer may see) shows, for the last 24 hours to 30
+**Work queue insights** (now Operations > Work queues; `queues.view`, new console; only queues the viewer may see) shows, for the last 24 hours to 30
 days: items waiting, overdue and at risk (waiting more than three quarters of the queue's target time) across queues,
 and items finished with the share completed. Per queue: waiting now, the oldest waiting item's age, overdue, at risk,
 the target time, items finished, the shares completed and finished within the target time, items finished an hour,
@@ -145,7 +162,7 @@ when processing is off while items wait, when a queue needs more runners than it
 
 ### Value
 
-**Value** (`analytics.view`, new console) shows the manual work the agents' successful runs saved over the last 7 days
+**Value** (now Business > Value; `analytics.view`) shows the manual work the agents' successful runs saved over the last 7 days
 to a year: hours (each successful run x its agent's minutes saved, or `default_minutes_saved`), money (hours x
 `hourly_cost`, in `currency`; both in Settings > General) and full-time people (40 hours a week), each compared with the
 period before; hours saved per day (per week for long periods); and per top folder and per agent the successful runs,
@@ -189,6 +206,27 @@ are shown only to people who may see it. Overview shows the open alerts.
 
 ## 6. Business figures (KPIs) and dashboards
 
+**Business > Agents** (`analytics.view`), as AA's Business dashboards: every agent whose runs returned values (outputs)
+in the period, KPI-marked ones first. Each agent has a page of its own:
+
+- **Dashboard**, made from its values: runs with outputs, the total of each number value, the first one per day, how
+  its runs ended, and each run's values (the latest 20);
+- **Data profile**, as AA's: for each value its kind (number, text, yes/no, list, record or mixed), the runs that
+  returned it, the smallest, largest, average and total, the number of different values and the ten most common;
+- **Compare**: the agent against another agent, or against itself in the period before.
+
+**Make my own copy** saves the made dashboard as one of the person's dashboards (`insights.design`), with widgets over
+the agent's outputs. `GET /api/analytics/business-agents?days=`; the profile is `GET /api/analytics/variables?path=`
+(now with `kind`, `sum`, `distinct`, `by_day` and the latest runs' values in `recent`).
+
+**Business > Value** adds UiPath's Business ROI: *This year*; a yearly goal in hours or money with the share reached
+and where this pace ends by 31 December; each agent's own cost of an hour and the runs a month expected (estimated
+against actual hours a month); and **By work queue**: a queue item done counts its queue's minutes saved and cost of an
+hour, when set, instead of its agent's, so nothing is counted twice. Savings and the goal need `insights.admin`
+(an agent's savings also `repo.production`, as before). API: `POST /api/repo/roi` `{path, minutes_saved, hourly_cost,
+estimated_runs_month}`, `POST /api/analytics/queue-savings` `{queue_id, minutes_saved, hourly_cost}`,
+`POST /api/analytics/goal` `{hours, money}`.
+
 - In Studio, an output variable of type Number, String or Boolean can be ticked **Business figure (KPI)**. Each
   successful run records its value.
 - Operational Insights > **Dashboards** (new console) holds dashboards of widgets. Widgets are made in a form (what to
@@ -199,15 +237,37 @@ are shown only to people who may see it. Overview shows the open alerts.
 
 | Widget property | Values |
 | --- | --- |
-| Source | `kpi` (one KPI, optionally of one agent, aggregated with `sum`, `avg`, `count`, `min`, `max` or `last`) or `runs` (metric `runs`, `success_rate`, `failed`, `avg_seconds`, `hours_saved`) |
+| Source | `kpi` (one KPI, optionally of one agent, aggregated with `sum`, `avg`, `count`, `min`, `max` or `last`), `output` (one output of one agent, KPI-marked or not, named in `kpi`, with `bot`) or `runs` (metric `runs`, `success_rate`, `failed`, `avg_seconds`, `hours_saved`) |
 | Group | `none`, `day`, `week`, `month`, `agent`, or `value` (by the KPI's own value or, with `by`, by another KPI of the same run) |
 | Type | number, bars, line, table, pie |
 | Period | the last 1 to 365 days (default 30) |
 
 - A dashboard belongs to its maker until shared with `role:…`, `team:…`, `user:…` or `*` (everyone with `analytics.view`).
+  Making, changing and copying dashboards needs `insights.design`.
+- The address names the dashboard shown (`#/business?tab=dashboards&dashboard=ID`), so a link opens it.
+- **Print or save as PDF** opens the browser's print window with only the dashboard, its name and the time.
+- **E-mail it on a schedule…** sends the dashboard's figures (each widget's number, or its first ten parts) and a link
+  each day, week (on a weekday) or month (its first day) at a time in a time zone, to `user:…`, `role:…` or e-mail
+  addresses (at most 50). The figures are those its maker sees. Each schedule shows its next time, the last sending
+  or what went wrong; **Send now** checks it. Needs `insights.design` and e-mail set up (section 9). API:
+  `GET`/`POST /api/dashboards/{id}/mail`, `DELETE /api/dashboards/mail/{schedule}`, `POST /api/dashboards/mail/{schedule}/send`.
 - Only agents the viewer may see are counted. Days are counted in the viewer's time zone.
 - API: `/api/dashboards` (GET lists, POST makes, `PUT`/`DELETE /api/dashboards/{id}`), `GET /api/dashboards/{id}/data?tz=`
   (the widgets' figures, with days in that time zone) and `GET /api/dashboards/kpis` (the KPIs that can be chosen).
+
+### The analytics data API
+
+For Power BI, Tableau or a data warehouse: rows a page at a time, oldest first, with an API key
+(`Authorization: Bearer ooak_...`). Each answer is `{items, next}`; pass `next` back as `after` until it is `null`.
+`limit` is 1 to 1000 (500 by default). Only agents the key's owner may see are included.
+
+| API | Rows | Permission |
+| --- | --- | --- |
+| `GET /api/analytics/data/runs?from=&to=&after=&limit=` | id, agent, version, status, created, started, finished, duration_ms, runner, source, started_by, error_code, outputs | `analytics.view` |
+| `GET /api/analytics/data/kpis?from=&to=&after=&limit=` | run_id, agent, name, number, text, time | `analytics.view` |
+| `GET /api/analytics/data/audit?after=&limit=` | seq, ts, actor, action, object_type, object_id, details, result, ip (`after` is a sequence number) | `audit.view` |
+
+Audit entries can also be forwarded as they happen, by syslog or HTTPS, to a SIEM (Settings > E-mail, proxy and SIEM).
 
 ## 7. Audit Trail
 
@@ -268,9 +328,11 @@ within about 30 seconds.
 | Action | Permission |
 | --- | --- |
 | Agent Activity and run details | `runs.view` |
-| Overview, Operations, dashboards, alerts (see, acknowledge) | `analytics.view` |
+| Overview, Operations, Business, dashboards, alerts (see, acknowledge), the runs and KPI data API | `analytics.view` |
+| Make, change, share, copy and e-mail dashboards | `insights.design` (admin only unless a custom role grants it) |
+| Savings per agent and work queue, the yearly goal | `insights.admin` (admin only unless a custom role grants it) |
 | Alert rules (make, change, test, delete) | `alerts.manage` (admin only) |
-| Audit Trail, export, verify | `audit.view` |
+| Audit Trail, export, verify, Operations > Audit, the audit data API | `audit.view` |
 | Retention, e-mail, backups, syslog, nodes | `settings.manage` |
 
 ## Related documents

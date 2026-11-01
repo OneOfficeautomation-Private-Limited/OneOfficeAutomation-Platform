@@ -61,6 +61,9 @@ export type ValueReport = { currency: string; hourly_cost: number; default_minut
   queues?: (ValueRow & { queue_id: string; name: string; minutes_each?: number | null; hourly_cost?: number | null })[];
   /** This year's goal (0: none), saved so far this year, and at this pace by its end. */
   goal?: { hours: number; money: number; year_hours: number; year_money: number; pace_hours: number; pace_money: number } };
+/** A dashboard e-mailed on a schedule: to whom, each day, week (on a weekday) or month (its first day), at a time in a time zone. */
+export type DashMail = { id: string; recipients: string; every: "day" | "week" | "month"; at_time: string; weekday?: string | null; time_zone: string; created_by: string;
+  created: string; next_send: string; last_sent?: string | null; last_error?: string | null };
 /** Business > Agents: an agent whose runs return values. */
 export type BusinessAgent = { bot_path: string; values: string[]; kpis: string[]; runs: number; runs_with_values: number; last_run?: string | null };
 /** A dashboard widget: a figure from the runs or from a KPI agents record, shown as a number, bars, a line, a table or a pie. */
@@ -552,6 +555,11 @@ export class CrApi {
   saveDashboard(id: string | null, b: { name: string; description?: string; shared_with: string[]; widgets: DashWidget[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "dashboards" + (id ? "/" + encodeURIComponent(id) : ""), b); }
   async deleteDashboard(id: string) { await this.call("DELETE", "dashboards/" + encodeURIComponent(id)); }
+  async dashboardMail(id: string) { return (await this.call<{ schedules?: DashMail[] }>("GET", "dashboards/" + encodeURIComponent(id) + "/mail")).schedules ?? []; }
+  addDashboardMail(id: string, b: { recipients: string; every: string; at_time: string; weekday?: string; time_zone: string }) {
+    return this.call<{ id: string }>("POST", "dashboards/" + encodeURIComponent(id) + "/mail", b); }
+  async stopDashboardMail(schedule: string) { await this.call("DELETE", "dashboards/mail/" + encodeURIComponent(schedule)); }
+  sendDashboardMail(schedule: string) { return this.call<{ sent_to: number }>("POST", "dashboards/mail/" + encodeURIComponent(schedule) + "/send"); }
   dashboardData(id: string, tz?: string) { return this.call<{ id: string; name: string; widgets: WidgetData[] }>("GET", "dashboards/" + encodeURIComponent(id) + "/data" + (tz ? "?tz=" + encodeURIComponent(tz) : "")); }
   value(params: Record<string, string>) { return this.call<ValueReport>("GET", "analytics/value?" + new URLSearchParams(params).toString()); }
   /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */

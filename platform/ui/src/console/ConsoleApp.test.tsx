@@ -116,6 +116,10 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "dashboards") return ok({ dashboards: [
       { id: "db1", name: "Finance", description: "Money in and out", owner: "admin", shared_with: ["role:viewer"], can_edit: true, widgets: [{ title: "Amount paid", type: "number", kpi: "amount", agg: "sum" }] },
       { id: "db2", name: "Ops board", owner: "vic", shared_with: ["*"], can_edit: false, widgets: [{ type: "line", source: "runs", metric: "runs", group: "day", days: 7 }] }] });
+    if (route === "dashboards/db1/mail" && init.method === "POST") return ok({ id: "dm2" });
+    if (route === "dashboards/db1/mail") return ok({ schedules: [{ id: "dm1", recipients: "role:finance,cfo@example.com", every: "week", weekday: "MON", at_time: "08:00",
+      time_zone: "UTC", created_by: "admin", created: "2026-10-30T08:00:00Z", next_send: "2026-11-02T08:00:00Z", last_sent: null, last_error: "E-mail is not set up" }] });
+    if (route === "dashboards/mail/dm1/send") return ok({ sent_to: 2 });
     if (route === "dashboards/kpis") return ok({ kpis: [{ bot_path: "Finance/Invoice intake.flow.json", name: "amount", n: 12 }, { bot_path: "Finance/Invoice intake.flow.json", name: "category", n: 12 }] });
     if (route === "dashboards/db1/data") return ok({ id: "db1", name: "Finance", widgets: [
       { title: "Amount paid", type: "number", kpi: "amount", agg: "sum", value: 1200 },
@@ -845,6 +849,27 @@ describe("rebuilt One CommandCenter console", () => {
     expect(saved.widgets[0]).toMatchObject({ source: "output", kpi: "total", bot: "Finance/Invoice intake.flow.json" });
     fireEvent.click(within(page).getByRole("button", { name: "‹ Business" }));
     expect(await screen.findByRole("table", { name: "Agents that record values" })).toBeTruthy();
+  });
+
+  it("prints a dashboard, e-mails it on a schedule, and names it in the address", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    await go("Business");
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Dashboards" }));
+    expect(await screen.findByRole("article", { name: "Amount paid" })).toBeTruthy();
+    expect(location.hash).toBe("#/business?tab=dashboards&dashboard=db1");   // a link to this dashboard
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for Finance" }), { key: "Enter" });
+    expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Print or save as PDF" })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "E-mail it on a schedule…" }));
+    const d = await screen.findByRole("dialog", { name: "E-mail Finance on a schedule" });
+    const rows = within(await within(d).findByRole("table", { name: "E-mail schedules" })).getAllByRole("row");
+    expect(rows[1].textContent).toContain("Each Monday at 08:00 (UTC)");
+    expect(rows[1].textContent).toContain("Failed: E-mail is not set up");
+    fireEvent.change(within(d).getByLabelText("To"), { target: { value: "user:asha" } });
+    fireEvent.change(within(d).getByLabelText("How often"), { target: { value: "day" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Add the e-mail" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "dashboards/db1/mail", body: expect.objectContaining({ recipients: "user:asha", every: "day", at_time: "08:00" }) }));
+    location.hash = "";
   });
 
   it("shows Dashboards with widgets made in a form: ready-made ones, a pie of the largest parts, a CSV per widget, copies and deletes", async () => {

@@ -587,9 +587,19 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE queues ADD COLUMN hourly_cost INT",
     };
 
+    /**
+     * Version 29: dashboards e-mailed on a schedule (Operational Insights step 3, 1 Nov 2026): to whom, how often (each
+     * day, week or month) and when, in a time zone; the figures are worked out as the person who set it up sees them.
+     */
+    private static final String[] SCHEMA_V29 = {
+        "CREATE TABLE dashboard_mail (id VARCHAR(40) PRIMARY KEY, dashboard_id VARCHAR(40) NOT NULL, recipients VARCHAR(2000) NOT NULL, every VARCHAR(10) NOT NULL, "
+            + "at_time VARCHAR(5) NOT NULL, weekday VARCHAR(3), time_zone VARCHAR(60) NOT NULL, created_by VARCHAR(80) NOT NULL, created TIMESTAMP NOT NULL, "
+            + "next_send TIMESTAMP NOT NULL, last_sent TIMESTAMP, last_error VARCHAR(1000))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 28;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28 };
+    public static final int LATEST = 29;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

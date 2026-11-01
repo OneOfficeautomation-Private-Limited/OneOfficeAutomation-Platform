@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, CustomDashboard, DashWidget, WidgetData } from "../api/cr";
+import type { CrApi, CrUser, CustomDashboard, DashMail, DashWidget, WidgetData } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu } from "./ListParts";
 
@@ -35,6 +35,10 @@ const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your age
     { name: "Edit as JSON", text: "Shows the widgets as JSON, to copy or change many at once. Back to the form checks the JSON first." },
     { name: "CSV", text: "On each widget: saves its figures as a CSV file." },
     { name: "Actions (⋯)", text: "Edit or delete a dashboard you may change, or Copy as mine to make your own copy of any dashboard you can see." },
+    { name: "Print or save as PDF", text: "Opens your browser's print window with only the dashboard; choose Save as PDF there to keep or send it." },
+    { name: "E-mail it on a schedule…", text: "Sends the dashboard's figures and a link each day, week or month to people, roles or e-mail addresses. "
+      + "The figures are the ones you see, so send it only to people who may see them. Needs permission to make dashboards and e-mail set up in Settings." },
+    { name: "Address", text: "The address in the browser opens this dashboard, so you can send a link to it." },
   ] };
 const fmt = (w: DashWidget, v?: number | null) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }) + (w.metric === "success_rate" ? "%" : "");
 
@@ -66,13 +70,15 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
   const [agents, setAgents] = useState<string[]>([]);
   const [editing, setEditing] = useState<{ d: CustomDashboard | null; copy?: boolean } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [mailing, setMailing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback((pick?: string) => api.dashboards().then((l) => {
     setList(l); setError(null);
     setCurrent((c) => { const want = pick ?? c; return l.some((d) => d.id === want) ? want! : l[0]?.id ?? null; });
   }, (e) => setError(message(e))), [api]);
-  useEffect(() => { load(); api.dashboardKpis().then(setKpis, () => {}); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), () => {}); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // the dashboard named in the address (#/business?tab=dashboards&dashboard=ID) opens first, so a link to it works
+  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, () => {}); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), () => {}); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = useCallback(() => {
     if (!current) { setData(null); return; }
     api.dashboardData(current, Intl.DateTimeFormat().resolvedOptions().timeZone).then((r) => setData(r.widgets), (e) => setError(message(e)));
@@ -80,10 +86,26 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
   useEffect(() => { setData(null); refresh(); const t = setInterval(refresh, 60000); return () => clearInterval(t); }, [refresh]);
 
   const cur = list?.find((d) => d.id === current) ?? null;
+  useEffect(() => {   // the address names the dashboard shown
+    if (!current || !location.hash.startsWith("#/business")) return;
+    const q = new URLSearchParams(location.hash.split("?")[1] ?? "");
+    if (q.get("dashboard") === current) return;
+    q.set("tab", "dashboards"); q.set("dashboard", current);
+    history.replaceState(null, "", "#/business?" + q.toString());
+  }, [current]);
+  /** The browser's print window with only the dashboard (Save as PDF there). */
+  const print = () => {
+    document.body.classList.add("cc-printing");
+    const done = () => { document.body.classList.remove("cc-printing"); removeEventListener("afterprint", done); };
+    addEventListener("afterprint", done);
+    window.print();
+  };
   const design = user.permissions.includes("insights.design");   // make and share dashboards (AA's Insight designer)
-  const more = cur && design ? [...(cur.can_edit ? [{ key: "edit", label: "Edit", onSelect: () => setEditing({ d: cur }) }] : []),
-    { key: "copy", label: "Copy as mine", onSelect: () => setEditing({ d: cur, copy: true }) },
-    ...(cur.can_edit ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(true) }] : [])] : [];
+  const more = cur ? [...(design && cur.can_edit ? [{ key: "edit", label: "Edit", onSelect: () => setEditing({ d: cur }) }] : []),
+    ...(design ? [{ key: "copy", label: "Copy as mine", onSelect: () => setEditing({ d: cur, copy: true }) }] : []),
+    { key: "print", label: "Print or save as PDF", onSelect: print },
+    { key: "mail", label: "E-mail it on a schedule…", onSelect: () => setMailing(true) },
+    ...(design && cur.can_edit ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(true) }] : [])] : [];
   const remove = () => cur && api.deleteDashboard(cur.id).then(() => { onNotice("Deleted the dashboard " + cur.name + "."); setDeleting(false); load(""); }, (e) => setError(message(e)));
 
   return (
@@ -109,7 +131,9 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
         <Button kind="danger" onClick={remove}>Delete</Button><Button kind="plain" onClick={() => setDeleting(false)}>Cancel</Button></div>}
       {cur?.description && <p className="st-muted cc-pad-x">{cur.description}</p>}
       {cur && !data && <p className="st-muted cc-pad" role="status">Loading…</p>}
-      {data && <div className="cc-dash">{data.map((w, i) => <WidgetCard key={i} w={w} />)}</div>}
+      {data && cur && <div className="cc-db-print"><h2 className="cc-print-only">{cur.name} · {new Date().toLocaleString()}</h2>
+        <div className="cc-dash">{data.map((w, i) => <WidgetCard key={i} w={w} />)}</div></div>}
+      {mailing && cur && <MailDialog api={api} user={user} d={cur} onClose={() => setMailing(false)} onNotice={onNotice} />}
       {editing && <DashboardEditor api={api} d={editing.d} copy={!!editing.copy} kpis={kpis} agents={agents} onClose={() => setEditing(null)}
         onSaved={(id, t) => { onNotice(t); setEditing(null); load(id); }} />}
     </section>
@@ -219,6 +243,53 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
       {kpis.length === 0 && <p className="st-muted">No KPI values recorded yet: mark an agent's outputs as KPI in One AgentStudio and run it. Run figures work now.</p>}
       {widget && <WidgetEditor w={widget.w} kpis={kpis} agents={agents} onClose={() => setWidget(null)}
         onDone={(w) => { setWidgets(widget.i == null ? [...widgets, w] : widgets.map((x, j) => j === widget.i ? w : x)); setWidget(null); }} />}
+    </Dialog>
+  );
+}
+
+const WEEKDAYS: [string, string][] = [["MON", "Monday"], ["TUE", "Tuesday"], ["WED", "Wednesday"], ["THU", "Thursday"], ["FRI", "Friday"], ["SAT", "Saturday"], ["SUN", "Sunday"]];
+const whenText = (m: DashMail) => (m.every === "day" ? "Each day" : m.every === "week" ? "Each " + (WEEKDAYS.find(([k]) => k === m.weekday)?.[1] ?? m.weekday) : "On the 1st of each month")
+  + " at " + m.at_time + " (" + m.time_zone + ")";
+const at = (t?: string | null) => t ? new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+
+/** A dashboard e-mailed on a schedule: its schedules (send now, stop) and a new one (UiPath's scheduled dashboard e-mails). */
+function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrUser; d: CustomDashboard; onClose: () => void; onNotice: (t: string) => void }) {
+  const [list, setList] = useState<DashMail[] | null>(null);
+  const [x, setX] = useState({ recipients: "", every: "week", weekday: "MON", at_time: "08:00", time_zone: user.default_time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
+  const [error, setError] = useState<string | null>(null);
+  const design = user.permissions.includes("insights.design");
+  const load = useCallback(() => api.dashboardMail(d.id).then(setList, (e) => setError(message(e))), [api, d.id]);
+  useEffect(() => { load(); }, [load]);
+  const add = () => api.addDashboardMail(d.id, { recipients: x.recipients, every: x.every, at_time: x.at_time, time_zone: x.time_zone.trim(), ...(x.every === "week" ? { weekday: x.weekday } : {}) })
+    .then(() => { setX({ ...x, recipients: "" }); setError(null); onNotice("The dashboard " + d.name + " will be e-mailed " + (x.every === "day" ? "each day" : x.every === "week" ? "each week" : "each month") + "."); load(); },
+      (e) => setError(message(e)));
+  const mine = (m: DashMail) => m.created_by === user.username || user.permissions.includes("settings.manage");
+  return (
+    <Dialog open title={"E-mail " + d.name + " on a schedule"} width={760} onClose={onClose} footer={<><span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Close</Button></>}>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {!list && !error && <p className="st-muted" role="status">Loading…</p>}
+      {list && <table className="st-table" aria-label="E-mail schedules">
+        <thead><tr><th scope="col">To</th><th scope="col">When</th><th scope="col">Next</th><th scope="col">Last sent</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+        <tbody>{list.map((m) => <tr key={m.id}><td className="cc-clip" title={m.recipients}>{m.recipients.split(",").join(", ")}</td><td>{whenText(m)}</td><td>{at(m.next_send)}</td>
+          <td>{m.last_error ? <span className="cc-err" title={m.last_error}>Failed: {m.last_error}</span> : at(m.last_sent)}</td>
+          <td className="cc-list-menu">{mine(m) && <RowMenu label={"Actions for the e-mail to " + m.recipients} items={[
+            { key: "send", label: "Send now", onSelect: () => api.sendDashboardMail(m.id).then((r) => { onNotice("Sent to " + r.sent_to + " address" + (r.sent_to === 1 ? "" : "es") + "."); load(); }, (e) => setError(message(e))) },
+            { key: "stop", label: "Stop", separatorBefore: true, onSelect: () => api.stopDashboardMail(m.id).then(() => { onNotice("Stopped the e-mail to " + m.recipients + "."); load(); }, (e) => setError(message(e))) }]} />}</td></tr>)}
+          {!list.length && <tr><td colSpan={5} className="cc-none">Not e-mailed yet.</td></tr>}</tbody>
+      </table>}
+      {design && <>
+        <h3 className="cc-dlg-h">E-mail it</h3>
+        <Field label="To" hint="user:NAME, role:NAME or e-mail addresses, separated by commas. They get the figures you see.">{(id) =>
+          <TextInput id={id} value={x.recipients} placeholder="role:finance, cfo@example.com" onChange={(e) => setX({ ...x, recipients: e.target.value })} />}</Field>
+        <div className="cc-grid2">
+          <Field label="How often">{(id) => <Select id={id} value={x.every} onChange={(e) => setX({ ...x, every: e.target.value })}
+            options={[{ value: "day", label: "Each day" }, { value: "week", label: "Each week" }, { value: "month", label: "Each month (the 1st)" }]} />}</Field>
+          {x.every === "week" && <Field label="On">{(id) => <Select id={id} value={x.weekday} onChange={(e) => setX({ ...x, weekday: e.target.value })} options={WEEKDAYS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>}
+          <Field label="At">{(id) => <TextInput id={id} type="time" value={x.at_time} onChange={(e) => setX({ ...x, at_time: e.target.value })} />}</Field>
+          <Field label="Time zone">{(id) => <TextInput id={id} value={x.time_zone} onChange={(e) => setX({ ...x, time_zone: e.target.value })} />}</Field>
+        </div>
+        <Button kind="primary" disabled={!x.recipients.trim()} onClick={add}>Add the e-mail</Button>
+      </>}
     </Dialog>
   );
 }
