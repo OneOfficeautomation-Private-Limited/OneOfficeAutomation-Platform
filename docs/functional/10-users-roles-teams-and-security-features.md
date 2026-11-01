@@ -222,6 +222,27 @@ AA's Control Room on premises (Settings > Single sign-on > Active Directory or L
   and the role they would get. `POST /api/settings/ldap-test` `{username}`.
 - The account remembers its directory entry (`users.directory`, `users.external_id`, schema 30).
 
+### SCIM provisioning
+
+Identity providers (Microsoft Entra ID, Okta and others) can create, change and switch off people, and push groups,
+through SCIM 2.0 at `<public address>/scim/v2` (Settings > Single sign-on > SCIM provisioning), as UiPath's SCIM
+user sync does, with groups as well.
+
+- A token per identity provider is made in Settings and shown once; only its hash is kept. Tokens show when they were
+  last used and can be revoked. The IP allow list applies.
+- `/Users`: list (filters `userName`, `externalId`, `emails.value` or `id`, with `eq`), get, create, replace, PATCH
+  (`active`, `userName`, `displayName`, `name.givenName`, `name.familyName`, `emails`, `externalId`; other attributes
+  are accepted and ignored; `active` may come as `"False"`, as Entra ID sends it) and DELETE.
+- Removing a person (DELETE, or `active` false) **switches the account off** and ends its sessions; history stays.
+- `/Groups`: list (filters `displayName`, `externalId`, `id`), get, create, replace, PATCH (members add, remove,
+  replace; `members[value eq "id"]`; `displayName`) and DELETE. A person's SCIM groups give the role through the
+  **groups-to-roles** list; with no mapped group the *role for new people* is used; with neither, the account stays off.
+- SCIM sees and changes **only the accounts it created**: a local or administrator account cannot be read, changed,
+  switched off or put in a group, and its user name cannot be taken (`409 uniqueness`).
+- People provisioned by SCIM sign in with single sign-on (OpenID Connect or SAML), which finds the account by its user
+  name. Also `/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`. Schema 31 adds `scim_tokens`, `scim_groups`,
+  `scim_members` and `users.directory_active`.
+
 ## 11. Sessions, API keys and tokens
 
 | Item | Rule |

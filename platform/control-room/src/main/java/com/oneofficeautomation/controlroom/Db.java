@@ -606,9 +606,22 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE users ADD COLUMN external_id VARCHAR(400)",
     };
 
+    /**
+     * Version 31: SCIM provisioning (Settings item 4f, 1 Nov 2026): the identity providers' tokens (kept as hashes),
+     * the groups they push and their members, and each SCIM account's own active flag (the account is on only when
+     * active and given a role).
+     */
+    private static final String[] SCHEMA_V31 = {
+        "CREATE TABLE scim_tokens (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, token_hash VARCHAR(64) NOT NULL UNIQUE, created TIMESTAMP NOT NULL, "
+            + "created_by VARCHAR(80) NOT NULL, last_used TIMESTAMP)",
+        "CREATE TABLE scim_groups (id VARCHAR(40) PRIMARY KEY, display_name VARCHAR(256) NOT NULL, external_id VARCHAR(400), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL)",
+        "CREATE TABLE scim_members (group_id VARCHAR(40) NOT NULL, user_id VARCHAR(40) NOT NULL, PRIMARY KEY (group_id, user_id))",
+        "ALTER TABLE users ADD COLUMN directory_active BOOLEAN",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 30;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30 };
+    public static final int LATEST = 31;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

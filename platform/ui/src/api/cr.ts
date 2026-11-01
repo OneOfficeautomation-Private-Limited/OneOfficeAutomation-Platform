@@ -64,6 +64,8 @@ export type ValueReport = { currency: string; hourly_cost: number; default_minut
 /** A dashboard e-mailed on a schedule: to whom, each day, week (on a weekday) or month (its first day), at a time in a time zone. */
 export type DashMail = { id: string; recipients: string; every: "day" | "week" | "month"; at_time: string; weekday?: string | null; time_zone: string; created_by: string;
   created: string; next_send: string; last_sent?: string | null; last_error?: string | null };
+/** A SCIM token for an identity provider (the token itself is shown only when made). */
+export type ScimToken = { id: string; name: string; created: string; created_by: string; last_used?: string | null };
 /** Business > Agents: an agent whose runs return values. */
 export type BusinessAgent = { bot_path: string; values: string[]; kpis: string[]; runs: number; runs_with_values: number; last_run?: string | null };
 /** A dashboard widget: a figure from the runs or from a KPI agents record, shown as a number, bars, a line, a table or a pie. */
@@ -368,6 +370,10 @@ export class CrApi {
   async saveSettings(changes: Record<string, string | number>) { await this.call("PUT", "settings", changes); }
   async syslogTest() { await this.call("POST", "settings/syslog-test"); }
   async siemTest() { await this.call("POST", "settings/siem-test"); }
+  /** SCIM provisioning tokens (Settings > Single sign-on): listed without the token; a new one returns it this once. */
+  async scimTokens() { return (await this.call<{ tokens?: ScimToken[] }>("GET", "settings/scim-tokens")).tokens ?? []; }
+  makeScimToken(name: string) { return this.call<{ id: string; name: string; token: string }>("POST", "settings/scim-tokens", { name }); }
+  async revokeScimToken(id: string) { await this.call("DELETE", "settings/scim-tokens/" + encodeURIComponent(id)); }
   /** Settings' directory test: the service account connects; with a name, who it finds, their groups and the role they get. */
   ldapTest(username: string) {
     return this.call<{ ok: boolean; server: string; found?: boolean; username?: string; display_name?: string; email?: string; groups?: string[]; role?: string | null }>("POST", "settings/ldap-test", { username });

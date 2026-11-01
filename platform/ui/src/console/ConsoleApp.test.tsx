@@ -296,6 +296,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "settings") return ok({ ldap_urls: "ldaps://dc1.example.com:636", announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "",
       run_retention_days: 90, run_log_retention_days: 30 });
     if (route === "settings/mail-test") return ok({ to: body.to });
+    if (route === "settings/scim-tokens" && init.method === "POST") return ok({ id: "scim2", name: body.name, token: "scim_secret123" });
+    if (route === "settings/scim-tokens") return ok({ tokens: [{ id: "scim1", name: "Entra ID", created: "2026-10-30T08:00:00Z", created_by: "admin", last_used: null }] });
     if (route === "settings/ldap-test") return ok({ ok: true, server: "ldaps://dc1.example.com:636", found: true, username: body.username, display_name: "Alice Ames",
       groups: ["Finance Automation"], role: "bot_runner" });
     if (route === "audit") {
@@ -1536,6 +1538,13 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(sso).getByRole("button", { name: "Test the directory" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/ldap-test", body: { username: "alice" } }));
     expect(await screen.findByText("alice (Alice Ames) is in Finance Automation; they get the role bot_runner.")).toBeTruthy();
+    // SCIM: the address, the tokens, a new one shown once
+    const scim = within(sso).getByRole("region", { name: "SCIM provisioning" });
+    expect(within(scim).getByText(/\/scim\/v2$/)).toBeTruthy();
+    expect(within(within(scim).getByRole("table", { name: "SCIM tokens" })).getByText("Entra ID")).toBeTruthy();
+    fireEvent.change(within(scim).getByLabelText("Name of the new SCIM token"), { target: { value: "Okta" } });
+    await act(async () => { fireEvent.click(within(scim).getByRole("button", { name: "Make a SCIM token" })); });
+    expect((within(scim).getByLabelText("The new SCIM token") as HTMLInputElement).value).toBe("scim_secret123");
     // removing old runs asks first, with the saved numbers (not ones typed but not saved)
     fireEvent.click(within(nav).getByRole("button", { name: "Data retention and backups" }));
     const data = await screen.findByRole("region", { name: "Data retention and backups" });

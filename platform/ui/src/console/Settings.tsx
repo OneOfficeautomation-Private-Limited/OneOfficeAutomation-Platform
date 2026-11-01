@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CrApi } from "../api/cr";
+import type { CrApi, ScimToken } from "../api/cr";
 import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { SETTING_HELP } from "./settingsHelp";
 
@@ -346,6 +346,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       <Button kind="secondary" disabled={!form.syslog_target} onClick={() => api.syslogTest().then(() => onNotice("Test message sent to " + form.syslog_target + "."), fail)}>Send a test syslog message</Button>
       <Button kind="secondary" disabled={!form.siem_https_url} onClick={() => api.siemTest().then(() => onNotice("The HTTPS collector accepted a test entry."), fail)}>Send a test SIEM entry</Button>
     </div>}
+    {section === "sso" && <ScimTokens api={api} publicUrl={String(form.public_url ?? "")} onNotice={onNotice} fail={fail} />}
     {section === "sso" && <div className="cc-inline cc-test">
       <TextInput aria-label="A user name to look up in the directory" placeholder="a user name to look up (optional)" value={who} onChange={(e) => setWho(e.target.value)} />
       <Button kind="secondary" disabled={!form.ldap_urls} onClick={() => api.ldapTest(who.trim()).then((r) => onNotice(!who.trim() ? "The directory " + r.server + " answered." :
@@ -364,4 +365,33 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       <Button kind="plain" onClick={() => setAsking(false)}>Cancel</Button></div>}
     {(section === "connections" || section === "agents" || section === "data") && <p className="st-muted">The buttons use the saved settings: save first.</p>}
   </>;
+}
+
+/**
+ * SCIM provisioning (Settings item 4f): the address to give the identity provider (Entra ID, Okta), its tokens with
+ * when each was last used, a new token shown this once (kept only as a hash), and Revoke.
+ */
+function ScimTokens({ api, publicUrl, onNotice, fail }: { api: CrApi; publicUrl: string; onNotice: (t: string) => void; fail: (e: unknown) => void }) {
+  const [list, setList] = useState<ScimToken[] | null>(null);
+  const [name, setName] = useState("");
+  const [made, setMade] = useState<{ name: string; token: string } | null>(null);
+  const load = useCallback(() => api.scimTokens().then(setList, fail), [api]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [load]);
+  const address = (publicUrl.trim().replace(/\/+$/, "") || location.origin) + "/scim/v2";
+  const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "never";
+  return <section className="cc-scim" aria-label="SCIM provisioning">
+    <h3>SCIM provisioning</h3>
+    <p className="st-muted">Entra ID, Okta and other identity providers create, change and switch off people here, and push groups (the groups-to-roles list gives the role).
+      Give them this address and a token: <code>{address}</code></p>
+    {made && <div className="st-notice" role="status"><span>The token for {made.name}, shown this once: copy it into the identity provider now.</span>
+      <input className="ui-input ui-mono cc-scim-token" readOnly value={made.token} aria-label="The new SCIM token" onFocus={(e) => e.currentTarget.select()} />
+      <Button kind="secondary" onClick={() => setMade(null)}>Done</Button></div>}
+    {list && list.length > 0 && <table className="st-table" aria-label="SCIM tokens"><thead><tr><th scope="col">For</th><th scope="col">Made</th><th scope="col">Last used</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+      <tbody>{list.map((t) => <tr key={t.id}><td>{t.name}</td><td>{when(t.created)} by {t.created_by}</td><td>{when(t.last_used)}</td>
+        <td><Button kind="plain" onClick={() => api.revokeScimToken(t.id).then(() => { onNotice("Revoked the SCIM token for " + t.name + "; it no longer works."); load(); }, fail)}>Revoke</Button></td></tr>)}</tbody></table>}
+    <div className="cc-inline">
+      <TextInput aria-label="Name of the new SCIM token" placeholder="the identity provider, e.g. Entra ID" value={name} onChange={(e) => setName(e.target.value)} />
+      <Button kind="secondary" disabled={!name.trim()} onClick={() => api.makeScimToken(name.trim()).then((r) => { setMade({ name: r.name, token: r.token }); setName(""); load(); }, fail)}>Make a SCIM token</Button>
+    </div>
+  </section>;
 }

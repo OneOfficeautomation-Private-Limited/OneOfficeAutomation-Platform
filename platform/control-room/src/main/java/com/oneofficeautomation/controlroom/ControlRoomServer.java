@@ -162,6 +162,7 @@ public final class ControlRoomServer {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
+            else if (path.equals("/scim/v2") || path.startsWith("/scim/v2/")) scim(ex, path.substring(Math.min(path.length(), 9)));
             else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             // The new console is the default (31 Oct 2026): the bare address opens it. The classic console stays at
             // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
@@ -191,6 +192,41 @@ public final class ControlRoomServer {
             try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
+    }
+
+    /**
+     * SCIM 2.0 at /scim/v2 (Scim.java): a token from Settings as the bearer, the IP allow list as for the API, answers as
+     * application/scim+json, errors in SCIM's own shape.
+     */
+    private void scim(HttpExchange ex, String path) throws IOException {
+        String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
+        IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
+        try {
+            if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new Scim.Problem(403, null, "This address may not use One CommandCenter");
+            String auth = ex.getRequestHeaders().getFirst("Authorization");
+            String tokenId = cr.scim.tokenId(auth != null && auth.startsWith("Bearer ") ? auth.substring(7).trim() : null);
+            if (tokenId == null) {
+                ex.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"SCIM\"");
+                throw new Scim.Problem(401, null, "A SCIM token from One CommandCenter's Settings is needed");
+            }
+            String m = ex.getRequestMethod();
+            Object b = m.equals("POST") || m.equals("PUT") || m.equals("PATCH") ? body(ex) : null;
+            String base = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
+            if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
+            Scim.Answer a = cr.scim.handle(m, path, query(ex), b, base + "/scim/v2");
+            scimReply(ex, a.status(), a.body());
+        } catch (Scim.Problem p) {
+            scimReply(ex, p.status, p.body());
+        } catch (OoaException e) {
+            scimReply(ex, e.code().equals("CR.TOO_LARGE") ? 413 : 400, new Scim.Problem(400, "invalidValue", e.getMessage()).body());
+        }
+    }
+
+    private static void scimReply(HttpExchange ex, int status, Object body) throws IOException {
+        securityHeaders(ex);
+        if (body == null) { writeBody(ex, status, new byte[0]); return; }
+        ex.getResponseHeaders().set("Content-Type", "application/scim+json; charset=utf-8");
+        writeBody(ex, status, JsonLite.write(body).getBytes(StandardCharsets.UTF_8));
     }
 
     static Map<String, String> query(HttpExchange ex) {
@@ -600,6 +636,9 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, cr.db.info());
             }
             case "settings" -> {
+                if (m.equals("GET") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, Map.of("tokens", cr.scim.tokens(u))); return; }
+                if (m.equals("POST") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, cr.scim.makeToken(u, (String) map(body(ex)).get("name"), ip)); return; }
+                if (m.equals("DELETE") && route.startsWith("settings/scim-tokens/") && seg.length == 3) { cr.scim.revokeToken(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); return; }
                 if (m.equals("POST") && route.equals("settings/ldap-test")) { cr.require(u, "settings.manage", "test the directory"); sendJson(ex, 200, cr.directory.test((String) map(body(ex)).get("username"))); return; }
                 if (m.equals("POST") && route.equals("settings/siem-test")) { cr.require(u, "settings.manage", "test the SIEM connection"); sendJson(ex, 200, cr.syslog.testHttps(u.username())); return; }
                 if (m.equals("POST") && route.equals("settings/syslog-test")) { cr.require(u, "settings.manage", "test the syslog connection"); sendJson(ex, 200, cr.syslog.test(u.username())); }

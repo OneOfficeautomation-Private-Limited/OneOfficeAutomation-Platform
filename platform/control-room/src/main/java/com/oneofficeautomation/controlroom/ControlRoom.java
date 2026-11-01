@@ -65,6 +65,7 @@ public final class ControlRoom {
     final Path dataDir;
     final SyslogForwarder syslog;
     final Directory directory = new Directory(this);
+    final Scim scim;
     public final Licensing licensing;
     public final Mfa mfa;
     public final Cluster cluster;
@@ -136,6 +137,7 @@ public final class ControlRoom {
         db.migrate();
         this.platform = new Platform(this, registry);
         this.syslog = new SyslogForwarder(platform);
+        this.scim = new Scim(this);
         this.licensing = new Licensing(this);
         this.cluster = new Cluster(db);
         this.mfa = new Mfa(this);
