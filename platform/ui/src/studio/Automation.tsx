@@ -87,8 +87,14 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
   const [kind, setKind] = useState("");   // Type filter
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
-  // the console's Automation page opens Studio on its Private tab (../studio/#private), as AA's one Automation page
-  useEffect(() => { const h = location.hash.replace("#", ""); if (h === "private" || h === "public") { setPlace(h); history.replaceState(null, "", location.pathname); } }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  // the console's Automation page opens this page on its Private tab (../studio/#private; #private/new: Create > Agent), as AA's one Automation page
+  useEffect(() => {
+    const [h, act] = location.hash.replace("#", "").split("/");
+    if (h !== "private" && h !== "public") return;
+    setPlace(h);
+    if (h === "private" && act === "new") { setCreateIn(folder); setCreating(ITEM_TYPES.find((t) => t.kind === "TaskBot") ?? null); }
+    history.replaceState(null, "", location.pathname);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
   const folderNode = find(tree, folder) ?? tree;

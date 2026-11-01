@@ -313,6 +313,8 @@ describe("new Studio", () => {
   it("opens an agent in a tab with numbered steps, properties and variables, and Close returns to Automation", async () => {
     render(<App api={fakeServer().api} />);
     const search = await screen.findByLabelText("Search items");
+    const brand = () => document.querySelector(".st-brand")?.textContent;
+    expect([brand(), document.title]).toEqual(["One CommandCenter", "One CommandCenter"]);   // AA's one Control Room: only the editor is One AgentStudio
     fireEvent.change(search, { target: { value: "intake" } });
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
 
@@ -323,8 +325,19 @@ describe("new Studio", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
     expect(await screen.findByText("$workbook")).toBeTruthy();
 
+    expect([brand(), document.title]).toEqual(["One AgentStudio", "Invoice intake · One AgentStudio"]);
+
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(brand()).toBe("One CommandCenter");
+  });
+
+  it("opens Create > Agent on the Private tab when One CommandCenter's Automation asks for a new agent (#private/new)", async () => {
+    location.hash = "#private/new";
+    render(<App api={fakeServer().api} />);
+    const dialog = await screen.findByRole("dialog", { name: "New agent" });
+    expect(within(dialog).getByText("Workspace")).toBeTruthy();
+    expect(location.hash).toBe("");
   });
 
   it("loads its data once when it makes its own API client (no reload loop)", async () => {

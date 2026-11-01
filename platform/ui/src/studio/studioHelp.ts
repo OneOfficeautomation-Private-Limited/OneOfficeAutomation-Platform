@@ -31,7 +31,7 @@ export const PUBLIC_HELP: HelpTopic = {
     { name: "Check out a version", text: "In the row's ⋮ menu: pick an earlier version to check out. Check it in again to make it the newest version, for example to bring back one that worked." },
     { name: "Agents it runs", text: "Checking out an agent also copies the agents it runs into your workspace when you do not have them yet. They are not checked out, so others can still change them." },
     { name: "Undo check-out", text: "In the row's ⋮ menu, for your own check-outs: lets others check the agent out again. Your private copy stays; its changes are not checked in." },
-    { name: "Sign in", text: "The Public tab needs a sign-in to One CommandCenter. When One AgentStudio runs on the same server, your browser sign-in is used." },
+    { name: "Sign in", text: "The Public tab needs a sign-in to One CommandCenter. When your Private workspace runs on the same server, your browser sign-in is used." },
   ] };
 
 export const EDITOR_HELP: HelpTopic = {

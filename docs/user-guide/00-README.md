@@ -30,7 +30,7 @@ ONEOFFICEAUTOMATION has three parts:
 A typical life of an agent: a builder creates it in Studio, tests it, and presses **Agent check-in**, ticking **Make
 this the live version** when it is ready for production. The agent is now in One CommandCenter's **Agent
 repository**, with a version number. An operator runs it on a runner, schedules it,
-or connects it to a trigger or a work queue. Every run is visible in **Agent Runs**, and every action anyone takes is
+or connects it to a trigger or a work queue. Every run is visible in **Agent Activity**, and every action anyone takes is
 recorded in the **Audit Trail**.
 
 ## All guides
@@ -42,7 +42,7 @@ recorded in the **Audit Trail**.
 | 02 | [Studio basics](02-studio-basics.md) | Builders | One AgentStudio's screen, workspace, explorer, actions, variables |
 | 03 | [Building agents in Studio](03-studio-building-agents.md) | Builders | Steps, conditions, loops, error handling, inputs and outputs, good practice |
 | 04 | [Running and debugging in Studio](04-studio-running-and-debugging.md) | Builders | Run, Debug, breakpoints, the run console, problems |
-| 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Runs, running and deploying agents, schedules, triggers, work queues, workflows, Operational Insights (Overview, Alerts, Operations, Business: agents' dashboards, value, dashboards e-mailed on a schedule), handling failures |
+| 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Activity, running and deploying agents, schedules, triggers, work queues, workflows, Operational Insights (Overview, Alerts, Operations, Business: agents' dashboards, value, dashboards e-mailed on a schedule), handling failures |
 | 06 | [Administrator's guide](06-administrators-guide.md) | Administrators | Users, roles, teams, sign-in and security (password rules, lockout, Active Directory or LDAP, SCIM), API keys, the vault, shared values and connections, toolkits, policies (code analysis, AI guardrails), templates, settings, licences, audit, AI governance |
 | 07 | [Runner guide](07-runner-guide.md) | Runner owners, administrators | Installing and registering runners, attended and unattended work, screens, pools, updates, the notification-area assistant, diagnosing problems |
 | 08 | [Browser connector guide](08-browser-connector-guide.md) | Builders, runner owners | Installing the connector for Edge, Chrome and Firefox, checking it, what works where, troubleshooting |
@@ -101,7 +101,7 @@ recorded in the **Audit Trail**.
 | Agent | An automation: a list of steps that OneRunner carries out. Saved as a `.flow.json` file. |
 | Workflow | A chain of agents, people (forms, approvals) and decisions, run by One CommandCenter. Saved as `.process.json`. |
 | Form | A set of fields people fill in, used by workflows. Saved as `.form.json`. |
-| Agent Repository | One CommandCenter's shared store of agents, with every version. Your Studio workspace is private; the repository is shared. |
+| Agent repository | One CommandCenter's shared store of agents, with every version: the **Public** tab of **Build > Automation**. Your own workspace (the **Private** tab) is private; the repository is shared. |
 | Live production version | The version of an agent that runs, schedules, triggers, work queues and workflows use. |
 | Runner | A computer with OneRunner registered to One CommandCenter. |
 | Runner pool | A named group of runners; work sent to a pool goes to its least busy online runner. |
@@ -113,7 +113,7 @@ recorded in the **Audit Trail**.
 
 ## Conventions
 
-- **Bold** text is a page name, button, field or menu exactly as it appears on screen, for example **Agent Runs** or
+- **Bold** text is a page name, button, field or menu exactly as it appears on screen, for example **Agent Activity** or
   **Register a runner**.
 - A path such as **Manage > Schedules** means: open the **Manage** section of the menu on the left, then the
   **Schedules** page.

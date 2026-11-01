@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { ROLE_NAMES, roleName } from "./roleNames";
 
 /**
  * Administration > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
@@ -20,8 +21,6 @@ type Col = { key: string; label: string; cell: (u: CrPerson, runner: string) => 
 /** The status shown: disabled, locked (after failed sign-ins), new password needed, or active. */
 const stateOf = (u: CrPerson) => !u.enabled ? "disabled" : u.locked_until && new Date(u.locked_until).getTime() > Date.now() ? "locked" : u.must_change ? "pending" : "active";
 const STATUS: Record<string, string> = { active: "Active", pending: "New password needed", locked: "Locked", disabled: "Disabled" };
-const ROLE_NAMES: Record<string, string> = { admin: "Administrator", bot_creator: "Agent builder", bot_runner: "Agent runner", viewer: "Viewer" };
-const roleName = (r: string) => ROLE_NAMES[r] ?? r;
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 function ago(t?: string | null) {
   if (!t) return "";

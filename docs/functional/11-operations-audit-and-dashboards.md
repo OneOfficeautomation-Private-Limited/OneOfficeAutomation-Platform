@@ -28,7 +28,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 
 | Section | Pages (permission) |
 | --- | --- |
-| Build | Automation (`repo.view`; Public, and Private in One AgentStudio for `repo.checkin`), Agent Templates (`repo.view`), One AgentStudio, Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
+| Build | Automation (`repo.view`; Public, and Private, the builder's own workspace, for `repo.checkin`), Agent Templates (`repo.view`), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Agent Activity (`runs.view`), Task inbox (everyone), Runner Machines (`devices.view`), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Workflow (`runs.view`), Shared Global values (`globals.view`), Connections (`globals.view`), Credential vault (members), Agent ToolKits (`toolkits.manage`) |
 | Operational Insights | Overview, Alerts, Operations (Agents, Runners, Work queues with `queues.view`, Audit with `audit.view`, AI usage), Business (Agents, Value, Dashboards) (`analytics.view`) |
 | Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Policies (`settings.manage`), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |

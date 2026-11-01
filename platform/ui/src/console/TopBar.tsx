@@ -29,7 +29,7 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut, onShor
       <div className="st-brand"><span className="st-logo"><BrandMark /></span>One CommandCenter</div>
       {user.environment && <EnvironmentLabel env={user.environment} />}
       <nav aria-label="You are here" className="cc-crumbs">
-        {sec && label ? <><button type="button" className="cc-crumb" onClick={() => onPage(sec.pages.find((p) => canSee(p, user) && p.id !== "studio")?.id ?? "home")}>{sectionName(sec.label)}</button>
+        {sec && label ? <><button type="button" className="cc-crumb" onClick={() => onPage(sec.pages.find((p) => canSee(p, user))?.id ?? "home")}>{sectionName(sec.label)}</button>
           <span aria-hidden="true">›</span><span className="cc-crumb-here" aria-current="page">{label}</span></>
           : <span className="cc-crumb-here" aria-current="page">Home</span>}
       </nav>
@@ -64,7 +64,7 @@ function Search({ api, user, onPage }: { api: CrApi; user: CrUser; onPage: (id: 
   }, []);
   const loadAgents = () => { if (agents == null && user.permissions.includes("repo.view")) api.agents().then((a) => setAgents(a.map((x) => x.path)), () => setAgents([])); };
   const t = q.trim().toLowerCase();
-  const pages = useMemo(() => !t ? [] : MENU_SECTIONS.flatMap((s) => s.pages.filter((p) => p.id !== "studio" && canSee(p, user) && p.label.toLowerCase().includes(t))
+  const pages = useMemo(() => !t ? [] : MENU_SECTIONS.flatMap((s) => s.pages.filter((p) => canSee(p, user) && p.label.toLowerCase().includes(t))
     .map((p) => ({ id: p.id, label: p.label, where: sectionName(s.label) }))).slice(0, 8), [t, user]);
   const found = !t ? [] : (agents ?? []).filter((p) => p.toLowerCase().includes(t)).slice(0, 6);
   const run = /^run_[a-z0-9]+$/i.test(q.trim()) ? q.trim() : null;

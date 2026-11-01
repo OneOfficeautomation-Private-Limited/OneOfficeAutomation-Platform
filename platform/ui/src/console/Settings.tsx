@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import type { CrApi, ScimToken } from "../api/cr";
 import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { SETTING_HELP } from "./settingsHelp";
+import { ROLE_NAMES } from "./roleNames";
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
@@ -172,7 +173,7 @@ const SECTIONS: Section[] = [
   ] },
   { id: "about", title: "This One CommandCenter", mark: "i", colour: "#475569", about: "The database and the nodes serving this One CommandCenter (read-only here; the database is changed with the ooa db command).", groups: [] },
 ];
-const ROLES: [string, string][] = [["bot_creator", "Agent builder"], ["bot_runner", "Agent runner"], ["viewer", "Viewer"]];
+const ROLES = Object.entries(ROLE_NAMES).filter(([r]) => r !== "admin");   // the administrator role cannot be switched off
 const settingsOf = (s: Section) => s.groups.flatMap((g) => g.settings);
 /** The Help panel's text for settings: how to use each one (settingsHelp.ts), or its hint. */
 const helpOf = (title: string, list: Setting[], about?: string): HelpTopic => ({ title, about, items: list.map((x) => ({ name: x.label, text: SETTING_HELP[x.key] ?? x.hint ?? "" })) });

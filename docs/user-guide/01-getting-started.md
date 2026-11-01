@@ -5,7 +5,7 @@ step; business users and operators can skip the install part if someone has alre
 
 **What you will have at the end:** ONEOFFICEAUTOMATION running on one computer, your own administrator password, a
 tour of the menu, and a first agent that you built in One AgentStudio, checked in to One CommandCenter, ran on a
-runner and looked at in **Agent Runs**.
+runner and looked at in **Agent Activity**.
 
 ## Contents
 
@@ -195,7 +195,7 @@ at the bottom makes the menu narrow (icons only) or full again.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
-| **Build** | Automation (the agent repository), Agent Templates, One AgentStudio (opens a new tab), Agent APIs, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
+| **Build** | Automation (Public: the agent repository; Private: your own workspace), Agent Templates, Agent APIs, Agent tests | Find, build and run agents, install ready-made ones, publish agents as web services, test agents |
 | **Manage** | Agent Activity, Task inbox, Runner Machines, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Credential vault, Agent ToolKits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows, secrets and the shared settings agents use |
 | **Operational Insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
 | **Administration** | Users, Roles, Teams, Policies, Audit Trail, Licenses, Settings | People, access, rules for agents' folders, audit, licences and system settings |
@@ -204,10 +204,11 @@ at the bottom makes the menu narrow (icons only) or full again.
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
 schedules, triggers, shared values, work queues, Operational Insights and Prompt Skills, but cannot change anything.
 
-**Automation** has two tabs, as in One AgentStudio: **Public** (on the left) is the agent repository, with the agents
-checked in to run; **Private** (on the right) is a builder's own workspace in One AgentStudio. **Private** works for
-people who build agents (who may check agents in) when One AgentStudio runs beside One CommandCenter on the same
-computer; it opens One AgentStudio on its Private tab.
+**Automation** has two tabs, as AA's one Automation page: **Public** (on the left) is the agent repository, with the
+agents checked in to run; **Private** (on the right) is a builder's own workspace. Everyone sees the same menu and
+pages; only what you may open differs. **Private** works for people who build agents (who may check agents in) when the
+workspace runs beside One CommandCenter on the same computer. The top bar says **One CommandCenter** everywhere and
+**One AgentStudio** only in the editor, when an agent or other item is open.
 
 Every page has an **i** after its title: it opens a help panel that explains each part of the page.
 
@@ -228,56 +229,62 @@ You will build an agent that takes a name and writes a greeting to the run log, 
 
 ### 6.1 Build it in One AgentStudio
 
-1. In One CommandCenter, click **Open One AgentStudio** (or **Build > One AgentStudio**). Studio opens in a new tab.
-2. In the **Explorer** on the left, press **+ Create** and choose **Agent**. Give it the name `Hello`.
-3. Open the **Variables** panel (the `{ }` button on the left rail) and add a variable `name`, type **String**,
-   direction **input**. Add a second one, `greeting`, type **String**, direction **output**.
-4. Open the **Actions** panel (the four-squares button on the rail). Type `log` in **Search actions** and click
-   **Log message** to add it to the agent. In its properties set the message to `Hello ${name}`.
+1. In One CommandCenter, open **Build > Automation** and click its **Private** tab (it is there for people who may
+   check agents in). Your own workspace opens, on the **Private** tab of the **Automation** page.
+2. Press **Create ▾** and choose **Agent**. In the **New agent** dialog type the name `Hello` and press **Create and
+   edit**. The agent opens in One AgentStudio's editor. (On the **Public** tab, **Create ▾ > New agent** does steps 1
+   and 2 at once.)
+3. In the **Details** panel on the right, open the **Variables** tab and press **New**. Name the variable `name`, keep
+   **Type** String, tick **Use as input** and press **Create variable**. Add a second one, `greeting`, type String,
+   with **Use as output** ticked.
+4. In the **Actions** panel on the left, type `log` in the search box and click **Log message** to add it to the
+   agent. On the **Properties** tab on the right, set its message to `Hello ${name}`.
 5. Search for `assign` and click **Assign variable**. Set its variable to `greeting` and its value to
    `Hello ${name}` (see [03 Building agents](03-studio-building-agents.md) for more on variables).
-6. Press **Save** (Ctrl+S), then **Validate**. The problems list should be empty.
-7. Press **Run**. Studio asks for the input `name`; type `World`. The run console shows each step and the log line
-   `Hello World`.
+6. Press **Save** (Ctrl+S). Saving also checks the agent: Studio says "Saved Hello." when it finds no problems, and
+   lists any it finds on the **Problems** tab of the output panel.
+7. Press **Run**. The **Run Hello** dialog asks for the input `name`; type `World` and press **Run**. The **Run
+   output** tab shows each step and the log line `Hello World`.
 
 ### 6.2 Check it in
 
-1. At the bottom of the Explorer, open the **One CommandCenter** section. Because Studio and One CommandCenter run
-   together here, it says you can use your One CommandCenter sign-in: press **Open One CommandCenter to sign in** if needed,
-   then **I have signed in**. (Against another One CommandCenter, fill in **Address**, **User name**, **Password** and, if
-   asked, **Two-step code**, then press **Connect**.)
-2. With `Hello` open, press **Agent check-in** in the Explorer toolbar.
-3. In the **Agent check-in** dialog, type a comment such as `First version`, tick **Make this the live version**, and
-   press **Check in**. Studio reports "Checked in ... as version 1; it is now the live version".
+1. With `Hello` open, press **Check in** at the top of the editor. The **Check in Hello** dialog opens.
+2. If Studio is not signed in to One CommandCenter yet, the dialog asks you to sign in first. Because your workspace
+   and One CommandCenter run together here, it uses your One CommandCenter sign-in: press **Open One CommandCenter to
+   sign in** if needed, then **I have signed in**. (Against another One CommandCenter, fill in **One CommandCenter
+   address**, **User name**, **Password** and, if asked, **Two-step code**, then press **Sign in**.)
+3. In **What changed**, type a comment such as `First version`, tick **Make this the live version**, and press
+   **Check in**. Studio reports "Checked in ... as version 1; it is now the live version."
 
-Without the tick, a check-in stores a new version only and the live version stays as it was; a new agent then has no
-live version and cannot run from One CommandCenter yet. With the tick, the new version becomes the **live production
-version** straight away, unless your administrator has turned on **Approval before production**; then the version
-waits for a second person to approve it (**Build > Agent Repository > Production approvals**).
+Without the tick, a check-in stores a new version only and the live version stays as it was (an agent's first version
+is always live). With the tick, the new version becomes the **live production version** straight away, unless your
+administrator has turned on **Approval before production**; then the version waits for a second person to approve it
+(**Production approvals** in the **Manage ▾** menu of **Build > Automation**).
 
 ### 6.3 Run it from One CommandCenter
 
-1. In One CommandCenter open **Build > Agent Repository**. The `Hello` agent shows **Latest** `v1` and
-   **Live production** `v1`.
-2. Press **Run** on its row. The **Run Hello** dialog opens.
-3. **Run on**: leave **A runner** and choose your computer's runner (it shows as online).
+1. In One CommandCenter open **Build > Automation**. On its **Public** tab the `Hello` agent shows `v1` under
+   **Latest** and **Live v1** under **Live**.
+2. Choose **Run…** in its row's **⋯** menu (or click the row and press **Run**). The **Run Hello** dialog opens; it
+   runs the live version, v1.
+3. **Run on**: choose your computer's runner (it shows as online; the first online runner is chosen already).
 4. Fill in the input `name`, for example `One CommandCenter`.
-5. Optional: open **Run mode, priority and result callback** to choose **Attended**, **Unattended** or **Headless**,
-   a priority, or a callback URL. Leave the defaults for now.
-6. Press **Run now**. One CommandCenter opens **Manage > Agent Runs** on the **Live** tab and the run's details.
+5. Press **Run**. One CommandCenter says "Started Hello (run ...): follow it in Agent Activity."
 
 ### 6.4 Look at the result
 
-The run details panel shows the status, how long it took, the steps run, and these tabs:
+Open **Manage > Agent Activity**. Your run is on the **In progress** tab while it runs and on **Completed** once it
+has ended. Click it: its details open beside the list with the status, how long it took, the steps run, and these
+tabs:
 
-- **Steps**: each step with a tick or a cross and its duration.
-- **Log**: every event; filter it with **All**, **Errors**, **Log messages** or **Variables**. Your `Hello Command
-  Center` line is here.
+- **Steps**: each step with a tick (or **!** when it failed) and its duration.
+- **Log**: every event; filter it with **Everything**, **Errors and retries**, **Log messages** or **Variables set**.
+  Your `Hello One CommandCenter` line is here.
 - **Variables**: the last value of each variable.
 - **Inputs and outputs**: what went in and what came out (`greeting`).
 
-Press **Download log** to save the log as a text file, or **Rerun** to run the live version again with the same
-inputs. Close the panel and open the **History** tab: your run is listed with status **success**.
+Press **Download log** to save the log as a text file, or **Run again** to run the live version again with the same
+inputs. On the **Completed** tab your run is listed with status **Completed**.
 
 You have now been through the whole cycle: build, check in, run, monitor.
 
@@ -302,7 +309,7 @@ To license the product, an administrator moves One CommandCenter to SQL Server, 
 | You lost the one-time password, or forgot your password | Stop ONEOFFICEAUTOMATION (Ctrl+C in its window), run `bin\ooa.bat reset-admin` (or `reset-admin --user jane.doe`), start again and sign in with the new one-time password it prints. The reset is recorded in the audit trail. |
 | "Account locked" after wrong passwords | Five wrong passwords lock an account for 15 minutes. Wait, ask an administrator to **Reset password**, or run `reset-admin` (above), which also unlocks the account. |
 | **Run** is missing on an agent | The agent has no live production version yet, or your role cannot start runs (`runs.start`). |
-| The run stays **queued** | The chosen runner is offline. Check **Manage > Runners**: a runner is online when it has checked in during the last minute. |
+| The run stays **queued** | The chosen runner is offline. Check **Manage > Runner Machines**: a runner is online when it has checked in during the last minute. |
 | The check-in is refused with validation problems | Studio opens the problems list. Fix them, save and check in again. |
 | `bin\ooa.bat check` shows FAIL | Each line says what to fix (memory, disk, port, Java). Fix it and run the check again. |
 

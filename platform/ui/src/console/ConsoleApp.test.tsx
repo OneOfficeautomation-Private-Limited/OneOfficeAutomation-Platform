@@ -434,14 +434,13 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.filter((c) => c.method === "POST").every((c) => c.headers?.["X-OOA-Request"] === "1")).toBe(true);
   });
 
-  it("shows the menu by task; every page opens here, Studio in its own tab", async () => {
+  it("shows the menu by task; every page opens here, with no One AgentStudio page (as AA's one Control Room)", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     fireEvent.click(within(menu).getByRole("button", { name: "BUILD" }));
-    expect(within(menu).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["../studio/"]);   // every other page is rebuilt here
-    await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
-    expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
+    expect(within(menu).queryAllByRole("link")).toEqual([]);   // every page is rebuilt here
+    expect(within(menu).queryByText(/AgentStudio/)).toBeNull();   // only the agent editor carries that name
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
     fireEvent.keyDown(screen.getByRole("button", { name: "Help" }), { key: "Enter" });
     expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Classic console/ })).toBeTruthy();   // today's console, until it is retired
@@ -876,16 +875,20 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
-  it("shows Automation as AA's one page: Public on the left, Private (One AgentStudio) on the right for people who build agents", async () => {
+  it("shows Automation as AA's one page: Public on the left, Private on the right for people who build agents", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin"] } as typeof admin }).api} />);
     await go("Automation");
     const where = await screen.findByRole("tablist", { name: "Where" });
     expect(within(where).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Public", "Private"]);
     await waitFor(() => expect(within(where).getByRole("tab", { name: "Private" }).getAttribute("href")).toBe("../studio/#private"));
+    const create = screen.getByRole("button", { name: "Create" });
+    await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
+    expect(await screen.findByRole("menuitem", { name: /^New agent/ })).toBeTruthy();   // made in Private (#private/new)
     cleanup();
     render(<ConsoleApp api={fakeServer({ signedIn: viewer }).api} />);   // no right to build agents: Private is shown, off
     await go("Automation");
     expect(within(await screen.findByRole("tablist", { name: "Where" })).getByRole("tab", { name: "Private" }).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Create" })).toBeNull();   // nothing a viewer may create
   });
 
   it("opens Create trigger for an agent and event from One AgentStudio's command list", async () => {
@@ -1183,7 +1186,7 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Users");
     const list = await screen.findByRole("table", { name: "Users list" });
     expect(await within(list).findByText("Locked")).toBeTruthy();
-    expect(within(list).getAllByText("Agent runner").length).toBeGreaterThan(0);   // roles by their names, one chip each
+    expect(within(list).getAllByText("Agent operator").length).toBeGreaterThan(0);   // roles by their names, one chip each
     expect(within(list).getByText("Runner A")).toBeTruthy();              // the default runner
     expect(screen.queryByRole("toolbar", { name: "User actions" })).toBeNull();   // the bulk bar shows only while rows are ticked
     expect(screen.getByText(/^1–\d+ of \d+$/)).toBeTruthy();            // the pager under the table
@@ -1238,7 +1241,7 @@ describe("rebuilt One CommandCenter console", () => {
     render(<ConsoleApp api={api} />);
     await go("Roles");
     const list = await screen.findByRole("table", { name: "Roles list" });
-    expect(await within(list).findByText("Agent runner")).toBeTruthy();
+    expect(await within(list).findByText("Agent operator")).toBeTruthy();
     expect(within(list).getAllByText("Built-in")).toHaveLength(4);
     expect(within(list).getAllByRole("img", { name: "Built-in" })).toHaveLength(4);   // a lock, no tick box
     expect(within(list).getByText("Runs agents and works on queue items")).toBeTruthy();
@@ -1246,11 +1249,11 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByText("4 built-in · 1 custom")).toBeTruthy();
     expect(screen.queryByRole("toolbar", { name: "Role actions" })).toBeNull();   // only while custom roles are ticked
     fireEvent.change(screen.getByLabelText("Grants"), { target: { value: "audit.view" } });
-    await waitFor(() => expect(within(list).queryByText("Agent runner")).toBeNull());
+    await waitFor(() => expect(within(list).queryByText("Agent operator")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     // a built-in role is read-only; copying it starts a new role with its permissions
-    fireEvent.click(await within(list).findByText("Agent runner"));
-    const b = await screen.findByRole("dialog", { name: "Built-in role Agent runner" });
+    fireEvent.click(await within(list).findByText("Agent operator"));
+    const b = await screen.findByRole("dialog", { name: "Built-in role Agent operator" });
     expect((within(b).getByLabelText("Start runs") as HTMLInputElement).disabled).toBe(true);
     expect(screen.queryByRole("table", { name: "Roles list" })).toBeNull();   // a role opens as its own page
     expect(within(b).queryByRole("group", { name: "All or none in Runs" })).toBeNull();
@@ -1275,7 +1278,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(within(c).getByLabelText("Find a permission"), { target: { value: "" } });
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create role" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "roles/night_runner",
-      body: { description: "Copy of Agent runner", permissions: ["repo.view", "runs.view", "runs.start", "repo.checkin"] } }));
+      body: { description: "Copy of Agent operator", permissions: ["repo.view", "runs.view", "runs.start", "repo.checkin"] } }));
     // custom roles can be selected and deleted from the bar that shows while they are ticked; deleting asks first
     const roles = await screen.findByRole("table", { name: "Roles list" });
     fireEvent.click(await within(roles).findByLabelText("Select auditor"));
@@ -1286,7 +1289,7 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "roles/auditor" }));
     // a person in Held by opens on their page in Users
-    fireEvent.click(await within(screen.getByRole("table", { name: "Roles list" })).findByText("Agent runner"));
+    fireEvent.click(await within(screen.getByRole("table", { name: "Roles list" })).findByText("Agent operator"));
     fireEvent.click(await screen.findByRole("tab", { name: "Held by (2)" }));
     await act(async () => { fireEvent.click(within(screen.getByRole("table", { name: "Held by" })).getByText("vic")); });
     expect(await screen.findByRole("dialog", { name: "User vic" })).toBeTruthy();

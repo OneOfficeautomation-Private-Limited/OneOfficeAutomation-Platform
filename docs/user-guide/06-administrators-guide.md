@@ -18,14 +18,14 @@ the yearly goal in **Business > Value**).
 4. [Teams](#4-teams)
 5. [Sign-in and security](#5-sign-in-and-security)
 6. [API keys and tokens](#6-api-keys-and-tokens)
-7. [Credential vault](#7-one-agent-vault)
-8. [Shared Global values and Connections](#8-shared-values-and-connections)
+7. [Credential vault](#7-credential-vault)
+8. [Shared Global values and Connections](#8-shared-global-values-and-connections)
 9. [Toolkits](#9-toolkits)
 10. [The agent repository: folders, approvals, Git and policies](#10-the-agent-repository-folders-approvals-git-and-policies)
 11. [Templates](#11-templates)
 12. [Settings](#12-settings)
 13. [Licences and seats](#licences-and-seats)
-14. [Audit Trail](#14-one-audit-trail)
+14. [Audit Trail](#14-audit-trail)
 15. [AI: model connections, Prompt Skills and AI governance](#15-ai-model-connections-prompt-skills-and-ai-governance)
 16. [Languages](#16-languages)
 17. [If it goes wrong](#17-if-it-goes-wrong)
@@ -140,7 +140,7 @@ Roles in use cannot be deleted. Rules that name a role, such as `role:invoice_cl
 folders, work queues, workflow tasks and model connections, apply to everyone with that role as main or further role.
 
 **Switching off built-in roles**: in **Settings > Sign-in and security > Built-in roles in use**, switch off the roles
-you do not use (Agent builder, Agent runner, Viewer). They then grant nothing and cannot be given; people who
+you do not use (Agent builder, Agent operator, Viewer). They then grant nothing and cannot be given; people who
 still have one keep only their other roles. Administrator cannot be switched off.
 
 ## 4. Teams
@@ -333,15 +333,17 @@ whether a token is valid, for whom and until when.
 
 ## 7. Credential vault
 
-**Administration > Credential vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
-are handed to an agent only while it runs, and every use is audited. Agents refer to a value as
-`folder/credential/attribute`, for example `finance/erp/password`.
+**Manage > Credential vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after
+saving, are handed to an agent only while it runs, and every use is audited. Agents refer to a value as
+`folder/credential/attribute`, for example `finance/erp/password`. The page has three tabs: **Credentials**, **Vault
+folders** and **My requests**.
 
 ### Vault folders and members
 
-1. Press **New vault folder** (needs `lockers.manage`, or `lockers.own` for builders). Give a **Name**, **Description**
-   and **Consumers (who may use it in agents)**, such as `role:bot_runner, user:jane`. You become the owner.
-2. **Members** sets who may do what:
+1. On the **Vault folders** tab press **Create vault folder** (needs `lockers.manage`, or `lockers.own` for builders).
+   Give a **Name**, **Description** and **Consumers** (whose agents may use it), such as `role:bot_runner, user:jane`.
+   You become the owner.
+2. Click the folder to open its page. Its **Members** tab sets who may do what; press **Save members**:
 
    | Member | Can |
    | --- | --- |
@@ -351,23 +353,29 @@ are handed to an agent only while it runs, and every use is audited. Agents refe
    | Consumers | Their agents may use the credentials |
 
    Managers, participants and consumers can be users (`user:jane`), roles (`role:bot_runner`) or teams (`team:finance`).
-3. **Add or update credential**: **Credential**, **Attribute** (for example `password`) and **Value**, then **Save**.
-4. An empty folder can be deleted (**Delete folder**).
+3. On the **Credentials** tab press **Create credential**: choose the **Vault folder**, give a **Credential name** and
+   **Description**, and its **Attributes** (for example `password`), each with a **Value** or ticked as **Each
+   person's own** (**Add attribute** adds another); then **Create credential**.
+4. An empty folder can be deleted: **Delete folder…** in the folder page's **⋯** menu.
 
 ### Credential details
 
-Each folder card lists credentials with their attributes, owner and last change. **Details** opens:
+The **Credentials** tab lists every credential you can see with its **Vault folder**, **Attributes**, **Each person's
+own**, **Owner** and **Updated**. Click one to open its page:
 
-- one row per attribute with a **Description**, **Masked** (on by default: never shown; clear it for non-secret
-  values such as a user name, so owners and managers can **Show** it, each look audited) and **Password fields only**
-  (agents may type the value only into password fields);
-- **Owner** (owners and managers can hand a credential over) and **Description**;
-- **User-provided attributes (each person stores their own)**: for example `password`, so each person keeps their
-  own value under **Your values**. A run reads the value of the person it runs as. A shared value cannot be set for
-  such an attribute.
+- **Attributes**: one row per attribute with its value (type a new one and press **Change**), a **Description**,
+  **Masked** (on by default: never shown; clear it for non-secret values such as a user name, so owners and managers
+  can **Show** it, each look audited) and **Password fields only** (agents may type the value only into password
+  fields);
+- **Details**: **Description**, **Owner** (owners and managers can hand a credential over) and **Each person's own
+  attributes (separated by commas)**: for example `password`, so each person keeps their own value under **Your
+  values** (**Save mine**, **Clear mine**). A run reads the value of the person it runs as. A shared value cannot be
+  set for such an attribute.
 
-**Credential requests** (with a count) lists the user-provided attributes you have not filled in yet; fill them in
-and press **Save**.
+Press **Save details** to keep changes to descriptions, **Masked**, **Password fields only** and **Details**.
+
+**My requests** (with a count) lists the attributes you have to fill in for yourself and have not filled in yet; fill
+them in and press **Save**.
 
 ### The vault key
 
@@ -380,7 +388,8 @@ backup never holds it.
 
 ### External vaults
 
-On a folder, **Link an external vault** keeps the secrets in your company vault instead:
+On a folder's **Company vault** tab (for those who manage the folder), choose the **Provider**, fill in its fields and
+secret and press **Link** to keep the secrets in your company vault instead:
 
 | Provider | Fields | Secret |
 | --- | --- | --- |
@@ -391,7 +400,7 @@ On a folder, **Link an external vault** keeps the secrets in your company vault 
 
 Agents still ask for `folder/credential/attribute`; the credential name is the secret's name and the attribute its
 field (`value` for single-value secrets). The value is read live. **Test reading** checks access without showing the
-value. **Unlink** removes the link.
+value. **Unlink…** removes the link, after asking.
 
 ## 8. Shared Global values and Connections
 
@@ -407,14 +416,16 @@ step instead. Deleting a connection makes steps that use it fail until another i
 
 ## 9. Toolkits
 
-**Manage > Toolkits** (needs `toolkits.manage`) lists every toolkit with its id, versions, number of actions,
-**Used by** (click for the agents) and **Status**.
+**Manage > Agent ToolKits** (needs `toolkits.manage`) lists every toolkit with its **State** (On or Off),
+**Versions** (with the default one), number of **Actions**, **Used by** and **Publisher**; hover over a name for its
+id. Click a toolkit (or **Open** in its **⋯** menu) to open its own page.
 
-- **Switch off** stops agents that use the toolkit from being checked in or run (you are warned how many use it).
-  **Switch on** reverses it. The core toolkit is always on.
-- **Versions** lists the agents that use a toolkit, the range each requires and whether the installed version fits.
-  **Update agents** sets a new range (for example `^2.0.0`) on all of them; each gets a new version, the live version
-  stays until someone makes the new one live, and agents checked out by others are left alone.
+- **Switch off…** (in the row's **⋯** menu, or on the toolkit's page) stops agents that use the toolkit from being
+  checked in or run (you are warned how many use it). **Switch on** reverses it. The core toolkit is always on.
+- The toolkit's **Agents that use it** tab lists those agents, the range each **Requires** and whether the default
+  version fits. Type a new range (for example `^2.0.0`) in **Require in every agent that uses it** and press **Update
+  agents**; each gets a new version, the live version stays until someone makes the new one live, and agents checked
+  out by others are left alone.
 
 ### Your own signed toolkits
 
@@ -426,13 +437,14 @@ ooa toolkit sign --jar billing.jar --class com.acme.billing.BillingToolkit --key
 ooa toolkit inspect --jar billing.jar
 ```
 
-1. **Trusted publishers**: enter the **Publisher name** and paste the contents of its `.pub` file as **Public key**,
-   then **Trust publisher**.
+1. **Trusted publishers**: enter the **Publisher** and paste the contents of its `.pub` file as **Public key**, then
+   **Trust publisher**.
 2. **Upload toolkit**: choose the signed jar (10 MB at most). It is refused when unsigned, signed by an untrusted or
    different key, using a product toolkit's id or another publisher's id, or reusing a version number with other
    contents.
-3. **Your toolkit versions** lists uploaded versions with their SHA-256; **Delete** removes one unless it is the only
-   one and agents use it. A publisher can be removed once none of its versions are left.
+3. **Your toolkit versions** lists uploaded versions with their SHA-256; **Delete…** removes one unless it is the
+   only one and agents use it. **Stop trusting…** in **Trusted publishers** removes a publisher once none of its
+   versions are left.
 
 Several versions stay installed side by side; agents get the newest version their range allows. Runners check each
 jar's checksum and signature before loading it (`RUN.TOOLKIT_LOAD` otherwise). A trusted publisher's code runs with
@@ -451,7 +463,7 @@ The agent repository is the **Public** tab of **Build > Automation**; builders u
 - **Approval before production** (Settings > Agents and repository): a version then goes live only after a second person with
   `repo.approve` approves it. Requests appear under **Production approvals (n waiting)**, with **Approve**, **Reject**
   and **Withdraw**; nobody decides their own request.
-- **Set as production** in **Versions** (needs `repo.production`) picks the live production version directly when
+- **Make live** on an agent's **Versions** tab (needs `repo.production`) picks the live production version directly when
   approval is off.
 - **Export / promote** and **Import** (need `lifecycle.export` and `lifecycle.import`) move agents between Command
   Centers as checked bundles. To stop agents being promoted anywhere but your own test and production installs, list

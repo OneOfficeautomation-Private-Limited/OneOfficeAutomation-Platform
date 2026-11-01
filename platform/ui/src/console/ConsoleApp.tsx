@@ -104,7 +104,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   if (user.mfa_setup_required) return <TwoStepSetup api={api} onDone={setUser} />;
 
   const signOut = async () => { try { await api.logout(); } catch { /* already signed out */ } setUser(null); setPage("home"); };
-  const hrefFor = (id: string) => id === "studio" ? (studio ? "../studio/" : undefined) : LOCAL.has(id) ? "#/" + id : TODAY + "?page=" + id;
+  const hrefFor = (id: string) => LOCAL.has(id) ? "#/" + id : TODAY + "?page=" + id;
 
   return (
     <div className="st-app cc-app">
@@ -118,8 +118,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
       <HelpProvider><div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
-          home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }}
-          offTitle="One AgentStudio runs beside One CommandCenter (ooa server), on the same computer" console />
+          home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console />
         <main className="st-main cc-main" onKeyDown={listKeys}>
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {page === "insights" && <Overview api={api} user={user} />}

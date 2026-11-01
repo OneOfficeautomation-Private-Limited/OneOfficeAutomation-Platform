@@ -33,28 +33,28 @@ type Dlg = null | { kind: "agent"; a: RepoAgent } | { kind: "folder"; parent: st
   | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" };
 
 const HELP: HelpTopic = { title: "Automation",
-  about: "The shared (public) workspace: agents, workflows and forms checked in from One AgentStudio, with every version. "
-    + "The live version is the one runners, schedules and triggers use; each person's private workspace stays in One AgentStudio.",
+  about: "The shared (public) workspace: agents, workflows and forms checked in from people's Private workspaces, with every version. "
+    + "The live version is the one runners, schedules and triggers use. People who build agents also have the Private tab, their own workspace.",
   items: [
     { name: "Folders", text: "Pick a folder in the tree to list what is in it; Open all unfolds every folder. A tag shows folders with permissions of their "
       + "own." },
     { name: "Include subfolders", text: "On lists the agents in the chosen folder and every folder below it; off lists only the chosen folder." },
     { name: "Type and State", text: "Show only agents, workflows or forms, and only those that are live, not live yet or checked out by someone." },
     { name: "Live and Status", text: "Live is the version that runs; Latest is the newest checked-in version. Status shows who has the agent checked out to "
-      + "change it in One AgentStudio." },
+      + "change it in their Private workspace." },
     { name: "Folder permissions", text: "Lets you say who sees the chosen folder's agents and what they may do: view, run, edit or manage. Roles still "
       + "apply; a folder never gives more than a role allows." },
     { name: "Manage", text: "Import agents, export or promote them to another One CommandCenter, decide production approvals, recover deleted agents and "
       + "set the code analysis rules. What you see depends on your permissions." },
-    { name: "Create", text: "Makes a new folder in the chosen folder, or opens One AgentStudio to build a new agent." },
+    { name: "Create", text: "Makes a new folder in the chosen folder, or a new agent in your Private workspace (for people who build agents)." },
     { name: "Run…", text: "In an agent's ⋯ menu: runs its live version on a runner or pool, with its inputs. Needs permission to start runs." },
     { name: "Make it an Agent API…", text: "Lets other systems call the agent over the web. It needs a live version; Open its Agent API shows one that "
       + "exists." },
   ] };
 
 const HELP_AGENT: HelpTopic = { title: "Agent",
-  about: "One agent, workflow or form: its steps, inputs, versions, runs and dependencies. Everything here is read-only; change the agent in One "
-    + "AgentStudio and check it in.",
+  about: "One agent, workflow or form: its steps, inputs, versions, runs and dependencies. Everything here is read-only; to change the agent, "
+    + "Edit checks it out to your Private workspace, where you change it and check it in.",
   items: [
     { name: "Steps", text: "Every line of the chosen version. Pick a line to see its settings at the right; Find in the steps marks matching lines, and "
       + "Open all or Close all unfolds or folds blocks." },
@@ -140,7 +140,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
   ];
   const create = [
     ...(can("repo.checkin") ? [{ key: "folder", label: "New folder" + (folder ? " in " + folder.split("/").pop() : ""), onSelect: () => setDialog({ kind: "folder", parent: folder }) }] : []),
-    { key: "agent", label: "New agent (opens One AgentStudio)", onSelect: () => { location.href = "../studio/"; } },
+    ...(studio && can("repo.checkin") ? [{ key: "agent", label: "New agent", description: "In your Private workspace", onSelect: () => { location.href = "../studio/#private/new"; } }] : []),
   ];
   const folderMenu = [
     ...(can("repo.checkin") ? [{ key: "sub", label: "New subfolder", onSelect: () => setDialog({ kind: "folder", parent: folder }) },
@@ -152,7 +152,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
     const a = dialog.a;
     return (
       <section className="st-page cc-home cc-explorer" aria-label={"Automation: " + agentName(a.path)}>
-        <AgentView key={a.path} api={api} user={user} a={a} folders={folders} approvalOn={requests.approval_on} onClose={() => setDialog(null)}
+        <AgentView key={a.path} api={api} user={user} a={a} folders={folders} approvalOn={requests.approval_on} studio={studio} onClose={() => setDialog(null)}
           onFolder={(f) => { setDialog(null); setFolder(f); }} onRun={() => setDialog({ kind: "run", a, from: "agent" })} onDone={done} />
         {dialog.kind === "run" && <RunAgent api={api} a={a} onClose={() => setDialog({ kind: "agent", a })} onDone={done} />}
       </section>
@@ -167,16 +167,16 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
         {agents && <span className="cc-list-count">{total("")} agent{total("") === 1 ? "" : "s"} · {folders.length} folder{folders.length === 1 ? "" : "s"}{toDecide ? " · " + toDecide + " to approve" : ""}</span>}
         <span className="ov-fill" />
         <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />
-        <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />
+        {create.length > 0 && <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />}
       </header>
-      {/* AA's one Automation page: Public (agents checked in, to run) and Private (a developer's workspace in One AgentStudio,
+      {/* AA's one Automation page: Public (agents checked in, to run) and Private (a developer's own workspace,
           for people who build agents); everyone sees the same page, only what they may open differs */}
       <div className="ov-tabs cc-ins-tabs" role="tablist" aria-label="Where">
         <button type="button" role="tab" className="ov-tab" aria-selected title="One CommandCenter agent repository: agents checked in, to run">Public</button>
         {studio && user.permissions.includes("repo.checkin")
-          ? <a className="ov-tab" role="tab" aria-selected={false} href="../studio/#private" title="Your workspace in One AgentStudio: build and test">Private</a>
+          ? <a className="ov-tab" role="tab" aria-selected={false} href="../studio/#private" title="Your own workspace: build and test agents, then check them in">Private</a>
           : <span className="ov-tab is-off" role="tab" aria-selected={false} aria-disabled title={!user.permissions.includes("repo.checkin")
-            ? "Private workspaces are for people who build agents" : "One AgentStudio runs beside One CommandCenter, on the same computer"}>Private</span>}
+            ? "Private workspaces are for people who build agents" : "Private workspaces are not set up on this One CommandCenter"}>Private</span>}
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-explorer-body">
@@ -188,7 +188,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
               <button type="button" className="cc-tree-name" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}><FolderIcon open />Automation<span className="cc-tree-n">{total("")}</span></button></div>
               <ul>{kids("").map((f) => node(f, 1))}</ul></li>
           </ul>
-          <p className="cc-pane-foot">The shared (public) workspace. Each person's private workspace is in One AgentStudio, on their computer.</p>
+          <p className="cc-pane-foot">The shared (public) workspace. Each builder's own workspace is the Private tab.</p>
         </nav>
         <div className="cc-files-pane">
           <div className="cc-pane-head">
@@ -235,7 +235,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + agentName(a.path)} items={rowMenu(a)} /></td>
                   </tr>
                 ))}
-                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={9} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. In One AgentStudio, open an agent and check it in."}</td></tr>}
+                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={9} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. Build one in Private and check it in."}</td></tr>}
                 {!agents && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
@@ -257,7 +257,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
 }
 
 /** One agent: what it is, its inputs and outputs, what it calls and who calls it, recent runs, and its versions. */
-function AgentView({ api, user, a, folders, approvalOn, onClose, onFolder, onRun, onDone }: { api: CrApi; user: CrUser; a: RepoAgent; folders: RepoFolder[]; approvalOn: boolean;
+function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolder, onRun, onDone }: { api: CrApi; user: CrUser; a: RepoAgent; folders: RepoFolder[]; approvalOn: boolean; studio: boolean;
   onClose: () => void; onFolder: (folder: string) => void; onRun: () => void; onDone: (m: string) => void }) {
   const [tab, setTab] = useState<"steps" | "about" | "versions" | "runs" | "deps" | "findings">("steps");
   const [shownVersion, setShownVersion] = useState<string>("latest");
@@ -343,7 +343,7 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onFolder, onRun
         <span className="cc-none">{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"} · latest v{a.latest_version}</span>
         <span className="ov-fill" />
         {can("runs.start") && a.production_version && kind === "Workflow" && <a className="ui-btn ui-btn-secondary cc-btn-link" href="#/workflows">Start in Workflow</a>}
-        <a className="ui-btn ui-btn-secondary cc-btn-link" href="../studio/" title="One AgentStudio opens on the computer it is installed on">Edit in One AgentStudio</a>
+        {studio && can("repo.checkin") && <a className="ui-btn ui-btn-secondary cc-btn-link" href="../studio/#public" title="Check the agent out to your Private workspace, then change it there">Edit</a>}
         {can("runs.start") && a.production_version && kind === "Agent" && <Button kind="primary" onClick={onRun}>Run</Button>}
         {more.length > 0 && <RowMenu label={"More for " + agentName(a.path)} items={more} />}
         <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the folder" onClick={onClose}>×</button>

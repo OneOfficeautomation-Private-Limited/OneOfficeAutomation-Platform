@@ -27,7 +27,7 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   const [error, setError] = useState<string | null>(null);
   if (status.sameServer) return (
     <div className="st-cr-form">
-      <p className="ui-field-hint">One AgentStudio and One CommandCenter run together here. Sign in to One CommandCenter in this browser, and Studio uses that sign-in for check-in and check-out.</p>
+      <p className="ui-field-hint">Your Private workspace and One CommandCenter run together here. Sign in to One CommandCenter in this browser, and the workspace uses that sign-in for check-in and check-out.</p>
       <div className="st-cr-acts">
         <a className="ui-btn ui-btn-primary" href={home} target="ooa-control-room">Open One CommandCenter to sign in</a>
         <Button kind="secondary" onClick={async () => {

@@ -272,9 +272,15 @@ Also since 2 Nov 2026: **Ctrl+H** Find and replace changes text in the steps' se
 or the selected steps and those inside them; Match case; the count shows before Replace all; Ctrl+Z undoes it), never ids
 or actions. **F2** renames the selected step (its *Shown on the step*). **Create**'s dialog picks the folder itself
 (Change lists every folder of the workspace; it used to close the dialog). The **Automation** page has **Public** (left)
-and **Private** (right) tabs in both apps, as AA's one Automation page: in One CommandCenter, Private opens One
-AgentStudio for people who build agents (`repo.checkin`) and is shown switched off for others; Studio's menu lists the
-same BUILD pages as the console's, so administrators and developers see one layout and differ only in what they may open.
+and **Private** (right) tabs in both apps, as AA's one Automation page: in One CommandCenter, Private opens the
+builder's workspace for people who build agents (`repo.checkin`) and is shown switched off for others; Studio's menu is
+the console's, so administrators and developers see one layout and differ only in what they may open.
+
+Since 2 Nov 2026 there is one One CommandCenter, as AA has one Control Room: the menu has no One AgentStudio page, and
+the Private workspace's pages say **One CommandCenter** in the top bar and the browser tab. Only the editor (the dev
+canvas, an agent or other item open) says **One AgentStudio**, with the item's name in the tab. One CommandCenter's
+Automation offers **Create > New agent** (`../studio/#private/new`, which opens Create > Agent on the Private tab) and,
+on an agent's page, **Edit** (the Public tab, to check it out), both only for people who may check in.
 
 ## Related documents
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { roleName } from "./roleNames";
 
 /**
  * Administration > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
@@ -75,7 +76,6 @@ const AREA_ORDER = Object.keys(AREA_LOOK);
 const PERM_ORDER = Object.keys(PERMS);
 const rank = (list: string[], v: string) => { const i = list.indexOf(v); return i < 0 ? list.length : i; };
 const byOrder = (a: string, b: string) => rank(AREA_ORDER, infoOf(a).area) - rank(AREA_ORDER, infoOf(b).area) || rank(PERM_ORDER, a) - rank(PERM_ORDER, b) || a.localeCompare(b);
-const ROLE_NAMES: Record<string, string> = { admin: "Administrator", bot_creator: "Agent builder", bot_runner: "Agent runner", viewer: "Viewer" };
 /** What each built-in role is for, in one line. */
 const BUILTIN_FOR: Record<string, string> = {
   admin: "Everything, including users, settings and the vault",
@@ -83,7 +83,6 @@ const BUILTIN_FOR: Record<string, string> = {
   bot_runner: "Runs agents and works on queue items",
   viewer: "Sees agents, runs and insights; changes nothing",
 };
-const roleName = (r: string) => ROLE_NAMES[r] ?? r;
 const kindOf = (r: CrRole) => r.builtin ? (r.switched_off ? "Switched off" : "Built-in") : "Custom";
 const when = (t?: string | null) => t ? new Date(t).toLocaleDateString() : "";
 

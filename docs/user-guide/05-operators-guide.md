@@ -11,14 +11,14 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 ## Contents
 
 1. [Your working day at a glance](#1-your-working-day-at-a-glance)
-2. [Agent Runs: what is running and what ran](#2-agent-runs-what-is-running-and-what-ran)
+2. [Agent Activity: what is running and what ran](#2-agent-activity-what-is-running-and-what-ran)
 3. [Running an agent: runners, pools and run-as users](#3-running-an-agent-runners-pools-and-run-as-users)
 4. [Runners and runner pools from the operator's side](#4-runners-and-runner-pools-from-the-operators-side)
 5. [Schedules](#5-schedules)
 6. [Triggers](#6-triggers)
 7. [Work queues](#7-work-queues)
-8. [Workflow and the Task inbox](#8-one-workflow-and-the-task-inbox)
-9. [Agent APIs](#9-api-tasks)
+8. [Workflow and the Task inbox](#8-workflow-and-the-task-inbox)
+9. [Agent APIs](#9-agent-apis)
 10. [Agent tests](#10-agent-tests)
 11. [Operational Insights: Overview, Alerts and Operations](#11-operational-insights-overview-alerts-and-operations)
 12. [Business: agents, value and dashboards](#12-business-agents-value-and-dashboards)
@@ -29,101 +29,102 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 
 1. Open **Home**, or **Operational Insights > Overview** for everything that needs attention in one list. Check
    failed runs, open alerts and runners online.
-2. Open **Manage > Agent Runs**: the **Live** tab shows what runs now and what waits.
+2. Open **Manage > Agent Activity**: the **In progress** tab shows what runs now and what waits.
 3. Look at **Manage > Work queues** for items past their service level (a red "overdue" pill).
 4. Look at **Manage > Triggers** for any trigger whose **Status** is **error**.
 5. Deal with failures (section 13), then rerun what needs rerunning.
 
-## 2. Agent Runs: what is running and what ran
+## 2. Agent Activity: what is running and what ran
 
-**Manage > Agent Runs** (needs `runs.view`) has two tabs, each with a count.
+**Manage > Agent Activity** (needs `runs.view`) has three tabs: **In progress** and **Scheduled**, each with a count,
+and **Completed**. The figures above them (**Running now**, **Waiting for a runner**, **Failed in the last 24 hours**,
+**Ended in the last 24 hours** and the next scheduled run) open the runs behind them. **Scheduled** (with
+`schedules.view`) lists the next run of each schedule, soonest first; tick schedules to **Run now**, **Turn on** or
+**Turn off** them. Schedules are made and changed on **Schedules** (section 5).
 
-### The Live tab
+### The In progress tab
 
-Every queued and running run, as a card:
+Every queued and running run, one line each; the list refreshes every 5 seconds. Columns: **Status** (**Queued**,
+**Running**, **Paused**, **Stopping**), **Agent** (with its version), **Folder**, **Progress** (**Step n of m: action
+name**, or "Waiting for the runner"), **Runner**, **Started by** (for example `admin as jane`), **How started** (for
+example **Schedule**), **Queued** and **Started**.
 
-- the status (**queued**, **running**, **paused**, **stopping**), the agent and its version;
-- a progress bar and **Step n of m: action name** with the step id, or "Waiting for *runner* to pick it up";
-- **Runner**, **Started by** (for example `admin as jane (Schedule)`), **Queued** and **Running for**.
-
-With `runs.stop` you get these buttons on each card:
+With `runs.stop`, tick runs and use these buttons above the list (a run's **⋯** menu also has **Stop**):
 
 | Button | What happens |
 | --- | --- |
-| **Pause** | The agent pauses after the current step. The card then shows **paused**. |
+| **Pause** | The agent pauses after the current step. Its status then shows **Paused**. |
 | **Resume** | The paused run carries on. |
-| **Stop** | The run is stopped; the runner gets the request within seconds. |
+| **Stop** | The run stops after the current step; the runner gets the request within seconds. |
 
-When nothing runs you see "Nothing is running".
+When nothing runs you see "Nothing is running or waiting."
 
-### The History tab
+### The Completed tab
 
-Finished runs (succeeded, failed, stopped), 25 per page, newest first. Columns: **Status**, **Agent**, **Runner**,
-**Started by**, **Source**, **Started**, **Duration**, **Steps**, **Error** (the error code; hover for the message)
-and a **Rerun** button.
+Runs that ended (completed, failed, stopped) in the chosen period, 25 per page, newest first and grouped by day.
+Columns: **Status**, **Agent**, **Folder**, **Runner**, **Started by**, **How started**, **Started**, **Ended**,
+**Took** and **Why it ended** (the error code and message; hover for the whole text); **Columns** adds **Steps**. Tick
+runs and press **Run again**, or choose **Run again** in a run's **⋯** menu.
 
 Filters (above the table):
 
 - a search box (**Search agent, run id, user or error**);
-- **Any status**: Succeeded, Failed, Stopped;
-- **Any agent**, **Any runner**;
-- **Any source**: Manual, Schedule, Trigger, Rerun;
-- **Started by (user name)**;
-- **From** and **To** dates (whole days in your time zone);
-- **Clear filters**, and **Export CSV** (up to 500 runs that match the filters).
+- **Period**: Last 24 hours, Last 7 days, Last 90 days (the default) or Chosen dates;
+- **Status**: Completed, Failed, Stopped;
+- **Agent**, **Runner**;
+- **How started**: Run now, Schedule, Trigger, Work queue, API, Run again, AI assistant (MCP);
+- **More filters**: **Started by (user name)** and, for Chosen dates, **From** and **To** (whole days in your time
+  zone);
+- **Clear filters**, **Columns**, and **Export CSV** (every run that matches the filters; with runs ticked, **Export
+  selected**).
 
-> **Tip.** From **Schedules**, click a schedule's row to open the History tab already filtered to that schedule's
-> agent and source.
+> **Tip.** On **Schedules**, click a schedule's **Last run** to open that run here.
 
 ### Run details
 
-Click any run (on Live, History, Home or a runner's details) to open its details panel:
+Click a run in either list (or a link to a run elsewhere, such as a schedule's **Last run**, or a run id typed in the
+top bar's search) to open its details beside the list:
 
-1. The status, "Running for ..." or "Finished in ...", and a progress bar with the step running now.
-2. When the run failed: a red box with the **error code**, the message, **At step** *id* and **Fix:** a suggested fix.
-3. **Run**, **Agent** (with version), **Runner**, **Started by** (and how), **Queued**, **Started**, **Finished**,
-   **Steps run**.
+1. The status, "Running for ...", "Finished in ..." or "Ended after ...", and a progress bar with the step running
+   now.
+2. When the run failed: a red box with the **error code**, the message, **At step** *id*, whether running it again may
+   help, **Fix:** a suggested fix, and **Every run that failed this way**.
+3. **Agent** (with version), **Runner**, **Started by** (and how), **Queued**, **Started**, **Ended**, **Steps run** and
+   **Run id**.
 4. Tabs:
    - **Steps**: a timeline of each step with its duration, retries and error.
-   - **Log**: every event with its time from the start. Filter with **All**, **Errors**, **Log messages**,
-     **Variables**.
+   - **Log**: every event with its time from the start. Filter with **Everything**, **Errors and retries**, **Log
+     messages**, **Variables set**.
    - **Variables**: the last value of each variable. Credentials always show as `****`.
    - **Inputs and outputs**: as JSON. Outputs appear when the run ends.
    - **AI calls**: shown when the run made AI model calls: each call's time, purpose, model and connection, tokens in
      and out, time taken, what was masked and which tools it asked for. Prompts and answers are never stored.
-5. Buttons: **Pause**/**Resume** and **Stop** while it runs; **Rerun** once it ended; **Download log** at any time.
+5. Buttons: **Pause**/**Resume** and **Stop** while it runs; **Run again** once it ended; **Download log** at any time;
+   **‹ Newer** and **Older ›** open the run above or below in the list.
 
 While a run is active the panel refreshes every two seconds.
 
-**Rerun** queues the agent again with the same inputs, using the **live production version** (which may be newer than
-the version that ran). The toast tells you the new run id and version.
+**Run again** queues the agent again with the same inputs, using the **live production version** (which may be newer
+than the version that ran). A message gives the new run's id; from a run's details, the new run opens.
 
 ## 3. Running an agent: runners, pools and run-as users
 
-Agents run from **Build > Agent Repository** (needs `runs.start`). Only agents with a live production version have a
-**Run** button; workflows have **Start**.
+Agents run from **Build > Automation** (needs `runs.start`). Only agents with a live production version offer **Run…**
+in their row's **⋯** menu (or **Run** on the agent's page); a live workflow's page has **Start in Workflow** instead.
 
-1. Press **Run** on the agent's row (or in its details panel, or **Run an agent here** in a runner's details).
-2. Choose **Run on**:
-   - **A runner**: pick one from the list (each shows its status).
-   - **A runner pool (least busy runner)**: shown when pools exist. The run goes to the pool's least busy online runner.
-   - **Run-as users (each on their default runner)**: tick one or more people. Each gets their own run, on their
-     default runner, acting as them: their own vault values are used and the agent's credentials are checked against
-     them. People without a default runner cannot be ticked.
-3. Fill in the inputs. Studio's input types become fields: text, numbers, dates, True/False lists, choice lists, and
-   JSON boxes for lists, tables and dictionaries. A **Credential** input takes a vault reference such as
-   `finance/erp/password`, never the secret itself.
-4. Optional: **More inputs as JSON**.
-5. Optional: **Run mode, priority and result callback**:
+1. Choose **Run…**. The **Run <agent>** dialog opens and says which live version it runs.
+2. Choose **Run on**: a runner (each shows its status), or a pool, shown as **Pool <name> (least busy runner)**. A
+   run sent to a pool goes to its least busy online runner.
+3. Fill in the inputs. Each input is a field with its type, and * marks a required one; an empty field uses the
+   input's default. True/False inputs are a list; lists, tables and dictionaries are typed as JSON. A **Credential**
+   input takes a vault reference such as `finance/erp/password`, never the secret itself.
+4. Press **Run**. A message says "Started <agent> (run <id>): follow it in Agent Activity."
 
-   | Field | Choices | Notes |
-   | --- | --- | --- |
-   | **Run mode** | Unattended (nobody at the runner), Attended (someone is at the runner), Headless (no desktop) | See below |
-   | **Priority on the runner** | Low, Normal, High, Urgent | Higher priority starts first on a busy runner |
-   | **Callback URL** | An https address | Receives the result as JSON when the run ends (three attempts) |
-
-6. Press **Run now**. You are taken to **Agent Runs > Live** and the run's details open. For run-as users a toast
-   says how many runs started and which could not start, and why.
+Run-as users, a run mode, a priority and a result callback are not in this dialog. The classic console's run dialog
+still has them (**Help > Classic console**, then **Agent Repository** and **Run**): **Run-as users (each on their
+default runner)** gives each person ticked their own run on their default runner, acting as them, with their own vault
+values; **Run mode, priority and result callback** sets the run mode (below), a **Priority on the runner** (Low,
+Normal, High, Urgent) and a **Callback URL** that receives the result as JSON when the run ends.
 
 **Run modes in practice:**
 
@@ -142,26 +143,37 @@ files it lists under `requires.files` (up to 50 MB per run) and any custom toolk
 
 ## 4. Runners and runner pools from the operator's side
 
-**Manage > Runners** (needs `devices.view`) lists every runner. A runner is **online** when it checked in during the
-last minute. The useful columns for operators:
+**Manage > Runner Machines** (needs `devices.view`) has two tabs, **Runners** and **Runner pools**. A runner is
+**online** when it checked in during the last minute; the list refreshes every 15 seconds. The columns shown at first:
 
 | Column | Meaning |
 | --- | --- |
-| **Status** | online or offline |
-| **Running** | how many agents it runs now |
-| **Type** | Single-user, Multi-user, Serverless (in One CommandCenter); **Temporary** for runners removed by themselves |
+| **Status** | Online, Busy (above a CPU or memory limit), Maintenance, Offline or Disabled |
+| **Runner** | its name |
+| **Runner pools** | the pools it is in |
+| **Runner type** | Single-user, Multi-user, Serverless (in One CommandCenter) |
 | **Default users** | whose default runner it is |
-| **Screen** | **Unlocked** (usable), **Locked** (screen agents cannot start), **No desktop** (a Windows service) |
-| **After a run** | what it does after unattended runs |
-| **Program** | **Up to date** or **Update available** |
+| **Running** | how many agents it runs now |
+| **CPU** | its CPU use |
+| **Runner version** | its OneRunner version, with "update available" when a newer program waits |
 | **Last seen** | the last heartbeat |
 
-Click a runner to see its details: host name, operating system, agent version, toolkits, **Now** (its active runs) and
-**History** (its last runs). **Run an agent here** starts a run on it.
+**Columns** adds more, among them **Lifespan** (**Temporary** for runners removed by themselves), **Screen**
+(**Unlocked**: usable; **Locked**: screen agents cannot start; **No desktop (service)**: a Windows service), **After a
+run** (what it does after unattended runs), **Memory** and **Program** (**Up to date**, **Updating** or **Update
+available**).
 
-The **Runner pools** tab lists the pools with their runners (a dot for each runner's status) and **Online** "n of m".
-With `pools.manage`, **New runner pool** asks for a name, description and the runners in the pool; **Edit** and
-**Delete** are on each row. Administrators handle registering, removing and updating runners; see
+Click a runner to see its details by topic: **General** (name, status, **Computer**, **Platform**, pools), **Health**
+(CPU and memory), **Sessions** (runner type, default users, screen, after a run, **Running now**) and **Logs and
+program** (log level, version, program, toolkits). To see its runs, filter **Manage > Agent Activity** by **Runner**;
+to run an agent on it, choose it under **Run on** (section 3).
+
+The **Runner pools** tab lists each pool with its **Description**, **Runners** (a count; hover for their names),
+**Online** "n of m", **Owners** and **Users**. With `pools.manage`, **New runner pool** asks for a **Name**,
+**Description**, **Owners** (who may change and delete the pool), **Users** (the roles that may send runs to it; empty
+means anyone who may start runs) and the runners in the pool; on the **Runners** tab, tick runners and press **Make a
+pool** to start one with them. Click a pool (or **Open** in its **⋯** menu) to change it or **Delete pool**; **Show its
+runners** lists them on the **Runners** tab. Administrators handle registering, removing and updating runners; see
 [07 Runner guide](07-runner-guide.md).
 
 ## 5. Schedules
@@ -260,12 +272,13 @@ one by one on a runner pool, with retries and a service level.
 
 ### Set up a queue (`queues.manage`)
 
-1. Optional: **Work item models** > **New model**: name the fields every item has, each **Text**, **Number**,
-   **True/false** or **Date**, **Required** or not and **Shown in the list**. While queues using a model have items,
-   it can gain optional fields but not lose or change fields.
-2. Press **New work queue**: **Name**, **Description**, **Work item model**, **Agent that works the items**,
+1. Optional: **Work item models** > **Create model**: a **Name**, a **Description** and the fields every item has
+   (**Add field**), each **Text**, **Number**, **True/false** or **Date**, **Required** or not and **Shown in the
+   list**; then **Save model**. While queues using a model have items, it can gain optional fields but not lose or
+   change fields.
+2. Press **Create work queue**: **Name**, **Description**, **Work item model**, **Agent that works the items**,
    **Runner pool**, **Service level (minutes from added to done)** and **Attempts per item** (1 to 10).
-3. Press **Save**.
+3. Press **Create work queue** in the dialog.
 
 The agent receives each item in its input `work_item` (a dictionary) and the item's id in `work_item_id`. Its outputs
 are kept with the item. A failed item is retried until its attempts are used.
@@ -277,32 +290,32 @@ JSON or Excel (`.xlsx`) file (for Excel, name the sheet or leave it empty for th
 each item; a `priority` column puts it first. Dates in Excel come as yyyy-mm-dd. Items are checked against the model:
 required fields, right types, no unknown fields.
 
-> **Tip.** Large Excel files travel inside a JSON request, which is limited by **Settings > Largest upload (MB)**
-> (25 MB by default). Ask an administrator to raise it, or split the file.
+> **Tip.** Large Excel files travel inside a JSON request, which is limited by **Administration > Settings > General >
+> Largest upload** (MB; 25 MB by default). Ask an administrator to raise it, or split the file.
 
 ### Work the queue
 
-- **Start**/**Stop** on the row (or **Start processing**/**Stop processing** in the queue) switches processing on and
-  off. The **Processing** column shows **running** or **stopped**.
-- The list shows **Waiting**, **In progress**, **Done** (succeeded / failed, with a bar) and **Service level** with
-  the number of overdue items.
-- Inside the queue: counts by status (new, in progress, to validate, retry, success, failed, deferred, and "past
-  service level"), a status filter, a search box and the items with **Reference**, **Status**, **Attempts**,
-  **Priority**, **Added** and **Result or error** (a link to the run).
-- Tick items and use **Retry selected**, **Defer selected** or **Delete selected** (items being worked on are kept).
-  **Defer selected** asks "until when?" (`YYYY-MM-DD HH:MM`, your time): after that time processing picks the items up
-  again by itself. Left empty, they wait until someone presses **Retry**. The status shows "until <time>" or
-  "until Retry".
-- **Open** an item to change its data, reference or priority (the form follows the model); **View** while it is in
-  progress.
-- **Validate** appears on items **To validate**: the agent was unsure of some fields (marked red with their
-  confidence). Correct them and **Approve** (the item goes back to the agent with `validated_fields`, `validated` and
-  `validated_by`), or type a reason and **Reject** (the item fails). Both are audited.
+- **Start processing**/**Stop processing** in the row's **⋯** menu (or on the queue's page) switches processing on
+  and off. The **Processing** column shows **On** or **Off**.
+- The list shows **Waiting** (new items and items waiting to retry), **In progress**, **Succeeded**, **Failed** and
+  **Service level**, with the number of items past it in red.
+- The queue's page has three tabs: **Work items**, **Details** and **Members**. **Work items** has a chip for each
+  status with its count (All, New, In progress, To validate, Waiting to retry, Succeeded, Failed, Deferred) that
+  filters the list, a search box (**Search reference or data**) and the items with **Reference**, **Data**, **Status**,
+  **Attempts**, **Priority**, **Added** and **Result or error**.
+- Tick items and use **Retry**, **Defer** or **Delete** (items being worked on are kept). **Defer** asks **Until (your
+  time)**: after that time processing picks the items up again by itself. Left empty, they wait until someone presses
+  **Retry**. The status shows "until <time>" or "until Retry".
+- Click an item (or **Open** in its **⋯** menu) to change its data, reference or priority (the form follows the model)
+  and press **Save changes**; while it is in progress you can only look at it.
+- **Validate** appears in the **⋯** menu of items **To validate**: the agent was unsure of some fields (marked red with
+  their confidence). Correct them and **Approve** (the item goes back to the agent with `validated_fields`, `validated`
+  and `validated_by`), or type a reason and **Reject** (the item fails). Both are audited.
 - **Export CSV** downloads the items (filtered by status); cells a spreadsheet would read as a formula are made safe.
-- **Export definition** saves the queue's settings, model, members and, if you choose, its waiting items;
+- **Export definition** (in the queue's **⋯** menu) saves the queue's settings, model, members and waiting items;
   **Import queue** on the list page makes a queue from such a file and lists anything it could not link.
-- **Members**: owners manage the queue, participants add and change items, consumers start processing and retry.
-  Without members, roles alone decide. People with `queues.all` see every queue.
+- **Members** (**Change members**): owners manage the queue, participants add and change items, consumers process the
+  items (start processing and retry). Without members, roles alone decide. People with `queues.all` see every queue.
 
 ## 8. Workflow and the Task inbox
 
@@ -333,7 +346,7 @@ filled in and submitted, approved or rejected, or marked as read. See [14 Busine
 
 Callers send `POST` with `X-OOA-Task-Token` (or `Authorization: Bearer`) and `{"inputs": {...}}`. They get 200 with
 `{status, run_id, outputs, error}` when the run finished in time, or 202 and then ask `GET .../runs/<run_id>`. Calls
-run as the person who made the task, at high priority, and show in Agent Runs like any run. The list shows **Runs on**,
+run as the person who made the task, at high priority, and show in Agent Activity like any run. The list shows **Runs on**,
 **Waits up to**, **Calls** (and last use) and **Status**; buttons **Switch off**/**Switch on**, **New token** (the old
 one stops at once) and **Delete**.
 
@@ -575,11 +588,11 @@ it up; the calls are described in
 
 ### A step-by-step routine
 
-1. Open the failed run (Home > **Recent failures**, or **Agent Runs > History** filtered to **Failed**).
+1. Open the failed run (Home > **Recent failures**, or **Agent Activity > Completed** filtered to **Failed**).
 2. Read the red error box: the **code**, the message, the step and the **Fix**.
 3. Open **Steps** to see where it stopped and whether it retried; **Log** with **Errors** for the detail;
    **Variables** for the values just before the failure.
-4. Decide: a passing problem (a slow system, a locked file) → **Rerun**. A problem with the runner → section 4 and
+4. Decide: a passing problem (a slow system, a locked file) → **Run again**. A problem with the runner → section 4 and
    [07 Runner guide](07-runner-guide.md). A problem with the agent → send the run id and log to its builder.
 5. For a work queue, retry the failed items once the cause is fixed (**Retry selected**).
 
@@ -601,7 +614,7 @@ it up; the calls are described in
 
 | Symptom | Likely cause |
 | --- | --- |
-| Runs stay **queued** on one runner | The runner is offline, disabled, or busy with a long run; check **Manage > Runners** |
+| Runs stay **queued** on one runner | The runner is offline, disabled, or busy with a long run; check **Manage > Runner Machines** |
 | A run for one runner is refused at once, saying the runner is offline | Your administrator has switched on **Refuse runs for a runner that is offline**. Start the runner, or send the run to a runner pool |
 | A trigger stopped by itself: "Switched off after n failed runs in a row" | Its last runs all failed, as many times in a row as your administrator allows. Fix the agent, then **Resume** the trigger |
 | A work item failed as abandoned | It stayed in progress longer than your administrator allows (for example after a runner crashed). Retry it |

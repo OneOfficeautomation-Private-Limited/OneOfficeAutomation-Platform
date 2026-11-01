@@ -97,6 +97,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   }, [api, reloadTree]);
 
   const current = tabs.find((t) => t.path === active) ?? null;
+  useEffect(() => { document.title = current ? current.name + " · One AgentStudio" : "One CommandCenter"; }, [current?.name]);   // eslint-disable-line react-hooks/exhaustive-deps
   const agent = current?.kind === "agent" ? current : null;
   const item = current?.kind === "item" ? current : null;
   // a file or folder was renamed or moved: open tabs in it follow (an item's tab takes the new name)
@@ -438,7 +439,8 @@ export function App({ api: given }: { api?: StudioApi }) {
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo"><BrandMark /></span>One AgentStudio</div>
+        {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is One AgentStudio */}
+        <div className="st-brand"><span className="st-logo"><BrandMark /></span>{current ? "One AgentStudio" : "One CommandCenter"}</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}

@@ -25,8 +25,11 @@ items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 ## 1. What One AgentStudio is
 
-One AgentStudio is the place where you build, test and debug agents. It runs in your web browser (Chrome or Edge),
-but it only works on your own computer: it reads and writes your private workspace, called **My Workspace**.
+One AgentStudio is the editor where you build, test and debug agents: the screen you get when an agent (or another
+item) is open. Everything else is One CommandCenter, as in AA, where there is one Control Room: the **Private** tab of
+**Build > Automation** is your own workspace, and opening an item there opens it in One AgentStudio. It runs in your web
+browser (Chrome or Edge), but only on your own computer: it reads and writes your private workspace, called **My
+Workspace**.
 
 - An **agent** is a list of **steps**. Each step runs one **action**, such as *Open workbook*, *Send email* or *Click
   element*.
@@ -40,13 +43,16 @@ Besides agents, the workspace holds **forms**, **workflows**, **document intelli
 ## 2. Open One AgentStudio
 
 1. Make sure ONEOFFICEAUTOMATION is running on your computer (see [Getting started](01-getting-started.md)).
-2. Open Chrome or Edge and go to **http://localhost:8720/studio/**.
-   - If One CommandCenter runs on the same computer, Studio uses the sign-in you already have there.
+2. In One CommandCenter open **Build > Automation** and click the **Private** tab (it is there for people who may check
+   agents in). You can also go to **http://localhost:8720/studio/** in Chrome or Edge.
+   - If One CommandCenter runs on the same computer, your private workspace uses the sign-in you already have there.
    - If Studio runs on its own, the window that started it shows its address (`Open: http://localhost:<port>`).
-3. The **Automation** home opens.
+3. The **Automation** page opens on your **Private** tab.
+4. Click an agent (or make one with **Create ▾**). It opens in **One AgentStudio**, the editor.
 
-**What you see:** a dark bar across the top with the ONEOFFICEAUTOMATION logo and the words **One AgentStudio**, a
-narrow rail of icons on the left, and the list of everything in your workspace in the middle.
+**What you see:** the same top bar and menu as everywhere in One CommandCenter. The top bar says **One
+CommandCenter** on the Automation page and changes to **One AgentStudio** only while an agent or other item is open in
+the editor; the browser tab then shows the item's name. Close the item to come back to the Automation page.
 
 > **Tip:** Studio only answers browsers on the same computer. Opening it from another machine gives
 > "One AgentStudio is only available on this computer". This is on purpose: your workspace is private.
@@ -63,8 +69,8 @@ tabs:
 | **Public** (left) | One CommandCenter's agent repository, shared with your team: the agents checked in, with their versions. Here you **Check out** an agent to change it. It needs a sign-in to One CommandCenter (when Studio runs on the same server, your browser's sign-in is used). |
 | **Private** (right) | Your own workspace on this computer (My Workspace): agents, workflows, forms, scripts and files, in folders. Only you see it until you check an item in. |
 
-The **Private** tab is for people who build agents. One CommandCenter's own **Automation** page has the same two tabs;
-its **Private** tab opens this page in One AgentStudio.
+The **Private** tab is for people who build agents. One CommandCenter's **Automation** page has the same two tabs; its
+**Private** tab opens this page, and its **Create > New agent** opens **Create > Agent** here.
 
 On the **Private** tab:
 
