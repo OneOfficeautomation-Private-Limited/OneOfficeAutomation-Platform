@@ -144,7 +144,7 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
               <tbody>{agents.map((a) => <tr key={a.bot_path} className={canChange ? undefined : "is-static"} title={canChange ? "Change its savings" : undefined} onClick={rowClick(() => { if (canChange) setEditing(a); })}>
                 <td><span className="cc-aico" aria-hidden="true">A</span>{name(a.bot_path)}</td><td>{folderOf(a.bot_path)}</td><td className="cc-num">{a.runs}</td>
                 <td className="cc-num">{a.minutes_each}{a.own_value ? "" : " (default)"}</td>
-                <td className="cc-num">{a.hourly_cost != null ? money(a.hourly_cost) + (a.own_cost ? "" : " (default)") : ""}</td>
+                <td className="cc-num">{a.hourly_cost ? money(a.hourly_cost) + (a.own_cost ? "" : " (default)") : "not set"}</td>
                 <td className="cc-num">{a.estimated_hours_month != null ? a.estimated_hours_month + " h" : ""}</td>
                 <td className={"cc-num" + (a.estimated_hours_month != null && (a.actual_hours_month ?? 0) < a.estimated_hours_month ? " cc-err" : "")}>{a.actual_hours_month != null ? a.actual_hours_month + " h" : ""}</td>{nums(a)}
                 <td className="cc-list-menu"><RowMenu label={"Actions for " + name(a.bot_path)} items={agentMenu(a)} /></td></tr>)}

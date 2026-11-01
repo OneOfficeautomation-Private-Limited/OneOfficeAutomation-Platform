@@ -151,7 +151,7 @@ function Dashboard({ stats, prof }: { stats: AgentStats; prof: VariableProfile }
   const first = numbers[0];
   return <div className="cc-agent-tab">
     <div className="cc-sums cc-sums-flush" role="group" aria-label="Figures">
-      <div className="cc-sum is-static"><strong>{prof.runs}</strong><span>Runs with values · of {t.runs}</span></div>
+      <div className="cc-sum is-static"><strong>{prof.runs}</strong><span>Runs with outputs · of {t.runs}</span></div>
       {numbers.slice(0, 3).map((v) => <div key={v.variable} className="cc-sum is-static"><strong>{num(v.sum)}</strong><span>{v.variable} · total</span></div>)}
       <div className="cc-sum is-static"><strong>{dur(t.avg_ms)}</strong><span>Average run</span></div>
     </div>
@@ -213,7 +213,7 @@ function Compare({ api, path, agents, days, stats, prof }: { api: CrApi; path: s
     ["Success rate (of finished)", rate(stats.totals.success_rate), rate(b.stats.totals.success_rate), diff(stats.totals.success_rate, b.stats.totals.success_rate, " points")],
     ["Failed runs", String(stats.totals.failed), String(b.stats.totals.failed), diff(stats.totals.failed, b.stats.totals.failed)],
     ["Average run", dur(stats.totals.avg_ms), dur(b.stats.totals.avg_ms), stats.totals.avg_ms != null && b.stats.totals.avg_ms != null ? (stats.totals.avg_ms <= b.stats.totals.avg_ms ? dur(b.stats.totals.avg_ms - stats.totals.avg_ms) + " faster" : dur(stats.totals.avg_ms - b.stats.totals.avg_ms) + " slower") : ""],
-    ["Runs with values", String(prof.runs), String(b.prof.runs), diff(prof.runs, b.prof.runs)],
+    ["Runs with outputs", String(prof.runs), String(b.prof.runs), diff(prof.runs, b.prof.runs)],
     ["Most common error", stats.errors[0]?.code ?? "", b.stats.errors[0]?.code ?? "", ""],
     ...shared.map(([v, x]) => [v.variable + " · total", num(v.sum), num(x!.sum), diff(v.sum, x!.sum)] as [string, string, string, string])];
   return <div className="cc-agent-tab">
