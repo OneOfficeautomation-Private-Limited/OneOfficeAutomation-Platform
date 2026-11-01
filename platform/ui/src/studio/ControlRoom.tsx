@@ -21,6 +21,9 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  // One CommandCenter's sign-in notice must be accepted (Settings): asked here once the server says so
+  const [mustAccept, setMustAccept] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (status.sameServer) return (
     <div className="st-cr-form">
@@ -38,8 +41,11 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   const connect = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError(null);
-    try { const s = await api.crConnect(url.trim(), user.trim(), password, code.trim()); setPassword(""); setCode(""); onSignedIn(s); }
-    catch (err) { setError(message(err)); }
+    try { const s = await api.crConnect(url.trim(), user.trim(), password, code.trim(), accepted); setPassword(""); setCode(""); onSignedIn(s); }
+    catch (err) {
+      if (err instanceof ApiFailure && err.error.code === "CR.NOTICE_NOT_ACCEPTED") { setMustAccept(true); setError("One CommandCenter asks you to accept its sign-in notice first."); }
+      else setError(message(err));
+    }
     finally { setBusy(false); }
   };
   return (
@@ -47,9 +53,11 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
       <Field label="One CommandCenter address">{(id) => <TextInput id={id} value={url} onChange={(e) => setUrl(e.target.value)} />}</Field>
       <Field label="User name">{(id) => <TextInput id={id} autoComplete="username" value={user} onChange={(e) => setUser(e.target.value)} />}</Field>
       <Field label="Password">{(id) => <TextInput id={id} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
+      {mustAccept && <label className="st-check-line"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /> I have read and accept
+        the sign-in notice of One CommandCenter (<a href={url.replace(/\/+$/, "") + "/"} target="ooa-control-room">read it</a>)</label>}
       <Field label="Two-step code" hint="Only if your account asks for one.">{(id) => <TextInput id={id} inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />}</Field>
       {error && <p className="st-cr-error" role="alert">{error}</p>}
-      <div className="st-cr-acts"><Button kind="primary" type="submit" disabled={busy || !url.trim() || !user.trim()}>{busy ? "Signing in…" : "Sign in"}</Button></div>
+      <div className="st-cr-acts"><Button kind="primary" type="submit" disabled={busy || !url.trim() || !user.trim() || (mustAccept && !accepted)}>{busy ? "Signing in…" : "Sign in"}</Button></div>
     </form>
   );
 }

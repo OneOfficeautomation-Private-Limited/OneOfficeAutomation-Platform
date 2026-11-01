@@ -234,7 +234,9 @@ export class StudioApi {
   async search(q: string) { return (await this.call<{ results: { path: string; matches: string[] }[] }>("GET", "search?q=" + encodeURIComponent(q))).results; }
   // ---- One CommandCenter agent repository: sign in, check out, check in ----
   crStatus() { return this.call<CrStatus>("GET", "cr/status"); }
-  crConnect(url: string, username: string, password: string, code: string) { return this.call<CrStatus>("POST", "cr/connect", { url, username, password, code }); }
+  crConnect(url: string, username: string, password: string, code: string, accepted = false) {
+    return this.call<CrStatus>("POST", "cr/connect", accepted ? { url, username, password, code, accepted } : { url, username, password, code });
+  }
   crDisconnect() { return this.call<CrStatus>("POST", "cr/disconnect"); }
   /** The repository's agents (matching q), and which workspace file is the private copy of which repository agent. */
   async crRepo(q = "") { const r = await this.call<{ bots?: RepoAgent[]; mapping?: Record<string, string> }>("GET", "cr/repo?q=" + encodeURIComponent(q)); return { agents: r.bots ?? [], mapping: r.mapping ?? {} }; }

@@ -27,7 +27,7 @@ const runs = [
   { id: "r4", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "success", requested_by: "vic", source: "trigger:t1",
     created: "2026-10-29T07:00:00Z", started: "2026-10-29T07:00:02Z", finished: "2026-10-29T07:00:32Z", duration_ms: 30000, steps: 5 }];
 
-function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[], sso = false } = {}) {
+function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[], sso = false, notice = false } = {}) {
   let user = signedIn;
   let logsAsked = false;
   const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
@@ -38,7 +38,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     const ok = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
     const no = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: { code, message } }), { status });
     if (route === "health") return ok(studio ? { status: "ok", studio: "/studio/" } : { status: "ok" });
-    if (route === "auth/sso") return ok(sso ? { enabled: true, label: "Sign in with Contoso", saml: { enabled: true, label: "Sign in with SAML" } } : { enabled: false, saml: { enabled: false } });
+    if (route === "auth/sso") return ok({ ...(sso ? { enabled: true, label: "Sign in with Contoso", saml: { enabled: true, label: "Sign in with SAML" } } : { enabled: false, saml: { enabled: false } }),
+      ...(notice ? { notice: { text: "Authorised use only.", accept: true } } : {}) });
     if (route === "auth/login") {
       if (body.password !== "right") return no(401, "CR.LOGIN_FAILED", "Wrong user name or password");
       if (mfa) return ok({ mfa_required: true, mfa_token: "m1" });
@@ -362,6 +363,29 @@ async function go(name: string) {
 }
 
 describe("rebuilt One CommandCenter console", () => {
+  it("shows the sign-in notice to accept before signing in, and warns before the password must change", async () => {
+    const { api, calls } = fakeServer({ notice: true, sso: true });
+    render(<ConsoleApp api={api} />);
+    const form = await screen.findByRole("form", { name: "Sign in" });
+    expect(within(await within(form).findByRole("note", { name: "Sign-in notice" })).getByText("Authorised use only.")).toBeTruthy();
+    fireEvent.change(within(form).getByLabelText("User name"), { target: { value: "admin" } });
+    fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "right" } });
+    expect((within(form).getByRole("button", { name: "Sign in" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(form).queryByRole("link", { name: "Sign in with Contoso" })).toBeNull();   // single sign-on waits for the tick too
+    fireEvent.click(within(form).getByLabelText("I have read and accept this"));
+    await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Sign in" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "auth/login", body: { username: "admin", password: "right", accepted: true } }));
+    cleanup();
+    // a password that must change within the warning: a notice with Change it now, which can be left for later
+    const { api: api2 } = fakeServer({ signedIn: { ...admin, password_expires_in_days: 3 } as typeof admin });
+    render(<ConsoleApp api={api2} />);
+    expect(await screen.findByText("Your password must be changed within 3 days.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Change it now" }));
+    const change = await screen.findByRole("form", { name: "Choose your password" });
+    fireEvent.click(within(change).getByRole("button", { name: "Not now" }));
+    expect(await screen.findByText("Your password must be changed within 3 days.")).toBeTruthy();
+  });
+
   it("signs in with the two-step code, then shows Home with its figures and the person's recent work", async () => {
     const { api, calls } = fakeServer({ mfa: true });
     render(<ConsoleApp api={api} />);

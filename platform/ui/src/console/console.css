@@ -755,3 +755,7 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-guard { display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
 .cc-guard-models { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 6px 12px 8px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-guard-models legend { font-weight: 600; padding: 0 4px; }
+/* the sign-in page's notice (Settings) and why someone was signed out */
+.cc-signin-notice { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); padding: 8px 10px; font-size: 12.5px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
+.cc-signin-notice p { margin: 0 0 6px; }
+.cc-signin-note { margin: 0; color: var(--ui-text); font-size: 12.5px; }

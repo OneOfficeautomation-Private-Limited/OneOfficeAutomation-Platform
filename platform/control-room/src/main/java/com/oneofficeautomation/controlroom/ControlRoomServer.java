@@ -321,6 +321,9 @@ public final class ControlRoomServer {
         // ---------- public ----------
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
+            // with the sign-in notice set to be accepted, a sign-in without the tick is refused
+            if (cr.platform.intSetting("signin_notice_accept") == 1 && !String.valueOf(cr.platform.setting("signin_notice")).isBlank() && !Boolean.TRUE.equals(b.get("accepted")))
+                throw new OoaException("CR.NOTICE_NOT_ACCEPTED", "Accept the notice on the sign-in page to sign in");
             Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), (String) b.get("code"), ip);
             if (r.get("token") == null) { sendJson(ex, 200, r); return; }   // two-step sign-in: the code comes next (auth/mfa)
             ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
@@ -351,7 +354,15 @@ public final class ControlRoomServer {
             else notFound(ex);
             return;
         }
-        if (m.equals("GET") && route.equals("auth/sso")) { Map<String, Object> info = new LinkedHashMap<>(sso.info()); info.put("saml", cr.saml.info()); sendJson(ex, 200, info); return; }
+        if (m.equals("GET") && route.equals("auth/sso")) {
+            Map<String, Object> info = new LinkedHashMap<>(sso.info());
+            info.put("saml", cr.saml.info());
+            // the sign-in notice (Settings), shown before anyone signs in
+            String notice = String.valueOf(cr.platform.setting("signin_notice"));
+            if (!notice.isBlank()) info.put("notice", Map.of("text", notice, "accept", cr.platform.intSetting("signin_notice_accept") == 1));
+            sendJson(ex, 200, info);
+            return;
+        }
         if (m.equals("GET") && route.equals("auth/saml/metadata")) {
             byte[] b = cr.saml.metadata(origin(ex)).getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().set("Content-Type", "application/samlmetadata+xml; charset=utf-8");

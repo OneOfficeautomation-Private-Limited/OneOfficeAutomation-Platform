@@ -68,11 +68,30 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
     api.me().then(setUser, () => setUser(null));
     api.studio().then(setStudio, () => setStudio(false));
   }, [api]);
+  // Settings: sign out after idle_minutes without a key press, click, scroll or touch in this console (pages that refresh
+  // themselves keep the server's session alive, so the browser decides what idle is)
+  const [idleOut, setIdleOut] = useState(0);
+  const idle = user ? user.idle_minutes ?? 0 : 0;
+  useEffect(() => {
+    if (!idle) return;
+    let last = Date.now();
+    const seen = () => { last = Date.now(); };
+    const kinds = ["keydown", "pointerdown", "wheel", "touchstart"];
+    kinds.forEach((k) => addEventListener(k, seen, { passive: true }));
+    const timer = setInterval(() => {
+      if (Date.now() - last < idle * 60_000) return;
+      api.logout().catch(() => { /* already signed out */ });
+      setIdleOut(idle); setUser(null);
+    }, 15_000);
+    return () => { kinds.forEach((k) => removeEventListener(k, seen)); clearInterval(timer); };
+  }, [api, idle]);
+  const [changing, setChanging] = useState(false);   // changing one's password before it expires
 
   if (user === undefined) return <div className="cc-loading" role="status">Loading…</div>;
-  if (user === null) return <SignIn api={api} onIn={setUser} />;
+  if (user === null) return <SignIn api={api} onIn={(u) => { setIdleOut(0); setUser(u); }} note={idleOut ? "Signed out after " + idleOut + " minutes without activity." : null} />;
   // the steps a sign-in may still need, before anything else: a new password, then two-step sign-in
   if (user.must_change) return <ChangePassword api={api} onDone={setUser} />;
+  if (changing) return <ChangePassword api={api} onDone={(u) => { setChanging(false); setUser(u); setNotice("Your password is changed."); }} onCancel={() => setChanging(false)} />;
   if (user.mfa_setup_required) return <TwoStepSetup api={api} onDone={setUser} />;
 
   const signOut = async () => { try { await api.logout(); } catch { /* already signed out */ } setUser(null); setPage("home"); };
@@ -83,6 +102,9 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       <TopBar api={api} user={user} page={page} classicHref={TODAY + "?classic"} onPage={setPage} onSignOut={signOut} />
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
+      {user.password_expires_in_days !== undefined && <div className="st-notice" role="status">
+        <span>Your password must be changed {user.password_expires_in_days === 0 ? "today" : "within " + user.password_expires_in_days + " day" + (user.password_expires_in_days === 1 ? "" : "s")}.</span>
+        <Button kind="secondary" onClick={() => setChanging(true)}>Change it now</Button></div>}
       {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
       <HelpProvider><div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
@@ -135,8 +157,11 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
  * provider (OpenID Connect or SAML, when set up), which brings the person back to this page. Local accounts, such as
  * the administrator, can always sign in with their password, so a broken single sign-on never locks everyone out.
  */
-function SignIn({ api, onIn }: { api: CrApi; onIn: (u: CrUser) => void }) {
-  const [sso, setSso] = useState<{ oidc: string | null; saml: string | null }>({ oidc: null, saml: null });
+function SignIn({ api, onIn, note }: { api: CrApi; onIn: (u: CrUser) => void; note?: string | null }) {
+  const [sso, setSso] = useState<{ oidc: string | null; saml: string | null; notice: { text: string; accept: boolean } | null }>({ oidc: null, saml: null, notice: null });
+  // the sign-in notice (Settings): shown above the form, and ticked before signing in when it must be accepted
+  const [accepted, setAccepted] = useState(false);
+  const mustAccept = !!sso.notice?.accept && !accepted;
   useEffect(() => { api.ssoInfo().then(setSso, () => {}); }, [api]);
   const back = location.pathname + location.hash;
   const [username, setUsername] = useState("");
@@ -149,7 +174,7 @@ function SignIn({ api, onIn }: { api: CrApi; onIn: (u: CrUser) => void }) {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const r = mfaToken ? await api.loginCode(mfaToken, code.trim()) : await api.login(username.trim(), password);
+      const r = mfaToken ? await api.loginCode(mfaToken, code.trim()) : await api.login(username.trim(), password, accepted);
       setPassword("");
       if (r.mfa_required && r.mfa_token) { setMfaToken(r.mfa_token); return; }
       onIn(r.user ?? await api.me());
@@ -162,6 +187,11 @@ function SignIn({ api, onIn }: { api: CrApi; onIn: (u: CrUser) => void }) {
     <div className="cc-signin">
       <form className="cc-signin-card" onSubmit={submit} aria-label="Sign in">
         <img className="cc-signin-logo" src="/logo-full.png" alt="ONEOFFICEAUTOMATION" /><div className="st-brand cc-signin-brand">One CommandCenter</div>
+        {note && <p className="cc-signin-note" role="status">{note}</p>}
+        {sso.notice && !mfaToken && <div className="cc-signin-notice" role="note" aria-label="Sign-in notice">
+          <p>{sso.notice.text}</p>
+          {sso.notice.accept && <label className="st-check-line"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /> I have read and accept this</label>}
+        </div>}
         {mfaToken
           ? <Field label="Code from your authenticator app">{(id) => <TextInput id={id} value={code} inputMode="numeric" autoComplete="one-time-code" onChange={(e) => setCode(e.target.value)} />}</Field>
           : <>
@@ -169,12 +199,13 @@ function SignIn({ api, onIn }: { api: CrApi; onIn: (u: CrUser) => void }) {
             <Field label="Password">{(id) => <TextInput id={id} type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} />}</Field>
           </>}
         {error && <p className="cc-error" role="alert">{error}</p>}
-        <Button kind="primary" type="submit" disabled={busy || (mfaToken ? !code.trim() : !username.trim() || !password)}>{busy ? "Signing in…" : mfaToken ? "Continue" : "Sign in"}</Button>
+        <Button kind="primary" type="submit" disabled={busy || (mfaToken ? !code.trim() : !username.trim() || !password || mustAccept)}>{busy ? "Signing in…" : mfaToken ? "Continue" : "Sign in"}</Button>
         {mfaToken && <Button kind="plain" type="button" onClick={() => { setMfaToken(null); setCode(""); setError(null); }}>Back</Button>}
         {!mfaToken && (sso.oidc || sso.saml) && <>
           <div className="cc-or" aria-hidden="true">or</div>
-          {sso.oidc && <a className="ui-btn ui-btn-secondary cc-sso" href={api.ssoStart("oidc", back)}><Icon name="person" size={14} />{sso.oidc}</a>}
-          {sso.saml && <a className="ui-btn ui-btn-secondary cc-sso" href={api.ssoStart("saml", back)}><Icon name="person" size={14} />{sso.saml}</a>}
+          {sso.oidc && !mustAccept && <a className="ui-btn ui-btn-secondary cc-sso" href={api.ssoStart("oidc", back)}><Icon name="person" size={14} />{sso.oidc}</a>}
+          {sso.saml && !mustAccept && <a className="ui-btn ui-btn-secondary cc-sso" href={api.ssoStart("saml", back)}><Icon name="person" size={14} />{sso.saml}</a>}
+          {mustAccept && <p className="cc-none">Accept the notice above to sign in with your organisation account.</p>}
         </>}
         <p className="cc-signin-alt">Forgot your password? An administrator can reset it.</p>
       </form>
@@ -183,7 +214,7 @@ function SignIn({ api, onIn }: { api: CrApi; onIn: (u: CrUser) => void }) {
 }
 
 /** The first sign-in with a password an administrator set, or after a reset: the person chooses their own. */
-function ChangePassword({ api, onDone }: { api: CrApi; onDone: (u: CrUser) => void }) {
+function ChangePassword({ api, onDone, onCancel }: { api: CrApi; onDone: (u: CrUser) => void; onCancel?: () => void }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
@@ -201,12 +232,13 @@ function ChangePassword({ api, onDone }: { api: CrApi; onDone: (u: CrUser) => vo
     <div className="cc-signin">
       <form className="cc-signin-card" onSubmit={submit} aria-label="Choose your password">
         <img className="cc-signin-logo" src="/logo-full.png" alt="ONEOFFICEAUTOMATION" /><div className="st-brand cc-signin-brand">One CommandCenter</div>
-        <p>Choose your own password before you go on.</p>
+        <p>{onCancel ? "Choose a new password." : "Choose your own password before you go on."}</p>
         <Field label="Current password">{(id) => <TextInput id={id} type="password" value={current} autoComplete="current-password" onChange={(e) => setCurrent(e.target.value)} />}</Field>
         <Field label="New password">{(id) => <TextInput id={id} type="password" value={next} autoComplete="new-password" onChange={(e) => setNext(e.target.value)} />}</Field>
         <Field label="New password again">{(id) => <TextInput id={id} type="password" value={again} autoComplete="new-password" onChange={(e) => setAgain(e.target.value)} />}</Field>
         {error && <p className="cc-error" role="alert">{error}</p>}
         <Button kind="primary" type="submit" disabled={busy || !current || !next || !again}>{busy ? "Saving..." : "Save and continue"}</Button>
+        {onCancel && <Button kind="plain" type="button" onClick={onCancel}>Not now</Button>}
       </form>
     </div>
   );

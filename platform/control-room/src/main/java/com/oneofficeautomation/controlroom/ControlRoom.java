@@ -268,7 +268,8 @@ public final class ControlRoom {
         if (!Boolean.TRUE.equals(r.get("enabled"))) { audit.record(username, "auth.login", "user", username, "disabled", "failed", ip); throw new OoaException("CR.USER_DISABLED", "This account is disabled", "Contact your administrator."); }
         Object lu = r.get("locked_until");
         if (lu != null && Instant.parse(lu.toString()).isAfter(now()))
-            throw new OoaException("CR.LOCKED_OUT", "Too many failed sign-ins; try again after " + lu, "Wait 15 minutes or ask an administrator to reset your password.");
+            throw new OoaException("CR.LOCKED_OUT", "Too many failed sign-ins; try again after " + lu,
+                    "Wait " + platform.intSetting("lockout_minutes") + " minutes, or ask an administrator to unlock your account.");
         if (!Security.verifyPassword(password == null ? new char[0] : password.toCharArray(), (String) r.get("password_hash"))) {
             countFailedSignIn(r, ip);
             throw bad;
@@ -299,11 +300,16 @@ public final class ControlRoom {
         return newSession(r, ip);
     }
 
-    /** A wrong password or too many wrong codes: every fifth failure locks the account for 15 minutes. */
+    /**
+     * A wrong password or too many wrong codes: after lockout_attempts of them (5 by default; 0: never) the account is
+     * locked for lockout_minutes (15 by default), as AA's and UiPath's lockout settings.
+     */
     void countFailedSignIn(Map<String, Object> r, String ip) {
+        int attempts = platform.intSetting("lockout_attempts"), minutes = Math.max(1, platform.intSetting("lockout_minutes"));
         int failed = ((Number) db.one("SELECT failed FROM users WHERE id = ?", r.get("id")).get("failed")).intValue() + 1;
-        db.update("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?", failed % 5 == 0 ? 0 : failed, failed % 5 == 0 ? now().plus(Duration.ofMinutes(15)) : null, r.get("id"));
-        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), failed % 5 == 0 ? "account locked for 15 minutes" : null, "failed", ip);
+        boolean lock = attempts > 0 && failed >= attempts;
+        db.update("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?", lock ? 0 : failed, lock ? now().plus(Duration.ofMinutes(minutes)) : null, r.get("id"));
+        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), lock ? "account locked for " + minutes + " minutes" : null, "failed", ip);
     }
 
     private Map<String, Object> newSession(Map<String, Object> r, String ip) {
@@ -512,6 +518,18 @@ public final class ControlRoom {
     /** The signed-in user with permissions from custom roles too. */
     public Map<String, Object> me(User u) {
         Map<String, Object> m = new LinkedHashMap<>(publicUser(u));
+        // the console signs out after idle_minutes without activity, and warns password_expiry_warn_days before a password must change
+        int idle = platform.intSetting("idle_minutes");
+        if (idle > 0) m.put("idle_minutes", idle);
+        int maxDays = platform.intSetting("password_max_days"), warn = platform.intSetting("password_expiry_warn_days");
+        if (maxDays > 0 && warn > 0) {
+            Map<String, Object> r = db.one("SELECT password_changed, created, sso_subject FROM users WHERE id = ?", u.id());
+            Object changed = r == null ? null : r.get("password_changed") != null ? r.get("password_changed") : r.get("created");
+            if (changed != null && r.get("sso_subject") == null) {
+                long left = Duration.between(now(), Instant.parse(changed.toString()).plus(Duration.ofDays(maxDays))).toDays();
+                if (left >= 0 && left <= warn) m.put("password_expires_in_days", left);
+            }
+        }
         m.put("permissions", permissionsOf(u));
         m.put("roles", rolesOf(u.username(), u.role()));
         // team leads change their own team's members; the console shows them the Teams page for it
@@ -546,8 +564,16 @@ public final class ControlRoom {
             audit.record(u.username(), "user.change_password", "user", u.username(), null, "failed", ip);
             throw new OoaException("CR.LOGIN_FAILED", "The current password is wrong");
         }
-        String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"));
+        String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"),
+                platform.intSetting("password_needs_mixed_case") == 1, platform.intSetting("password_needs_symbol") == 1);
         if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem);
+        // a new password stays for at least password_min_days, unless it must be changed (a reset or an expired one)
+        int minDays = platform.intSetting("password_min_days");
+        Map<String, Object> when = db.one("SELECT password_changed, must_change FROM users WHERE id = ?", u.id());
+        if (minDays > 0 && !Boolean.TRUE.equals(when.get("must_change")) && when.get("password_changed") != null
+                && Instant.parse(when.get("password_changed").toString()).isAfter(now().minus(Duration.ofDays(minDays))))
+            throw new OoaException("CR.WEAK_PASSWORD", "A new password can be changed again after " + minDays + " day" + (minDays == 1 ? "" : "s") + ".",
+                    "Ask an administrator to reset it if you must change it now.");
         if (current.equals(next)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a different password from the current one.");
         // password history: none of the last N passwords again
         int keep = platform.intSetting("password_history");

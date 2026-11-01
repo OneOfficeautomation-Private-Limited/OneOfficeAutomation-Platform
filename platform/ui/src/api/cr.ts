@@ -3,7 +3,9 @@
  * in an HttpOnly cookie; every change carries X-OOA-Request, which the server needs against cross-site requests.
  */
 export type CrUser = { id: string; username: string; display_name: string; role: string; permissions: string[]; roles?: string[];
-  must_change?: boolean; mfa_enabled?: boolean; mfa_setup_required?: boolean; leads_team?: boolean; announcement?: string; license_banner?: string };
+  must_change?: boolean; mfa_enabled?: boolean; mfa_setup_required?: boolean; leads_team?: boolean; announcement?: string; license_banner?: string;
+  /** Settings: sign out after this many minutes without activity; and days left before the password must be changed (within the warning). */
+  idle_minutes?: number; password_expires_in_days?: number };
 /** Signing in: the person, or (two-step sign-in) a token to send with the code. */
 export type SignIn = { user?: CrUser; token?: string; mfa_required?: boolean; mfa_token?: string };
 /** The Home page's figures (GET dashboard). */
@@ -213,13 +215,14 @@ export class CrApi {
 
   /** The signed-in person (CR.UNAUTHENTICATED when there is no session). */
   me() { return this.call<CrUser>("GET", "auth/me"); }
-  login(username: string, password: string) { return this.call<SignIn>("POST", "auth/login", { username, password }); }
+  login(username: string, password: string, accepted = false) { return this.call<SignIn>("POST", "auth/login", accepted ? { username, password, accepted } : { username, password }); }
   loginCode(mfaToken: string, code: string) { return this.call<SignIn>("POST", "auth/mfa", { mfa_token: mfaToken, code }); }
   async logout() { await this.call("POST", "auth/logout"); }
   /** Single sign-on offered on the sign-in page: OpenID Connect and SAML, each with its button text. */
   async ssoInfo() {
-    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string } }>("GET", "auth/sso");
-    return { oidc: r.enabled ? r.label || "Sign in with your organisation account" : null, saml: r.saml?.enabled ? r.saml.label || "Sign in with SAML" : null };
+    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string }; notice?: { text: string; accept: boolean } }>("GET", "auth/sso");
+    return { oidc: r.enabled ? r.label || "Sign in with your organisation account" : null, saml: r.saml?.enabled ? r.saml.label || "Sign in with SAML" : null,
+      notice: r.notice ?? null };
   }
   /** Where a single sign-on starts; the person comes back to `back`, a page of this One CommandCenter. */
   ssoStart(kind: "oidc" | "saml", back: string) { return this.base + (kind === "oidc" ? "auth/sso/start" : "auth/saml/start") + "?return=" + encodeURIComponent(back); }

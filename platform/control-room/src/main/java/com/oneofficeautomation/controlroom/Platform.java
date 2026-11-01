@@ -97,6 +97,17 @@ public final class Platform {
         DEFAULTS.put("mcp_oauth_scope", "");
         DEFAULTS.put("outbound_proxy", "");
         DEFAULTS.put("outbound_proxy_bypass", "");
+        // sign-in and security, as AA's, UiPath's and Blue Prism's (Settings item 4, 1 Nov 2026)
+        DEFAULTS.put("password_needs_mixed_case", 0);   // upper- and lower-case letters
+        DEFAULTS.put("password_needs_symbol", 0);       // a character that is not a letter or digit
+        DEFAULTS.put("password_min_days", 0);           // days before a new password may be changed again
+        DEFAULTS.put("password_expiry_warn_days", 0);   // warn this many days before a password must be changed
+        DEFAULTS.put("lockout_attempts", 5);            // wrong passwords before the account is locked; 0: never locked
+        DEFAULTS.put("lockout_minutes", 15);
+        DEFAULTS.put("idle_minutes", 0);                // the console signs out after this long without activity; 0: off
+        DEFAULTS.put("signin_notice", "");              // shown on the sign-in page (terms of use, a consent statement)
+        DEFAULTS.put("signin_notice_accept", 0);        // people tick it before they can sign in
+        DEFAULTS.put("api_key_max_days", 0);            // the longest an API key may last; 0: up to 730 days, or no end
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -129,7 +140,16 @@ public final class Platform {
         Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_keep_days", new long[] { 1, 3650 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }),
-        Map.entry("mail_smtp_port", new long[] { 1, 65535 }));
+        Map.entry("mail_smtp_port", new long[] { 1, 65535 }),
+        Map.entry("password_needs_mixed_case", new long[] { 0, 1 }),
+        Map.entry("password_needs_symbol", new long[] { 0, 1 }),
+        Map.entry("password_min_days", new long[] { 0, 365 }),
+        Map.entry("password_expiry_warn_days", new long[] { 0, 60 }),
+        Map.entry("lockout_attempts", new long[] { 0, 20 }),
+        Map.entry("lockout_minutes", new long[] { 1, 1440 }),
+        Map.entry("idle_minutes", new long[] { 0, 1440 }),
+        Map.entry("signin_notice_accept", new long[] { 0, 1 }),
+        Map.entry("api_key_max_days", new long[] { 0, 730 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -354,6 +374,9 @@ public final class Platform {
         if (name == null || name.isBlank() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Give the key a name of up to 120 characters");
         String key = "ooak_" + Security.token(30);
         String kid = id("key");
+        // with a longest lifetime set (Settings: api_key_max_days), a key with no end, or a longer one, gets that lifetime
+        int most = intSetting("api_key_max_days");
+        if (most > 0 && (days <= 0 || days > most)) days = most;
         Instant expires = days <= 0 ? null : now().plus(Duration.ofDays(Math.min(days, 730)));
         db.update("INSERT INTO api_keys (id, user_id, name, key_hash, created, expires) VALUES (?,?,?,?,?,?)", kid, by.id(), name.trim(), Security.sha256(key), now(), expires);
         cr.audit.record(by.username(), "apikey.create", "apikey", kid, Map.of("name", name, "days", days), "ok", ip);

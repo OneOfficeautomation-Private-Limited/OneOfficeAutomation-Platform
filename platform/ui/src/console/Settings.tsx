@@ -39,11 +39,24 @@ const SECTIONS: Section[] = [
     { title: "Sessions", settings: [
       { key: "session_hours", label: "Sign-in session length", hint: "How long a sign-in lasts. 1 to 720.", unit: "hours", kind: "number", min: 1, max: 720 },
       { key: "max_sessions_per_user", label: "Sign-ins per person at once", hint: "1 to 50.", unit: "at once", kind: "number", min: 1, max: 50 },
-      { key: "inactive_user_days", label: "Disable people inactive for", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 3650 }] },
+      { key: "inactive_user_days", label: "Disable people inactive for", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 3650 },
+      { key: "idle_minutes", label: "Sign out after no activity for", hint: "In this console. 0 = never.", unit: "minutes", kind: "number", min: 0, max: 1440 }] },
     { title: "Passwords", settings: [
       { key: "password_min_length", label: "Shortest password", hint: "12 to 64.", unit: "characters", kind: "number", min: 12, max: 64 },
       { key: "password_history", label: "Passwords that cannot be used again", hint: "The last N a person used. 0 = no rule.", unit: "last passwords", kind: "number", min: 0, max: 24 },
-      { key: "password_max_days", label: "Change passwords every", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 3650 }] },
+      { key: "password_max_days", label: "Change passwords every", hint: "0 = never.", unit: "days", kind: "number", min: 0, max: 3650 },
+      { key: "password_expiry_warn_days", label: "Warn before a password must change", hint: "0 = no warning.", unit: "days", kind: "number", min: 0, max: 60 },
+      { key: "password_min_days", label: "Keep a new password at least", hint: "Before it can be changed again. 0 = no rule.", unit: "days", kind: "number", min: 0, max: 365 },
+      { key: "password_needs_mixed_case", label: "Upper- and lower-case letters", hint: "Letters and digits are always needed.", kind: "check" },
+      { key: "password_needs_symbol", label: "A symbol, such as ! or #", kind: "check" }] },
+    { title: "Lockout", settings: [
+      { key: "lockout_attempts", label: "Lock an account after", hint: "Wrong passwords or codes in a row. 0 = never lock.", unit: "attempts", kind: "number", min: 0, max: 20 },
+      { key: "lockout_minutes", label: "Keep it locked for", hint: "1 to 1440. An administrator can unlock it sooner in Users.", unit: "minutes", kind: "number", min: 1, max: 1440 }] },
+    { title: "Sign-in page", settings: [
+      { key: "signin_notice", label: "Notice on the sign-in page", hint: "For example terms of use. Empty: none.", kind: "area", placeholder: "This system is for authorised use only." },
+      { key: "signin_notice_accept", label: "People accept the notice to sign in", hint: "They tick it before any sign-in button works.", kind: "check" }] },
+    { title: "API keys", settings: [
+      { key: "api_key_max_days", label: "Longest an API key may last", hint: "0 = up to 730 days, or no end.", unit: "days", kind: "number", min: 0, max: 730 }] },
     { title: "Two-step sign-in", settings: [
       { key: "mfa_required", label: "Two-step sign-in", hint: "A code from an authenticator app as well as the password.", kind: "select",
         options: [["0", "Optional (each person decides)"], ["1", "Required for administrators"], ["2", "Required for everyone with a password"]] }] },
