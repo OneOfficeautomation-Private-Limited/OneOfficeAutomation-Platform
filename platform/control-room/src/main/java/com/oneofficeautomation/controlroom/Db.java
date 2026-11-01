@@ -565,9 +565,19 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX alerts_rule_subject ON alerts (rule_id, subject)",
     };
 
+    /**
+     * Version 27: named policies given to folders (Administration > Policies, 1 Nov 2026): code analysis rules and AI
+     * guardrails. The default code analysis policy stays in code_policy.
+     */
+    private static final String[] SCHEMA_V27 = {
+        "CREATE TABLE policies (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, kind VARCHAR(20) NOT NULL, description VARCHAR(500), "
+            + "rules VARCHAR(20000) NOT NULL, folders VARCHAR(4000) NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80), updated TIMESTAMP NOT NULL, "
+            + "updated_by VARCHAR(80))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 26;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26 };
+    public static final int LATEST = 27;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

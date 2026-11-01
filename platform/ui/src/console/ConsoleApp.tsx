@@ -17,6 +17,7 @@ import { Inbox } from "./Inbox";
 import { Licenses } from "./Licenses";
 import { ModelConnections } from "./ModelConnections";
 import { Queues } from "./Queues";
+import { Policies } from "./Policies";
 import { Roles } from "./Roles";
 import { Schedules } from "./Schedules";
 import { Settings } from "./Settings";
@@ -40,7 +41,7 @@ import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "alerts", "apitasks", "audit", "automation", "capacity", "connections", "credentials", "dashboards", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "operations", "queueinsights", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "value", "workflows", "users"]);
+const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "audit", "automation", "capacity", "connections", "credentials", "dashboards", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "operations", "queueinsights", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "value", "workflows", "users"]);
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, "").split("?")[0]; return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -101,6 +102,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "docautomation" && <DocumentAutomation api={api} />}
           {page === "users" && <Users api={api} user={user} onNotice={setNotice} />}
           {page === "roles" && <Roles api={api} onNotice={setNotice} />}
+          {page === "policies" && <Policies api={api} user={user} onNotice={setNotice} />}
           {page === "teams" && <Teams api={api} user={user} onNotice={setNotice} />}
           {page === "credentials" && <Vault api={api} user={user} onNotice={setNotice} />}
           {page === "audit" && <Audit api={api} onNotice={setNotice} />}

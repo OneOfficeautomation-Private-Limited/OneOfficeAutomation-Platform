@@ -506,6 +506,14 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "policies" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("policies", cr.policies.list(u)));
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.policies.get(u, seg[1]));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.policies.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.policies.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.policies.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
             case "dashboards" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("dashboards", cr.dashboards.list(u)));
                 else if (m.equals("GET") && route.equals("dashboards/kpis")) sendJson(ex, 200, Map.of("kpis", cr.dashboards.kpis(u)));

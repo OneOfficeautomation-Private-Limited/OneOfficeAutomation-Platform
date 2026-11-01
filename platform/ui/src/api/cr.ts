@@ -54,6 +54,9 @@ export type AgentBundle = { format: string; format_version?: number; exported_at
 /** What happened to each agent of an import (or promotion): created, updated, skipped, failed or not imported. */
 export type ImportResult = { ok: boolean; imported: number; results: { path: string; status: string; version?: number; error?: { code?: string; message: string } }[] };
 /** The code analysis policy: each rule on or off, error or warning, its settings; and whether check-ins with errors are refused. */
+/** A policy under Administration > Policies (1 Nov 2026): code analysis rules or AI guardrails, given to folders; "default" is the default code analysis. */
+export type Policy = { id: string; name: string; kind: "code" | "ai"; description?: string; rules: CodePolicy & Record<string, unknown>; folders: string[]; built_in: boolean;
+  updated?: string; updated_by?: string };
 export type CodePolicy = { enforce_at_checkin: boolean; rules: Record<string, { enabled: boolean; severity: "error" | "warning"; description: string; params: Record<string, unknown> }> };
 /** A version's code analysis: errors, warnings and each finding. */
 export type CodeReport = { path: string; version: number; errors: number; warnings: number; passed: boolean; analyzed?: string; analyzed_by?: string;
@@ -541,6 +544,11 @@ export class CrApi {
   promoteAgents(b: { paths: string[]; version: string; include_dependencies: boolean; target_url: string; api_key_ref: string; conflict: "skip" | "overwrite"; production: boolean }) {
     return this.call<{ ok: boolean; status: number; target: string; result?: Partial<ImportResult> & Record<string, unknown> }>("POST", "lifecycle/promote", b); }
   codePolicy() { return this.call<CodePolicy>("GET", "repo/policy"); }
+  async policies() { return (await this.call<{ policies?: Policy[] }>("GET", "policies")).policies ?? []; }
+  savePolicy(id: string | null, b: { name?: string; kind?: string; description?: string; folders?: string[]; rules: unknown }) {
+    return id ? this.call<Policy>("PUT", "policies/" + encodeURIComponent(id), b) : this.call<Policy>("POST", "policies", b);
+  }
+  async deletePolicy(id: string) { await this.call("DELETE", "policies/" + encodeURIComponent(id)); }
   saveCodePolicy(b: { enforce_at_checkin: boolean; rules: Record<string, { enabled: boolean; severity: string; params: Record<string, unknown> }> }) { return this.call<CodePolicy>("PUT", "repo/policy", b); }
   codeAnalysis(path: string) { return this.call<CodeReport>("GET", "repo/analysis?path=" + encodeURIComponent(path)); }
   analyzeAgent(path: string) { return this.call<CodeReport>("POST", "repo/analyze", { path }); }

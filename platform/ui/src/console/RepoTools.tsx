@@ -138,48 +138,44 @@ export function ImportAgents({ api, folder, onClose, onDone }: { api: CrApi; fol
   );
 }
 
-/** The code analysis policy (as UiPath's analyzer rules and "before publish"): rules, severity, settings, refusing check-ins with errors; a report for all agents. */
-export function CodeAnalysisPolicy({ api, user, onClose, onNotice }: { api: CrApi; user: CrUser; onClose: () => void; onNotice: (t: string) => void }) {
-  const [pol, setPol] = useState<CodePolicy | null>(null);
-  const [text, setText] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const edit = user.permissions.includes("settings.manage");
-  useEffect(() => { api.codePolicy().then((p) => {
-    setPol(p);
-    setText(Object.fromEntries(Object.entries(p.rules).flatMap(([id, r]) => Object.entries(r.params ?? {}).map(([k, v]) => [id + "." + k, Array.isArray(v) ? v.join(", ") : String(v)]))));
-  }, (e) => setError(message(e))); }, [api]);
-  const set = (id: string, p: Partial<CodePolicy["rules"][string]>) => pol && setPol({ ...pol, rules: { ...pol.rules, [id]: { ...pol.rules[id], ...p } } });
-  const saveIt = () => {
-    if (!pol) return;
-    const rules = Object.fromEntries(Object.entries(pol.rules).map(([id, r]) => [id, { enabled: r.enabled, severity: r.severity,
-      params: Object.fromEntries(Object.entries(r.params ?? {}).map(([k, old]) => { const t = text[id + "." + k] ?? ""; return [k, Array.isArray(old) ? t.split(",").map((x) => x.trim()).filter(Boolean) : typeof old === "number" ? Number(t) : t]; })) }]));
-    api.saveCodePolicy({ enforce_at_checkin: pol.enforce_at_checkin, rules }).then(() => { onNotice("Saved the code analysis policy."); onClose(); }, (e) => setError(message(e)));
-  };
-  const report = () => api.codeAnalysisCsv().then((t) => save("code-analysis.csv", t, "text/csv"), (e) => setError(message(e)));
-  return (
-    <Dialog open title="Code analysis" width={800} onClose={onClose} footer={<>
-      <Button kind="secondary" onClick={report}>Report for all agents (CSV)</Button><span className="st-bar-fill" />
-      <Button kind="plain" onClick={onClose}>{edit ? "Cancel" : "Close"}</Button>{edit && <Button kind="primary" disabled={!pol} onClick={saveIt}>Save</Button>}</>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">Agents are checked against these rules at every check-in, and on demand from an agent's view. Reports are kept for each version.{edit ? "" : " Only administrators who change settings may change the rules."}</p>
-      {!pol && !error && <p className="st-muted" role="status">Loading…</p>}
-      {pol && <>
-        <label className="st-check-line"><input type="checkbox" disabled={!edit} checked={pol.enforce_at_checkin} onChange={(e) => setPol({ ...pol, enforce_at_checkin: e.target.checked })} /> Refuse check-ins that have errors</label>
-        <table className="st-table cc-gap" aria-label="Rules">
-          <thead><tr><th scope="col">Use</th><th scope="col">Rule</th><th scope="col">Severity</th><th scope="col">Settings</th></tr></thead>
-          <tbody>{Object.entries(pol.rules).map(([id, r]) => <tr key={id}>
-            <td><input type="checkbox" disabled={!edit} checked={r.enabled} aria-label={"Use " + rule(id)} onChange={(e) => set(id, { enabled: e.target.checked })} /></td>
-            <td><strong>{rule(id)}</strong><div className="st-muted">{r.description}</div></td>
-            <td><Select aria-label={"Severity of " + rule(id)} disabled={!edit} value={r.severity} onChange={(e) => set(id, { severity: e.target.value as "error" | "warning" })}
-              options={[{ value: "error", label: "Error" }, { value: "warning", label: "Warning" }]} /></td>
-            <td>{Object.keys(r.params ?? {}).map((k) => <label key={k} className="cc-param">{k.replace(/_/g, " ")}
-              <TextInput disabled={!edit} aria-label={rule(id) + ": " + k.replace(/_/g, " ")} value={text[id + "." + k] ?? ""} onChange={(e) => setText({ ...text, [id + "." + k]: e.target.value })} /></label>)}</td>
-          </tr>)}</tbody>
-        </table>
-      </>}
-    </Dialog>
-  );
+/** A code analysis policy's settings as typed (lists as "a, b"), for the rule editor. */
+export function ruleText(pol: CodePolicy): Record<string, string> {
+  return Object.fromEntries(Object.entries(pol.rules).flatMap(([id, r]) => Object.entries(r.params ?? {}).map(([k, v]) => [id + "." + k, Array.isArray(v) ? v.join(", ") : String(v)])));
 }
+
+/** The policy as it is saved: each rule's use, severity and settings (numbers as numbers, lists split on commas). */
+export function rulesToSave(pol: CodePolicy, text: Record<string, string>) {
+  const rules = Object.fromEntries(Object.entries(pol.rules).map(([id, r]) => [id, { enabled: r.enabled, severity: r.severity,
+    params: Object.fromEntries(Object.entries(r.params ?? {}).map(([k, old]) => { const t = text[id + "." + k] ?? "";
+      return [k, Array.isArray(old) ? t.split(",").map((x) => x.trim()).filter(Boolean) : typeof old === "number" ? Number(t) : t]; })) }]));
+  return { enforce_at_checkin: pol.enforce_at_checkin, rules };
+}
+
+/**
+ * A code analysis policy's rules (as UiPath's analyzer rules and "before publish"): each rule used or not, its severity
+ * and settings, and whether errors stop check-in. On a policy's own page under Administration > Policies (1 Nov 2026).
+ */
+export function CodeRules({ pol, text, edit, onPol, onText }:
+  { pol: CodePolicy; text: Record<string, string>; edit: boolean; onPol: (p: CodePolicy) => void; onText: (t: Record<string, string>) => void }) {
+  const set = (id: string, p: Partial<CodePolicy["rules"][string]>) => onPol({ ...pol, rules: { ...pol.rules, [id]: { ...pol.rules[id], ...p } } });
+  return <>
+    <label className="st-check-line"><input type="checkbox" disabled={!edit} checked={pol.enforce_at_checkin} onChange={(e) => onPol({ ...pol, enforce_at_checkin: e.target.checked })} /> Refuse check-ins that have errors</label>
+    <table className="st-table cc-gap" aria-label="Rules">
+      <thead><tr><th scope="col">Use</th><th scope="col">Rule</th><th scope="col">Severity</th><th scope="col">Settings</th></tr></thead>
+      <tbody>{Object.entries(pol.rules).map(([id, r]) => <tr key={id}>
+        <td><input type="checkbox" disabled={!edit} checked={r.enabled} aria-label={"Use " + rule(id)} onChange={(e) => set(id, { enabled: e.target.checked })} /></td>
+        <td><strong>{rule(id)}</strong><div className="st-muted">{r.description}</div></td>
+        <td><Select aria-label={"Severity of " + rule(id)} disabled={!edit} value={r.severity} onChange={(e) => set(id, { severity: e.target.value as "error" | "warning" })}
+          options={[{ value: "error", label: "Error" }, { value: "warning", label: "Warning" }]} /></td>
+        <td>{Object.keys(r.params ?? {}).map((k) => <label key={k} className="cc-param">{k.replace(/_/g, " ")}
+          <TextInput disabled={!edit} aria-label={rule(id) + ": " + k.replace(/_/g, " ")} value={text[id + "." + k] ?? ""} onChange={(e) => onText({ ...text, [id + "." + k]: e.target.value })} /></label>)}</td>
+      </tr>)}</tbody>
+    </table>
+  </>;
+}
+
+/** The report of every agent against its folder's policy, as CSV. */
+export const codeReportCsv = (api: CrApi) => api.codeAnalysisCsv().then((t) => save("code-analysis.csv", t, "text/csv"));
 
 /** An agent's own analysis (AA shows findings in the bot editor): the latest version's errors and warnings, analysed again on demand. */
 export function AgentAnalysis({ api, path }: { api: CrApi; path: string }) {

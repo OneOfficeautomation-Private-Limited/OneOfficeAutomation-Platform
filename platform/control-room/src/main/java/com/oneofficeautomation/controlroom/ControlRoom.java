@@ -47,6 +47,7 @@ public final class ControlRoom {
     public final Alerts alerts;
     /** Code analysis against the policy (on demand and at check-in). */
     public final CodeAnalysis codeAnalysis;
+    final Policies policies;
     /** Agents behind their own URL and token. */
     public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
@@ -157,6 +158,7 @@ public final class ControlRoom {
         this.analytics = new Analytics(this);
         this.alerts = new Alerts(this);
         this.codeAnalysis = new CodeAnalysis(this);
+        this.policies = new Policies(this);
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
@@ -924,7 +926,7 @@ public final class ControlRoom {
             audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
             gitSync.changed(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
             // the code analysis report of the new version, against today's policy
-            if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow), by.username());
+            if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow, codeAnalysis.policyFor(path)), by.username());
             return Map.of("path", path, "version", version, "created", b == null);
         });
     }

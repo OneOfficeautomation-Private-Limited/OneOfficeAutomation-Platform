@@ -748,3 +748,6 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 /* Work queues (review round 2): a queue's own page; the status chips on one row, an item's data cut, whole on hover */
 .cc-queue-chips { padding: 8px 16px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
 .cc-queue-data { max-width: 260px; }
+/* a policy's folders (Administration > Policies) */
+.cc-policy-folders { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.cc-policy-folders li { display: flex; align-items: center; gap: 8px; }

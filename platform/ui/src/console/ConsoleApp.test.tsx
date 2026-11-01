@@ -124,6 +124,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       max_steps: { enabled: true, severity: "error", description: "Agents stay small enough to read", params: { max: 200 } },
       blocked_actions: { enabled: false, severity: "error", description: "Commands nobody may use", params: { actions: ["ooa.shell/run"] } } } });
     if (route === "repo/analysis/report") return new Response("agent,version,rule\r\n", { status: 200 });
+    const rulesOf = (enforce: boolean) => ({ enforce_at_checkin: enforce, rules: {
+      require_description: { enabled: true, severity: "warning", description: "Every agent says what it does", params: {} },
+      max_steps: { enabled: true, severity: "error", description: "Agents stay small enough to read", params: { max: 200 } } } });
+    if (route === "policies" && (init.method ?? "GET") === "GET") return ok({ policies: [
+      { id: "default", name: "Default code analysis", kind: "code", rules: rulesOf(false), folders: [], built_in: true, updated: "2026-10-31T08:00:00Z", updated_by: "admin" },
+      { id: "pol1", name: "Finance: strict", kind: "code", rules: rulesOf(true), folders: ["Finance"], built_in: false, updated: "2026-11-01T08:00:00Z", updated_by: "admin" }] });
+    if (route.startsWith("policies")) return ok({ id: "pol2" });
     if (route === "repo/analysis") return ok({ path: "Finance/Invoice intake.flow.json", version: 3, errors: 1, warnings: 1, passed: false, analyzed: "2026-10-30T08:00:00Z",
       violations: [{ rule: "max_steps", severity: "error", step: "s9", message: "212 steps; the most allowed is 200" }, { rule: "require_description", severity: "warning", message: "The agent has no description" }] });
     if (route === "repo/analyze") return ok({ path: "Finance/Invoice intake.flow.json", version: 3, errors: 0, warnings: 0, passed: true, violations: [] });
@@ -839,19 +846,10 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await screen.findByText("Imported 2 agents.")).toBeTruthy();
     fireEvent.click(within(im).getByRole("button", { name: "Done" }));
 
-    // the code analysis policy: a rule's severity and setting changed, and the report for all agents
+    // the code analysis policies moved to Administration > Policies; the Manage menu points there
     fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
-    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Code analysis" }));
-    const ca = await screen.findByRole("dialog", { name: "Code analysis" });
-    fireEvent.change(await within(ca).findByLabelText("Severity of Require description"), { target: { value: "error" } });
-    fireEvent.change(within(ca).getByLabelText("Max steps: max"), { target: { value: "150" } });
-    fireEvent.click(within(ca).getByLabelText("Refuse check-ins that have errors"));
-    await act(async () => { fireEvent.click(within(ca).getByRole("button", { name: "Report for all agents (CSV)" })); });
-    expect(made).toEqual(["file", "file"]);
-    await act(async () => { fireEvent.click(within(ca).getByRole("button", { name: "Save" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "repo/policy", body: { enforce_at_checkin: true, rules: {
-      require_description: { enabled: true, severity: "error", params: {} }, max_steps: { enabled: true, severity: "error", params: { max: 150 } },
-      blocked_actions: { enabled: false, severity: "error", params: { actions: ["ooa.shell/run"] } } } } }));
+    expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /Code analysis policies/ })).toBeTruthy();
+    fireEvent.keyDown(within(screen.getByRole("menu")).getAllByRole("menuitem")[0], { key: "Escape" });
 
     // an agent's own findings, analysed again
     fireEvent.click(within(screen.getByRole("table", { name: "Agents list" })).getByText("Invoice intake"));
@@ -1282,6 +1280,47 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.some((c) => c.route === "license/assignments" && (c.body as { assigned?: boolean } | undefined)?.assigned === false)).toBe(false);
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Take back" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "license/assignments", body: { license_type: "developer", principal: "old", assigned: false } }));
+  });
+
+  it("shows Policies as AA's: the default and folder policies, a policy's rules saved, a new one for a folder, deleting asked first", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    await go("Policies");
+    const list = await screen.findByRole("table", { name: "Policies list" });
+    const def = (await within(list).findByText("Default code analysis")).closest("tr")!;
+    expect(def.textContent).toContain("Every folder without its own");
+    const strict = within(list).getByText("Finance: strict").closest("tr")!;
+    expect(strict.textContent).toContain("errors stop check-in");
+    // a policy's own page: a rule's severity changed and saved
+    fireEvent.click(strict.cells[0]);
+    const page = await screen.findByRole("dialog", { name: "Finance: strict" });
+    fireEvent.change(within(page).getByLabelText("Severity of Require description"), { target: { value: "error" } });
+    await act(async () => { fireEvent.click(within(page).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "policies/pol1", body: expect.objectContaining({ name: "Finance: strict", folders: ["Finance"],
+      rules: { enforce_at_checkin: true, rules: { require_description: { enabled: true, severity: "error", params: {} }, max_steps: { enabled: true, severity: "error", params: { max: 200 } } } } }) }));
+    // a new policy for HR (Finance already has one of this kind, so it is not offered)
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Create policy ▾" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /Code analysis policy/ }));
+    const made = await screen.findByRole("dialog", { name: "Create code analysis policy" });
+    fireEvent.change(await within(made).findByLabelText("Name"), { target: { value: "HR rules" } });
+    fireEvent.click(within(made).getByRole("tab", { name: "Folders (0)" }));
+    const folder = within(made).getByLabelText("Folder to add") as HTMLSelectElement;
+    expect([...folder.options].map((o) => o.value)).toEqual(["", "HR"]);
+    fireEvent.change(folder, { target: { value: "HR" } });
+    fireEvent.click(within(made).getByRole("button", { name: "Add folder" }));
+    await act(async () => { fireEvent.click(within(made).getByRole("button", { name: "Create policy" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "policies", body: expect.objectContaining({ name: "HR rules", kind: "code", folders: ["HR"] }) }));
+    // deleting asks first; the default cannot be deleted
+    const list2 = await screen.findByRole("table", { name: "Policies list" });
+    fireEvent.keyDown(within(list2).getByRole("button", { name: "Actions for Default code analysis" }), { key: "Enter" });
+    expect(within(await screen.findByRole("menu")).queryByRole("menuitem", { name: "Delete…" })).toBeNull();
+    fireEvent.keyDown(within(screen.getByRole("menu")).getAllByRole("menuitem")[0], { key: "Escape" });
+    fireEvent.keyDown(within(list2).getByRole("button", { name: "Actions for Finance: strict" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    const ask = await screen.findByRole("alert");
+    expect(ask.textContent).toContain("Delete the policy Finance: strict?");
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "policies/pol1" }));
   });
 
   it("shows Settings as AA's: sections, only the changed values saved, a search across settings, a section's own test", async () => {

@@ -4,7 +4,7 @@ import type { FlowStep } from "../api/client";
 import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
-import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
+import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 
 /**
  * Build > Agent Repository, built as AA's public workspace (checked 31 Oct 2026): a folder tree beside the agents in the
@@ -30,7 +30,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and schedule"], ["edit", "Edit: also check out, check in, move, delete"], ["manage", "Manage: also live version and labels"]];
 
 type Dlg = null | { kind: "agent"; a: RepoAgent } | { kind: "folder"; parent: string } | { kind: "rename" } | { kind: "permissions" } | { kind: "deleted" } | { kind: "approvals" }
-  | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" } | { kind: "analysis" };
+  | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" };
 
 const HELP: HelpTopic = { title: "Automation",
   about: "The shared (public) workspace: agents, workflows and forms checked in from One AgentStudio, with every version. "
@@ -136,7 +136,7 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     ...(can("lifecycle.export") ? [{ key: "export", label: "Export or promote", onSelect: () => setDialog({ kind: "export" }) }] : []),
     ...(requests.approval_on || requests.requests.length > 0 ? [{ key: "approvals", label: "Production approvals" + (requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""), onSelect: () => setDialog({ kind: "approvals" }) }] : []),
     ...(can("repo.delete") ? [{ key: "deleted", label: "Deleted agents", onSelect: () => setDialog({ kind: "deleted" }) }] : []),
-    { key: "analysis", label: "Code analysis", onSelect: () => setDialog({ kind: "analysis" }) },
+    { key: "analysis", label: "Code analysis policies", description: "In Administration > Policies", onSelect: () => { location.hash = "#/policies"; } },
   ];
   const create = [
     ...(can("repo.checkin") ? [{ key: "folder", label: "New folder" + (folder ? " in " + folder.split("/").pop() : ""), onSelect: () => setDialog({ kind: "folder", parent: folder }) }] : []),
@@ -243,7 +243,6 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
       {dialog?.kind === "approvals" && <Approvals api={api} user={user} onClose={() => { setDialog(null); load(); }} onNotice={onNotice} />}
       {dialog?.kind === "export" && <ExportAgents api={api} onClose={() => setDialog(null)} onNotice={onNotice} />}
       {dialog?.kind === "import" && <ImportAgents api={api} folder={folder} onClose={() => { setDialog(null); load(); }} onDone={(m) => { onNotice(m); load(); }} />}
-      {dialog?.kind === "analysis" && <CodeAnalysisPolicy api={api} user={user} onClose={() => setDialog(null)} onNotice={onNotice} />}
     </section>
   );
 }
