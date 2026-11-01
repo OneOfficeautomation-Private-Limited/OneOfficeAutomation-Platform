@@ -145,7 +145,19 @@ open the page behind it. Below are **Runs in the last 7 days**, **Recent failure
 
 If an administrator created your account, they give you a temporary password. Sign in with it and choose your own
 password, as in step 3. If your company uses single sign-on, the sign-in page shows an extra button such as
-**Sign in with your organisation account**: use that instead, with your normal company sign-in.
+**Sign in with your organisation account**: use that instead, with your normal company sign-in. If the sign-in page
+says that your Windows (directory) user name and password work, sign in with those; you need no separate password.
+
+The sign-in page can also show:
+
+- the name of this One CommandCenter, such as **Production** or **Test**, in its own colour, so you know which one you
+  are signing in to (it is shown in the top bar too);
+- a notice from your company, for example terms of use. When it has a tick box **I have read and accept this**, tick
+  it before you sign in;
+- "Signed out after n minutes without activity": your administrator signs people out after a time without use. Sign
+  in again.
+
+When your password must be changed soon, a warning at the top of the console offers **Change it now**.
 
 If your account needs two-step sign-in, a dialog **Set up two-step sign-in (required)** appears after the password:
 
@@ -161,13 +173,19 @@ password.
 
 ### The top bar
 
-- **Open One AgentStudio** opens the designer in a new tab (shown when Studio runs with this One CommandCenter).
-- The half-moon button switches between a light and a dark theme.
-- Your name opens the user menu: **API keys**, **Change password**, **Two-step sign-in**, **Language** (English,
-  Deutsch, Français, Español, 日本語) and **Sign out**.
+- **One CommandCenter**, then the environment name when your administrator has set one (for example **Production**
+  in red).
+- Where you are: the section and the page, for example **Operational insights › Business**. Click the section to go
+  to its first page.
+- **Search pages and agents** (Ctrl+K): type part of a page's or an agent's name, or paste a run id to open that run.
+- The bell shows how many alerts are open; click it to open **Alerts**.
+- **Help** (the question mark): **Keyboard shortcuts**, and **Classic console**, the earlier console, which still has
+  the user menu with **API keys**, **Change password**, **Two-step sign-in** and **Language**.
+- Your account: **Sign out**.
 
-Banners can appear under the top bar: an administrator's **announcement** (for example planned maintenance) and,
-for administrators, the **licence banner** (evaluation days left, a licence about to expire).
+Banners can appear under the top bar: an administrator's **announcement** (for example planned maintenance), a
+warning that your password must be changed soon, and, for administrators, the **licence banner** (evaluation days
+left, a licence about to expire).
 
 ### The menu on the left
 
@@ -177,14 +195,28 @@ at the bottom makes the menu narrow (icons only) or full again.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
-| **Build** | Agent Repository, Templates, One AgentStudio (opens a new tab), Agent APIs, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
-| **Manage** | Agent Runs, Task inbox, Runners, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Toolkits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows and the shared settings agents use |
-| **Insights** | Operations, Dashboards | How agents and work queues are doing |
-| **Administration** | Users, Roles, Teams, Credential vault, Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
+| **Build** | Automation (the agent repository), Agent Templates, One AgentStudio (opens a new tab), Agent APIs, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
+| **Manage** | Agent Activity, Task inbox, Runner Machines, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Credential vault, Agent ToolKits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows, secrets and the shared settings agents use |
+| **Operational Insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
+| **Administration** | Users, Roles, Teams, Policies, Audit Trail, Licenses, Settings | People, access, rules for agents' folders, audit, licences and system settings |
 | **AI** | Model Connections, Prompt Skills, Document Automation, AI governance | Model connections, AI prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
-schedules, triggers, shared values, work queues, Operations, Dashboards and Prompt Skills, but cannot change anything.
+schedules, triggers, shared values, work queues, Operational Insights and Prompt Skills, but cannot change anything.
+
+**Automation** has two tabs, as in One AgentStudio: **Public** (on the left) is the agent repository, with the agents
+checked in to run; **Private** (on the right) is a builder's own workspace in One AgentStudio. **Private** works for
+people who build agents (who may check agents in) when One AgentStudio runs beside One CommandCenter on the same
+computer; it opens One AgentStudio on its Private tab.
+
+Every page has an **i** after its title: it opens a help panel that explains each part of the page.
+
+### Keys that save time
+
+Press **?** anywhere (or choose **Help > Keyboard shortcuts**) to see every key, grouped by area. In lists: `/` goes
+to the list's search, ↓ and ↑ move between rows, Enter opens the row, and Shift+F10 opens the row's **⋯** menu.
+Ctrl+K goes to the search in the top bar. If you use speech input or press keys by mistake, switch off the
+single-key shortcuts (`[`, `]`, `/` and `?`) in the **Keyboard shortcuts** window; your browser remembers it.
 
 Pages update by themselves: when a run starts or finishes, or someone changes a schedule, the open page is redrawn
 within about a second. Tables have a search box, sortable columns, **Columns** (hide columns you do not need; this

@@ -17,7 +17,7 @@ real agents: adding steps, filling in settings, working with variables, conditio
 10. [Step groups, notes and comments](#10-step-groups-notes-and-comments)
 11. [Disable steps](#11-disable-steps)
 12. [Copy, paste and the shared clipboard](#12-copy-paste-and-the-shared-clipboard)
-13. [Undo and redo](#13-undo-and-redo)
+13. [Find and replace, undo and redo](#13-find-and-replace-undo-and-redo)
 14. [A worked example](#14-a-worked-example)
 15. [If it goes wrong](#15-if-it-goes-wrong)
 16. [Related guides](#related-guides)
@@ -52,8 +52,8 @@ It goes where the canvas hint says:
   it will land.
 - Near the top or bottom edge of the canvas, the canvas scrolls by itself.
 
-**Quick add.** Press **Ctrl+K** or **/** on the canvas (or click **+ Quick add**). Type a few words, use the arrow keys
-and press Enter. The header tells you where the step goes ("after the selected step", "at the end" …).
+**Adding from the search.** Type a few words in **Search actions** at the top of the Actions panel and press Enter:
+the best match is added after the selected step (or at the end when nothing is selected).
 
 **Record or capture.** **Record**, **Capture** and **Capture desktop** add steps for what you do on screen (see
 [Web and desktop automation](10-web-and-desktop-automation.md)). The **Assistant** can also propose steps from a
@@ -329,6 +329,8 @@ In a step's **Error handling** section:
   but keeps long agents readable, and you can fold it.
 - **Notes**: **Add note…** in the step menu, or the **Note** field in **General**. The note replaces the settings
   summary on the card. Leave it empty to remove it.
+- **Rename a step**: select it and press **F2** (or choose **Rename** in the step menu). The cursor goes to **Shown on
+  the step** (under **Comment** in its settings, the step's note): type what the card should say.
 - **Comment** is a step that does nothing; use it for longer explanations.
 
 ## 11. Disable steps
@@ -346,10 +348,19 @@ Select steps and press **Ctrl+/** (or **Disable** in the toolbar or step menu). 
   even after reloading Studio.
 - Script and Prompt Skill editors have **Copy as an agent step**: open an agent and press Ctrl+V to add the step.
 
-## 13. Undo and redo
+## 13. Find and replace, undo and redo
 
-**Undo** (Ctrl+Z, ↶) and **Redo** (Ctrl+Y or Ctrl+Shift+Z, ↷) cover your last 100 changes to the open agent. Undo history
-starts again when you open another agent.
+**Find and replace** changes the same text in many steps at once, for example a folder path or a sheet name.
+
+1. Press **Ctrl+H** (or choose **Find and replace…** in the steps toolbar's **More step actions** menu).
+2. Type the text in **Find** and the new text in **Replace with**. Studio looks in the steps' settings, outputs and
+   names, not in step ids or actions.
+3. Tick **Match case** to find only the same capitals. When steps are selected, tick **Only the n selected steps (and
+   the steps inside them)** to leave the rest of the agent alone; otherwise the whole agent is searched.
+4. The dialog shows how many places it found. Press **Replace all**. The toast says how many places changed.
+
+**Undo** (Ctrl+Z, ↶) and **Redo** (Ctrl+Y or Ctrl+Shift+Z, ↷) cover your last 100 changes to the open agent, a whole
+**Replace all** included. Undo history starts again when you open another agent.
 
 ## 14. A worked example
 

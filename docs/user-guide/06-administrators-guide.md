@@ -6,8 +6,9 @@ manage licences and answer to auditors.
 **You need:** the **Administrator** role, or a custom role with the permissions named in each section. The
 administrator-only permissions are `repo.production`, `repo.approve`, `repo.permissions`, `lifecycle.export`,
 `lifecycle.import`, `queues.all`, `teams.manage`, `users.manage`, `devices.manage`, `lockers.manage`,
-`globals.manage`, `audit.view`, `pools.manage`, `settings.manage`, `connections.manage`, `toolkits.manage` and
-`skills.all`.
+`globals.manage`, `audit.view`, `pools.manage`, `settings.manage`, `connections.manage`, `toolkits.manage`,
+`skills.all`, `alerts.manage`, `insights.design` (make, share and e-mail dashboards) and `insights.admin` (savings and
+the yearly goal in **Business > Value**).
 
 ## Contents
 
@@ -20,7 +21,7 @@ administrator-only permissions are `repo.production`, `repo.approve`, `repo.perm
 7. [Credential vault](#7-one-agent-vault)
 8. [Shared Global values and Connections](#8-shared-values-and-connections)
 9. [Toolkits](#9-toolkits)
-10. [The agent repository: folders, approvals, Git, code analysis](#10-the-agent-repository-folders-approvals-git-code-analysis)
+10. [The agent repository: folders, approvals, Git and policies](#10-the-agent-repository-folders-approvals-git-and-policies)
 11. [Templates](#11-templates)
 12. [Settings](#12-settings)
 13. [Licences and seats](#licences-and-seats)
@@ -57,7 +58,8 @@ A checklist for a production One CommandCenter:
    every network card; one made with `ooa service install` needs `--host 0.0.0.0`.
 5. Run `bin\ooa.bat check`. Fix every **FAIL**.
 6. Set the **Public address of One CommandCenter** in Settings (needed for single sign-on redirects).
-7. Set up backups, e-mail, password rules and two-step sign-in in **Settings** (section 12).
+7. Set up backups, e-mail, password rules and two-step sign-in in **Settings** (section 12). Give the install an
+   **Environment name** (for example *Production*, in red) so nobody mistakes it for a test install.
 8. Install the licence and give out seats (section 13).
 
 ### HTTPS and network access
@@ -108,7 +110,11 @@ password, Disabled), **Default runner** (a drop-down), **Last sign-in**.
   name.
 - Click a person (with `audit.view`) to see their details and **Recent activity** from the audit trail.
 
-Five wrong passwords lock an account for 15 minutes.
+By default, five wrong passwords in a row lock an account for 15 minutes; you can change both numbers in **Settings >
+Sign-in and security > Lockout**. **Reset password** unlocks the account at once.
+
+People can also arrive without being added here: from Active Directory or LDAP at their first sign-in, or from your
+identity provider through SCIM (section 5). Their role then comes from their groups.
 
 ## 3. Roles and permissions
 
@@ -133,8 +139,8 @@ of users.
 Roles in use cannot be deleted. Rules that name a role, such as `role:invoice_clerk` in folder permissions, vault
 folders, work queues, workflow tasks and model connections, apply to everyone with that role as main or further role.
 
-**Switching off built-in roles**: in **Settings > Security**, tick **Switch off Agent builder**, **Switch off Agent
-operator** or **Switch off Viewer** for roles you do not use. They then grant nothing and cannot be given; people who
+**Switching off built-in roles**: in **Settings > Sign-in and security > Built-in roles in use**, switch off the roles
+you do not use (Agent builder, Agent runner, Viewer). They then grant nothing and cannot be given; people who
 still have one keep only their other roles. Administrator cannot be switched off.
 
 ## 4. Teams
@@ -152,22 +158,54 @@ who leads a team, and a lead sees the teams they are in.
 
 ## 5. Sign-in and security
 
-All in **Administration > Settings** unless stated; press **Save settings** at the bottom.
+All in **Administration > Settings > Sign-in and security** unless stated. Change the values, then press **Save Sign-in
+and security** in the bar that appears (section 12). The defaults keep the behaviour of earlier versions, so nothing
+changes until you change it.
 
-### Password rules (Security)
+### Sessions
 
-| Field | Meaning |
+| Setting | Meaning |
 | --- | --- |
-| **Shortest password (characters)** | 12 to 64 (12 by default) |
-| **Passwords that cannot be used again** | The last N passwords (0 = no rule) |
-| **Change passwords every (days)** | 0 = never. Someone whose password expired must choose a new one before anything else |
+| **Sign-in session length** | How long a sign-in lasts, in hours: 8 by default, up to 720 |
 | **Sign-ins per person at once** | Sessions per person (5 by default); the oldest end first |
-| **Sign-in session length (hours)** | 8 by default, up to 720 |
-| **Disable users inactive for (days)** | 0 = never |
+| **Disable people inactive for** | Accounts nobody has used for this many days are switched off (0 = never) |
+| **Sign out after no activity for** | Signs people out of the console after this many minutes without a key press, click or scroll; the sign-in page then tells them why (0 = never) |
+
+### Password rules
+
+| Setting | Meaning |
+| --- | --- |
+| **Shortest password** | 12 to 64 characters (12 by default). Letters and digits are always needed |
+| **Passwords that cannot be used again** | The last N passwords a person used (0 = no rule) |
+| **Change passwords every** | In days; 0 = never. Someone whose password expired must choose a new one before anything else |
+| **Warn before a password must change** | This many days before, a warning at the top of the console offers **Change it now** (needs **Change passwords every**) |
+| **Keep a new password at least** | Days before a new password can be changed again, so nobody cycles back to an old one (a reset or an expired password can always be changed) |
+| **Upper- and lower-case letters** | New passwords need both |
+| **A symbol, such as ! or #** | New passwords need a character that is not a letter or a digit |
+
+New rules apply to new passwords; passwords people have now keep working until they are changed. Single sign-on and
+directory users are not affected by password rules.
+
+### Lockout
+
+**Lock an account after** a number of wrong passwords or two-step codes in a row (5 by default; 0 never locks, which
+makes guessing easier), and **Keep it locked for** a number of minutes (15 by default). **Reset password** on the Users
+page unlocks an account at once.
+
+### The sign-in page
+
+- **Notice on the sign-in page**: text shown before anyone signs in, for example terms of use or "This system is for
+  authorised use only".
+- **People accept the notice to sign in**: people must tick **I have read and accept this** before the sign-in and
+  single sign-on buttons work. One AgentStudio asks for the tick too when it connects.
+- The **Environment name** (Settings > General, section 12) is shown on the sign-in page as well.
+
+### Network
+
+| Setting | Meaning |
+| --- | --- |
 | **IP allow list** | Addresses or CIDR ranges (`10.0.0.0/8, 203.0.113.7`). Empty lets every address in; this computer is always allowed |
 | **Trusted proxies** | The addresses or CIDR ranges of your load balancers and reverse proxies (`10.0.5.10, 10.0.6.0/24`). Requests through them are counted under the client's own address (from `X-Forwarded-For`) for the allow list, the sign-in limits and the audit trail. Leave empty when nothing sits in front of One CommandCenter |
-
-Single sign-on users are not affected by password rules.
 
 ### Two-step sign-in (MFA)
 
@@ -179,11 +217,14 @@ which also clears it).
 
 ### Single sign-on with OpenID Connect
 
+These settings are in **Settings > Single sign-on**.
+
 1. In your identity provider (Microsoft Entra ID, Okta, Google, Keycloak ...) register an application with the
    redirect address shown in Settings: `<public address>/api/auth/sso/callback`.
 2. Store its client secret in a vault folder.
-3. Fill in **Issuer URL**, **Client id**, **Client secret (vault reference folder/credential/attribute)**, **Role for new
-   people** (empty = existing accounts only) and **Button text**.
+3. Fill in **Issuer URL**, **Client id**, **Client secret** (a vault reference, folder/credential/attribute) and
+   **OpenID Connect button text**, and under **New people and groups** the **Role for new people** (empty = existing
+   accounts only).
 4. Save. The sign-in page shows the button. At first sign-in an existing account with the same verified e-mail or
    user name is linked; otherwise a new account is made with the role for new people. Signature, issuer, audience,
    expiry and a one-time nonce are checked, with PKCE.
@@ -192,25 +233,99 @@ which also clears it).
 
 1. Give the identity provider (Entra ID, Okta, ADFS ...) the metadata address `<public address>/api/auth/saml/metadata`
    (sign-in address `/api/auth/saml/acs`).
-2. Fill in **Identity provider sign-in address (SAML SSO URL)**, **Identity provider entity id (issuer)**,
-   **This One CommandCenter's entity id** (empty = the metadata address), **Button text** and **Identity provider
-   signing certificate (PEM)**.
+2. Fill in **Identity provider sign-in address**, **Identity provider entity id** (its issuer),
+   **This One CommandCenter's entity id** (empty = the metadata address), **SAML button text** and **Identity provider
+   signing certificate** (PEM).
 3. Have the provider sign the assertion or the response, and not encrypt it: encrypted assertions are refused.
    Sign-ins must start at One CommandCenter's sign-in page.
 
+### Groups to roles
+
+**Settings > Single sign-on > New people and groups > Groups to roles** gives people their role from the groups they
+are in, at every sign-in. Write one line per group, `group = role`, for example:
+
+```
+OOA Admins = admin
+Finance Automation = bot_runner
+```
+
+The first line that matches wins. The same list is used for single sign-on, Active Directory or LDAP, and SCIM. Every
+role named must exist.
+
+### Sign-in with Active Directory or LDAP
+
+People can sign in on the normal sign-in page with their Windows (directory) user name and password. Their password
+stays in the directory: One CommandCenter only asks the directory whether it is right.
+
+1. Ask your directory team for a **read-only service account** and put its password in a vault folder.
+2. Make sure the Java of One CommandCenter trusts the certificate of your domain controllers (the connection is
+   encrypted, `ldaps://`).
+3. In **Settings > Single sign-on > Active Directory or LDAP**, fill in:
+
+   | Setting | Example | Meaning |
+   | --- | --- | --- |
+   | **Directory addresses** | `ldaps://dc1.corp.example.com:636 ldaps://dc2.corp.example.com:636` | One or more addresses; the next is tried when one does not answer. Empty switches directory sign-in off |
+   | **Where people are found** | `DC=corp,DC=example,DC=com` | The base of the search |
+   | **Service account** | `svc-ooa@corp.example.com` | The account that finds people; it only reads |
+   | **Service account password** | `directory/svc-ooa/password` | A vault reference |
+   | **Search filter** | `(\|(sAMAccountName={0})(userPrincipalName={0}))` | `{0}` is the user name the person types. Empty: the Windows account name or the user principal name |
+   | **User name from** | `sAMAccountName` | The attribute a new account is named after |
+   | **Groups inside groups count** | On | Active Directory only: groups that are members of a mapped group count too |
+
+4. Fill in **Groups to roles** (above) with the directory groups and the roles they give.
+5. Press **Save Single sign-on**.
+6. Check it: type a user name in the box beside **Test the directory** and press the button. It says whether the
+   directory answered, who it found, their groups, and the role they would get. With the box empty it only checks that
+   the service account can sign in.
+
+The sign-in page then says that Windows (directory) user names and passwords work. The first time someone in a mapped
+group signs in, they get an account with their name and e-mail address from the directory. Someone in no mapped group
+cannot sign in. Things to know:
+
+- Local accounts (such as the first administrator) keep signing in with their own password.
+- An account you switched off here stays off, even if the directory password is right.
+- Wrong passwords count towards the lockout. Two-step sign-in works as for local accounts.
+- When the directory cannot be reached, sign-in fails; the local password is never used instead.
+
+### SCIM provisioning: people and groups from your identity provider
+
+With SCIM, your identity provider (Microsoft Entra ID, Okta and others) creates people in One CommandCenter, changes
+them, switches them off when they leave, and sends their groups. You no longer add people by hand.
+
+1. Open **Settings > Single sign-on** and scroll to **SCIM provisioning**. It shows the address to give the identity
+   provider: `<public address>/scim/v2`.
+2. Type the name of the identity provider (for example `Entra ID`) and press **Make a SCIM token**.
+3. The token is shown **once**: copy it into the identity provider's provisioning settings at once, with the address,
+   and press **Done**. Only a fingerprint of it is kept.
+4. In **Groups to roles** (above), give the groups the identity provider sends the roles they should give. Without a
+   matching group, people get the **Role for new people**; with neither, their account stays switched off.
+5. Start provisioning in the identity provider.
+
+People made by SCIM sign in with single sign-on (OpenID Connect or SAML), so set that up too. Things to know:
+
+- Removing a person in the identity provider switches their account off here and ends their sign-ins; their history
+  stays.
+- SCIM only sees and changes the accounts it made itself. Local and administrator accounts cannot be read, changed or
+  switched off by it, and their user names cannot be taken.
+- The list of tokens shows who made each one, when, and when it was last used. **Revoke** stops a token at once.
+- The **IP allow list** applies to SCIM calls too: allow your identity provider's addresses.
+
 ### Other security switches
 
-- **Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads**.
-- **Approval before production** (section 10).
-- **Audit forwarding (SIEM)**: **Syslog target (host:port)** and **Protocol** (UDP or TCP); every audit entry is also
-  sent as an RFC 5424 syslog message. **Send a test message** checks it.
-- **Announcement for all users**: a banner for everyone, for example before maintenance.
+- **Block programs and scripts in uploads** (.exe, .dll, .ps1 and similar) and **Approval before production**: in
+  Settings > Agents and repository (section 10).
+- **Audit forwarding to a SIEM** by syslog or HTTPS: in Settings > E-mail, proxy and SIEM (section 12).
+- **Announcement**: a banner for everyone, for example before maintenance (Settings > General).
 
 ## 6. API keys and tokens
 
 Each person makes their own keys in the user menu > **API keys** > **New key**: a **Name** and **Valid for** (30 days,
 90 days, 1 year, never). The key (`ooak_...`) is shown once; only a hash is stored. Systems call the API with
 `Authorization: Bearer ooak_...`, with that person's permissions. **Revoke** stops a key at once.
+
+To limit how long keys live, set **Settings > Sign-in and security > Longest an API key may last** (in days, up to
+730). A new key asked for with no end, or with a longer one, then gets this lifetime. Keys made earlier keep theirs.
+0 leaves the choice to each person (up to 730 days, or no end).
 
 For other systems that prefer short-lived tokens: `POST /api/auth/token` with `{"api_key": "ooak_..."}` returns a
 session token (8 hours, extended while used); `POST /api/auth/refresh` replaces it; `GET /api/auth/token` tells
@@ -323,9 +438,9 @@ Several versions stay installed side by side; agents get the newest version thei
 jar's checksum and signature before loading it (`RUN.TOOLKIT_LOAD` otherwise). A trusted publisher's code runs with
 the runner's rights: trust only code you would install yourself.
 
-## 10. The agent repository: folders, approvals, Git, code analysis
+## 10. The agent repository: folders, approvals, Git and policies
 
-These are in **Build > Agent Repository**; builders use it daily (see
+The agent repository is the **Public** tab of **Build > Automation**; builders use it daily (see
 [15 Publishing](15-publishing-to-command-center.md)). Administrator tasks:
 
 - **Folder permissions** (needs `repo.permissions`): choose a folder, press **Folder permissions**, add roles
@@ -333,50 +448,128 @@ These are in **Build > Agent Repository**; builders use it daily (see
   check in, delete)** or **Manage (also live version and labels)**. The nearest folder with permissions decides; a
   folder with permissions shuts out everyone it does not name; folder access never grants what the role does not
   allow.
-- **Approval before production** (Settings > Security): a version then goes live only after a second person with
+- **Approval before production** (Settings > Agents and repository): a version then goes live only after a second person with
   `repo.approve` approves it. Requests appear under **Production approvals (n waiting)**, with **Approve**, **Reject**
   and **Withdraw**; nobody decides their own request.
 - **Set as production** in **Versions** (needs `repo.production`) picks the live production version directly when
   approval is off.
 - **Export / promote** and **Import** (need `lifecycle.export` and `lifecycle.import`) move agents between Command
-  Centers as checked bundles.
+  Centers as checked bundles. To stop agents being promoted anywhere but your own test and production installs, list
+  their addresses in **Settings > Agents and repository > Promote agents only to** (separated by commas). Any other
+  address is then refused (`CR.TARGET_NOT_ALLOWED`) and the attempt is recorded in the Audit Trail.
 - **Delete** on an agent is refused while a schedule, trigger, work queue or API task uses it; the message names
   them (for example "API task Invoice lookup"). Change or delete those first.
 - **Deleted agents** brings deleted agents back (**Recover**).
-- **Code analysis** sets the rules every check-in is checked against, each on or off and **Error** or **Warning**, and
-  **Refuse check-ins that have errors**. **Report for all agents (CSV)** downloads the findings.
-- **Git sync of the agent repository** (Settings): **Remote**, **Branch**, **User name**, **Access token (vault
-  reference)** and **Push after every check-in, production change and deletion**; **Save and sync now** pushes at once.
-  One CommandCenter stays the source of truth: changes made in Git are overwritten.
+- **Code analysis** and **AI guardrails** are policies given to folders: see [Policies](#policies-code-analysis-and-ai-guardrails)
+  below.
+- **Git copy of the agent repository** (Settings > Agents and repository): **Git remote**, **Git branch**, **Git user
+  name**, **Git access token** (a vault reference) and **Push to Git after every change** (after every check-in,
+  production change and deletion); **Sync Git now** pushes at once. One CommandCenter stays the source of truth:
+  changes made in Git are overwritten.
+
+### Policies: code analysis and AI guardrails
+
+**Administration > Policies** holds rules that agents follow, set once and given to folders. There are two kinds:
+
+| Kind | What it sets | When it applies |
+| --- | --- | --- |
+| **Code analysis policy** | The rules agents are checked against (each used or not, an **Error** or a **Warning**, some with a setting such as the most steps an agent may have), and **Refuse check-ins that have errors** | At every check-in and analysis |
+| **AI guardrails policy** | **Mask personal data before it reaches a model**, **Models agents may use**, and a **Content check** on answers | At every AI step, when the agent runs |
+
+A folder follows its own policy of each kind, or else the nearest folder above it that has one; a folder can have one
+policy of each kind. Folders with no code analysis policy anywhere above them follow **Default code analysis**, which
+cannot be deleted (change its rules to change the default). The page is in the menu for people with `settings.manage`,
+who make and change policies.
+
+**Make a policy:**
+
+1. Press **Create policy ▾** and choose **Code analysis policy** or **AI guardrails policy**.
+2. On the **Rules** tab, give a **Name** and **What it is for**, then:
+   - for code analysis: tick the rules to use, choose **Error** or **Warning** for each, and decide on **Refuse
+     check-ins that have errors** (an agent with an error finding then cannot be checked in to these folders; warnings
+     are only shown);
+   - for AI guardrails: tick **Mask personal data before it reaches a model** (the data is replaced with placeholders
+     before it reaches a model and put back in the answer; AI steps cannot switch it off), and under **Personal data to
+     mask** tick the kinds to mask:
+
+     | Kind | Masks |
+     | --- | --- |
+     | **Names and places** | People's names and places. Needs a Presidio analyzer address on the model connection (section 15) |
+     | **E-mail addresses and phone numbers** | Contact details |
+     | **Card numbers and bank accounts (IBAN)** | Payment details |
+     | **Government ids (social security numbers)** | Identity numbers |
+     | **IP addresses** | Network addresses |
+
+     All kinds are ticked at first; keep at least one, or switch masking off. Then tick the **Models agents may use**
+     (none ticked: any model; a step that asks for another model stops with a clear message), and choose the **Content
+     check**: **Off**, **Log only** (a harmful answer is noted in the run log) or **Block** (the step stops). The content
+     check uses the model provider's moderation service (OpenAI and Azure OpenAI).
+3. On the **Folders** tab, choose a folder and press **Add folder** for each folder the policy applies to. Folders below
+   them follow it too.
+4. Press **Create policy** (or **Save changes** later). It is used from the next check-in, analysis or run; every
+   change is recorded in the Audit Trail.
+
+**See what an AI guardrails policy did.** Open a saved AI guardrails policy and choose its **What it stopped** tab.
+Pick a period (the last 7, 30 or 90 days, or the last year). It shows:
+
+- **Steps stopped**, with a list of each one: when, the agent, why (**A model not allowed** or **An answer flagged as
+  harmful**) and a link to the run;
+- **AI calls with personal data masked** and **Pieces of personal data masked**, with a table of how many of each kind
+  (e-mail addresses, phone numbers, card numbers, bank accounts, social security numbers, IP addresses, names, places).
+
+The list shows each policy's **Kind**, **Folders it applies to** and **What it does**; filter it by **Kind** or search
+it. **Report (CSV)** checks every agent against its folder's policy and downloads one line per finding. **Delete…** in
+a policy's **⋯** menu asks first; its folders then follow the nearest policy above them, or the default.
 
 ## 11. Templates
 
 **Build > Templates** lists ready-made agents. **Install** (needs `lifecycle.import`) puts a template's agents into a
 folder (default `Templates`); every agent is checked first and nothing is installed unless all pass. The catalogue is
-signed by ONEOFFICEAUTOMATION; a changed one is refused. **Settings > Template catalogue** sets another https address,
+signed by ONEOFFICEAUTOMATION; a changed one is refused. **Settings > General > Template catalogue** sets another https address,
 or `off`. Without internet access, download `templates.json` from the releases page and use **Upload a catalogue
 file**.
 
 ## 12. Settings
 
-**Administration > Settings** (needs `settings.manage`) is one long page; press **Save settings** at the end.
+**Administration > Settings** (needs `settings.manage`) has its sections down the left side. Each section saves on its
+own:
 
-| Group | What you set |
-| --- | --- |
-| General | Announcement; inactive-user days; **Sign-in session length**; **Largest upload (MB)** (25 by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval (seconds)**; **Minutes saved per successful run** (the default for Home's "hours saved"); **Public address of One CommandCenter** |
-| Single sign-on | OpenID Connect and SAML 2.0 (section 5) |
-| Git sync | Section 10 |
-| AI assistants (Model Context Protocol) | **Agents offered as tools** (paths, or `*`), **Runner or runner pool id**, **Wait for a result (seconds)**, **Token audience** and **Scope** for OAuth sign-in. Assistants connect to `/api/mcp` with a user's API key |
-| Security | Section 5, plus **Update runners automatically**, **Remove temporary runners after this many hours without contact** (8 by default) and **Give runners a new secret every (days)** (30 by default) |
-| Outgoing connections | **Proxy (http://host:port)** and **Reach these directly** for One CommandCenter's own connections (single sign-on, Git, AI, external vaults). Runners have their own proxy (`ooa agent network`) |
-| Audit forwarding (SIEM) | Section 5 |
-| E-mail | **Outgoing mail server**, **Port**, **Security** (STARTTLS, SSL/TLS, None on a trusted network only), **Account**, **Password (vault reference)**, **Sender address**, **Also send licence reminders to**; **Send a test e-mail**. Used for licence reminders and workflow e-mail steps |
-| Several nodes | Lists the nodes and which one leads background work; **Shared folder for repository files** (for example `\\fileserver\ooa\repo-files`). Every node needs the same `OOA_MASTER_KEY` |
-| Template catalogue | Section 11 |
-| Backups | **Back up every (hours, 0 = never)**, **Keep backups for (days)** (7 by default), **Backup folder**; **Back up now**. One zip holds every table, the repository files and the configuration, never the vault key |
-| Run history | **Keep step logs for**, **Keep runs for**, **Keep audit entries for** (at least 90 days, older ones archived to `audit-archive`), **Keep AI call records for**, **Keep finished work-queue items for** (0 = always); **Remove now** |
-| This One CommandCenter | Edition, limits, active users, runners, agents and toolkits (read only) |
-| Database | Engine, server, database, account, encryption, schema version, size (read only; changed with `ooa db`) |
+1. Click a section, or type in **Find a setting** to search every section by name, hint or setting key (for example
+   `password_min_length`).
+2. Change the values. A changed row shows what it was, and a bar appears with the number of changes.
+3. Press **Save** *section* in the bar, or **Undo changes**. Every change is recorded in the Audit Trail.
+
+The **i** after the page title, after each section and after each group opens help on every setting. The buttons that
+test something (**Send a test e-mail** and the like) use the saved settings, so save first.
+
+| Section | Group | What you set |
+| --- | --- | --- |
+| **General** | For everyone | **Announcement** (a banner for everyone); **Public address** of One CommandCenter (for sign-in redirects and links in e-mails) |
+| | This environment | **Environment name** (for example *Development*, *Test* or *Production*) and **Environment colour** (blue, green, amber, red or grey), shown in the top bar and on the sign-in page so nobody changes production by mistake; **Time zone for new schedules** (such as `Asia/Kolkata`; empty: each person's own; existing schedules keep theirs) |
+| | Limits | **Largest upload** (25 MB by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval** |
+| | Value of automation | **Minutes saved per successful run** (for agents without their own), **Cost of an hour of the manual work** and **Currency**, used by Home and **Business > Value** |
+| | Templates | **Template catalogue** (section 11) |
+| **Sign-in and security** | | Sessions, passwords, lockout, the sign-in page, API keys, two-step sign-in, network and built-in roles (sections 3, 5 and 6) |
+| **Single sign-on** | | OpenID Connect, SAML 2.0, Active Directory or LDAP, groups to roles and SCIM provisioning (section 5) |
+| **Runner Machines** | Updates and secrets | **Update runners automatically**, **Give runners a new secret every** (days), **Remove temporary runners after** (hours without contact) |
+| | Limits | **Take no new work above this CPU use** and **... memory use** (%) |
+| | Registration and connections | **New runners may register** (off: registration keys stop working until it is on again; runners already registered keep working); **Runners connect only over HTTPS** (set up HTTPS first; this computer's own runner always may) |
+| | Runs, triggers and work queues | **Refuse runs for a runner that is offline** (off: the run waits until the runner is back; runs for a pool still go to any online runner of the pool); **Switch a trigger off after** a number of failed runs in a row (the reason is shown on Triggers; 0 = never); **Mark work items abandoned after** a number of hours in progress (they are marked failed, so they can be retried; 0 = never) |
+| | Screens | **Pictures of a runner's screen** (administrators may ask for one, each recorded in the Audit Trail); **Screenshots when a step fails** (switch it off where screens show private data; the run log then says no picture was taken) |
+| **Agents and repository** | Rules | **Approval before production**, **Block programs and scripts in uploads**, **Promote agents only to** (section 10) |
+| | Git copy | Section 10 |
+| | Files | **Shared folder for repository files**, for several nodes (for example `\\fileserver\ooa\repo-files`) |
+| **AI assistants (MCP)** | | **Agents offered as tools** (paths, or `*`), **Runner or runner pool id**, **Wait for a result**, **Token audience** and **Scope the token must carry** for OAuth sign-in. Assistants connect to `/api/mcp` with a person's API key |
+| **E-mail, proxy and SIEM** | E-mail | **Outgoing mail server**, **Port**, **Security** (STARTTLS, SSL/TLS, None on a trusted network only), **Mail account**, **Mail account password** (a vault reference), **Sender address**, **Also send licence reminders to**; **Send a test e-mail** |
+| | Notifications | **E-mail people when a run they started fails** (the person who started it, or who made its schedule, gets the agent, the reason and a link); **E-mail people when a workflow gives them a task** (forms and approvals; a task for a role goes to each person in it, tasks for everyone stay in the inbox only). People need an e-mail address on their account |
+| | Proxy | **Proxy for outgoing connections** and **Reach these directly**, for One CommandCenter's own connections (single sign-on, Git, AI, external vaults). Runners have their own proxy (`ooa agent network`) |
+| | SIEM | **Syslog target** (`host:port`) and **Syslog protocol** (UDP or TCP); **HTTPS collector** (an address that takes every audit entry as JSON, such as Splunk's HTTP Event Collector, Microsoft Sentinel, Elastic or QRadar), **Collector token** (a vault reference) and **Collector sign-in** (**Bearer token** or **Splunk HTTP Event Collector**). **Send a test syslog message** and **Send a test SIEM entry** check them |
+| **Data retention and backups** | Keep history | **Keep step logs for**, **Keep runs for**, **Keep audit entries for** (at least 90 days, older ones archived to `audit-archive`), **Keep AI call records for**, **Keep finished work-queue items for** (0 = always); **Remove old runs now…** asks first, and uses the saved numbers |
+| | Backups | **Back up every** (hours, 0 = never), **Keep backups for** (7 days by default), **Backup folder**; **Back up now**. One zip holds every table, the repository files and the configuration, never the vault key |
+| **This One CommandCenter** | | The database (engine, server, name, account, encryption, schema version, size; changed with `ooa db`) and the nodes, with the one that leads background work. Every node needs the same `OOA_MASTER_KEY` |
+
+The new settings of November 2026 start with the behaviour of earlier versions (for example, registration open,
+screenshots on, nothing refused or switched off), so an upgrade changes nothing until you change a setting.
 
 Backups from the command line: `ooa backup now`, `ooa backup list`, and with the server stopped
 `ooa backup restore FILE` (`--replace` to overwrite). Restore refuses a backup made with another vault key.
@@ -440,6 +633,10 @@ workflow event is recorded and hash-chained.
   also compares with `audit-checkpoints.log` in the data folder (written every hour; copy it to write-once storage),
   so deleting the newest records is found too.
 
+For a summary (who acted, sign-ins and failed sign-ins, what failed or was refused, the busiest day) open
+**Operational Insights > Operations > Audit**; its **Open in Audit Trail** brings you back here with the same filters.
+To keep a copy outside One CommandCenter, forward every entry to your SIEM by syslog or HTTPS (section 12).
+
 ## 15. AI: model connections, Prompt Skills and AI governance
 
 **AI > Model Connections** (needs `connections.manage`):
@@ -459,7 +656,11 @@ change anyone's skills.
 
 **AI > AI governance** (needs `audit.view`) shows every AI call over 7, 30, 90 days or a year: calls, tokens, calls
 with personal data masked, calls where the AI used tools, average answer time, **By model**, **By agent** and **Recent
-AI calls** with the prompt's fingerprint (SHA-256). Prompts are never stored.
+AI calls** with the prompt's fingerprint (SHA-256). Prompts are never stored. **Operations > AI usage** opens the same
+page.
+
+To set masking, the models allowed and a content check for all the agents of a folder, use an **AI guardrails**
+policy (section 10). It wins over a connection's own content check.
 
 ## 16. Languages
 
@@ -477,6 +678,13 @@ available. Names, ids, data, code and server messages are not translated.
 | Licence refused with `LICENSE.OTHER_INSTALL` | It was issued for another install id |
 | Licence refused with `LICENSE.DB_REQUIRED` | Move to SQL Server first |
 | Single sign-on fails | Check the **Public address**, the redirect address registered with the provider, and the client secret's vault reference |
+| A directory user cannot sign in: `LDAP.NO_ROLE` | They are in no group listed in **Groups to roles**. Add the group, or add them to a listed group. **Test the directory** shows their groups |
+| Directory sign-in fails with `LDAP.UNREACHABLE` | No domain controller answered over `ldaps://`. Check **Directory addresses**, the network, and that Java trusts the controllers' certificate |
+| The identity provider's SCIM sync reports a name already taken (409) | A local account already has that user name; SCIM never takes over local accounts. Rename one of them |
+| A new runner cannot register: `CR.REGISTRATION_CLOSED` | Switch on **New runners may register** in Settings > Runner Machines |
+| Runners are refused with `CR.HTTPS_REQUIRED` | **Runners connect only over HTTPS** is on: point the runners at the `https://` address ([07 Runner guide](07-runner-guide.md)) |
+| Promotion is refused with `CR.TARGET_NOT_ALLOWED` | The target is not in **Promote agents only to**; add it there if it is right |
+| An AI step stops with `AI.MODEL_NOT_ALLOWED` | The folder's AI guardrails policy does not allow that model connection. Tick it in the policy, or change the step |
 | An upload is refused as too large | Raise **Largest upload (MB)** |
 | Moving to a new server | Copy the data (or point at the same database), keep the same vault key, then run `ooa agent move --url ...` on each runner ([07](07-runner-guide.md)) |
 

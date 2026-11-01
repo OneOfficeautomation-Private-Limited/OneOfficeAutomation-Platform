@@ -195,17 +195,33 @@ The entries are greyed out while a run is going on ("A run is already in progres
 
 ## 10. Local triggers
 
-The **Triggers** panel (lightning icon) starts agents automatically while Studio is running, for testing:
+Workspace triggers start the open agent automatically while Studio is running, for testing. They are on the
+**Triggers** tab of the **Details** panel on the right:
 
-1. Under **New trigger**, give a **Name**, choose the **Agent** and **When**:
-   - **File arrives in a folder**: **Folder** and **File pattern** (for example `*.pdf`);
-   - **Schedule**: **Every (minutes)** or **Or daily at** `HH:mm`;
-   - **Local webhook**: Studio shows the secret once ("Webhook secret (copy it now):"). Callers POST to
-     `/api/hooks/<id>` with the header `X-OOA-Secret`.
-2. Click **Add trigger**.
-3. Each trigger has an **On** tick, **Run now** (test it) and **Delete**. **Recent activity** lists what fired.
+1. Open the agent, then open **Details > Triggers**.
+2. Under **New trigger**, choose **Start it**:
+   - **On a schedule**: **Every (minutes)**, or **Or daily at** a time such as `08:30`;
+   - **When a file arrives in a folder**: **Folder** and **Files** (for example `*.pdf`);
+   - **When a web address is called (webhook)**: Studio shows the secret once. Callers POST to `/api/hooks/<id>` with
+     the secret in the header `X-OOA-Secret`.
+3. Click **Add trigger**.
+4. Each trigger's **⋯** menu has **Run now** (test it), **Switch off** / **Switch on** and **Delete…** (asks first).
 
-Triggers for production belong in One CommandCenter (see [Publishing to One CommandCenter](15-publishing-to-command-center.md)).
+### Triggers in the Actions panel
+
+The triggers that can start an agent are listed beside its actions: the **Actions** panel on the left has a
+**Triggers** group (search for `trigger` to find it). It has three parts:
+
+| Part | What a click does |
+| --- | --- |
+| **In this workspace** (On a schedule, When a file arrives in a folder, When a web address is called) | Opens **Details > Triggers** with that kind already chosen, to add a workspace trigger as above |
+| **One CommandCenter: on the runner (after check-in)** (file and folder events, windows, processes, services, hotkeys) | Opens One CommandCenter's **Create trigger** in a new tab, with this agent and that event filled in |
+| **One CommandCenter: on One CommandCenter (after check-in)** (new e-mail, ServiceNow records, the universal poller, webhooks) | The same |
+
+One CommandCenter's triggers start the agent's checked-in live version on a runner, so check the agent in first (see
+[Publishing to One CommandCenter](15-publishing-to-command-center.md)). Studio must be connected to One CommandCenter;
+if it is not, the toast says so. Triggers for production belong in One CommandCenter
+([05 Operator's guide](05-operators-guide.md#6-triggers)).
 
 ## 11. If it goes wrong
 

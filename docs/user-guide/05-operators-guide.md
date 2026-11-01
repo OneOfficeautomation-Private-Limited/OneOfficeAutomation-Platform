@@ -20,14 +20,15 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 8. [Workflow and the Task inbox](#8-one-workflow-and-the-task-inbox)
 9. [Agent APIs](#9-api-tasks)
 10. [Agent tests](#10-agent-tests)
-11. [Operations: how agents ran](#11-operations-how-agents-ran)
-12. [Dashboards and business figures (KPIs)](#12-dashboards-and-business-figures-kpis)
+11. [Operational Insights: Overview, Alerts and Operations](#11-operational-insights-overview-alerts-and-operations)
+12. [Business: agents, value and dashboards](#12-business-agents-value-and-dashboards)
 13. [Handling failures](#13-handling-failures)
 14. [Related guides](#related-guides)
 
 ## 1. Your working day at a glance
 
-1. Open **Home**. Check **Failed (24 h)**, **Recent failures** and **Runners online**.
+1. Open **Home**, or **Operational Insights > Overview** for everything that needs attention in one list. Check
+   failed runs, open alerts and runners online.
 2. Open **Manage > Agent Runs**: the **Live** tab shows what runs now and what waits.
 3. Look at **Manage > Work queues** for items past their service level (a red "overdue" pill).
 4. Look at **Manage > Triggers** for any trigger whose **Status** is **error**.
@@ -344,36 +345,231 @@ runner or pool, and each case runs the live production version once. The test ru
 the cases ([04 Running and debugging](04-studio-running-and-debugging.md)); operators run them after changes to
 runners, toolkits or connected systems.
 
-## 11. Operations: how agents ran
+## 11. Operational Insights: Overview, Alerts and Operations
 
-**Insights > Operations** (needs `analytics.view`) summarises a period (**Last 24 hours**, **7 days**, **30 days**,
-**90 days**, **Last year**) for **All agents** or one:
+The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**
+(section 12) looks at what the work is worth.
 
-- figures for **Runs**, **Success rate** (succeeded, failed, stopped), **Run time** (total and average) and
-  **95% of runs finish within** (and the longest);
-- **How long runs take** (a distribution) and **Runs per day**;
-- **Agents run most**, **Agents that take longest (average)**, **Agents that fail most** (with failure rate and their
-  most common error codes);
+| Page | Tabs | What it tells you | You need |
+| --- | --- | --- | --- |
+| **Overview** | | How things stand now, and what needs attention | `analytics.view` |
+| **Alerts** | **Alerts**, **Rules** | Alerts raised by rules that watch runs, runners, work queues and AI budgets | `analytics.view`; rules need `alerts.manage` |
+| **Operations** | **Agents**, **Runners**, **Work queues**, **Audit**, **AI usage ↗** | How agents, runners and queues worked over a period, and who did what | `analytics.view`; **Work queues** also `queues.view`; **Audit** and **AI usage** `audit.view` |
+| **Business** | **Agents**, **Value**, **Dashboards** | The values agents return, the work they saved, your own dashboards | `analytics.view` |
+
+You only see the tabs your role allows. The open tab is part of the page's address (for example
+`#/operations?tab=runners`), so you can bookmark a tab or send a link to it, and the browser's Back button returns to
+the tab you came from. The pages that used to stand on their own are now tabs: **Runner capacity** is
+**Operations > Runners**, **Work queue insights** is **Operations > Work queues**, and **Value** and **Dashboards** are
+under **Business**. Old links and bookmarks still work and open the new tab.
+
+Every page has an **i** after its title that opens help on each figure and button.
+
+### Overview
+
+**Overview** shows on one screen, for the last **24 hours** or **7 days**: open alerts, runs going on and waiting, the
+share of finished runs that completed, failed runs, runners online, work queue items waiting and overdue, AI tokens used
+this month and hours saved. **Needs attention** lists everything to look at: open alerts, why runs failed (each error
+with its runs and agents), runners that are offline, out of service, over their CPU or memory limit or on an old
+OneRunner, and queues with overdue items. Click any figure, error or row to open the page behind it, already filtered.
+The page refreshes every 30 seconds.
+
+### Alerts
+
+An **alert rule** watches one thing and tells people when it happens: in their **Task inbox**, by e-mail, or by a
+webhook (for example to Teams or Slack).
+
+| Watch for | Clears |
+| --- | --- |
+| A run fails | When someone acknowledges it |
+| Too many runs fail (a share of finished runs over a time) | When the share drops again |
+| A run takes too long | When the run ends |
+| A runner stops reporting | When the runner reports again |
+| Work queue items are overdue | When no item is overdue |
+| An AI budget is nearly used | The next month |
+
+To make a rule (needs `alerts.manage`):
+
+1. Press **New alert rule**. Give a **Name** and choose **Watch for**.
+2. In **In**, choose the agent, runner, work queue or model connection to watch, or leave it at any.
+3. Change the limit if you like (for example **Running longer than (minutes)**), and choose the **Severity**:
+   **Warning** or **Critical**.
+4. Fill in who to tell: **People, in their task inbox** (`role:NAME` or `user:NAME`), **E-mail addresses** and a
+   **Webhook address**.
+5. Press **Make the rule**. Use **Send a test** in the rule's **⋯** menu to check the people and addresses get it.
+
+On the **Alerts** tab, tick open alerts and press **Acknowledge** to show that someone is on it. Filter by status,
+severity or rule. A new rule only counts what happens after it is made. The bell in the top bar shows how many alerts
+are open.
+
+### Operations > Agents: how agents ran
+
+**Agents** summarises a period, from the last 24 hours to the last year, for **All agents** or one, **All runners**
+or one, and runs **Started any way** or one way (schedule, trigger, work queue and so on):
+
+- the figures, in this order: **Runs**, succeeded (with the success rate), in progress or waiting, failed and stopped,
+  the average run time and **95% of runs finish within**, each compared with the period of the same length just before;
+- how long runs take (a distribution) and runs by week, split by how they ended;
+- **When runs start**: a grid of weekdays and hours in your time zone; darker means more runs, and hours with failed
+  runs are outlined;
+- **Why runs failed**, **Agents that fail most**, **Agents run most** and the agents that take longest, with their most
+  common errors;
 - **Runners** and **How runs were started**.
 
-Each table has a **CSV** button; **Run history CSV** downloads every run in the period. Click an agent's name for its
-**Statistics**: runs, success rate, average, 95% within, longest, last run, last failure, errors by code, runners and
-the **Outputs (variable profile)**: how often each output had a value, the range and the most common values. Only
-agents you may see are counted.
+Click a figure or an error to see those runs in **Agent Activity**. Each list has a **CSV** button; **Run history
+CSV** downloads every run of the period with the filters you chose. Click an agent's name for its **Statistics**:
+its errors, runners and the **variable profile** (for each output, how often it had a value, its most common values
+and, for numbers, the range and the average). Only agents you may see are counted.
 
-## 12. Dashboards and business figures (KPIs)
+### Operations > Runners
 
-**Insights > Dashboards** (needs `analytics.view`) shows figures your agents record. A builder ticks **Business
-figure (KPI)** on an output in Studio; each successful run then records its value.
+**Runners** shows, for the last 24 hours to 90 days, how much of your runners' time agents use and how long runs wait
+for a runner:
 
-1. Press **New dashboard**. Give a **Name**, **Share with** (`role:viewer`, `team:finance`, `user:jane`, `*` for
-   everyone with `analytics.view`, or empty for only you) and a **Description**.
-2. Edit **Widgets (JSON)**. An example is filled in. Each widget has a `title`; a `type` (`number`, `bars`, `line`
-   or `table`); a source: a KPI (`kpi` with `agg` `sum`, `avg`, `count`, `min`, `max` or `last`, optionally one
-   `bot`) or runs (`source: "runs"` with `metric` `runs`, `success_rate`, `failed`, `avg_seconds` or `hours_saved`);
-   a `group` (`day`, `week`, `month`, `agent`, or `value` with `by` for another KPI of the same run); and `days`
-   (1 to 365, 30 by default). The dialog lists the KPIs recorded so far.
-3. Press **Save**. Pick dashboards from the list at the top; **Edit** and **Delete** appear on ones you may change.
+- runners **Online now** and **Offline now**, and the **Schedules on** with the next one to run;
+- the share of runner time in use, busy hours (also as full-time people working 40 hours a week), runs waiting for a
+  runner now, and how long runs waited to start;
+- each runner with its state, pools, succeeded and failed runs, last run, most common error, busy time, average wait and
+  its CPU and memory now;
+- the most common errors on runners, a grid of when runners are busy, and busy hours per day.
+
+When runners are busy 80% of the time or more, or runs wait 10 minutes or longer, the page suggests adding a runner or
+moving schedules to quieter hours. A runner's **⋯** menu opens it on **Runner Machines** or shows its runs.
+
+### Operations > Work queues
+
+**Work queues** (also needs `queues.view`; only the queues you may see) shows, for the last 24 hours to 30 days, items
+waiting, overdue and at risk (waiting more than three quarters of the queue's target time), and per queue: the oldest
+waiting item, the shares completed and done in time, items an hour, handling time and wait, and the **Runners** needed
+to clear what waits in time next to the runners in its pool. Advice appears when processing is off while items wait,
+when a queue needs more runners than its pool has, or when items are overdue. Click a row for items added and finished
+per day and why items failed; **Open the queue** opens it in **Work queues**.
+
+### Operations > Audit
+
+**Audit** (needs `audit.view`) shows who did what over a period: the audit entries, the people who acted, sign-ins and
+failed sign-ins, actions not done (failed or refused) and the busiest day; entries by activity, by who and by result,
+and per day; and the latest 20 actions that failed or were refused. Click a bar to filter the page by it (**Who**,
+**Activity**, **Result**). **Open in Audit Trail** opens the Audit Trail with the same filters, to read each record or
+export them.
+
+### Operations > AI usage
+
+**AI usage ↗** opens **AI > AI governance**: every AI call, its tokens and cost, by model and by agent
+([06 Administrator's guide](06-administrators-guide.md#15-ai-model-connections-prompt-skills-and-ai-governance)).
+
+## 12. Business: agents, value and dashboards
+
+### Business > Agents: each agent's own dashboard
+
+A builder can mark an output of an agent as **Business figure (KPI)** in One AgentStudio, but every value an agent's
+runs return (its outputs) can be looked at here.
+
+1. Open **Operational Insights > Business**. The **Agents** tab lists every agent whose runs returned values in the
+   period, KPI-marked ones first. Choose the period, or search for an agent or a value.
+2. Click an agent. Its page has three tabs:
+   - **Dashboard**: made for you from its values: runs that returned values, the total of each number value, the first
+     one per day, how its runs ended, and each run's values (the latest 20; click a run to open it).
+   - **Data profile**: for each value, its kind (number, text, yes/no, list, record or mixed), how many runs returned
+     it, the smallest, largest, average and total, how many different values there were and the ten most common.
+   - **Compare**: this agent next to another agent in the same period, or next to itself in the period before.
+3. To keep the dashboard and change it, press **Make my own copy** (needs `insights.design`). It is saved under
+   **Business > Dashboards** as one of yours, with widgets over the agent's outputs.
+
+**Open in Automation** opens the agent in the repository.
+
+### Business > Value: the work your agents saved
+
+**Value** shows the manual work the agents' successful runs saved: **hours** (each successful run times its agent's
+minutes saved), **money** (hours times the cost of an hour of the manual work, set by an administrator in **Settings**
+with the currency) and **full-time people** (40 hours a week), each compared with the period before. Choose the
+period: the last 7, 30 or 90 days, the last year, or **This year** (from 1 January).
+
+Below the figures, three tabs:
+
+| Tab | One line per | Shows |
+| --- | --- | --- |
+| **By agent** | Agent | Runs, **Minutes a run**, **Cost of an hour**, **Estimated a month**, **Actual a month**, hours and money saved |
+| **By work queue** | Work queue | **Items done**, **Minutes an item**, **Cost of an hour**, hours and money saved |
+| **By folder** | Top folder | Runs, hours and money saved. Click a folder to see only its agents in **By agent** |
+
+A run counts once. Work done through a work queue counts each item at the queue's own minutes saved and cost of an
+hour when they are set, instead of the agent's, so nothing is counted twice.
+
+**Change the savings of an agent** (needs `insights.admin` or `repo.production`):
+
+1. On **By agent**, click the agent (or choose **Change savings…** in its **⋯** menu).
+2. Fill in **Minutes of manual work one successful run saves**, **Cost of an hour of that work** and **Runs a month
+   expected** (the number agreed when the agent was approved). Leave a box empty to use the default from Settings.
+3. Press **Save**. **Estimated a month** is then the expected runs times the minutes saved; **Actual a month** is what
+   its runs really saved, as a month, so you can see whether the agent meets its promise.
+
+**Change the savings of a work queue** (needs `insights.admin`): on **By work queue**, choose **Change savings…** in
+the queue's **⋯** menu and fill in **Minutes of manual work one item saves** and **Cost of an hour of that work**.
+
+**This year's goal** (needs `insights.admin`): press **Set the goal…** and give the **Hours of manual work to save this
+year**, the **Money to save this year**, or both. The card then shows how much of the goal is reached and where the
+present pace ends by 31 December. **Change the goal…** changes it.
+
+Hints appear under the figures while some agents count nothing (no minutes of their own and a default of 0) or no
+cost of an hour is set. Only agents you may see are counted.
+
+### Business > Dashboards
+
+**Dashboards** shows dashboards of widgets: your own and those shared with you. Pick one in the list at the top; beside
+it you see whose it is and who it is shared with. Making, changing, copying and e-mailing dashboards needs
+`insights.design` (administrators have it; a custom role can be given it).
+
+**Make a dashboard:**
+
+1. Press **New dashboard**. In **Start from**, choose **Nothing: add widgets myself** or a ready-made dashboard
+   (*Operations at a glance*, *Value*, or one over a business figure your agents record).
+2. Give a **Name**, **Share with** (`role:viewer`, `team:finance`, `user:jane`, `*` for everyone who may see
+   dashboards, or empty to keep it yours) and a **Description**.
+3. Press **Add a widget** and fill in the form:
+   - **Title** (empty: named after its figure) and **Show as**: a number, bars, a line, a table or a pie;
+   - **Figure from**: **The runs** (then **Figure**: how many ran, the success rate, failed runs, the average run time
+     or the hours saved), **A KPI agents record** (then the **KPI** and **Work out**: total, average, count, smallest,
+     largest or latest), or **An agent's output** (any output, KPI-marked or not, of the agent you choose);
+   - **Agent** (one, or all), **Split by** (day, week, month, agent or value) and **Days looked at** (1 to 365).
+   Press **Done**. Use each widget's **⋯** menu to change, move or remove it. **Edit as JSON** shows every widget as
+   text, to copy or change many at once.
+4. Press **Save**.
+
+Each widget has a **CSV** button for its figures. A pie shows the three largest parts and the rest as *Others*.
+
+The **⋯** menu next to the dashboard list has:
+
+| Entry | What it does |
+| --- | --- |
+| **Edit** | Change a dashboard you may change |
+| **Copy as mine** | Make your own copy of any dashboard you can see |
+| **Print or save as PDF** | Opens the browser's print window with only the dashboard, its name and the time. Choose **Save as PDF** there to keep or send it |
+| **E-mail it on a schedule…** | Sends the dashboard's figures to people by e-mail, with a PDF of them; see below |
+| **Delete…** | Deletes a dashboard you may change, after asking |
+
+**Send a link.** The address in the browser names the dashboard you are looking at
+(`#/business?tab=dashboards&dashboard=...`). Copy it and send it: anyone who may see the dashboard opens it directly.
+
+**E-mail a dashboard on a schedule** (needs e-mail set up by an administrator):
+
+1. Open the dashboard and choose **E-mail it on a schedule…** in the **⋯** menu.
+2. In **To**, give `user:NAME`, `role:NAME` or e-mail addresses, separated by commas (50 at most).
+3. Choose **How often**: **Each day**, **Each week** (with the weekday in **On**) or **Each month (the 1st)**; the time
+   in **At**; and the **Time zone**.
+4. Press **Add the e-mail**.
+
+Each e-mail holds every widget's figure (or its first ten parts) and a link to the dashboard, and carries the same
+figures as a PDF file, to keep or forward. The figures are worked out as the dashboard's maker sees them. The dialog lists each schedule with its next time and when it was last sent, or
+what went wrong. In a schedule's **⋯** menu, **Send now** sends it at once (a good test) and **Stop** ends it.
+
+### Figures for Power BI, Tableau or a data warehouse
+
+The same figures can be read by other tools through the **analytics data API**: every run (with its outputs), every
+business figure recorded and, with `audit.view`, the audit entries, a page at a time. A tool signs in with an API key of
+a person who may see the figures, and gets only the agents that person may see. Your administrator or developer sets
+it up; the calls are described in
+[Operations, audit and dashboards](../functional/11-operations-audit-and-dashboards.md#the-analytics-data-api).
 
 ## 13. Handling failures
 
@@ -406,6 +602,10 @@ figure (KPI)** on an output in Studio; each successful run then records its valu
 | Symptom | Likely cause |
 | --- | --- |
 | Runs stay **queued** on one runner | The runner is offline, disabled, or busy with a long run; check **Manage > Runners** |
+| A run for one runner is refused at once, saying the runner is offline | Your administrator has switched on **Refuse runs for a runner that is offline**. Start the runner, or send the run to a runner pool |
+| A trigger stopped by itself: "Switched off after n failed runs in a row" | Its last runs all failed, as many times in a row as your administrator allows. Fix the agent, then **Resume** the trigger |
+| A work item failed as abandoned | It stayed in progress longer than your administrator allows (for example after a runner crashed). Retry it |
+| A failed step has no screenshot | Your administrator has switched off **Screenshots when a step fails**, for example where screens show private data; the run log says so |
 | A runner shows "update One CommandCenter" in **Agent** | The runner is newer than One CommandCenter and gets no work until One CommandCenter is updated |
 | Scheduled runs never appear | The schedule is disabled, its owner is disabled, today is in its holiday calendar, or the agent has no live version |
 | A trigger shows **error** | Read **Monitoring**: often a wrong vault reference, a password change, or an unreachable server; fix it and press **Check now** |

@@ -55,15 +55,30 @@ The first time Studio starts with an empty workspace, it copies in the sample ag
 
 ## 3. The Automation home
 
-The home page (title **Automation**) lists every item in My Workspace.
+The home page is **Automation** (in the menu on the left: **Build > Automation**). As in One CommandCenter, it has two
+tabs:
+
+| Tab | What it holds |
+| --- | --- |
+| **Public** (left) | One CommandCenter's agent repository, shared with your team: the agents checked in, with their versions. Here you **Check out** an agent to change it. It needs a sign-in to One CommandCenter (when Studio runs on the same server, your browser's sign-in is used). |
+| **Private** (right) | Your own workspace on this computer (My Workspace): agents, workflows, forms, scripts and files, in folders. Only you see it until you check an item in. |
+
+The **Private** tab is for people who build agents. One CommandCenter's own **Automation** page has the same two tabs;
+its **Private** tab opens this page in One AgentStudio.
+
+On the **Private** tab:
 
 | Part | What it does |
 | --- | --- |
-| **Create** cards | One card per kind of item: **Agent**, **Agent from a blueprint**, **Headless API agent**, **Form**, **Workflow**, **Document intelligence**, **Prompt Skill** and **Python script**. |
-| Type chips | **All**, **Agents**, **Headless API agents**, **Forms**, **Workflows**, **Documents**, **Prompt Skills**, **Scripts**, **Files**. Each shows how many there are. Click one to filter. |
-| Search box | "Search by name or folder". |
-| Sort | **Recently changed**, **Name** or **Type**. |
-| Table | **Name**, **Type**, **Folder**, **Changed**, **Size**. Click a row (or press Enter on it) to open the item. |
+| Folders (left) | Pick a folder to see what is in it. The **⋮** at the top of the pane, or a right-click on a folder, has **New folder**, **Rename**, **Upload**, **Download as zip** and more. |
+| **Create ▾** | Makes a new item in the folder you picked: **Agent**, **AI agent**, **Workflow**, **Form**, **Document type**, **Prompt Skill**, **API agent**, **Python script** or **PowerShell script** (section 5). |
+| **Type** | Shows only one kind of item, such as Agents or Folders. **Type: Any** shows everything. |
+| **Columns** | Chooses the columns: **Type**, **Status**, **Platform**, **Version**, **Label**, **Code analysis**, **Size**, **Last modified** and **Modified by**. The ones from the repository show while you are signed in to One CommandCenter. |
+| Tick boxes | Tick items to act on several at once: a bar then offers **Copy**, **Cut**, **Duplicate**, **Rename** and **Delete**. |
+| **Status** | **New** (not in the repository yet), **Checked out** (yours to change; **Checked out · edited** once you changed it), **Checked in** (the same as in the repository), **Edited, not checked out** (check it out on the **Public** tab first; your changes are kept). |
+| **⋮** on a row | Everything you can do with that item, including **Check in**, **Undo check-out** and **Revert edits**. Right-click a row for the same menu. Click a row (or press Enter on it) to open the item. |
+
+The **i** after the page title explains each part.
 
 To come back to the home page at any time, click the **house** button in the top bar (Automation home) or the word
 **Automation** in the breadcrumb. If the open item has unsaved changes, Studio asks **Save changes?** with **Save**,
@@ -108,7 +123,7 @@ The rail on the far left switches the side panel:
 | **Explorer** (folder) | Your workspace as a tree, with **+ Create**, **+ Folder**, **Rename**, **Delete**, **↻** (Refresh) and **Agent check-in**. Below the tree: the workspace folder path and the **One CommandCenter** section. |
 | **Actions** (four squares) | Every action you can add, in groups under section headings (Flow and control, Data and variables, Office documents, Web and desktop, APIs and databases, AI and so on). |
 | **Variables** (braces) | The open agent's variables, grouped as **Inputs**, **Outputs**, **Inside the agent**, plus **System variables** and **Shared Global values**. |
-| **Triggers** (lightning) | Local triggers that start agents while Studio runs. |
+| **Triggers** (lightning) | Local triggers that start agents while Studio runs. With an agent open they are in **Details > Triggers**, and the Actions panel has a **Triggers** group that also reaches One CommandCenter's triggers (see [Running and debugging](04-studio-running-and-debugging.md#10-local-triggers)). |
 
 Click the active rail button again to hide the side panel.
 
@@ -167,26 +182,32 @@ The **Dock** list moves the dock: **Bottom**, **Right**, **Floating** (drag it b
 
 ### 5.1 Create an agent
 
-1. In the Explorer, select the folder where the agent should go (or nothing, for the top level).
-2. Click **+ Create** and choose **Agent** (or click the **Agent** card on the home page).
-3. Type a name in "Name of the new agent:" and press OK.
+1. On the **Automation** page (**Private** tab), pick the folder where the agent should go (or none, for the top of
+   the workspace).
+2. Press **Create ▾** and choose **Agent**. The **New agent** dialog opens.
+3. Type a **Name**. In **Start from**, keep **Blank agent** or choose a blueprint (type to search).
+4. **Folder** shows where the agent will go. To put it somewhere else, press **Change** and choose another folder from
+   the list (type to search; **Workspace** is the top). You do not have to close the dialog.
+5. Press **Create and edit**.
 
 **What you see:** the toast "Agent created", the new agent in the tree, and an empty canvas with the text "This agent
 has no steps yet. Drag an action here from Actions, click an action, or press Record." The side panel switches to
 **Actions**.
 
-The **+ Create** menu also offers:
+The **Create ▾** menu also offers (each opens the same kind of dialog, with **Change** for the folder):
 
 | Entry | Use it for |
 | --- | --- |
-| **Agent from a blueprint** | A ready-made pattern: Loop through a CSV file, Loop through Excel rows, Process every file in a folder, Call a REST API safely, Summarise a document with AI, Read text from a web page, Agent with error handling. |
-| **Headless API agent** | An agent that needs no desktop, for servers and containers. |
-| **Form** | A form people fill in (used by workflows and by the Interactive forms toolkit). |
-| **Workflow** | A chain of agents, forms, approvals, decisions and notifications. |
-| **Document intelligence** | Fields to extract from documents with AI (see [AI in agents](13-ai-in-agents.md)). |
-| **Prompt Skill** | A reusable, reviewed AI prompt. Prompt Skills always go into the `ai-skills` folder. |
-| **Python script**, **PowerShell script**, **VBScript**, **JavaScript** | A script file that agents run with the Scripts toolkit. |
-| **Folder** | A folder to organise items. |
+| **AI agent** | A goal; the model picks which of your agents to use (see [AI in agents](13-ai-in-agents.md)). |
+| **Workflow** | A chain of agents, people and approvals. |
+| **Form** | A screen people fill in or approve (used by workflows and by the Interactive forms toolkit). |
+| **Document type** | Fields to read from documents with AI (see [AI in agents](13-ai-in-agents.md)). |
+| **Prompt Skill** | A reusable, tested AI prompt. Prompt Skills always go into the `ai-skills` folder. |
+| **API agent** | An agent that runs on the server with no desktop. |
+| **Python script**, **PowerShell script** | A script file that agents call with the Scripts toolkit. |
+
+A blueprint (a ready-made pattern such as Loop through a CSV file or Agent with error handling) is chosen in the
+**New agent** dialog's **Start from**.
 
 ### 5.2 Create a folder
 
@@ -212,7 +233,7 @@ example "Delete 3 items".
 | Task | How |
 | --- | --- |
 | **Save** | Click **Save** or press Ctrl+S. The toast says "Saved <path>". When the agent still has problems it says "(n problem(s) to fix)" in red; the file is saved anyway. |
-| **Close** | Click ✕ in the top bar or press Ctrl+W. Unsaved changes: **Save changes?** |
+| **Close** | Click ✕ in the top bar. Unsaved changes: **Save changes?** (Ctrl+W is kept by the browser for closing its tab.) |
 | **Rename** | Select the item and click **Rename** (or press F2). Type the new name. The open agent follows the rename. |
 | **Copy to another folder** | Right-click > **Copy**, then right-click the target folder > **Paste**. |
 | **Duplicate** | Right-click > **Duplicate**. A duplicated agent gets its own agent id, so it does not clash with the original. |
@@ -251,7 +272,8 @@ that Studio cannot edit shows a toast with its size and the path agents use to r
   letters. Results show which parts matched; click one to open it.
 - **Search actions** (top of the Actions panel): type a word such as `pdf`, `email` or `click`. Groups open to show the
   matches. **Recently used** lists the last actions you added.
-- **Quick add** (Ctrl+K or `/` on the canvas): a search box that adds the chosen action where the canvas hint says.
+- **Enter in the search** adds the best match after the selected step (the same name, then a name starting with the
+  words, then the first found). Ctrl+K goes to the workspace search at the top, not to the actions.
 
 ## 9. Arrange the screen to suit you
 
@@ -289,6 +311,8 @@ the page has focus; text fields keep their own keys, and keys the browser keeps 
 | `[` or ← / `]` or → | Fold / unfold the selected block |
 | Ctrl+[ / Ctrl+] | Fold / unfold every block |
 | Ctrl+Shift+F | Find in this agent (the steps found are selected; Enter goes to the next) |
+| Ctrl+H | Find and replace in the steps' settings (the whole agent or the selected steps) |
+| F2 | Rename the selected step (its **Shown on the step** text) |
 | Ctrl+Shift+R | Record |
 | Shift+F10 or the menu key | Open the step's menu |
 | Ctrl+Space | Insert a variable in a field |

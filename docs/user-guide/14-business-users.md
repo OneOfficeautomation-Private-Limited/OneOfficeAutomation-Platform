@@ -45,8 +45,9 @@ You need an account in One CommandCenter (ask your administrator). You see only 
   **Due** (marked **Overdue** in red when late) and **Created** (on **Done**: **Outcome**);
 - **Search tasks**, and export of the list.
 
-Tasks reach you when they are assigned to you (`user:…`) or to one of your roles or teams. The page refreshes itself
-every few seconds. When nothing is waiting it says "Nothing waiting for you. ✨".
+Tasks reach you when they are assigned to you (`user:…`) or to one of your roles or teams. If your administrator has
+switched it on, a form or an approval given to you (or to your role) also arrives as an e-mail, at the address on your
+account; tasks for everyone stay in the inbox only. The page refreshes itself every few seconds. When nothing is waiting it says "Nothing waiting for you. ✨".
 
 Administrators also see a tick **Everyone's tasks** to look at all open tasks.
 
@@ -143,6 +144,9 @@ The assistant checks every 30 seconds and shows a Windows notification when:
 
 Click the notification (or the icon) to open the matching page in One CommandCenter: the Task inbox, or the runs.
 
+Your administrator can also have One CommandCenter e-mail you when a run you started fails (with the agent, the
+reason and a link to the run).
+
 ## 10. If it goes wrong
 
 | What you see | What to do |
@@ -154,7 +158,7 @@ Click the notification (or the icon) to open the matching page in One CommandCen
 | "Not started" with another reason | You may not run that agent, or you have no default runner. Ask your administrator. |
 | **Run an agent** shows "(no agents you may run)" | No agent with a live production version is shared with you. Ask the agent's owner. |
 | "The assistant needs a desktop with a notification area (Windows)." | The assistant runs only on Windows desktops; use One CommandCenter in the browser. |
-| The assistant stops working after a while | Your API key may have expired or been revoked. **Sign out**, create a new key, and sign in again. |
+| The assistant stops working after a while | Your API key may have expired or been revoked (your administrator may limit how long keys last). **Sign out**, create a new key, and sign in again. |
 
 ## Related guides
 

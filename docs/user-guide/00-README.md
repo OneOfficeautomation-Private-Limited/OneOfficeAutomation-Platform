@@ -42,8 +42,8 @@ recorded in the **Audit Trail**.
 | 02 | [Studio basics](02-studio-basics.md) | Builders | One AgentStudio's screen, workspace, explorer, actions, variables |
 | 03 | [Building agents in Studio](03-studio-building-agents.md) | Builders | Steps, conditions, loops, error handling, inputs and outputs, good practice |
 | 04 | [Running and debugging in Studio](04-studio-running-and-debugging.md) | Builders | Run, Debug, breakpoints, the run console, problems |
-| 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Runs, running and deploying agents, schedules, triggers, work queues, workflows, Operations, dashboards, handling failures |
-| 06 | [Administrator's guide](06-administrators-guide.md) | Administrators | Users, roles, teams, sign-in and security, API keys, the vault, shared values and connections, toolkits, templates, settings, licences, audit, AI governance |
+| 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Runs, running and deploying agents, schedules, triggers, work queues, workflows, Operational Insights (Overview, Alerts, Operations, Business: agents' dashboards, value, dashboards e-mailed on a schedule), handling failures |
+| 06 | [Administrator's guide](06-administrators-guide.md) | Administrators | Users, roles, teams, sign-in and security (password rules, lockout, Active Directory or LDAP, SCIM), API keys, the vault, shared values and connections, toolkits, policies (code analysis, AI guardrails), templates, settings, licences, audit, AI governance |
 | 07 | [Runner guide](07-runner-guide.md) | Runner owners, administrators | Installing and registering runners, attended and unattended work, screens, pools, updates, the notification-area assistant, diagnosing problems |
 | 08 | [Browser connector guide](08-browser-connector-guide.md) | Builders, runner owners | Installing the connector for Edge, Chrome and Firefox, checking it, what works where, troubleshooting |
 | 09 | [Child agents](09-child-agents.md) | Builders | Agents that call other agents, passing values, reuse |
