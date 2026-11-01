@@ -212,6 +212,17 @@ describe("new Studio", () => {
     expect(screen.queryByRole("complementary", { name: /^Help/ })).toBeNull();
   });
 
+  it("has a menu on every folder in the tree, with Rename and Delete for that folder", async () => {
+    render(<App api={fakeServer().api} />);
+    const tree = await screen.findByRole("tree", { name: "Folders" });
+    fireEvent.keyDown(within(tree).getByRole("button", { name: "Actions for folder Finance" }), { key: "Enter" });
+    const menu = await screen.findByRole("menu", { name: "Actions for folder Finance" });
+    expect(within(menu).getByRole("menuitem", { name: /Rename…/ })).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Rename…/ }));
+    expect(await screen.findByRole("dialog", { name: /Rename Finance/ })).toBeTruthy();   // that folder, not the one chosen in the tree
+  });
+
   it("creates in AA's order: folder, then Create, then the type, then the name", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);

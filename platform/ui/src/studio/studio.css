@@ -559,3 +559,11 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 8px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-selected); color: var(--ui-text); }
 .st-ask > span { flex: 1 1 200px; }
 .st-var-row .st-tool, .st-trigger-list .st-tool { flex: none; }
+
+/* narrow lists (item 2, 1 Nov 2026): the ⋮ column stays at the list's right edge, and Changed, then Type, give way */
+.st-items { container-type: inline-size; }
+.st-items .st-row-actions, .st-items .st-cr-row-acts, .st-items thead th:last-child { position: sticky; right: 0; background: var(--ui-bg); box-shadow: -1px 0 0 var(--ui-divider); }
+.st-items tbody tr:hover .st-row-actions, .st-items tbody tr:hover .st-cr-row-acts { background: var(--ui-row-hover); }
+.st-items tbody tr.is-selected .st-row-actions, .st-items tbody tr.is-selected:hover .st-row-actions { background: var(--ui-selected); }
+@container (max-width: 560px) { .st-col-changed { display: none; } }
+@container (max-width: 420px) { .st-col-type { display: none; } }

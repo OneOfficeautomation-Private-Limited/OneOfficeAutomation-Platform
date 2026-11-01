@@ -141,3 +141,13 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-help-item { padding: 9px 14px; border-bottom: 1px solid var(--ui-border); }
 .ui-help-item strong { display: block; margin-bottom: 2px; }
 .ui-help-item p { margin: 0; color: var(--ui-text); }
+
+/* a ⋮ on each tree item (item 2, 1 Nov 2026): shown on the chosen item, on hover and while focused or open */
+.ui-tree-acts { margin-left: auto; display: inline-flex; opacity: 0; }
+.ui-tree-item:hover .ui-tree-acts, .ui-tree-item:focus-within .ui-tree-acts, .ui-tree-item.is-selected .ui-tree-acts,
+  .ui-tree-acts:has([data-state="open"]) { opacity: 1; }
+.ui-tree-more { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; display: inline-flex;
+  align-items: center; justify-content: center; cursor: pointer; }
+.ui-tree-more:hover { background: var(--ui-row-hover); color: var(--ui-text); }
+.ui-tree-item.is-selected .ui-tree-more:hover { background: rgba(255, 255, 255, 0.22); color: #ffffff; }
+.ui-tree-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }

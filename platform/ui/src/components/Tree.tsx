@@ -8,9 +8,10 @@ export type TreeNode = { id: string; label: string; children?: TreeNode[] };
  * goes to the parent, Enter or Space selects. Only open folders' children are shown. Optionally a menu on right-click
  * (or the menu key), folders that can be dragged, and folders that take a drop.
  */
-export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, renderIcon, onMenu, canDrag, onDragStart, onDrop }:
+export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, renderIcon, renderActions, onMenu, canDrag, onDragStart, onDrop }:
   { nodes: TreeNode[]; selected: string; expanded: Set<string>; onSelect: (id: string) => void; onToggle: (id: string) => void; label: string;
-    renderIcon?: (n: TreeNode, isSelected: boolean) => ReactNode; onMenu?: (id: string, e: MouseEvent | KeyboardEvent) => void;
+    renderIcon?: (n: TreeNode, isSelected: boolean) => ReactNode; renderActions?: (n: TreeNode) => ReactNode;
+    onMenu?: (id: string, e: MouseEvent | KeyboardEvent) => void;
     canDrag?: (id: string) => boolean; onDragStart?: (id: string, e: DragEvent) => void; onDrop?: (id: string, e: DragEvent) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, ren
             </span>
             {renderIcon?.(node, isSel)}
             <span className="ui-tree-label">{node.label}</span>
+            {renderActions && <span className="ui-tree-acts" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{renderActions(node)}</span>}
           </div>
         );
       })}

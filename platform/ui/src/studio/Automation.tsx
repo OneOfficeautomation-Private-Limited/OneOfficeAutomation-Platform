@@ -198,20 +198,26 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       onSelect: () => act.remove(list.map((p) => find(tree, p)!).filter(Boolean)) });
     return items;
   };
-  const folderItems: MenuItem[] = [
-    { key: "new", label: "New folder in it", onSelect: () => onNewFolder(folder) },
-    { key: "upload", label: "Upload files…", description: "From this computer into this folder", onSelect: () => act.upload(folder) },
-    { key: "download", label: "Download as zip", onSelect: () => act.download(folder) },
-    { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(folder) },
-    ...(clip ? [{ key: "paste", label: "Paste here", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => { act.paste(folder); } }] : []),
-    ...(folder ? [
-      { key: "rename", label: "Rename…", onSelect: () => setRenaming(folderNode) },
-      { key: "copy", label: "Copy", separatorBefore: true, onSelect: () => act.copy([folder]) },
-      { key: "cut", label: "Cut", onSelect: () => act.cut([folder]) },
-      { key: "dup", label: "Duplicate", onSelect: () => act.duplicate([folder]) },
-      { key: "delete", label: "Delete", separatorBefore: true, onSelect: () => onDelete([folderNode]) },
-    ] : []),
-  ];
+  /** A folder's menu: in the pane's header (the chosen folder), and on each folder in the tree (that folder). */
+  const folderItemsFor = (path: string): MenuItem[] => {
+    const node = find(tree, path) ?? tree;
+    return [
+      { key: "new", label: "New folder in it", onSelect: () => onNewFolder(path) },
+      { key: "upload", label: "Upload files…", description: "From this computer into this folder", onSelect: () => act.upload(path) },
+      { key: "download", label: "Download as zip", onSelect: () => act.download(path) },
+      { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(path) },
+      ...(clip ? [{ key: "paste", label: "Paste here", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => { act.paste(path); } }] : []),
+      ...(path ? [
+        { key: "rename", label: "Rename…", shortcut: "F2", onSelect: () => setRenaming(node) },
+        { key: "copy", label: "Copy", separatorBefore: true, onSelect: () => act.copy([path]) },
+        { key: "cut", label: "Cut", onSelect: () => act.cut([path]) },
+        { key: "dup", label: "Duplicate", onSelect: () => act.duplicate([path]) },
+        { key: "delete", label: "Delete", separatorBefore: true, onSelect: () => onDelete([node]) },
+      ] : []),
+    ];
+  };
+  const folderItems = folderItemsFor(folder);
+  const [treeMenu, setTreeMenu] = useState<string | null>(null);   // the folder whose ⋮ in the tree is open
 
   return (
     <section className="st-page" aria-labelledby="st-page-title" onKeyDown={keys}>
@@ -246,7 +252,11 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                 <Icon name="more" size={14} stroke={3} /></button>} />
           </>}>
           <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
-            onMenu={(id) => { setFolder(id); setFolderMenu(true); }}
+            onMenu={(id) => setTreeMenu(id)}
+            renderActions={(n) => <Menu label={"Folder " + (n.id ? n.label : "Workspace") + " menu"} title={n.id ? n.label : "Workspace"} items={folderItemsFor(n.id)}
+              open={treeMenu === n.id} onOpenChange={(o) => setTreeMenu(o ? n.id : null)}
+              trigger={<button type="button" className="ui-tree-more" aria-label={"Actions for folder " + (n.id ? n.label : "Workspace")} title="Folder actions (right-click)">
+                <Icon name="more" size={14} stroke={3} /></button>} />}
             canDrag={(id) => id !== ""} onDragStart={(id, e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify([id])); e.dataTransfer.effectAllowed = "move"; }}
             onDrop={dropOn}
             renderIcon={(_, sel) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
@@ -277,7 +287,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
           </div>}
           <table className="st-table">
             <thead><tr><th scope="col" className="st-tick"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
-              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col">Type</th>{repo && <th scope="col">Status</th>}<th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col" className="st-col-type">Type</th>{repo && <th scope="col">Status</th>}<th scope="col" className="st-col-changed">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {listed.map(({ node: n, why }) => {
                 const isSel = selected.includes(n.path);
@@ -297,9 +307,9 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                       ? <button type="button" className="st-link" onClick={(e) => { if (!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.stopPropagation(); onOpen(n); } }}>{displayName(n)}</button>
                       : <span>{displayName(n)}</span>}</span>
                       {q && <div className="st-item-path">{parentOf(n.path) || "Workspace"}</div>}</td>
-                    <td>{n.type === "folder" ? "Folder" : typeLabel(n)}</td>
+                    <td className="st-col-type">{n.type === "folder" ? "Folder" : typeLabel(n)}</td>
                     {repo && <td>{(() => { const s = statusOf(n); return s && <span className={"st-pill st-status is-" + s} title={STATUS[s][1]}>{STATUS[s][0]}</span>; })()}</td>}
-                    <td>{q ? why : n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
+                    <td className="st-col-changed">{q ? why : n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
                     <td className="st-row-actions" onClick={(e) => e.stopPropagation()}>
                       <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path}
                         onOpenChange={(o) => { if (o && !isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(o ? n.path : null); }}
