@@ -90,8 +90,16 @@ const SECTIONS: Section[] = [
     { title: "Limits", settings: [
       { key: "runner_cpu_max", label: "Take no new work above this CPU use", hint: "0 = no limit.", unit: "%", kind: "number", min: 0, max: 100 },
       { key: "runner_mem_max", label: "Take no new work above this memory use", hint: "0 = no limit.", unit: "%", kind: "number", min: 0, max: 100 }] },
+    { title: "Registration and connections", settings: [
+      { key: "runner_registration_open", label: "New runners may register", hint: "Off: registration keys stop working until it is on again.", kind: "check" },
+      { key: "runner_require_https", label: "Runners connect only over HTTPS", hint: "This computer's own runner always may.", kind: "check" }] },
+    { title: "Runs, triggers and work queues", settings: [
+      { key: "runs_refuse_offline_runner", label: "Refuse runs for a runner that is offline", hint: "Off: the run waits until the runner is back.", kind: "check" },
+      { key: "trigger_max_failures", label: "Switch a trigger off after", hint: "Failed runs in a row. 0 = never.", unit: "failed runs", kind: "number", min: 0, max: 100 },
+      { key: "queue_abandon_hours", label: "Mark work items abandoned after", hint: "In progress this long without an answer. 0 = never.", unit: "hours", kind: "number", min: 0, max: 720 }] },
     { title: "Screens", settings: [
-      { key: "runner_screen_pictures", label: "Pictures of a runner's screen", hint: "Administrators may ask for one; each is recorded in the Audit Trail.", kind: "check" }] },
+      { key: "runner_screen_pictures", label: "Pictures of a runner's screen", hint: "Administrators may ask for one; each is recorded in the Audit Trail.", kind: "check" },
+      { key: "runner_error_screenshots", label: "Screenshots when a step fails", hint: "Off: Catch blocks that ask for one get none.", kind: "check" }] },
   ] },
   { id: "agents", title: "Agents and repository", mark: "A", colour: "#2f6fde", about: "Rules for what goes into the agent repository and into production, and its copy in Git.", groups: [
     { title: "Rules", settings: [

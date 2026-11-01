@@ -103,6 +103,8 @@ public final class RunWorker {
                 .service("prompt_skills", (java.util.function.Supplier<Object>) () -> skills)
                 // the folder's AI guardrails (Administration > Policies): masking, models allowed, content check
                 .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
+                // Settings: no pictures of the screen when a step fails
+                .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.

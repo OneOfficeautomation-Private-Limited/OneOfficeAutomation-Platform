@@ -51,6 +51,12 @@ export const SETTING_HELP: Record<string, string> = {
   temporary_runner_hours: "Temporary runners, such as cloud machines started for a busy hour, are removed after this many hours without contact, so the list stays clean.",
   runner_cpu_max: "A runner busier than this (in %) takes no new work until it drops below. Use it so agents do not slow down other programs on shared machines; 0 means no limit.",
   runner_mem_max: "A runner using more memory than this (in %) takes no new work until it drops below. 0 means no limit.",
+  runner_registration_open: "Lets new runners register with a registration key. Switch it off to stop new machines joining, for example outside a planned roll-out; runners already registered keep working.",
+  runner_require_https: "Runners may connect only over an encrypted HTTPS address, so their traffic cannot be read on the network. A runner on this computer always may. Set up HTTPS for One CommandCenter first.",
+  runs_refuse_offline_runner: "A run asked for a runner that is offline is refused at once with a clear message, instead of waiting until the runner comes back. Runs for a pool still go to any online runner of the pool.",
+  trigger_max_failures: "A trigger whose last runs all failed this many times in a row is paused, with the reason shown on Triggers, so a broken agent does not run again and again. 0 never pauses triggers.",
+  queue_abandon_hours: "A work item still in progress after this many hours is marked failed as abandoned, so it can be retried, and the queue's figures stay true. 0 leaves items in progress.",
+  runner_error_screenshots: "Runners take a picture of the screen when a step fails and its Catch block asks for one. Switch it off where screens show private data; the run log then says no picture was taken.",
   runner_screen_pictures: "Lets administrators ask a runner for a picture of its screen, to see why an agent is stuck. Every picture is recorded in the Audit Trail. Switch it off where screens show private data.",
   // Agents and repository
   production_approval: "A second person must approve each new version before it becomes the live version that runs, schedules and triggers use. The request waits in Automation until someone approves it.",

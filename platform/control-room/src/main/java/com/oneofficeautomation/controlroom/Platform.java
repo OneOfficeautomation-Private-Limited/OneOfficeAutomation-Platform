@@ -108,6 +108,13 @@ public final class Platform {
         DEFAULTS.put("signin_notice", "");              // shown on the sign-in page (terms of use, a consent statement)
         DEFAULTS.put("signin_notice_accept", 0);        // people tick it before they can sign in
         DEFAULTS.put("api_key_max_days", 0);            // the longest an API key may last; 0: up to 730 days, or no end
+        // runners and runs (Settings item 4, batch 2)
+        DEFAULTS.put("runner_registration_open", 1);    // new runners may register with a key
+        DEFAULTS.put("runner_require_https", 0);        // runners connect only over HTTPS (this computer always may)
+        DEFAULTS.put("runs_refuse_offline_runner", 0);  // a run for a runner that is offline is refused instead of waiting
+        DEFAULTS.put("trigger_max_failures", 0);        // a trigger is switched off after this many failed runs in a row; 0: never
+        DEFAULTS.put("queue_abandon_hours", 0);         // a work item in progress longer than this is marked failed (abandoned); 0: never
+        DEFAULTS.put("runner_error_screenshots", 1);    // runners take a picture of the screen when a step fails (a Catch block asks)
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -149,7 +156,13 @@ public final class Platform {
         Map.entry("lockout_minutes", new long[] { 1, 1440 }),
         Map.entry("idle_minutes", new long[] { 0, 1440 }),
         Map.entry("signin_notice_accept", new long[] { 0, 1 }),
-        Map.entry("api_key_max_days", new long[] { 0, 730 }));
+        Map.entry("api_key_max_days", new long[] { 0, 730 }),
+        Map.entry("runner_registration_open", new long[] { 0, 1 }),
+        Map.entry("runner_require_https", new long[] { 0, 1 }),
+        Map.entry("runs_refuse_offline_runner", new long[] { 0, 1 }),
+        Map.entry("trigger_max_failures", new long[] { 0, 100 }),
+        Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
+        Map.entry("runner_error_screenshots", new long[] { 0, 1 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;

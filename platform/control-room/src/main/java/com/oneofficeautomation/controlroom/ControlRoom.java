@@ -1164,6 +1164,10 @@ public final class ControlRoom {
     }
 
     public Map<String, Object> registerDevice(String key, String name, String hostname, String os, String agentVersion, String ip) {
+        if (platform.intSetting("runner_registration_open") == 0) {
+            audit.record("agent:" + hostname, "device.register", "device", name, "registrations are closed in Settings", "failed", ip);
+            throw new OoaException("CR.REGISTRATION_CLOSED", "New runners cannot register now", "An administrator opens registrations in Settings > Runner Machines.");
+        }
         return db.tx(() -> {
             Map<String, Object> k = key == null ? null : db.one("SELECT * FROM registration_keys WHERE key_hash = ?", Security.sha256(key));
             if (k == null || k.get("used_by") != null || Instant.parse(k.get("expires").toString()).isBefore(now())) {
@@ -1414,9 +1418,13 @@ public final class ControlRoom {
         if (serverlessRun) serverless.check(flow);
         if (runMode.equals("headless") && flow.get("requires") instanceof Map<?, ?> req && req.get("capabilities") instanceof List<?> caps && caps.contains("desktop"))
             throw new OoaException("CR.BAD_INPUT", "This agent needs a desktop, so it cannot run headless", "Run it unattended or attended.");
-        Map<String, Object> dev = db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
+        Map<String, Object> dev = db.one("SELECT enabled, last_seen, name FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw notFound("Runner " + deviceId);
         if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled");
+        // Settings: a run for a runner that is offline is refused, rather than waiting for it (AA's "when the default device is down")
+        if (!serverlessRun && platform.intSetting("runs_refuse_offline_runner") == 1
+                && (dev.get("last_seen") == null || Instant.parse(dev.get("last_seen").toString()).isBefore(now().minus(Duration.ofMinutes(2)))))
+            throw new OoaException("CR.RUNNER_OFFLINE", "The runner " + dev.get("name") + " is offline, so the run was not started", "Start the runner, or choose another runner or a pool.", true, null);
         licensing.requireRunnable(deviceId, runAs != null && !runAs.isBlank() ? runAs : requestedBy, source);
         Map<String, Object> clean = new LinkedHashMap<>();
         Map<String, Map<String, Object>> declared = new HashMap<>();
@@ -1711,6 +1719,7 @@ public final class ControlRoom {
             if (!skills.isEmpty()) job.put("skills", skills);
             Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
             if (guardrails != null) job.put("guardrails", guardrails);
+            if (platform.intSetting("runner_error_screenshots") == 0) job.put("error_screenshots", false);   // Settings: no pictures of the screen
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
             return job;
         }
@@ -1775,7 +1784,35 @@ public final class ControlRoom {
         if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
+    }
+
+    /**
+     * Settings: a trigger whose last trigger_max_failures runs all failed is switched off (paused) with the reason, as
+     * UiPath's "disable a trigger after N failed jobs", so a broken agent does not run again and again.
+     */
+    void switchOffFailingTrigger(String triggerId) {
+        int most = platform.intSetting("trigger_max_failures");
+        if (most <= 0) return;
+        List<Map<String, Object>> last = db.query("SELECT status FROM runs WHERE source = ? AND status IN ('success', 'failed', 'stopped') ORDER BY created DESC LIMIT " + Math.min(most, 100),
+                "trigger:" + triggerId);
+        if (last.size() < most || last.stream().anyMatch(x -> !"failed".equals(x.get("status")))) return;
+        if (db.update("UPDATE triggers SET enabled = FALSE, last_error = ? WHERE id = ? AND enabled = TRUE",
+                "Switched off after " + most + " failed runs in a row (Settings)", triggerId) > 0)
+            audit.record("system", "trigger.switched_off", "trigger", triggerId, Map.of("failed_runs", most), "ok", null);
+    }
+
+    /** Settings: work items in progress longer than queue_abandon_hours are marked failed as abandoned (UiPath's abandoned items). */
+    void abandonStaleItems() {
+        int hours = platform.intSetting("queue_abandon_hours");
+        if (hours <= 0) return;
+        Instant cutoff = now().minus(Duration.ofHours(hours));
+        String error = JsonLite.write(Map.of("code", "QUEUE.ABANDONED", "message", "In progress for more than " + hours + " hours without an answer",
+                "suggestedFix", "Check the runner and the agent, then retry the item."));
+        for (Map<String, Object> i : db.query("SELECT id FROM queue_items WHERE status = 'in_progress' AND updated < ?", cutoff))
+            if (db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ? AND status = 'in_progress'", error, now(), now(), i.get("id")) > 0)
+                audit.record("system", "queue.item_abandoned", "queue_item", (String) i.get("id"), Map.of("hours", hours), "ok", null);
     }
 
     /** Posts the run result to the caller's callback URL in the background (3 attempts); failures are audited, never raised. */
@@ -1972,6 +2009,7 @@ public final class ControlRoom {
         }
         platform.disableInactiveUsers();
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

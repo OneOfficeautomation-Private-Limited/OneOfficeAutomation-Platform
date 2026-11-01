@@ -186,6 +186,16 @@ class CoreOptionsTest {
                "catch":[{"as":"err","screenshot":"shots/fail.png","children":[]}]}]}""");
         ok(r2);
         assertNull(((Map<String, Object>) r2.outputs().get("err")).get("screenshot"));
+        // One CommandCenter's Settings switched error screenshots off: the Catch gets none, and the capture is never asked
+        List<Path> none = new ArrayList<>();
+        Runner off = Runner.builder(registry()).workDir(w).service("error_screenshots", false).service("screen_capture", (Runner.ScreenCapture) none::add).build();
+        RunResult r3 = run(off, """
+            {"kind":"TaskBot","id":"t","name":"t","variables":[{"name":"err","type":"Dictionary","direction":"output"}],
+             "steps":[{"id":"try","action":"core/try","children":[{"id":"boom","action":"core/throw","args":{"code":"X","message":"m"}}],
+               "catch":[{"as":"err","screenshot":true,"children":[]}]}]}""");
+        ok(r3);
+        assertNull(((Map<String, Object>) r3.outputs().get("err")).get("screenshot"));
+        assertTrue(none.isEmpty());
     }
 
     @Test void catchCanRethrowAndIgnoreItsOwnErrors() {

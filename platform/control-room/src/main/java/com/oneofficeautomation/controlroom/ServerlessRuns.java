@@ -142,6 +142,7 @@ public final class ServerlessRuns {
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
                 .service("prompt_skills", (java.util.function.Supplier<Object>) () -> job.getOrDefault("skills", Map.of()))
                 .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
+                .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("confine_paths", Boolean.TRUE)
                 .principal(String.valueOf(job.getOrDefault("principal", "agent"))).build();
             RunResult result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),

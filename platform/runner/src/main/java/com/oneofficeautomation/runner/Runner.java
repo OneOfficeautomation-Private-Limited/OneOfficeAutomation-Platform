@@ -983,6 +983,7 @@ public final class Runner {
 
         /** Screenshot for a Catch block; never fails the Catch. Returns the file path, or null when no picture could be taken. */
         String screenshot(Object option, String stepId) {
+            if (Boolean.FALSE.equals(services.get("error_screenshots"))) { log("info", "Error screenshots are switched off in One CommandCenter's Settings", stepId); return null; }
             Object v = resolve(option);
             String name = v instanceof String s && !s.isBlank() && !s.equalsIgnoreCase("true") ? s
                     : "screenshots/" + runId + "_" + stepId + "_" + System.currentTimeMillis() + ".png";

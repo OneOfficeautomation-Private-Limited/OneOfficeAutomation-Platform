@@ -431,6 +431,9 @@ public final class ControlRoomServer {
 
         // ---------- agents ----------
         if (seg[0].equals("agent")) {
+            // Settings: runners connect only over HTTPS; a runner on this computer always may
+            if (cr.platform.intSetting("runner_require_https") == 1 && !overHttps(ex) && !ex.getRemoteAddress().getAddress().isLoopbackAddress())
+                throw new OoaException("CR.HTTPS_REQUIRED", "Runners connect to One CommandCenter only over HTTPS", "Point the runner at the https:// address of One CommandCenter.");
             if (m.equals("POST") && route.equals("agent/register")) {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, cr.registerDevice((String) b.get("key"), (String) b.get("name"), (String) b.get("hostname"), (String) b.get("os"), (String) b.get("agent_version"), ip));
