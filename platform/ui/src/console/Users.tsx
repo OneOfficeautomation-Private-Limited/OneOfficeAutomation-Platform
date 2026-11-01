@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { ROLE_NAMES, roleName } from "./roleNames";
 
 /**
@@ -21,7 +21,6 @@ type Col = { key: string; label: string; cell: (u: CrPerson, runner: string) => 
 /** The status shown: disabled, locked (after failed sign-ins), new password needed, or active. */
 const stateOf = (u: CrPerson) => !u.enabled ? "disabled" : u.locked_until && new Date(u.locked_until).getTime() > Date.now() ? "locked" : u.must_change ? "pending" : "active";
 const STATUS: Record<string, string> = { active: "Active", pending: "New password needed", locked: "Locked", disabled: "Disabled" };
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 function ago(t?: string | null) {
   if (!t) return "";
   const s = Math.max(0, Math.round((Date.now() - new Date(t).getTime()) / 1000));

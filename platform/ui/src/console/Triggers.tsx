@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 
 /**
@@ -15,7 +15,6 @@ import { KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
  */
 const kindName = (k: string) => KINDS[k]?.label ?? k;
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const health = (t: Trigger) => t.status === "error" || t.last_error ? "error" : t.enabled ? "listening" : "paused";
 const HEALTH: Record<string, string> = { listening: "Listening", paused: "Paused", error: "Error" };

@@ -23,6 +23,8 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
  * A row click opens the row, unless it landed on a tick box, a button or a link inside it, or outside the row: a row
  * menu's items sit in a portal, and React passes their clicks up to the row too.
  */
+/** A time in a list, short so rows stay on one line at 1366 px (the same in the Private workspace's lists). */
+export { listTime as when } from "../studio/columns";
 export const rowClick = (open: () => void) => (e: { target: EventTarget; currentTarget: EventTarget }) => {
   const t = e.target as HTMLElement;
   if ((e.currentTarget as Node).contains(t) && !t.closest("input, button, a, select")) open();

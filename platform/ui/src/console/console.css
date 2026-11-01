@@ -130,6 +130,8 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-myvalue { margin: 4px 0; }
 .cc-test { margin-top: 8px; flex-wrap: wrap; }
 .cc-clip { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-clip.cc-clip-sm { max-width: 220px; }
+@media (max-width: 1440px) { .cc-list-table .cc-wide-only { display: none; } }   /* columns that are also on another page */
 .cc-meter { display: inline-block; width: 120px; height: 8px; border-radius: 4px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; vertical-align: middle; }
 .cc-meter > span { display: block; height: 100%; background: var(--ui-success); }
 .cc-meter > span.is-high { background: var(--ui-warning-text); }
@@ -170,8 +172,8 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 a.cc-sum { text-decoration: none; }
 .cc-card-flat { margin: 0; }
 .cc-card-foot { margin: 8px 0 0; font-size: 12.5px; }
-.cc-meter { display: inline-flex; align-items: center; gap: 6px; }
-.cc-meter progress { width: 80px; height: 8px; accent-color: var(--ui-accent); }
+.cc-use { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cc-use progress { width: 56px; height: 8px; accent-color: var(--ui-accent); }
 .cc-updated { padding-top: 0; font-size: 12px; }
 /* Operational Insights > Alerts */
 .cc-sev.is-warning { color: var(--ui-warning-text); }
@@ -421,7 +423,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-bulk .ui-btn { height: 26px; }
 .cc-list-scroll { overflow-x: auto; }
 .cc-list-table { width: 100%; border-collapse: collapse; }
-.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); white-space: nowrap; }
+.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); line-height: 1.2; }   /* wraps only when the list is short of room */
 .cc-list-table td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
 .cc-list-table tbody tr { cursor: pointer; }
 .cc-list-table tbody tr:hover td { background: var(--ui-row-hover); }

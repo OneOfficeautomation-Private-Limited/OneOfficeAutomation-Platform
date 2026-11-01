@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ModelConnection } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * AI > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
@@ -39,7 +39,6 @@ const PAGE_HELP: HelpTopic = { title: "Model Connections", about: "Named connect
       + "AI steps that use a deleted connection fail until another is chosen." },
   ] };
 const providerName = (p: string) => PROVIDERS.find(([k]) => k === p)?.[1] ?? p;
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const pct = (c: ModelConnection) => c.monthly_tokens ? Math.min(100, Math.round(100 * (c.tokens_this_month ?? 0) / c.monthly_tokens)) : 0;
 

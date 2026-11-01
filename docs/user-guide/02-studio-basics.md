@@ -92,94 +92,74 @@ To come back to the home page at any time, click the **house** button in the top
 
 ## 4. The screen when an agent is open
 
-Open an agent (click it on the home page or in the Explorer). The screen fills with these parts:
+Open an agent (click it on the **Automation** page). The top bar now says **One AgentStudio**, and the screen has
+these parts:
 
 ```
-┌──────────────────────── top bar: breadcrumb · Unsaved · panel toggles · Save · Validate · Assistant · Debug · Run ┐
-│rail│ side panel        │  Canvas | Agent settings | Dependencies | JSON           │ Action settings          │
-│    │ (Explorer,        │  canvas toolbar                                          │ (settings of the         │
-│    │  Actions,         │  Start ─ step 1 ─ step 2 … ─ End                         │  selected step)          │
-│    │  Variables,       │──────────────────────────────────────────────────────────│                          │
-│    │  Triggers)        │  Run dock: Run · Problems · Run log · Variables          │                          │
-└────┴───────────────────┴──────────────────────────────────────────────────────────┴──────────────────────────┘
+┌ top bar: One AgentStudio · breadcrumb · Unsaved · Search items · Save · Run · Debug · Check in · Close ──────────┐
+│menu│ Actions            │  agent tab · steps toolbar (Undo, Redo, ⋯, List | Flow, …)│ Details                  │
+│    │ (search, groups,   │  START ─ 1 step ─ 2 step … ─ END                         │ Properties · Variables · │
+│    │  Triggers)         │──────────────────────────────────────────────────────────│ Triggers · Dependencies  │
+│    │                    │  Problems · Run output · Debug values                    │                          │
+└────┴────────────────────┴──────────────────────────────────────────────────────────┴──────────────────────────┘
 ```
 
 ### 4.1 Top bar
 
 | Item | What it does |
 | --- | --- |
-| Breadcrumb | **Automation / folder / agent name**. When you opened this agent from a parent agent, it shows the way back (see [Child agents](09-child-agents.md)). A **Run by** note lists agents that run this one. |
-| ✕ (Close) | Closes the item and returns to the home page; asks to save changes first. |
+| **One AgentStudio** | The editor's name; every other page says One CommandCenter. |
+| Breadcrumb | **Folder › agent name**. When you opened this agent from a parent agent, it shows the way back (see [Child agents](09-child-agents.md)). A **Run by** note lists agents that run this one. |
 | **Unsaved** | Appears when you have changes that are not saved. |
-| **One CommandCenter** | Opens One CommandCenter in another tab (shown when Studio runs together with it). |
-| Panel toggles | Three small buttons: **Left panel**, **Run dock**, **Action settings**. Each shows or hides that panel. |
-| Theme | **Light** or **Dark**. |
-| **Save** | Saves the open item (Ctrl+S). |
-| **Validate** | Checks the agent and shows the result in the **Problems** tab. |
-| **Assistant** | Builds steps from a description, or explains the agent in plain words (see [AI in agents](13-ai-in-agents.md)). |
-| **Debug** | Runs with the debugger (see [Running and debugging](04-studio-running-and-debugging.md)). |
-| **Run** | Runs the agent. |
+| **Search items in the workspace** | Finds agents and other items (Ctrl+K). |
+| **Save** | Saves the agent (Ctrl+S) and checks it; problems show on the **Problems** tab. |
+| **Run** and **Debug** | Run the agent on this computer, or run it and stop at breakpoints (see [Running and debugging](04-studio-running-and-debugging.md)). |
+| **Check in** | Checks the agent in to One CommandCenter (see [Publishing](15-publishing-to-command-center.md)). |
+| **Close** | Closes the agent and returns to the **Automation** page; asks to save changes first. |
 
-### 4.2 The rail and the side panel
+### 4.2 The left side
 
-The rail on the far left switches the side panel:
+The menu on the far left is One CommandCenter's menu, narrow while an agent is open. Next to it, the **Actions** panel
+lists every action in groups by toolkit, with a count each. Type in **Search actions** and press Enter to add the best
+match after the selected step, or click an action, or drag it to where it goes. The **Triggers** group lists the triggers
+an agent can have (see [Running and debugging](04-studio-running-and-debugging.md#10-local-triggers)).
 
-| Rail button | Side panel |
-| --- | --- |
-| **Explorer** (folder) | Your workspace as a tree, with **+ Create**, **+ Folder**, **Rename**, **Delete**, **↻** (Refresh) and **Agent check-in**. Below the tree: the workspace folder path and the **One CommandCenter** section. |
-| **Actions** (four squares) | Every action you can add, in groups under section headings (Flow and control, Data and variables, Office documents, Web and desktop, APIs and databases, AI and so on). |
-| **Variables** (braces) | The open agent's variables, grouped as **Inputs**, **Outputs**, **Inside the agent**, plus **System variables** and **Shared Global values**. |
-| **Triggers** (lightning) | Local triggers that start agents while Studio runs. With an agent open they are in **Details > Triggers**, and the Actions panel has a **Triggers** group that also reaches One CommandCenter's triggers (see [Running and debugging](04-studio-running-and-debugging.md#10-local-triggers)). |
+### 4.3 The steps
 
-Click the active rail button again to hide the side panel.
+The steps toolbar has **Undo** and **Redo**, the **⋯** menu (**Select all**, **Find in this agent**, **Find and
+replace…** (Ctrl+H), fold and unfold, **Check the agent**, **Saved connections…** and **Custom connectors…**), **List** and
+**Flow**, the **Assistant** (build steps from a description, or explain the agent), **Record**, **Capture** and **Full
+screen**.
 
-### 4.3 The canvas
+- **List** shows the steps as numbered lines, one under another, between **START** and **END**. Blocks (If, Loop, Try,
+  Step) have their sections indented below them, labelled **Then**, **Else**, **Repeat**, **Try**, **Catch all
+  errors**, **Finally (always)** and so on.
+- **Flow** shows the same agent as a diagram: boxes joined by lines, with branches side by side.
 
-The **Canvas** tab is where you build. Above it are three more tabs:
+Select **START** and click actions to add them as step 1. Each step shows its line number (click it to set a
+breakpoint), a fold arrow on blocks, the action's icon and name, a one-line summary of its settings (or its note) and
+badges such as **Disabled** or the number of problems. F2 renames the selected step (its *Shown on the step* text).
 
-- **Agent settings**: **Agent id**, **Name**, **Kind** (Agent or Headless API agent), **Description** and **File**.
-  The description matters: AI agents read it to decide when to use your agent.
-- **Dependencies**: what the agent needs and who uses it: **Child agents and agent tools**, **Scripts**,
-  **Prompt Skills**, **Files** and **Used by**. Items missing from the workspace are marked **Not in the workspace**.
-- **JSON**: the agent as text. **Format** tidies it; **Apply JSON** loads your edits into the canvas.
+### 4.4 The Details panel
 
-The canvas has two views, chosen with **List** and **Flow** in the canvas toolbar:
-
-- **List** shows the steps as numbered cards, one under another. Blocks (If, Loop, Try, Step) have their sections
-  indented below them, labelled **Then**, **Else**, **Repeat**, **Try**, **Catch all errors**, **Finally (always)** and
-  so on.
-- **Flow** shows the same agent as a diagram: boxes joined by lines, with branches side by side. You can drop actions on
-  a box, on a line, or on **Start** and **End**.
-
-Every canvas starts with **Start** and ends with **End**. Select **Start** and click actions to add them as step 1;
-select **End** to add them at the end.
-
-Each step card shows:
-
-- a drag grip (⋮⋮), the **line number** (click it to set a breakpoint), and a fold arrow on blocks;
-- a coloured icon, the action's name and its toolkit;
-- a one-line summary of its settings, or the step's **note** when it has one;
-- badges: **Disabled**, **n steps hidden** (a folded block), and **!n** when the step has problems;
-- the **⋮** button that opens the step menu.
-
-The text at the right end of the canvas toolbar tells you where clicked actions will go, for example "Clicked actions go
-after the selected step."
-
-### 4.4 The Action settings panel
-
-On the right, **Action settings** shows the settings of the selected step: its inputs, outputs, **Error handling** and
-**General** (step id and note). See [Building agents](03-studio-building-agents.md). **Collapse** hides the panel.
-
-### 4.5 The Run dock
-
-At the bottom, the **Run dock** has four tabs:
+On the right, **Details** has four tabs:
 
 | Tab | Shows |
 | --- | --- |
-| **Run** | The agent's inputs, the **Run agent** button, and the result of the last run (status, time, error, outputs). |
-| **Problems** | Validation problems. Click a step id to jump to the step. The count shows on the tab. |
-| **Run log** | Every event of the last run with its time. |
-| **Variables** | The last value of each variable in the last run, and the outputs. Credentials always show as `****`. |
+| **Properties** | The selected step's settings: its inputs, outputs, error handling and note. With **no step selected** (press Esc), the agent's own **Agent id** (One CommandCenter and Run agent steps know the agent by it; each agent needs its own) and **Description** (people who run it and AI agents read it). |
+| **Variables** | The agent's variables: inputs, outputs and those inside the agent, plus system variables and Shared Global values. |
+| **Triggers** | Triggers that start the agent on this computer while the workspace runs. |
+| **Dependencies** | What the agent needs and who uses it: **Child agents and agent tools**, **Scripts**, **Prompt Skills**, **Files** and **Used by**. |
+
+### 4.5 The Run dock
+
+At the bottom, the **Run dock** has three tabs:
+
+| Tab | Shows |
+| --- | --- |
+| **Problems** | What stops the agent from running. **Check now** looks again without saving; click a problem to go to its step. |
+| **Run output** | What happens while the agent runs: each step, its time and the result; while a debug run waits, Continue, Step over, Step into and Step out. |
+| **Debug values** | The variables' values at the step where a debug run is waiting. |
 
 The **Dock** list moves the dock: **Bottom**, **Right**, **Floating** (drag it by its title bar) or **Mini bar**.
 **Minimise** turns it into the mini bar; **Expand** on the mini bar brings it back.

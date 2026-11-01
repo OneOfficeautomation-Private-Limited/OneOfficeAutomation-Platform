@@ -207,7 +207,7 @@ public final class Ooa {
         System.out.println("ONEOFFICEAUTOMATION is running.");
         System.out.println("  Open:              " + open);
         System.out.println("  One CommandCenter: " + open + "/   (the classic console: " + open + "/?classic)");
-        System.out.println("  One AgentStudio:  " + open + "/studio/   (this computer only)");
+        System.out.println("  Private workspace: " + open + "/studio/   (Automation > Private; this computer only)");
         System.out.println("  OneRunner:        " + (agent == null ? "not started (--no-agent)" : "this computer, connected"));
         System.out.println("  My Workspace:      " + studio.workspaceRoot());
         System.out.println("  Database:          " + s.dbLabel());

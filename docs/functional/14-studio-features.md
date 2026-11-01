@@ -69,7 +69,7 @@ New items go into the selected folder (or the folder of the selected file). Clos
 | Tab | Contents |
 | --- | --- |
 | Canvas | The steps as cards (section 5) |
-| Agent settings | Name, id ("used by parent agents and AI agents to call this agent"), description (read by AI agents), file (rename or move in the Explorer), and other agent-wide settings |
+| Properties, no step selected | The agent's own **Agent id** (unique in the repository: `CR.DUPLICATE_ID` otherwise; Run agent steps find the agent by it) and **Description** (read by AI agents), as AA's bot properties; since 2 Nov 2026 |
 | Dependencies | The agents it calls and the toolkits it uses |
 | JSON | The agent document; **Apply JSON** replaces the agent with edited JSON (it must be a JSON object), **Format** tidies it |
 
@@ -281,6 +281,11 @@ the Private workspace's pages say **One CommandCenter** in the top bar and the b
 canvas, an agent or other item open) says **One AgentStudio**, with the item's name in the tab. One CommandCenter's
 Automation offers **Create > New agent** (`../studio/#private/new`, which opens Create > Agent on the Private tab) and,
 on an agent's page, **Edit** (the Public tab, to check it out), both only for people who may check in.
+
+Also since 2 Nov 2026: both apps' **Public** tabs show one list with AA's columns (Type, Latest, Live, Checked out, Last
+modified; Platform, Label, Code analysis, Size and Modified by under **Columns**, one choice for both, kept in this
+browser as `automation.public.columns.hidden`). **Copy** gives a copied agent its own id, as **Duplicate** does (from
+its new name, or the old id with `_copy` when the name stayed the same in another folder).
 
 ## Related documents
 

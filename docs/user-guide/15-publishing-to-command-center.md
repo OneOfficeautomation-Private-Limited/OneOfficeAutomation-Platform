@@ -65,7 +65,7 @@ Once signed in, the **Public** tab shows the address and who you are signed in a
 1. Check the agent: **Save** checks it, and **Check now** on the **Problems** tab looks again without saving.
    Check-in refuses agents with validation problems, and your company may also refuse check-ins that break its
    code-analysis rules (passwords typed into steps, empty Catch blocks, no description …).
-2. Fill in **Agent settings**: a clear **Agent id**, **Name** and **Description**.
+2. With no step selected (press Esc), fill in **Properties**: a clear **Agent id** and a **Description**.
 3. Make inputs, outputs and descriptions clear: people see them when they run the agent.
 4. Replace any test values with **Credential** inputs or shared values. Never leave secrets in steps.
 5. Look at the **Dependencies** tab in the **Details** panel: the **Child agents and agent tools** must be in the
@@ -226,7 +226,7 @@ that are built into Studio itself (see [Studio basics](02-studio-basics.md)).
 | `CR.POLICY_VIOLATION` | The code-analysis policy refused it; the message lists the findings (for example a password typed into a step). |
 | `CR.LOCKED` | Someone else has the agent checked out. Ask them to check it in or undo the check-out. |
 | `CR.NOT_CHECKED_OUT` | Check the agent out before checking it in again. |
-| `CR.DUPLICATE_ID` | Another agent in the repository already has this agent id. Change **Agent id** in Agent settings. |
+| `CR.DUPLICATE_ID` | Another agent in the repository already has this agent id. Select no step and change **Agent id** under **Properties**. Copies made with **Copy** or **Duplicate** get an id of their own. |
 | `CR.FORBIDDEN` | Your role or the folder permissions do not allow it. Ask an administrator. |
 | A runner fails with a missing child agent or file | Check in the child agents; upload the files to the repository and list them in the agent's required files. |
 | Runs still use the old version | You checked in without **Make this the live version**, the new version is waiting for approval, or another version was made live. Look at **Versions** and use **Make live**. |

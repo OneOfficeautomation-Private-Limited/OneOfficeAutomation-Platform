@@ -983,12 +983,12 @@ public final class ControlRoom {
         boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
-                "Fix the problems in One AgentStudio (Validate) before checking in.", false, Map.of("problems", problems));
+                "Fix the problems in One AgentStudio (Check now lists them) before checking in.", false, Map.of("problems", problems));
         codeAnalysis.atCheckin(path, flow);
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
-            if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Change the agent id in Agent settings.");
+            if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Give this agent its own id: in One AgentStudio, select no step and change Agent id under Properties. Copy and Duplicate give a copy its own id.");
             Map<String, Object> b = db.one("SELECT latest_version, locked_by, production_version, deleted_at FROM bots WHERE path = ?", path);
             if (b != null && b.get("deleted_at") != null)
                 throw new OoaException("CR.DELETED", "A deleted agent is at " + path, "Recover it first (Deleted agents), or use another name.");

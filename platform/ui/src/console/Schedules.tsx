@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, Schedule } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Schedules, built as AA's scheduled automations (checked against AA's docs, UiPath's time triggers and Blue
@@ -15,7 +15,6 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  */
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 /** How a schedule's last run ended, as a pill (the words and colours of Agent Activity). */
 const LAST: Record<string, [string, string]> = { success: ["Completed", "success"], failed: ["Failed", "failed"], stopped: ["Stopped", "stopped"], running: ["Running", "active"], queued: ["Waiting", "pending"] };

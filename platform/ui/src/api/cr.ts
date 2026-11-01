@@ -211,7 +211,8 @@ export type AgentApi = { id: string; name: string; bot_path: string; device_id?:
 export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number; started_by?: string | null };
 export type TestSet = { id: string; name: string; description?: string | null; bot_path: string; cases: { name: string; inputs?: Record<string, unknown>; expect?: Record<string, unknown> }[]; last_run?: TestRunSummary | null };
 export type RepoAgent = { path: string; bot_id?: string; name?: string; description?: string | null; latest_version: number; production_version?: number | null; locked_by?: string | null;
-  updated?: string; updated_by?: string; folder?: string; access?: string; labels?: { label: string; version: number }[]; deleted_at?: string; deleted_by?: string };
+  updated?: string; updated_by?: string; folder?: string; access?: string; labels?: { label: string; version: number }[]; deleted_at?: string; deleted_by?: string;
+  platform?: "Windows" | "Any"; size?: number; analysis?: { errors: number; warnings: number } };
 export type RepoFolder = { path: string; description?: string | null; agents: number; has_permissions?: boolean; access?: string };
 export type RepoVersion = { version: number; comment?: string | null; author?: string; created?: string; labels: string[] };
 export type ProductionRequest = { id: string; path: string; version: number; requested_by: string; requested?: string; comment?: string | null; status: string;

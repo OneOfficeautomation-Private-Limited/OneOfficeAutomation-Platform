@@ -3,7 +3,7 @@ import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, 
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
@@ -122,6 +122,29 @@ export type StepsClipboard = Clip & { system: boolean };
  * selected step, the agent's variables, and the problems the last save found. Ctrl+click adds a step to the
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
+/**
+ * With no step selected, the agent's own settings, as AA's bot properties: its id, by which One CommandCenter's agent
+ * repository and Run agent steps know it (each agent needs its own), and its description, which people and AI agents read.
+ */
+function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) => void }) {
+  const [id, setId] = useState(flow.id);
+  const [about, setAbout] = useState(flow.description ?? "");
+  useEffect(() => { setId(flow.id); setAbout(flow.description ?? ""); }, [flow.id, flow.description]);
+  const bad = !/^[A-Za-z0-9_.-]+$/.test(id.trim());
+  return (
+    <div className="st-pad">
+      <p className="st-muted">Select a step to change its settings. With none selected, these are the agent's own.</p>
+      <Field label="Agent id" hint="One CommandCenter knows the agent by it, and Run agent steps find it by it; each agent needs its own. Letters, digits, _ . and -.">
+        {(fid) => <TextInput id={fid} className="ui-mono" value={id} onChange={(e) => setId(e.target.value)}
+          onBlur={() => { const v = id.trim(); if (!bad && v !== flow.id) onEdit({ ...flow, id: v }); }} />}</Field>
+      {bad && <p className="st-alert" role="alert">An agent id has letters, digits, _ . and - only. It stays {flow.id}.</p>}
+      <Field label="Description" hint="What the agent does: people who run it read this, and AI agents that may call it.">
+        {(fid) => <TextArea id={fid} rows={3} value={about} onChange={(e) => setAbout(e.target.value)}
+          onBlur={() => { if (about !== (flow.description ?? "")) onEdit({ ...flow, description: about }); }} />}</Field>
+    </div>
+  );
+}
+
 export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo, askTrigger,
   run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, onChecked, dirty }:
   { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
@@ -613,7 +636,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               ) : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
                 : chosen.length > 1
                 ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
-                : <p className="st-muted st-pad">Select a step to change its settings.</p>}
+                : <AgentProperties flow={flow} onEdit={onEdit} />}
             </TabPanel>
             <TabPanel value="variables"><VariablesPanel flow={flow} builtins={builtins} last={last} onEdit={onEdit} onRefresh={loadBuiltins} /></TabPanel>
             <TabPanel value="triggers">
@@ -713,7 +736,7 @@ function ReplaceDialog({ flow, selected, onClose, onReplace }: { flow: Flow; sel
       <Field label="Find" hint="In the steps' settings, outputs and names; not in ids or actions.">{(id) => <TextInput id={id} autoFocus value={find} onChange={(e) => setFind(e.target.value)} />}</Field>
       <Field label="Replace with">{(id) => <TextInput id={id} value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
       <label className="st-check-line"><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case</label>
-      {selected.length > 0 && <label className="st-check-line"><input type="checkbox" checked={onlySelected} onChange={(e) => setOnlySelected(e.target.checked)} /> Only the {selected.length} selected step{selected.length === 1 ? "" : "s"} (and the steps inside them)</label>}
+      {selected.length > 0 && <label className="st-check-line"><input type="checkbox" checked={onlySelected} onChange={(e) => setOnlySelected(e.target.checked)} /> {selected.length === 1 ? "Only the selected step (and the steps inside it)" : "Only the " + selected.length + " selected steps (and the steps inside them)"}</label>}
     </Dialog>
   );
 }

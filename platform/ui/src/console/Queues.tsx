@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
@@ -15,7 +15,6 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 const STATUS: [string, string][] = [["new", "New"], ["in_progress", "In progress"], ["review", "To validate"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]];
 const statusName = (s: string) => STATUS.find(([k]) => k === s)?.[1] ?? s;
 const agentName = (p?: string | null) => p ? p.split("/").pop()!.replace(/\.flow\.json$/, "") : "Not chosen";
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const MEMBER_ROLES: Record<string, string> = { owner: "Owner (manages the queue)", participant: "Participant (adds and changes items)", consumer: "Consumer (processes the items)" };
 const waiting = (q: WorkQueue) => (q.counts.new ?? 0) + (q.counts.retry ?? 0);

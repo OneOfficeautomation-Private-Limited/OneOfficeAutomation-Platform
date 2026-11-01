@@ -62,8 +62,9 @@ When nothing runs you see "Nothing is running or waiting."
 ### The Completed tab
 
 Runs that ended (completed, failed, stopped) in the chosen period, 25 per page, newest first and grouped by day.
-Columns: **Status**, **Agent**, **Folder**, **Runner**, **Started by**, **How started**, **Started**, **Ended**,
-**Took** and **Why it ended** (the error code and message; hover for the whole text); **Columns** adds **Steps**. Tick
+Columns: **Status**, **Agent**, **Runner**, **Started by**, **How started**, **Started**, **Took** and **Why it ended**
+(the error code and message, cut short; hover for the whole text). **Columns** adds **Folder**, **Ended** and **Steps**
+(they start hidden so a run fits on one line at 1366 px). Tick
 runs and press **Run again**, or choose **Run again** in a run's **⋯** menu.
 
 Filters (above the table):

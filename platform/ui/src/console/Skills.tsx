@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, PromptSkill, SkillDefinition } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
@@ -11,7 +11,6 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * Review round 2 (1 Nov 2026): one line per skill (its description on hover), a menu per skill (Open, Copy the name,
  * Delete asked first), and a skill opening as its own page (Prompt; Versions), as AA's skill editor.
  */
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const found = (prompt: string) => [...new Set((prompt.match(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g) ?? []).map((x) => x.slice(2, -1)))];
 

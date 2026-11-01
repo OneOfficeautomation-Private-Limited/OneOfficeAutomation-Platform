@@ -32,8 +32,8 @@ returns.
 ## 2. Prepare the child agent
 
 1. Create the child agent as usual (see [Building agents](03-studio-building-agents.md)).
-2. In **Agent settings**, give it a clear **Agent id** (for example `portal_sign_in`) and a **Description**. Parents
-   choose it by its id.
+2. With no step selected (press Esc), give it a clear **Agent id** (for example `portal_sign_in`) and a
+   **Description** under **Properties**. Parents choose it by its id.
 3. In **Variables**, decide what it needs and what it gives back:
    - tick **Use as input** for each value the parent must give (mark it **Required** when it cannot run without it);
    - tick **Use as output** for each result the parent should get;

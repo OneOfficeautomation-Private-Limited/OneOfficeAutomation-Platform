@@ -258,7 +258,7 @@ button.st-marker-row { cursor: pointer; }
 .st-chips legend { font-weight: 600; margin-bottom: 6px; }
 .st-doc-fields td { padding: 4px 8px; height: auto; }
 .st-center { text-align: center; }
-.st-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.st-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }   /* at the corner: never widens the page */
 .st-code { flex: 1; }
 .st-code-area { flex: 1; min-height: 360px; line-height: 1.5; white-space: pre; tab-size: 4; }
 .st-item-wrap .st-alert { margin: 8px 16px 0; }

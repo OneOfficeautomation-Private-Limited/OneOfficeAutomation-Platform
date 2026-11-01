@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentBundle, CodePolicy, CodeReport, CrApi, CrUser, ImportResult, RepoAgent, RepoFile } from "../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { when } from "./ListParts";
 
 /**
  * Agent Repository, part 2 (checked 31 Oct 2026 against AA's Bot Lifecycle Management and code analysis, UiPath's
@@ -10,7 +11,6 @@ import { Button, Dialog, Field, Select, TextInput } from "../components";
  */
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const size = (n: number) => n < 1024 ? n + " B" : n < 1_048_576 ? (n / 1024).toFixed(1) + " KB" : (n / 1_048_576).toFixed(1) + " MB";
 const rule = (id: string) => id.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 function save(fileName: string, text: string, type: string) {

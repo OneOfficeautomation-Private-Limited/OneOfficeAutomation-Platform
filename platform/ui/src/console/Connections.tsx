@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Connections, after UiPath's Integration Service connections (checked against its docs; AA keeps a connector's
@@ -11,7 +11,6 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  * Review round 2 (31 Oct 2026): one line per connection (its description on hover), a menu per connection (Edit, Copy the
  * name, Delete asked first), and rows you cannot open shown as such.
  */
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
 const HELP: HelpTopic = { title: "Connections", about: "A connector's address and sign-in, kept once and chosen by name on agent steps. "

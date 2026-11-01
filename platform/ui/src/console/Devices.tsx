@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and
@@ -25,7 +25,6 @@ const TYPE: Record<string, string> = { single_user: "Single-user", multi_user: "
 const SCREEN: Record<string, string> = { unlocked: "Unlocked", locked: "Locked", no_desktop: "No desktop (service)" };
 const AFTER_RUN: Record<string, string> = { nothing: "Leave the screen as it is", lock: "Lock the screen", sign_out: "Sign out" };
 const LOG_LEVELS = ["error", "warning", "info", "debug"];
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 function ago(t?: string | null) {
   if (!t) return "";
   const s = Math.max(0, Math.round((Date.now() - new Date(t).getTime()) / 1000));

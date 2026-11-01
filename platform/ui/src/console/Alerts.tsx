@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Alert, AlertKind, AlertRule, CrApi, CrUser } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Operational Insights > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's
@@ -25,7 +25,6 @@ const KINDS: Record<AlertKind, { label: string; scope: Scope; threshold?: [strin
 const SCOPE_ANY: Record<Scope, string> = { agent: "Any agent", runner: "Any runner", queue: "Any work queue", connection: "Any model connection" };
 const STATUS: Record<Alert["status"], string> = { open: "Open", acknowledged: "Acknowledged", cleared: "Cleared" };
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const sentTo = (d: Alert["delivery"]) => !d ? "" : [d.inbox?.length ? "Inbox: " + d.inbox.join(", ") : "", d.emailed?.length ? "E-mail: " + d.emailed.join(", ") : "",
   d.not_emailed?.length ? "Not e-mailed: " + d.not_emailed.join(", ") : "", d.webhook ? "Webhook" : ""].filter(Boolean).join(" · ");

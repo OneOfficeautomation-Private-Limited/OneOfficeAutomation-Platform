@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RowMenu, rowClick } from "./ListParts";
+import { RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Agent ToolKits, built as AA's Packages (checked against AA's docs, UiPath's libraries and feeds, and Blue
@@ -14,7 +14,6 @@ import { RowMenu, rowClick } from "./ListParts";
  */
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
 const folderOf = (p: string) => p.split("/").slice(0, -1).join("/");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const versionsOf = (t: Toolkit) => t.versions ? t.versions.join(", ") + " (default " + t.version + ")" : t.version ?? "";
 type MenuItem = { key: string; label: string; onSelect: () => void };

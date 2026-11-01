@@ -442,6 +442,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).queryAllByRole("link")).toEqual([]);   // every page is rebuilt here
     expect(within(menu).queryByText(/AgentStudio/)).toBeNull();   // only the agent editor carries that name
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
+    expect(await screen.findByRole("button", { name: "Help: Home" })).toBeTruthy();   // Home has the i too
     fireEvent.keyDown(screen.getByRole("button", { name: "Help" }), { key: "Enter" });
     expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Classic console/ })).toBeTruthy();   // today's console, until it is retired
   });
@@ -484,6 +485,10 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Agent Activity");
     const live = await screen.findByRole("table", { name: "Runs in progress" });
     expect(await within(live).findByText("Step 3 of 8: Open workbook")).toBeTruthy();   // the command's own name
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "/" });   // / from outside the page still goes to the list's search
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Search runs");
+    (document.activeElement as HTMLElement).blur();
     const sums = await screen.findByRole("group", { name: "Summary" });
     expect(within(sums).getByText("Ended in the last 24 hours · 50% completed")).toBeTruthy();
     expect(within(sums).getByText("Next scheduled: Invoice intake")).toBeTruthy();
@@ -499,8 +504,10 @@ describe("rebuilt One CommandCenter console", () => {
     const done = await screen.findByRole("table", { name: "Completed runs" });
     expect(await within(done).findByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();   // why it ended, in the list
     expect(within(done).getAllByRole("row").some((r) => r.classList.contains("cc-au-day"))).toBe(true);   // grouped by day
-    // one line per run: the agent with its version, its folder in a column of its own, and a row menu
-    expect(within(done).getByRole("columnheader", { name: "Folder" })).toBeTruthy();
+    // one line per run at 1366 px: the agent with its version and a row menu; Folder and Ended start under Columns
+    expect(within(done).queryByRole("columnheader", { name: "Folder" })).toBeNull();
+    expect(within(done).getByRole("columnheader", { name: "Why it ended" })).toBeTruthy();
+    expect(within(done).getAllByTitle("EXCEL.NOT_FOUND: No such file")[0].classList.contains("cc-clip-sm")).toBe(true);   // a long reason is cut; all of it on hover
     const first = within(done).getAllByRole("row").find((r) => !r.classList.contains("cc-au-day") && r.querySelector("td"))!;
     expect(first.querySelector(".cc-list-sub")).toBeNull();
     fireEvent.keyDown(within(first).getByRole("button", { name: /^Actions for the run of / }), { key: "Enter" });
@@ -2022,7 +2029,13 @@ describe("rebuilt One CommandCenter console", () => {
     render(<ConsoleApp api={api} />);
     await go("Automation");
     const list = await screen.findByRole("table", { name: "Agents list" });
-    expect(await within(list).findByText("Checked out by vic")).toBeTruthy();
+    expect(await within(list).findByText("By vic")).toBeTruthy();
+    // AA's columns, the same as the Private workspace's Public tab; the folder because subfolders are included
+    expect(within(list).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Folder", "Type", "Latest", "Live", "Checked out", "Last modified", "Actions"]);
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Columns shown" })).getByLabelText("Code analysis"));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(within(list).getByRole("columnheader", { name: "Code analysis" })).toBeTruthy();
     // AA's Automation page: the folder tree pane, and subfolders listed first in the files-and-folders pane
     expect(screen.getByRole("heading", { name: "Automation" })).toBeTruthy();
     expect(within(list).getAllByRole("row").some((r) => r.classList.contains("cc-folder-row"))).toBe(true);

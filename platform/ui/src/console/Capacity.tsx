@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Capacity as CapacityData, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
 import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Operational Insights > Runner capacity, as Blue Prism Hub's utilisation heatmap and FTE comparison and AA's Devices
@@ -46,7 +46,7 @@ const HELP_RUNNERS: HelpTopic = { title: "Each runner", about: "Every runner's w
     { name: "Runs, Busy", text: "How many runs it ran in the period and how long it was busy." },
     { name: "Time in use", text: "The share of its time spent running agents; 80% or more shows in red." },
     { name: "Average wait", text: "How long runs for this runner waited to start, on average." },
-    { name: "CPU now, Memory now", text: "How busy the machine is at this moment." },
+    { name: "CPU now, Memory now", text: "How busy the machine is at this moment. They show on screens wider than 1440 px, and always on Runner Machines." },
     { name: "Actions (⋯)", text: "Open the runner on Runner Machines, or see its runs in Agent Activity." },
   ] };
 const pillOf = (d?: Runner) => !d || d.status === "disabled" ? "disabled" : d.status === "online" && !d.over_limit && !d.maintenance ? "active" : "failed";
@@ -113,7 +113,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Each runner">
             <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
               <th scope="col">Time in use</th><th scope="col" className="cc-num">Average wait</th><th scope="col">Last run</th><th scope="col">Most common error</th>
-              {["CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
+              {["CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num cc-wide-only">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>{c.runners.map((r) => { const d = device(r.device_id); const nm = d ? d.nickname || d.name : r.name ? r.name + " (removed)" : "Removed runner"; const inPools = pools.filter((p) => p.devices.includes(r.device_id)).map((p) => p.name).join(", ");
               const open = () => { location.hash = "#/devices?runner=" + encodeURIComponent(r.device_id); };
@@ -122,11 +122,11 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
               <td><span className={"cc-pill is-" + pillOf(d)}><span className="cc-pill-dot" />{stateOf(d)}</span></td>
               <td className="cc-clip" title={inPools || undefined}>{inPools}</td>
               <td className="cc-num">{r.runs}</td><td className="cc-num">{r.success ?? ""}</td><td className={"cc-num" + (r.failed ? " cc-err" : "")}>{r.failed ?? ""}</td><td className="cc-num">{hours(r.busy_ms)}</td>
-              <td className={r.use >= 80 ? "cc-err" : undefined}><span className="cc-meter"><progress max={100} value={Math.min(100, r.use)} aria-label={"Time in use of " + nm} /> {r.use}%</span></td>
+              <td className={r.use >= 80 ? "cc-err" : undefined}><span className="cc-use"><progress max={100} value={Math.min(100, r.use)} aria-label={"Time in use of " + nm} /> {r.use}%</span></td>
               <td className="cc-num">{dur(r.avg_wait_ms)}</td>
-              <td>{r.last_run ? new Date(r.last_run).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</td>
-              <td className="ui-mono">{r.top_error ?? ""}</td>
-              <td className="cc-num">{d?.cpu_pct != null ? Math.round(d.cpu_pct) + "%" : ""}</td><td className="cc-num">{d?.mem_pct != null ? Math.round(d.mem_pct) + "%" : ""}</td>
+              <td>{when(r.last_run)}</td>
+              <td className="ui-mono cc-clip cc-clip-sm" title={r.top_error ?? undefined}>{r.top_error ?? ""}</td>
+              <td className="cc-num cc-wide-only">{d?.cpu_pct != null ? Math.round(d.cpu_pct) + "%" : ""}</td><td className="cc-num cc-wide-only">{d?.mem_pct != null ? Math.round(d.mem_pct) + "%" : ""}</td>
               <td className="cc-list-menu"><RowMenu label={"Actions for " + nm} items={[...(d ? [{ key: "open", label: "Open the runner", onSelect: open }] : []),
                 { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = "#/activity?" + new URLSearchParams({ tab: "completed", device: r.device_id }).toString(); } }]} /></td>
             </tr>; })}

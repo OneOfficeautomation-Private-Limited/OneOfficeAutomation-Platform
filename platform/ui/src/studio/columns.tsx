@@ -8,6 +8,24 @@ import { Button, Dialog } from "../components";
  */
 export type Column = { key: string; label: string };
 
+/**
+ * The Public list's columns after the name, the same in One CommandCenter and in the Private workspace (as AA's one
+ * Automation page, 2 Nov 2026); a search, or subfolders included, adds the folder. Both apps keep one choice of columns.
+ */
+export const PUBLIC_COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "platform", label: "Platform" }, { key: "latest", label: "Latest" },
+  { key: "live", label: "Live" }, { key: "label", label: "Label" }, { key: "analysis", label: "Code analysis" }, { key: "size", label: "Size" },
+  { key: "out", label: "Checked out" }, { key: "changed", label: "Last modified" }, { key: "by", label: "Modified by" }];
+export const PUBLIC_HIDDEN_KEY = "automation.public.columns.hidden";
+export const PUBLIC_HIDDEN = ["platform", "label", "analysis", "size", "by"];
+/** A time in a list, short so rows stay on one line at 1366 px: "Nov 1, 8:30 AM", with the year only when it is not this one. */
+export const listTime = (t?: string | null) => {
+  if (!t) return "";
+  const d = new Date(t);
+  return d.toLocaleString(undefined, { ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" as const } : {}), month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+};
+/** An item of the agent repository's type, from its file name. */
+export const typeOf = (path: string) => /\.process\.json$/.test(path) ? "Workflow" : /\.form\.json$/.test(path) ? "Form" : "Agent";
+
 /** A size as people read it: bytes under 1 KB, then KB, then MB. */
 export function sizeText(bytes?: number) {
   if (bytes === undefined) return "";

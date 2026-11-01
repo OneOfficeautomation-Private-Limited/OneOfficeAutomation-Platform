@@ -243,8 +243,8 @@ public final class StudioServer {
             Map<String, Object> b = (Map<String, Object>) body(ex);
             String path = String.valueOf(b.getOrDefault("path", ""));
             String result = switch (route.substring(6)) {
-                case "copy" -> ws.copy(path, String.valueOf(b.getOrDefault("to", "")));
-                case "duplicate" -> renameDuplicatedAgent(ws.duplicate(path));
+                case "copy" -> giveCopyItsOwnId(ws.copy(path, String.valueOf(b.getOrDefault("to", ""))));
+                case "duplicate" -> giveCopyItsOwnId(ws.duplicate(path));
                 case "reveal" -> reveal(path);
                 case "folder" -> ws.createFolder(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")));
                 case "bot" -> ws.createBot(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")),
@@ -586,16 +586,20 @@ public final class StudioServer {
     private static final int MAX_UPLOAD = 50 * 1024 * 1024;
     private static final long MAX_DOWNLOAD = 200L * 1024 * 1024;
 
-    /** A duplicated agent gets its own agent id (from its new name), so it does not clash with the original at check-in. */
+    /**
+     * A copied or duplicated agent gets its own agent id (from its new name; with "_copy" when the name, and so the id,
+     * stayed the same in another folder), so it does not clash with the original at check-in.
+     */
     @SuppressWarnings("unchecked")
-    private String renameDuplicatedAgent(String rel) throws IOException {
+    private String giveCopyItsOwnId(String rel) throws IOException {
         if (!rel.endsWith(Workspace.BOT_SUFFIX)) return rel;
         Path p = ws.resolve(rel);
         try {
             Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
             String name = p.getFileName().toString();
             name = name.substring(0, name.length() - Workspace.BOT_SUFFIX.length());
-            flow.put("id", name.trim().replaceAll("[^A-Za-z0-9_.-]+", "_"));
+            String id = name.trim().replaceAll("[^A-Za-z0-9_.-]+", "_");
+            flow.put("id", id.equals(String.valueOf(flow.get("id"))) ? id + "_copy" : id);
             flow.put("name", name);
             Files.writeString(p, json.write(flow, true));
         } catch (RuntimeException unreadable) { /* not a valid agent file: keep the plain copy */ }

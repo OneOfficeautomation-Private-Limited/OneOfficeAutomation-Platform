@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
 /**
@@ -17,7 +17,6 @@ const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, ""
 const folderOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 /** #/apitasks?new=<agent path>: Create opens with that agent chosen (from Automation). */
 const linkedNew = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("new");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
 const HELP: HelpTopic = { title: "Agent APIs", about: "An agent behind its own address and token, for other systems to call like a web service: "

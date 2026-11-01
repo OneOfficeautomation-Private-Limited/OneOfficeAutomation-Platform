@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiFailure, type CrStatus, type RepoAgent, type RepoVersion, type StudioApi } from "../api/client";
 import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type TreeNode } from "../components";
-import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
+import { Analysis, ColumnsDialog, labelText, listTime, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText, typeOf } from "./columns";
 
 /** The server's message, with what to do when it says ("Check the address and that One CommandCenter is running."). */
 const message = (e: unknown) => e instanceof ApiFailure ? e.error.message + (e.error.suggestedFix ? ". " + e.error.suggestedFix : "") : String(e);
@@ -77,10 +77,6 @@ function folderTree(paths: string[]): TreeNode {
   }
   return root;
 }
-/** The Public list's columns after the name, as AA's Public list; a search adds the folder. */
-const PUBLIC_COLUMNS: Column[] = [{ key: "platform", label: "Platform" }, { key: "latest", label: "Latest" }, { key: "live", label: "Live" }, { key: "label", label: "Label" },
-  { key: "analysis", label: "Code analysis" }, { key: "size", label: "Size" }, { key: "out", label: "Checked out" }, { key: "changed", label: "Last modified" },
-  { key: "by", label: "Modified by" }];
 const FOLDER_ICON = (sel: boolean) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
   <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>;
 
@@ -106,7 +102,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.public.folders.hidden", false);
   const [foldersWidth, setFoldersWidth] = usePanelSize("public.folders");
   const foldersPanel = useRef<HTMLElement | null>(null);
-  const [hiddenCols, setHiddenCols] = usePersistent<string[]>("automation.public.columns.hidden", ["platform", "label", "analysis", "size", "by"]);
+  const [hiddenCols, setHiddenCols] = usePersistent<string[]>(PUBLIC_HIDDEN_KEY, PUBLIC_HIDDEN);
   const [choosingCols, setChoosingCols] = useState(false);
   const tree = useMemo(() => folderTree((list?.agents ?? []).map((a) => a.path)), [list]);
   useEffect(() => {
@@ -132,6 +128,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const cols = shownCols.length + (q ? 3 : 2);
   const cell = (key: string, a: RepoAgent, mine: boolean): ReactNode => {
     switch (key) {
+      case "type": return typeOf(a.path);
       case "platform": return a.platform ?? "";
       case "latest": return "v" + a.latest_version;
       case "live": return a.production_version ? "v" + a.production_version : "";
@@ -139,7 +136,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
       case "analysis": return <Analysis found={a.analysis} />;
       case "size": return sizeText(a.size);
       case "out": return a.locked_by ? (mine ? "By you" : "By " + a.locked_by) : "";
-      case "changed": return a.updated ? new Date(a.updated).toLocaleString() : "";
+      case "changed": return listTime(a.updated);
       case "by": return a.updated_by ?? "";
       default: return "";
     }
@@ -147,7 +144,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   return (
     <div className="st-cr">
       <div role="toolbar" aria-label="Agent Repository" className="st-items-bar">
-        <span className="st-items-count">{status.url} · signed in as {me}</span>
+        {!status.sameServer && <span className="st-items-count" title={status.url ?? undefined}>Signed in as {me}</span>}
         <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
         <button type="button" className="st-tool" aria-label="Refresh" title="Refresh" onClick={reload}><Icon name="loop" size={15} /></button>

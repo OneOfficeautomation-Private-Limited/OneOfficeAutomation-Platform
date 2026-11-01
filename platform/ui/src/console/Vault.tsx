@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Administration > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
@@ -23,7 +23,6 @@ const EXT_FIELDS: Record<string, [string, string, string][]> = {
   cyberark_ccp: [["url", "Central Credential Provider address", "https://ccp.example.com"], ["app_id", "Application id", ""], ["safe", "Safe", ""], ["folder", "Folder (optional)", ""]] };
 const EXT_SECRET: Record<string, string> = { hashicorp: "Token", azure_keyvault: "Client secret", aws_secrets_manager: "Secret access key", cyberark_ccp: "Password (optional)" };
 const PLACE: Record<string, string> = { owner: "Owner", manager: "Manager", participant: "Participant", consumer: "Consumer" };
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const list = (v?: string | string[] | null) => (Array.isArray(v) ? v : String(v ?? "").split(",")).map((x) => x.trim()).filter(Boolean);
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
@@ -566,7 +565,7 @@ function VaultKey({ api, onClose, onNotice }: { api: CrApi; onClose: () => void;
           <dt>Key from</dt><dd>{st.key_source === "file" ? "Key file in the data folder" : st.key_source === "environment" ? "OOA_MASTER_KEY environment variable" : st.key_source_detail}</dd>
           <dt>Fingerprint</dt><dd className="ui-mono">{st.key_fingerprint}</dd>
           <dt>Vault folders</dt><dd>{st.vault_folders}</dd>
-          <dt>Shared Global values</dt><dd>{st.values}</dd>
+          <dt>Credentials</dt><dd>{st.values}</dd>
           <dt>People's own values</dt><dd>{st.personal_values}</dd>
           <dt>Company vault links</dt><dd>{st.external_links}</dd>
         </dl>

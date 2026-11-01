@@ -66,7 +66,14 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);   // ? or Help > Keyboard shortcuts
   useEffect(() => {
-    const on = (e: KeyboardEvent) => { if (!inTextField(e) && is(e, "app.shortcuts")) { e.preventDefault(); setShowKeys(true); } };
+    const on = (e: KeyboardEvent) => {
+      if (!inTextField(e) && is(e, "app.shortcuts")) { e.preventDefault(); setShowKeys(true); }
+      // / from the menu, the top bar or nowhere in particular: the page's own list search (inside the page, listKeys does it)
+      else if (!e.defaultPrevented && !inTextField(e) && is(e, "list.search") && !document.querySelector("[role=dialog]")) {
+        const box = document.querySelector<HTMLInputElement>(".cc-main .cc-list-search input, .cc-main input[aria-label^='Search']");
+        if (box) { e.preventDefault(); box.focus(); box.select(); }
+      }
+    };
     addEventListener("keydown", on); return () => removeEventListener("keydown", on);
   }, []);
   const [studio, setStudio] = useState(false);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { repeats } from "./Schedules";
 
 /**
@@ -40,7 +40,6 @@ function duration(ms?: number | null) {
   const s = Math.round(ms / 1000);
   return s < 60 ? s + " s" : s < 3600 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min";
 }
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const startedBy = (r: Run) => (r.requested_by ?? "") + (r.run_as && r.run_as !== r.requested_by ? " as " + r.run_as : "");
 type RunError = { code?: string; message?: string; stepId?: string; suggestedFix?: string };
 function parseError(e?: string | null): RunError | null {
@@ -137,7 +136,7 @@ const HELP_RUN: HelpTopic = { title: "A run", about: "One run beside the list: h
 export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [stored, setTabState] = usePersistent<Tab>("activity.tab", "progress");
   const tab: Tab = stored === "scheduled" && !user.permissions.includes("schedules.view") ? "progress" : stored;
-  const [hidden, setHidden] = usePersistent<Record<string, string[]>>("activity.hidden", { progress: [], completed: ["steps"] });
+  const [hidden, setHidden] = usePersistent<Record<string, string[]>>("activity.hidden", { progress: ["folder"], completed: ["steps", "folder", "ended"] });   // one line at 1366 px; Columns shows them
   const [f, setF] = useState<Record<string, string>>(linkedFilters);
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ runs: Run[]; total: number } | null>(null);
@@ -276,7 +275,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <tr key={r.id} className={(selected.includes(r.id) ? "is-selected" : "") + (details === r.id ? " is-open" : "")} onClick={rowClick(() => openRun(r.id))}>
         <td className="cc-check"><input type="checkbox" aria-label={"Select the run of " + name(r.bot_path)} checked={selected.includes(r.id)}
           onChange={(e) => setSelected(e.target.checked ? [...selected, r.id] : selected.filter((x) => x !== r.id))} /></td>
-        {cols.map((c) => <td key={c.key} className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-clip" : undefined}>{cell(c, r)}</td>)}
+        {cols.map((c) => <td key={c.key} className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-clip cc-clip-sm" : undefined}
+          title={c.key === "error" ? errorText(r.error) || undefined : undefined}>{cell(c, r)}</td>)}
         <td className="cc-list-menu"><RowMenu label={"Actions for the run of " + name(r.bot_path)} items={rowMenu(r)} /></td>
       </tr>);
   });

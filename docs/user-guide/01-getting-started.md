@@ -87,7 +87,7 @@ After 30 to 60 seconds (longer the first time) the window shows:
 ONEOFFICEAUTOMATION is running.
   Open:             http://localhost:8720
   One CommandCenter:   http://localhost:8720/
-  One AgentStudio:     http://localhost:8720/studio/   (this computer only)
+  Private workspace:   http://localhost:8720/studio/   (Automation > Private; this computer only)
   OneRunner:       this computer, connected
   My Workspace:     C:\Users\<you>\OOA Workspace
   Database:         ...

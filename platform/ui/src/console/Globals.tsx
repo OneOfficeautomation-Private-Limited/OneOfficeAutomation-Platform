@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, GlobalValue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Shared Global values, built as AA's Global values (checked against AA's docs, UiPath's assets and Blue Prism's
@@ -15,7 +15,6 @@ type Kind = "text" | "number" | "boolean" | "json";
 const KIND: Record<Kind, string> = { text: "Text", number: "Number", boolean: "True/false", json: "List or record (JSON)" };
 const kindOf = (v: unknown): Kind => typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : typeof v === "string" ? "text" : "json";
 const show = (v: unknown) => v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v);
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const HELP: HelpTopic = { title: "Shared Global values", about: "Values every agent can read as $global.name, such as a folder or an address, "
   + "kept in one place. Where people may change a value, their runs use their own value.",

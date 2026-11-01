@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { FormField } from "./Inbox";
 
 /**
@@ -19,7 +19,6 @@ const STATUS: Record<string, string> = { running: "Running", waiting: "Waiting f
 const EVENT: Record<string, string> = { agent_started: "Agent started", agent_finished: "Agent finished", agent_failed: "Agent failed", agent_stopped: "Agent stopped", task_created: "Task given",
   task_completed: "Task done", approved: "Approved", rejected: "Rejected", decided: "Decided", notified: "Notified", waiting: "Waiting", failed: "Failed", cancelled: "Cancelled" };
 const flowName = (p: string) => p.split("/").pop()!.replace(/\.process\.json$/, "");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const going = (r: WorkflowRun) => r.status === "running" || r.status === "waiting";
 const PILL: Record<string, string> = { running: "active", waiting: "pending", completed: "success", failed: "failed", cancelled: "stopped" };

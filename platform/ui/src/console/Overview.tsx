@@ -245,7 +245,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
           {ai && ai.length > 0 && <div className="ov-panel">
             <div className="ov-ph"><h2>AI use this month</h2>{can("audit.view") && <a href="#/governance" className="ov-more">AI governance ›</a>}</div>
             <ul className="ov-rows">{ai.map((c) => { const pct = c.monthly_tokens ? Math.round(100 * (c.tokens_this_month ?? 0) / c.monthly_tokens) : null; return <li key={c.name}>{c.name}
-              <span className={"ov-r" + (pct != null && pct >= 80 ? " ov-bad" : "")}>{pct == null ? short(c.tokens_this_month ?? 0) + " tokens" : <span className="cc-meter"><progress max={100} value={Math.min(pct, 100)} aria-label={"Budget used by " + c.name} /> {pct}%</span>}</span></li>; })}</ul>
+              <span className={"ov-r" + (pct != null && pct >= 80 ? " ov-bad" : "")}>{pct == null ? short(c.tokens_this_month ?? 0) + " tokens" : <span className="cc-use"><progress max={100} value={Math.min(pct, 100)} aria-label={"Budget used by " + c.name} /> {pct}%</span>}</span></li>; })}</ul>
           </div>}
           {setUp.length > 0 && <div className="ov-panel">
             <div className="ov-ph"><h2>Set up next</h2></div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
 import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
  * Manage > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
@@ -18,7 +18,6 @@ const KIND: Record<string, string> = { form: "Fill in", approval: "Approve", not
 /** The tile of each kind of task: a letter on its colour (white text at least 4.5:1). */
 const TILE: Record<string, [string, string]> = { approval: ["A", "#1d6b38"], form: ["F", "#2f6fde"], notification: ["N", "#475569"] };
 const OUTCOME: Record<string, string> = { submitted: "Submitted", approved: "Approved", rejected: "Rejected", done: "Read", expired: "Expired", cancelled: "Cancelled" };
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
 const HELP: HelpTopic = { title: "Task inbox", about: "Work that workflows give you or your role: forms to fill in, approvals and notices. "

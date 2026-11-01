@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { howStarted } from "./Activity";
 
 /**
@@ -38,7 +38,6 @@ const HELP: HelpTopic = { title: "Operations", about: "How agents ran over a per
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const rate = (x?: number | null) => x == null ? "–" : x + "%";
 function dur(ms?: number | null) {
   if (ms == null) return "–";

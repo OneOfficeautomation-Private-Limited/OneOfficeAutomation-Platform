@@ -3,8 +3,9 @@ import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFol
 import type { FlowStep } from "../api/client";
 import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
+import { Analysis, ColumnsDialog, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText } from "../studio/columns";
 
 /**
  * Build > Agent Repository, built as AA's public workspace (checked 31 Oct 2026): a folder tree beside the agents in the
@@ -25,7 +26,6 @@ export function FolderIcon({ open }: { open?: boolean }) {
     : <svg className="cc-fico" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#f6d58b" stroke="#a86b0c" strokeWidth="1.8" strokeLinejoin="round" /></svg>;
 }
 const AgentIcon = ({ kind }: { kind: string }) => <span className={"cc-aico is-" + kind.toLowerCase()} aria-hidden="true">{kind === "Workflow" ? "W" : kind === "Form" ? "F" : "A"}</span>;
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and schedule"], ["edit", "Edit: also check out, check in, move, delete"], ["manage", "Manage: also live version and labels"]];
 
@@ -113,6 +113,9 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
   const [apis, setApis] = useState<Set<string>>(new Set());
   useEffect(() => { if (can("apitasks.manage")) api.agentApis().then((l) => setApis(new Set(l.map((t) => t.bot_path))), () => {}); }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [withSub, setWithSub] = usePersistent<boolean>("repo.withSubfolders", true);
+  // the same columns, and the same choice of them, as the Private workspace's Public tab
+  const [hiddenCols, setHiddenCols] = usePersistent<string[]>(PUBLIC_HIDDEN_KEY, PUBLIC_HIDDEN);
+  const [choosingCols, setChoosingCols] = useState(false);
   const kids = (p: string) => folders.filter((f) => folderOf(f.path) === p).sort((a, b) => a.path.localeCompare(b.path));
   const total = (p: string) => folders.filter((f) => !p || f.path === p || f.path.startsWith(p + "/")).reduce((n, f) => n + f.agents, 0);
   const isOpen = (p: string) => opened.includes(p) || folder === p || folder.startsWith(p + "/");
@@ -138,6 +141,24 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
     ...(can("repo.delete") ? [{ key: "deleted", label: "Deleted agents", onSelect: () => setDialog({ kind: "deleted" }) }] : []),
     { key: "analysis", label: "Code analysis policies", description: "In Administration > Policies", onSelect: () => { location.hash = "#/policies"; } },
   ];
+  const shownCols = PUBLIC_COLUMNS.filter((c) => !hiddenCols.includes(c.key));
+  const showFolder = withSub || !!q.trim();   // agents from more than one folder
+  const span = 2 + (showFolder ? 1 : 0) + shownCols.length;
+  const cellOf = (key: string, a: RepoAgent): ReactNode => {
+    switch (key) {
+      case "type": return <>{kindOf(a.path)}{apis.has(a.path) && <span className="cc-tag" title="Other systems can call it as an Agent API">API</span>}</>;
+      case "platform": return a.platform ?? "";
+      case "latest": return "v" + a.latest_version;
+      case "live": return a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-none">Not live</span>;
+      case "label": return (a.labels ?? []).map((l) => <span key={l.label} className="cc-tag" title={"On v" + l.version}>{l.label}</span>);
+      case "analysis": return <Analysis found={a.analysis} />;
+      case "size": return sizeText(a.size);
+      case "out": return a.locked_by ? <span className="cc-pill is-pending"><span className="cc-pill-dot" />By {a.locked_by}</span> : "";
+      case "changed": return when(a.updated);
+      case "by": return a.updated_by ?? "";
+      default: return "";
+    }
+  };
   const create = [
     ...(can("repo.checkin") ? [{ key: "folder", label: "New folder" + (folder ? " in " + folder.split("/").pop() : ""), onSelect: () => setDialog({ kind: "folder", parent: folder }) }] : []),
     ...(studio && can("repo.checkin") ? [{ key: "agent", label: "New agent", description: "In your Private workspace", onSelect: () => { location.href = "../studio/#private/new"; } }] : []),
@@ -211,32 +232,30 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
               <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "State: Any" }, { value: "live", label: "State: Live" }, { value: "notlive", label: "State: Not live yet" }, { value: "out", label: "State: Checked out" }]} /></span>
               {filtered && <Button kind="plain" onClick={() => { setQ(""); setKind(""); setShow(""); }}>Clear filters</Button>}
             </div>
-            <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><RefreshButton onClick={load} /></div>
+            <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button><RefreshButton onClick={load} /></div>
+            {choosingCols && <ColumnsDialog columns={PUBLIC_COLUMNS} hidden={hiddenCols} onChange={setHiddenCols} onClose={() => setChoosingCols(false)} />}
           </div>
           <div className="cc-list-scroll">
             <table className="cc-list-table" aria-label="Agents list">
-              <thead><tr><th scope="col">Name</th><th scope="col">Folder</th><th scope="col">Type</th><th scope="col" className="cc-num">Items</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Status</th><th scope="col">Updated</th>
+              <thead><tr><th scope="col">Name</th>{showFolder && <th scope="col">Folder</th>}{shownCols.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {subfolders.map((f) => (
                   <tr key={"f:" + f.path} className="cc-folder-row" onClick={rowClick(() => setFolder(f.path))}>
-                    <td title={f.description ?? undefined}><FolderIcon /><strong>{f.path.split("/").pop()}</strong></td>
-                    <td>{folderOf(f.path) || <span className="cc-none">(top)</span>}</td><td>Folder</td><td className="cc-num">{total(f.path)}</td><td colSpan={4}><span className="cc-none">–</span></td><td className="cc-list-menu" />
+                    <td title={f.description ?? undefined}><FolderIcon /><strong>{f.path.split("/").pop()}</strong> <span className="cc-none">({total(f.path)})</span></td>
+                    {showFolder && <td>{folderOf(f.path) || <span className="cc-none">(top)</span>}</td>}{shownCols.map((c) => <td key={c.key}>{c.key === "type" ? "Folder" : ""}</td>)}<td className="cc-list-menu" />
                   </tr>
                 ))}
                 {here.map((a) => (
                   <tr key={a.path} onClick={rowClick(() => setDialog({ kind: "agent", a }))}>
                     <td title={a.description ?? undefined}><AgentIcon kind={kindOf(a.path)} /><strong>{agentName(a.path)}</strong></td>
-                    <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td><td>{kindOf(a.path)}{apis.has(a.path) && <span className="cc-tag" title="Other systems can call it as an Agent API">API</span>}</td><td className="cc-num"><span className="cc-none">–</span></td>
-                    <td>v{a.latest_version}{(a.labels ?? []).map((l) => <span key={l.label} className="cc-tag" title={"On v" + l.version}>{l.label}</span>)}</td>
-                    <td>{a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-none">Not live</span>}</td>
-                    <td>{a.locked_by ? <span className="cc-pill is-pending"><span className="cc-pill-dot" />Checked out by {a.locked_by}</span> : "Checked in"}</td>
-                    <td>{when(a.updated)}{a.updated_by ? " by " + a.updated_by : ""}</td>
+                    {showFolder && <td>{folderOf(a.path) || <span className="cc-none">(top)</span>}</td>}
+                    {shownCols.map((c) => <td key={c.key}>{cellOf(c.key, a)}</td>)}
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + agentName(a.path)} items={rowMenu(a)} /></td>
                   </tr>
                 ))}
-                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={9} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. Build one in Private and check it in."}</td></tr>}
-                {!agents && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
+                {agents && !subfolders.length && !here.length && <tr className="is-static"><td colSpan={span} className="cc-none">{agents.length ? "Nothing matches." : "No agents here yet. Build one in Private and check it in."}</td></tr>}
+                {!agents && !error && <tr className="is-static"><td colSpan={span} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
           </div>

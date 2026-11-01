@@ -247,6 +247,9 @@ describe("new Studio", () => {
     fireEvent.click(within(pick2).getByRole("button", { name: "Done" }));
     const row = screen.getByText("Invoice intake").closest("tr")!;
     for (const t of ["UAT v2", "1 warning", "Windows"]) expect(row.textContent).toContain(t);
+    // the same columns as One CommandCenter's Public tab, Type first
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent).slice(0, 3)).toEqual(["Agent", "Type", "Platform"]);
+    expect(row.textContent).toContain("Agent");
   });
 
   it("creates in AA's order: folder, then Create, then the type, then the name", async () => {
@@ -324,10 +327,22 @@ describe("new Studio", () => {
     expect((screen.getByLabelText("path") as HTMLInputElement).value).toBe("$workbook");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
     expect(await screen.findByText("$workbook")).toBeTruthy();
+    // with no step selected, Properties has the agent's own id and description (AA's bot properties)
+    fireEvent.keyDown(steps, { key: "Escape" });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Properties" }));
+    const id = await screen.findByLabelText("Agent id") as HTMLInputElement;
+    fireEvent.change(id, { target: { value: "bad id!" } });
+    expect(screen.getByRole("alert").textContent).toContain("letters, digits");
+    fireEvent.change(id, { target: { value: "invoice_intake_de" } });
+    fireEvent.blur(id);
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Reads supplier invoices" } });
+    fireEvent.blur(screen.getByLabelText("Description"));
+    expect(await screen.findByText("Unsaved")).toBeTruthy();
 
     expect([brand(), document.title]).toEqual(["One AgentStudio", "Invoice intake · One AgentStudio"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Don't save" }));   // the id and description changed
     expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
     expect(brand()).toBe("One CommandCenter");
   });
@@ -1560,6 +1575,7 @@ describe("new Studio", () => {
     expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
     // laid out as Private: the folders on the left, a folder's sub-folders and agents on the right
     expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Public")).toBeTruthy();
+    expect(screen.getByText("Signed in as ravi").getAttribute("title")).toBe("http://cc.example:8720");   // the address only on hover
     fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("v2");

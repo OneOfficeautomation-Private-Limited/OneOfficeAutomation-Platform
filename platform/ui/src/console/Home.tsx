@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import type { CrApi, CrUser, Dashboard } from "../api/cr";
-import { Icon, IconTile, type IconName } from "../components";
+import { HelpButton, Icon, IconTile, type HelpTopic, type IconName } from "../components";
 
+const HELP: HelpTopic = { title: "Home", about: "How your agents are doing at a glance, and a way back to what you were working on. Only what your role may see is shown.",
+  items: [
+    { name: "Figures", text: "Running now, waiting, succeeded and failed in the last 24 hours, the success rate, runners online, agents, schedules, work items and hours saved. Click one to open the page behind it." },
+    { name: "Runs in the last 7 days", text: "Each day's runs, by how they ended." },
+    { name: "Recent failures", text: "The latest runs that failed, with why; click one to open it in Agent Activity." },
+    { name: "Most used agents", text: "The agents run most in the last 7 days." },
+    { name: "Runners", text: "Each runner and whether it is online now." },
+    { name: "Pick up where you left off", text: "The agents you changed and the runs you started last." },
+  ] };
 const duration = (ms: number) => ms < 1000 ? ms + " ms" : ms < 60_000 ? Math.round(ms / 100) / 10 + " s" : Math.round(ms / 6000) / 10 + " min";
 const agentName = (path: string) => path.split("/").pop()!.replace(/\.flow\.json$/, "");
 function ago(t?: string) {
@@ -44,7 +53,7 @@ export function Home({ api, user, pageHref }: { api: CrApi; user: CrUser; pageHr
 
   return (
     <section className="st-page cc-home" aria-labelledby="cc-home-title">
-      <header className="st-page-head"><div><h1 id="cc-home-title">Home</h1><p>Welcome, {user.display_name}. Here is what your agents have been doing.</p></div></header>
+      <header className="st-page-head"><div><div className="st-head-row"><h1 id="cc-home-title">Home</h1><HelpButton topic={HELP} /></div><p>Welcome, {user.display_name}. Here is what your agents have been doing.</p></div></header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {!d && !error && <p className="st-muted" role="status">Loading…</p>}
       {d && <>

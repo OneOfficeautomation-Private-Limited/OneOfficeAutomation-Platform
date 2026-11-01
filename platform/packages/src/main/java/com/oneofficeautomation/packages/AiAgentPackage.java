@@ -23,7 +23,7 @@ public final class AiAgentPackage {
         Map<String, Object> flow = repo.get(botId, "production");
         Object desc = flow.get("description");
         if (!(desc instanceof String d) || d.isBlank())
-            throw new ActionException("AGENT.TOOL_UNDOCUMENTED", "Agent '" + botId + "' has no description", "Add a description in Agent settings; the AI agent reads it to decide when to call this agent.");
+            throw new ActionException("AGENT.TOOL_UNDOCUMENTED", "Agent '" + botId + "' has no description", "Add a description under Properties in One AgentStudio (with no step selected); the AI agent reads it to decide when to call this agent.");
         Map<String, Object> props = new LinkedHashMap<>();
         List<Object> required = new ArrayList<>();
         for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
 /**
@@ -19,7 +19,6 @@ const EXAMPLE = [
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 const folderOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 const under = (f: string, p: string) => !p || f === p || f.startsWith(p + "/");
-const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const took = (r: { started: string; finished?: string | null }) => {
   if (!r.finished) return "";
