@@ -266,31 +266,36 @@ These choices are kept in your browser.
 
 ## 10. Keyboard shortcuts
 
-Canvas shortcuts work when the canvas, its toolbar or the Action settings panel has the focus (not while you type in a
-field).
+Press **?** (or choose **Keyboard shortcuts** in the Display menu) to see every key, grouped by area. In that window you
+can switch off the single-key shortcuts (`[`, `]`, `/` and `?`), for example if you use speech input. Keys work while
+the page has focus; text fields keep their own keys, and keys the browser keeps for itself are never used.
 
 | Keys | Action |
 | --- | --- |
-| Ctrl+S | Save |
-| Ctrl+W | Close the open item |
-| Ctrl+K or `/` | Quick add an action |
-| Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / Redo |
+| Ctrl+K | Go to the search |
+| Ctrl+S or Ctrl+Enter | Save the open item |
+| Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / Redo (outside text fields) |
+| F5 | Debug; while stopped at a step, continue |
+| Ctrl+F5 / Shift+F5 | Run without stopping at breakpoints / Stop the run |
+| F10 or F6 / F11 / Shift+F11 | While stopped at a step: step over / step into / step out |
+| F9 / Shift+F9 | Breakpoint on the selected steps / remove every breakpoint |
+| ↑ / ↓, Shift+↑ / Shift+↓ | Select the step above or below / extend the selection |
+| Ctrl+A, Esc | Select every step / clear the selection |
+| Enter | Go to the selected step's settings (Details > Properties) |
+| Space | Show or hide the Details panel |
 | Ctrl+C, Ctrl+X, Ctrl+V | Copy, cut, paste steps (paste goes after the selection) |
-| Ctrl+D | Duplicate the selected steps |
-| Ctrl+A | Select every step, including the steps inside blocks |
-| Ctrl+/ | Disable or enable the selected steps |
-| Del | Delete the selected steps |
+| Ctrl+D, Ctrl+/, Del | Duplicate, switch off or on, delete the selected steps |
 | Alt+↑ / Alt+↓ | Move the selected steps up or down |
-| ↑ / ↓ | Select the step above or below |
-| Shift+↑ / Shift+↓ | Extend the selection line by line |
-| Ctrl+Shift+Home / End | Extend the selection to the first or last step |
-| ← / → on a block | Fold or open the block |
-| Shift+F10 or the context-menu key | Open the step menu (or the Explorer menu) |
-| F9 | Set or clear a breakpoint on the selected step |
-| F5 / F10 / F11 / Shift+F11 | While stopped in the debugger: Continue / Step over / Step into / Step out |
-| Ctrl+Space or typing `$` in a field | Insert a variable |
-| Esc | Close a menu or dialog; clear the step selection |
-| F2, Del, Ctrl+C/X/V in the Explorer | Rename, delete, copy, cut, paste files and folders |
+| `[` or ← / `]` or → | Fold / unfold the selected block |
+| Ctrl+[ / Ctrl+] | Fold / unfold every block |
+| Ctrl+Shift+F | Find in this agent (the steps found are selected; Enter goes to the next) |
+| Ctrl+Shift+R | Record |
+| Shift+F10 or the menu key | Open the step's menu |
+| Ctrl+Space | Insert a variable in a field |
+| F2, Del, Ctrl+C/X/V, Ctrl+A, Esc in the Automation list | Rename, delete, copy, cut, paste, select all, clear the selection |
+
+In One CommandCenter's lists: `/` goes to the list's search, ↓ and ↑ move between rows, Enter opens a row and Shift+F10
+opens its ⋯ menu. **?** or **Help > Keyboard shortcuts** shows them.
 
 ## 11. If it goes wrong
 

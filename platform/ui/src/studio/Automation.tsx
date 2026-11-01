@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, RepoState, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
 import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 import { CreateDialog } from "./CreateDialog";
@@ -160,14 +160,14 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   };
   const keys = (e: KeyboardEvent) => {
     if (isPublic || (e.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;   // the workspace keys do nothing on Public
-    const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
-    if (ctrl && k === "c") act.copy();
-    else if (ctrl && k === "x") act.cut();
-    else if (ctrl && k === "v") act.paste();
-    else if (ctrl && k === "a") setSelected(paths);
-    else if (e.key === "Delete") act.remove();
-    else if (e.key === "F2" && chosenNodes.length === 1) setRenaming(chosenNodes[0]);
-    else if (e.key === "Escape") setSelected([]);
+    const ev = e.nativeEvent;
+    if (is(ev, "files.copy")) act.copy();
+    else if (is(ev, "files.cut")) act.cut();
+    else if (is(ev, "files.paste")) act.paste();
+    else if (is(ev, "files.all")) setSelected(paths);
+    else if (is(ev, "files.delete")) act.remove();
+    else if (is(ev, "files.rename") && chosenNodes.length === 1) setRenaming(chosenNodes[0]);
+    else if (is(ev, "files.clear")) setSelected([]);
     else return;
     e.preventDefault();
   };
@@ -200,7 +200,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     const list = many ? chosen : [n.path];
     const items: MenuItem[] = [];
     if (!many && (n.type === "folder" || OPENS.includes(n.type))) items.push({ key: "open", label: "Open", onSelect: () => open(n) });
-    if (!many) items.push({ key: "rename", label: "Rename…", shortcut: "F2", onSelect: () => setRenaming(n) });
+    if (!many) items.push({ key: "rename", label: "Rename…", shortcut: keyOf("files.rename"), onSelect: () => setRenaming(n) });
     // the repository: Check in (several at once, up to 10), Undo check-out and Revert edits, as AA's Private workspace
     const st = repo?.states[n.path];
     if (repo && list.length <= 10 && list.every((p) => canCheckIn(find(tree, p))))
@@ -209,8 +209,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     if (repo && !many && st?.status === "checked_out_edited") items.push({ key: "revert", label: "Revert edits…", onSelect: () => repo.onRevert(n.path) });
     items.push(
       { key: "dup", label: "Duplicate", onSelect: () => act.duplicate(list) },
-      { key: "copy", label: "Copy", shortcut: "Ctrl+C", separatorBefore: true, onSelect: () => act.copy(list) },
-      { key: "cut", label: "Cut", shortcut: "Ctrl+X", onSelect: () => act.cut(list) },
+      { key: "copy", label: "Copy", shortcut: keyOf("files.copy"), separatorBefore: true, onSelect: () => act.copy(list) },
+      { key: "cut", label: "Cut", shortcut: keyOf("files.cut"), onSelect: () => act.cut(list) },
     );
     if (!many && n.type === "folder") {
       if (clip) items.push({ key: "paste", label: "Paste into this folder", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => act.paste(n.path) });
@@ -220,7 +220,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     if (!many) items.push(
       { key: "download", label: n.type === "folder" ? "Download as zip" : "Download", separatorBefore: n.type !== "folder", onSelect: () => act.download(n.path) },
       { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(n.path) });
-    items.push({ key: "delete", label: many ? "Delete " + list.length + " items" : "Delete", shortcut: "Del", separatorBefore: true,
+    items.push({ key: "delete", label: many ? "Delete " + list.length + " items" : "Delete", shortcut: keyOf("files.delete"), separatorBefore: true,
       onSelect: () => act.remove(list.map((p) => find(tree, p)!).filter(Boolean)) });
     return items;
   };
@@ -234,7 +234,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(path) },
       ...(clip ? [{ key: "paste", label: "Paste here", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => { act.paste(path); } }] : []),
       ...(path ? [
-        { key: "rename", label: "Rename…", shortcut: "F2", onSelect: () => setRenaming(node) },
+        { key: "rename", label: "Rename…", shortcut: keyOf("files.rename"), onSelect: () => setRenaming(node) },
         { key: "copy", label: "Copy", separatorBefore: true, onSelect: () => act.copy([path]) },
         { key: "cut", label: "Cut", onSelect: () => act.cut([path]) },
         { key: "dup", label: "Duplicate", onSelect: () => act.duplicate([path]) },
@@ -301,14 +301,14 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
           {(chosen.length > 0 || (clip && !q)) && <div role="toolbar" aria-label="Selected items" className="st-items-bar is-chosen">
             <strong className="st-items-count">{chosen.length ? chosen.length + " selected" : count(clip!.paths.length) + (clip!.cut ? " cut" : " copied")}</strong>
             {chosen.length > 0 && <>
-              <Button kind="plain" onClick={() => act.copy()} title="Ctrl+C">Copy</Button>
-              <Button kind="plain" onClick={() => act.cut()} title="Ctrl+X">Cut</Button>
+              <Button kind="plain" onClick={() => act.copy()} title={keyOf("files.copy")}>Copy</Button>
+              <Button kind="plain" onClick={() => act.cut()} title={keyOf("files.cut")}>Cut</Button>
               <Button kind="plain" onClick={() => act.duplicate()}>Duplicate</Button>
               {repo && chosenNodes.length <= 10 && chosenNodes.every(canCheckIn) && <Button kind="plain" onClick={() => repo.onCheckIn(chosen)}>Check in…</Button>}
               {chosenNodes.length === 1 && <Button kind="plain" onClick={() => setRenaming(chosenNodes[0])} title="F2">Rename</Button>}
               <Button kind="plain" icon="trash" onClick={() => act.remove()} title="Delete">Delete…</Button>
             </>}
-            {clip && !q && <Button kind="plain" onClick={() => act.paste()} title="Ctrl+V">{"Paste " + count(clip.paths.length) + " here"}</Button>}
+            {clip && !q && <Button kind="plain" onClick={() => act.paste()} title={keyOf("files.paste")}>{"Paste " + count(clip.paths.length) + " here"}</Button>}
             <span className="st-items-fill" />
             {chosen.length > 0 ? <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button> : <Button kind="plain" onClick={() => setClip(null)}>Cancel</Button>}
           </div>}

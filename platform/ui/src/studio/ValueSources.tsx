@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Flow, FlowStep, FlowVariable } from "../api/client";
-import { Button, Select, TextInput } from "../components";
+import { Button, is, Select, TextInput, withKey } from "../components";
 import { parseLoose, setArg, setOut, showValue } from "./flowEdit";
 import { useVars, VarPicker } from "./VariablesPanel";
 import { holdsType, isInput, isOutput } from "./variables";
@@ -26,13 +26,13 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
     onBlur={(e) => { if (!picking) commit(e.currentTarget); }}
     onKeyDown={(e) => {
       if (e.key === "Enter") { e.preventDefault(); commit(e.currentTarget); }
-      else if (want && vars && (e.ctrlKey || e.metaKey) && e.key === " ") { e.preventDefault(); setPicking(e.currentTarget.getBoundingClientRect()); }
+      else if (want && vars && is(e.nativeEvent, "fields.variable")) { e.preventDefault(); setPicking(e.currentTarget.getBoundingClientRect()); }
     }} />;
   if (!want || !vars) return input;
   return (
     <div className="st-var-field">
       {input}
-      <button type="button" className="st-x-btn" aria-label="Insert a variable" title="Insert a variable (Ctrl+Space)" aria-expanded={!!picking}
+      <button type="button" className="st-x-btn" aria-label="Insert a variable" title={withKey("Insert a variable", "fields.variable")} aria-expanded={!!picking}
         onMouseDown={(e) => e.preventDefault()} onClick={() => setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null)}>{"{x}"}</button>
       {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking}
         onClose={() => { setPicking(null); ref.current?.focus(); }}

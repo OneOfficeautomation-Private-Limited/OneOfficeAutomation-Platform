@@ -151,3 +151,11 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-tree-more:hover { background: var(--ui-row-hover); color: var(--ui-text); }
 .ui-tree-item.is-selected .ui-tree-more:hover { background: rgba(255, 255, 255, 0.22); color: #ffffff; }
 .ui-tree-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+/* the Keyboard shortcuts dialog (item 9): areas in two columns, keys as key caps */
+.ui-keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 4px 20px; max-height: 60vh; overflow: auto; }
+.ui-keys h3 { margin: 10px 0 4px; font-size: 12.5px; }
+.ui-keys .st-table td { padding-top: 3px; padding-bottom: 3px; }
+.ui-keys-k { white-space: nowrap; text-align: right; color: var(--ui-text-2); }
+.ui-keys kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--ui-field); border-bottom-width: 2px; border-radius: 4px;
+  background: var(--ui-soft); color: var(--ui-text); font: 600 11.5px/18px ui-monospace, Consolas, monospace; text-align: center; }
+.ui-keys-switch { margin-bottom: 6px; }

@@ -3,7 +3,7 @@ import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, 
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
@@ -299,6 +299,11 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       try { const c = await api.sharedClipboard(); act.paste({ steps: c.steps ?? [], variables: c.variables ?? [] }); } catch { /* nothing shared */ }
     },
     fold: (ids: string[], fold: boolean) => { if (ids.length) onEdit(setFolded(flow, ids, fold)); },
+    /** AA's Enter on a step: the Details panel's Properties, with the cursor in its first field. */
+    settings: () => {
+      setRightTab("properties"); setRightHidden(false);
+      setTimeout(() => rightPanel.current?.querySelector<HTMLElement>("input, select, textarea")?.focus(), 30);
+    },
     note: () => {
       setRightTab("properties"); setRightHidden(false);
       setTimeout(() => [...document.querySelectorAll("label")].find((l) => l.textContent === "Shown on the step")?.control?.focus(), 30);
@@ -316,36 +321,58 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     setAnchor(from); setCursor(id);
   };
   const selectOne = (id: string) => { onSelect([id]); setAnchor(id); setCursor(id); };
-  const onKeys = (e: KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;
-    const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  const onKeys = (ev: KeyboardEvent) => {
+    if ((ev.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;
+    const e = ev.nativeEvent;
     const i = chosen.length ? ids.indexOf(chosen[chosen.length - 1]) : -1;
     const c = ids.indexOf(cursor && chosen.includes(cursor) ? cursor : chosen[chosen.length - 1] ?? "");
-    if (e.key === "Delete") act.remove();
-    else if (e.altKey && e.key === "ArrowUp") act.up();
-    else if (e.altKey && e.key === "ArrowDown") act.down();
-    else if (e.shiftKey && e.key === "ArrowDown" && c >= 0 && c + 1 < ids.length) extendTo(ids[c + 1]);
-    else if (e.shiftKey && e.key === "ArrowUp" && c > 0) extendTo(ids[c - 1]);
-    else if (e.key === "ArrowDown" && i + 1 < ids.length) selectOne(ids[i + 1]);
-    else if (e.key === "ArrowUp" && i > 0) selectOne(ids[i - 1]);
-    else if (e.key === "Escape" && selected.length) onSelect([]);
-    else if (ctrl && k === "d") act.duplicate();
-    else if (ctrl && k === "a") onSelect(ids);
-    else if (ctrl && k === "c") act.copy();
-    else if (ctrl && k === "x") act.cut();
-    else if (ctrl && k === "v") {
+    const chosenBlocks = chosen.filter((id) => blocks.includes(id));
+    if (is(e, "steps.delete")) act.remove();
+    else if (is(e, "steps.up")) act.up();
+    else if (is(e, "steps.down")) act.down();
+    else if (is(e, "steps.extendDown") && c >= 0 && c + 1 < ids.length) extendTo(ids[c + 1]);
+    else if (is(e, "steps.extendUp") && c > 0) extendTo(ids[c - 1]);
+    else if (is(e, "steps.fold") && chosenBlocks.length) act.fold(chosenBlocks, true);   // before the arrows: ← and → fold a selected block
+    else if (is(e, "steps.unfold") && chosenBlocks.length) act.fold(chosenBlocks, false);
+    else if (is(e, "steps.next") && i + 1 < ids.length) selectOne(ids[i + 1]);
+    else if (is(e, "steps.previous") && i > 0) selectOne(ids[i - 1]);
+    else if (is(e, "steps.clear") && selected.length) onSelect([]);
+    else if (is(e, "steps.foldAll") && blocks.length) act.fold(blocks, true);
+    else if (is(e, "steps.unfoldAll") && folded.size) onEdit(setFolded(flow, [...folded], false));
+    else if (is(e, "steps.settings") && chosen.length) act.settings();
+    else if (is(e, "steps.details")) setRightHidden(!rightHidden);
+    else if (is(e, "steps.find")) setFinding("");
+    else if (is(e, "steps.record") && !recording) record();
+    else if (is(e, "steps.duplicate")) act.duplicate();
+    else if (is(e, "steps.all")) onSelect(ids);
+    else if (is(e, "steps.copy")) act.copy();
+    else if (is(e, "steps.cut")) act.cut();
+    else if (is(e, "steps.paste")) {
       // a paste event follows when the browser gives one (it carries steps copied in another Studio window); on a step
       // Chrome gives none, so then the Studio's own clipboard is pasted
       pasted.current = false;
       setTimeout(() => { if (!pasted.current) act.paste(); }, 0);
       return;
     }
-    else if (ctrl && e.key === "/") act.disable();
-    else if (e.key === "F9" && chosen.length) chosen.forEach(onToggleBreakpoint);
-    else if ((e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) && chosen.length) setMenuFor(chosen[chosen.length - 1]);
+    else if (is(e, "steps.disable")) act.disable();
+    else if (is(e, "run.breakpoint") && chosen.length) chosen.forEach(onToggleBreakpoint);
+    else if (is(e, "run.clearBreakpoints") && breakpoints.length) breakpoints.forEach(onToggleBreakpoint);
+    else if (is(e, "steps.menu") && chosen.length) setMenuFor(chosen[chosen.length - 1]);
     else return;
-    e.preventDefault();
+    ev.preventDefault();
   };
+  // Find in this agent (AA's Ctrl+Shift+F): the steps whose name or settings hold the words are selected; Enter goes to the next
+  const [finding, setFinding] = useState<string | null>(null);
+  const findBox = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (finding === "") findBox.current?.focus(); }, [finding]);
+  /** The steps whose line (as shown) or settings hold the words. */
+  const findSteps = (q: string) => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    const shown = new Map([...document.querySelectorAll<HTMLElement>(".st-steps .st-step[data-key]")].map((b) => [b.dataset.key!, (b.textContent ?? "").toLowerCase()]));
+    return rows.flatMap((r) => "step" in r && ((shown.get(r.step.id) ?? "").includes(t) || JSON.stringify(r.step).toLowerCase().includes(t)) ? [r.step.id] : []);
+  };
+  const [hits, setHits] = useState<string[]>([]);
   const onPaste = (e: ClipboardEvent) => {
     if ((e.target as HTMLElement).closest("input, textarea, select")) return;
     pasted.current = true;
@@ -366,20 +393,20 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const over = (e: DragEvent, key: string | null, where: Place) => { e.preventDefault(); if (drop?.key !== key || drop.where !== where) setDrop({ key, where }); };
   const menuItems = (step: FlowStep): MenuItem[] => {
     const items: MenuItem[] = [
-      { key: "cut", label: "Cut", shortcut: "Ctrl+X", onSelect: act.cut },
-      { key: "copy", label: "Copy", shortcut: "Ctrl+C", onSelect: () => { act.copy(); } },
+      { key: "cut", label: "Cut", shortcut: keyOf("steps.cut"), onSelect: act.cut },
+      { key: "copy", label: "Copy", shortcut: keyOf("steps.copy"), onSelect: () => { act.copy(); } },
     ];
-    if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: "Ctrl+V", onSelect: () => act.paste() });
+    if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: keyOf("steps.paste"), onSelect: () => act.paste() });
     items.push(
       { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any One AgentStudio window", separatorBefore: true, onSelect: act.share },
       { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
-      { key: "duplicate", label: "Duplicate", shortcut: "Ctrl+D", separatorBefore: true, onSelect: act.duplicate },
-      { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: "Ctrl+/", onSelect: act.disable },
-      { key: "delete", label: "Delete", shortcut: "Del", onSelect: act.remove },
-      { key: "up", label: "Move up", shortcut: "Alt+↑", separatorBefore: true, onSelect: act.up },
-      { key: "down", label: "Move down", shortcut: "Alt+↓", onSelect: act.down },
+      { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },
+      { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: keyOf("steps.disable"), onSelect: act.disable },
+      { key: "delete", label: "Delete", shortcut: keyOf("steps.delete"), onSelect: act.remove },
+      { key: "up", label: "Move up", shortcut: keyOf("steps.up"), separatorBefore: true, onSelect: act.up },
+      { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
       { key: "note", label: step.note ? "Edit note" : "Add note", separatorBefore: true, onSelect: act.note },
-      { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: "F9", onSelect: () => chosen.forEach(onToggleBreakpoint) },
+      { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
     );
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
       items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
@@ -402,32 +429,44 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           {/* review round 2 (1 Nov 2026): one line, icons with their name and shortcut on hover (as AA's editor), the step
               actions only while steps are selected and Paste only while something is copied; the count is at the list's foot */}
           <div role="toolbar" aria-label="Edit steps" className="st-edit-bar">
-            <button type="button" className="st-tool" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
-            <button type="button" className="st-tool" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Undo" title={withKey("Undo", "app.undo")} disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Redo" title={withKey("Redo", "app.redo")} disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
             {(chosen.length > 0 || clipboard) && <span className="st-bar-gap" />}
             {chosen.length > 0 && <>
-              <button type="button" className="st-tool" aria-label="Cut" title="Cut (Ctrl+X)" onClick={act.cut}><Icon name="cut" size={16} /></button>
-              <button type="button" className="st-tool" aria-label="Copy" title="Copy (Ctrl+C)" onClick={() => act.copy()}><Icon name="copy" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Cut" title={withKey("Cut", "steps.cut")} onClick={act.cut}><Icon name="cut" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Copy" title={withKey("Copy", "steps.copy")} onClick={() => act.copy()}><Icon name="copy" size={16} /></button>
             </>}
-            {clipboard && <button type="button" className="st-tool" aria-label="Paste" title="Paste (Ctrl+V)" onClick={() => act.paste()}><Icon name="paste" size={16} /></button>}
+            {clipboard && <button type="button" className="st-tool" aria-label="Paste" title={withKey("Paste", "steps.paste")} onClick={() => act.paste()}><Icon name="paste" size={16} /></button>}
             {chosen.length > 0 && <>
-              <button type="button" className="st-tool" aria-label="Delete" title="Delete (Del)" onClick={act.remove}><Icon name="trash" size={16} /></button>
-              <button type="button" className="st-tool" aria-label="Duplicate" title="Duplicate (Ctrl+D)" onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
-              <button type="button" className="st-tool" aria-label={allOff ? "Switch on" : "Switch off"} title={(allOff ? "Switch on" : "Switch off") + " (Ctrl+/)"} onClick={act.disable}><Icon name="power" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Delete" title={withKey("Delete", "steps.delete")} onClick={act.remove}><Icon name="trash" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
+              <button type="button" className="st-tool" aria-label={allOff ? "Switch on" : "Switch off"} title={withKey(allOff ? "Switch on" : "Switch off", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
             </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [
-                { key: "up", label: "Move up", shortcut: "Alt+↑", onSelect: act.up },
-                { key: "down", label: "Move down", shortcut: "Alt+↓", onSelect: act.down },
-                { key: "bp", label: "Breakpoint", description: "Stop here when debugging", shortcut: "F9", onSelect: () => chosen.forEach(onToggleBreakpoint) },
+                { key: "up", label: "Move up", shortcut: keyOf("steps.up"), onSelect: act.up },
+                { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
+                { key: "bp", label: "Breakpoint", description: "Stop here when debugging", shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
               ] : []),
-              { key: "all", label: "Select all", shortcut: "Ctrl+A", onSelect: () => onSelect(ids) },
-              ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
-              ...(folded.size ? [{ key: "unfold", label: "Unfold all", onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
+              ...(breakpoints.length ? [{ key: "nobp", label: "Remove every breakpoint", shortcut: keyOf("run.clearBreakpoints"), onSelect: () => breakpoints.forEach(onToggleBreakpoint) }] : []),
+              { key: "all", label: "Select all", shortcut: keyOf("steps.all"), onSelect: () => onSelect(ids) },
+              { key: "find", label: "Find in this agent", shortcut: keyOf("steps.find"), onSelect: () => setFinding("") },
+              ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", shortcut: keyOf("steps.foldAll"), separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
+              ...(folded.size ? [{ key: "unfold", label: "Unfold all", shortcut: keyOf("steps.unfoldAll"), onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
             ]} trigger={<button type="button" className="st-tool" aria-label="More" title="More step actions"><Icon name="more" size={16} stroke={3} /></button>} />
+            {finding !== null && <span className="st-find">
+              <input ref={findBox} type="search" aria-label="Find in this agent" placeholder="Find in this agent" value={finding}
+                onChange={(e) => { setFinding(e.target.value); const found = findSteps(e.target.value); setHits(found); if (found.length) onSelect(found); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); setFinding(null); }
+                  else if (e.key === "Enter" && hits.length) { e.preventDefault(); const at = hits.indexOf(chosen[chosen.length - 1] ?? ""); selectOne(hits[(at + 1) % hits.length]); }
+                }} />
+              <span className="st-find-n" aria-live="polite">{finding.trim() ? hits.length + (hits.length === 1 ? " step" : " steps") : ""}</span>
+              <button type="button" className="ui-icon-btn" aria-label="Close the search" onClick={() => setFinding(null)}><Icon name="close" size={12} /></button>
+            </span>}
             <span className="st-bar-gap" />
             <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
               {([["list", "List"], ["flow", "Flow"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={view === k} className="st-seg-btn" onClick={() => setView(k)}>{t}</button>)}
@@ -435,7 +474,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
             <button type="button" className="st-tool" aria-label="Assistant" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}><Icon name="spark" size={16} /></button>
             {recording
               ? <span className="st-tool-busy" role="status"><span className="st-rec-dot" aria-hidden="true" />Recording…</span>
-              : <button type="button" className="st-tool st-record-btn" aria-label="Record" title="Record actions in a web browser or a Windows application" onClick={record}><span className="st-rec-dot" aria-hidden="true" /></button>}
+              : <button type="button" className="st-tool st-record-btn" aria-label="Record" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} onClick={record}><span className="st-rec-dot" aria-hidden="true" /></button>}
             {capturing
               ? <span className="st-tool-busy" role="status">Capturing…</span>
               : <Menu label="Capture" align="start" items={[

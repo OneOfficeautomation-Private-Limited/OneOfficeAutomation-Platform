@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { WorkspaceNode } from "../api/client";
-import { Button, Field, Icon, IconTile, Select, TextInput, type IconName } from "../components";
+import { Button, Field, Icon, IconTile, keyOf, Select, TextInput, type IconName } from "../components";
 
 /**
  * Editors for the items other than agents: forms, workflows, document types, Prompt Skills and scripts. Each works on
@@ -63,7 +63,7 @@ function PartsEditor<P extends Obj>({ title, parts, kinds, describe, onParts, se
             <span className="st-bar-gap" />
             <button type="button" className="st-tool" aria-label="Move up" title="Move up" disabled={sel === 0} onClick={() => move(sel, -1)}><Icon name="up" size={16} /></button>
             <button type="button" className="st-tool" aria-label="Move down" title="Move down" disabled={sel === parts.length - 1} onClick={() => move(sel, 1)}><Icon name="down" size={16} /></button>
-            <button type="button" className="st-tool" aria-label="Delete" title="Delete (Ctrl+Z brings it back)" onClick={() => { onParts(parts.filter((_, k) => k !== sel)); setSel(null); }}><Icon name="trash" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Delete" title={"Delete (" + keyOf("app.undo") + " brings it back)"} onClick={() => { onParts(parts.filter((_, k) => k !== sel)); setSel(null); }}><Icon name="trash" size={16} /></button>
           </>}
         </div>
         <div className="st-marker st-start">START</div>

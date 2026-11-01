@@ -872,6 +872,24 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
+  it("moves through a list with the keys, opens a row with Enter, and shows the shortcuts with ?", async () => {
+    render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
+    await go("Business");
+    const list = await screen.findByRole("table", { name: "Agents that record values" });
+    const main = document.querySelector("main")!;
+    fireEvent.keyDown(main, { key: "/" });   // the list's search
+    expect(document.activeElement).toBe(screen.getByLabelText("Search agents"));
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });   // the first row
+    const row = within(list).getAllByRole("row")[1];
+    expect(document.activeElement).toBe(row);
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(await screen.findByRole("dialog", { name: "Business figures of Invoice intake" })).toBeTruthy();
+    // ? (not in a text field) shows every shortcut of the console
+    fireEvent.keyDown(document.body, { key: "?", shiftKey: true });
+    const d = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(within(within(d).getByRole("region", { name: "Lists" })).getByText("Go to the list's search")).toBeTruthy();
+  });
+
   it("shows Dashboards with widgets made in a form: ready-made ones, a pie of the largest parts, a CSV per widget, copies and deletes", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);

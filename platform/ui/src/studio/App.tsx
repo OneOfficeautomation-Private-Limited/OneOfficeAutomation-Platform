@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
-import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
+import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem } from "../components";
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, PublicRepository, type CheckInDep } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -77,7 +77,9 @@ export function App({ api: given }: { api?: StudioApi }) {
   const displayItems = [
     choice("light", "Light theme", theme === "light", () => setTheme("light"), "White panels in a dark frame"),
     choice("dark", "Dark theme", theme === "dark", () => setTheme("dark"), "Dark panels, easier on the eyes in a dim room"),
-  ];   // AI agents shown as plain steps instead of in the AI agent editor
+    { key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), separatorBefore: true, onSelect: () => setShowKeys(true) },
+  ];
+  const [showKeys, setShowKeys] = useState(false);   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => {
@@ -165,34 +167,35 @@ export function App({ api: given }: { api?: StudioApi }) {
   // Ctrl+K goes to the workspace search, as the console's search
   const searchBox = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchBox.current?.focus(); searchBox.current?.select(); } };
+    const onKey = (e: KeyboardEvent) => { if (is(e, "app.search")) { e.preventDefault(); searchBox.current?.focus(); searchBox.current?.select(); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  // Ctrl+S saves, Ctrl+Z and Ctrl+Y undo and redo (outside text fields, which keep their own undo); the run and debug keys
-  // are UiPath's (F5 debug or continue, Ctrl+F5 run, Shift+F5 stop, F10 step over, F11 step into, Shift+F11 step out),
-  // with AA's F6 as step over too
-  const keys = useRef({ save, undo, redo, current, runKey: (_e: KeyboardEvent): boolean => false });
-  keys.current = { save, undo, redo, current, runKey: (e: KeyboardEvent) => {
-    if (!agent || !/^F(5|6|10|11)$/.test(e.key)) return false;
-    const run = agent.run && !isFinished(agent.run) ? agent.run : null, ctrl = e.ctrlKey || e.metaKey;
-    if (e.key === "F5" && e.shiftKey) { if (run) stopRun(); }
-    else if (e.key === "F5") { if (run?.stopped) debugCommand("continue"); else if (!run) startRun(!ctrl); }
+  // the keys of the shortcut list (components/shortcuts.ts): save, undo and redo (outside text fields, which keep their
+  // own undo); run and debug as UiPath's (F5 debug or continue, Ctrl+F5 run, Shift+F5 stop, F10 step over, F11 step into,
+  // Shift+F11 step out), with AA's F6 as step over too; ? shows the Keyboard shortcuts
+  const keys = useRef({ save, undo, redo, current, runKey: (_e: KeyboardEvent): boolean => false, shortcuts: () => {} });
+  keys.current = { save, undo, redo, current, shortcuts: () => setShowKeys(true), runKey: (e: KeyboardEvent) => {
+    const k = !agent ? null : is(e, "run.stop") ? "run.stop" : is(e, "run.run") ? "run.run" : is(e, "run.debug") ? "run.debug"
+      : is(e, "run.stepOut") ? "run.stepOut" : is(e, "run.stepInto") ? "run.stepInto" : is(e, "run.stepOver") ? "run.stepOver" : null;
+    if (!agent || !k) return false;
+    const run = agent.run && !isFinished(agent.run) ? agent.run : null;
+    if (k === "run.stop") { if (run) stopRun(); }
+    else if (k === "run.debug" || k === "run.run") { if (run?.stopped) debugCommand("continue"); else if (!run) startRun(k === "run.debug"); }
     else if (!run?.stopped) return true;   // the step keys work while the run waits at a step
-    else if (e.key === "F11") debugCommand(e.shiftKey ? "stepOut" : "stepInto");
-    else debugCommand("stepOver");
+    else debugCommand(k === "run.stepInto" ? "stepInto" : k === "run.stepOut" ? "stepOut" : "stepOver");
     return true;
   } };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { current: tab } = keys.current;
+      const inField = inTextField(e);
+      if (!inField && is(e, "app.shortcuts")) { e.preventDefault(); keys.current.shortcuts(); return; }
       if (tab && keys.current.runKey(e)) { e.preventDefault(); return; }
-      if (!tab || !(e.ctrlKey || e.metaKey)) return;
-      const k = e.key.toLowerCase();
-      const inField = (e.target as HTMLElement | null)?.closest?.("input, textarea, select");
-      if (k === "s") { e.preventDefault(); keys.current.save(tab.path); }
-      else if (!inField && k === "z" && !e.shiftKey) { e.preventDefault(); keys.current.undo(); }
-      else if (!inField && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); keys.current.redo(); }
+      if (!tab) return;
+      if (is(e, "app.save")) { e.preventDefault(); keys.current.save(tab.path); }
+      else if (!inField && is(e, "app.undo")) { e.preventDefault(); keys.current.undo(); }
+      else if (!inField && is(e, "app.redo")) { e.preventDefault(); keys.current.redo(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -449,18 +452,18 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current && dirty && <span className="st-unsaved">Unsaved</span>}
         </nav>
         <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
-          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">Ctrl K</span></label>
+          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
         <Menu label="Display" title="Display" items={displayItems}
           trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
           {current && <>
-                <Button kind="primary" icon="save" onClick={() => save(current.path)} title="Save (Ctrl+S)">Save</Button>
+                <Button kind="primary" icon="save" onClick={() => save(current.path)} title={withKey("Save", "app.save")}>Save</Button>
                 {!agent ? null : running
-                  ? <Button kind="light" onClick={stopRun} title="Stop the run (Shift+F5)">Stop run</Button>
+                  ? <Button kind="light" onClick={stopRun} title={withKey("Stop the run", "run.stop")}>Stop run</Button>
                   : <>
-                      <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer (Ctrl+F5)">Run</Button>
-                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints, or at the first step (F5)">Debug</Button>
+                      <Button kind="run" icon="play" onClick={() => startRun(false)} title={withKey("Run the agent as it is in the editor, on this computer", "run.run")}>Run</Button>
+                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title={withKey("Run and stop at breakpoints, or at the first step", "run.debug")}>Debug</Button>
                     </>}
                 {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
@@ -514,6 +517,7 @@ export function App({ api: given }: { api?: StudioApi }) {
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
         <HelpPanel page={active ?? view} />
+        {showKeys && <ShortcutsDialog app="studio" onClose={() => setShowKeys(false)} />}
       </div></HelpProvider>
 
       {checkingIn && <CheckInDialog api={api} name={checkingIn.length === 1 ? displayName({ name: checkingIn[0].split("/").pop()!, path: checkingIn[0], type: "bot" }) : checkingIn.length + " items"}
@@ -652,8 +656,8 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
   return (
     <div className="st-item-wrap">
       <div role="toolbar" aria-label="Edit" className="st-edit-bar st-item-bar">
-        <button type="button" className="st-tool" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
-        <button type="button" className="st-tool" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
+        <button type="button" className="st-tool" aria-label="Undo" title={withKey("Undo", "app.undo")} disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
+        <button type="button" className="st-tool" aria-label="Redo" title={withKey("Redo", "app.redo")} disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
         {cmd && <>
           <span className="st-bar-gap" />
           {runnable && <Button kind="run" icon="play" onClick={runScript} disabled={scriptRun?.busy}>{scriptRun?.busy ? "Running…" : "Run script"}</Button>}

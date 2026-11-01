@@ -725,6 +725,29 @@ describe("new Studio", () => {
     expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
   });
 
+  it("has AA's editor keys: fold with [ and ], every breakpoint off with Shift+F9, find with Ctrl+Shift+F, Enter to the settings", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Loop"));
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "[" });
+    expect(await screen.findByRole("button", { name: /^Unfold line/ })).toBeTruthy();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "]" });
+    expect(await screen.findByRole("button", { name: /^Fold line/ })).toBeTruthy();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9" });
+    expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeTruthy();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9", shiftKey: true });
+    expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeNull();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F", ctrlKey: true, shiftKey: true });
+    const box = await screen.findByLabelText("Find in this agent");
+    fireEvent.change(box, { target: { value: "open workbook" } });
+    expect(stepButton(steps, "Open workbook").getAttribute("aria-pressed") === "true" || stepButton(steps, "Open workbook").className.includes("is-selected")).toBe(true);
+    expect(screen.getByText("1 step")).toBeTruthy();
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.queryByLabelText("Find in this agent")).toBeNull();
+    fireEvent.keyDown(stepButton(steps, "Open workbook"), { key: "Enter" });
+    await waitFor(() => expect(screen.getByRole("complementary", { name: /Properties, variables and triggers/ }).contains(document.activeElement)).toBe(true));
+  });
+
   it("adds a schedule trigger for this agent only", async () => {
     const { api, triggers } = fakeServer();
     render(<App api={api} />);
@@ -1664,7 +1687,13 @@ describe("new Studio", () => {
     expect(localStorage.getItem("ooa.studio.display.theme")).toBe('"dark"');
     fireEvent.pointerDown(screen.getByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
     expect((await screen.findByRole("menuitem", { name: /^Dark theme, In use/ }))).toBeTruthy();
-    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toHaveLength(2);
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toHaveLength(3);   // the two themes, and Keyboard shortcuts
+    // the Keyboard shortcuts dialog, with the switch for single-key shortcuts
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Keyboard shortcuts/ }));
+    const d = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(within(within(d).getByRole("region", { name: "Run and debug" })).getByText("F10")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("checkbox", { name: /Single-key shortcuts/ }));
+    expect(localStorage.getItem("ooa.studio.display.singleKeys")).toBe("false");
   });
 
   it("asks which window to record in, as AA does: browser tabs, application windows, and browsers that are not connected", async () => {

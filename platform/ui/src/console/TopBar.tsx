@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser, Environment } from "../api/cr";
-import { BrandMark, Icon, Menu } from "../components";
+import { BrandMark, Icon, is, keyOf, Menu } from "../components";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
 
 /**
@@ -12,8 +12,8 @@ import { canSee, MENU_SECTIONS } from "../shell/menu";
 const sectionName = (label: string) => label === "AI" ? "AI" : label.charAt(0) + label.slice(1).toLowerCase();
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
 
-export function TopBar({ api, user, page, classicHref, onPage, onSignOut }: { api: CrApi; user: CrUser; page: string; classicHref: string;
-  onPage: (id: string) => void; onSignOut: () => void }) {
+export function TopBar({ api, user, page, classicHref, onPage, onSignOut, onShortcuts }: { api: CrApi; user: CrUser; page: string; classicHref: string;
+  onPage: (id: string) => void; onSignOut: () => void; onShortcuts: () => void }) {
   const can = (p: string) => user.permissions.includes(p);
   const [alerts, setAlerts] = useState<number | null>(null);
   useEffect(() => {
@@ -37,7 +37,7 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut }: { ap
       <div className="st-top-actions">
         {alerts != null && <a className="st-top-icon cc-bell" href="#/alerts" aria-label={"Open alerts: " + alerts} title="Open alerts">
           <Icon name="bell" size={16} />{alerts > 0 && <span className="cc-badge">{alerts}</span>}</a>}
-        <Menu label="Help" align="end" items={[{ key: "classic", label: "Classic console", description: "Today's console, until it is retired", onSelect: () => { location.href = classicHref; } }]}
+        <Menu label="Help" align="end" items={[{ key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), onSelect: onShortcuts }, { key: "classic", label: "Classic console", description: "Today's console, until it is retired", onSelect: () => { location.href = classicHref; } }]}
           trigger={<button type="button" className="st-top-icon" aria-label="Help" title="Help"><Icon name="help" size={16} /></button>} />
         <Menu label="Your account" align="end" title={user.display_name + " · " + (user.roles?.length ? user.roles.join(", ") : user.role)}
           items={[{ key: "out", label: "Sign out", onSelect: onSignOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
@@ -59,7 +59,7 @@ function Search({ api, user, onPage }: { api: CrApi; user: CrUser; onPage: (id: 
   const [agents, setAgents] = useState<string[] | null>(null);
   const box = useRef<HTMLInputElement>(null);
   useEffect(() => {   // Ctrl K (or Cmd K) puts the cursor in the search
-    const on = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); box.current?.focus(); } };
+    const on = (e: KeyboardEvent) => { if (is(e, "app.search")) { e.preventDefault(); box.current?.focus(); } };
     addEventListener("keydown", on); return () => removeEventListener("keydown", on);
   }, []);
   const loadAgents = () => { if (agents == null && user.permissions.includes("repo.view")) api.agents().then((a) => setAgents(a.map((x) => x.path)), () => setAgents([])); };
@@ -75,7 +75,7 @@ function Search({ api, user, onPage }: { api: CrApi; user: CrUser; onPage: (id: 
       <input ref={box} type="search" aria-label="Search pages and agents" placeholder="Search pages and agents" value={q}
         onFocus={() => { setOpen(true); loadAgents(); }} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Escape") { setQ(""); setOpen(false); } if (e.key === "Enter" && run) go("#/activity?run=" + encodeURIComponent(run)); }} />
-      <kbd className="cc-kbd">Ctrl K</kbd>
+      <kbd className="cc-kbd">{keyOf("app.search").replace("+", " ")}</kbd>
       {open && t && <div className="cc-search-results" role="group" aria-label="Search results">
         {run && <a href={"#/activity?run=" + encodeURIComponent(run)} onClick={() => { setQ(""); setOpen(false); }}>Open the run {run}</a>}
         {pages.length > 0 && <><div className="cc-search-head">Pages</div>{pages.map((p) =>

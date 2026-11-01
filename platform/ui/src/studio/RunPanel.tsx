@@ -1,5 +1,5 @@
 import type { DebugCommand, DebugState, RunEvent, RunResult } from "../api/client";
-import { Button } from "../components";
+import { Button, withKey } from "../components";
 import { showValue } from "./flowEdit";
 
 /** A run of the open agent from this Studio: what it reported so far and, when it is being debugged, where it stopped. */
@@ -56,12 +56,12 @@ export function RunOutput({ run, stepName, onStop, onDebug }:
         {run.stopped && <span>at {stepName(run.stopped.stepId)}{run.stopped.reason ? ` (${run.stopped.reason})` : ""}</span>}
         <span className="st-bar-fill" />
         {run.stopped && <>
-          <Button kind="run" icon="play" onClick={() => onDebug("continue")} title="Continue to the next breakpoint (F5)">Continue</Button>
-          <Button kind="secondary" onClick={() => onDebug("stepOver")} title="Run this step and stop at the next (F10 or F6)">Step over</Button>
-          <Button kind="secondary" onClick={() => onDebug("stepInto")} title="Go into a block or child agent (F11)">Step into</Button>
-          <Button kind="secondary" onClick={() => onDebug("stepOut")} title="Finish the block and stop after it (Shift+F11)">Step out</Button>
+          <Button kind="run" icon="play" onClick={() => onDebug("continue")} title={withKey("Continue to the next breakpoint", "run.debug")}>Continue</Button>
+          <Button kind="secondary" onClick={() => onDebug("stepOver")} title={withKey("Run this step and stop at the next", "run.stepOver")}>Step over</Button>
+          <Button kind="secondary" onClick={() => onDebug("stepInto")} title={withKey("Go into a block or child agent", "run.stepInto")}>Step into</Button>
+          <Button kind="secondary" onClick={() => onDebug("stepOut")} title={withKey("Finish the block and stop after it", "run.stepOut")}>Step out</Button>
         </>}
-        {!done && <Button kind="secondary" onClick={onStop} title="Stop the run (Shift+F5)">Stop</Button>}
+        {!done && <Button kind="secondary" onClick={onStop} title={withKey("Stop the run", "run.stop")}>Stop</Button>}
       </div>
       <ol className="st-run-lines" aria-live="polite">
         {lines.map(({ e, l }) => <li key={e.seq} className={l!.tone ? "is-" + l!.tone : undefined}>{l!.text}</li>)}

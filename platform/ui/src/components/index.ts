@@ -11,3 +11,5 @@ export { Splitter, usePanelSize } from "./Splitter";
 export { Tabs, TabPanel } from "./Tabs";
 export { Tree, type TreeNode } from "./Tree";
 export { usePersistent } from "./usePersistent";
+export { SHORTCUTS, inTextField, is, keyOf, shortcutsFor, singleKeysOn, withKey, type Shortcut } from "./shortcuts";
+export { ShortcutsDialog } from "./ShortcutsDialog";

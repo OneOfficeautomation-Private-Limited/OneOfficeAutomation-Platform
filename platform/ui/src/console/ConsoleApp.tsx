@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
-import { Button, Field, HelpPanel, HelpProvider, Icon, TextInput, usePersistent } from "../components";
+import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, ShortcutsDialog, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { enableTableTools } from "./TableTools";
@@ -33,6 +33,7 @@ import { Alerts } from "./Alerts";
 import { BusinessPage, OperationsPage } from "./Insights";
 import { Overview } from "./Overview";
 import { EnvironmentLabel, TopBar } from "./TopBar";
+import { listKeys } from "./listKeys";
 import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
@@ -63,6 +64,11 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
   useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showKeys, setShowKeys] = useState(false);   // ? or Help > Keyboard shortcuts
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => { if (!inTextField(e) && is(e, "app.shortcuts")) { e.preventDefault(); setShowKeys(true); } };
+    addEventListener("keydown", on); return () => removeEventListener("keydown", on);
+  }, []);
   const [studio, setStudio] = useState(false);
   const [theme] = usePersistent<"light" | "dark">("display.theme", "light");
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
@@ -102,7 +108,8 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
 
   return (
     <div className="st-app cc-app">
-      <TopBar api={api} user={user} page={page} classicHref={TODAY + "?classic"} onPage={setPage} onSignOut={signOut} />
+      <TopBar api={api} user={user} page={page} classicHref={TODAY + "?classic"} onPage={setPage} onSignOut={signOut} onShortcuts={() => setShowKeys(true)} />
+      {showKeys && <ShortcutsDialog app="console" onClose={() => setShowKeys(false)} />}
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
       {user.password_expires_in_days !== undefined && <div className="st-notice" role="status">
@@ -113,7 +120,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }}
           offTitle="One AgentStudio runs beside One CommandCenter (ooa server), on the same computer" console />
-        <main className="st-main cc-main">
+        <main className="st-main cc-main" onKeyDown={listKeys}>
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {page === "insights" && <Overview api={api} user={user} />}
           {page === "alerts" && <Alerts api={api} user={user} onNotice={setNotice} />}

@@ -254,9 +254,12 @@ text files open in their own editors in the centre area, with Save and, for scri
 ## 21. Preferences and keyboard
 
 Theme, light or dark only (top bar); a full-screen button at the top right of the canvas (Esc leaves it); language (view menu: English, Deutsch, Français, Español, 日本語), panel and dock
-visibility, and the Run window position are remembered in the browser. Keys: Ctrl+S save, Ctrl+Z/Y undo/redo, Ctrl+C/X/V,
-Ctrl+D, Del, Ctrl+/, Alt+Up/Down, Ctrl+A, Ctrl+K or `/` Quick add, F9 breakpoint, F5/F10/F11/Shift+F11 while debugging,
-Esc closes menus.
+visibility, and the Run window position are remembered in the browser. Keys: every shortcut is in one list
+(`ui/src/components/shortcuts.ts`) that feeds the key handlers, menus, tooltips and the **Keyboard shortcuts** window (`?`,
+or the Display menu), and a test fails if a key is shown without a handler. Run and debug follow UiPath (F5, Ctrl+F5,
+Shift+F5, F10 or F6, F11, Shift+F11); the step list follows AA's editor (Enter, Space, `[` `]`, Ctrl+`[` `]`, Shift+F9,
+Ctrl+Shift+F, Ctrl+Shift+R). Single-character keys can be switched off per person (WCAG 2.1.4); no key the browser keeps
+for itself is used. See the user guide, Studio basics, section 10.
 
 ## Related documents
 
