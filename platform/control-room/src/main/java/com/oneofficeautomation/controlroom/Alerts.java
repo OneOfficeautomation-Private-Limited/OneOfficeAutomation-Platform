@@ -158,16 +158,16 @@ public final class Alerts {
     /** Alerts, newest first: status open (the default), acknowledged, cleared or all; rule; paged. */
     public Map<String, Object> list(User by, Map<String, String> q) {
         cr.require(by, "analytics.view", "view alerts");
-        List<String> where = new ArrayList<>();
+        List<String> conds = new ArrayList<>();
         List<Object> p = new ArrayList<>();
         String status = q.getOrDefault("status", "open");
-        if (Set.of("open", "acknowledged", "cleared").contains(status)) { where.add("status = ?"); p.add(status); }
-        if (q.get("rule") != null && !q.get("rule").isBlank()) { where.add("rule_id = ?"); p.add(q.get("rule")); }
-        String w = where.isEmpty() ? "" : " WHERE " + String.join(" AND ", where);
+        if (Set.of("open", "acknowledged", "cleared").contains(status)) { conds.add("status = ?"); p.add(status); }
+        if (q.get("rule") != null && !q.get("rule").isBlank()) { conds.add("rule_id = ?"); p.add(q.get("rule")); }
+        String where = conds.isEmpty() ? "" : " WHERE " + String.join(" AND ", conds);   // constant conditions with ? placeholders
         int limit = Math.max(1, Math.min(500, intOr(q.get("limit"), 100))), offset = Math.max(0, intOr(q.get("offset"), 0));
         List<Map<String, Object>> out = new ArrayList<>();
         int skipped = 0;
-        for (Map<String, Object> a : db.query("SELECT * FROM alerts" + w + " ORDER BY raised DESC LIMIT " + (limit + offset + 500), p.toArray())) {
+        for (Map<String, Object> a : db.query("SELECT * FROM alerts" + where + " ORDER BY raised DESC LIMIT " + (limit + offset + 500), p.toArray())) {
             if (a.get("bot_path") != null && !cr.folders.mayView(by, (String) a.get("bot_path"))) continue;
             if (skipped++ < offset) continue;
             Map<String, Object> m = new LinkedHashMap<>(a);

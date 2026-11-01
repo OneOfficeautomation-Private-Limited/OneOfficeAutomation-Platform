@@ -62,7 +62,7 @@ class HttpsTest {
             HttpResponse<String> h = trusting.send(HttpRequest.newBuilder(URI.create(base + "/api/health")).build(), HttpResponse.BodyHandlers.ofString());
             assertEquals(200, h.statusCode(), h.body());
             assertTrue(h.headers().firstValue("Strict-Transport-Security").isPresent(), "HSTS over HTTPS");
-            HttpResponse<String> page = trusting.send(HttpRequest.newBuilder(URI.create(base + "/")).build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> page = trusting.send(HttpRequest.newBuilder(URI.create(base + "/next/")).build(), HttpResponse.BodyHandlers.ofString());   // the console (the bare address sends here)
             assertEquals(200, page.statusCode());
 
             // plain HTTP on the HTTPS port does not work

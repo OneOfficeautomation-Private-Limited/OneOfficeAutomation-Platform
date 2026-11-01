@@ -54,8 +54,12 @@ class UnifiedServerTest {
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"), "Studio's API is under /studio/api/");
             for (String gone : List.of("/studio/classic/", "/studio/classic/studio.js", "/studio/studio.js"))
                 assertEquals(404, call(base, "GET", gone, null, null, null).status(), gone + ": Classic Studio was removed");
+            // the bare address opens the new console (the default since 31 Oct 2026)
+            Res home = call(base, "GET", "/", null, null, null);
+            assertEquals(302, home.status());
+            assertEquals("/next/", home.headers().firstValue("Location").orElse(""));
             // HEAD (used by uptime checks and some proxies): same status, no body, and no server warning
-            for (String p : List.of("/", "/studio/", "/api/health")) {
+            for (String p : List.of("/next/", "/studio/", "/api/health")) {
                 Res head = call(base, "HEAD", p, null, null, null);
                 assertEquals(200, head.status(), "HEAD " + p);
                 assertEquals("", head.body(), "HEAD " + p + " has no body");
@@ -63,7 +67,7 @@ class UnifiedServerTest {
             assertTrue(call(base, "GET", "/ooa-tokens.css", null, null, null).body().contains("--surface-canvas"));
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));
             assertEquals("/studio/", call(base, "GET", "/api/health", null, null, null).json().get("studio"), "Control Room links to Studio for browsers on this computer");
-            assertTrue(call(base, "GET", "/", null, null, null).body().contains("One CommandCenter"));
+            assertTrue(call(base, "GET", "/next/", null, null, null).body().contains("One CommandCenter"));
             assertEquals(404, call(base, "GET", "/studio-other", null, null, null).status());
 
             // ---- blueprints (Create > Start from), one shared list for both Studios ----
