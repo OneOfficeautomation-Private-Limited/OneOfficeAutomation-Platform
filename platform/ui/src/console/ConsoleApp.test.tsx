@@ -293,9 +293,11 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
         form: { fields: [{ id: "iban", type: "text", label: "IBAN", required: true }, { id: "urgent", type: "checkbox", label: "Urgent" }], submitLabel: "Send" } }] });
     if (/^tasks\/k\d\/(claim|release|complete)$/.test(route)) return ok({ ok: true });
     if (route === "settings" && init.method === "PUT") return ok({ ok: true });
-    if (route === "settings") return ok({ announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "",
+    if (route === "settings") return ok({ ldap_urls: "ldaps://dc1.example.com:636", announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "",
       run_retention_days: 90, run_log_retention_days: 30 });
     if (route === "settings/mail-test") return ok({ to: body.to });
+    if (route === "settings/ldap-test") return ok({ ok: true, server: "ldaps://dc1.example.com:636", found: true, username: body.username, display_name: "Alice Ames",
+      groups: ["Finance Automation"], role: "bot_runner" });
     if (route === "audit") {
       const q = new URLSearchParams(url.split("?")[1]);
       calls.push({ method: "GET", route: "audit?" + q.toString() });
@@ -1526,6 +1528,14 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(within(mail).getByLabelText("Send a test e-mail to"), { target: { value: "me@example.com" } });
     await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
+    // the directory test: who it finds, their groups and the role they get
+    fireEvent.click(within(nav).getByRole("button", { name: "Single sign-on" }));
+    const sso = await screen.findByRole("region", { name: "Single sign-on" });
+    expect(within(sso).getByLabelText(/Directory addresses/)).toBeTruthy();
+    fireEvent.change(within(sso).getByLabelText("A user name to look up in the directory"), { target: { value: "alice" } });
+    await act(async () => { fireEvent.click(within(sso).getByRole("button", { name: "Test the directory" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/ldap-test", body: { username: "alice" } }));
+    expect(await screen.findByText("alice (Alice Ames) is in Finance Automation; they get the role bot_runner.")).toBeTruthy();
     // removing old runs asks first, with the saved numbers (not ones typed but not saved)
     fireEvent.click(within(nav).getByRole("button", { name: "Data retention and backups" }));
     const data = await screen.findByRole("region", { name: "Data retention and backups" });

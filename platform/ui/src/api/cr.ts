@@ -247,9 +247,9 @@ export class CrApi {
   async logout() { await this.call("POST", "auth/logout"); }
   /** Single sign-on offered on the sign-in page: OpenID Connect and SAML, each with its button text. */
   async ssoInfo() {
-    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string }; notice?: { text: string; accept: boolean }; environment?: Environment }>("GET", "auth/sso");
+    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string }; notice?: { text: string; accept: boolean }; environment?: Environment; directory?: boolean }>("GET", "auth/sso");
     return { oidc: r.enabled ? r.label || "Sign in with your organisation account" : null, saml: r.saml?.enabled ? r.saml.label || "Sign in with SAML" : null,
-      notice: r.notice ?? null, environment: r.environment ?? null };
+      notice: r.notice ?? null, environment: r.environment ?? null, directory: !!r.directory };
   }
   /** Where a single sign-on starts; the person comes back to `back`, a page of this One CommandCenter. */
   ssoStart(kind: "oidc" | "saml", back: string) { return this.base + (kind === "oidc" ? "auth/sso/start" : "auth/saml/start") + "?return=" + encodeURIComponent(back); }
@@ -368,6 +368,10 @@ export class CrApi {
   async saveSettings(changes: Record<string, string | number>) { await this.call("PUT", "settings", changes); }
   async syslogTest() { await this.call("POST", "settings/syslog-test"); }
   async siemTest() { await this.call("POST", "settings/siem-test"); }
+  /** Settings' directory test: the service account connects; with a name, who it finds, their groups and the role they get. */
+  ldapTest(username: string) {
+    return this.call<{ ok: boolean; server: string; found?: boolean; username?: string; display_name?: string; email?: string; groups?: string[]; role?: string | null }>("POST", "settings/ldap-test", { username });
+  }
   mailTest(to: string) { return this.call<{ to: string }>("POST", "settings/mail-test", { to }); }
   gitStatus() { return this.call<{ configured: boolean; state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("GET", "git/status"); }
   gitSync() { return this.call<{ state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("POST", "git/sync"); }

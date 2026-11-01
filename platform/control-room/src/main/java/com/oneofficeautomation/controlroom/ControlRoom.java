@@ -64,6 +64,7 @@ public final class ControlRoom {
 
     final Path dataDir;
     final SyslogForwarder syslog;
+    final Directory directory = new Directory(this);
     public final Licensing licensing;
     public final Mfa mfa;
     public final Cluster cluster;
@@ -263,6 +264,8 @@ public final class ControlRoom {
      */
     public Map<String, Object> login(String username, String password, String code, String ip) {
         Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", username == null ? "" : username.trim());
+        // no local account by that name, or an account from the directory: the directory checks the password
+        if (directory.enabled() && (r == null || "ldap".equals(r.get("directory")))) return ldapLogin(username, password, code, ip);
         OoaException bad = new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", null);
         if (r == null) { Security.hashPassword("timing".toCharArray()); audit.record(String.valueOf(username), "auth.login", "user", String.valueOf(username), null, "failed", ip); throw bad; }
         if (!Boolean.TRUE.equals(r.get("enabled"))) { audit.record(username, "auth.login", "user", username, "disabled", "failed", ip); throw new OoaException("CR.USER_DISABLED", "This account is disabled", "Contact your administrator."); }
@@ -275,7 +278,7 @@ public final class ControlRoom {
             throw bad;
         }
         int maxDays = platform.intSetting("password_max_days");
-        if (maxDays > 0 && r.get("sso_subject") == null && !Boolean.TRUE.equals(r.get("must_change"))) {
+        if (maxDays > 0 && r.get("sso_subject") == null && r.get("directory") == null && !Boolean.TRUE.equals(r.get("must_change"))) {
             Object changed = r.get("password_changed") != null ? r.get("password_changed") : r.get("created");
             if (changed != null && Instant.parse(changed.toString()).isBefore(now().minus(Duration.ofDays(maxDays)))) {
                 db.update("UPDATE users SET must_change = TRUE WHERE id = ?", r.get("id"));
@@ -283,14 +286,68 @@ public final class ControlRoom {
                 audit.record(username, "user.password_expired", "user", username, Map.of("days", maxDays), "ok", ip);
             }
         }
+        return passwordAccepted(r, code, ip, null);
+    }
+
+    /** After the password: two-step sign-in when the account has it, then the session. */
+    private Map<String, Object> passwordAccepted(Map<String, Object> r, String code, String ip, Map<String, Object> how) {
+        String username = (String) r.get("username");
         String challenge = mfa.challenge(r);
         if (challenge != null) {
-            if (code != null && !code.isBlank()) { r = mfa.complete(challenge, code, ip); audit.record(username, "auth.login", "user", username, Map.of("mfa", true), "ok", ip); return newSession(r, ip); }
+            if (code != null && !code.isBlank()) {
+                r = mfa.complete(challenge, code, ip);
+                Map<String, Object> d = new LinkedHashMap<>(how == null ? Map.of() : how); d.put("mfa", true);
+                audit.record(username, "auth.login", "user", username, d, "ok", ip);
+                return newSession(r, ip);
+            }
             audit.record(username, "auth.password", "user", username, Map.of("next", "code"), "ok", ip);
             return Map.of("mfa_required", true, "mfa_token", challenge);
         }
-        audit.record(username, "auth.login", "user", username, null, "ok", ip);
+        audit.record(username, "auth.login", "user", username, how, "ok", ip);
         return newSession(r, ip);
+    }
+
+    /**
+     * Sign-in with Active Directory or LDAP (as AA's Control Room on premises): the directory checks the password. The
+     * first time, a person in a group the groups-to-roles list maps gets an account with that role; others are refused.
+     * At every sign-in the groups decide the role again, and someone no longer in a mapped group is refused. Their name
+     * and e-mail come from the directory. An account switched off here stays off; lockout counts wrong passwords too.
+     */
+    private Map<String, Object> ldapLogin(String typed, String password, String code, String ip) {
+        String who = typed == null ? "" : typed.trim();
+        Map<String, Object> known = db.one("SELECT * FROM users WHERE LOWER(username) = ? AND directory = 'ldap'", who.toLowerCase(Locale.ROOT));
+        if (known != null && known.get("locked_until") != null && Instant.parse(known.get("locked_until").toString()).isAfter(now()))
+            throw new OoaException("CR.LOCKED_OUT", "Too many failed sign-ins; try again after " + known.get("locked_until"),
+                    "Wait " + platform.intSetting("lockout_minutes") + " minutes, or ask an administrator to unlock your account.");
+        Directory.Person p;
+        try { p = directory.authenticate(who, password); }
+        catch (OoaException e) {
+            if (!e.code().equals("CR.LOGIN_FAILED")) { audit.record(who, "auth.login", "user", who, Map.of("via", "ldap", "error", e.getMessage()), "failed", ip); throw e; }
+            if (known != null) countFailedSignIn(known, ip); else audit.record(who, "auth.login", "user", who, Map.of("via", "ldap"), "failed", ip);
+            throw e;
+        }
+        Map<String, Object> r = db.one("SELECT * FROM users WHERE directory = 'ldap' AND (external_id = ? OR LOWER(username) = ?)", p.dn(), p.username());
+        if (r == null) r = db.one("SELECT * FROM users WHERE LOWER(username) = ? AND directory IS NULL AND sso_subject IS NULL", p.username());
+        String role = roleFromGroups(p.groups());
+        if (role == null) {
+            audit.record(p.username(), "auth.login", "user", p.username(), Map.of("via", "ldap", "why", "in no group that gives a role"), "failed", ip);
+            throw new OoaException("LDAP.NO_ROLE", "Your directory account is in no group that gives access to One CommandCenter", "Ask an administrator to add you to a group in the groups-to-roles list.");
+        }
+        String display = p.displayName() != null ? p.displayName() : p.username();
+        if (r == null) {
+            if (db.one("SELECT id FROM users WHERE LOWER(username) = ?", p.username()) != null)
+                throw new OoaException("LDAP.NAME_TAKEN", "An account named " + p.username() + " exists already and is not from the directory", "Ask an administrator to rename or remove it.");
+            db.update("INSERT INTO users (id, username, display_name, password_hash, role, enabled, must_change, failed, created) VALUES (?,?,?,?,?,?,?,?,?)",
+                    id("usr"), p.username(), display, Security.hashPassword(Security.token(24).toCharArray()), role, true, false, 0, now());
+            audit.record(p.username(), "user.create", "user", p.username(), Map.of("role", role, "via", "ldap"), "ok", ip);
+            r = db.one("SELECT * FROM users WHERE username = ?", p.username());
+        }
+        if (!Boolean.TRUE.equals(r.get("enabled"))) { audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), Map.of("via", "ldap", "why", "disabled"), "failed", ip);
+            throw new OoaException("CR.USER_DISABLED", "This account is disabled", "Contact your One CommandCenter administrator."); }
+        if (!role.equals(r.get("role"))) audit.record((String) r.get("username"), "user.role", "user", (String) r.get("username"), Map.of("from", String.valueOf(r.get("role")), "to", role, "via", "ldap groups"), "ok", ip);
+        db.update("UPDATE users SET directory = 'ldap', external_id = ?, role = ?, display_name = ?, email = ?, first_name = ?, last_name = ?, must_change = FALSE WHERE id = ?",
+                p.dn(), role, display, p.email(), p.firstName(), p.lastName(), r.get("id"));
+        return passwordAccepted(db.one("SELECT * FROM users WHERE id = ?", r.get("id")), code, ip, Map.of("via", "ldap"));
     }
 
     /** The second step: the code for a sign-in that passed the password. */

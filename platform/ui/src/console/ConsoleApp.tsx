@@ -165,7 +165,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
  * the administrator, can always sign in with their password, so a broken single sign-on never locks everyone out.
  */
 function SignIn({ api, onIn, note }: { api: CrApi; onIn: (u: CrUser) => void; note?: string | null }) {
-  const [sso, setSso] = useState<{ oidc: string | null; saml: string | null; notice: { text: string; accept: boolean } | null; environment: Environment | null }>({ oidc: null, saml: null, notice: null, environment: null });
+  const [sso, setSso] = useState<{ oidc: string | null; saml: string | null; notice: { text: string; accept: boolean } | null; environment: Environment | null; directory: boolean }>({ oidc: null, saml: null, notice: null, environment: null, directory: false });
   // the sign-in notice (Settings): shown above the form, and ticked before signing in when it must be accepted
   const [accepted, setAccepted] = useState(false);
   const mustAccept = !!sso.notice?.accept && !accepted;
@@ -196,6 +196,7 @@ function SignIn({ api, onIn, note }: { api: CrApi; onIn: (u: CrUser) => void; no
         <img className="cc-signin-logo" src="/logo-full.png" alt="ONEOFFICEAUTOMATION" /><div className="st-brand cc-signin-brand">One CommandCenter</div>
         {note && <p className="cc-signin-note" role="status">{note}</p>}
         {sso.environment && <div className="cc-signin-env"><EnvironmentLabel env={sso.environment} /></div>}
+        {sso.directory && !mfaToken && <p className="cc-signin-note">Your Windows (directory) user name and password work here.</p>}
         {sso.notice && !mfaToken && <div className="cc-signin-notice" role="note" aria-label="Sign-in notice">
           <p>{sso.notice.text}</p>
           {sso.notice.accept && <label className="st-check-line"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /> I have read and accept this</label>}

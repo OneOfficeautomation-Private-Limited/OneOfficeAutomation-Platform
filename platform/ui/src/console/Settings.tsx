@@ -70,7 +70,7 @@ const SECTIONS: Section[] = [
     { title: "Built-in roles", settings: [
       { key: "switched_off_roles", label: "Built-in roles in use", hint: "Switched off, a role gives no permissions and cannot be given; people keep their other roles.", kind: "roles" }] },
   ] },
-  { id: "sso", title: "Single sign-on", mark: "SO", colour: "#1d4ed8", about: "OpenID Connect and SAML 2.0 (Entra ID, Okta, Google, Keycloak, ADFS). Local accounts always sign in with their password too.", groups: [
+  { id: "sso", title: "Single sign-on", mark: "SO", colour: "#1d4ed8", about: "OpenID Connect and SAML 2.0 (Entra ID, Okta, Google, Keycloak, ADFS), and Active Directory or LDAP. Local accounts always sign in with their password too.", groups: [
     { title: "OpenID Connect", settings: [
       { key: "sso_issuer", label: "Issuer URL", kind: "text", placeholder: "https://login.microsoftonline.com/<tenant>/v2.0" },
       { key: "sso_client_id", label: "Client id", kind: "text" },
@@ -82,9 +82,17 @@ const SECTIONS: Section[] = [
       { key: "saml_sp_entity_id", label: "This One CommandCenter's entity id", hint: "Empty: the metadata address.", kind: "text" },
       { key: "saml_label", label: "SAML button text", kind: "text", placeholder: "Sign in with SAML" },
       { key: "saml_idp_certificate", label: "Identity provider signing certificate", hint: "PEM.", kind: "area", placeholder: "-----BEGIN CERTIFICATE-----" }] },
+    { title: "Active Directory or LDAP", settings: [
+      { key: "ldap_urls", label: "Directory addresses", hint: "ldaps://, more than one for failover. Empty: off.", kind: "text", placeholder: "ldaps://dc1.corp.example.com:636 ldaps://dc2.corp.example.com:636" },
+      { key: "ldap_base_dn", label: "Where people are found", hint: "The base of the search.", kind: "text", placeholder: "DC=corp,DC=example,DC=com" },
+      { key: "ldap_bind_dn", label: "Service account", hint: "Finds people; reads only.", kind: "text", placeholder: "svc-ooa@corp.example.com" },
+      { key: "ldap_bind_password_ref", label: "Service account password", hint: VAULT_REF, kind: "text", placeholder: "directory/svc-ooa/password" },
+      { key: "ldap_user_filter", label: "Search filter", hint: "{0} is the user name typed.", kind: "text", placeholder: "(|(sAMAccountName={0})(userPrincipalName={0}))" },
+      { key: "ldap_name_attribute", label: "User name from", hint: "The attribute an account is named after.", kind: "text", placeholder: "sAMAccountName" },
+      { key: "ldap_nested_groups", label: "Groups inside groups count", hint: "Active Directory only.", kind: "check" }] },
     { title: "New people and groups", settings: [
-      { key: "sso_default_role", label: "Role for new people", hint: "Empty: only existing accounts sign in this way.", kind: "text", placeholder: "viewer" },
-      { key: "sso_group_roles", label: "Groups to roles", hint: "One line per group: group = role. The first match wins, at every sign-in.", kind: "area", placeholder: "OOA Admins = admin\nFinance Automation = bot_runner" }] },
+      { key: "sso_default_role", label: "Role for new people", hint: "Single sign-on only. Empty: only existing accounts sign in this way.", kind: "text", placeholder: "viewer" },
+      { key: "sso_group_roles", label: "Groups to roles", hint: "Single sign-on, the directory and SCIM. One line per group: group = role. The first match wins, at every sign-in.", kind: "area", placeholder: "OOA Admins = admin\nFinance Automation = bot_runner" }] },
   ] },
   { id: "runners", title: "Runner Machines", mark: "M", colour: "#0e7490", about: "Updates, temporary runners, secrets, limits and screen pictures for every runner (a runner can have its own limits).", groups: [
     { title: "Updates and secrets", settings: [
@@ -303,6 +311,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
   onNotice: (t: string) => void; onError: (e: string) => void }) {
   const [info, setInfo] = useState<ReactNode>(null);
   const [to, setTo] = useState("");
+  const [who, setWho] = useState("");   // the directory test: a user name to look up
   const [asking, setAsking] = useState(false);   // removing old runs, asked first
   // removing old runs uses the saved numbers; 0 keeps them always
   const runDays = Number(saved.run_retention_days || 0), logDays = Number(saved.run_log_retention_days || 0);
@@ -336,6 +345,13 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       <Button kind="secondary" onClick={() => api.mailTest(to.trim()).then((r) => onNotice("Test e-mail sent to " + r.to + "."), fail)}>Send a test e-mail</Button>
       <Button kind="secondary" disabled={!form.syslog_target} onClick={() => api.syslogTest().then(() => onNotice("Test message sent to " + form.syslog_target + "."), fail)}>Send a test syslog message</Button>
       <Button kind="secondary" disabled={!form.siem_https_url} onClick={() => api.siemTest().then(() => onNotice("The HTTPS collector accepted a test entry."), fail)}>Send a test SIEM entry</Button>
+    </div>}
+    {section === "sso" && <div className="cc-inline cc-test">
+      <TextInput aria-label="A user name to look up in the directory" placeholder="a user name to look up (optional)" value={who} onChange={(e) => setWho(e.target.value)} />
+      <Button kind="secondary" disabled={!form.ldap_urls} onClick={() => api.ldapTest(who.trim()).then((r) => onNotice(!who.trim() ? "The directory " + r.server + " answered." :
+        !r.found ? "The directory answered, but has no one called " + who.trim() + "." :
+        r.username + (r.display_name ? " (" + r.display_name + ")" : "") + " is in " + (r.groups?.length ? r.groups.join(", ") : "no group") + "; " + (r.role ? "they get the role " + r.role + "." : "no group gives a role, so they cannot sign in.")), fail)}>
+        Test the directory</Button>
     </div>}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
     {section === "data" && <span className="cc-inline">

@@ -201,6 +201,27 @@ administrator set chooses their own before going on; and when two-step sign-in i
 (a key for an authenticator app, a code, then recovery codes shown once). A forgotten password is reset by an
 administrator.
 
+### Active Directory or LDAP
+
+Since 1 Nov 2026 people can sign in on the normal sign-in page with their directory user name and password, as with
+AA's Control Room on premises (Settings > Single sign-on > Active Directory or LDAP). Passwords stay in the directory.
+
+- A read-only **service account** (`ldap_bind_dn`, its password from the vault in `ldap_bind_password_ref`) finds the
+  person under `ldap_base_dn` with `ldap_user_filter` (`{0}` is what they typed; by default the Windows account name or
+  the user principal name). Their password is checked by binding as them; an empty password is always refused.
+- `ldap_urls`: one or more `ldaps://` addresses, tried in order (failover). Plain `ldap://` is accepted only for a
+  directory on the same computer (tests). Java must trust the domain controllers' certificate.
+- Groups come from `memberOf`, or from groups listing the person as `member`/`uniqueMember`; with `ldap_nested_groups`,
+  Active Directory's nested groups count too. The **groups-to-roles** list (by group name or full DN) gives the role,
+  at every sign-in. The first time, someone in a mapped group gets an account (user name from `ldap_name_attribute`,
+  name and e-mail from the directory); someone in no mapped group is refused (`LDAP.NO_ROLE`).
+- A local account with the same name keeps signing in with its own password; an account switched off here stays off;
+  wrong passwords count towards the lockout. If the directory cannot be reached, sign-in fails with `LDAP.UNREACHABLE`
+  (never the local password).
+- **Test the directory** (Settings) checks the service account and, given a user name, shows who is found, their groups
+  and the role they would get. `POST /api/settings/ldap-test` `{username}`.
+- The account remembers its directory entry (`users.directory`, `users.external_id`, schema 30).
+
 ## 11. Sessions, API keys and tokens
 
 | Item | Rule |

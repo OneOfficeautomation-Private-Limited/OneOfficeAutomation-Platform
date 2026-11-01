@@ -128,6 +128,14 @@ public final class Platform {
         // Business (Operational Insights step 2): this year's savings goal; set with insights.admin on the Value tab
         DEFAULTS.put("value_goal_hours", 0);
         DEFAULTS.put("value_goal_money", 0);
+        // sign-in with Active Directory or LDAP (Settings item 4f): passwords stay in the directory
+        DEFAULTS.put("ldap_urls", "");                  // ldaps://dc1.example.com:636, more for failover; empty: off
+        DEFAULTS.put("ldap_base_dn", "");               // where people are found, e.g. DC=corp,DC=example,DC=com
+        DEFAULTS.put("ldap_bind_dn", "");               // the service account that finds them
+        DEFAULTS.put("ldap_bind_password_ref", "");     // its password: a vault reference
+        DEFAULTS.put("ldap_user_filter", "(|(sAMAccountName={0})(userPrincipalName={0}))");
+        DEFAULTS.put("ldap_name_attribute", "sAMAccountName");   // the user name an account gets
+        DEFAULTS.put("ldap_nested_groups", 0);          // AD: groups inside groups count too
     }
 
     static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
@@ -181,6 +189,7 @@ public final class Platform {
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
+        Map.entry("ldap_nested_groups", new long[] { 0, 1 }),
         Map.entry("value_goal_money", new long[] { 0, 1_000_000_000_000L }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
@@ -305,6 +314,11 @@ public final class Platform {
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
                 if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
+                if (k.equals("ldap_urls") && !s.isEmpty()) for (String u : s.split("[,;\\s]+")) if (!u.isBlank()) Directory.checkUrl(u.trim());
+                if (k.equals("ldap_bind_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The service account's password is a vault reference: vault folder/credential/attribute");
+                if (k.equals("ldap_user_filter") && !s.isEmpty() && (!s.contains("{0}") || !s.startsWith("(") || !s.endsWith(")")))
+                    throw new OoaException("CR.BAD_INPUT", "The search filter is in brackets and holds {0} where the typed user name goes", "Example: (|(sAMAccountName={0})(userPrincipalName={0}))");
+                if (k.equals("ldap_name_attribute") && !s.isEmpty() && !s.matches("[A-Za-z][A-Za-z0-9-]{0,60}")) throw new OoaException("CR.BAD_INPUT", "Not an attribute name: " + s);
                 if (k.equals("default_time_zone") && !s.isEmpty())
                     try { java.time.ZoneId.of(s); } catch (java.time.DateTimeException x) { throw new OoaException("CR.BAD_INPUT", "Unknown time zone " + s, "Example: Asia/Kolkata, Europe/London, UTC"); }
                 if (k.equals("siem_https_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
