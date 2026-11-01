@@ -233,7 +233,7 @@ export class StudioApi {
   /** The repository's agents (matching q), and which workspace file is the private copy of which repository agent. */
   async crRepo(q = "") { const r = await this.call<{ bots?: RepoAgent[]; mapping?: Record<string, string> }>("GET", "cr/repo?q=" + encodeURIComponent(q)); return { agents: r.bots ?? [], mapping: r.mapping ?? {} }; }
   async crVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "cr/versions?path=" + encodeURIComponent(path))).versions ?? []; }
-  crCheckout(path: string) { return this.call<{ local: string; path: string; version: number }>("POST", "cr/checkout", { path }); }
+  crCheckout(path: string) { return this.call<{ local: string; path: string; version: number; kept?: boolean }>("POST", "cr/checkout", { path }); }
   crUndoCheckout(path: string) { return this.call<{ ok: boolean }>("POST", "cr/undo-checkout", { path }); }
   crCheckin(local: string, comment: string, production: boolean) { return this.call<CheckIn>("POST", "cr/checkin", { local, comment, production }); }
 

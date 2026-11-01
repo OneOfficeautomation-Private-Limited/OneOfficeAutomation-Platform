@@ -144,10 +144,10 @@ function fakeServer() {
     created.push({ connect: b.url, user: b.username }); cr = { connected: true, url: b.url, user: { username: b.username } }; return cr; };
   routes["POST cr/disconnect"] = () => (cr = { connected: false, url: cr.url, user: null });
   routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked }],
-    mapping: locked ? { "One CommandCenter/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
+    mapping: locked ? { "Finance/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
   routes["GET cr/versions"] = () => ({ versions: [{ version: 2, author: "asha", created: "2026-10-29T10:00:00Z", comment: "Reads the totals" },
     { version: 1, author: "asha", created: "2026-10-28T10:00:00Z", comment: "First version" }] });
-  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: "One CommandCenter/Invoice intake.flow.json", path: b.path, version: 2 }; };
+  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: b.path, path: b.path, version: 2 }; };
   routes["POST cr/undo-checkout"] = (b) => { created.push({ undo: b.path }); locked = null; return { ok: true }; };
   routes["POST cr/checkin"] = (b) => { created.push({ checkin: b }); return { path: "Finance/Invoice intake.flow.json", version: 3, local: b.local, production: b.production }; };
   let windows: unknown[] = [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }];
@@ -1460,8 +1460,10 @@ describe("new Studio", () => {
     fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "letmein" } });
     await act(async () => { fireEvent.submit(form); });
     expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
+    // laid out as Private: the folders on the left, a folder's sub-folders and agents on the right
+    expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Public")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
-    expect(row.textContent).toContain("Finance");   // its folder in a column of its own
     expect(row.textContent).toContain("v2");
     expect(screen.queryByRole("button", { name: "Create ▾" })).toBeNull();   // Create belongs to the workspace
     fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
@@ -1472,7 +1474,7 @@ describe("new Studio", () => {
     fireEvent.click(within(versions).getAllByRole("button", { name: "Close" }).pop()!);
     await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "Check out" })); });
     expect(created).toContainEqual({ checkout: "Finance/Invoice intake.flow.json" });
-    expect(await screen.findByText(/Checked out v2 into your workspace: One CommandCenter\/Invoice intake.flow.json/)).toBeTruthy();
+    expect(await screen.findByText(/Checked out v2 into your workspace: Finance\/Invoice intake.flow.json/)).toBeTruthy();   // the same folder path
     expect(screen.getByRole("tab", { name: /Invoice intake/, selected: true })).toBeTruthy();
   });
 
@@ -1481,9 +1483,10 @@ describe("new Studio", () => {
     await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("By you");
-    expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: One CommandCenter/Invoice intake.flow.json");
+    expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: Finance/Invoice intake.flow.json");
     expect(within(row).getByRole("button", { name: "Open my copy" })).toBeTruthy();
     fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));

@@ -18,8 +18,9 @@ export const AUTOMATION_HELP: HelpTopic = {
 export const PUBLIC_HELP: HelpTopic = {
   title: "Automation (Public)", about: "The agent repository in One CommandCenter, shared with your team. Agents here have versions; the live version is the one runs, schedules and triggers use.",
   items: [
-    { name: "Check out", text: "Copies the latest version into your workspace so you can change it, and stops others from checking it out meanwhile. Change it, then press Check in in the editor." },
-    { name: "Open my copy", text: "Shown for agents you have checked out: opens your private copy." },
+    { name: "Folders", text: "The repository's folders, as in Private. Pick one to see its sub-folders and agents; a search looks through every folder." },
+    { name: "Check out", text: "Copies the latest version into the same folder in your workspace so you can change it, and stops others from checking it out meanwhile. Change it, then press Check in in the editor. If your own item already has that name in that folder, rename or move it first." },
+    { name: "Open my copy", text: "Shown for agents you have checked out: opens your private copy as it is, with any changes you have not checked in yet." },
     { name: "Latest and Live", text: "Latest is the newest version checked in; Live is the one that runs. They differ when a new version waits to be made live." },
     { name: "Checked out", text: "Who is working on the agent now. Only they, or an administrator, can check it in or undo the check-out." },
     { name: "Versions", text: "In the row's ⋮ menu: every version with who checked it in, when and what changed." },

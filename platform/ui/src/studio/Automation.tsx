@@ -17,7 +17,7 @@ const OPENS: WorkspaceNode["type"][] = ["bot", "form", "process", "document", "s
 
 const everything = (n: WorkspaceNode): WorkspaceNode[] => (n.children ?? []).flatMap((c) => [c, ...everything(c)]);
 
-function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
+export function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
   if (n.path === path) return n;
   for (const c of n.children ?? []) { const f = find(c, path); if (f) return f; }
   return null;

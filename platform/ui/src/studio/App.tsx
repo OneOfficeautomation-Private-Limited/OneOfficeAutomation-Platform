@@ -3,7 +3,7 @@ import {
   ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
-import { Automation } from "./Automation";
+import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, PublicRepository } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { displayName } from "./itemTypes";
@@ -289,8 +289,13 @@ export function App({ api: given }: { api?: StudioApi }) {
   };
   // ---- One CommandCenter agent repository ----
   const crHome = info?.controlRoom ?? "../";
-  /** Check out (or open my copy): the repository's version becomes the private copy in the workspace, and opens. */
-  const checkOut = async (repoPath: string, local?: string) => {
+  /**
+   * Check out: the repository's version becomes the private copy at the same folder path, and opens. Open my copy (an
+   * agent already checked out to me, with its copy here) opens that copy as it is, so changes not checked in stay.
+   */
+  const checkOut = async (repoPath: string, local?: string, mine = false) => {
+    const node = local && tree ? findNode(tree, local) : null;
+    if (mine && node) { await open(node); return; }
     const open1 = local ? tabsRef.current.find((t) => t.path === local) : undefined;
     if (open1 && isDirty(open1)) { setError(open1.name + " has unsaved changes. Save or close it before checking out again."); return; }
     const r = await api.crCheckout(repoPath);
@@ -304,7 +309,8 @@ export function App({ api: given }: { api?: StudioApi }) {
         selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
     }
     setActive(r.local);
-    setNotice(`Checked out v${r.version} into your workspace: ${r.local}.`);
+    setNotice(r.kept ? `Checked out to you. Your private copy ${r.local} has changes that were not checked in, so it was kept as it is.`
+      : `Checked out v${r.version} into your workspace: ${r.local}.`);
   };
   /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
   const checkIn = async (comment: string, live: boolean) => {

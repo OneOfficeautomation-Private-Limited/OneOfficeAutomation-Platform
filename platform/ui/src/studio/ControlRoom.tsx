@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ApiFailure, type CrStatus, type RepoAgent, type RepoVersion, type StudioApi } from "../api/client";
-import { Button, Dialog, Field, Icon, IconTile, Menu, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type TreeNode } from "../components";
 
 /** The server's message, with what to do when it says ("Check the address and that One CommandCenter is running."). */
 const message = (e: unknown) => e instanceof ApiFailure ? e.error.message + (e.error.suggestedFix ? ". " + e.error.suggestedFix : "") : String(e);
@@ -53,12 +53,32 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   );
 }
 
+/** The repository's folders as a tree, from the agents' paths (the root is "Public"). */
+function folderTree(paths: string[]): TreeNode {
+  const root: TreeNode = { id: "", label: "Public", children: [] };
+  for (const p of paths) {
+    let at = root;
+    const parts = folderOf(p).split("/").filter(Boolean);
+    parts.forEach((name, i) => {
+      const id = parts.slice(0, i + 1).join("/");
+      let next = at.children!.find((c) => c.id === id);
+      if (!next) { next = { id, label: name, children: [] }; at.children!.push(next); at.children!.sort((a, b) => a.label.localeCompare(b.label)); }
+      at = next;
+    });
+  }
+  return root;
+}
+const FOLDER_ICON = (sel: boolean) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
+  <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>;
+
 /**
- * The Public tab of the Automation page: One CommandCenter agent repository. Check out an agent to get a private copy
- * in the workspace (others cannot check it in meanwhile); check it back in from the agent's Check in button.
+ * The Public tab of the Automation page: One CommandCenter agent repository, laid out as the Private tab (since 1 Nov
+ * 2026, as AA's Public workspace mirrors Private): the folders on the left, the chosen folder's sub-folders and agents on
+ * the right. Check out an agent to get a private copy at the same folder path in the workspace (others cannot check it
+ * in meanwhile); check it back in from the agent's Check in button. A search looks through every folder.
  */
 export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNotice, onError }:
-  { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string) => Promise<void>;
+  { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string, mine?: boolean) => Promise<void>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
   const [q, setQ] = useState("");
   const [list, setList] = useState<{ agents: RepoAgent[]; mapping: Record<string, string> } | null>(null);
@@ -67,6 +87,12 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const [undoing, setUndoing] = useState<RepoAgent | null>(null);
   const [tick, setTick] = useState(0);
   const reload = () => setTick((t) => t + 1);
+  const [folder, setFolder] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set([""]));
+  const [foldersHidden, setFoldersHidden] = usePersistent("panel.public.folders.hidden", false);
+  const [foldersWidth, setFoldersWidth] = usePanelSize("public.folders");
+  const foldersPanel = useRef<HTMLElement | null>(null);
+  const tree = useMemo(() => folderTree((list?.agents ?? []).map((a) => a.path)), [list]);
   useEffect(() => {
     if (!status.connected) return;
     const t = setTimeout(() => { api.crRepo(q.trim()).then((r) => { setList(r); setFailed(null); }, (e) => setFailed(message(e))); }, q ? 250 : 0);
@@ -80,6 +106,13 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   );
   const me = status.user?.username;
   const localOf = (path: string) => Object.keys(list?.mapping ?? {}).find((k) => list!.mapping[k] === path);
+  const find = (n: TreeNode, id: string): TreeNode | null => n.id === id ? n : n.children?.reduce<TreeNode | null>((f, c) => f ?? find(c, id), null) ?? null;
+  const here = find(tree, folder) ?? tree;
+  // with a search, every match in the repository; otherwise the chosen folder's sub-folders, then its agents
+  const subfolders = q ? [] : here.children ?? [];
+  const agents = (list?.agents ?? []).filter((a) => q || folderOf(a.path) === here.id);
+  const openFolder = (id: string) => { setFolder(id); setExpanded(new Set([...expanded, ...id.split("/").map((_, i, all) => all.slice(0, i).join("/"))])); };
+  const cols = q ? 6 : 5;
   return (
     <div className="st-cr">
       <div role="toolbar" aria-label="Agent Repository" className="st-items-bar">
@@ -90,34 +123,48 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
           : <Button kind="plain" onClick={async () => { try { onStatus(await api.crDisconnect()); setList(null); onNotice("Signed out of One CommandCenter."); } catch (e) { onError(e); } }}>Sign out</Button>}
       </div>
       {failed && <p className="st-cr-error" role="alert">{failed}</p>}
-      <table className="st-table">
-        <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Checked out</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
-        <tbody>
-          {(list?.agents ?? []).map((a) => {
-            const mine = !!me && a.locked_by === me, local = localOf(a.path);
-            return (
-              <tr key={a.path}>
-                <td><span className="st-name"><IconTile name="bolt" color="#2f6fde" size={18} /><span title={a.path}>{nameOf(a.path)}</span>
-                  {local && <span className="st-pill" title={"Private copy: " + local}>private copy</span>}</span></td>
-                <td>{folderOf(a.path)}</td>
-                <td>v{a.latest_version}</td>
-                <td>{a.production_version ? "v" + a.production_version : ""}</td>
-                <td>{a.locked_by ? (mine ? "By you" : "By " + a.locked_by) : ""}</td>
-                <td className="st-cr-row-acts">
-                  {(!a.locked_by || mine) && <Button kind="secondary" onClick={async () => { try { await onCheckOut(a.path, local); reload(); } catch (e) { onError(e); } }}>
-                    {mine ? "Open my copy" : "Check out"}</Button>}
-                  <Menu label={nameOf(a.path) + " menu"} align="end" items={[
-                    { key: "versions", label: "Versions", onSelect: async () => { try { setVersions({ agent: a, list: await api.crVersions(a.path) }); } catch (e) { onError(e); } } },
-                    ...(mine ? [{ key: "undo", label: "Undo check-out…", separatorBefore: true, onSelect: () => setUndoing(a) }] : []),
-                  ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for " + nameOf(a.path)} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} />
-                </td>
-              </tr>
-            );
-          })}
-          {list && !list.agents.length && <tr><td colSpan={6} className="st-empty">{q ? "Nothing matches." : "The agent repository is empty. Open an agent and press Check in."}</td></tr>}
-          {!list && !failed && <tr><td colSpan={6} className="st-empty">Reading the agent repository…</td></tr>}
-        </tbody>
-      </table>
+      <div className="st-page-body">
+        {!q && <><SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"
+          style={foldersWidth ? { flex: `0 0 ${foldersWidth}px` } : undefined} panelRef={(el) => { foldersPanel.current = el; }}>
+          <div className="st-folders-tree"><Tree label="Folders" nodes={[tree]} selected={here.id} expanded={expanded} onSelect={setFolder}
+            onToggle={(id) => { const n = new Set(expanded); if (n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} renderIcon={(_, sel) => FOLDER_ICON(sel)} /></div>
+        </SidePanel>
+        {!foldersHidden && <Splitter label="Resize the folders panel" axis="x" grow={1} value={foldersWidth} min={180} max={520}
+          measure={() => foldersPanel.current?.getBoundingClientRect().width ?? 260} onChange={setFoldersWidth} />}</>}
+        <div className="st-items">
+          <table className="st-table">
+            <thead><tr><th scope="col">Agent</th>{q && <th scope="col">Folder</th>}<th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Checked out</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+            <tbody>
+              {subfolders.map((f) => <tr key={"f:" + f.id}><td colSpan={cols}>
+                <button type="button" className="st-link st-name" onClick={() => openFolder(f.id)}>{FOLDER_ICON(false)}<span>{f.label}</span></button></td></tr>)}
+              {agents.map((a) => {
+                const mine = !!me && a.locked_by === me, local = localOf(a.path);
+                return (
+                  <tr key={a.path}>
+                    <td><span className="st-name"><IconTile name="bolt" color="#2f6fde" size={18} /><span title={a.path}>{nameOf(a.path)}</span>
+                      {local && <span className="st-pill" title={"Private copy: " + local}>private copy</span>}</span></td>
+                    {q && <td>{folderOf(a.path)}</td>}
+                    <td>v{a.latest_version}</td>
+                    <td>{a.production_version ? "v" + a.production_version : ""}</td>
+                    <td>{a.locked_by ? (mine ? "By you" : "By " + a.locked_by) : ""}</td>
+                    <td className="st-cr-row-acts">
+                      {(!a.locked_by || mine) && <Button kind="secondary" onClick={async () => { try { await onCheckOut(a.path, local, mine); reload(); } catch (e) { onError(e); } }}>
+                        {mine ? "Open my copy" : "Check out"}</Button>}
+                      <Menu label={nameOf(a.path) + " menu"} align="end" items={[
+                        { key: "versions", label: "Versions", onSelect: async () => { try { setVersions({ agent: a, list: await api.crVersions(a.path) }); } catch (e) { onError(e); } } },
+                        ...(mine ? [{ key: "undo", label: "Undo check-out…", separatorBefore: true, onSelect: () => setUndoing(a) }] : []),
+                      ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for " + nameOf(a.path)} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} />
+                    </td>
+                  </tr>
+                );
+              })}
+              {list && !agents.length && !subfolders.length && <tr><td colSpan={cols} className="st-empty">{q ? "Nothing matches." : list.agents.length ? "No agents in this folder."
+                : "The agent repository is empty. Open an agent and press Check in."}</td></tr>}
+              {!list && !failed && <tr><td colSpan={cols} className="st-empty">Reading the agent repository…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
       {versions && (
         <Dialog open onClose={() => setVersions(null)} title={"Versions of " + shortName(versions.agent.path)} width={620}
           footer={<Button kind="secondary" onClick={() => setVersions(null)}>Close</Button>}>

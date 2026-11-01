@@ -15,8 +15,9 @@ import java.util.*;
 
 /**
  * Studio's connection to Control Room. The session token stays in this Studio process (never in the browser).
- * Checked-out bots are copied into the private workspace under "Control Room/<repository path>", and the mapping is
- * remembered in .ooa/checkouts.json so Check in sends a private copy back to the right repository path.
+ * A checked-out agent lands at the same folder path in the private workspace as in the repository, as AA's check-out
+ * does (since 1 Nov 2026; earlier copies under "Control Room/<repository path>" still check in to the right place), and
+ * the mapping is remembered in .ooa/checkouts.json so Check in sends a private copy back to the right repository path.
  */
 final class ControlRoomLink {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -144,19 +145,33 @@ final class ControlRoomLink {
         Files.writeString(stateFile("checkouts.json"), JsonLite.write(m), StandardCharsets.UTF_8);
     }
 
+    /**
+     * Checks the agent out into the same folder path in the private workspace. A private item there that is not this
+     * agent's copy is never overwritten (the check-out is refused before anything is locked); this agent's own copy with
+     * changes that were not checked in is kept as it is, so nothing typed is lost ("kept": true).
+     */
     @SuppressWarnings("unchecked")
     Map<String, Object> checkout(String repoPath, JsonCodec json) throws IOException {
-        Map<String, Object> r = call("POST", "repo/checkout", Map.of("path", repoPath), true);
-        String local = FOLDER + "/" + repoPath;
-        Path p = ws.resolve(local);
-        Files.createDirectories(p.getParent());
-        Path tmp = p.resolveSibling("." + p.getFileName() + ".saving");
-        Files.writeString(tmp, json.write(r.get("flow"), true), StandardCharsets.UTF_8);
-        Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
         Map<String, Object> m = mapping();
+        String local = m.entrySet().stream().filter(e -> repoPath.equals(e.getValue())).map(Map.Entry::getKey)
+                .filter(k -> Files.exists(ws.resolve(k))).findFirst().orElse(repoPath);
+        Path p = ws.resolve(local);
+        if (Files.exists(p) && !repoPath.equals(m.get(local)))
+            throw new OoaException("STUDIO.NAME_TAKEN", "Your workspace already has your own " + local + ", which is not a copy of this agent",
+                    "Rename or move your own item, then check out again.");
+        Map<String, Object> r = call("POST", "repo/checkout", Map.of("path", repoPath), true);
+        String text = json.write(r.get("flow"), true);
+        boolean kept = Files.exists(p) && edited(local, json) && !normal(local, json).equals(text);
+        if (!kept) {
+            Files.createDirectories(p.getParent());
+            Path tmp = p.resolveSibling("." + p.getFileName() + ".saving");
+            Files.writeString(tmp, text, StandardCharsets.UTF_8);
+            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
+            markSynced(local, text);
+        }
         m.put(local, repoPath);
         saveMapping(m);
-        return Map.of("local", local, "path", repoPath, "version", r.get("version"));
+        return Map.of("local", local, "path", repoPath, "version", r.get("version"), "kept", kept);
     }
 
     @SuppressWarnings("unchecked")
@@ -178,9 +193,42 @@ final class ControlRoomLink {
         Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", production), true);
         m.put(local, repoPath);
         saveMapping(m);
+        markSynced(local, json.write(flow, true));
         Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local, "production", production));
         if (r.get("production_request") != null) out.put("production_request", r.get("production_request"));   // approval before production is on
         return out;
+    }
+
+    // ---------- what each private copy looked like when it was last checked in or out ----------
+    /** A private copy's text as JSON in one form, so a copy saved by Studio and the repository's version compare equal. */
+    private String normal(String local, JsonCodec json) throws IOException {
+        String text = Files.readString(ws.resolve(local));
+        try { return json.write(json.parse(text), true); } catch (RuntimeException e) { return text; }
+    }
+
+    /** True when the copy changed since it was last checked in or out here (or that is not known: copies from before 1 Nov 2026). */
+    boolean edited(String local, JsonCodec json) throws IOException {
+        Object was = state("synced.json").get(local);
+        return was == null || !was.equals(sha256(normal(local, json)));
+    }
+
+    private void markSynced(String local, String normalText) throws IOException {
+        Map<String, Object> s = state("synced.json");
+        s.put(local, sha256(normalText));
+        Files.createDirectories(stateFile("x").getParent());
+        Files.writeString(stateFile("synced.json"), JsonLite.write(s), StandardCharsets.UTF_8);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> state(String name) {
+        try { Path f = stateFile(name); if (Files.exists(f)) return new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(f))); }
+        catch (Exception ignored) { }
+        return new LinkedHashMap<>();
+    }
+
+    private static String sha256(String text) {
+        try { return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
     void undoCheckout(String repoPath) { call("POST", "repo/undo-checkout", Map.of("path", repoPath), true); }
