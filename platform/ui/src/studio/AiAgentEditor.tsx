@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ApiFailure, type AgentSummary, type Flow, type ModelConnections, type StudioApi } from "../api/client";
-import { Button, Field, SearchSelect, Select, TabPanel, Tabs, TextInput } from "../components";
+import { Button, Field, Icon, SearchSelect, Select, TabPanel, Tabs, TextInput } from "../components";
 import { aiStep } from "./aiAgent";
 import { setArg } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
@@ -100,8 +100,7 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
                     <td><strong>{nameOf(id)}</strong> <span className="st-muted">{id}</span></td>
                     <td><input type="checkbox" aria-label={"Ask a person before each use of " + nameOf(id)} checked={sensitive.includes(id)}
                       onChange={(e) => put("sensitive_tools", e.target.checked ? [...sensitive, id] : sensitive.filter((x) => x !== id))} /></td>
-                    <td className="st-row-actions"><Button kind="plain" aria-label={"Remove " + nameOf(id)}
-                      onClick={() => { let f = setArg(flow, step.id, "tools", tools.filter((x) => x !== id)); f = setArg(f, step.id, "sensitive_tools", sensitive.filter((x) => x !== id).length ? sensitive.filter((x) => x !== id) : undefined); onEdit(f); }}>Remove</Button></td>
+                    <td className="st-row-actions"><button type="button" className="st-tool" aria-label={"Remove " + nameOf(id)} title={"Remove " + nameOf(id)} onClick={() => { let f = setArg(flow, step.id, "tools", tools.filter((x) => x !== id)); f = setArg(f, step.id, "sensitive_tools", sensitive.filter((x) => x !== id).length ? sensitive.filter((x) => x !== id) : undefined); onEdit(f); }}><Icon name="trash" size={15} /></button></td>
                   </tr>
                 ))}
                 {!tools.length && <tr><td colSpan={3} className="st-empty">No tools yet: add the agents it may use.</td></tr>}
@@ -173,7 +172,7 @@ function OutputFields({ value, onChange }: { value: Record<string, string>; onCh
         <tbody>
           {Object.entries(value).map(([k, d]) => (
             <tr key={k}><td className="ui-mono">{k}</td><td>{d}</td>
-              <td className="st-row-actions"><Button kind="plain" aria-label={"Remove " + k} onClick={() => { const v = { ...value }; delete v[k]; onChange(v); }}>Remove</Button></td></tr>
+              <td className="st-row-actions"><button type="button" className="st-tool" aria-label={"Remove " + k} title={"Remove " + k} onClick={() => { const v = { ...value }; delete v[k]; onChange(v); }}><Icon name="trash" size={15} /></button></td></tr>
           ))}
           {!Object.keys(value).length && <tr><td colSpan={3} className="st-empty">None: the agent returns a plain answer.</td></tr>}
         </tbody>

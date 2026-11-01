@@ -722,8 +722,11 @@ describe("new Studio", () => {
     const fields = await screen.findByRole("region", { name: "Form fields" });
     expect(within(fields).getByText("Invoice number")).toBeTruthy();
     expect(screen.queryByRole("complementary", { name: "Actions" })).toBeNull();   // the action library is for agents only
+    expect(within(fields).queryByRole("button", { name: "Move up" })).toBeNull();   // move and delete show once a field is selected
     fireEvent.change(screen.getByLabelText("Add a field"), { target: { value: "dropdown" } });
     fireEvent.click(within(fields).getByRole("button", { name: "Add" }));
+    expect(within(fields).getByRole("button", { name: "Move up" })).toBeTruthy();
+    expect((within(fields).getByRole("button", { name: "Move down" }) as HTMLButtonElement).disabled).toBe(true);   // the new one is last
     const label = screen.getByLabelText("Label") as HTMLInputElement;
     fireEvent.change(label, { target: { value: "Currency" } });
     fireEvent.blur(label);

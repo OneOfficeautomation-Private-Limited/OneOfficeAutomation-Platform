@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import type { WorkspaceNode } from "../api/client";
-import { Button, Field, IconTile, Select, TextInput, type IconName } from "../components";
+import { Button, Field, Icon, IconTile, Select, TextInput, type IconName } from "../components";
 
 /**
  * Editors for the items other than agents: forms, workflows, document types, Prompt Skills and scripts. Each works on
  * the item's own file format, the one the runtime uses, and hands every change up as a whole new copy, so Undo
  * is keeping the old one.
  * A text field reports its change when it loses focus or on Enter, so typing a word is one undo step.
+ * Review round 2 (1 Nov 2026): Move up, Move down and Delete show, as icons, only while a part is selected; a row's
+ * Remove is a bin icon (all of them can be undone).
  */
 
 type Obj = Record<string, unknown>;
@@ -57,10 +59,12 @@ function PartsEditor<P extends Obj>({ title, parts, kinds, describe, onParts, se
             <Select aria-label={addLabel} value={kind} onChange={(e) => setKind(e.target.value)} options={Object.entries(kinds).map(([k, m]) => ({ value: k, label: m.label }))} />
           </label>
           <Button kind="secondary" icon="plus" onClick={() => { const p = newPart(kind); onParts([...parts, p]); setSel(parts.length); }}>Add</Button>
-          <span className="st-bar-gap" />
-          <Button kind="plain" disabled={sel === null} onClick={() => sel !== null && move(sel, -1)}>Move up</Button>
-          <Button kind="plain" disabled={sel === null} onClick={() => sel !== null && move(sel, 1)}>Move down</Button>
-          <Button kind="plain" disabled={sel === null} onClick={() => { if (sel !== null) { onParts(parts.filter((_, k) => k !== sel)); setSel(null); } }}>Delete</Button>
+          {sel !== null && <>
+            <span className="st-bar-gap" />
+            <button type="button" className="st-tool" aria-label="Move up" title="Move up" disabled={sel === 0} onClick={() => move(sel, -1)}><Icon name="up" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Move down" title="Move down" disabled={sel === parts.length - 1} onClick={() => move(sel, 1)}><Icon name="down" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Delete" title="Delete (Ctrl+Z brings it back)" onClick={() => { onParts(parts.filter((_, k) => k !== sel)); setSel(null); }}><Icon name="trash" size={16} /></button>
+          </>}
         </div>
         <div className="st-marker st-start">START</div>
         <ol className="st-step-list">
@@ -267,7 +271,7 @@ export function DocumentEditor({ data, onChange }: { data: Obj; onChange: Change
                   onBlur={(e) => { if (e.currentTarget.value !== str(f.description)) setField(i, "description", e.currentTarget.value); }} /></td>
                 <td><Select aria-label="Type" value={str(f.type) || "String"} onChange={(e) => setField(i, "type", e.target.value)} options={VALUE_TYPES} /></td>
                 <td className="st-center"><input type="checkbox" aria-label="Required" checked={!!f.required} onChange={(e) => setField(i, "required", e.target.checked)} /></td>
-                <td><Button kind="plain" aria-label={"Remove " + str(f.name)} onClick={() => onChange({ ...data, fields: fields.filter((_, j) => j !== i) })}>Remove</Button></td>
+                <td><button type="button" className="st-tool" aria-label={"Remove " + str(f.name)} title={"Remove " + str(f.name)} onClick={() => onChange({ ...data, fields: fields.filter((_, j) => j !== i) })}><Icon name="trash" size={15} /></button></td>
               </tr>
             ))}
             {!fields.length && <tr><td colSpan={5} className="st-empty">No fields yet.</td></tr>}

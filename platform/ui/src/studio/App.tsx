@@ -584,8 +584,8 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
   return (
     <div className="st-item-wrap">
       <div role="toolbar" aria-label="Edit" className="st-edit-bar st-item-bar">
-        <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
-        <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
+        <button type="button" className="st-tool" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
+        <button type="button" className="st-tool" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
         {cmd && <>
           <span className="st-bar-gap" />
           {runnable && <Button kind="run" icon="play" onClick={runScript} disabled={scriptRun?.busy}>{scriptRun?.busy ? "Running…" : "Run script"}</Button>}

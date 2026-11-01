@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FlowStep, OpenWindow } from "../api/client";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
 import { locate } from "./flowEdit";
 import {
   DESKTOP_LABELS, desktopWindowVariable, fillWindowFromCapture, MATCHES, shareDesktopWindow, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
@@ -120,7 +120,7 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
                 onBlur={(e) => { if (e.target.value !== String(p.value ?? "")) setProp(i, { value: e.target.value }); }} /></td>
               <td><div className="st-row-tight"><Select aria-label={"Match for " + name(p)} value={p.match || "equals"} onChange={(e) => setProp(i, { match: e.target.value })}
                 options={MATCHES.map(([v, l]) => ({ value: v, label: l }))} />
-                {p.custom && <Button kind="plain" aria-label="Remove this property" onClick={() => put({ ...obj, properties: props.filter((_, j) => j !== i) })}>Remove</Button>}</div></td>
+                {p.custom && <button type="button" className="st-tool" aria-label={"Remove this property"} title={"Remove this property"} onClick={() => put({ ...obj, properties: props.filter((_, j) => j !== i) })}><Icon name="trash" size={15} /></button>}</div></td>
             </tr>
           ))}
           {!shown.length && <tr><td colSpan={4} className="st-muted">{f ? "No property matches “" + filter + "”." : "No property is selected: show all properties and tick the ones to search by."}</td></tr>}
