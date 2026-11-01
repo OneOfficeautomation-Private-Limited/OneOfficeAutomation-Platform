@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentTemplate, CrApi, CrUser } from "../api/cr";
-import { Button, Dialog, Field, Menu, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
@@ -21,6 +21,36 @@ const under = (f: string, p: string) => !p || f === p || f.startsWith(p + "/");
 const keyOf = (t: AgentTemplate) => t.source + ":" + t.id;
 /** A folder path with the folders above it, top first: "A/B" gives A, A/B. */
 const withParents = (f: string) => f.split("/").map((_, i, a) => a.slice(0, i + 1).join("/"));
+
+const HELP: HelpTopic = { title: "Agent Templates",
+  about: "Ready-made agents to install into Automation and adapt, from ONEOFFICEAUTOMATION's template catalogue and, where the service allows, shared by "
+    + "others in your region.",
+  items: [
+    { name: "Folders", text: "Pick a folder to list its templates; All templates shows every one. The catalogue's categories are the first folders." },
+    { name: "State", text: "Show only templates already installed in Automation, or only those not installed yet." },
+    { name: "Installed in", text: "The Automation folders that already hold this template's agents." },
+    { name: "Install…", text: "Puts the template's agents into a folder of Automation as new agents you can change. Agents already there are kept as they "
+      + "are. Needs permission to import." },
+    { name: "Open in Automation", text: "For an installed template: shows its agents in Automation." },
+    { name: "Move to folder…", text: "Shows the template in another folder here. It does not change where its agents go when you install it. For "
+      + "administrators." },
+    { name: "Create", text: "New folder makes a folder here, inside the chosen one; the folder's ⋯ menu renames, moves or deletes it when it is empty. For "
+      + "administrators." },
+    { name: "Share an agent", text: "In Manage: sends the live version of one of your agents to your region's catalogue. Once the service's operators "
+      + "approve it, others in the region can install it." },
+    { name: "Upload a catalogue file", text: "In Manage: for a One CommandCenter without internet access, upload the signed templates.json from the "
+      + "releases page. Needs permission to change settings." },
+  ] };
+
+const HELP_TEMPLATE: HelpTopic = { title: "Agent template",
+  about: "One template: what it does, the agents inside it and where they are already installed.",
+  items: [
+    { name: "What is inside", text: "The agents the template installs, and the Automation folders where each is already." },
+    { name: "Install", text: "Choose a folder; the agents go there as new agents you can change. Install again into… puts another copy in a different "
+      + "folder." },
+    { name: "Open in Automation", text: "Shows the installed agents in Automation." },
+    { name: "Move to folder…", text: "Shows the template in another folder of Agent Templates. For administrators." },
+  ] };
 
 export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [data, setData] = useState<Awaited<ReturnType<CrApi["templates"]>> | null>(null);
@@ -104,6 +134,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => { setOpen(null); setCat(""); }}>Agent Templates</button> ›{" "}
               {folderOfT(open).split("/").filter(Boolean).map((c, i, a) => <span key={i}><button type="button" className="cc-link" onClick={() => { setOpen(null); setCat(a.slice(0, i + 1).join("/")); }}>{c}</button> › </span>)}</span>
             <h1>{open.name}</h1>
+            <HelpButton topic={HELP_TEMPLATE} />
             {where.length ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Installed</span> : <span className="cc-pill is-stopped"><span className="cc-pill-dot" />Not installed</span>}
             <span className="cc-none">{open.source === "region" ? "Shared by " + open.publisher : open.publisher}</span>
             <span className="ov-fill" />
@@ -135,7 +166,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-tpl-title">
       <header className="cc-list-head">
         <h1 id="cc-tpl-title">Agent Templates</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title={"Ready-made agents to install into Automation and adapt: from ONEOFFICEAUTOMATION" + (data?.can_share ? " and shared in your region." : ".")}>i</span>
+        <HelpButton topic={HELP} />
         {data && <span className="cc-list-count">{all.length} template{all.length === 1 ? "" : "s"}{repo.length ? " · " + installed + " installed" : ""} · {folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage.length > 0 && <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />}

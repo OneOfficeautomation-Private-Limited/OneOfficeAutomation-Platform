@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
-import { Button, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -20,6 +20,29 @@ const TILE: Record<string, [string, string]> = { approval: ["A", "#1d6b38"], for
 const OUTCOME: Record<string, string> = { submitted: "Submitted", approved: "Approved", rejected: "Rejected", done: "Read", expired: "Expired", cancelled: "Cancelled" };
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+
+const HELP: HelpTopic = { title: "Task inbox", about: "Work that workflows give you or your role: forms to fill in, approvals and notices. "
+  + "Click a task to open it beside the list; the list refreshes every 30 seconds.",
+  items: [
+    { name: "To do", text: "Tasks waiting for you or your role, with when they are due. Overdue tasks are marked." },
+    { name: "Done", text: "Tasks that were finished, with the outcome (such as Approved or Submitted), who did it and when." },
+    { name: "Kind", text: "Show only forms to fill in, approvals or notices." },
+    { name: "Overdue only, Taken by me", text: "On To do: show only tasks past their due time, or only the tasks you have taken." },
+    { name: "Everyone's tasks", text: "Shows the tasks of every person and role, not only yours. It needs the Manage users and roles permission." },
+    { name: "Comes from", text: "The workflow that gave the task and the reference of its request." },
+    { name: "State", text: "Waiting until someone takes the task, then Taken by that person, so two people do not work on the same task." },
+    { name: "Actions (⋯)", text: "Open the task, take it, or give it back so others can take it." },
+  ] };
+const HELP_TASK: HelpTopic = { title: "A task", about: "One task beside the list: where it comes from, what to decide or fill in, and the actions open to you.",
+  items: [
+    { name: "What to decide, Workflow data", text: "The data the workflow passed with the task, to help you decide or fill in the form." },
+    { name: "Take it", text: "Marks the task as yours, so others who share it see it is being worked on. Do it first when the task goes to a role." },
+    { name: "Give back", text: "Puts the task back as waiting, for someone else to take." },
+    { name: "Comment (optional)", text: "A note saved with your answer, for example why you rejected it." },
+    { name: "Approve, Reject", text: "For an approval: your decision goes back to the workflow, which then goes on." },
+    { name: "Submit", text: "For a form: sends your answers to the workflow. Fields marked * must be filled in first." },
+    { name: "Mark as read", text: "For a notice: says you have seen it and moves it to Done." },
+  ] };
 
 export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<Tab>("open");
@@ -57,7 +80,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className={"st-page cc-home cc-list" + (open ? " has-run" : "")} aria-labelledby="cc-inbox-title">
       <header className="cc-list-head">
         <h1 id="cc-inbox-title">Task inbox</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Work that workflows give you or your role: forms to fill in, approvals and notices.">i</span>
+        <HelpButton topic={HELP} />
         {tasks && <span className="cc-list-count">{tab === "open" ? tasks.length + " to do" + (overdue ? " · " + overdue + " overdue" : "") : tasks.length + " done"}</span>}
         <span className="ov-fill" />
       </header>
@@ -134,6 +157,7 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
       <div className="cc-run-head">
         <span className="cc-task-tile" style={{ background: c }} aria-hidden="true">{m}</span>
         <h2>{t.title}</h2>
+        <HelpButton topic={HELP_TASK} />
         {t.overdue && <span className="cc-pill is-failed"><span className="cc-pill-dot" />Overdue</span>}
         <span className="ov-fill" />
         <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>

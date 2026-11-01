@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, Schedule } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -22,6 +22,24 @@ const LAST: Record<string, [string, string]> = { success: ["Completed", "success
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 export const repeats = (s: Schedule) => (s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time
   : (s.days ?? "").split(",").filter(Boolean).map((d) => d.charAt(0) + d.slice(1).toLowerCase()).join(", ") + " at " + s.at_time) + " (" + s.time_zone + ")";
+
+const HELP: HelpTopic = { title: "Schedules",
+  about: "Run agents automatically at set times. A scheduled run uses the permissions and vault access of the schedule's owner, or of the run-as person; "
+    + "holiday calendars skip the dates you list.",
+  items: [
+    { name: "Create schedule", text: "Choose the agent (its live version runs), who it runs as, where it runs (a runner, a runner pool or the run-as "
+      + "person's default runner) and when: every N minutes, daily or weekly, in a time zone. Needs permission to manage schedules." },
+    { name: "Holiday calendars", text: "Named lists of dates, such as public holidays. A schedule that uses a calendar does not run on its dates." },
+    { name: "Times missed and overlapping runs", text: "When creating or opening a schedule: run once for times missed while One CommandCenter was down, or "
+      + "skip them; and start another run or skip this time when the previous run is still going." },
+    { name: "Last run", text: "How the latest run ended and when. Click it to open that run in Agent Activity." },
+    { name: "Open", text: "Shows the schedule; you can change its name, holiday calendar, owner, run-as person and the two rules. "
+      + "To change the agent, where it runs or when, copy it as a new schedule and delete this one." },
+    { name: "Run now", text: "Starts the schedule's agent straight away, as the schedule would. Needs permission to start runs." },
+    { name: "Enable and Disable", text: "A disabled schedule keeps its settings but does not run until you enable it again." },
+    { name: "Change owner", text: "Gives the selected schedules to another person; their runs then use that person's permissions and vault access." },
+    { name: "Export CSV", text: "Saves the schedules shown, with where and when they run and their next and last runs, as a CSV file." },
+  ] };
 
 export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<Schedule[] | null>(null);
@@ -83,7 +101,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-list" aria-labelledby="cc-sched-title">
       <header className="cc-list-head">
         <h1 id="cc-sched-title">Schedules</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Run agents automatically. Scheduled runs use the vault permissions of the schedule's owner, or of the run-as user; holiday calendars skip the dates you list.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} schedule{list.length === 1 ? "" : "s"} · {enabled} enabled</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => setDialog({ kind: "calendars" })}>Holiday calendars</Button>

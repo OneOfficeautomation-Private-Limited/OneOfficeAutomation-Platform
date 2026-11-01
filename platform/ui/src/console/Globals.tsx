@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, GlobalValue } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -17,6 +17,21 @@ const kindOf = (v: unknown): Kind => typeof v === "number" ? "number" : typeof v
 const show = (v: unknown) => v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v);
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+const HELP: HelpTopic = { title: "Shared Global values", about: "Values every agent can read as $global.name, such as a folder or an address, "
+  + "kept in one place. Where people may change a value, their runs use their own value.",
+  items: [
+    { name: "Create value", text: "Give it a name (letters, digits and _), a type and a value. The name cannot change later. "
+      + "It needs the Manage shared global values permission." },
+    { name: "Type", text: "Text, a number, true/false, or a list or record written as JSON, such as [1, 2] or {\"a\": 1}." },
+    { name: "People may change", text: "When on, each person may set their own value and runs that run as them use it. "
+      + "Turning it off removes everyone's own values." },
+    { name: "Your value", text: "Your own value of a value people may change, or Uses the shared one when you have not set one." },
+    { name: "Set my own value", text: "Type your own value; Use the shared one goes back to the shared value." },
+    { name: "Show", text: "Every value, only those people may change, or only those you set your own value of." },
+    { name: "Actions (⋯)", text: "Edit, set your own value, copy the name as $global.name to use in an agent, or delete. "
+      + "Deleting removes everyone's own values too, and agents reading it get nothing." },
+  ] };
+
 /** The value typed in, read by its kind; throws with a reason when it does not fit. */
 function read(kind: Kind, text: string): unknown {
   if (kind === "text") return text;
@@ -53,7 +68,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     <section className="st-page cc-home cc-list" aria-labelledby="cc-glob-title">
       <header className="cc-list-head">
         <h1 id="cc-glob-title">Shared Global values</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Values every agent can read as $global.name. Where people may change a value, their runs use their own value.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} shared value{list.length === 1 ? "" : "s"} · {list.filter((g) => g.changeable).length} people may change</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "edit", g: null })}>Create value</Button>}

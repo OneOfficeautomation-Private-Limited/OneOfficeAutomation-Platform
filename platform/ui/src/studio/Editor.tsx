@@ -3,7 +3,8 @@ import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, 
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, type MenuItem } from "../components";
+import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
   addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
@@ -50,7 +51,7 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
   const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
-    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
+    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions" actions={<HelpButton topic={ACTIONS_HELP} />}
       style={width ? { width } : undefined} panelRef={(el) => { panel.current = el; }}>
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
@@ -444,6 +445,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
             <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
               aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
               <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>
+            <HelpButton topic={EDITOR_HELP} />
           </div>
           {longNames > 0 && !noRename && <div className="st-offer" role="status">
             <span>{longNames} recorded variable{longNames === 1 ? " has a long name" : "s have long names"} (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?</span>
@@ -521,7 +523,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
 
         {!rightHidden && <Splitter label="Resize the details panel" axis="x" grow={-1} value={rightWidth} min={260} max={680}
           measure={() => rightPanel.current?.getBoundingClientRect().width ?? 340} onChange={setRightWidth} />}
-        <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden}
+        <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden} actions={<HelpButton topic={DETAILS_HELP} />}
           onToggle={() => setRightHidden(!rightHidden)} className="st-right" style={rightWidth ? { width: rightWidth } : undefined}
           panelRef={(el) => { rightPanel.current = el; }}>
           <Tabs label="Right panel" value={rightTab} onChange={setRightTab}
@@ -567,6 +569,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       <section className="st-bottom" aria-label="Output" ref={outPanel} style={outStyle}>
         <Tabs label="Output" value={bottomTab} onChange={setBottomTab}
           actions={<>
+            <HelpButton topic={OUTPUT_HELP} />
             {outAt === "float" && <span className="st-out-grip" onPointerDown={moveOutput} title="Drag to move the output panel">⠿ Move</span>}
             <select className="ui-input st-out-place" aria-label="Place the output panel" value={outAt} onChange={(e) => setOutAt(e.target.value as typeof outAt)}>
               <option value="bottom">Bottom</option><option value="right">Right</option><option value="float">Floating</option>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
-import { Button, Dialog, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { repeats } from "./Schedules";
 
@@ -96,6 +96,43 @@ const linkedRun = () => linked().get("run");
 const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "q", "bot", "device"].filter((k) => l.get(k)).map((k) => [k, l.get(k)!])); };
 
 type Summary = { running: number; queued: number; failed: number; ended: number; succeeded: number; next: Schedule | null; schedulesOn: number | null };
+
+const HELP: HelpTopic = { title: "Agent Activity", about: "What is running now, what runs next on a schedule, and every run that has ended. "
+  + "Click a run to open it beside the list.",
+  items: [
+    { name: "Running now", text: "The figures at the top open the runs behind them: "
+      + "running now, waiting for a runner, failed or ended in the last 24 hours, and the next scheduled run." },
+    { name: "In progress", text: "Runs waiting for a runner or running now; the list refreshes every 5 seconds. "
+      + "Select runs to pause, resume or stop them after their current step." },
+    { name: "Scheduled", text: "The next run of each schedule, soonest first. Select schedules to run them now or turn them on or off; "
+      + "make or change them on the Schedules page." },
+    { name: "Completed", text: "Every run that ended in the chosen period, grouped by day, with why each ended. Select runs to run them again." },
+    { name: "Period", text: "On Completed, choose how far back to look: "
+      + "24 hours, 7 days, 90 days (the default) or Chosen dates, which asks for a From and To date." },
+    { name: "Status, Agent, Runner, How started", text: "Narrow the list to the runs you want; Clear filters shows every run again. "
+      + "The search box finds an agent, run id, user or error." },
+    { name: "More filters", text: "Adds Started by, to find the runs one person started." },
+    { name: "Columns", text: "Choose which columns the list shows; your choice is kept for next time." },
+    { name: "Export CSV", text: "Saves every run the filters find as a CSV file. With runs selected it becomes Export selected and saves only those." },
+    { name: "Actions (⋯)", text: "A run's own menu: open it, stop it while it runs, run it again once it ended, or find its agent in Automation." },
+  ] };
+const HELP_RUN: HelpTopic = { title: "A run", about: "One run beside the list: how it stands, why it ended and what to try, then its steps, log, variables, "
+  + "inputs and outputs. While it runs, it follows along live.",
+  items: [
+    { name: "‹ Newer, Older ›", text: "Open the run above or below this one in the list, without closing the panel." },
+    { name: "Why it ended", text: "The error, the step it happened at and whether running it again may help. "
+      + "Every run that failed this way finds other runs with the same error." },
+    { name: "Steps", text: "Each step with its time, retries and error; steps inside other steps are indented." },
+    { name: "Log", text: "Everything the run recorded, with the time since it started. "
+      + "Choose to show only errors and retries, log messages or variables set." },
+    { name: "Variables", text: "The last value of each variable the run set. Credentials always show as ****." },
+    { name: "Inputs and outputs", text: "The values the run started with and the values it gave back; outputs show once the run ends." },
+    { name: "AI calls", text: "Shows when the run called an AI model: which model, tokens, time, what was masked and which tools it used." },
+    { name: "Download log", text: "Saves the log as a text file." },
+    { name: "Pause, Resume, Stop", text: "Pause or stop the run after its current step, or let a paused run go on. "
+      + "It needs the Pause and stop runs permission." },
+    { name: "Run again", text: "Once the run has ended, starts it again as a new run and opens that one." },
+  ] };
 
 export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [stored, setTabState] = usePersistent<Tab>("activity.tab", "progress");
@@ -249,7 +286,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className={"st-page cc-home cc-list" + (details ? " has-run" : "")} aria-labelledby="cc-act-title">
       <header className="cc-list-head">
         <h1 id="cc-act-title">Agent Activity</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="What is running now, what runs next on a schedule, and every run that has ended.">i</span>
+        <HelpButton topic={HELP} />
         {data && tab === "completed" && <span className="cc-list-count">{data.total} run{data.total === 1 ? "" : "s"} {f.period === "dates" ? "between the chosen dates" : "in the " + periodWords}
           {byOutcome.map(([n, l]) => " · " + n + " " + l).join("")}</span>}
         {summary && tab === "progress" && <span className="cc-list-count">{summary.running} running · {summary.queued} waiting for a runner</span>}
@@ -535,6 +572,7 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, n
       <div className="cc-run-head">
         {run && <span className={"cc-pill is-" + (PILL[state] ?? "pending")}><span className="cc-pill-dot" />{STATUS[state] ?? run.status}</span>}
         <h2>{run ? name(run.bot_path) : "Run"}</h2>
+        <HelpButton topic={HELP_RUN} />
         <span className="ov-fill" />
         <span className="cc-none ui-mono" title={id}>{id.length > 16 ? id.slice(0, 14) + "…" : id}</span>
         <Button kind="plain" disabled={!newer} onClick={() => newer && onOpen(newer)}>‹ Newer</Button>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ConsolePlugin, CrApi } from "../api/cr";
+import { HelpButton, type HelpTopic } from "../components";
 
 /**
  * AI > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
@@ -7,6 +8,17 @@ import type { ConsolePlugin, CrApi } from "../api/cr";
  * Review round 2 (1 Nov 2026): the title row of the other pages (what it does on hover, Installed or Not installed, and
  * Open on the right when installed).
  */
+const HELP: HelpTopic = { title: "Document Automation", about: "Reads documents such as invoices, receipts and forms, and pulls their fields out with AI, "
+  + "for agents to use. It is an add-on module; this page shows whether it is installed and opens it.",
+  items: [
+    { name: "Installed, Not installed", text: "Whether the Document Automation module is installed on this One CommandCenter. "
+      + "When it is not, ask your administrator about it." },
+    { name: "Open Document Automation", text: "Shows once the module is installed, and opens its own pages." },
+    { name: "Learning instance", text: "One for each kind of document: the fields to extract, how the text is read, and the AI model that extracts it." },
+    { name: "Validation queue", text: "Where people check the extracted results before agents use them." },
+    { name: "Accuracy", text: "Measured on sample documents before a learning instance goes live." },
+  ] };
+
 export function DocumentAutomation({ api }: { api: CrApi }) {
   const [plugin, setPlugin] = useState<ConsolePlugin | null | undefined>(undefined);   // undefined: still asking
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +30,7 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
     <section className="st-page cc-home cc-list" aria-labelledby="cc-da-title">
       <header className="cc-list-head">
         <h1 id="cc-da-title">Document Automation</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Reads documents such as invoices, receipts and forms, and pulls their fields out with AI, for agents to use.">i</span>
+        <HelpButton topic={HELP} />
         {plugin !== undefined && <span className={"cc-pill is-" + (plugin ? "active" : "disabled")}><span className="cc-pill-dot" />{plugin ? "Installed" : "Not installed"}</span>}
         <span className="ov-fill" />
         {plugin && <a className="ui-btn ui-btn-primary" href={plugin.path}>Open Document Automation</a>}

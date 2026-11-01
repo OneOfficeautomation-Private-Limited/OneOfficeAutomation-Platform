@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ModelConnection } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -20,6 +20,24 @@ const HELP: Record<string, string> = {
   azure_openai: "Model: the deployment name. Endpoint: your resource, for example https://myresource.openai.azure.com.",
   huggingface: "Model id on the Hugging Face router, or leave the endpoint set to your own TGI server.",
 };
+/** The page's own Help topic (HELP above is the hint for each provider). */
+const PAGE_HELP: HelpTopic = { title: "Model Connections", about: "Named connections to AI models that agents use through prompt skills, "
+  + "AI agents and generative AI actions. Keys stay in the Credential vault; agents receive only the reference.",
+  items: [
+    { name: "Create connection", text: "Name the connection, pick the provider and model, give the vault reference of its API key, "
+      + "and set privacy and budget. Use Test connection to check it answers before you save." },
+    { name: "Provider", text: "Show only the connections to one provider, such as Azure OpenAI or an OpenAI-compatible model you host yourself." },
+    { name: "Roles", text: "The roles that may use the connection; Every role when none is chosen." },
+    { name: "Tokens this month", text: "Tokens used in and out this month, against the monthly budget when one is set. "
+      + "When it is used up, AI steps fail until the next month or a higher budget." },
+    { name: "Privacy", text: "Masks personal data when a Microsoft Presidio analyzer is set, so the model never sees names, places and ids; "
+      + "Checks answers when the provider's moderation check is on." },
+    { name: "Key", text: "Where the API key is kept in the Credential vault, as folder/credential/attribute. The key itself never shows here." },
+    { name: "Budget and limits", text: "In the form: tokens a month, calls a minute per run (more calls wait) and calls a run (more calls fail). "
+      + "Empty means no limit." },
+    { name: "Actions (⋯)", text: "Edit, test the connection, copy its name to choose it on an AI step, or delete it. "
+      + "AI steps that use a deleted connection fail until another is chosen." },
+  ] };
 const providerName = (p: string) => PROVIDERS.find(([k]) => k === p)?.[1] ?? p;
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -54,7 +72,7 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
     <section className="st-page cc-home cc-list" aria-labelledby="cc-mc-title">
       <header className="cc-list-head">
         <h1 id="cc-mc-title">Model Connections</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Named connections to AI models that agents use through prompt skills, AI agents and generative AI actions. Keys stay in the Credential vault; agents receive only the reference.">i</span>
+        <HelpButton topic={PAGE_HELP} />
         {list && <span className="cc-list-count">{list.length} model connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ c: null })}>Create connection</Button>}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -13,6 +13,22 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
  */
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+
+const HELP: HelpTopic = { title: "Connections", about: "A connector's address and sign-in, kept once and chosen by name on agent steps. "
+  + "Secrets stay in the Credential vault; a connection keeps only their references.",
+  items: [
+    { name: "Create connection", text: "Pick the toolkit, give the connection a name and fill in its settings. The name and toolkit cannot change later. "
+      + "It needs the Manage shared global values permission." },
+    { name: "Settings and sign-in", text: "In the form: plain settings such as an address are kept as values; "
+      + "secrets are written as vault references (folder/credential/attribute). Leave one empty to set it on each step instead." },
+    { name: "Toolkit", text: "Show only the connections of one toolkit, such as ServiceNow." },
+    { name: "Settings", text: "The values the connection keeps, such as the address." },
+    { name: "Secrets from the vault", text: "Which vault credential each secret comes from. "
+      + "Secrets are read from the vault when the agent runs, as the person it runs as." },
+    { name: "Updated", text: "When the connection was last saved, and by whom." },
+    { name: "Actions (⋯)", text: "Edit the connection, copy its name to choose it on an agent step, or delete it. "
+      + "Agent steps that use a deleted connection fail until another is chosen." },
+  ] };
 
 export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<SavedConnection[] | null>(null);
@@ -43,7 +59,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
     <section className="st-page cc-home cc-list" aria-labelledby="cc-conn-title">
       <header className="cc-list-head">
         <h1 id="cc-conn-title">Connections</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in the Credential vault; a connection keeps only their references.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}

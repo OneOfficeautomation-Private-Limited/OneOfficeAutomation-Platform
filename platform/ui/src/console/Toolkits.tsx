@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -18,6 +18,37 @@ const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const versionsOf = (t: Toolkit) => t.versions ? t.versions.join(", ") + " (default " + t.version + ")" : t.version ?? "";
 type MenuItem = { key: string; label: string; onSelect: () => void };
+
+const HELP: HelpTopic = { title: "Agent ToolKits",
+  about: "Every toolkit of actions agents can use, how many agents use it, and whether it is on. Several versions of your own toolkits stay installed side "
+    + "by side.",
+  items: [
+    { name: "State, Source and Used by agents", text: "Filter the list to toolkits that are on or off, built-in or your own, and those at least one agent "
+      + "uses." },
+    { name: "Versions", text: "The versions installed, with the default one new agents get." },
+    { name: "Open", text: "Opens the toolkit's own page with the agents that use it and its details. Clicking the row does the same." },
+    { name: "Switch off… and Switch on", text: "In the row's ⋯ menu. While a toolkit is off, agents that use it cannot be checked in or run; you are asked "
+      + "first when agents use it. The core toolkit is always on. Needs permission to manage toolkits." },
+    { name: "Upload toolkit", text: "Installs a toolkit jar built with the toolkit SDK and signed by a trusted publisher. Older versions stay installed for "
+      + "agents that need them." },
+    { name: "Trusted publishers", text: "The publishers whose signatures are accepted on uploaded toolkits, with their public keys. Stop trusting one to "
+      + "refuse its new uploads." },
+    { name: "Your toolkit versions", text: "Every version of your own toolkits with its publisher, upload date and SHA-256. Delete a version only when no "
+      + "agent needs it." },
+  ] };
+
+const HELP_TOOLKIT: HelpTopic = { title: "Agent toolkit",
+  about: "One toolkit: the agents that use it with the versions they need, and its details.",
+  items: [
+    { name: "Agents that use it", text: "Each agent with the version range it requires and whether the default version fits. Click an agent to find it in "
+      + "Automation." },
+    { name: "Require in every agent that uses it", text: "Type a version range, such as ^2.0.0, and press Update agents. Each agent gets a new version with "
+      + "that range; its live version stays until you choose the new one. Needs permission to check in agents." },
+    { name: "Default fits", text: "No means the agent asks for versions the default does not meet; update its range or keep the version it needs "
+      + "installed." },
+    { name: "Details", text: "The toolkit's id, the versions installed, its actions and conditions, publisher and state." },
+    { name: "Switch off… or Switch on", text: "Stops or allows checking in and running the agents that use it. Needs permission to manage toolkits." },
+  ] };
 
 export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<Toolkit[] | null>(null);
@@ -51,7 +82,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-tk-title">
       <header className="cc-list-head">
         <h1 id="cc-tk-title">Agent ToolKits</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Every toolkit of actions, how many agents use it, and switching it on or off. Several versions of your own toolkits stay installed side by side.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} toolkit{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on · {list.filter((t) => t.custom).length} your own</span>}
         <span className="ov-fill" />
         {manage && <>          <Button kind="secondary" onClick={() => setDialog({ kind: "publishers" })}>Trusted publishers</Button>
@@ -120,6 +151,7 @@ function ToolkitView({ api, t, canUpdate, onSwitch, onClose, onNotice }: { api: 
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Agent ToolKits</button> ›</span>
         <h1>{t.name}</h1>
+        <HelpButton topic={HELP_TOOLKIT} />
         <span className={"cc-pill is-" + (t.enabled ? "active" : "disabled")}><span className="cc-pill-dot" />{t.enabled ? "On" : "Off"}</span>
         <span className="cc-none"><span className="ui-mono">{t.id}</span> · default {t.version} · {t.actions} actions{t.conditions ? " + " + t.conditions + " conditions" : ""} · {t.used_by ? t.used_by + " agent" + (t.used_by === 1 ? " uses" : "s use") + " it" : "no agent uses it"}
           {misfit ? <> · <span className="cc-risk">{misfit} need{misfit === 1 ? "s" : ""} another version</span></> : null}</span>

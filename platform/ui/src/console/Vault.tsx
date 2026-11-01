@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -45,6 +45,60 @@ function rowsOf(folders: VaultFolder[]): CredRow[] {
   return out.sort((a, b) => (a.folder.name + "/" + a.name).localeCompare(b.folder.name + "/" + b.name));
 }
 const writer = (f: VaultFolder) => f.my_role === "owner" || f.my_role === "manager";
+
+const HELP: HelpTopic = { title: "Credential vault",
+  about: "Encrypted vault folders that keep the passwords, keys and other values agents need. Values are never shown again after saving; "
+    + "agents get them only while running, and every use is recorded in the Audit Trail.",
+  items: [
+    { name: "Credentials", text: "Every credential you can see, with its vault folder, attributes and owner. Agents name a value as "
+      + "folder/credential/attribute." },
+    { name: "Each person's own", text: "Attributes each person fills in for their own runs, such as their own password. Needs my own value shows the ones "
+      + "you have not filled in yet." },
+    { name: "Create credential", text: "Choose a vault folder you manage or take part in, name the credential and add its attributes, each with a value or "
+      + "left for each person to fill in." },
+    { name: "Vault folders", text: "The folders you own or use, with your place in each, its owners and consumers, and whether its values come from a "
+      + "company vault." },
+    { name: "Create vault folder", text: "Makes a folder that you own; say which roles, teams or people are its consumers. Needs permission to own vault "
+      + "folders or manage the vault." },
+    { name: "My requests", text: "Values credentials ask you to fill in for runs that run as you. Type each one and press Save; you can change it later on "
+      + "the credential's page." },
+    { name: "Vault key", text: "Where the master key comes from, its fingerprint, and rotating it, which encrypts every stored value again. For those who "
+      + "manage the vault." },
+    { name: "Delete…", text: "Deletes credentials with all their values, everyone's own values too, after you confirm. Allowed in folders you manage, or "
+      + "for credentials you own." },
+    { name: "Export CSV", text: "Saves the credentials shown as a CSV file: names and attributes only, never values." },
+  ] };
+
+const HELP_CREDENTIAL: HelpTopic = { title: "Credential",
+  about: "One credential: its attributes and values, its details and, when it has any, the values you keep for yourself. Agents name a value as "
+    + "folder/credential/attribute.",
+  items: [
+    { name: "Attributes", text: "Each attribute with its value. Type a new value and press Change to replace it; the old value is never shown." },
+    { name: "Masked", text: "On by default: the value is never shown. Clear it for values that are not secret, such as a user name, so owners and managers "
+      + "can look them up with Show; each look is recorded." },
+    { name: "Password fields only", text: "Agents may type this value into password fields only, so it cannot end up in ordinary text." },
+    { name: "Details", text: "The description, the owner, and which attributes each person fills in for themselves, separated by commas. Only folder owners "
+      + "and managers change the owner." },
+    { name: "Your values", text: "Your own value of each such attribute. A run reads it from whoever the run runs as, or whoever started it. Clear mine "
+      + "removes yours." },
+    { name: "Save details", text: "Keeps what you changed in descriptions, Masked, Password fields only and Details." },
+    { name: "Delete…", text: "In the ⋯ menu: deletes the credential with all its values, everyone's own values too. Agents that use it fail until it is "
+      + "made again." },
+  ] };
+
+const HELP_FOLDER: HelpTopic = { title: "Vault folder",
+  about: "One vault folder: its credentials, who may do what with them, and an optional link to your company vault.",
+  items: [
+    { name: "Credentials", text: "The credentials in the folder. Click one to open it." },
+    { name: "Members", text: "Owners can do everything; managers add, change and delete every credential; participants add credentials and change their own; "
+      + "consumers' agents may use the credentials. Write people, roles or teams as user:jane, role:bot_runner or team:finance." },
+    { name: "Save members", text: "Keeps the member lists you changed. Only those who manage the folder can change them." },
+    { name: "Company vault", text: "Reads the folder's values live from HashiCorp Vault, Azure Key Vault, AWS Secrets Manager or CyberArk. "
+      + "Agents still ask this folder, so members and the Audit Trail work as before." },
+    { name: "Link, Test reading and Unlink…", text: "Fill in the provider's address and secret, then Link. Test reading checks one secret can be read "
+      + "without showing it. Unlink makes agents use values kept here again." },
+    { name: "Delete folder…", text: "In the ⋯ menu once the folder is empty: deletes it with its members and company vault link." },
+  ] };
 
 export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<Tab>("credentials");
@@ -106,7 +160,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-vault-title">
       <header className="cc-list-head">
         <h1 id="cc-vault-title">Credential vault</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.">i</span>
+        <HelpButton topic={HELP} />
         {folders && <span className="cc-list-count">{rows.length} credential{rows.length === 1 ? "" : "s"} · {folders.length} vault folder{folders.length === 1 ? "" : "s"}{missing ? " · " + missing + " need your own value" : ""}</span>}
         <span className="ov-fill" />
         {can("lockers.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "key" })}>Vault key</Button>}
@@ -332,6 +386,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Credential vault</button> ›</span>
         <h1>{ref}</h1>
+        <HelpButton topic={HELP_CREDENTIAL} />
         {folder.external && <span className="cc-tag" title="Values are read live from the company vault">{EXT[folder.external.provider] ?? folder.external.provider}</span>}
         <span className="cc-none">{c.owner ? "Owner " + c.owner : "No owner"}{own.length ? " · " + own.length + " each person's own" : ""}</span>
         <span className="ov-fill" />
@@ -419,6 +474,7 @@ function FolderPage({ api, folder: l, onClose, onOpen, onChanged }: { api: CrApi
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Credential vault</button> ›</span>
         <h1>{l.name}</h1>
+        <HelpButton topic={HELP_FOLDER} />
         <span className="cc-role">{PLACE[l.my_role]}</span>
         <span className="cc-none">{names.length} credential{names.length === 1 ? "" : "s"}{l.external ? " · read live from " + (EXT[l.external.provider] ?? l.external.provider) : ""}{l.description ? " · " + l.description : ""}</span>
         <span className="ov-fill" />

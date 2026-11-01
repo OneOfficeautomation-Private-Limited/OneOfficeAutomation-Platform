@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { Button, Dialog, Field, Icon, IconTile, Menu, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { AgentAnalysis, CodeAnalysisPolicy, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -31,6 +31,47 @@ const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and sch
 
 type Dlg = null | { kind: "agent"; a: RepoAgent } | { kind: "folder"; parent: string } | { kind: "rename" } | { kind: "permissions" } | { kind: "deleted" } | { kind: "approvals" }
   | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" } | { kind: "analysis" };
+
+const HELP: HelpTopic = { title: "Automation",
+  about: "The shared (public) workspace: agents, workflows and forms checked in from One AgentStudio, with every version. "
+    + "The live version is the one runners, schedules and triggers use; each person's private workspace stays in One AgentStudio.",
+  items: [
+    { name: "Folders", text: "Pick a folder in the tree to list what is in it; Open all unfolds every folder. A tag shows folders with permissions of their "
+      + "own." },
+    { name: "Include subfolders", text: "On lists the agents in the chosen folder and every folder below it; off lists only the chosen folder." },
+    { name: "Type and State", text: "Show only agents, workflows or forms, and only those that are live, not live yet or checked out by someone." },
+    { name: "Live and Status", text: "Live is the version that runs; Latest is the newest checked-in version. Status shows who has the agent checked out to "
+      + "change it in One AgentStudio." },
+    { name: "Folder permissions", text: "Lets you say who sees the chosen folder's agents and what they may do: view, run, edit or manage. Roles still "
+      + "apply; a folder never gives more than a role allows." },
+    { name: "Manage", text: "Import agents, export or promote them to another One CommandCenter, decide production approvals, recover deleted agents and "
+      + "set the code analysis rules. What you see depends on your permissions." },
+    { name: "Create", text: "Makes a new folder in the chosen folder, or opens One AgentStudio to build a new agent." },
+    { name: "Run…", text: "In an agent's ⋯ menu: runs its live version on a runner or pool, with its inputs. Needs permission to start runs." },
+    { name: "Make it an Agent API…", text: "Lets other systems call the agent over the web. It needs a live version; Open its Agent API shows one that "
+      + "exists." },
+  ] };
+
+const HELP_AGENT: HelpTopic = { title: "Agent",
+  about: "One agent, workflow or form: its steps, inputs, versions, runs and dependencies. Everything here is read-only; change the agent in One "
+    + "AgentStudio and check it in.",
+  items: [
+    { name: "Steps", text: "Every line of the chosen version. Pick a line to see its settings at the right; Find in the steps marks matching lines, and "
+      + "Open all or Close all unfolds or folds blocks." },
+    { name: "Inputs and details", text: "Where the agent is, its live and latest versions, who changed it last, your access, and the inputs and outputs of "
+      + "the live version." },
+    { name: "Versions", text: "Every checked-in version with its comment, author and labels. Tick two and press Compare to see what changed line by line." },
+    { name: "Make live", text: "Makes a version the one that runs; runners, schedules and triggers use it from their next run. "
+      + "When approval is on, Ask to make live sends it to someone else to approve." },
+    { name: "Label", text: "Puts a name such as UAT on a version. A label is on one version at a time, so it moves from the version that had it." },
+    { name: "Runs and Dependencies", text: "The latest runs of the agent, and the agents it calls, the agents that call it and the toolkits it uses." },
+    { name: "Findings", text: "What code analysis found in the agent, measured against the rules set in Manage, Code analysis." },
+    { name: "Run", text: "Runs the live version on a runner or pool with its inputs; follow it in Agent Activity." },
+    { name: "Move…, Copy… and Delete…", text: "In the ⋯ menu: move the agent to another folder, copy its latest version as a new agent, or delete it. "
+      + "Deleted agents can be recovered." },
+    { name: "Undo check-out", text: "Releases the agent when the person who checked it out will not check it in. Shown to that person and to those who may "
+      + "make versions live." },
+  ] };
 
 export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [agents, setAgents] = useState<RepoAgent[] | null>(null);
@@ -122,7 +163,7 @@ export function Repository({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-repo-title">
       <header className="cc-list-head">
         <h1 id="cc-repo-title">Automation</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="The shared (public) workspace: agents checked in from One AgentStudio, with every version. The live version is the one that runs on runners, schedules and triggers. Each person's private workspace is in One AgentStudio.">i</span>
+        <HelpButton topic={HELP} />
         {agents && <span className="cc-list-count">{total("")} agent{total("") === 1 ? "" : "s"} · {folders.length} folder{folders.length === 1 ? "" : "s"}{toDecide ? " · " + toDecide + " to approve" : ""}</span>}
         <span className="ov-fill" />
         <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />
@@ -289,6 +330,7 @@ function AgentView({ api, user, a, folders, approvalOn, onClose, onFolder, onRun
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => onFolder("")}>Automation</button>
           {crumbs.map((c, i) => <span key={i}> › <button type="button" className="cc-link" onClick={() => onFolder(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>)} ›</span>
         <h1>{agentName(a.path)}</h1>
+        <HelpButton topic={HELP_AGENT} />
         {a.production_version ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Live v{a.production_version}</span> : <span className="cc-pill is-stopped"><span className="cc-pill-dot" />Not live</span>}
         <span className="cc-none">{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"} · latest v{a.latest_version}</span>
         <span className="ov-fill" />

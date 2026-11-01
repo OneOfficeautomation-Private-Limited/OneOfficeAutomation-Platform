@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, Dialog, Field, Icon, IconTile, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
@@ -197,8 +198,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       <header className="st-page-head">
         <div className="st-head-row">
           <h1 id="st-page-title">{title}</h1>
-          <span className="st-head-info" role="img" aria-label="About this page" title={isPublic ? "Agents shared through One CommandCenter. Check one out to work on it here."
-            : "Your workspace on this computer. Pick a folder, then press Create; double-click or click a name to open it."}>i</span>
+          <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} />
           {!isPublic && <span className="st-head-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
             : count(everything(tree).filter((n) => n.type !== "folder").length) + " · " + everything(tree).filter((n) => n.type === "bot").length + " agents"}</span>}
         </div>

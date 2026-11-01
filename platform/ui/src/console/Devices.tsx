@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -60,6 +60,29 @@ const SEARCH_IN: [string, string][] = [["name", "Runner name"], ["nickname", "Ni
 const PAGE = 50;
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+
+const HELP: HelpTopic = { title: "Runner Machines", about: "Machines running the OneRunner, and runner pools that share work between them. "
+  + "A runner is online when it checked in during the last minute; the list refreshes every 15 seconds. "
+  + "Click a runner to see its details, health, logs and screen.",
+  items: [
+    { name: "Register a runner", text: "Creates a one-time key, valid for 24 hours, and shows the command to run on the new runner machine. "
+      + "Tick Temporary runner for VDI or pooled desktops; they are removed by themselves after a time without contact. "
+      + "It needs the Manage runners permission." },
+    { name: "Search in", text: "Choose the field the search box looks in, such as the runner name, nickname, platform or default users." },
+    { name: "Status, Pool", text: "Show only runners that are online, busy, in maintenance, offline or disabled, or only the runners of one pool." },
+    { name: "Columns", text: "Choose which columns the list shows, such as memory, platform or log level; your choice is kept for next time." },
+    { name: "Update settings", text: "For the selected runners: the log level, runner type, what happens to the screen after an unattended run, "
+      + "and the CPU and memory use above which they take no new work. Only what you choose changes." },
+    { name: "Maintenance", text: "The selected runners take no new work until maintenance ends; "
+      + "runs going on now finish or are stopped after their current step. Pools send new runs to their other runners." },
+    { name: "Update program", text: "Asks the runners to update the OneRunner program; each updates when it is idle." },
+    { name: "Disable, Enable, Delete", text: "A disabled runner gets no work. A deleted runner must be registered again; "
+      + "runners with work waiting or running, or used by a schedule or trigger, are kept." },
+    { name: "Runner pools", text: "Runners that share work: a run sent to a pool goes to its least busy online runner. Owners may change the pool; "
+      + "Users are the roles that may send runs to it. Select runners and use Make a pool, or New runner pool." },
+    { name: "Actions (⋯)", text: "A runner's own menu: open it, update its settings, put it in or out of maintenance, update its program, "
+      + "disable it or delete it." },
+  ] };
 
 export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = usePersistent<Tab>("devices.tab", "runners");
@@ -139,7 +162,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     <section className="st-page cc-home cc-list" aria-labelledby="cc-dev-title">
       <header className="cc-list-head">
         <h1 id="cc-dev-title">Runner Machines</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Machines running the OneRunner. A runner is online when it checked in during the last minute.">i</span>
+        <HelpButton topic={HELP} />
         {runners && <span className="cc-list-count">{runners.length} runner{runners.length === 1 ? "" : "s"} · {online} of {runners.length} online · {pools.length} pool{pools.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {tab === "runners" && manage && <Button kind="primary" onClick={() => setDialog({ kind: "register" })}>Register a runner</Button>}

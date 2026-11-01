@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrApi, CrUser, ValueReport, ValueRow } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -23,6 +23,25 @@ function change(now: number, before: number) {
   const d = Math.round(100 * (now - before) / before);
   return d === 0 ? "same as before" : (d > 0 ? "+" : "") + d + "% on before";
 }
+
+const HELP: HelpTopic = { title: "Value",
+  about: "The manual work your agents' successful runs saved, in hours and money, per agent and per folder, compared with the period before. A run counts "
+    + "once, so work queue items are not counted twice.",
+  items: [
+    { name: "Period", text: "The time the figures cover: the last 7, 30 or 90 days, or the last year. The change is measured against the same length of "
+      + "time before it." },
+    { name: "Hours saved", text: "Each successful run times its agent's minutes saved a run." },
+    { name: "Money saved", text: "Hours saved times the cost of an hour of the manual work, set in Settings with its currency. It shows a dash until that "
+      + "cost is set." },
+    { name: "Full-time people", text: "The hours saved as the number of people working 40 hours a week over the period." },
+    { name: "Run time and Per hour run", text: "The hours the agents ran, and the hours of manual work saved for each hour they ran." },
+    { name: "By agent and By folder", text: "The same figures per agent or per top folder. Click a folder to see only its agents; Show every folder lists "
+      + "them all again." },
+    { name: "Minutes a run", text: "The manual minutes one successful run of the agent saves; (default) means it uses the default from Settings." },
+    { name: "Change minutes saved…", text: "Click an agent, or use its ⋯ menu, to set its own minutes saved, or Use the default again. Needs permission to "
+      + "put versions in production." },
+    { name: "Its runs in Agent Activity", text: "Lists the agent's successful runs, the ones counted here." },
+  ] };
 
 export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [days, setDays] = usePersistent("value.days", "30");
@@ -64,7 +83,7 @@ export function Value({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-val-title">
       <header className="cc-list-head">
         <h1 id="cc-val-title">Value</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="The manual work your agents' successful runs saved, in hours and money, per agent and folder.">i</span>
+        <HelpButton topic={HELP} />
       </header>
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

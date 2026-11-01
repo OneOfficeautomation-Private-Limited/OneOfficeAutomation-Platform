@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrTeam, CrUser } from "../api/cr";
-import { Button, Field, Select, TextInput } from "../components";
+import { Button, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -16,6 +16,32 @@ import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const leads = (t: CrTeam) => t.members.filter((m) => m.team_role === "lead").map((m) => m.username);
+
+const HELP: HelpTopic = { title: "Teams",
+  about: "Groups of people. Name a team as team:NAME in agent folder permissions, vault folders and work queues; adding someone to the team then gives them "
+    + "all of it.",
+  items: [
+    { name: "Create team", text: "Opens a new team's page: give it a name and description, then add its members. Needs permission to manage teams." },
+    { name: "Only teams I am in", text: "Shows only the teams you are a member or lead of." },
+    { name: "Leads", text: "People who may change the team's members. Only administrators make someone a lead or remove a lead." },
+    { name: "Named in rules as", text: "The exact words to type where you give a team access, for example in folder permissions or a work queue's members." },
+    { name: "Used in", text: "Where the team is named today, such as folders, vault folders and work queues. Use it to review who can reach what." },
+    { name: "Open", text: "Opens the team's page with its members and details. Clicking the row does the same." },
+    { name: "Delete…", text: "Deletes the team after you confirm. A team still named in rules is kept; remove it from those rules first." },
+    { name: "Export CSV", text: "Saves the teams shown, with their leads, members and where they are used, as a CSV file." },
+  ] };
+
+const HELP_TEAM: HelpTopic = { title: "Team",
+  about: "One team: its members and its details. Administrators change everything; a lead changes the members. Nothing is kept until you save.",
+  items: [
+    { name: "Members", text: "Everyone in the team. Choose a person and press Add; Remove from the team in a person's ⋯ menu takes them out." },
+    { name: "Place", text: "Member or Lead. A lead may change the members; only administrators can set this." },
+    { name: "Open in Users", text: "Opens the person in Users, when you may manage users." },
+    { name: "Details", text: "The team's name and description, the words to use in rules, and where the team is used. The name cannot change once the team "
+      + "is made, since rules use it." },
+    { name: "Save changes", text: "Keeps the members and details you changed." },
+    { name: "Delete…", text: "In the ⋯ menu: deletes the team after you confirm. Only for administrators." },
+  ] };
 
 export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [teams, setTeams] = useState<CrTeam[] | null>(null);
@@ -67,7 +93,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-teams-title">
       <header className="cc-list-head">
         <h1 id="cc-teams-title">Teams</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Groups of people. Name a team as team:NAME in agent folder permissions, vault folders and work queues; adding someone to the team gives them all of it.">i</span>
+        <HelpButton topic={HELP} />
         {teams && <span className="cc-list-count">{teams.length} team{teams.length === 1 ? "" : "s"} · {inTeams} {inTeams === 1 ? "person" : "people"} in them</span>}
         <span className="ov-fill" />
         {admin && <Button kind="primary" onClick={() => setPage({ team: null })}>Create team</Button>}
@@ -151,6 +177,7 @@ function TeamPage({ api, team, admin, me, people, onClose, onDelete, onSaved }:
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Teams</button> ›</span>
         <h1>{team ? team.name : "Create team"}</h1>
+        <HelpButton topic={HELP_TEAM} />
         {team && <code className="cc-code">team:{team.name}</code>}
         <span className="cc-none">{members.length} member{members.length === 1 ? "" : "s"} · {leadCount} lead{leadCount === 1 ? "" : "s"}{team ? " · " + (used.length ? "used in " + used.length + (used.length === 1 ? " place" : " places") : "not used yet") : ""}</span>
         <span className="ov-fill" />

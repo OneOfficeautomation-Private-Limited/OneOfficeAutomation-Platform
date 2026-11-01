@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Capacity as CapacityData, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
-import { Select, usePersistent } from "../components";
+import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -22,6 +22,31 @@ function dur(ms?: number | null) {
   return s < 60 ? s + " s" : s < 3600 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min";
 }
 const stateOf = (d?: Runner) => !d ? "Removed" : d.status === "disabled" ? "Off" : d.maintenance ? "Out of service" : d.status === "offline" ? "Offline" : d.over_limit ? "Busy (limit)" : "Online";
+const HELP: HelpTopic = { title: "Runner capacity", about: "How much of your runners' time agents use, how long runs wait for a runner, "
+  + "and when runners are busy or free. Use it to decide whether you need more runners or can move schedules to quieter hours.",
+  items: [
+    { name: "Period", text: "Pick the last 24 hours, 7, 30 or 90 days; every figure and chart covers that period. The page refreshes every minute." },
+    { name: "Runners online", text: "How many runners are online now out of those switched on. Click it to open Runner Machines." },
+    { name: "Of runner time in use", text: "The share of the switched-on runners' time spent running agents. At 80% or more, runs start to wait; "
+      + "plain advice shows under the figures." },
+    { name: "Busy", text: "The total time runners spent running agents, also shown as full-time people working 40 hours a week." },
+    { name: "Runs waiting for a runner now", text: "Runs queued at this moment. Click it to see them in Agent Activity." },
+    { name: "Average wait to start", text: "How long runs waited for a runner on average, and the time within which 95% of them started." },
+    { name: "When runners are busy", text: "A heatmap by weekday and hour, in your time zone: darker means more of the runners' time in use. "
+      + "Lighter hours suit new schedules." },
+    { name: "Busy hours per day", text: "How many hours runners were busy on each day of the period (the last 31 days at most)." },
+  ] };
+const HELP_RUNNERS: HelpTopic = { title: "Each runner", about: "Every runner's work in the period and how loaded it is now. "
+  + "Click a runner to open it on Runner Machines.",
+  items: [
+    { name: "State", text: "Online, Offline, Off, Out of service, or Busy (limit) when it is above the CPU or memory limit and takes no new work." },
+    { name: "Pools", text: "The runner pools the runner belongs to." },
+    { name: "Runs, Busy", text: "How many runs it ran in the period and how long it was busy." },
+    { name: "Time in use", text: "The share of its time spent running agents; 80% or more shows in red." },
+    { name: "Average wait", text: "How long runs for this runner waited to start, on average." },
+    { name: "CPU now, Memory now", text: "How busy the machine is at this moment." },
+    { name: "Actions (⋯)", text: "Open the runner on Runner Machines, or see its runs in Agent Activity." },
+  ] };
 const pillOf = (d?: Runner) => !d || d.status === "disabled" ? "disabled" : d.status === "online" && !d.over_limit && !d.maintenance ? "active" : "failed";
 
 /** Plain advice from the figures: short of runners, or plenty of room. */
@@ -57,7 +82,7 @@ export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
     <section className="st-page cc-home cc-list" aria-labelledby="cc-cap-title">
       <header className="cc-list-head">
         <h1 id="cc-cap-title">Runner capacity</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="How much of your runners' time agents use, how long runs wait for a runner, and when runners are busy or free.">i</span>
+        <HelpButton topic={HELP} />
       </header>
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
@@ -78,7 +103,7 @@ export function Capacity({ api, user }: { api: CrApi; user: CrUser }) {
         </div>
         {tip && <p className="cc-advice cc-pad-x" role="note">{tip}</p>}
         <div className="cc-list-panel cc-cap-runners">
-          <h2 className="cc-cap-title">Each runner</h2>
+          <h2 className="cc-cap-title">Each runner<HelpButton topic={HELP_RUNNERS} /></h2>
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Each runner">
             <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Busy"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
               <th scope="col">Time in use</th>{["Average wait", "CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}

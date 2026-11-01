@@ -199,6 +199,15 @@ describe("new Studio", () => {
     for (const gone of ["Workflows", "Forms", "Templates"]) expect(within(menu).queryByText(gone)).toBeNull();   // made from Create, called from agents
   });
 
+  it("opens the Help panel beside the page from the i after a title, and closes it with its close button", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Help: Automation (Private)" }));
+    const help = screen.getByRole("complementary", { name: "Help: Automation (Private)" });
+    expect(within(help).getByText("Create")).toBeTruthy();
+    fireEvent.click(within(help).getByRole("button", { name: "Close the help" }));
+    expect(screen.queryByRole("complementary", { name: /^Help/ })).toBeNull();
+  });
+
   it("creates in AA's order: folder, then Create, then the type, then the name", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AuditRecord, CrApi } from "../api/cr";
-import { Button, Dialog, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -84,6 +84,34 @@ const COLS: Col[] = [
 const SIZE = 100;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const dayStart = (v: string, next: boolean) => { const d = new Date(v + "T00:00:00"); if (next) d.setDate(d.getDate() + 1); return d.toISOString(); };
+
+const HELP: HelpTopic = { title: "Audit Trail", about: "Every sign-in, change, run and credential use, grouped by day. "
+  + "Records are chained by hashes, so any edit to history shows. Click a record to open it beside the list.",
+  items: [
+    { name: "Check history", text: "Checks the whole chain of records and says whether history is intact or where it was changed." },
+    { name: "24 hours, 7 days, 30 days, Any time, Dates…", text: "Pick how far back to look. Dates… asks for a From and To date." },
+    { name: "Search everything", text: "Finds records by any word in them: a person, an action, an object or a detail." },
+    { name: "Area, Who, Result", text: "Narrow the list to one part of One CommandCenter (such as Runs or Users), one person or runner, "
+      + "or records that succeeded, failed or were refused." },
+    { name: "More filters", text: "Filter by an exact action code (such as user.create), object type or object id, choose newest or oldest first, "
+      + "and show or hide history checkpoints." },
+    { name: "Hide checkpoints", text: "History checkpoints seal the records before them. "
+      + "They are hidden by default so the list shows what people and runners did." },
+    { name: "Columns", text: "Choose which columns the list shows, such as the address someone came from or the details; your choice is kept for next time." },
+    { name: "Export CSV", text: "Saves every record the filters find as a CSV file. The export is recorded in the Audit Trail too." },
+    { name: "Actions (⋯)", text: "Open a record, find every record about the same object, or show the records from 5 minutes around it." },
+  ] };
+const HELP_RECORD: HelpTopic = { title: "An audit record", about: "One record beside the list: what happened, who did it and from where, "
+  + "its details and how it is sealed.",
+  items: [
+    { name: "‹ Newer, Older ›", text: "Open the record above or below this one in the list." },
+    { name: "Details", text: "The values recorded with it, by name. Agents and runs are links that open them." },
+    { name: "This run's records", text: "For a record about a run: every record of that run in order, with this one marked." },
+    { name: "Every record about this", text: "Searches all time for records about the same object, such as the same agent or user." },
+    { name: "Everything they did that day", text: "Searches the records of the same person or runner on that day." },
+    { name: "5 minutes around it", text: "Shows every record from 5 minutes before to 5 minutes after it, to see what else happened at the time." },
+    { name: "Sealed by checkpoint", text: "Each record is chained to the one before; a checkpoint seals them. Use Check history to prove nothing was edited." },
+  ] };
 
 /** The area's icon tile. */
 function AreaIcon({ action }: { action: string }) {
@@ -188,7 +216,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     <section className={"st-page cc-home cc-list cc-au" + (open ? " has-panel" : "")} aria-labelledby="cc-audit-title">
       <header className="cc-list-head">
         <h1 id="cc-audit-title">Audit Trail</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Every sign-in, change, run and credential use. Records are chained by hashes, so any edit to history shows.">i</span>
+        <HelpButton topic={HELP} />
         {data && <span className="cc-list-count">{data.total} record{data.total === 1 ? "" : "s"} {f.around ? "within 5 minutes of " + hhmm(f.around) : RANGE_WORDS[range]}</span>}
         {check && <span className={"cc-pill is-" + (check.valid ? "success" : "failed")} role="status"><span className="cc-pill-dot" />{check.text}</span>}
         <span className="ov-fill" />
@@ -297,6 +325,7 @@ function RecordPanel({ api, record: a, onClose, newer, older, onSearch }: { api:
       <div className="cc-au-panel-head">
         <AreaIcon action={a.action} />
         <h2 ref={head} tabIndex={-1}>{wordsOf(a.action)}</h2>
+        <HelpButton topic={HELP_RECORD} />
         <ResultPill result={a.result} />
         <span className="ov-fill" />
         <span className="cc-none">#{a.seq}</span>

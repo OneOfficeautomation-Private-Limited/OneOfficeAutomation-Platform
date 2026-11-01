@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { FormField } from "./Inbox";
 
@@ -23,6 +23,33 @@ const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const going = (r: WorkflowRun) => r.status === "running" || r.status === "waiting";
 const PILL: Record<string, string> = { running: "active", waiting: "pending", completed: "success", failed: "failed", cancelled: "stopped" };
+
+const HELP: HelpTopic = { title: "Workflow",
+  about: "Workflows chain agents, people and decisions. Design them in One AgentStudio and put them live, then start them here; "
+    + "people get their steps in the Task inbox. The list refreshes every 10 seconds.",
+  items: [
+    { name: "Start a workflow", text: "Choose a live workflow, fill in its start form or give starting data as JSON, and add a reference to find the "
+      + "request again. Needs permission to start runs." },
+    { name: "In progress and Finished", text: "Runs that are still going or waiting for a person, and runs that completed, failed or were cancelled." },
+    { name: "Workflow", text: "Shows only the runs of one workflow, when more than one has runs." },
+    { name: "Current stage", text: "The stage the run is on now; for finished runs, the last stage it reached." },
+    { name: "Why it ended", text: "For finished runs that failed or were cancelled: the reason, in full on hover." },
+    { name: "Open", text: "Opens the run in a panel beside the list with its stages, facts, timeline, people's tasks and data. Clicking the row does the "
+      + "same." },
+    { name: "Cancel run…", text: "Stops a run that is still going, after you confirm. Its open tasks are withdrawn from the Task inbox." },
+  ] };
+
+const HELP_RUN: HelpTopic = { title: "Workflow run",
+  about: "One run of a workflow: the stages it has reached, what happened at each, the tasks given to people and its data. It refreshes every 5 seconds.",
+  items: [
+    { name: "Stages", text: "Each stage reached so far: done, the one it is on now, or where it failed, with who has its task." },
+    { name: "Timeline", text: "Everything that happened in order: agents started and finished, tasks given and done, approvals and decisions, with their "
+      + "details." },
+    { name: "People's tasks", text: "The tasks given to people in this run, who has each, and how and when it was done." },
+    { name: "Data", text: "The run's data as it is now. Stages use it as $name." },
+    { name: "Open its task in the Task inbox", text: "Shown while a person's task is open; takes you to the Task inbox to do it." },
+    { name: "Cancel run", text: "Stops the run after you confirm; its open tasks are withdrawn." },
+  ] };
 
 export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<Tab>("progress");
@@ -49,7 +76,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className={"st-page cc-home cc-list" + (dialog?.kind === "run" ? " has-run" : "")} aria-labelledby="cc-wf-title">
       <header className="cc-list-head">
         <h1 id="cc-wf-title">Workflow</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Workflows chain agents, people and decisions. Design them in One AgentStudio, put them live, then start them here; people get their steps in the Task inbox.">i</span>
+        <HelpButton topic={HELP} />
         {runs && <span className="cc-list-count">{count("progress")} in progress · {(runs ?? []).filter((r) => r.status === "waiting").length} waiting for a person</span>}
         <span className="ov-fill" />
         {user.permissions.includes("runs.start") && <Button kind="primary" onClick={() => setDialog({ kind: "start" })}>Start a workflow</Button>}
@@ -165,6 +192,7 @@ function RunView({ api, id, onClose, onNotice }: { api: CrApi; id: string; onClo
       <div className="cc-run-head">
         {r && <span className={"cc-pill is-" + (PILL[r.status] ?? "pending")}><span className="cc-pill-dot" />{STATUS[r.status] ?? r.status}</span>}
         <h2>{r ? flowName(r.path) + (r.reference ? " · " + r.reference : "") : "Workflow run"}</h2>
+        <HelpButton topic={HELP_RUN} />
         <span className="ov-fill" />
         <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
       </div>

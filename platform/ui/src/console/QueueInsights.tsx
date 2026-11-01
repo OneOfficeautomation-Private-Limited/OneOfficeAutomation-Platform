@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrApi, CrUser, QueueInsight, RunnerPool } from "../api/cr";
-import { Select, usePersistent } from "../components";
+import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -36,6 +36,27 @@ function advice(q: QueueInsight, poolSize: number | null): string | null {
   return null;
 }
 
+const HELP: HelpTopic = { title: "Work queue insights",
+  about: "How each work queue you may see is keeping up: what waits now, what is late or close to its target time, how fast items finish and how many "
+    + "runners it needs. The page refreshes every minute.",
+  items: [
+    { name: "Period", text: "The time the finished, completed and in-time figures cover: the last 24 hours, 7 days or 30 days. What waits now is always "
+      + "shown as it is now." },
+    { name: "State", text: "Whether processing is on for the queue. When it is off, waiting items are not handed to runners; turn it on in Work queues." },
+    { name: "Overdue and At risk", text: "Items waiting longer than the queue's target time, and items waiting more than three quarters of it. They show a "
+      + "dash when the queue has no target time." },
+    { name: "Completed and In time", text: "Of the items finished in the period, the share that completed, and the share done within the target time." },
+    { name: "An hour, Handling and Wait", text: "Items finished per hour of processing, the average time to handle one item, and the average wait before an "
+      + "item starts." },
+    { name: "Runners", text: "The runners needed to clear what waits within the target time, next to the runners in the queue's pool. If it needs more than "
+      + "the pool has, add runners to the pool." },
+    { name: "Advice", text: "Short notes under the figures for queues that need attention, for example processing switched off while items wait, or too few "
+      + "runners." },
+    { name: "Show its details", text: "Click a row, or use this in its ⋯ menu, to see what was added and finished per day and why items failed in the "
+      + "period. Click again to hide it." },
+    { name: "Open the queue", text: "Opens the queue in Work queues, where you can see its items and change it." },
+  ] };
+
 export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
   const [days, setDays] = usePersistent("queueinsights.days", "7");
   const [list, setList] = useState<QueueInsight[] | null>(null);
@@ -61,7 +82,7 @@ export function QueueInsights({ api, user }: { api: CrApi; user: CrUser }) {
     <section className="st-page cc-home cc-list" aria-labelledby="cc-qi-title">
       <header className="cc-list-head">
         <h1 id="cc-qi-title">Work queue insights</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="What waits in each work queue, what is late or at risk of missing its target time, how fast items finish, and the runners needed to keep up.">i</span>
+        <HelpButton topic={HELP} />
       </header>
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

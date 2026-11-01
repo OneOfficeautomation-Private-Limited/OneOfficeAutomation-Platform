@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../api/cr";
-import { Button, Dialog, Select, usePersistent } from "../components";
+import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { howStarted } from "./Activity";
 
@@ -19,6 +19,22 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SOURCES = ["manual", "schedule", "trigger", "queue", "api", "rerun", "mcp"];
 /** The lists, by the report each one's CSV comes from ("failed" has none). */
 type ListTab = "failed" | "most_failed" | "most_run" | "longest" | "by_runner" | "by_source";
+const HELP: HelpTopic = { title: "Operations", about: "How agents ran over a period: volumes, success and run time compared with the period before, "
+  + "when runs start, which agents run most, take longest and fail most, and each runner's use. The page refreshes every minute.",
+  items: [
+    { name: "Period", text: "Pick a period from the last 24 hours to the last year; each figure is compared with the period of the same length before it." },
+    { name: "All agents, All runners, Started any way", text: "Narrow every figure, chart and list to one agent, one runner or one way of starting runs." },
+    { name: "Runs, Completed", text: "How many runs there were and the share that completed. Click a figure to see those runs in Agent Activity." },
+    { name: "95% of runs finish within", text: "The time within which almost all runs finish, and the longest run; "
+      + "a better guide than the average when a few runs are slow." },
+    { name: "When runs start", text: "A heatmap by weekday and hour, in your time zone: darker means more runs start then; outlined hours had failed runs." },
+    { name: "Why runs failed", text: "Each error with how many runs and agents it hit. Click an error to open those failed runs in Agent Activity." },
+    { name: "Agents that fail most, Agents run most, Take longest", text: "The agents at the top of each list. Click an agent to see its statistics: "
+      + "errors, runners and the values of its outputs." },
+    { name: "Runners, How runs were started", text: "The same figures per runner and per way of starting. Click a way of starting to filter the page by it." },
+    { name: "CSV", text: "Saves the list shown as a CSV file." },
+    { name: "Run history CSV", text: "Saves every run of the period, with the filters chosen, as a CSV file." },
+  ] };
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -82,7 +98,7 @@ export function Operations({ api, user }: { api: CrApi; user: CrUser }) {
     <section className="st-page cc-home cc-list" aria-labelledby="cc-op-title">
       <header className="cc-list-head">
         <h1 id="cc-op-title">Operations</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="How agents ran over a period: volumes, success and run time compared with the period before, when runs start, which agents run most, take longest and fail most, and each runner's use.">i</span>
+        <HelpButton topic={HELP} />
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => csv("run_history")}>Run history CSV</Button>
       </header>

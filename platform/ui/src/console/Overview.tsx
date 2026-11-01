@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Alert, AlertRule, CrApi, CrUser, Dashboard, ModelConnection, Operations, Run, Runner, Schedule, WorkQueue } from "../api/cr";
+import { HelpButton, type HelpTopic } from "../components";
 import { rowClick } from "./ListParts";
 
 /**
@@ -11,6 +12,23 @@ import { rowClick } from "./ListParts";
  * Review round 2 (31 Oct 2026): the latest runs as in Agent Activity (its status pills, the agent icon and version, a row
  * opens the run, the error's message on hover), and the next scheduled runs, as AA's Home and Bots dashboards show them.
  */
+const HELP: HelpTopic = { title: "Overview", about: "How your agents, runners, work queues and AI connections are doing now, and what needs attention. "
+  + "It refreshes every 30 seconds and shows only what you may see.",
+  items: [
+    { name: "24 hours, 7 days", text: "The period for the run figures, failed runs and why they failed. "
+      + "Alerts, runners and queues always show how they are now." },
+    { name: "Figures", text: "Open alerts, runs going on, the share completed, failed runs, runners online, queue items waiting, AI tokens and hours saved. "
+      + "Click a figure to open the page behind it; red means it needs a look." },
+    { name: "Needs attention", text: "Everything to look at in one list: open alerts, failed runs, runners that are offline, out of service, "
+      + "over a limit or out of date, and work queues behind." },
+    { name: "Alerts, Failed runs, Runners, Queues", text: "The same, one kind at a time. Failed runs groups the failures by error; "
+      + "click an error to see those runs." },
+    { name: "Latest runs", text: "The last few runs, as in Agent Activity. Click a run to open it." },
+    { name: "Next scheduled runs", text: "The schedules that run next, soonest first." },
+    { name: "AI use this month", text: "Tokens each model connection used this month, as a share of its budget when one is set." },
+    { name: "Set up next", text: "Things not set up yet, such as work queues, model connections, alert rules or minutes saved, with a link to do it." },
+    { name: "New alert rule", text: "Opens Alerts with a new rule ready to fill in. It needs the Manage alert rules permission." },
+  ] };
 const PERIODS: [string, string, string][] = [["1", "24 hours", "24h"], ["7", "7 days", "7d"]];
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 const time = (t?: string | null) => {
@@ -134,7 +152,7 @@ export function Overview({ api, user, pageHref }: { api: CrApi; user: CrUser; pa
     <section className="st-page cc-home ov" aria-labelledby="cc-ov-title">
       <header className="ov-head">
         <h1 id="cc-ov-title">Overview</h1>
-        <span className="ov-info" title="How your agents, runners, work queues and AI connections are doing now, and what needs attention" aria-label="About this page" role="img">i</span>
+        <HelpButton topic={HELP} />
         <span className="ov-fill" />
         {at && <span className="ov-meta" role="status">Updated {at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
         <span className="ov-seg" role="group" aria-label="Period">{PERIODS.map(([v, l]) =>

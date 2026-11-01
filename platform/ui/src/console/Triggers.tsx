@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -66,6 +66,26 @@ function details(t: Trigger) {
   return "";
 }
 
+const HELP: HelpTopic = { title: "Triggers",
+  about: "Start an agent when something happens: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and web data "
+    + "checked by One CommandCenter; or a webhook call. The list refreshes every 30 seconds.",
+  items: [
+    { name: "Create trigger", text: "Pick the event and fill in its settings, then the agent (its live version runs) and the runner it runs on. Runner "
+      + "events are watched on that runner. Needs permission to manage triggers." },
+    { name: "Vault references", text: "Passwords and tokens are never typed into a trigger: give a vault reference such as mail/imap/password. The "
+      + "trigger's owner must be a consumer of that vault folder." },
+    { name: "Webhook", text: "After creating a webhook trigger you see its address and secret once. Call the address with POST and send the secret in the "
+      + "X-OOA-Secret header." },
+    { name: "Listens on and Health", text: "Show only triggers watched on a runner or by One CommandCenter, and only those listening, paused or with an "
+      + "error." },
+    { name: "Last problem", text: "The latest error the trigger met, for example a mailbox it could not open. Hover to read it in full." },
+    { name: "Open", text: "Shows the trigger's event and settings; you can change its name, owner and run-as person, pause it or delete it. "
+      + "To change the event or its settings, create a new trigger and delete this one." },
+    { name: "Check now", text: "For triggers One CommandCenter checks: looks for new mail, records or items straight away instead of waiting for the next "
+      + "check." },
+    { name: "Pause and Resume", text: "A paused trigger keeps its settings but does not start the agent until you resume it." },
+  ] };
+
 export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<Trigger[] | null>(null);
   const [runners, setRunners] = useState<Runner[]>([]);
@@ -102,7 +122,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-trig-title">
       <header className="cc-list-head">
         <h1 id="cc-trig-title">Triggers</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Start agents on events: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and polled web data checked by One CommandCenter; or a webhook call.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} trigger{list.length === 1 ? "" : "s"} · {listening} listening{errors ? " · " + errors + " with an error" : ""}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create trigger</Button>}

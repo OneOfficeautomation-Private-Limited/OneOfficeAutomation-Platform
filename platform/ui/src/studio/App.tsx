@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
-import { BrandMark, Button, Dialog, Field, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
+import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
 import { Automation } from "./Automation";
 import { CheckInDialog, PublicRepository } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -429,7 +429,7 @@ export function App({ api: given }: { api?: StudioApi }) {
       {error && <div className="st-alert" role="alert"><span>{error}</span><Button kind="secondary" onClick={() => setError(null)}>Dismiss</Button></div>}
       {notice && !error && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
 
-      <div className="st-body">
+      <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
         {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} />}
         <main className="st-main">
@@ -470,7 +470,8 @@ export function App({ api: given }: { api?: StudioApi }) {
                   api={api} onMoved={moved} onChanged={reloadTree} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
-      </div>
+        <HelpPanel page={active ?? view} />
+      </div></HelpProvider>
 
       {checkingIn && agent && <CheckInDialog api={api} name={agent.name} status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(false)} onCheckIn={checkIn} />}
       <NewFolderDialog parent={newFolderIn} onClose={() => setNewFolderIn(null)}

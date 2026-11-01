@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, PromptSkill, SkillDefinition } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -20,6 +20,38 @@ function AskDelete({ name, onYes, onNo }: { name: string; onYes: () => void; onN
   return <div className="cc-list-bulk" role="alert"><span>Delete {name} and its versions? Agents that run it will fail.</span>
     <Button kind="danger" onClick={onYes}>Delete</Button><Button kind="plain" onClick={onNo}>Cancel</Button></div>;
 }
+
+const HELP: HelpTopic = { title: "Prompt Skills",
+  about: "Reviewed prompt templates that agents run with the Prompt Skills toolkit, so everyone uses the same tested prompt. A skill is private until "
+    + "shared, and every save is a new version.",
+  items: [
+    { name: "Create skill", text: "Opens a new skill's page where you write its prompt and choose its answer. Needs permission to manage prompt skills." },
+    { name: "From a template", text: "Lists ready-made skills; pick one with Use, give your copy a name and change it as you like." },
+    { name: "Show", text: "Every skill, only yours, only those shared with everyone, or only templates." },
+    { name: "Shared", text: "A shared skill may be used by every agent; a private one only by its owner's agents." },
+    { name: "Open", text: "Opens the skill's page with its prompt and its versions. Clicking the row does the same." },
+    { name: "Copy the name", text: "Copies the skill's name so you can paste it into the Prompt Skills step in One AgentStudio." },
+    { name: "Delete…", text: "Deletes the skill and all its versions after you confirm. Agents that run it will then fail. Shown to its owner and to those "
+      + "who manage every skill." },
+  ] };
+
+const HELP_SKILL: HelpTopic = { title: "Prompt Skill",
+  about: "One skill: what the model is told and asked, what it answers, and every saved version. Saving makes a new version, so earlier ones stay in "
+    + "Versions.",
+  items: [
+    { name: "Name", text: "Letters, digits, _ . and -, up to 80 long. Agents call the skill by this name, so it cannot change once the skill is made." },
+    { name: "Model connection", text: "The model connection the skill uses. Leave it empty to use the default of the run." },
+    { name: "Instructions for the model (system)", text: "Standing guidance for the model, such as its role, tone or rules, sent before the prompt." },
+    { name: "Prompt", text: "What the model is asked. Write ${name} where a value the agent passes in should go; those names are added to the inputs by "
+      + "themselves." },
+    { name: "Answer and Temperature", text: "Whether the model answers in plain text or JSON, and how varied its answers are, from 0 (steady) to 2 "
+      + "(varied)." },
+    { name: "Inputs", text: "The values the agent passes in, one per line, written as name - description." },
+    { name: "Shared and Template", text: "Shared lets every agent use the skill. Template offers it as a starting point in From a template; only those who "
+      + "manage every skill see this box." },
+    { name: "Save as a new version", text: "Saves your changes as the next version; add a few words under What changed so others know why." },
+    { name: "Versions", text: "Every saved version with who saved it, when, and what changed." },
+  ] };
 
 export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<PromptSkill[] | null>(null);
@@ -52,7 +84,7 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     <section className="st-page cc-home cc-list" aria-labelledby="cc-sk-title">
       <header className="cc-list-head">
         <h1 id="cc-sk-title">Prompt Skills</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new version.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} skill{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {can("skills.manage") && <>
@@ -131,6 +163,7 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Prompt Skills</button> ›</span>
         <h1>{s ? s.name : "Create skill"}</h1>
+        <HelpButton topic={HELP_SKILL} />
         {s && <><span className="cc-none">v{s.version}</span>
           <span className={"cc-pill is-" + (s.shared ? "active" : "disabled")}><span className="cc-pill-dot" />{s.shared ? "Shared" : "Private"}</span>
           <span className="cc-none">{s.owner === user.username ? "Yours" : "Owned by " + s.owner}{!editable ? " · read only" : ""}</span></>}

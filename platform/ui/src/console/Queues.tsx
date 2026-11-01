@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -26,6 +26,49 @@ function save(name: string, text: string, type: string) {
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
+
+const HELP: HelpTopic = { title: "Work queues",
+  about: "Lists of work items, such as invoices, tickets or orders, that an agent works one by one on a runner pool, with retries and a service level. "
+    + "The list refreshes every 10 seconds; click a queue to open its own page.",
+  items: [
+    { name: "Create work queue", text: "Makes a queue: give it a name, an optional work item model, the agent that works the items, the runner pool, "
+      + "a service level in minutes and how many attempts each item gets. Needs permission to manage work queues." },
+    { name: "Work item models", text: "Named fields with types that a queue's items must have. Items added by hand, from CSV or Excel, by agents or over "
+      + "the API are checked against the model." },
+    { name: "Import queue", text: "Makes a queue from a definition file exported from another queue, with its settings, model, members and waiting items. "
+      + "The agent and runner pool are linked when they exist here." },
+    { name: "Processing", text: "On means waiting items are handed to free runners in the queue's pool. Off keeps them waiting; start or stop it from the "
+      + "row's ⋯ menu." },
+    { name: "Waiting", text: "New items plus items waiting to retry. A tag shows items an agent was unsure of, which a person must validate." },
+    { name: "Service level", text: "The minutes an item may take from being added to being done. Items past it are counted in red." },
+    { name: "Open its items", text: "Opens the queue's own page with its work items, details and members. Clicking the row does the same." },
+    { name: "Start processing or Stop processing", text: "Switches processing on or off for the queue. Needs permission to work queues." },
+    { name: "Change settings…", text: "Changes the queue's name, model, agent, runner pool, service level and attempts. Needs permission to manage work "
+      + "queues." },
+  ] };
+
+const HELP_QUEUE: HelpTopic = { title: "Work queue",
+  about: "One queue with its work items, details and members. The agent gets each item in an input named work_item; a failed run retries the item until its "
+    + "attempts are used.",
+  items: [
+    { name: "Start processing or Stop processing", text: "Hands waiting items to the runners of the queue's pool, or keeps them waiting. Needs permission "
+      + "to work queues." },
+    { name: "Add items", text: "Paste a JSON list or CSV with a header row, or choose a CSV, JSON or Excel file. A reference column names each item; "
+      + "priority puts it first." },
+    { name: "Work items", text: "Every item with its data, status, attempts and result or error. Pick a status chip to see only those items, or search the "
+      + "reference or data." },
+    { name: "Retry, Defer and Delete", text: "Tick items to act on several at once. Retry tries them again, Defer holds them until a time you choose or "
+      + "until Retry, and Delete removes them; items being worked on are kept." },
+    { name: "Validate", text: "For items an agent was not sure of: check the marked fields, correct them and approve, or reject with a reason. Approved "
+      + "items go back to the agent." },
+    { name: "Export CSV", text: "Saves the items, or only those of the chosen status, as a CSV file." },
+    { name: "Details", text: "The queue's agent, runner pool, attempts, service level, processing and item model. Edit settings changes them." },
+    { name: "Members", text: "Who may use the queue: owners manage it, participants add and change items, consumers process them. With no members, everyone "
+      + "whose role allows it can use it." },
+    { name: "Export definition", text: "Saves the queue's settings, model, members and waiting items as a file that Import queue reads, here or on another "
+      + "One CommandCenter." },
+    { name: "Delete queue…", text: "Deletes the queue and all its items, after you confirm. Needs permission to manage work queues." },
+  ] };
 
 export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<WorkQueue[] | null>(null);
@@ -69,7 +112,7 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     <section className="st-page cc-home cc-list" aria-labelledby="cc-queues-title">
       <header className="cc-list-head">
         <h1 id="cc-queues-title">Work queues</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Lists of work items (invoices, tickets, orders) that an agent processes one by one on a runner pool, with retries and service levels.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} queue{list.length === 1 ? "" : "s"} · {totals.waiting} item{totals.waiting === 1 ? "" : "s"} waiting{totals.failed ? " · " + totals.failed + " failed" : ""}{totals.overdue ? " · " + totals.overdue + " past the service level" : ""}</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>
@@ -188,6 +231,7 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Work queues</button> ›</span>
         <h1>{x.name}</h1>
+        <HelpButton topic={HELP_QUEUE} />
         <span className={"cc-pill is-" + (x.processing ? "active" : "disabled")}><span className="cc-pill-dot" />Processing {x.processing ? "on" : "off"}</span>
         <span className="cc-none">{agentName(x.bot_path)} · pool {poolName(x.pool_id)} · {x.sla_minutes ? "service level " + x.sla_minutes + " min" : "no service level"}
           {x.overdue ? <> · <span className="cc-risk">{x.overdue} past it</span></> : null}</span>

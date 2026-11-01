@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
-import { Button, Dialog, Select, TextInput, usePersistent } from "../components";
+import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -97,6 +97,38 @@ const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + 
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const LOCK = <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
 
+const HELP: HelpTopic = { title: "Roles",
+  about: "What each role lets people see, run, change and administer. A person has every permission of each of their roles; click a role to open its own "
+    + "page.",
+  items: [
+    { name: "Create role", text: "Opens a new role's page: give it a name, say what it is for, and tick its permissions, or start from an existing role's." },
+    { name: "Kind", text: "Built-in roles come with One CommandCenter and cannot be changed or deleted; custom roles are your own. A built-in role switched "
+      + "off in Settings grants nothing." },
+    { name: "Grants", text: "Shows only the roles that give one chosen permission, for example to find every role that may change settings." },
+    { name: "Permissions", text: "How many of all permissions the role gives, with a bar to compare roles at a glance." },
+    { name: "Copy as a new role", text: "Makes a new role with the same permissions, which you can then change. This is the way to adjust a built-in role." },
+    { name: "Delete…", text: "Deletes the selected custom roles after you confirm. A role someone still holds is kept; give those people another role "
+      + "first." },
+    { name: "Columns", text: "Chooses which columns the list shows." },
+    { name: "Export CSV", text: "Saves the roles shown, or only the selected ones, with their permissions and holders as a CSV file." },
+  ] };
+
+const HELP_ROLE: HelpTopic = { title: "Role",
+  about: "One role: its permissions as a table by area and kind, and the people who hold it. Built-in roles are read-only; copy one to make your own.",
+  items: [
+    { name: "Name and What it is for", text: "The name is lower-case letters, digits and _, 3 to 40 long, and cannot change once the role is made. The "
+      + "description shows in the list." },
+    { name: "Start from", text: "For a new role: ticks the same permissions as an existing role, so you only change what differs." },
+    { name: "Permissions", text: "One row per area and one column per kind: See, Run, Change and Administer. Tick what the role may do; All or None ticks a "
+      + "whole area." },
+    { name: "high risk", text: "Marks permissions that reach people, secrets or the whole system, such as managing users, settings or the vault. Give them "
+      + "only to people who need them." },
+    { name: "Find a permission and Only ticked", text: "Narrow the table to permissions whose name matches, or to those the role already gives." },
+    { name: "Held by", text: "The people who have this role. Click a person to open them in Users." },
+    { name: "Save changes", text: "Saves the role; people who hold it get the new permissions." },
+    { name: "Copy as a new role", text: "Makes a new role from this one's permissions." },
+  ] };
+
 export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [hidden, setHidden] = usePersistent<string[]>("roles.hidden", ["created"]);
   const [data, setData] = useState<{ roles: CrRole[]; permissions: string[] } | null>(null);
@@ -170,7 +202,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     <section className="st-page cc-home cc-list" aria-labelledby="cc-roles-title">
       <header className="cc-list-head">
         <h1 id="cc-roles-title">Roles</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="What each role lets people see, run, change and administer. A person has every permission of each of their roles.">i</span>
+        <HelpButton topic={HELP} />
         {data && <span className="cc-list-count">{builtins} built-in · {data.roles.length - builtins} custom</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setPage({ role: null })}>Create role</Button>
@@ -272,6 +304,7 @@ function RolePage({ api, role, copyOf, all, roles, onClose, onCopy, onDelete, on
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Roles</button> ›</span>
         <h1>{role ? roleName(role.name) : "Create role"}</h1>
+        <HelpButton topic={HELP_ROLE} />
         {role && <span className={"cc-kind is-" + (role.builtin ? (role.switched_off ? "off" : "builtin") : "custom")}>{kindOf(role)}</span>}
         <span className="cc-none">{perms.length} of {all.length} permissions{role ? " · " + members.length + (members.length === 1 ? " person" : " people") : ""}</span>
         <span className="ov-fill" />

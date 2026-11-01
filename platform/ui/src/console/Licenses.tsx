@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, LicenseInfo, LicenseUsage, Runner } from "../api/cr";
-import { Button, TextArea, TextInput } from "../components";
+import { Button, HelpButton, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton } from "./ListParts";
 
 /**
@@ -29,6 +29,43 @@ const typeName = (t: string) => TYPES.find(([k]) => k === t)?.[1] ?? t;
 const when = (t?: string | null) => t ? new Date(t).toLocaleDateString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+
+const HELP: HelpTopic = { title: "Licenses", about: "The licence of this One CommandCenter and who holds which seat. "
+  + "Its state and end date show beside the title.",
+  items: [
+    { name: "Overview", text: "The seats in use of those purchased, the licence's facts, and installing a licence file. "
+      + "A warning shows when a licence type is 80% used or the licence ends within 30 days." },
+    { name: "Allocation", text: "Give seats to people (Developer, Citizen Developer, Attended Runner) and to runners (Unattended Runner) with the tick boxes. "
+      + "Giving a seat is one click; taking one back asks first. It needs the Manage users and roles permission." },
+    { name: "Usage", text: "Seats in use each day over the last 90 days, and each holder's last activity, so idle seats can be taken back." },
+    { name: "Search people and runners", text: "On Allocation: finds a person by user name or display name, or a runner by name or computer name." },
+    { name: "No seats left", text: "When every seat of a type is in use, the empty tick boxes are greyed out. Take back an idle seat or extend the licence." },
+    { name: "Install id", text: "The id of this One CommandCenter. Send it with a licence request; a licence issued for it works only here." },
+  ] };
+const HELP_SEATS: HelpTopic = { title: "Seats", about: "How many seats of each licence type are in use, purchased and free. "
+  + "Point at a type to see what it allows.",
+  items: [
+    { name: "Developer", text: "A person who checks in agents." },
+    { name: "Citizen Developer", text: "A person who checks in simpler agents." },
+    { name: "Attended Runner", text: "A person who runs agents on their own runner." },
+    { name: "Unattended Runner", text: "A runner that takes scheduled, triggered, API and queue work." },
+    { name: "Idle", text: "Seats whose holder has not signed in (a runner: not been online) and started no runs for 30 days. "
+      + "Take them back on the Usage tab." },
+  ] };
+const HELP_INSTALL: HelpTopic = { title: "Install a licence", about: "Install the licence file you received, without needing an internet connection. "
+  + "It needs the Change settings permission.",
+  items: [
+    { name: "Licence file", text: "Choose the file from your computer; its text fills the box below." },
+    { name: "Or paste the licence file text here", text: "Paste the text of the licence file instead of choosing it." },
+    { name: "Install licence", text: "Checks and installs the licence. When a licence is already installed, it asks first, as the new one replaces it." },
+  ] };
+const HELP_USAGE: HelpTopic = { title: "Seat use", about: "Seats in use over the last 90 days and who holds each one.",
+  items: [
+    { name: "Last 90 days", text: "A small chart of the seats of each type in use each day." },
+    { name: "Idle seats only", text: "Shows only holders who have not signed in (or runners not online) and started no runs for 30 days." },
+    { name: "Take back…", text: "Frees an idle seat for someone else; it asks first. It needs the Manage users and roles permission." },
+    { name: "Export CSV", text: "Saves the seat holders shown, with their last activity and runs, as a CSV file." },
+  ] };
 
 export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -67,7 +104,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-lic-title">
       <header className="cc-list-head">
         <h1 id="cc-lic-title">Licenses</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="The licence of this One CommandCenter and who holds which seat.">i</span>
+        <HelpButton topic={HELP} />
         {lic && <span className={"cc-pill is-" + stateCls}><span className="cc-pill-dot" />{stateText}</span>}
         {lic?.expires && <span className="cc-list-count">Valid until {lic.expires}{lic.days_left !== undefined && lic.days_left >= 0 ? " · " + lic.days_left + " days left" : ""}</span>}
         <span className="ov-fill" />
@@ -90,7 +127,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         <div className="ov-grid">
           <div className="ov-main">
             <section className="ov-panel" aria-labelledby="cc-lic-seats">
-              <div className="ov-ph"><h2 id="cc-lic-seats">Seats</h2></div>
+              <div className="ov-ph"><h2 id="cc-lic-seats">Seats</h2><HelpButton topic={HELP_SEATS} /></div>
               <div className="cc-list-scroll">
                 <table className="cc-list-table" aria-label="Seats">
                   <thead><tr><th scope="col">Licence type</th><th scope="col">In use</th><th scope="col">Purchased</th><th scope="col">Free</th><th scope="col">Idle</th><th scope="col"><span className="st-sr">Use</span></th></tr></thead>
@@ -146,7 +183,7 @@ function InstallLicense({ api, current, onInstalled }: { api: CrApi; current: Li
   const install = () => { setAsking(false); api.installLicense(text.trim()).then(() => { setText(""); onInstalled(); }, (e) => setError(message(e))); };
   return (
     <section className="ov-panel" aria-labelledby="cc-lic-install">
-      <div className="ov-ph"><h2 id="cc-lic-install">Install a licence</h2></div>
+      <div className="ov-ph"><h2 id="cc-lic-install">Install a licence</h2><HelpButton topic={HELP_INSTALL} /></div>
       <div className="cc-install">
         {error && <p className="st-alert" role="alert">{error}</p>}
         <input type="file" accept=".lic,.json,.txt" aria-label="Licence file" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText((await f.text()).trim()); }} />
@@ -232,7 +269,7 @@ function Usage({ usage, canAssign, onTakeBack, onNotice }: { usage: LicenseUsage
     <>
       <p className="cc-list-hint">Seats in use each day over the last 90 days, and who holds each one. A seat whose holder has not signed in (a runner: not been online) and started no runs for 30 days is idle: a candidate to take back.</p>
       <section className="ov-panel" aria-labelledby="cc-lic-use">
-        <div className="ov-ph"><h2 id="cc-lic-use">Seat use</h2></div>
+        <div className="ov-ph"><h2 id="cc-lic-use">Seat use</h2><HelpButton topic={HELP_USAGE} /></div>
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Seat use">
             <thead><tr><th scope="col">Licence type</th><th scope="col">In use</th><th scope="col">Idle</th><th scope="col">Last 90 days</th></tr></thead>

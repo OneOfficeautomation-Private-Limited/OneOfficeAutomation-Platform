@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, CustomDashboard, DashWidget, WidgetData } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu } from "./ListParts";
 
 /**
@@ -20,6 +20,22 @@ const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const titleOf = (w: DashWidget) => w.title || (w.source === "runs" ? METRICS.find(([m]) => m === (w.metric ?? "runs"))?.[1] ?? "Runs" : (AGGS.find(([a]) => a === (w.agg ?? "sum"))?.[1] ?? "") + " of " + w.kpi);
+const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your agents record (outputs marked KPI in One AgentStudio) and figures about the "
+  + "runs, on dashboards you keep to yourself or share. The figures refresh every minute.",
+  items: [
+    { name: "New dashboard", text: "Start from nothing or from a ready-made dashboard (Operations at a glance, Value, or one over a business figure), "
+      + "then name it, share it and change its widgets." },
+    { name: "Dashboard", text: "Pick the dashboard to show: your own and those shared with you. Beside it you see whose it is and who it is shared with." },
+    { name: "Share with", text: "In the editor: role:NAME, team:NAME, user:NAME or * for everyone, separated by commas. "
+      + "Empty keeps the dashboard to yourself." },
+    { name: "Add a widget", text: "Choose how it shows (a number, bars, a line, a table or a pie), where the figure comes from (the runs or a KPI), "
+      + "an agent, what to split by and how many days to look at." },
+    { name: "Figure", text: "For the runs: how many ran, the success rate, failed runs, the average run time or the hours saved." },
+    { name: "Work out", text: "For a KPI: the total, average, count, smallest, largest or latest value it recorded." },
+    { name: "Edit as JSON", text: "Shows the widgets as JSON, to copy or change many at once. Back to the form checks the JSON first." },
+    { name: "CSV", text: "On each widget: saves its figures as a CSV file." },
+    { name: "Actions (⋯)", text: "Edit or delete a dashboard you may change, or Copy as mine to make your own copy of any dashboard you can see." },
+  ] };
 const fmt = (w: DashWidget, v?: number | null) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }) + (w.metric === "success_rate" ? "%" : "");
 
 /** Ready-made dashboards: two over the runs, and one over the first KPI recorded (when there is one). */
@@ -73,7 +89,7 @@ export function Dashboards({ api, user, onNotice }: { api: CrApi; user: CrUser; 
     <section className="st-page cc-home cc-list" aria-labelledby="cc-db-title">
       <header className="cc-list-head">
         <h1 id="cc-db-title">Dashboards</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Business figures your agents record (outputs marked KPI in One AgentStudio) and figures about the runs, on dashboards you keep to yourself or share.">i</span>
+        <HelpButton topic={HELP} />
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>
       </header>

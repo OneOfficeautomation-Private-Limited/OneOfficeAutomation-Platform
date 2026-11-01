@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
@@ -19,6 +19,24 @@ const folderOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/"))
 const linkedNew = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("new");
 const when = (t?: string | null) => t ? new Date(t).toLocaleString() : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+
+const HELP: HelpTopic = { title: "Agent APIs", about: "An agent behind its own address and token, for other systems to call like a web service: "
+  + "the call runs the agent's live version and answers with its outputs.",
+  items: [
+    { name: "Create Agent API", text: "Choose a name, a live agent, where it runs and how long a caller waits for the result. "
+      + "The token is shown once when you create it, with an example call. It needs the Manage Agent APIs permission." },
+    { name: "Folders", text: "The folders of the agents behind the Agent APIs, as in Automation. Pick one to see only its Agent APIs." },
+    { name: "Runs on", text: "A runner, a runner pool, or One CommandCenter itself (serverless). "
+      + "Serverless suits agents that only call web services and work on data; they run for at most 5 minutes." },
+    { name: "Waits up to", text: "How long a caller waits for the run to finish. "
+      + "When it takes longer, the caller gets 202 with the run id and asks again later." },
+    { name: "Copy", text: "Copies the full address to call (with POST), to give to the system that calls it." },
+    { name: "State", text: "Show only the Agent APIs that are on, or off. Switch one on or off from its ⋯ menu or when you open it." },
+    { name: "Calls, Last call", text: "How many times the Agent API was called and when it was last used." },
+    { name: "New token", text: "Makes a new token and shows it once; the old token stops working at once." },
+    { name: "Actions (⋯)", text: "Open, copy the address, switch on or off, make a new token or delete. "
+      + "Only Open and copying the address are there without the Manage Agent APIs permission." },
+  ] };
 
 export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<AgentApi[] | null>(null);
@@ -63,7 +81,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-apis-title">
       <header className="cc-list-head">
         <h1 id="cc-apis-title">Agent APIs</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{list.length} Agent API{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}

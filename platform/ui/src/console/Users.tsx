@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
-import { Button, Dialog, Field, Select, TextArea, TextInput, usePersistent } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -48,6 +48,41 @@ const SEARCH_IN: [string, string][] = [["any", "Any field"], ["username", "User 
 const PAGE_SIZES = [25, 50, 100];
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+
+const HELP: HelpTopic = { title: "Users",
+  about: "The people who can sign in to One CommandCenter, their roles, and the runner their runs go to. Click a person to open their own page.",
+  items: [
+    { name: "Create user", text: "Give a user name, display name, e-mail and main role. A temporary password is shown once; give it to them securely, and "
+      + "they choose their own at the first sign-in." },
+    { name: "Search in", text: "Choose the field the search box looks in: any field, user name, name, e-mail or description." },
+    { name: "Status", text: "Active; New password needed when they still have a temporary password; Locked after too many failed sign-ins; or Disabled, "
+      + "when they cannot sign in." },
+    { name: "Role", text: "Shows only the people who have the chosen role, as main role or further role." },
+    { name: "Enable, Disable and Delete", text: "Tick people to act on several at once. Delete removes their sign-ins, API keys, team places and own vault "
+      + "values; people who still own schedules, triggers, Agent APIs or vault folders are kept, so disable them or hand those over first." },
+    { name: "Unlock", text: "In the row's ⋯ menu for a locked person: lets them try to sign in again straight away." },
+    { name: "Reset password… and Reset two-step sign-in…", text: "Gives the person a new temporary password, or makes them set up two-step sign-in again at "
+      + "their next sign-in. You are asked first." },
+    { name: "Columns", text: "Chooses which columns the list shows, for example Default runner, Two-step sign-in or Last sign-in." },
+    { name: "Export CSV", text: "Saves the people shown, or only the selected ones, as a CSV file." },
+  ] };
+
+const HELP_USER: HelpTopic = { title: "User",
+  about: "One person: their details, roles and default runner, then how they sign in. Change what you need and press Save changes.",
+  items: [
+    { name: "General details", text: "Display name, e-mail, first and last name and a description. The e-mail links the person to single sign-on." },
+    { name: "Main role and further roles", text: "A person has every permission of each of their roles. Administrator can only be a main role, and you "
+      + "cannot change your own main role." },
+    { name: "Default runner", text: "The runner that runs started as this person go to, for example from schedules that run as them. Shown when you may see "
+      + "runners." },
+    { name: "Sign-in and security", text: "Their status, last sign-in, teams, whether two-step sign-in is on, and whether they still have a temporary "
+      + "password." },
+    { name: "Reset password… and Reset two-step sign-in…", text: "Gives them a new temporary password, shown once, or makes them set up two-step sign-in "
+      + "again. You are asked first." },
+    { name: "Unlock", text: "Shown while the person is locked after failed sign-ins; lets them sign in again straight away." },
+    { name: "Disable and Enable", text: "A disabled person cannot sign in, but keeps everything they own. You cannot disable yourself." },
+    { name: "Delete…", text: "In the ⋯ menu: deletes the person after you confirm; the audit trail keeps their name. You cannot delete yourself." },
+  ] };
 
 export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [hidden, setHidden] = usePersistent<string[]>("users.hidden", ["display", "created", "description"]);
@@ -156,7 +191,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-users-title">
       <header className="cc-list-head">
         <h1 id="cc-users-title">Users</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="People who can sign in, their roles, and the runner their runs go to">i</span>
+        <HelpButton topic={HELP} />
         {people && <span className="cc-list-count">{people.length} {people.length === 1 ? "person" : "people"} · {active} active{locked ? " · " + locked + " locked" : ""}</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setDialog({ kind: "create" })}>Create user</Button>
@@ -336,6 +371,7 @@ function UserPage({ api, id, self, roles, runners, onClose, onChanged, onPasswor
       <div className="cc-agent-head">
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={onClose}>Users</button> ›</span>
         <h1>{u.username}</h1>
+        <HelpButton topic={HELP_USER} />
         <span className={"cc-pill is-" + state}><span className="cc-pill-dot" />{STATUS[state]}</span>
         <span className="cc-none">{[u.display_name || fullName(u), [u.role, ...(u.further_roles ?? [])].map(roleName).join(", ")].filter(Boolean).join(" · ")}</span>
         <span className="ov-fill" />

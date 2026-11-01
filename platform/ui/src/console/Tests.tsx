@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../api/cr";
-import { Button, Dialog, Field, Menu, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
@@ -82,6 +82,37 @@ function Inputs({ inputs }: { inputs?: Record<string, unknown> }) {
     : <p className="cc-none">No inputs.</p>;
 }
 
+const HELP: HelpTopic = { title: "Agent tests",
+  about: "Test sets run an agent with chosen inputs and check what it gives back, also for AI answers. Each run of a set is scored and kept, so you see "
+    + "when an agent starts to fail.",
+  items: [
+    { name: "Folders", text: "A test set sits in its agent's folder, as in Automation. Pick a folder to list its test sets; All test sets shows every one." },
+    { name: "Last result", text: "Passing when every case passed in the latest run, Failing when one or more failed, or Not run. The filter shows only one "
+      + "of these." },
+    { name: "Last score and Version tested", text: "How many cases passed in the latest run, and which version of the agent it tested." },
+    { name: "New test set", text: "In Create: choose the agent, then write its cases as JSON. Each case has a name, the agent's inputs and what to expect. "
+      + "Needs permission to check in agents." },
+    { name: "Cases (JSON)", text: "In expect, give status (success or failed), error_code (EMAIL.* allowed) and outputs. An output equals a value, or uses "
+      + "a rule: contains, not_contains, matches, approx (with tolerance), one_of or not_empty." },
+    { name: "Open and Runs", text: "Open shows the test set's own page; Runs opens it on its runs. Clicking the row opens it too." },
+    { name: "Edit and Delete…", text: "Change the name, agent, description and cases, or delete the set with all its results. Needs permission to check in "
+      + "agents." },
+  ] };
+
+const HELP_SET: HelpTopic = { title: "Test set",
+  about: "One test set: its cases, its runs and its details. Each case runs the agent's live version once with its inputs and checks what it gives back.",
+  items: [
+    { name: "Run on and Run", text: "Choose a runner or a runner pool, then Run to run every case. The run's results fill in as cases finish. Needs "
+      + "permission to start runs." },
+    { name: "Cases", text: "Every case with its inputs and what is checked. Click a case to see its inputs and checks at the right." },
+    { name: "Runs", text: "Every run of the set with its score, who started it and how long it took. Click a run to list its cases below; click a case to "
+      + "see which checks failed." },
+    { name: "Show", text: "In a run's cases: show all of them, only the failed ones or only the passed ones." },
+    { name: "Open run", text: "Opens the agent's own run for a case in Agent Activity, to see its log." },
+    { name: "Details", text: "The agent tested, its folder, how many cases there are and how many runs are kept." },
+    { name: "Edit", text: "Changes the name, agent, description and cases. Needs permission to check in agents." },
+  ] };
+
 export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [list, setList] = useState<TestSet[] | null>(null);
   const [runners, setRunners] = useState<Runner[]>([]);
@@ -146,7 +177,7 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-tests-title">
       <header className="cc-list-head">
         <h1 id="cc-tests-title">Agent tests</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Test sets run an agent with chosen inputs and check what it gives back, also for AI answers. Each run of a set is scored and kept.">i</span>
+        <HelpButton topic={HELP} />
         {list && <span className="cc-list-count">{all.length} test set{all.length === 1 ? "" : "s"}{failing ? " · " + failing + " failing" : ""}{never ? " · " + never + " not run yet" : ""}</span>}
         <span className="ov-fill" />
         {can("repo.checkin") && <Menu label="Create" align="end" items={[{ key: "set", label: "New test set", onSelect: () => setDialog({ kind: "edit", t: null }) }]}
@@ -297,6 +328,7 @@ function TestSetPage({ api, t, runners, pools, can, start, onClose, onFolder, on
         <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => onFolder("")}>Agent tests</button>
           {crumbs.map((c, i) => <span key={i}> › <button type="button" className="cc-link" onClick={() => onFolder(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>)} ›</span>
         <h1>{t.name}</h1>
+        <HelpButton topic={HELP_SET} />
         <ResultPill r={history ? history[0] ?? null : t.last_run} />
         <span className="cc-none">tests {agentName(t.bot_path)} (its live version)</span>
         <span className="ov-fill" />

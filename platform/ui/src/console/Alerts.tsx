@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Alert, AlertKind, AlertRule, CrApi, CrUser } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -30,6 +30,26 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const sentTo = (d: Alert["delivery"]) => !d ? "" : [d.inbox?.length ? "Inbox: " + d.inbox.join(", ") : "", d.emailed?.length ? "E-mail: " + d.emailed.join(", ") : "",
   d.not_emailed?.length ? "Not e-mailed: " + d.not_emailed.join(", ") : "", d.webhook ? "Webhook" : ""].filter(Boolean).join(" · ");
 type Choices = Record<Scope, { value: string; label: string }[]>;
+
+const HELP: HelpTopic = { title: "Alerts", about: "Rules that watch runs, runners, work queues and AI budgets once a minute, "
+  + "and tell people in the task inbox, by e-mail or through a webhook. Alerts about a state clear by themselves when it ends; "
+  + "alerts about a failed run stay open until acknowledged.",
+  items: [
+    { name: "Alerts", text: "The alerts raised; open ones unless you choose another status. "
+      + "Click an alert to open what it is about, such as the failed run or the runner." },
+    { name: "Rules", text: "Every alert rule: what it watches, when it counts, who it tells and how many of its alerts are open. "
+      + "Click the open count to see those alerts." },
+    { name: "Status", text: "Show open, acknowledged or cleared alerts, or every state. The list refreshes every 30 seconds." },
+    { name: "Severity, Rule", text: "Show only critical or warning alerts, or only the alerts of one rule. Clear filters goes back to the open alerts." },
+    { name: "Acknowledge", text: "Select open alerts and acknowledge them to say someone is on it; your name is shown with them." },
+    { name: "Sent to", text: "Whose task inbox the alert went to, which e-mail addresses got it, and whether the webhook was called." },
+    { name: "New alert rule", text: "Choose what to watch for, in which agent, runner, work queue or model connection (or any), "
+      + "the limit that counts and the severity. It needs the Manage alert rules permission." },
+    { name: "Tell", text: "In a rule: people or roles get it in their task inbox (role:NAME or user:NAME), e-mail addresses by mail, "
+      + "and a webhook address as JSON, for example for Teams or Slack." },
+    { name: "Actions (⋯)", text: "On an alert: open what it is about, acknowledge it or open its rule. On a rule: "
+      + "edit, turn on or off, send a test, show its alerts or delete it." },
+  ] };
 
 export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<"alerts" | "rules">("alerts");
@@ -96,7 +116,7 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     <section className="st-page cc-home cc-list" aria-labelledby="cc-al-title">
       <header className="cc-list-head">
         <h1 id="cc-al-title">Alerts</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Rules that watch runs, runners, work queues and AI budgets once a minute, and tell people in the task inbox, by e-mail or through a webhook.">i</span>
+        <HelpButton topic={HELP} />
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setEditing("new")}>New alert rule</Button>}
       </header>

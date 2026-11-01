@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AiGovernance, CrApi } from "../api/cr";
-import { Button, Select, TextInput } from "../components";
+import { Button, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, rowClick } from "./ListParts";
 
 /**
@@ -16,6 +16,19 @@ const list = (v?: string) => v && v !== "[]" ? v.replace(/[[\]"]/g, "") : "";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 type Tab = "recent" | "agents" | "models";
+
+const HELP: HelpTopic = { title: "AI governance", about: "Every AI model call made by agents: which model, how many tokens, "
+  + "what was masked and which tools the AI used. Prompts are never stored, only a fingerprint.",
+  items: [
+    { name: "Period", text: "Pick the last 7, 30 or 90 days or the last year; the figures and lists cover that period." },
+    { name: "Calls with personal data masked", text: "How many calls had personal data hidden from the model before it was sent." },
+    { name: "Calls where the AI used tools", text: "How many calls in which the model asked to use a tool, such as running another action." },
+    { name: "Recent calls", text: "One line per call, newest first. Click a call to open the run that made it in Agent Activity." },
+    { name: "Fingerprint", text: "A fingerprint (SHA-256) of the prompt, so the same prompt can be recognised without the prompt itself being kept." },
+    { name: "By agent", text: "Calls and tokens per agent. Click an agent to see only its calls in Recent calls; Show every agent goes back." },
+    { name: "By model", text: "Calls and tokens in and out per provider and model, for example to compare costs." },
+    { name: "Export CSV", text: "Saves the recent calls the search finds as a CSV file, with the prompt fingerprint and run id of each." },
+  ] };
 
 export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [days, setDays] = useState(30);
@@ -45,7 +58,7 @@ export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string
     <section className="st-page cc-home cc-list" aria-labelledby="cc-gov-title">
       <header className="cc-list-head">
         <h1 id="cc-gov-title">AI governance</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Every AI model call made by agents: which model, how many tokens, what was masked and which tools the AI used. Prompts are never stored, only a fingerprint.">i</span>
+        <HelpButton topic={HELP} />
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-list-tools">
