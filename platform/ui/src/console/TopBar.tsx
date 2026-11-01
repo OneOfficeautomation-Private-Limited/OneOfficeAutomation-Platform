@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser } from "../api/cr";
-import { Icon, Menu } from "../components";
+import { BrandMark, Icon, Menu } from "../components";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
 
 /**
@@ -26,7 +26,7 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut }: { ap
 
   return (
     <header className="st-top cc-top">
-      <div className="st-brand"><span className="st-logo" />One CommandCenter</div>
+      <div className="st-brand"><span className="st-logo"><BrandMark /></span>One CommandCenter</div>
       <nav aria-label="You are here" className="cc-crumbs">
         {sec && label ? <><button type="button" className="cc-crumb" onClick={() => onPage(sec.pages.find((p) => canSee(p, user) && p.id !== "studio")?.id ?? "home")}>{sectionName(sec.label)}</button>
           <span aria-hidden="true">›</span><span className="cc-crumb-here" aria-current="page">{label}</span></>

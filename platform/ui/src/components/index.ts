@@ -1,3 +1,4 @@
+export { BrandMark } from "./BrandMark";
 export { Button, IconButton, type ButtonKind } from "./Button";
 export { SidePanel } from "./Collapsible";
 export { Dialog } from "./Dialog";

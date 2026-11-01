@@ -156,7 +156,7 @@ final class Assistant {
         }
 
         static Image image() {
-            try (var in = Assistant.class.getResourceAsStream("/studio/logo-mark.png")) {
+            try (var in = Assistant.class.getResourceAsStream("/studio/app-icon.png")) {   // the product mark, square (logo 1 Nov 2026)
                 if (in != null) return javax.imageio.ImageIO.read(in);
             } catch (IOException ignored) { }
             BufferedImage b = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);

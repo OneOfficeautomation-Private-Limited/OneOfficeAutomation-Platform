@@ -978,7 +978,7 @@ public final class ControlRoomServer {
     }
 
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml",
-        "json", "application/json; charset=utf-8");
+        "json", "application/json; charset=utf-8", "ico", "image/x-icon");
 
     /** Files of the rebuilt console (platform/ui's console.html and its assets, built into /studio-next/ with Studio's). */
     private static final java.util.regex.Pattern NEXT_FILE = java.util.regex.Pattern.compile("^assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png)$");

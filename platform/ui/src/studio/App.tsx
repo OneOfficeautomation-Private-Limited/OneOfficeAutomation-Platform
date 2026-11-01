@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
-import { Button, Dialog, Field, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
+import { BrandMark, Button, Dialog, Field, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
 import { Automation } from "./Automation";
 import { CheckInDialog, PublicRepository } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -380,7 +380,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo" />One AgentStudio</div>
+        <div className="st-brand"><span className="st-logo"><BrandMark /></span>One AgentStudio</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}

@@ -5,7 +5,9 @@
 /* Top bar */
 .st-top { background: var(--ui-frame); color: var(--ui-frame-text); display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 0 12px; min-height: 48px; }
 .st-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; }
-.st-logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #2f6fde, #7c3aed); }
+/* the product mark (BrandMark) on a white tile: its dark blue ring needs a light ground on the dark top bar */
+.st-logo { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 4px; border-radius: 6px; background: #ffffff; flex: none; }
+.st-logo svg { display: block; height: 20px; width: auto; }
 .st-crumbs { color: var(--ui-frame-text-2); display: flex; align-items: center; gap: 4px; }
 .st-crumb-current { color: var(--ui-frame-text); font-weight: 600; }
 .st-search { flex: 0 1 420px; margin: 0 auto; position: relative; display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 10px; border-radius: var(--ui-radius);
