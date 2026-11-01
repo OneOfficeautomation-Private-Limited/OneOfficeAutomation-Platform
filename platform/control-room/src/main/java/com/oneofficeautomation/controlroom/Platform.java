@@ -115,7 +115,19 @@ public final class Platform {
         DEFAULTS.put("trigger_max_failures", 0);        // a trigger is switched off after this many failed runs in a row; 0: never
         DEFAULTS.put("queue_abandon_hours", 0);         // a work item in progress longer than this is marked failed (abandoned); 0: never
         DEFAULTS.put("runner_error_screenshots", 1);    // runners take a picture of the screen when a step fails (a Catch block asks)
+        // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
+        DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
+        DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
+        DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
+        DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
+        DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token
+        DEFAULTS.put("siem_https_auth", "bearer");      // bearer or splunk (Authorization: Splunk <token>)
+        DEFAULTS.put("promotion_targets", "");          // the only One CommandCenters agents may be promoted to; empty: any
+        DEFAULTS.put("environment_label", "");          // shown in the top bar and on the sign-in page, e.g. Development, Test, Production
+        DEFAULTS.put("environment_colour", "blue");     // blue, green, amber, red or grey
     }
+
+    static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
 
     /** The allowed range of each number setting (the console uses the same limits). */
     static final Map<String, long[]> RANGES = Map.ofEntries(
@@ -162,7 +174,9 @@ public final class Platform {
         Map.entry("runs_refuse_offline_runner", new long[] { 0, 1 }),
         Map.entry("trigger_max_failures", new long[] { 0, 100 }),
         Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
-        Map.entry("runner_error_screenshots", new long[] { 0, 1 }));
+        Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
+        Map.entry("notify_run_failed", new long[] { 0, 1 }),
+        Map.entry("notify_task_assigned", new long[] { 0, 1 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -211,6 +225,20 @@ public final class Platform {
     }
 
     int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
+
+    /** The addresses agents may be promoted to (Settings), without a trailing slash and in lower case; empty: any. */
+    List<String> promotionTargets() {
+        List<String> out = new ArrayList<>();
+        for (String t : String.valueOf(setting("promotion_targets")).split("[,;\\s]+"))
+            if (!t.isBlank()) out.add(t.trim().replaceAll("/+$", "").toLowerCase(Locale.ROOT));
+        return out;
+    }
+
+    /** This environment's name and colour (Settings), for the top bar and the sign-in page; null when none is set. */
+    Map<String, Object> environment() {
+        String label = String.valueOf(setting("environment_label")).trim();
+        return label.isEmpty() ? null : Map.of("label", label, "colour", String.valueOf(setting("environment_colour")));
+    }
 
     /** Checks every change first (known name, whole number in its range, address format), then saves them all in one transaction. */
     public Map<String, Object> updateSettings(User by, Map<String, Object> changes, String ip) {
@@ -272,6 +300,18 @@ public final class Platform {
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
                 if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
+                if (k.equals("default_time_zone") && !s.isEmpty())
+                    try { java.time.ZoneId.of(s); } catch (java.time.DateTimeException x) { throw new OoaException("CR.BAD_INPUT", "Unknown time zone " + s, "Example: Asia/Kolkata, Europe/London, UTC"); }
+                if (k.equals("siem_https_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
+                    throw new OoaException("CR.BAD_INPUT", "The SIEM address starts with https://, for example https://splunk.example.com:8088/services/collector/event");
+                if (k.equals("siem_https_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The SIEM token is a vault reference: vault folder/credential/attribute");
+                if (k.equals("siem_https_auth") && !s.equals("bearer") && !s.equals("splunk")) throw new OoaException("CR.BAD_INPUT", "The SIEM sign-in is bearer or splunk");
+                if (k.equals("promotion_targets") && !s.isEmpty())
+                    for (String t : s.split("[,;\\s]+"))
+                        if (!t.isEmpty() && !t.matches("(?i)^https?://[^\\s/]+(:\\d+)?(/\\S*)?$"))
+                            throw new OoaException("CR.BAD_INPUT", "Not a One CommandCenter address: " + t, "List addresses such as https://cc-prod.example.com, separated by commas");
+                if (k.equals("environment_label") && s.length() > 30) throw new OoaException("CR.BAD_INPUT", "The environment name is at most 30 characters");
+                if (k.equals("environment_colour") && !ENVIRONMENT_COLOURS.contains(s)) throw new OoaException("CR.BAD_INPUT", "The environment colour is one of " + ENVIRONMENT_COLOURS);
                 if (k.equals("trusted_proxies")) IpAllowList.parse(s);
                 if (k.equals("ip_allow_list")) {
                     IpAllowList l = IpAllowList.parse(s);

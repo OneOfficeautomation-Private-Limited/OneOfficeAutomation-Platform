@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CrApi, CrUser } from "../api/cr";
+import type { CrApi, CrUser, Environment } from "../api/cr";
 import { BrandMark, Icon, Menu } from "../components";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
 
@@ -27,6 +27,7 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut }: { ap
   return (
     <header className="st-top cc-top">
       <div className="st-brand"><span className="st-logo"><BrandMark /></span>One CommandCenter</div>
+      {user.environment && <EnvironmentLabel env={user.environment} />}
       <nav aria-label="You are here" className="cc-crumbs">
         {sec && label ? <><button type="button" className="cc-crumb" onClick={() => onPage(sec.pages.find((p) => canSee(p, user) && p.id !== "studio")?.id ?? "home")}>{sectionName(sec.label)}</button>
           <span aria-hidden="true">›</span><span className="cc-crumb-here" aria-current="page">{label}</span></>
@@ -44,6 +45,11 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut }: { ap
       </div>
     </header>
   );
+}
+
+/** Which One CommandCenter this is (Settings > General), so nobody changes production thinking it is test. */
+export function EnvironmentLabel({ env }: { env: Environment }) {
+  return <span className={"cc-env cc-env-" + env.colour} title="This environment">{env.label}</span>;
 }
 
 /** One search for the pages a person may open and the agents they may see; a run id goes straight to that run. */

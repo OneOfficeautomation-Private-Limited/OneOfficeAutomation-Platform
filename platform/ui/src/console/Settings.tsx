@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     { title: "For everyone", settings: [
       { key: "announcement", label: "Announcement", hint: "Shown to everyone at the top of the page. Empty: none.", kind: "area", placeholder: "Maintenance on Saturday 10:00–12:00 UTC" },
       { key: "public_url", label: "Public address", hint: "Of this One CommandCenter, for sign-in redirects and links in e-mails.", kind: "text", placeholder: "https://ooa.example.com" }] },
+    { title: "This environment", settings: [
+      { key: "environment_label", label: "Environment name", hint: "Shown in the top bar and on the sign-in page. Empty: none.", kind: "text", placeholder: "Production" },
+      { key: "environment_colour", label: "Environment colour", kind: "select", options: [["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"], ["grey", "Grey"]] },
+      { key: "default_time_zone", label: "Time zone for new schedules", hint: "Empty: each person's own.", kind: "text", placeholder: "Asia/Kolkata" }] },
     { title: "Limits", settings: [
       { key: "max_upload_mb", label: "Largest upload", hint: "1 to 1024.", unit: "MB", kind: "number", min: 1, max: 1024 },
       { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 }] },
@@ -104,7 +108,8 @@ const SECTIONS: Section[] = [
   { id: "agents", title: "Agents and repository", mark: "A", colour: "#2f6fde", about: "Rules for what goes into the agent repository and into production, and its copy in Git.", groups: [
     { title: "Rules", settings: [
       { key: "production_approval", label: "Approval before production", hint: "A second person approves every version before it goes live.", kind: "check" },
-      { key: "block_executable_uploads", label: "Block programs and scripts in uploads", hint: ".exe, .dll, .ps1 and similar.", kind: "check" }] },
+      { key: "block_executable_uploads", label: "Block programs and scripts in uploads", hint: ".exe, .dll, .ps1 and similar.", kind: "check" },
+      { key: "promotion_targets", label: "Promote agents only to", hint: "One CommandCenter addresses, separated by commas. Empty: any.", kind: "text", placeholder: "https://cc-prod.example.com" }] },
     { title: "Git copy", settings: [
       { key: "git_remote_url", label: "Git remote", hint: "https://…git", kind: "text", placeholder: "https://github.com/acme/agents.git" },
       { key: "git_branch", label: "Git branch", kind: "text", placeholder: "main" },
@@ -132,12 +137,18 @@ const SECTIONS: Section[] = [
       { key: "mail_smtp_password_ref", label: "Mail account password", hint: VAULT_REF, kind: "text", placeholder: "mail/smtp/password" },
       { key: "mail_from", label: "Sender address", kind: "text" },
       { key: "license_mail_to", label: "Also send licence reminders to", hint: "Addresses, separated by commas.", kind: "text" }] },
+    { title: "Notifications", settings: [
+      { key: "notify_run_failed", label: "E-mail people when a run they started fails", hint: "To the address on their account.", kind: "check" },
+      { key: "notify_task_assigned", label: "E-mail people when a workflow gives them a task", hint: "Forms and approvals; not tasks for everyone.", kind: "check" }] },
     { title: "Proxy", settings: [
       { key: "outbound_proxy", label: "Proxy for outgoing connections", hint: "http://host:port. Empty: direct.", kind: "text", placeholder: "http://proxy.example.com:8080" },
       { key: "outbound_proxy_bypass", label: "Reach these directly", hint: "Host names; * allowed.", kind: "text", placeholder: "*.example.com, 10.*" }] },
     { title: "SIEM", settings: [
       { key: "syslog_target", label: "Syslog target", hint: "host:port, for every audit entry. Empty: off.", kind: "text", placeholder: "siem.example.com:514" },
-      { key: "syslog_protocol", label: "Syslog protocol", kind: "select", options: [["udp", "UDP"], ["tcp", "TCP"]] }] },
+      { key: "syslog_protocol", label: "Syslog protocol", kind: "select", options: [["udp", "UDP"], ["tcp", "TCP"]] },
+      { key: "siem_https_url", label: "HTTPS collector", hint: "Every audit entry as JSON. Empty: off.", kind: "text", placeholder: "https://splunk.example.com:8088/services/collector/event" },
+      { key: "siem_https_token_ref", label: "Collector token", hint: VAULT_REF, kind: "text", placeholder: "siem/collector/token" },
+      { key: "siem_https_auth", label: "Collector sign-in", kind: "select", options: [["bearer", "Bearer token"], ["splunk", "Splunk HTTP Event Collector"]] }] },
   ] },
   { id: "data", title: "Data retention and backups", mark: "D", colour: "#0f766e", about: "How long history is kept (removed once an hour; queued and running runs never), and the backups of everything.", groups: [
     { title: "Keep history", settings: [
@@ -324,6 +335,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       <TextInput aria-label="Send a test e-mail to" placeholder="test e-mail to (your own address)" value={to} onChange={(e) => setTo(e.target.value)} />
       <Button kind="secondary" onClick={() => api.mailTest(to.trim()).then((r) => onNotice("Test e-mail sent to " + r.to + "."), fail)}>Send a test e-mail</Button>
       <Button kind="secondary" disabled={!form.syslog_target} onClick={() => api.syslogTest().then(() => onNotice("Test message sent to " + form.syslog_target + "."), fail)}>Send a test syslog message</Button>
+      <Button kind="secondary" disabled={!form.siem_https_url} onClick={() => api.siemTest().then(() => onNotice("The HTTPS collector accepted a test entry."), fail)}>Send a test SIEM entry</Button>
     </div>}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
     {section === "data" && <span className="cc-inline">

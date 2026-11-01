@@ -167,6 +167,12 @@ public final class Lifecycle {
         cr.require(by, "lifecycle.export", "promote agents");
         String target = String.valueOf(req.getOrDefault("target_url", "")).trim().replaceAll("/+$", "");
         if (!target.matches("^https?://[^\\s/]+(:\\d+)?(/\\S*)?$")) throw new OoaException("CR.BAD_INPUT", "target_url is the other One CommandCenter's address, e.g. https://cc-prod.example.com");
+        // Settings: agents go only to the One CommandCenters listed there (AA's and UiPath's promotion targets)
+        List<String> allowed = cr.platform.promotionTargets();
+        if (!allowed.isEmpty() && !allowed.contains(target.toLowerCase(Locale.ROOT))) {
+            cr.audit.record(by.username(), "lifecycle.promote", "bundle", target, "not one of the promotion targets in Settings", "failed", ip);
+            throw new OoaException("CR.TARGET_NOT_ALLOWED", "Agents may be promoted only to the One CommandCenters listed in Settings", "Allowed: " + String.join(", ", allowed));
+        }
         String ref = String.valueOf(req.getOrDefault("api_key_ref", ""));
         String[] p = ref.split("/");
         if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "api_key_ref is a vault reference: vault folder/credential/attribute", "Store the other One CommandCenter's API key in a vault folder first.");

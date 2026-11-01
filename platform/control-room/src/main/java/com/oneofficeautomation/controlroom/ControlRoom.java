@@ -537,6 +537,10 @@ public final class ControlRoom {
         if (mfa.setupNeeded(u)) m.put("mfa_setup_required", true);
         Object note = platform.setting("announcement");
         if (note instanceof String n && !n.isBlank()) m.put("announcement", n);
+        Map<String, Object> env = platform.environment();
+        if (env != null) m.put("environment", env);
+        String zone = String.valueOf(platform.setting("default_time_zone")).trim();
+        if (!zone.isEmpty()) m.put("default_time_zone", zone);
         Map<String, Object> lic = licensing.status(u);
         if (lic.get("banner") != null) m.put("license_banner", lic.get("banner"));
         return m;
@@ -1785,7 +1789,55 @@ public final class ControlRoom {
         try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
+        if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
+    }
+
+    /** The time zone for a new schedule that names none: Settings' default, otherwise UTC. */
+    String defaultTimeZone() {
+        String z = String.valueOf(platform.setting("default_time_zone")).trim();
+        return z.isEmpty() ? "UTC" : z;
+    }
+
+    /** Settings: e-mails the person who started a run that failed (AA's "notify me when my bot fails"). */
+    List<String> runFailedMail(Map<String, Object> run, Object error) {
+        String bot = String.valueOf(run.get("bot_path")).replaceAll("\\.(flow|process)\\.json$", "");
+        String why = error instanceof Map<?, ?> e ? String.valueOf(e.get("message")) : error == null ? "No reason was given" : String.valueOf(error);
+        String link = String.valueOf(platform.setting("public_url")).trim().replaceAll("/+$", "");
+        return mailPeople(List.of(String.valueOf(run.get("requested_by"))), "Run failed: " + bot,
+                "The run " + run.get("id") + " of " + bot + " failed.\n\n" + why + "\n\n"
+                + (link.isEmpty() ? "Open One CommandCenter to see it (Activity > Historical)." : "See it: " + link + "/next/#/history"), "run", (String) run.get("id"));
+    }
+
+    /**
+     * Settings: e-mails people about their own work, in the background, so a slow mail server never holds up a run or a
+     * workflow. people are user names, or user:name / role:name as a workflow assigns tasks; disabled accounts and
+     * people with no e-mail address are left out. Returns the addresses written to (empty when e-mail is not set up).
+     */
+    List<String> mailPeople(Collection<String> people, String subject, String body, String objectType, String objectId) {
+        if (!mailer.configured()) return List.of();
+        Set<String> names = new LinkedHashSet<>();
+        for (String p : people) {
+            String t = p == null ? "" : p.trim();
+            if (t.startsWith("role:")) {
+                String role = t.substring(5);
+                if (role.equals("*")) continue;   // everyone: too many for an e-mail; the task inbox shows it
+                for (Map<String, Object> u : db.query("SELECT username FROM users WHERE role = ? UNION SELECT username FROM user_roles WHERE role = ?", role, role))
+                    names.add((String) u.get("username"));
+            } else if (!t.isEmpty()) names.add(t.startsWith("user:") ? t.substring(5) : t);
+        }
+        List<String> to = new ArrayList<>();
+        for (String n : names) {
+            Map<String, Object> u = db.one("SELECT email FROM users WHERE username = ? AND enabled = TRUE", n);
+            if (u != null && u.get("email") instanceof String e && !e.isBlank() && !to.contains(e.trim())) to.add(e.trim());
+            if (to.size() == 50) break;
+        }
+        if (to.isEmpty()) return to;
+        Thread.ofVirtual().start(() -> {
+            try { mailer.send(to, subject, body); audit.record("system", "mail.notify", objectType, objectId, Map.of("to", to.size()), "ok", null); }
+            catch (RuntimeException e) { audit.record("system", "mail.notify", objectType, objectId, String.valueOf(e.getMessage()), "failed", null); }
+        });
+        return to;
     }
 
     /**
@@ -2043,7 +2095,7 @@ public final class ControlRoom {
         if (!kind.equals("every") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30");
         if (kind.equals("weekly") && !String.valueOf(s.get("days")).matches("^(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*$"))
             throw new OoaException("CR.BAD_SCHEDULE", "days must be like MON,WED,FRI");
-        String tz = String.valueOf(s.getOrDefault("time_zone", "UTC"));
+        String tz = s.get("time_zone") instanceof String z && !z.isBlank() ? z.trim() : defaultTimeZone();
         try { ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
         content(String.valueOf(s.get("bot_path")), "production");
         folders.require(by, String.valueOf(s.get("bot_path")), "run", "schedule agents");

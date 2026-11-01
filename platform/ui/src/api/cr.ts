@@ -5,7 +5,11 @@
 export type CrUser = { id: string; username: string; display_name: string; role: string; permissions: string[]; roles?: string[];
   must_change?: boolean; mfa_enabled?: boolean; mfa_setup_required?: boolean; leads_team?: boolean; announcement?: string; license_banner?: string;
   /** Settings: sign out after this many minutes without activity; and days left before the password must be changed (within the warning). */
-  idle_minutes?: number; password_expires_in_days?: number };
+  idle_minutes?: number; password_expires_in_days?: number;
+  /** Settings: which One CommandCenter this is (shown in the top bar), and the time zone new schedules start with. */
+  environment?: Environment; default_time_zone?: string };
+/** This One CommandCenter's name and colour (Settings > General). */
+export type Environment = { label: string; colour: string };
 /** Signing in: the person, or (two-step sign-in) a token to send with the code. */
 export type SignIn = { user?: CrUser; token?: string; mfa_required?: boolean; mfa_token?: string };
 /** The Home page's figures (GET dashboard). */
@@ -220,9 +224,9 @@ export class CrApi {
   async logout() { await this.call("POST", "auth/logout"); }
   /** Single sign-on offered on the sign-in page: OpenID Connect and SAML, each with its button text. */
   async ssoInfo() {
-    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string }; notice?: { text: string; accept: boolean } }>("GET", "auth/sso");
+    const r = await this.call<{ enabled?: boolean; label?: string; saml?: { enabled?: boolean; label?: string }; notice?: { text: string; accept: boolean }; environment?: Environment }>("GET", "auth/sso");
     return { oidc: r.enabled ? r.label || "Sign in with your organisation account" : null, saml: r.saml?.enabled ? r.saml.label || "Sign in with SAML" : null,
-      notice: r.notice ?? null };
+      notice: r.notice ?? null, environment: r.environment ?? null };
   }
   /** Where a single sign-on starts; the person comes back to `back`, a page of this One CommandCenter. */
   ssoStart(kind: "oidc" | "saml", back: string) { return this.base + (kind === "oidc" ? "auth/sso/start" : "auth/saml/start") + "?return=" + encodeURIComponent(back); }
@@ -340,6 +344,7 @@ export class CrApi {
   settings() { return this.call<Record<string, string | number | null>>("GET", "settings"); }
   async saveSettings(changes: Record<string, string | number>) { await this.call("PUT", "settings", changes); }
   async syslogTest() { await this.call("POST", "settings/syslog-test"); }
+  async siemTest() { await this.call("POST", "settings/siem-test"); }
   mailTest(to: string) { return this.call<{ to: string }>("POST", "settings/mail-test", { to }); }
   gitStatus() { return this.call<{ configured: boolean; state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("GET", "git/status"); }
   gitSync() { return this.call<{ state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("POST", "git/sync"); }

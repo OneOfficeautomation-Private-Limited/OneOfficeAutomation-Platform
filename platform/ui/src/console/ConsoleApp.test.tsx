@@ -39,7 +39,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     const no = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: { code, message } }), { status });
     if (route === "health") return ok(studio ? { status: "ok", studio: "/studio/" } : { status: "ok" });
     if (route === "auth/sso") return ok({ ...(sso ? { enabled: true, label: "Sign in with Contoso", saml: { enabled: true, label: "Sign in with SAML" } } : { enabled: false, saml: { enabled: false } }),
-      ...(notice ? { notice: { text: "Authorised use only.", accept: true } } : {}) });
+      ...(notice ? { notice: { text: "Authorised use only.", accept: true }, environment: { label: "Test", colour: "amber" } } : {}) });
     if (route === "auth/login") {
       if (body.password !== "right") return no(401, "CR.LOGIN_FAILED", "Wrong user name or password");
       if (mfa) return ok({ mfa_required: true, mfa_token: "m1" });
@@ -368,6 +368,7 @@ describe("rebuilt One CommandCenter console", () => {
     render(<ConsoleApp api={api} />);
     const form = await screen.findByRole("form", { name: "Sign in" });
     expect(within(await within(form).findByRole("note", { name: "Sign-in notice" })).getByText("Authorised use only.")).toBeTruthy();
+    expect(within(form).getByTitle("This environment").textContent).toBe("Test");   // which One CommandCenter this is
     fireEvent.change(within(form).getByLabelText("User name"), { target: { value: "admin" } });
     fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "right" } });
     expect((within(form).getByRole("button", { name: "Sign in" }) as HTMLButtonElement).disabled).toBe(true);
@@ -377,9 +378,10 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "auth/login", body: { username: "admin", password: "right", accepted: true } }));
     cleanup();
     // a password that must change within the warning: a notice with Change it now, which can be left for later
-    const { api: api2 } = fakeServer({ signedIn: { ...admin, password_expires_in_days: 3 } as typeof admin });
+    const { api: api2 } = fakeServer({ signedIn: { ...admin, password_expires_in_days: 3, environment: { label: "Production", colour: "red" } } as typeof admin });
     render(<ConsoleApp api={api2} />);
     expect(await screen.findByText("Your password must be changed within 3 days.")).toBeTruthy();
+    expect(screen.getByTitle("This environment").className).toBe("cc-env cc-env-red");
     fireEvent.click(screen.getByRole("button", { name: "Change it now" }));
     const change = await screen.findByRole("form", { name: "Choose your password" });
     fireEvent.click(within(change).getByRole("button", { name: "Not now" }));

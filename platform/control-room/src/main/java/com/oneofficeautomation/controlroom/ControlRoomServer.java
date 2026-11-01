@@ -360,6 +360,8 @@ public final class ControlRoomServer {
             // the sign-in notice (Settings), shown before anyone signs in
             String notice = String.valueOf(cr.platform.setting("signin_notice"));
             if (!notice.isBlank()) info.put("notice", Map.of("text", notice, "accept", cr.platform.intSetting("signin_notice_accept") == 1));
+            Map<String, Object> env = cr.platform.environment();   // which One CommandCenter this is (Settings)
+            if (env != null) info.put("environment", env);
             sendJson(ex, 200, info);
             return;
         }
@@ -592,6 +594,7 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, cr.db.info());
             }
             case "settings" -> {
+                if (m.equals("POST") && route.equals("settings/siem-test")) { cr.require(u, "settings.manage", "test the SIEM connection"); sendJson(ex, 200, cr.syslog.testHttps(u.username())); return; }
                 if (m.equals("POST") && route.equals("settings/syslog-test")) { cr.require(u, "settings.manage", "test the syslog connection"); sendJson(ex, 200, cr.syslog.test(u.username())); }
                 else if (m.equals("POST") && route.equals("settings/mail-test")) sendJson(ex, 200, cr.mailer.test(u, (String) map(body(ex)).get("to"), ip));
                 else if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());

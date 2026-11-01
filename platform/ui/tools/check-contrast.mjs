@@ -52,5 +52,12 @@ for (const [t, fg, bg, need] of LINES) {
   const r = ratio(t[fg], t[bg]);
   if (r < need) { console.error(`console lines: ${fg} ${t[fg]} on ${bg} ${t[bg]} is ${r.toFixed(2)}:1, needs ${need}:1`); failed++; }
 }
+// the environment name (Settings > General): white text on each of its colours
+const envColours = [...consoleCss.matchAll(/\.cc-env-(\w+) \{ background: (#[0-9a-fA-F]{6}); \}/g)];
+if (envColours.length < 5) { console.error("console.css: the five environment colours are missing"); failed++; }
+for (const [, name, bg] of envColours) {
+  const r = ratio("#ffffff", bg);
+  if (r < 4.5) { console.error(`environment ${name}: white on ${bg} is ${r.toFixed(2)}:1, needs 4.5:1`); failed++; }
+}
 if (failed) { console.error(failed + " colour pair(s) below the contrast rule"); process.exit(1); }
 console.log(`Contrast: ${PAIRS.length} pairs pass in the light and the dark theme and the console's light colours; the console's ${LINES.length} border and line steps pass.`);

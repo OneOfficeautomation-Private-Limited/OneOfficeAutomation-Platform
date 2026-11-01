@@ -163,7 +163,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
         {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{filtered ? " matching" : ""}</span></div>}
       </div>
 
-      {dialog?.kind === "new" && <NewSchedule api={api} from={dialog.from} runners={runners} pools={pools} onClose={() => setDialog(null)} onCreated={(t) => { onNotice(t); setDialog(null); load(); }} />}
+      {dialog?.kind === "new" && <NewSchedule api={api} from={dialog.from} defaultTz={user.default_time_zone} runners={runners} pools={pools} onClose={() => setDialog(null)} onCreated={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "edit" && <EditSchedule key={dialog.s.id} api={api} s={dialog.s} manage={manage} runsOn={runsOn(dialog.s)} onClose={() => setDialog(null)}
         onCopy={() => setDialog({ kind: "new", from: dialog.s })} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
       {dialog?.kind === "calendars" && <Calendars api={api} manage={manage} onClose={() => setDialog(null)} onNotice={onNotice} />}
@@ -189,14 +189,15 @@ function RuleFields({ missed, overlap, onMissed, onOverlap }: { missed: string; 
 }
 
 /** Create schedule in AA's order: name and agent, run-as, where it runs, then when (with a time zone and holiday calendar). */
-function NewSchedule({ api, from, runners, pools, onClose, onCreated }: { api: CrApi; from?: Schedule; runners: Runner[]; pools: RunnerPool[]; onClose: () => void; onCreated: (t: string) => void }) {
+function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated }: { api: CrApi; from?: Schedule; defaultTz?: string; runners: Runner[]; pools: RunnerPool[];
+  onClose: () => void; onCreated: (t: string) => void }) {
   const [agents, setAgents] = useState<string[]>([]);
   const [people, setPeople] = useState<{ username: string; device_name?: string | null }[]>([]);
   const [cals, setCals] = useState<string[]>([]);
   const [v, setV] = useState({ name: from ? from.name + " (copy)" : "", bot: from?.bot_path ?? "", runAs: from?.run_as ?? "",
     where: from ? (from.pool_id ? "pool" : from.device_id ? "runner" : "default") : "runner", device: from?.device_id ?? "", pool: from?.pool_id ?? "",
     kind: from?.kind ?? "daily", every: String(from?.every_minutes ?? 60), at: from?.at_time ?? "08:30", days: (from?.days ?? "MON,TUE,WED,THU,FRI").split(",").filter(Boolean),
-    tz: from?.time_zone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), cal: from?.holiday_calendar ?? "", missed: from?.missed_runs ?? "once", overlap: from?.overlap ?? "allow",
+    tz: from?.time_zone ?? (defaultTz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), cal: from?.holiday_calendar ?? "", missed: from?.missed_runs ?? "once", overlap: from?.overlap ?? "allow",
     inputs: from?.inputs ? (typeof from.inputs === "string" ? from.inputs : JSON.stringify(from.inputs)) : "" });
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
