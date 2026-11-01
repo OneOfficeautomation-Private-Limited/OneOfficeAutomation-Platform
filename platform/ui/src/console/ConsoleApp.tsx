@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser } from "../api/cr";
-import { Button, Field, Icon, TextInput, usePersistent } from "../components";
+import { Button, Field, HelpPanel, HelpProvider, Icon, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { enableTableTools } from "./TableTools";
@@ -83,7 +83,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
       {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
-      <div className="st-body">
+      <HelpProvider><div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }}
           offTitle="One AgentStudio runs beside One CommandCenter (ooa server), on the same computer" console />
@@ -122,7 +122,8 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "tests" && <Tests api={api} user={user} onNotice={setNotice} />}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
         </main>
-      </div>
+        <HelpPanel page={page} />
+      </div></HelpProvider>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi } from "../api/cr";
-import { Button, Select, TextArea, TextInput } from "../components";
+import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { SETTING_HELP } from "./settingsHelp";
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
@@ -133,6 +134,10 @@ const SECTIONS: Section[] = [
 ];
 const ROLES: [string, string][] = [["bot_creator", "Agent builder"], ["bot_runner", "Agent runner"], ["viewer", "Viewer"]];
 const settingsOf = (s: Section) => s.groups.flatMap((g) => g.settings);
+/** The Help panel's text for settings: how to use each one (settingsHelp.ts), or its hint. */
+const helpOf = (title: string, list: Setting[], about?: string): HelpTopic => ({ title, about, items: list.map((x) => ({ name: x.label, text: SETTING_HELP[x.key] ?? x.hint ?? "" })) });
+const PAGE_HELP: HelpTopic = { title: "Settings", about: "Settings for everyone, by section. Change a value, then save its section with the bar that appears; each section saves on its own and every change is recorded in the Audit Trail. Find a setting searches every section.",
+  items: SECTIONS.map((s) => ({ name: s.title, text: s.about })) };
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const str = (v: unknown) => v === null || v === undefined ? "" : String(v);
 /** A value as people read it: a choice's words, On / Off, the roles in use, or "empty". */
@@ -222,7 +227,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
     <section className="st-page cc-home cc-list" aria-labelledby="cc-settings-title">
       <header className="cc-list-head">
         <h1 id="cc-settings-title">Settings</h1>
-        <span className="ov-info" role="img" aria-label="About this page" title="Settings for everyone, by section. Each section is saved on its own; every change is recorded in the Audit Trail.">i</span>
+        <HelpButton topic={PAGE_HELP} />
         <span className="cc-list-count">For everyone · each section saves on its own · every change goes to the Audit Trail</span>
         <span className="ov-fill" />
         <span className="cc-list-search"><TextInput type="search" aria-label="Search settings" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} /></span>
@@ -246,11 +251,11 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
           {found.length > 0 && <p className="cc-set-foot">Searches names, hints and setting keys (such as <code>password_min_length</code>).</p>}
         </div>
           : <div className="cc-set-form" role="region" aria-label={current.title}>
-            <div className="cc-set-head"><h2>{current.title}</h2><p>{current.about}</p>
+            <div className="cc-set-head"><h2>{current.title}{current.groups.length > 0 && <HelpButton topic={helpOf(current.title, settingsOf(current), current.about)} />}</h2><p>{current.about}</p>
               {current.id === "sso" && <p>Register these with your provider. OpenID Connect redirect: <code>{(saved.public_url || location.origin) + "/api/auth/sso/callback"}</code>.
                 SAML metadata: <code>{(saved.public_url || location.origin) + "/api/auth/saml/metadata"}</code>.</p>}</div>
             {current.groups.map((g) => <Fragment key={g.title}>
-              <div className="cc-set-group">{g.title}</div>
+              <div className="cc-set-group">{g.title}<HelpButton topic={helpOf(current.title + ": " + g.title, g.settings)} /></div>
               {g.settings.map(row)}
             </Fragment>)}
             <div className="cc-set-extras"><Extras api={api} section={current.id} form={form} saved={saved ?? {}} onNotice={onNotice} onError={setError} /></div>

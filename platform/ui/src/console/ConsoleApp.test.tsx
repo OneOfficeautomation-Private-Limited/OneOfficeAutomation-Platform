@@ -1291,6 +1291,14 @@ describe("rebuilt One CommandCenter console", () => {
     const nav = await screen.findByRole("navigation", { name: "Settings sections" });
     fireEvent.click(within(nav).getByRole("button", { name: "Sign-in and security" }));
     const sec = screen.getByRole("region", { name: "Sign-in and security" });
+    // each group's ⓘ opens the Help panel beside the page with how to use every setting in it; the same ⓘ or Esc closes it
+    fireEvent.click(within(sec).getByRole("button", { name: "Help: Sign-in and security: Sessions" }));
+    const help = screen.getByRole("complementary", { name: "Help: Sign-in and security: Sessions" });
+    expect(within(help).getByText("Sign-in session length")).toBeTruthy();
+    expect(within(help).getByText(/asks for their password again/)).toBeTruthy();
+    expect(within(sec).getByRole("button", { name: "Help: Sign-in and security: Sessions" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("complementary", { name: /^Help/ })).toBeNull();
     // the save bar shows only while something is changed; a changed row says what it was
     expect(within(sec).queryByRole("group", { name: "Changes in Sign-in and security" })).toBeNull();
     fireEvent.change(within(sec).getByLabelText("Sign-in session length"), { target: { value: "10" } });
