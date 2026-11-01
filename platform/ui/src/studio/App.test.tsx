@@ -1175,8 +1175,9 @@ describe("new Studio", () => {
     fireEvent.click(stepButton(steps, "Open workbook"));
     await more("Custom connectors");
     const dlg = await screen.findByRole("dialog", { name: "Custom connectors" });
-    expect(within(dlg).getByText("Pet store")).toBeTruthy();
-    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Operations" })); });
+    expect(within(dlg).getByText("petstore").closest("td")!.getAttribute("title")).toBe("Pet store");   // the title on hover
+    fireEvent.keyDown(within(dlg).getByRole("button", { name: "Actions for petstore" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Operations" })); });
     fireEvent.change(within(dlg).getByLabelText("Filter operations"), { target: { value: "list" } });
     expect(within(dlg).queryByText("Add a pet")).toBeNull();
     fireEvent.click(within(dlg).getByRole("button", { name: "Add step" }));
@@ -1189,8 +1190,10 @@ describe("new Studio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Manage connections…" }));
     const sc = await screen.findByRole("dialog", { name: "Saved connections" });
     expect(await within(sc).findByText("snow-prod")).toBeTruthy();
-    fireEvent.click(within(sc).getByRole("button", { name: "Delete sf" }));
-    await act(async () => { fireEvent.click(within(sc).getByRole("button", { name: "Delete" })); });
+    fireEvent.keyDown(within(sc).getByRole("button", { name: "Actions for sf" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(within(sc).getByRole("alert").textContent).toContain("Delete the connection sf?");
+    await act(async () => { fireEvent.click(within(within(sc).getByRole("alert")).getByRole("button", { name: "Delete" })); });
     expect(created).toContainEqual({ deletedConnection: "sf" });
     fireEvent.click(within(sc).getByRole("button", { name: "New connection" }));
     fireEvent.change(within(sc).getByLabelText("Name"), { target: { value: "snow-test" } });
@@ -1447,10 +1450,12 @@ describe("new Studio", () => {
     fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "letmein" } });
     await act(async () => { fireEvent.submit(form); });
     expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
-    const row = (await screen.findByText("Finance/Invoice intake")).closest("tr")!;
+    const row = (await screen.findByText("Invoice intake")).closest("tr")!;
+    expect(row.textContent).toContain("Finance");   // its folder in a column of its own
     expect(row.textContent).toContain("v2");
     expect(screen.queryByRole("button", { name: "Create ▾" })).toBeNull();   // Create belongs to the workspace
-    fireEvent.click(within(row).getByRole("button", { name: "Versions" }));
+    fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Versions" })); });
     const versions = await screen.findByRole("dialog", { name: "Versions of Finance/Invoice intake" });
     expect(within(versions).getByText("Reads the totals")).toBeTruthy();
     expect(within(versions).getByText(/live/).closest("tr")!.textContent).toContain("v1");
@@ -1466,15 +1471,16 @@ describe("new Studio", () => {
     await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
-    const row = (await screen.findByText("Finance/Invoice intake")).closest("tr")!;
+    const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("By you");
-    expect(row.textContent).toContain("Private copy: Command Center/Invoice intake.flow.json");
+    expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: Command Center/Invoice intake.flow.json");
     expect(within(row).getByRole("button", { name: "Open my copy" })).toBeTruthy();
-    fireEvent.click(within(row).getByRole("button", { name: "Undo check-out" }));
+    fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));
     const ask = await screen.findByRole("dialog", { name: "Undo check-out of Finance/Invoice intake?" });
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Undo check-out" })); });
     expect(created).toContainEqual({ undo: "Finance/Invoice intake.flow.json" });
-    await waitFor(() => expect(screen.getByText("Finance/Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
+    await waitFor(() => expect(screen.getByText("Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
     expect(await screen.findByRole("form", { name: "Sign in to Command Center" })).toBeTruthy();
   });
