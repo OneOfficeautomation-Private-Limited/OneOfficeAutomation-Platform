@@ -656,6 +656,9 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && route.equals("analytics/agent")) sendJson(ex, 200, cr.analytics.agent(u, q.get("path"), q));
                 else if (m.equals("GET") && route.equals("analytics/capacity")) sendJson(ex, 200, cr.analytics.capacity(u, q));
                 else if (m.equals("GET") && route.equals("analytics/audit")) sendJson(ex, 200, cr.analytics.audit(u, q));
+                else if (m.equals("GET") && route.equals("analytics/business-agents")) sendJson(ex, 200, cr.analytics.businessAgents(u, q));
+                else if (m.equals("POST") && route.equals("analytics/goal")) sendJson(ex, 200, cr.platform.setSavingsGoal(u, map(body(ex)), ip));
+                else if (m.equals("POST") && route.equals("analytics/queue-savings")) { Map<String, Object> b = map(body(ex)); cr.platform.setQueueSavings(u, String.valueOf(b.get("queue_id")), b, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("GET") && route.equals("analytics/queues")) sendJson(ex, 200, cr.analytics.queues(u, q));
                 else if (m.equals("GET") && route.equals("analytics/value")) sendJson(ex, 200, cr.analytics.value(u, q));
                 else if (m.equals("GET") && route.equals("analytics/variables")) sendJson(ex, 200, cr.analytics.variables(u, q.get("path"), q));
@@ -813,7 +816,7 @@ public final class ControlRoomServer {
                 else if (m.equals("PUT") && route.equals("repo/policy")) sendJson(ex, 200, cr.codeAnalysis.savePolicy(u, map(body(ex)), ip));
                 else if (m.equals("GET") && route.equals("repo/bot")) sendJson(ex, 200, cr.getBot(u, p, q.getOrDefault("version", "latest")));
                 else if (m.equals("GET") && route.equals("repo/versions")) sendJson(ex, 200, Map.of("versions", cr.versions(u, p)));
-                else if (m.equals("POST") && route.equals("repo/roi")) { Map<String, Object> b = map(body(ex)); cr.platform.setMinutesSaved(u, (String) b.get("path"), b.get("minutes_saved"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && route.equals("repo/roi")) { Map<String, Object> b = map(body(ex)); if (b.containsKey("hourly_cost") || b.containsKey("estimated_runs_month")) cr.platform.setAgentSavings(u, b, ip); else cr.platform.setMinutesSaved(u, (String) b.get("path"), b.get("minutes_saved"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("repo/checkout")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.checkout(u, (String) b.get("path"), b.get("version"), ip)); }
                 else if (m.equals("POST") && route.equals("repo/undo-checkout")) { cr.undoCheckout(u, (String) map(body(ex)).get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("repo/checkin")) {

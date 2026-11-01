@@ -53,10 +53,18 @@ export type QueueInsight = { id: string; name: string; sla_minutes?: number | nu
 /** Value saved for a period (GET analytics/value): hours of manual work and money, per agent, folder and day, and the period before. */
 export type ValueRow = { runs: number; minutes: number; hours: number; money: number; run_hours: number };
 export type ValueReport = { currency: string; hourly_cost: number; default_minutes_saved: number; successful_runs: number; hours: number; money: number; full_time_people: number;
-  previous_hours: number; previous_money: number; agents: (ValueRow & { bot_path: string; minutes_each: number; own_value: boolean })[]; folders: (ValueRow & { folder: string })[];
-  by_day: (ValueRow & { day: string })[] };
+  previous_hours: number; previous_money: number; agents: (ValueRow & { bot_path: string; minutes_each: number; own_value: boolean;
+    /** Business (step 2): its own cost of an hour, and the runs a month expected (estimated against actual hours a month). */
+    hourly_cost?: number; own_cost?: boolean; estimated_runs_month?: number | null; estimated_hours_month?: number | null; actual_hours_month?: number })[];
+  folders: (ValueRow & { folder: string })[]; by_day: (ValueRow & { day: string })[];
+  /** Work queues: an item done counts its queue's minutes saved (when set) instead of its agent's. */
+  queues?: (ValueRow & { queue_id: string; name: string; minutes_each?: number | null; hourly_cost?: number | null })[];
+  /** This year's goal (0: none), saved so far this year, and at this pace by its end. */
+  goal?: { hours: number; money: number; year_hours: number; year_money: number; pace_hours: number; pace_money: number } };
+/** Business > Agents: an agent whose runs return values. */
+export type BusinessAgent = { bot_path: string; values: string[]; kpis: string[]; runs: number; runs_with_values: number; last_run?: string | null };
 /** A dashboard widget: a figure from the runs or from a KPI agents record, shown as a number, bars, a line, a table or a pie. */
-export type DashWidget = { title?: string; type?: "number" | "bars" | "line" | "table" | "pie"; source?: "kpi" | "runs"; kpi?: string; agg?: "sum" | "avg" | "count" | "min" | "max" | "last";
+export type DashWidget = { title?: string; type?: "number" | "bars" | "line" | "table" | "pie"; source?: "kpi" | "runs" | "output"; kpi?: string; agg?: "sum" | "avg" | "count" | "min" | "max" | "last";
   metric?: "runs" | "success_rate" | "failed" | "avg_seconds" | "hours_saved"; bot?: string; group?: "none" | "day" | "week" | "month" | "agent" | "value"; by?: string; days?: number };
 /** A dashboard: its owner's, or shared with roles, teams, users or everyone (*). */
 export type CustomDashboard = { id: string; name: string; description?: string | null; owner: string; shared_with: string[]; widgets: DashWidget[]; can_edit: boolean; updated?: string };
@@ -81,7 +89,11 @@ export type RepoFile = { path: string; size: number; sha256?: string; content_ty
 export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
   last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
 /** An agent's outputs over a period: how often each had a value, its common values and, for numbers, the range. */
-export type VariableProfile = { runs: number; variables: { variable: string; runs: number; runs_with_value: number; min?: number; max?: number; avg?: number; common?: { value: string; runs: number }[] }[] };
+export type VariableProfile = { runs: number; variables: { variable: string; runs: number; runs_with_value: number; min?: number; max?: number; avg?: number; common?: { value: string; runs: number }[];
+  /** The data profile (Business, step 2): kind, total, different values, the total per day. */
+  kind?: string; sum?: number; distinct?: number; by_day?: { day: string; sum: number }[] }[];
+  /** The latest 20 runs that returned values. */
+  recent?: { id: string; status: string; created: string; outputs: Record<string, unknown> }[] };
 /** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
 export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
   webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
@@ -544,6 +556,13 @@ export class CrApi {
   value(params: Record<string, string>) { return this.call<ValueReport>("GET", "analytics/value?" + new URLSearchParams(params).toString()); }
   /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */
   async setMinutesSaved(path: string, minutes: number | null) { await this.call("POST", "repo/roi", { path, minutes_saved: minutes }); }
+  /** An agent's savings: minutes a run, its own cost of an hour, runs a month expected; null uses the default (or none). */
+  async setAgentSavings(path: string, b: { minutes_saved: number | null; hourly_cost: number | null; estimated_runs_month: number | null }) { await this.call("POST", "repo/roi", { path, ...b }); }
+  async setQueueSavings(queueId: string, b: { minutes_saved: number | null; hourly_cost: number | null }) { await this.call("POST", "analytics/queue-savings", { queue_id: queueId, ...b }); }
+  async setSavingsGoal(hours: number | null, money: number | null) { await this.call("POST", "analytics/goal", { hours, money }); }
+  async businessAgents(params: Record<string, string>) { return (await this.call<{ agents?: BusinessAgent[] }>("GET", "analytics/business-agents?" + new URLSearchParams(params).toString())).agents ?? []; }
+  agentStatsFor(params: Record<string, string>) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams(params).toString()); }
+  agentVariablesFor(params: Record<string, string>) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams(params).toString()); }
   capacity(params: Record<string, string>) { return this.call<Capacity>("GET", "analytics/capacity?" + new URLSearchParams(params).toString()); }
   auditFigures(params: Record<string, string>) { return this.call<AuditFigures>("GET", "analytics/audit?" + new URLSearchParams(params).toString()); }
   agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }

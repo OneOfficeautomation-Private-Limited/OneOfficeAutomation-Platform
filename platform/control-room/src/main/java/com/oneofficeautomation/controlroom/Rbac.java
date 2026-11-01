@@ -18,7 +18,9 @@ public final class Rbac {
 
     /** Permissions only administrators have unless a custom role grants them. */
     public static final List<String> ADMIN_ONLY = List.of("repo.production", "repo.approve", "repo.permissions", "lifecycle.export", "lifecycle.import", "queues.all", "teams.manage", "users.manage", "devices.manage",
-            "lockers.manage", "globals.manage", "audit.view", "pools.manage", "settings.manage", "connections.manage", "toolkits.manage", "skills.all", "alerts.manage");
+            "lockers.manage", "globals.manage", "audit.view", "pools.manage", "settings.manage", "connections.manage", "toolkits.manage", "skills.all", "alerts.manage",
+            // Operational Insights (AA's Insight roles): make and share dashboards; set savings and the yearly goal
+            "insights.design", "insights.admin");
 
     /** Every permission, for building custom roles. */
     public static List<String> all() { return permissions("admin"); }

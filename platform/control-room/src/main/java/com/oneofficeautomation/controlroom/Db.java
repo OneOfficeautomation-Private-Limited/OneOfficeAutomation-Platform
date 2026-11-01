@@ -575,9 +575,21 @@ public final class Db implements AutoCloseable {
             + "updated_by VARCHAR(80))",
     };
 
+    /**
+     * Version 28: savings for Business (Operational Insights step 2, 1 Nov 2026): an agent's own cost of an hour and the
+     * runs a month expected when it was approved (estimated against actual), and a work queue's minutes saved and cost of
+     * an hour per item, so queue work is counted by its items.
+     */
+    private static final String[] SCHEMA_V28 = {
+        "ALTER TABLE bots ADD COLUMN hourly_cost INT",
+        "ALTER TABLE bots ADD COLUMN estimated_runs_month INT",
+        "ALTER TABLE queues ADD COLUMN minutes_saved INT",
+        "ALTER TABLE queues ADD COLUMN hourly_cost INT",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 27;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27 };
+    public static final int LATEST = 28;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

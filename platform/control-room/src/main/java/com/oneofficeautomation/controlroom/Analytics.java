@@ -473,65 +473,147 @@ public final class Analytics {
      * before, and the hours as full-time people (40 hours a week). A run counts once, so work queues are not counted
      * again. Only agents the caller may see.
      */
+    /** What each agent and work queue saves: minutes a run or item and the cost of an hour, own or the defaults (Settings). */
+    private final class Savings {
+        final int dfltMinutes = cr.platform.intSetting("default_minutes_saved"), dfltCost = cr.platform.intSetting("hourly_cost");
+        final Map<String, Integer> minutes = new HashMap<>(), cost = new HashMap<>(), estimate = new HashMap<>();
+        final Map<String, Map<String, Object>> queues = new LinkedHashMap<>();
+        Savings() {
+            for (Map<String, Object> b : db.query("SELECT path, minutes_saved, hourly_cost, estimated_runs_month FROM bots WHERE minutes_saved IS NOT NULL OR hourly_cost IS NOT NULL OR estimated_runs_month IS NOT NULL")) {
+                String p = (String) b.get("path");
+                if (b.get("minutes_saved") instanceof Number n) minutes.put(p, n.intValue());
+                if (b.get("hourly_cost") instanceof Number n) cost.put(p, n.intValue());
+                if (b.get("estimated_runs_month") instanceof Number n) estimate.put(p, n.intValue());
+            }
+            for (Map<String, Object> qu : db.query("SELECT id, name, minutes_saved, hourly_cost FROM queues ORDER BY name")) queues.put((String) qu.get("id"), qu);
+        }
+        int minutesOf(String bot) { return minutes.getOrDefault(bot, dfltMinutes); }
+        int costOf(String bot) { return cost.getOrDefault(bot, dfltCost); }
+        /** The queue whose own minutes count for this run, or null when the run's agent counts. */
+        Map<String, Object> queueOf(String queueId) { Map<String, Object> qu = queueId == null ? null : queues.get(queueId); return qu != null && qu.get("minutes_saved") instanceof Number ? qu : null; }
+    }
+
+    /** Successful runs that worked a queue item: run id to queue id. */
+    private Map<String, String> queueItems(Instant from, Instant to) {
+        Map<String, String> m = new HashMap<>();
+        for (Map<String, Object> r : db.query("SELECT r.id, i.queue_id FROM runs r JOIN queue_items i ON i.id = r.queue_item_id WHERE r.status = 'success' AND r.created >= ? AND r.created <= ?", from, to))
+            m.put((String) r.get("id"), (String) r.get("queue_id"));
+        return m;
+    }
+
     public Map<String, Object> value(User by, Map<String, String> q) {
         List<Run> runs = runs(by, q);
-        int dflt = cr.platform.intSetting("default_minutes_saved"), cost = cr.platform.intSetting("hourly_cost");
-        Map<String, Integer> own = new HashMap<>();
-        for (Map<String, Object> b : db.query("SELECT path, minutes_saved FROM bots WHERE minutes_saved IS NOT NULL")) own.put((String) b.get("path"), ((Number) b.get("minutes_saved")).intValue());
+        Savings s = new Savings();
         ZoneId zone = zone(q.get("tz"));
-        Map<String, long[]> agents = new TreeMap<>(), folders = new TreeMap<>(), days = new TreeMap<>();   // successful runs, minutes saved, run ms
-        long minutes = 0, ok = 0;
+        Instant[] pd = period(q);
+        Map<String, String> items = queueItems(pd[0], pd[1]);
+        // successful runs, minutes saved, run ms, minutes x cost of an hour
+        Map<String, long[]> agents = new TreeMap<>(), folders = new TreeMap<>(), days = new TreeMap<>(), queues = new TreeMap<>();
+        long minutes = 0, money60 = 0, ok = 0;
         for (Run r : runs) {
             if (!"success".equals(r.status())) continue;
-            int per = own.getOrDefault(r.bot(), dflt);
-            ok++; minutes += per;
-            for (long[] c : List.of(agents.computeIfAbsent(r.bot(), k -> new long[3]), folders.computeIfAbsent(r.bot().contains("/") ? r.bot().substring(0, r.bot().indexOf('/')) : "(top)", k -> new long[3]),
-                    days.computeIfAbsent(dayIn(r.created(), zone), k -> new long[3]))) { c[0]++; c[1] += per; c[2] += r.ms() == null ? 0 : r.ms(); }
+            Map<String, Object> qu = s.queueOf(items.get(r.id()));
+            int per = qu != null ? ((Number) qu.get("minutes_saved")).intValue() : s.minutesOf(r.bot());
+            int cost = qu != null && qu.get("hourly_cost") instanceof Number n ? n.intValue() : qu != null ? s.dfltCost : s.costOf(r.bot());
+            ok++; minutes += per; money60 += (long) per * cost;
+            List<long[]> into = new ArrayList<>(List.of(agents.computeIfAbsent(r.bot(), k -> new long[4]), folders.computeIfAbsent(r.bot().contains("/") ? r.bot().substring(0, r.bot().indexOf('/')) : "(top)", k -> new long[4]),
+                    days.computeIfAbsent(dayIn(r.created(), zone), k -> new long[4])));
+            if (items.get(r.id()) != null) into.add(queues.computeIfAbsent(items.get(r.id()), k -> new long[4]));
+            for (long[] c : into) { c[0]++; c[1] += per; c[2] += r.ms() == null ? 0 : r.ms(); c[3] += (long) per * cost; }
         }
+        double periodDays = Math.max(1.0 / 1440, Duration.between(pd[0], pd[1]).toMinutes() / 1440.0);
         List<Map<String, Object>> perAgent = new ArrayList<>();
         for (var e : agents.entrySet()) {
-            Map<String, Object> m = valueRow(e.getValue(), cost);
-            m.put("bot_path", e.getKey());
-            m.put("minutes_each", own.getOrDefault(e.getKey(), dflt));
-            m.put("own_value", own.containsKey(e.getKey()));
+            Map<String, Object> m = valueRow(e.getValue());
+            String bot = e.getKey();
+            m.put("bot_path", bot);
+            m.put("minutes_each", s.minutesOf(bot));
+            m.put("own_value", s.minutes.containsKey(bot));
+            m.put("hourly_cost", s.costOf(bot));
+            m.put("own_cost", s.cost.containsKey(bot));
+            Integer est = s.estimate.get(bot);
+            m.put("estimated_runs_month", est);
+            m.put("estimated_hours_month", est == null ? null : Math.round(est * s.minutesOf(bot) / 6.0) / 10.0);
+            m.put("actual_hours_month", Math.round(e.getValue()[1] / 60.0 * 30 / periodDays * 10) / 10.0);
             perAgent.add(m);
         }
         perAgent.sort(by("minutes"));
+        List<Map<String, Object>> perQueue = new ArrayList<>();
+        for (var e : s.queues.entrySet()) {
+            long[] c = queues.getOrDefault(e.getKey(), new long[4]);
+            if (!cr.platform.queueAllows(by, e.getKey(), "view")) continue;
+            Map<String, Object> m = valueRow(c);
+            m.put("queue_id", e.getKey());
+            m.put("name", e.getValue().get("name"));
+            m.put("minutes_each", e.getValue().get("minutes_saved"));
+            m.put("hourly_cost", e.getValue().get("hourly_cost"));
+            perQueue.add(m);
+        }
         List<Map<String, Object>> perFolder = new ArrayList<>();
-        for (var e : folders.entrySet()) { Map<String, Object> m = valueRow(e.getValue(), cost); m.put("folder", e.getKey()); perFolder.add(m); }
+        for (var e : folders.entrySet()) { Map<String, Object> m = valueRow(e.getValue()); m.put("folder", e.getKey()); perFolder.add(m); }
         perFolder.sort(by("minutes"));
         List<Map<String, Object>> perDay = new ArrayList<>();
-        for (var e : days.entrySet()) { Map<String, Object> m = valueRow(e.getValue(), cost); m.put("day", e.getKey()); perDay.add(m); }
+        for (var e : days.entrySet()) { Map<String, Object> m = valueRow(e.getValue()); m.put("day", e.getKey()); perDay.add(m); }
         // the period before, as long as this one
-        Instant[] pd = period(q);
         Map<String, String> before = new HashMap<>(q);
         before.remove("days");
         before.put("from", pd[0].minus(Duration.between(pd[0], pd[1])).toString());
         before.put("to", pd[0].toString());
-        long prevMinutes = 0;
-        for (Run r : runs(by, before)) if ("success".equals(r.status())) prevMinutes += own.getOrDefault(r.bot(), dflt);
-        double periodHours = Math.max(1.0 / 60, Duration.between(pd[0], pd[1]).toMinutes() / 60.0);
+        long[] prev = saved(by, before, s);
+        // this year so far (in tz), for the goal, and at this pace by its end
+        ZonedDateTime nowZ = now().atZone(zone);
+        Instant jan1 = nowZ.withDayOfYear(1).truncatedTo(java.time.temporal.ChronoUnit.DAYS).toInstant();
+        Map<String, String> year = new HashMap<>(q);
+        year.remove("days");
+        year.put("from", jan1.toString());
+        year.put("to", now().toString());
+        long[] ytd = saved(by, year, s);
+        double yearShare = Math.max(1e-6, Duration.between(jan1, now()).toMinutes() / (double) Duration.between(jan1, nowZ.plusYears(1).withDayOfYear(1).truncatedTo(java.time.temporal.ChronoUnit.DAYS).toInstant()).toMinutes());
+        Map<String, Object> goal = new LinkedHashMap<>();
+        goal.put("hours", cr.platform.intSetting("value_goal_hours"));
+        goal.put("money", ((Number) cr.platform.setting("value_goal_money")).longValue());
+        goal.put("year_hours", Math.round(ytd[0] / 6.0) / 10.0);
+        goal.put("year_money", Math.round(ytd[1] / 60.0));
+        goal.put("pace_hours", Math.round(ytd[0] / 6.0 / yearShare) / 10.0);
+        goal.put("pace_money", Math.round(ytd[1] / 60.0 / yearShare));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("currency", String.valueOf(cr.platform.setting("currency")));
-        m.put("hourly_cost", cost);
-        m.put("default_minutes_saved", dflt);
+        m.put("hourly_cost", s.dfltCost);
+        m.put("default_minutes_saved", s.dfltMinutes);
         m.put("successful_runs", ok);
         m.put("hours", Math.round(minutes / 6.0) / 10.0);
-        m.put("money", Math.round(minutes / 60.0 * cost));
-        m.put("full_time_people", Math.round(10.0 * (minutes / 60.0) / (periodHours * 40.0 / 168.0)) / 10.0);
-        m.put("previous_hours", Math.round(prevMinutes / 6.0) / 10.0);
-        m.put("previous_money", Math.round(prevMinutes / 60.0 * cost));
+        m.put("money", Math.round(money60 / 60.0));
+        m.put("full_time_people", Math.round(10.0 * (minutes / 60.0) / (periodDays * 24 * 40.0 / 168.0)) / 10.0);
+        m.put("previous_hours", Math.round(prev[0] / 6.0) / 10.0);
+        m.put("previous_money", Math.round(prev[1] / 60.0));
         m.put("agents", perAgent);
+        m.put("queues", perQueue);
         m.put("folders", perFolder);
         m.put("by_day", perDay);
+        m.put("goal", goal);
         return m;
     }
 
-    private static Map<String, Object> valueRow(long[] c, int cost) {
+    /** Minutes saved and minutes x cost of an hour over a period, counted as value() counts them. */
+    private long[] saved(User by, Map<String, String> q, Savings s) {
+        Instant[] pd = period(q);
+        Map<String, String> items = queueItems(pd[0], pd[1]);
+        long minutes = 0, money60 = 0;
+        for (Run r : runs(by, q)) {
+            if (!"success".equals(r.status())) continue;
+            Map<String, Object> qu = s.queueOf(items.get(r.id()));
+            int per = qu != null ? ((Number) qu.get("minutes_saved")).intValue() : s.minutesOf(r.bot());
+            int cost = qu != null && qu.get("hourly_cost") instanceof Number n ? n.intValue() : qu != null ? s.dfltCost : s.costOf(r.bot());
+            minutes += per; money60 += (long) per * cost;
+        }
+        return new long[] { minutes, money60 };
+    }
+
+    private static Map<String, Object> valueRow(long[] c) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("runs", c[0]); m.put("minutes", c[1]);
         m.put("hours", Math.round(c[1] / 6.0) / 10.0);
-        m.put("money", Math.round(c[1] / 60.0 * cost));
+        m.put("money", Math.round(c[3] / 60.0));
         m.put("run_hours", Math.round(c[2] / 360_000.0) / 10.0);
         return m;
     }
@@ -563,8 +645,54 @@ public final class Analytics {
     }
 
     /**
-     * An agent's variable profile: for each output it returned in the period, how often it had a value, its most common
-     * values and, for numbers, the smallest, largest and average.
+     * Business > Agents (AA's Business dashboards): every agent the caller may see whose runs in the period returned
+     * outputs, with the outputs' names (KPI-marked first), its runs, the runs that returned a value, and its last run.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> businessAgents(User by, Map<String, String> q) {
+        Map<String, long[]> counts = new TreeMap<>();   // runs, runs with a value
+        Map<String, String> last = new HashMap<>();
+        Set<String> ids = new HashSet<>();
+        for (Run r : runs(by, q)) {
+            counts.computeIfAbsent(r.bot(), k -> new long[2])[0]++;
+            if (r.created().compareTo(last.getOrDefault(r.bot(), "")) > 0) last.put(r.bot(), r.created());
+            ids.add(r.id());
+        }
+        Map<String, Set<String>> names = new HashMap<>();
+        Instant[] pd = period(q);
+        for (Map<String, Object> r : db.query("SELECT id, bot_path, outputs FROM runs WHERE created >= ? AND created <= ? AND outputs IS NOT NULL LIMIT " + MAX_ROWS, pd[0], pd[1])) {
+            if (!ids.contains((String) r.get("id"))) continue;
+            Object o;
+            try { o = JsonLite.parse(String.valueOf(r.get("outputs"))); } catch (IllegalArgumentException e) { continue; }
+            if (!(o instanceof Map<?, ?> m) || m.isEmpty()) continue;
+            String bot = (String) r.get("bot_path");
+            names.computeIfAbsent(bot, k -> new TreeSet<>()).addAll(((Map<String, Object>) m).keySet());
+            if (m.values().stream().anyMatch(v -> v != null && !"".equals(v))) counts.get(bot)[1]++;
+        }
+        Map<String, Set<String>> kpis = new HashMap<>();
+        for (Map<String, Object> k : db.query("SELECT DISTINCT bot_path, name FROM kpi_values")) kpis.computeIfAbsent((String) k.get("bot_path"), x -> new HashSet<>()).add((String) k.get("name"));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (var e : names.entrySet()) {
+            Set<String> marked = kpis.getOrDefault(e.getKey(), Set.of());
+            List<String> values = new ArrayList<>(e.getValue());
+            values.sort(Comparator.comparing((String v) -> !marked.contains(v)).thenComparing(Comparator.naturalOrder()));
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("bot_path", e.getKey());
+            m.put("values", values);
+            m.put("kpis", values.stream().filter(marked::contains).toList());
+            m.put("runs", counts.get(e.getKey())[0]);
+            m.put("runs_with_values", counts.get(e.getKey())[1]);
+            m.put("last_run", last.get(e.getKey()));
+            out.add(m);
+        }
+        out.sort(Comparator.comparing((Map<String, Object> m) -> -((Number) m.get("runs_with_values")).longValue()).thenComparing(m -> String.valueOf(m.get("bot_path"))));
+        return Map.of("agents", out);
+    }
+
+    /**
+     * An agent's data profile (AA's data profile): for each output it returned in the period, its kind (number, text,
+     * yes/no, list or mixed), how often it had a value, its ten most common values and how many different values; for
+     * numbers the smallest, largest, average and total, and the total per day (in tz). Also the latest 20 runs' values.
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> variables(User by, String path, Map<String, String> q) {
@@ -574,14 +702,22 @@ public final class Analytics {
         Set<String> ids = new HashSet<>();
         for (Run r : runs(by, f)) ids.add(r.id());
         Map<String, List<Object>> values = new TreeMap<>();
+        Map<String, Map<String, Double>> perDay = new HashMap<>();
+        List<Map<String, Object>> recent = new ArrayList<>();
+        ZoneId zone = zone(q.get("tz"));
         int n = 0;
-        for (Map<String, Object> r : db.query("SELECT id, outputs FROM runs WHERE bot_path = ? AND outputs IS NOT NULL ORDER BY created DESC LIMIT 5000", path)) {
+        for (Map<String, Object> r : db.query("SELECT id, status, created, outputs FROM runs WHERE bot_path = ? AND outputs IS NOT NULL ORDER BY created DESC LIMIT 5000", path)) {
             if (!ids.contains((String) r.get("id"))) continue;
             Object o;
             try { o = JsonLite.parse((String) r.get("outputs")); } catch (IllegalArgumentException e) { continue; }
             if (!(o instanceof Map<?, ?> m)) continue;
             n++;
-            for (var e : ((Map<String, Object>) m).entrySet()) values.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
+            if (recent.size() < 20) recent.add(Map.of("id", r.get("id"), "status", String.valueOf(r.get("status")), "created", String.valueOf(r.get("created")), "outputs", m));
+            String day = dayIn(String.valueOf(r.get("created")), zone);
+            for (var e : ((Map<String, Object>) m).entrySet()) {
+                values.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
+                if (e.getValue() instanceof Number num) perDay.computeIfAbsent(e.getKey(), k -> new TreeMap<>()).merge(day, num.doubleValue(), Double::sum);
+            }
         }
         List<Object> out = new ArrayList<>();
         for (var e : values.entrySet()) {
@@ -596,13 +732,21 @@ public final class Analytics {
                 v.put("min", nums.stream().mapToDouble(d -> d).min().orElse(0));
                 v.put("max", nums.stream().mapToDouble(d -> d).max().orElse(0));
                 v.put("avg", Math.round(nums.stream().mapToDouble(d -> d).average().orElse(0) * 100) / 100.0);
+                v.put("sum", Math.round(nums.stream().mapToDouble(d -> d).sum() * 100) / 100.0);
+                List<Map<String, Object>> days = new ArrayList<>();
+                perDay.getOrDefault(e.getKey(), Map.of()).forEach((d, x) -> days.add(Map.of("day", d, "sum", Math.round(x * 100) / 100.0)));
+                v.put("by_day", days);
             }
+            Set<String> kinds = new HashSet<>();
+            for (Object x : vals) if (x != null && !"".equals(x)) kinds.add(x instanceof Number ? "number" : x instanceof Boolean ? "yes/no" : x instanceof List ? "list" : x instanceof Map ? "record" : "text");
+            v.put("kind", kinds.isEmpty() ? "empty" : kinds.size() == 1 ? kinds.iterator().next() : "mixed");
             Map<String, Long> counts = new HashMap<>();
             for (Object x : vals) if (x != null && !(x instanceof Map) && !(x instanceof List)) { String s = String.valueOf(x); counts.merge(s.length() > 60 ? s.substring(0, 60) + "\u2026" : s, 1L, Long::sum); }
-            v.put("common", counts.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).limit(5).map(c -> Map.of("value", c.getKey(), "runs", c.getValue())).toList());
+            v.put("distinct", counts.size());
+            v.put("common", counts.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).limit(10).map(c -> Map.of("value", c.getKey(), "runs", c.getValue())).toList());
             out.add(v);
         }
-        return Map.of("bot_path", path, "runs", n, "variables", out);
+        return Map.of("bot_path", path, "runs", n, "variables", out, "recent", recent);
     }
 
     /** A report as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */

@@ -48,6 +48,8 @@ const PERMS: Record<string, { area: string; kind: Kind; label: string }> = {
   "apitasks.manage": { area: "Agent APIs", kind: "change", label: "Manage Agent APIs" },
   "analytics.view": { area: "Insights", kind: "see", label: "See operational insights" },
   "alerts.manage": { area: "Insights", kind: "admin", label: "Manage alert rules" },
+  "insights.design": { area: "Insights", kind: "admin", label: "Make and share dashboards" },
+  "insights.admin": { area: "Insights", kind: "admin", label: "Set savings and the yearly goal" },
   "skills.view": { area: "AI", kind: "see", label: "See prompt skills" },
   "skills.manage": { area: "AI", kind: "change", label: "Manage own prompt skills" },
   "skills.all": { area: "AI", kind: "admin", label: "Every prompt skill" },

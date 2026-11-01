@@ -218,7 +218,7 @@ function WeekBars({ days }: { days: OpsData["by_day"] }) {
       <span className="cc-hbar-label">{w.label}</span>
       <span className="cc-hbar-track">{seg(w.success, "is-ok", "succeeded")}{seg(w.failed, "is-bad", "failed")}{seg(w.stopped, "is-off", "stopped")}</span>
       <span className="cc-hbar-value">{w.runs}</span></li>)}</ul>
-    <p className="cc-legend" aria-hidden="true"><span><i className="cc-seg is-ok" />Succeeded</span><span><i className="cc-seg is-bad" />Failed</span><span><i className="cc-seg is-off" />Stopped</span></p>
+    <p className="cc-week-legend" aria-hidden="true"><span><i className="cc-seg is-ok" />Succeeded</span><span><i className="cc-seg is-bad" />Failed</span><span><i className="cc-seg is-off" />Stopped</span></p>
   </>;
 }
 

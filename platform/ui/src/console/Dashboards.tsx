@@ -80,7 +80,8 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
   useEffect(() => { setData(null); refresh(); const t = setInterval(refresh, 60000); return () => clearInterval(t); }, [refresh]);
 
   const cur = list?.find((d) => d.id === current) ?? null;
-  const more = cur ? [...(cur.can_edit ? [{ key: "edit", label: "Edit", onSelect: () => setEditing({ d: cur }) }] : []),
+  const design = user.permissions.includes("insights.design");   // make and share dashboards (AA's Insight designer)
+  const more = cur && design ? [...(cur.can_edit ? [{ key: "edit", label: "Edit", onSelect: () => setEditing({ d: cur }) }] : []),
     { key: "copy", label: "Copy as mine", onSelect: () => setEditing({ d: cur, copy: true }) },
     ...(cur.can_edit ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(true) }] : [])] : [];
   const remove = () => cur && api.deleteDashboard(cur.id).then(() => { onNotice("Deleted the dashboard " + cur.name + "."); setDeleting(false); load(""); }, (e) => setError(message(e)));
@@ -91,7 +92,7 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
         <h1 id="cc-db-title">{title ?? "Dashboards"}</h1>
         <HelpButton topic={HELP} />
         <span className="ov-fill" />
-        <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>
+        {design && <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>}
       </header>
       {tabs}
       {error && <p className="st-alert" role="alert">{error}</p>}
@@ -228,12 +229,12 @@ function WidgetEditor({ w, kpis, agents, onClose, onDone }: { w: DashWidget; kpi
   const set = (p: Partial<DashWidget>) => setX({ ...x, ...p });
   const done = () => {
     const out: DashWidget = { title: x.title?.trim() || undefined, type: x.type ?? "number", source: x.source ?? "runs", days: x.days ?? 30 };
-    if (out.source === "runs") out.metric = x.metric ?? "runs"; else { out.kpi = x.kpi; out.agg = x.agg ?? "sum"; }
+    if (out.source === "runs") out.metric = x.metric ?? "runs"; else { out.kpi = x.kpi?.trim(); out.agg = x.agg ?? "sum"; }
     if (x.bot) out.bot = x.bot;
     if (out.type !== "number" && x.group && x.group !== "none") { out.group = x.group; if (x.group === "value" && x.by) out.by = x.by; }
     onDone(out);
   };
-  const valid = (x.source !== "kpi" || !!x.kpi) && (x.days ?? 30) >= 1 && (x.days ?? 30) <= 365;
+  const valid = (x.source !== "kpi" || !!x.kpi) && (x.source !== "output" || (!!x.kpi?.trim() && !!x.bot)) && (x.days ?? 30) >= 1 && (x.days ?? 30) <= 365;
   return (
     <Dialog open title={w.title ? "Widget " + w.title : "Widget"} width={600} onClose={onClose}
       footer={<><Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!valid} onClick={done}>Done</Button></>}>
@@ -241,17 +242,19 @@ function WidgetEditor({ w, kpis, agents, onClose, onDone }: { w: DashWidget; kpi
       <div className="cc-grid2">
         <Field label="Show as">{(id) => <Select id={id} value={x.type ?? "number"} onChange={(e) => set({ type: e.target.value as DashWidget["type"] })} options={TYPES.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
         <Field label="Figure from">{(id) => <Select id={id} value={x.source ?? "runs"} onChange={(e) => set({ source: e.target.value as DashWidget["source"] })}
-          options={[{ value: "runs", label: "The runs" }, { value: "kpi", label: "A KPI agents record" }]} />}</Field>
+          options={[{ value: "runs", label: "The runs" }, { value: "kpi", label: "A KPI agents record" }, { value: "output", label: "An agent's output" }]} />}</Field>
         {(x.source ?? "runs") === "runs"
           ? <Field label="Figure">{(id) => <Select id={id} value={x.metric ?? "runs"} onChange={(e) => set({ metric: e.target.value as DashWidget["metric"] })} options={METRICS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
           : <>
-            <Field label="KPI">{(id) => <Select id={id} value={x.kpi ?? ""} onChange={(e) => set({ kpi: e.target.value })} options={[{ value: "", label: "Choose a KPI" }, ...kpiNames.map((k) => ({ value: k, label: k }))]} />}</Field>
+            {x.source === "output"
+              ? <Field label="Output" hint="Its name in the agent; choose the agent below">{(id) => <TextInput id={id} value={x.kpi ?? ""} maxLength={80} onChange={(e) => set({ kpi: e.target.value })} />}</Field>
+              : <Field label="KPI">{(id) => <Select id={id} value={x.kpi ?? ""} onChange={(e) => set({ kpi: e.target.value })} options={[{ value: "", label: "Choose a KPI" }, ...kpiNames.map((k) => ({ value: k, label: k }))]} />}</Field>}
             <Field label="Work out">{(id) => <Select id={id} value={x.agg ?? "sum"} onChange={(e) => set({ agg: e.target.value as DashWidget["agg"] })} options={AGGS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
           </>}
         <Field label="Agent">{(id) => <Select id={id} value={x.bot ?? ""} onChange={(e) => set({ bot: e.target.value || undefined })}
-          options={[{ value: "", label: "All agents" }, ...agents.map((a) => ({ value: a, label: name(a) }))]} />}</Field>
+          options={[{ value: "", label: x.source === "output" ? "Choose an agent" : "All agents" }, ...agents.map((a) => ({ value: a, label: name(a) }))]} />}</Field>
         {(x.type ?? "number") !== "number" && <Field label="Split by">{(id) => <Select id={id} value={x.group ?? "none"} onChange={(e) => set({ group: e.target.value as DashWidget["group"] })}
-          options={GROUPS.filter(([g]) => g !== "value" || x.source === "kpi").map(([v, l]) => ({ value: v, label: l }))} />}</Field>}
+          options={GROUPS.filter(([g]) => g !== "value" || x.source === "kpi" || x.source === "output").map(([v, l]) => ({ value: v, label: l }))} />}</Field>}
         {x.group === "value" && x.source === "kpi" && <Field label="The value of" hint="Empty: the KPI's own value">{(id) => <Select id={id} value={x.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })}
           options={[{ value: "", label: x.kpi ?? "The KPI" }, ...kpiNames.filter((k) => k !== x.kpi).map((k) => ({ value: k, label: k }))]} />}</Field>}
         <Field label="Days looked at" hint="1 to 365">{(id) => <TextInput id={id} type="number" min={1} max={365} value={String(x.days ?? 30)} onChange={(e) => set({ days: Number(e.target.value) || undefined })} />}</Field>

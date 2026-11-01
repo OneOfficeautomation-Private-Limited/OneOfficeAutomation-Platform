@@ -125,6 +125,9 @@ public final class Platform {
         DEFAULTS.put("promotion_targets", "");          // the only One CommandCenters agents may be promoted to; empty: any
         DEFAULTS.put("environment_label", "");          // shown in the top bar and on the sign-in page, e.g. Development, Test, Production
         DEFAULTS.put("environment_colour", "blue");     // blue, green, amber, red or grey
+        // Business (Operational Insights step 2): this year's savings goal; set with insights.admin on the Value tab
+        DEFAULTS.put("value_goal_hours", 0);
+        DEFAULTS.put("value_goal_money", 0);
     }
 
     static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
@@ -176,7 +179,9 @@ public final class Platform {
         Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
         Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
-        Map.entry("notify_task_assigned", new long[] { 0, 1 }));
+        Map.entry("notify_task_assigned", new long[] { 0, 1 }),
+        Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
+        Map.entry("value_goal_money", new long[] { 0, 1_000_000_000_000L }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -329,17 +334,7 @@ public final class Platform {
             }
             clean.put(k, v);
         }
-        db.tx(() -> {
-            for (var e : clean.entrySet()) {
-                String json = JsonLite.write(e.getValue());
-                if (db.update("UPDATE settings SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), e.getKey()) == 0)
-                    db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", e.getKey(), json, now(), by.username());
-            }
-            cached = null;
-            cr.audit.record(by.username(), "settings.update", "settings", null, clean, "ok", ip);
-            return null;
-        });
-        cached = null;
+        write(by, clean, ip);
         if (clean.containsKey("outbound_proxy") || clean.containsKey("outbound_proxy_bypass")) applyOutboundProxy();
         return settings();
     }
@@ -560,6 +555,65 @@ public final class Platform {
     }
 
     // ===================== work queues =====================
+
+    /** Saves checked settings in one transaction, with one Audit Trail entry. */
+    private void write(User by, Map<String, Object> clean, String ip) {
+        db.tx(() -> {
+            for (var e : clean.entrySet()) {
+                String json = JsonLite.write(e.getValue());
+                if (db.update("UPDATE settings SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), e.getKey()) == 0)
+                    db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", e.getKey(), json, now(), by.username());
+            }
+            cached = null;
+            cr.audit.record(by.username(), "settings.update", "settings", null, clean, "ok", ip);
+            return null;
+        });
+        cached = null;
+    }
+
+    /** A whole number from 0 to max, or null (use the default) when empty. */
+    private static Integer savingsNumber(Object v, String what, int max) {
+        if (v == null || "".equals(v)) return null;
+        if (!(v instanceof Number n) || n.doubleValue() < 0 || n.doubleValue() > max || n.doubleValue() != Math.floor(n.doubleValue()))
+            throw new OoaException("CR.BAD_INPUT", what + " is a whole number from 0 to " + max);
+        return n.intValue();
+    }
+
+    /**
+     * An agent's savings (Business > Value): minutes saved a run, its own cost of an hour, and the runs a month expected
+     * (estimated against actual). Empty values use the defaults. Needs insights.admin, or repo.production as before.
+     */
+    public void setAgentSavings(User by, Map<String, Object> b, String ip) {
+        if (!cr.can(by, "insights.admin")) cr.require(by, "repo.production", "set the value of agents");
+        String path = String.valueOf(b.get("path"));
+        Integer minutes = savingsNumber(b.get("minutes_saved"), "Minutes saved", 100000), cost = savingsNumber(b.get("hourly_cost"), "The cost of an hour", 100000),
+            runs = savingsNumber(b.get("estimated_runs_month"), "Runs a month", 10_000_000);
+        if (db.update("UPDATE bots SET minutes_saved = ?, hourly_cost = ?, estimated_runs_month = ? WHERE path = ?", minutes, cost, runs, path) == 0) throw notFound("Agent");
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("minutes_saved", minutes); d.put("hourly_cost", cost); d.put("estimated_runs_month", runs);
+        cr.audit.record(by.username(), "bot.savings", "bot", path, d, "ok", ip);
+    }
+
+    /** A work queue's savings: minutes saved and the cost of an hour for each item done; empty: its agent's values count. */
+    public void setQueueSavings(User by, String queueId, Map<String, Object> b, String ip) {
+        cr.require(by, "insights.admin", "set the value of work queues");
+        Integer minutes = savingsNumber(b.get("minutes_saved"), "Minutes saved", 100000), cost = savingsNumber(b.get("hourly_cost"), "The cost of an hour", 100000);
+        if (db.update("UPDATE queues SET minutes_saved = ?, hourly_cost = ? WHERE id = ?", minutes, cost, queueId) == 0) throw notFound("Work queue");
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("minutes_saved", minutes); d.put("hourly_cost", cost);
+        cr.audit.record(by.username(), "queue.savings", "queue", queueId, d, "ok", ip);
+    }
+
+    /** This year's savings goal in hours and money (0: none), set by insights.admin rather than in Settings. */
+    public Map<String, Object> setSavingsGoal(User by, Map<String, Object> b, String ip) {
+        cr.require(by, "insights.admin", "set the savings goal");
+        Integer hours = savingsNumber(b.get("hours"), "The goal in hours", 100_000_000), money = savingsNumber(b.get("money"), "The goal in money", 2_000_000_000);
+        Map<String, Object> clean = new LinkedHashMap<>();
+        clean.put("value_goal_hours", hours == null ? 0 : hours);
+        clean.put("value_goal_money", money == null ? 0 : money);
+        write(by, clean, ip);
+        return clean;
+    }
 
     /** Minutes of manual work one successful run of the agent saves; null falls back to the default in Settings. */
     public void setMinutesSaved(User by, String path, Object minutes, String ip) {

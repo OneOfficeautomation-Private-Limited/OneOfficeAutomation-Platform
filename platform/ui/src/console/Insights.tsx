@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AuditFigures, AuditRecord, CrApi, CrUser } from "../api/cr";
 import { Button, HelpButton, Select, usePersistent, type HelpTopic } from "../components";
 import { AREAS, wordsOf } from "./Audit";
+import { BusinessAgents } from "./BusinessAgents";
 import { Capacity } from "./Capacity";
 import { Dashboards } from "./Dashboards";
 import { RefreshButton, rowClick } from "./ListParts";
@@ -19,7 +20,7 @@ import { Value } from "./Value";
 type Tab = { id: string; label: string; perm: string };
 const OPERATIONS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "runners", label: "Runners", perm: "analytics.view" },
   { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "audit", label: "Audit", perm: "audit.view" }];
-const BUSINESS: Tab[] = [{ id: "value", label: "Value", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }];
+const BUSINESS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "value", label: "Value", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }];
 const tabInAddress = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("tab");
 
 /** The tab in the address, among those the person may see (the first when none or another is named). */
@@ -51,11 +52,12 @@ export function OperationsPage({ api, user }: { api: CrApi; user: CrUser }) {
   return <section className="st-page cc-list"><header className="cc-list-head"><h1>Operations</h1></header><p className="cc-none cc-pad">You may not see operations figures.</p></section>;
 }
 
-/** Operational Insights > Business: Value and Dashboards as tabs (step 2 adds each agent's own dashboard and Compare). */
+/** Operational Insights > Business: Agents (each agent's own dashboard, data profile and Compare), Value and Dashboards as tabs. */
 export function BusinessPage({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const tabs = BUSINESS.filter((t) => user.permissions.includes(t.perm));
   const [tab, go] = useTab("business", tabs);
   const strip = <TabStrip label="Business" tabs={tabs} current={tab} onTab={go} />;
+  if (tab === "agents") return <BusinessAgents api={api} user={user} onNotice={onNotice} title="Business" tabs={strip} />;
   if (tab === "dashboards") return <Dashboards api={api} user={user} onNotice={onNotice} title="Business" tabs={strip} />;
   if (tab === "value") return <Value api={api} user={user} onNotice={onNotice} title="Business" tabs={strip} />;
   return <section className="st-page cc-list"><header className="cc-list-head"><h1>Business</h1></header><p className="cc-none cc-pad">You may not see business figures.</p></section>;

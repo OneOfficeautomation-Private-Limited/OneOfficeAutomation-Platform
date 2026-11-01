@@ -105,7 +105,7 @@ public final class Dashboards {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> save(User by, String id, Map<String, Object> b, String ip) {
-        cr.require(by, "analytics.view", "make dashboards");
+        cr.require(by, "insights.design", "make and share dashboards");
         String name = String.valueOf(b.getOrDefault("name", "")).trim();
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Dashboard names have 1 to 120 characters");
         if (!(b.get("widgets") instanceof List<?> ws) || ws.isEmpty() || ws.size() > 40) throw new OoaException("CR.BAD_INPUT", "A dashboard has 1 to 40 widgets");
@@ -142,7 +142,12 @@ public final class Dashboards {
             if (w.get("agg") != null && !AGGS.contains(String.valueOf(w.get("agg")))) throw new OoaException("CR.BAD_INPUT", "Aggregations: " + AGGS);
         } else if (src.equals("runs")) {
             if (w.get("metric") != null && !METRICS.contains(String.valueOf(w.get("metric")))) throw new OoaException("CR.BAD_INPUT", "Run figures: " + METRICS);
-        } else throw new OoaException("CR.BAD_INPUT", "A widget's source is kpi or runs");
+        } else if (src.equals("output")) {
+            // a value one agent returns, KPI or not (Business: an agent's own dashboard)
+            if (!(w.get("bot") instanceof String b) || b.isBlank()) throw new OoaException("CR.BAD_INPUT", "A widget over an output names its agent");
+            if (!(w.get("kpi") instanceof String k) || k.isBlank()) throw new OoaException("CR.BAD_INPUT", "A widget over an output names the output");
+            if (w.get("agg") != null && !AGGS.contains(String.valueOf(w.get("agg")))) throw new OoaException("CR.BAD_INPUT", "Aggregations: " + AGGS);
+        } else throw new OoaException("CR.BAD_INPUT", "A widget's source is kpi, output or runs");
         if (w.get("group") != null && !GROUPS.contains(String.valueOf(w.get("group")))) throw new OoaException("CR.BAD_INPUT", "Groups: " + GROUPS);
         if (w.get("days") != null && !(w.get("days") instanceof Number n && n.intValue() >= 1 && n.intValue() <= 365)) throw new OoaException("CR.BAD_INPUT", "days is 1 to 365");
     }
@@ -205,6 +210,20 @@ public final class Dashboards {
                 };
                 if (v != null) rows.add(new Object[]{ key(group, (Instant) toInstant(r.get("created")), zone, r.get("bot_path"), null), v });
             }
+        } else if ("output".equals(w.get("source"))) {
+            // the agent's run outputs (its successful and failed runs), grouped like a KPI
+            agg = String.valueOf(w.getOrDefault("agg", "sum"));
+            String out = String.valueOf(w.get("kpi"));
+            if (bot != null && cr.folders.mayView(by, bot))
+                for (Map<String, Object> r : db.query("SELECT created, outputs FROM runs WHERE bot_path = ? AND created >= ? AND outputs IS NOT NULL ORDER BY created LIMIT 20000", bot, since)) {
+                    Object o;
+                    try { o = JsonLite.parse(String.valueOf(r.get("outputs"))); } catch (IllegalArgumentException e) { continue; }
+                    if (!(o instanceof Map<?, ?> m) || !m.containsKey(out) || m.get(out) == null) continue;
+                    Object val = m.get(out);
+                    BigDecimal num = val instanceof Number n ? new BigDecimal(String.valueOf(n)) : null;
+                    if (num == null && !agg.equals("count") && !group.equals("value")) continue;
+                    rows.add(new Object[]{ key(group, toInstant(r.get("created")), zone, bot, Values.text(val)), num == null ? BigDecimal.ONE : num });
+                }
         } else {
             agg = String.valueOf(w.getOrDefault("agg", "sum"));
             String kpi = String.valueOf(w.get("kpi"));

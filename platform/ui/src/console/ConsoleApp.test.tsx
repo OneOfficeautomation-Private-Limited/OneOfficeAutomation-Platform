@@ -8,7 +8,7 @@ afterEach(() => { cleanup(); localStorage.clear(); });
 
 const admin = { id: "1", username: "admin", display_name: "Asha Admin", role: "admin", roles: ["Administrator"], leads_team: false,
   permissions: ["repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "queues.view", "globals.view", "toolkits.manage", "apitasks.manage",
-    "analytics.view", "users.manage", "teams.manage", "audit.view", "settings.manage", "connections.manage", "skills.view"] };
+    "analytics.view", "users.manage", "teams.manage", "audit.view", "settings.manage", "connections.manage", "skills.view", "insights.design", "insights.admin"] };
 const viewer = { id: "2", username: "vic", display_name: "Vic Viewer", role: "viewer", permissions: ["repo.view", "runs.view", "devices.view"] };
 const dashboard = { running: 2, queued: 1, success_24h: 40, failed_24h: 3, success_rate_24h: 93, avg_duration_ms_24h: 4200, devices_online: 1, devices_total: 2,
   bots: 12, schedules: 4, queue_items_waiting: 7, hours_saved_30d: 18, open_tasks: 2,
@@ -128,7 +128,10 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       active: 0, success_rate: 75, total_ms: 9000, avg_ms: 1800, p95_ms: 3000, max_ms: 3000 }], last_run: { id: "r4", status: "success", created: "2026-10-30T08:00:00Z" },
       last_failure: { id: "r3", created: "2026-10-30T07:00:00Z", code: "EXCEL.NOT_FOUND" } });
     if (route === "analytics/variables") return ok({ bot_path: "Finance/Invoice intake.flow.json", runs: 3, variables: [{ variable: "total", runs: 3, runs_with_value: 3, min: 10, max: 90, avg: 50,
-      common: [{ value: "10", runs: 1 }] }] });
+      common: [{ value: "10", runs: 1 }], kind: "number", sum: 150, distinct: 3, by_day: [{ day: "2026-10-30", sum: 150 }] }],
+      recent: [{ id: "r4", status: "success", created: "2026-10-30T08:00:00Z", outputs: { total: 90 } }] });
+    if (route === "analytics/business-agents") return ok({ agents: [{ bot_path: "Finance/Invoice intake.flow.json", values: ["total", "vendor"], kpis: ["total"], runs: 5, runs_with_values: 3,
+      last_run: "2026-10-30T08:00:00Z" }] });
     if (route === "analytics/export") { calls.push({ method: "GET", route: "analytics/export?" + (url.split("?")[1] ?? "") }); return new Response("agent,runs\r\n", { status: 200 }); }
     if (route === "plugins") return ok({ plugins });
     if (route === "repo/policy") return ok({ enforce_at_checkin: false, rules: {
@@ -793,7 +796,8 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Value as AA's CoE dashboard: hours and money saved against the period before, by agent and folder in tabs, minutes saved changed in a dialog", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.production"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Business");   // Value is its first tab
+    await go("Business");
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Value" }));
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(within(figs).getByText("Hours saved · +25% on before")).toBeTruthy();
     expect(within(figs).getByText(/7,500/)).toBeTruthy();
@@ -808,12 +812,39 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(agents).getByText("0 (default)", { exact: false })).toBeTruthy();
     // minutes saved changed in a small dialog, from the agent's menu
     fireEvent.keyDown(within(agents).getByRole("button", { name: "Actions for Onboard" }), { key: "Enter" });
-    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Change minutes saved…" }));
-    const d = await screen.findByRole("dialog", { name: "Minutes saved a run by Onboard" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Change savings…" }));
+    const d = await screen.findByRole("dialog", { name: "Savings of Onboard" });
     fireEvent.change(within(d).getByLabelText("Minutes of manual work one successful run saves"), { target: { value: "15" } });
+    fireEvent.change(within(d).getByLabelText("Runs a month expected"), { target: { value: "40" } });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/roi", body: { path: "HR/Onboard.flow.json", minutes_saved: 15 } }));
-    expect(await screen.findByText("Onboard: 15 minutes saved a run.")).toBeTruthy();
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/roi", body: { path: "HR/Onboard.flow.json", minutes_saved: 15, hourly_cost: null, estimated_runs_month: 40 } }));
+    expect(await screen.findByText("Saved the savings of Onboard.")).toBeTruthy();
+  });
+
+  it("shows Business > Agents as AA's Business dashboards: an agent's own dashboard, data profile and Compare, and a copy as one's own", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    await go("Business");   // Agents is its first tab
+    const list = await screen.findByRole("table", { name: "Agents that record values" });
+    const row = within(list).getByRole("row", { name: /Invoice intake/ }) as HTMLTableRowElement;
+    expect(within(row).getByText("total").className).toBe("cc-chip-s is-kpi");   // KPI-marked first, in bold
+    fireEvent.click(row.cells[0]);
+    const page = await screen.findByRole("dialog", { name: "Business figures of Invoice intake" });
+    expect(await within(page).findByText("total · total")).toBeTruthy();
+    expect(within(within(page).getByRole("table", { name: "Each run's values" })).getByText("90")).toBeTruthy();
+    fireEvent.click(within(page).getByRole("tab", { name: "Data profile" }));
+    const profile = within(page).getByRole("table", { name: "Data profile" });
+    expect(within(profile).getByText("3 of 3")).toBeTruthy();
+    expect(within(profile).getByText("150")).toBeTruthy();
+    fireEvent.click(within(page).getByRole("tab", { name: "Compare" }));
+    expect(await within(page).findByRole("table", { name: "Compare" })).toBeTruthy();
+    expect((within(page).getByLabelText("Its period") as HTMLSelectElement).value).toBe("before");   // the only agent: itself in the period before
+    await act(async () => { fireEvent.click(within(page).getByRole("button", { name: "Make my own copy" })); });
+    const saved = calls.find((c) => c.method === "POST" && c.route === "dashboards")!.body as { name: string; widgets: { source: string; kpi?: string; bot?: string }[] };
+    expect(saved.name).toBe("Invoice intake (my copy)");
+    expect(saved.widgets[0]).toMatchObject({ source: "output", kpi: "total", bot: "Finance/Invoice intake.flow.json" });
+    fireEvent.click(within(page).getByRole("button", { name: "‹ Business" }));
+    expect(await screen.findByRole("table", { name: "Agents that record values" })).toBeTruthy();
   });
 
   it("shows Dashboards with widgets made in a form: ready-made ones, a pie of the largest parts, a CSV per widget, copies and deletes", async () => {
