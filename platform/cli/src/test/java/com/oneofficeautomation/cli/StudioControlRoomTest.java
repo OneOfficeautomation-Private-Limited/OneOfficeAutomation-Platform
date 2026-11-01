@@ -63,6 +63,10 @@ class StudioControlRoomTest {
             assertEquals(1, ((Number) in1.get("version")).intValue(), String.valueOf(in1));
             List<Object> bots = (List<Object>) call(sb, "GET", "/api/cr/repo", null, null).get("bots");
             assertEquals("My Bots/Invoice bot.flow.json", ((Map<String, Object>) bots.get(0)).get("path"));
+            // the repository's facts for AA's columns: where it can run, its size, and the code analysis of its latest version
+            assertEquals("Any", ((Map<String, Object>) bots.get(0)).get("platform"));
+            assertTrue(((Number) ((Map<String, Object>) bots.get(0)).get("size")).intValue() > 0);
+            assertEquals("alice", ((Map<String, Object>) bots.get(0)).get("updated_by"));
 
             Map<String, Object> co = call(sb, "POST", "/api/cr/checkout", Map.of("path", "My Bots/Invoice bot.flow.json"), null);
             assertEquals("My Bots/Invoice bot.flow.json", co.get("local"), "checked out to the same folder path, as AA's check-out");

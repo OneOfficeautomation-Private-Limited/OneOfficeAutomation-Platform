@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiFailure, type CrStatus, type RepoAgent, type RepoVersion, type StudioApi } from "../api/client";
 import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type TreeNode } from "../components";
+import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 
 /** The server's message, with what to do when it says ("Check the address and that One CommandCenter is running."). */
 const message = (e: unknown) => e instanceof ApiFailure ? e.error.message + (e.error.suggestedFix ? ". " + e.error.suggestedFix : "") : String(e);
@@ -68,6 +69,10 @@ function folderTree(paths: string[]): TreeNode {
   }
   return root;
 }
+/** The Public list's columns after the name, as AA's Public list; a search adds the folder. */
+const PUBLIC_COLUMNS: Column[] = [{ key: "platform", label: "Platform" }, { key: "latest", label: "Latest" }, { key: "live", label: "Live" }, { key: "label", label: "Label" },
+  { key: "analysis", label: "Code analysis" }, { key: "size", label: "Size" }, { key: "out", label: "Checked out" }, { key: "changed", label: "Last modified" },
+  { key: "by", label: "Modified by" }];
 const FOLDER_ICON = (sel: boolean) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
   <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>;
 
@@ -93,6 +98,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.public.folders.hidden", false);
   const [foldersWidth, setFoldersWidth] = usePanelSize("public.folders");
   const foldersPanel = useRef<HTMLElement | null>(null);
+  const [hiddenCols, setHiddenCols] = usePersistent<string[]>("automation.public.columns.hidden", ["platform", "label", "analysis", "size", "by"]);
+  const [choosingCols, setChoosingCols] = useState(false);
   const tree = useMemo(() => folderTree((list?.agents ?? []).map((a) => a.path)), [list]);
   useEffect(() => {
     if (!status.connected) return;
@@ -113,12 +120,28 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const subfolders = q ? [] : here.children ?? [];
   const agents = (list?.agents ?? []).filter((a) => q || folderOf(a.path) === here.id);
   const openFolder = (id: string) => { setFolder(id); setExpanded(new Set([...expanded, ...id.split("/").map((_, i, all) => all.slice(0, i).join("/"))])); };
-  const cols = q ? 6 : 5;
+  const shownCols = PUBLIC_COLUMNS.filter((c) => !hiddenCols.includes(c.key));
+  const cols = shownCols.length + (q ? 3 : 2);
+  const cell = (key: string, a: RepoAgent, mine: boolean): ReactNode => {
+    switch (key) {
+      case "platform": return a.platform ?? "";
+      case "latest": return "v" + a.latest_version;
+      case "live": return a.production_version ? "v" + a.production_version : "";
+      case "label": return labelText(a.labels);
+      case "analysis": return <Analysis found={a.analysis} />;
+      case "size": return sizeText(a.size);
+      case "out": return a.locked_by ? (mine ? "By you" : "By " + a.locked_by) : "";
+      case "changed": return a.updated ? new Date(a.updated).toLocaleString() : "";
+      case "by": return a.updated_by ?? "";
+      default: return "";
+    }
+  };
   return (
     <div className="st-cr">
       <div role="toolbar" aria-label="Agent Repository" className="st-items-bar">
         <span className="st-items-count">{status.url} · signed in as {me}</span>
         <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
         <button type="button" className="st-tool" aria-label="Refresh" title="Refresh" onClick={reload}><Icon name="loop" size={15} /></button>
         {status.sameServer ? <span className="st-muted">Signed in through One CommandCenter</span>
           : <Button kind="plain" onClick={async () => { try { onStatus(await api.crDisconnect()); setList(null); onNotice("Signed out of One CommandCenter."); } catch (e) { onError(e); } }}>Sign out</Button>}
@@ -134,7 +157,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
           measure={() => foldersPanel.current?.getBoundingClientRect().width ?? 260} onChange={setFoldersWidth} />}</>}
         <div className="st-items">
           <table className="st-table">
-            <thead><tr><th scope="col">Agent</th>{q && <th scope="col">Folder</th>}<th scope="col">Latest</th><th scope="col">Live</th><th scope="col">Checked out</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col">Agent</th>{q && <th scope="col">Folder</th>}{shownCols.map((c) => <th key={c.key} scope="col" className={c.key === "changed" ? "st-col-changed" : undefined}>{c.label}</th>)}<th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {subfolders.map((f) => <tr key={"f:" + f.id}><td colSpan={cols}>
                 <button type="button" className="st-link st-name" onClick={() => openFolder(f.id)}>{FOLDER_ICON(false)}<span>{f.label}</span></button></td></tr>)}
@@ -145,9 +168,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
                     <td><span className="st-name"><IconTile name="bolt" color="#2f6fde" size={18} /><span title={a.path}>{nameOf(a.path)}</span>
                       {local && <span className="st-pill" title={"Private copy: " + local}>private copy</span>}</span></td>
                     {q && <td>{folderOf(a.path)}</td>}
-                    <td>v{a.latest_version}</td>
-                    <td>{a.production_version ? "v" + a.production_version : ""}</td>
-                    <td>{a.locked_by ? (mine ? "By you" : "By " + a.locked_by) : ""}</td>
+                    {shownCols.map((c) => <td key={c.key} className={c.key === "changed" ? "st-col-changed" : undefined}>{cell(c.key, a, mine)}</td>)}
                     <td className="st-cr-row-acts">
                       {(!a.locked_by || mine) && <Button kind="secondary" onClick={async () => { try { await onCheckOut(a.path, local, mine); reload(); } catch (e) { onError(e); } }}>
                         {mine ? "Open my copy" : "Check out"}</Button>}
@@ -179,6 +200,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
           </table>
         </Dialog>
       )}
+      {choosingCols && <ColumnsDialog columns={PUBLIC_COLUMNS} hidden={hiddenCols} onChange={setHiddenCols} onClose={() => setChoosingCols(false)} />}
       {picking && (
         <Dialog open onClose={() => setPicking(null)} title={"Check out a version of " + shortName(picking.agent.path)} width={620}
           footer={<><Button kind="secondary" onClick={() => setPicking(null)}>Cancel</Button>

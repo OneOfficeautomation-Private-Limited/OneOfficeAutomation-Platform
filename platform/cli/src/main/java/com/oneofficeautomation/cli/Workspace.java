@@ -70,7 +70,11 @@ final class Workspace {
         n.put("type", type);
         if (!dir) {
             n.put("modified", Files.getLastModifiedTime(p).toInstant().toString());
-            if (type.equals("bot")) n.put("kind", botKind(p));
+            n.put("size", Files.size(p));
+            if (type.equals("bot")) {
+                n.put("kind", botKind(p));
+                try { n.put("platform", com.oneofficeautomation.runner.Platforms.of(Files.readString(p))); } catch (IOException e) { /* unreadable: no platform */ }
+            }
         }
         if (dir) {
             List<Map<String, Object>> kids = new ArrayList<>();

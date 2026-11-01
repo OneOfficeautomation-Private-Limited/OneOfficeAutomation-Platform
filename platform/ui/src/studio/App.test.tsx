@@ -143,7 +143,8 @@ function fakeServer() {
   routes["POST cr/connect"] = (b) => { if (b.password !== "letmein") throw apiError("Wrong user name or password");
     created.push({ connect: b.url, user: b.username }); cr = { connected: true, url: b.url, user: { username: b.username } }; return cr; };
   routes["POST cr/disconnect"] = () => (cr = { connected: false, url: cr.url, user: null });
-  routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked }],
+  routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked,
+    labels: [{ label: "UAT", version: 2 }], analysis: { errors: 0, warnings: 1 }, platform: "Windows", size: 2048, updated_by: "asha" }],
     mapping: locked ? { "Finance/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
   routes["GET cr/versions"] = () => ({ versions: [{ version: 2, author: "asha", created: "2026-10-29T10:00:00Z", comment: "Reads the totals" },
     { version: 1, author: "asha", created: "2026-10-28T10:00:00Z", comment: "First version" }] });
@@ -221,6 +222,31 @@ describe("new Studio", () => {
     expect(within(menu).getByRole("menuitem", { name: "Delete" })).toBeTruthy();
     fireEvent.click(within(menu).getByRole("menuitem", { name: /Rename…/ }));
     expect(await screen.findByRole("dialog", { name: /Rename Finance/ })).toBeTruthy();   // that folder, not the one chosen in the tree
+  });
+
+  it("chooses the lists' columns as AA's: Platform, Label, Code analysis, Size, Modified by", async () => {
+    const { api } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); });
+    render(<App api={api} />);
+    // Private: some columns start hidden so a row fits on one line; Columns shows them
+    const headers = () => screen.getAllByRole("columnheader").map((h) => h.textContent);
+    await screen.findByRole("button", { name: "Finance" });
+    expect(headers()).not.toContain("Size");
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    const pick = await screen.findByRole("dialog", { name: "Columns" });
+    fireEvent.click(within(pick).getByRole("checkbox", { name: "Size" }));
+    fireEvent.click(within(pick).getByRole("button", { name: "Done" }));
+    expect(headers()).toContain("Size");
+    // Public: the repository's label and code analysis
+    fireEvent.click(screen.getByRole("tab", { name: "Public" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    await screen.findByText("Invoice intake");
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    const pick2 = await screen.findByRole("dialog", { name: "Columns" });
+    for (const c of ["Label", "Code analysis", "Platform"]) fireEvent.click(within(pick2).getByRole("checkbox", { name: c }));
+    fireEvent.click(within(pick2).getByRole("button", { name: "Done" }));
+    const row = screen.getByText("Invoice intake").closest("tr")!;
+    for (const t of ["UAT v2", "1 warning", "Windows"]) expect(row.textContent).toContain(t);
   });
 
   it("creates in AA's order: folder, then Create, then the type, then the name", async () => {

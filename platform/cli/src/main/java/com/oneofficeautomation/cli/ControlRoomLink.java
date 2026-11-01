@@ -299,9 +299,11 @@ final class ControlRoomLink {
     @SuppressWarnings("unchecked")
     Map<String, Object> states(JsonCodec json) throws IOException {
         Map<String, Object> locks = new HashMap<>();
+        Map<String, Map<String, Object>> bots = new HashMap<>();
         if (connected()) for (Object o : (List<Object>) repo("").getOrDefault("bots", List.of())) {
             Map<String, Object> b = (Map<String, Object>) o;
             locks.put(String.valueOf(b.get("path")), b.get("locked_by") == null ? "" : String.valueOf(b.get("locked_by")));
+            bots.put(String.valueOf(b.get("path")), b);
         }
         String me = user == null ? null : String.valueOf(user.get("username"));
         Map<String, Object> out = new LinkedHashMap<>();
@@ -319,6 +321,10 @@ final class ControlRoomLink {
             st.put("path", repoPath);
             Object by = locks.get(repoPath);
             if (by != null && !"".equals(by)) st.put("locked_by", by);
+            // the repository's facts for the list's columns: its version, labels, code analysis and who changed it last
+            Map<String, Object> b = bots.get(repoPath);
+            if (b != null) for (String k : List.of("latest_version", "production_version", "labels", "analysis", "updated", "updated_by"))
+                if (b.get(k) != null) st.put(k, b.get(k));
             out.put(local, st);
         }
         return Map.of("states", out, "connected", connected());

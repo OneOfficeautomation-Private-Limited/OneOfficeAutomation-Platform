@@ -734,7 +734,8 @@ public final class ControlRoom {
 
     /**
      * Agents the caller may see (folder permissions), optionally in one folder and below, with the caller's access and
-     * the version labels. deleted lists deleted agents instead, for recovery.
+     * the version labels. deleted lists deleted agents instead, for recovery. Each also says, for its latest version, where
+     * it can run (platform), its size and the code analysis found (errors and warnings), as AA's Public list shows them.
      */
     public List<Map<String, Object>> repoList(User by, String q, String folder, boolean deleted) {
         require(by, "repo.view", "view the agent repository");
@@ -746,6 +747,15 @@ public final class ControlRoom {
         Map<String, List<Object>> labels = new HashMap<>();
         for (Map<String, Object> l : db.query("SELECT path, label, version FROM bot_labels ORDER BY label"))
             labels.computeIfAbsent((String) l.get("path"), k -> new ArrayList<>()).add(Map.of("label", l.get("label"), "version", l.get("version")));
+        Map<String, String> latest = new HashMap<>();
+        for (Map<String, Object> v : db.query("SELECT b.path, v.content FROM bots b JOIN bot_versions v ON v.path = b.path AND v.version = b.latest_version"))
+            latest.put((String) v.get("path"), (String) v.get("content"));
+        Map<String, Map<String, Object>> analysis = new HashMap<>();
+        for (Map<String, Object> a : db.query("SELECT path, version, violations FROM code_analysis")) {
+            @SuppressWarnings("unchecked") List<Map<String, Object>> v = (List<Map<String, Object>>) JsonLite.parse(String.valueOf(a.get("violations")));
+            long errors = v.stream().filter(x -> "error".equals(x.get("severity"))).count();
+            analysis.put(a.get("path") + "#" + a.get("version"), Map.of("errors", errors, "warnings", v.size() - errors));
+        }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> b : db.query("SELECT path, bot_id, name, description, latest_version, production_version, locked_by, locked_at, updated, updated_by, minutes_saved, " +
                 "deleted_at, deleted_by FROM bots WHERE (LOWER(path) LIKE ? OR LOWER(COALESCE(description, '')) LIKE ? OR LOWER(bot_id) LIKE ?) AND deleted_at IS " + (deleted ? "NOT NULL" : "NULL") +
@@ -759,6 +769,13 @@ public final class ControlRoom {
             m.put("folder", Folders.folderOf(path));
             m.put("access", access);
             m.put("labels", labels.getOrDefault(path, List.of()));
+            String content = latest.get(path);
+            if (content != null) {
+                m.put("platform", com.oneofficeautomation.runner.Platforms.of(content));
+                m.put("size", content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+            }
+            Map<String, Object> found = analysis.get(path + "#" + b.get("latest_version"));
+            if (found != null) m.put("analysis", found);
             out.add(m);
         }
         return out;

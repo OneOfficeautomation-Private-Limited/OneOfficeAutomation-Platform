@@ -11,7 +11,7 @@ export class ApiFailure extends Error {
 
 export type WorkspaceNode = {
   name: string; path: string; type: "folder" | "bot" | "form" | "process" | "document" | "skill" | "script" | "file";
-  kind?: "TaskBot" | "ApiTask"; modified?: string; children?: WorkspaceNode[];
+  kind?: "TaskBot" | "ApiTask"; modified?: string; size?: number; platform?: "Windows" | "Any"; children?: WorkspaceNode[];
 };
 
 /** One input or output of an action, as the toolkit catalogue describes it (JSON Schema plus OOA's own keys). */
@@ -98,9 +98,13 @@ export type ModelConnections = { default: string; connections: ModelConnection[]
 /** One CommandCenter link: signed in or not, and when Studio and One CommandCenter run together, the browser's own sign-in. */
 export type CrStatus = { connected: boolean; url?: string | null; user?: { username: string } | null; sameServer?: boolean };
 /** An agent in One CommandCenter agent repository (the public one): its latest version, and who has it checked out. */
-export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null };
+/** The repository's facts for a list's columns (AA's Public list): labels, code analysis, platform, size, who changed it last. */
+export type RepoFacts = { labels?: { label: string; version: number }[]; analysis?: { errors: number; warnings: number }; platform?: "Windows" | "Any";
+  size?: number; updated?: string; updated_by?: string };
+export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null } & RepoFacts;
 /** A private copy's state against the repository, as AA's statuses (1 Nov 2026). "linked": signed out, so the locks are not known. */
-export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited"; path: string; locked_by?: string };
+export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited"; path: string; locked_by?: string;
+  latest_version?: number; production_version?: number | null } & RepoFacts;
 export type RepoVersion = { version: number; author: string; created: string; comment?: string };
 /** A check-in: the new version, and whether it became live or waits for approval first. */
 export type CheckIn = { path: string; version: number; local: string; production: boolean; production_request?: unknown };

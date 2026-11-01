@@ -122,6 +122,9 @@ button.st-marker-row { cursor: pointer; }
 /* a private item's state against the repository (Status column, 1 Nov 2026): the console's pill colours */
 .st-status.is-checked_out { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
 .st-status.is-checked_out_edited, .st-status.is-edited { background: var(--ui-running-bg); color: var(--ui-warning-text); }
+.st-status.is-error { background: var(--ui-error-bg); color: var(--ui-error-text); }
+/* the Columns dialog of Automation's lists */
+.st-cols { display: flex; flex-direction: column; gap: 6px; }
 .st-status.is-checked_in, .st-status.is-linked { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
 .st-badge { margin-left: auto; padding: 1px 7px; border-radius: 4px; background: #353e4c; color: #ffffff; font-size: 11px; font-weight: 700; }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEven
 import type { Blueprint, NewItemKind, RepoState, StudioApi, WorkspaceNode } from "../api/client";
 import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
+import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
@@ -54,6 +55,12 @@ const STATUS: Record<RepoState["status"], [string, string]> = {
   checked_in: ["Checked in", "The same as in the repository; not checked out. Check it out on the Public tab to change it."],
   edited: ["Edited, not checked out", "Changed, but not checked out: check it out on the Public tab (your changes are kept), then check it in."],
 };
+/** The Private list's columns after the name, as AA's; the repository's ones show while signed in to One CommandCenter. */
+const COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "status", label: "Status" }, { key: "platform", label: "Platform" }, { key: "version", label: "Version" },
+  { key: "label", label: "Label" }, { key: "analysis", label: "Code analysis" }, { key: "size", label: "Size" }, { key: "changed", label: "Last modified" },
+  { key: "by", label: "Modified by" }];
+const FROM_REPO = ["status", "version", "label", "analysis", "by"];
+const CLASS: Record<string, string> = { type: "st-col-type", changed: "st-col-changed" };
 const KINDS: [string, string][] = [["", "Type: Any"], ["folder", "Folders"], ["bot", "Agents"], ["process", "Workflows"], ["form", "Forms"], ["document", "Document types"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Other files"]];
 export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
   { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks; onOpen: (n: WorkspaceNode) => void;
@@ -64,6 +71,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [expanded, setExpanded] = useState(() => new Set([""]));
   const [creating, setCreating] = useState<ItemType | null>(null);
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
+  const [hiddenCols, setHiddenCols] = usePersistent<string[]>("automation.private.columns.hidden", ["platform", "label", "analysis", "size", "by"]);
+  const [choosingCols, setChoosingCols] = useState(false);
   const [foldersWidth, setFoldersWidth] = usePanelSize("folders");
   const foldersPanel = useRef<HTMLElement | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -168,6 +177,23 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     if (raw) act.move(JSON.parse(raw) as string[], to);
   };
   const statusOf = (n: WorkspaceNode) => repo?.states[n.path]?.status ?? (CHECKS_IN.includes(n.type) ? "new" : null);
+  const cols = COLUMNS.filter((c) => !hiddenCols.includes(c.key) && (!!repo || !FROM_REPO.includes(c.key)));
+  /** A column's value for an item; the repository's facts come from its linked copy (empty for new items). */
+  const cell = (key: string, n: WorkspaceNode, why?: string): ReactNode => {
+    const st = repo?.states[n.path], s = statusOf(n);
+    switch (key) {
+      case "type": return n.type === "folder" ? "Folder" : typeLabel(n);
+      case "status": return s && <span className={"st-pill st-status is-" + s} title={STATUS[s][1]}>{STATUS[s][0]}</span>;
+      case "platform": return n.platform ?? "";
+      case "version": return st?.latest_version ? "v" + st.latest_version + (st.production_version === st.latest_version ? " · live" : "") : "";
+      case "label": return labelText(st?.labels);
+      case "analysis": return <Analysis found={st?.analysis} />;
+      case "size": return n.type === "folder" ? "" : sizeText(n.size);
+      case "changed": return q ? why : n.modified ? new Date(n.modified).toLocaleString() : "";
+      case "by": return s === "new" || s === "edited" || s === "checked_out_edited" ? "You" : st?.updated_by ?? "";
+      default: return "";
+    }
+  };
   const canCheckIn = (n: WorkspaceNode | null) => !!n && !!repo && CHECKS_IN.includes(n.type) && ["new", "checked_out", "checked_out_edited"].includes(statusOf(n) ?? "");
   const rowMenu = (n: WorkspaceNode): MenuItem[] => {
     const many = selected.includes(n.path) && chosen.length > 1;
@@ -269,6 +295,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
             <span className="st-items-count" aria-live="polite">{listed.length === rows.length ? count(rows.length) : listed.length + " of " + count(rows.length)}</span>
             <Select aria-label="Type" value={kind} onChange={(e) => setKind(e.target.value)} options={KINDS.map(([value, label]) => ({ value, label }))} />
             <span className="st-items-fill" />
+            <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
             <button type="button" className="ui-icon-btn" aria-label="Refresh" title="Refresh" onClick={() => { onChanged(); }}><Icon name="loop" size={15} /></button>
           </div>
           {(chosen.length > 0 || (clip && !q)) && <div role="toolbar" aria-label="Selected items" className="st-items-bar is-chosen">
@@ -287,7 +314,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
           </div>}
           <table className="st-table">
             <thead><tr><th scope="col" className="st-tick"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
-              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th><th scope="col" className="st-col-type">Type</th>{repo && <th scope="col">Status</th>}<th scope="col" className="st-col-changed">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th>{cols.map((c) => <th key={c.key} scope="col" className={CLASS[c.key]}>{c.key === "changed" && q ? "Found by" : c.label}</th>)}<th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {listed.map(({ node: n, why }) => {
                 const isSel = selected.includes(n.path);
@@ -307,9 +334,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                       ? <button type="button" className="st-link" onClick={(e) => { if (!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.stopPropagation(); onOpen(n); } }}>{displayName(n)}</button>
                       : <span>{displayName(n)}</span>}</span>
                       {q && <div className="st-item-path">{parentOf(n.path) || "Workspace"}</div>}</td>
-                    <td className="st-col-type">{n.type === "folder" ? "Folder" : typeLabel(n)}</td>
-                    {repo && <td>{(() => { const s = statusOf(n); return s && <span className={"st-pill st-status is-" + s} title={STATUS[s][1]}>{STATUS[s][0]}</span>; })()}</td>}
-                    <td className="st-col-changed">{q ? why : n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
+                    {cols.map((c) => <td key={c.key} className={CLASS[c.key]}>{cell(c.key, n, why)}</td>)}
                     <td className="st-row-actions" onClick={(e) => e.stopPropagation()}>
                       <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path}
                         onOpenChange={(o) => { if (o && !isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(o ? n.path : null); }}
@@ -318,11 +343,13 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                   </tr>
                 );
               })}
-              {!listed.length && <tr><td colSpan={repo ? 6 : 5} className="st-empty">{q || kind ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
+              {!listed.length && <tr><td colSpan={cols.length + 3} className="st-empty">{q || kind ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
             </tbody>
           </table>
         </div>
       </div>}
+      {choosingCols && <ColumnsDialog columns={COLUMNS.filter((c) => !!repo || !FROM_REPO.includes(c.key))} hidden={hiddenCols} onChange={setHiddenCols}
+        onClose={() => setChoosingCols(false)} />}
       <CreateDialog type={creating} folderPath={folder} blueprints={blueprints} onClose={() => setCreating(null)} onChangeFolder={() => setCreating(null)}
         onCreate={async (kind, name, from) => { await onCreated(kind, folder, name, from); setCreating(null); }} />
       {renaming && <RenameDialog node={renaming} onClose={() => setRenaming(null)} onRename={async (name) => {
