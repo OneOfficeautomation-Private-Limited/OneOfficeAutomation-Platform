@@ -195,7 +195,7 @@ describe("new Studio", () => {
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
-    await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/?page=queues"));
+    await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
     for (const gone of ["Workflows", "Forms", "Templates"]) expect(within(menu).queryByText(gone)).toBeNull();   // made from Create, called from agents
   });
 
