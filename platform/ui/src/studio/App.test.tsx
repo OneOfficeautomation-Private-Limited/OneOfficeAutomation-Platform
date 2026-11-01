@@ -685,6 +685,29 @@ describe("new Studio", () => {
     expect(triggers()).toHaveLength(1);
     expect(triggers()[0]).toMatchObject({ bot: "Finance/Invoices/Invoice intake.flow.json", type: "schedule", every_minutes: 15 });
     expect(screen.getByText("Every 15 minutes")).toBeTruthy();
+    // a trigger's actions are in its menu; Delete asks first (it is saved at once, with no undo)
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for trigger: Every 15 minutes" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Delete the trigger “Every 15 minutes”?");
+    expect(triggers()).toHaveLength(1);
+    await act(async () => { fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Delete" })); });
+    expect(triggers()).toHaveLength(0);
+  });
+
+  it("asks in the panel before deleting a variable that steps use, and deletes an unused one at once", async () => {
+    render(<App api={fakeServer().api} />);
+    await openIntake();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Actions for $workbook" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toContain("$workbook is used 1 time in this agent. Delete it anyway?");
+    fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Actions for $workbook" })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for $workbook" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Delete" }));
+    expect(screen.queryByRole("button", { name: "Actions for $workbook" })).toBeNull();
   });
 
   const openItem = async (name: string) => {

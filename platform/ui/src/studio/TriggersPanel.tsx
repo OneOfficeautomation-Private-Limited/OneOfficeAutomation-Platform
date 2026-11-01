@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiFailure, type StudioApi, type Trigger } from "../api/client";
-import { Button, Field, Select, TextInput } from "../components";
+import { Button, Field, Icon, Menu, Select, TextInput } from "../components";
 
 const KINDS = [
   { value: "schedule", label: "On a schedule" },
@@ -37,6 +37,7 @@ export function TriggersPanel({ api, path }: { api: StudioApi; path: string }) {
 
   useEffect(() => { api.triggers().then(setAll).catch((e) => setError(msg(e))); }, [api]);
   const mine = (all ?? []).filter((t) => t.bot === path);
+  const [asking, setAsking] = useState<Trigger | null>(null);   // review round 2: a trigger to delete, asked first (it is saved at once, with no undo)
   const save = async (next: Trigger[]) => {
     try { setAll(await api.saveTriggers(next)); setError(null); return true; } catch (e) { setError(msg(e)); return false; }
   };
@@ -50,18 +51,21 @@ export function TriggersPanel({ api, path }: { api: StudioApi; path: string }) {
   };
 
   if (all === null) return <p className="st-muted st-pad">{error ?? "Loading triggers…"}</p>;
+  const remove = async (t: Trigger) => { setAsking(null); await save(all.filter((x) => x.id !== t.id)); };
   return (
     <div className="st-triggers">
       <p className="st-pad st-muted">Start this agent on its own, on this computer, while Studio is running.</p>
+      {asking && <div className="st-ask" role="alert"><span>Delete the trigger “{triggerText(asking)}”? It stops starting this agent.</span>
+        <Button kind="danger" onClick={() => { remove(asking); }}>Delete</Button><Button kind="plain" onClick={() => setAsking(null)}>Cancel</Button></div>}
       <ul className="st-trigger-list">
         {mine.map((t) => (
           <li key={t.id}>
             <div><strong>{triggerText(t)}</strong>{!t.enabled && <span className="st-badge">OFF</span>}</div>
-            <div className="st-trigger-actions">
-              <Button kind="plain" onClick={() => save(all.map((x) => x.id === t.id ? { ...x, enabled: !x.enabled } : x))}>{t.enabled ? "Switch off" : "Switch on"}</Button>
-              <Button kind="plain" onClick={() => api.runTrigger(t.id).catch((e) => setError(msg(e)))}>Run now</Button>
-              <Button kind="plain" aria-label={"Delete trigger: " + triggerText(t)} onClick={() => save(all.filter((x) => x.id !== t.id))}>Delete</Button>
-            </div>
+            <Menu label={"Trigger " + triggerText(t) + " menu"} align="end" items={[
+              { key: "run", label: "Run now", onSelect: () => { api.runTrigger(t.id).catch((e) => setError(msg(e))); } },
+              { key: "switch", label: t.enabled ? "Switch off" : "Switch on", onSelect: () => { save(all.map((x) => x.id === t.id ? { ...x, enabled: !x.enabled } : x)); } },
+              { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsking(t) },
+            ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for trigger: " + triggerText(t)} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} />
           </li>
         ))}
         {!mine.length && <li className="st-muted">No triggers yet.</li>}

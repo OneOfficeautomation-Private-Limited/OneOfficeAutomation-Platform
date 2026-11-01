@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentSummary, Builtins, Flow, FlowVariable, StudioApi } from "../api/client";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Menu, Select, TextArea, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
 import {
@@ -226,13 +226,13 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
   const ctx = useVars();
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<FlowVariable | null>(null);
+  const [asking, setAsking] = useState<FlowVariable | null>(null);   // a variable in use, asked before it is deleted
   const f = q.trim().toLowerCase();
   const vars = (flow.variables ?? []).filter((v) => !f || v.name.toLowerCase().includes(f) || v.type.toLowerCase().includes(f) || (v.description ?? "").toLowerCase().includes(f));
-  const remove = (v: FlowVariable) => {
-    const uses = usageCount(flow, v.name);
-    if (uses && !window.confirm("$" + v.name + " is used " + uses + " time" + (uses > 1 ? "s" : "") + " in this agent. Delete it anyway?")) return;
-    onEdit({ ...flow, variables: (flow.variables ?? []).filter((x) => x !== v) });
-  };
+  // review round 2 (1 Nov 2026): a variable in use is asked about in a bar in the panel, not the browser's own pop-up;
+  // an unused one goes at once (Ctrl+Z brings it back)
+  const drop = (v: FlowVariable) => { setAsking(null); onEdit({ ...flow, variables: (flow.variables ?? []).filter((x) => x.name !== v.name) }); };
+  const remove = (v: FlowVariable) => { if (usageCount(flow, v.name)) setAsking(v); else drop(v); };
   const duplicate = (v: FlowVariable) => onEdit({ ...flow, variables: [...(flow.variables ?? []), { ...structuredClone(v), name: uniqueName(flow, v.name + "_copy") }] });
   const row = (v: FlowVariable) => {
     const uses = usageCount(flow, v.name);
@@ -245,8 +245,11 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
           <span className="st-var-text"><span className="st-var ui-mono">${v.name}</span><span className="st-var-meta">{meta}</span></span>
           <span className={"st-uses" + (uses ? "" : " is-none")}>{uses ? uses + (uses === 1 ? " use" : " uses") : "unused"}</span>
         </button>
-        <Button kind="plain" aria-label={"Duplicate $" + v.name} onClick={() => duplicate(v)}>Copy</Button>
-        <Button kind="plain" aria-label={"Delete $" + v.name} onClick={() => remove(v)}>Delete</Button>
+        <Menu label={"$" + v.name + " menu"} align="end" items={[
+          { key: "change", label: "Change…", onSelect: () => setEditing(v) },
+          { key: "copy", label: "Copy", description: "A copy named $" + uniqueName(flow, v.name + "_copy"), onSelect: () => duplicate(v) },
+          { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => remove(v) },
+        ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for $" + v.name} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} />
       </li>
     );
   };
@@ -268,6 +271,8 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
         <TextInput type="search" aria-label="Search variables" placeholder="Search variables" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button kind="primary" icon="plus" onClick={() => ctx?.newVariable({})}>New</Button>
       </div>
+      {asking && <div className="st-ask" role="alert"><span>${asking.name} is used {usageCount(flow, asking.name)} time{usageCount(flow, asking.name) === 1 ? "" : "s"} in this agent. Delete it anyway?</span>
+        <Button kind="danger" onClick={() => drop(asking)}>Delete</Button><Button kind="plain" onClick={() => setAsking(null)}>Cancel</Button></div>}
       {!(flow.variables ?? []).length ? (
         <div className="st-var-empty"><strong>No variables yet</strong>
           <p>Variables hold values while the agent runs. Inputs are given when it starts; outputs are returned at the end.</p></div>
