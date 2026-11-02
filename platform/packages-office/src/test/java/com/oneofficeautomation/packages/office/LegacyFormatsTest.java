@@ -12,18 +12,16 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Gap: Word .doc/.rtf/.odt and PowerPoint .ppt/.odp, through Office or LibreOffice (skipped when neither is installed). */
+/**
+ * Gap: Word .doc/.rtf/.odt and PowerPoint .ppt/.odp, through Office or LibreOffice. Skipped where neither is installed
+ * (CI's Windows and Linux machines have no Office); run on the test PC with Office 2007.
+ */
 class LegacyFormatsTest {
-    static boolean converter() {
-        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) return true;  // Word or LibreOffice is checked by the step itself
-        for (String p : List.of("/usr/bin/soffice", "/usr/bin/libreoffice", "/opt/libreoffice/program/soffice")) if (Files.isRegularFile(Path.of(p))) return true;
-        return false;
-    }
 
     static String code(org.junit.jupiter.api.function.Executable e) { return assertThrows(ActionException.class, e).code(); }
 
     @Test void wordDocAndRtfRoundTrip() throws Exception {
-        Assumptions.assumeTrue(converter(), "needs Word or LibreOffice");
+        Assumptions.assumeTrue(OfficeConvert.available("word"), "needs Microsoft Word or LibreOffice");
         Path dir = Files.createTempDirectory("ooa-legacy-word");
         ActionContext ctx = OfficeTestSupport.ctx(dir);
         WordPackage w = new WordPackage();
@@ -52,7 +50,7 @@ class LegacyFormatsTest {
     }
 
     @Test void powerPointPptRoundTrip() throws Exception {
-        Assumptions.assumeTrue(converter(), "needs PowerPoint or LibreOffice");
+        Assumptions.assumeTrue(OfficeConvert.available("powerpoint"), "needs Microsoft PowerPoint or LibreOffice");
         Path dir = Files.createTempDirectory("ooa-legacy-ppt");
         ActionContext ctx = OfficeTestSupport.ctx(dir);
         PowerPointPackage p = new PowerPointPackage();

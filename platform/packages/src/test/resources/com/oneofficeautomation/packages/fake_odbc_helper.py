@@ -1,6 +1,10 @@
 """Stand-in for the ODBC helper in tests: the same JSON-lines protocol, backed by SQLite (which also uses ? parameters)."""
 import base64, json, re, sqlite3, sys
 
+# the bridge speaks UTF-8 both ways; Windows would otherwise read and write the pipes in the ANSI code page
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
+
 conn = None
 in_tx = False
 

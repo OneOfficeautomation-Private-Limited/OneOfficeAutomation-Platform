@@ -119,6 +119,26 @@ public final class OfficeConvert {
                 "Install Microsoft Office or LibreOffice on the runner, or use ." + (app.equals("word") ? "docx" : "pptx") + " files.");
     }
 
+    /**
+     * Whether this runner can convert for {@code app} ("word" or "powerpoint"): LibreOffice is installed, or on Windows
+     * the Office application is registered (its COM class is in the registry).
+     */
+    public static boolean available(String app) {
+        if (OfficePdf.libreOffice() != null) return true;
+        if (!ProcessRunner.WINDOWS) return false;
+        String progId = app.equals("word") ? "Word.Application" : "PowerPoint.Application";
+        try {
+            Process p = new ProcessBuilder("reg", "query", "HKCR\\" + progId + "\\CLSID").redirectErrorStream(true).start();
+            p.getInputStream().readAllBytes();
+            return p.waitFor() == 0;
+        } catch (IOException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
     static void deleteTree(Path dir) {
         try (var walk = Files.walk(dir)) {
             walk.sorted(Comparator.reverseOrder()).forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) { } });
