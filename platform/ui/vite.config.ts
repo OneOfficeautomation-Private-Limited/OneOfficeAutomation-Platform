@@ -18,7 +18,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
-    // a test that renders the whole Studio takes 1 to 3 seconds here and longer on CI's Windows machines
-    testTimeout: 15000,
+    // a test that renders the whole Studio takes 1 to 3 seconds here and much longer on CI's Windows machines, where the
+    // Java build runs at the same time (2 Nov 2026: the console's first sign-in test passed in 0.7 s here, timed out at 15 s there)
+    testTimeout: 30000,
+    setupFiles: ["src/testSetup.ts"],
   },
 });
