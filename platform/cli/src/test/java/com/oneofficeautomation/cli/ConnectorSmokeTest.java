@@ -91,7 +91,7 @@ class ConnectorSmokeTest {
                 continue;
             }
             if (!in.required() || in.defaultValue() != null) continue;
-            args.put(in.name(), sample(in));
+            args.put(in.name(), sample(in, spec.capabilities().contains("desktop")));
         }
         if (spec.input("host").isPresent() && !args.containsKey("host")) args.put("host", "127.0.0.1");
         Map<String, Object> flow = new LinkedHashMap<>();
@@ -109,6 +109,18 @@ class ConnectorSmokeTest {
         res.put("verdict", verdict);
         RESULTS.add(res);
         assertEquals("pass", verdict, pid + "/" + spec.id() + " crashed on an empty reply: " + res.get("message") + " (request " + request + ")");
+    }
+
+    /**
+     * Text no screen shows. Commands that act on the screen (capability desktop: OCR Click text, desktop objects) look
+     * for this, so they run their whole path and stop with "not found" instead of clicking whatever matches: on CI, OCR
+     * Click text with "x" found the close button of the build's console window and clicked it, which ended the job.
+     */
+    static final String NOT_ON_SCREEN = "ooa-smoke-text-not-on-any-screen-7f3a";
+
+    static Object sample(ActionSpec.InputSpec in, boolean desktop) {
+        if (desktop && in.enumValues().isEmpty() && in.type() == OoaType.STRING) return NOT_ON_SCREEN;
+        return sample(in);
     }
 
     static Object sample(ActionSpec.InputSpec in) {
