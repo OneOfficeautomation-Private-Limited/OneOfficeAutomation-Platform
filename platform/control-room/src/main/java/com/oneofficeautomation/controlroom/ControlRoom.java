@@ -2907,10 +2907,13 @@ public final class ControlRoom {
                 db.update("INSERT INTO global_values (name, json_value, updated, updated_by) VALUES (?,?,?,?)", name, json, now(), by.username());
             if (type != null) {
                 db.update("UPDATE global_values SET value_type = ? WHERE name = ?", type, name);
-                for (String table : List.of("user_global_values", "team_global_values"))
-                    for (Map<String, Object> v : db.query("SELECT json_value FROM " + table + " WHERE name = ?", name)) {
+                // personal and team values that no longer fit the type are dropped (constant statements, one pair per table)
+                for (String[] sql : new String[][]{
+                        {"SELECT json_value FROM user_global_values WHERE name = ?", "DELETE FROM user_global_values WHERE name = ? AND json_value = ?"},
+                        {"SELECT json_value FROM team_global_values WHERE name = ?", "DELETE FROM team_global_values WHERE name = ? AND json_value = ?"}})
+                    for (Map<String, Object> v : db.query(sql[0], name)) {
                         try { typedGlobal(name, type, JsonLite.parse((String) v.get("json_value"))); }
-                        catch (OoaException misfit) { db.update("DELETE FROM " + table + " WHERE name = ? AND json_value = ?", name, v.get("json_value")); }
+                        catch (OoaException misfit) { db.update(sql[1], name, v.get("json_value")); }
                     }
             }
             if (changeable != null) {
