@@ -82,7 +82,9 @@ class PowerPointPackageTest {
         ppt.deleteSlide(ctx, 3, "powerpoint");
         assertEquals("PPT.NO_SLIDE", assertThrows(ActionException.class, () -> ppt.deleteSlide(ctx, 9, "powerpoint")).code());
         ppt.saveAs(ctx, "out/copy.pptx", null, "powerpoint");
-        assertEquals("PPT.BAD_FORMAT", assertThrows(ActionException.class, () -> ppt.saveAs(ctx, "out/copy.pdf", "pdf", "powerpoint")).code());
+        assertEquals("PPT.BAD_FORMAT", assertThrows(ActionException.class, () -> ppt.saveAs(ctx, "out/copy.key", "key", "powerpoint")).code(), ".ppt is supported now (gap: PowerPoint .ppt); Keynote is not");
+        try { ppt.saveAs(ctx, "out/copy.pdf", "pdf", "powerpoint"); assertTrue(Files.size(ctx.resolvePath("out/copy.pdf")) > 0); }
+        catch (ActionException e) { assertEquals("PPT.PDF_UNAVAILABLE", e.code()); }
         try (XMLSlideShow back = reopen("out/copy.pptx")) {
             List<String> titles = new ArrayList<>();
             for (XSLFSlide s : back.getSlides()) titles.add(s.getTitle());

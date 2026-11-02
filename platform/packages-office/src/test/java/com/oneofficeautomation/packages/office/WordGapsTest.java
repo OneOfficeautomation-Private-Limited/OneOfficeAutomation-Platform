@@ -117,7 +117,10 @@ class WordGapsTest {
         word.open(ctx, "fmt.docx", false, "word");
         assertEquals(0, ((BigDecimal) word.formatText(ctx, "100 GBP", true, null, null, 14.0, "#C00000", null, "word").get("count")).compareTo(BigDecimal.valueOf(2)));
         word.saveAs(ctx, "out/fmt2.docx", null, "word");
-        assertEquals("WORD.PDF_UNSUPPORTED", assertThrows(ActionException.class, () -> word.saveAs(ctx, "out/fmt.pdf", "pdf", "word")).code());
+        assertEquals("WORD.BAD_FORMAT", assertThrows(ActionException.class, () -> word.saveAs(ctx, "out/fmt.xps", "xps", "word")).code());
+        // PDF needs Word or LibreOffice on the machine: either the file is written or the error names the missing converter
+        try { word.saveAs(ctx, "out/fmt.pdf", "pdf", "word"); assertTrue(Files.size(ctx.resolvePath("out/fmt.pdf")) > 0); }
+        catch (ActionException e) { assertEquals("WORD.PDF_UNAVAILABLE", e.code()); }
         try (XWPFDocument d = reopen("out/fmt2.docx")) {
             XWPFParagraph p = d.getParagraphs().get(0);
             assertEquals("Total due: 100 GBP now, 100 GBP later", p.getText());

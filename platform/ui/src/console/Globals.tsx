@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, CrUser, GlobalValue } from "../api/cr";
+import type { CrApi, CrTeam, CrUser, GlobalValue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
@@ -11,9 +11,13 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
  * Review round 2 (31 Oct 2026): a menu per value (Edit, Set my own value, Copy the name, Delete asked first), your value on
  * one line, and rows you cannot open shown as such.
  */
-type Kind = "text" | "number" | "boolean" | "json";
-const KIND: Record<Kind, string> = { text: "Text", number: "Number", boolean: "True/false", json: "List or record (JSON)" };
-const kindOf = (v: unknown): Kind => typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : typeof v === "string" ? "text" : "json";
+type Kind = "text" | "number" | "boolean" | "date" | "json";
+const KIND: Record<Kind, string> = { text: "Text", number: "Number", boolean: "True/false", date: "Date", json: "List or record (JSON)" };
+const guess = (v: unknown): Kind => typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : typeof v === "string" ? "text" : "json";
+/** The value's kind: its type as the server checks it (gap round 2), else guessed from the value (values made before types). */
+const kindOf = (v: unknown, type?: GlobalValue["type"]): Kind => type === "list" || type === "record" ? "json" : type && type !== "any" ? type as Kind : guess(v);
+/** The type the server checks for a kind and value. */
+const typeOf = (kind: Kind, value: unknown) => kind === "json" ? (Array.isArray(value) ? "list" : "record") : kind;
 const show = (v: unknown) => v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v);
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const HELP: HelpTopic = { title: "Shared Global values", about: "Values every agent can read as $global.name, such as a folder or an address, "
@@ -25,6 +29,8 @@ const HELP: HelpTopic = { title: "Shared Global values", about: "Values every ag
     { name: "People may change", text: "When on, each person may set their own value and runs that run as them use it. "
       + "Turning it off removes everyone's own values." },
     { name: "Your value", text: "Your own value of a value people may change, or Uses the shared one when you have not set one." },
+    { name: "Team values", text: "A value for a team (user group): runs that run as one of its members use it, unless the person set their own. "
+      + "When someone is in several teams with a value, the first team by name counts." },
     { name: "Set my own value", text: "Type your own value; Use the shared one goes back to the shared value." },
     { name: "Show", text: "Every value, only those people may change, or only those you set your own value of." },
     { name: "Actions (⋯)", text: "Edit, set your own value, copy the name as $global.name to use in an agent, or delete. "
@@ -36,6 +42,7 @@ function read(kind: Kind, text: string): unknown {
   if (kind === "text") return text;
   if (kind === "number") { if (text.trim() === "" || isNaN(Number(text))) throw new Error("The value is not a number."); return Number(text); }
   if (kind === "boolean") return text === "true";
+  if (kind === "date") { if (!/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:\d{2})?)?$/.test(text.trim())) throw new Error("The value is not a date (yyyy-MM-dd)."); return text.trim(); }
   try { return JSON.parse(text); } catch { throw new Error("The value is not JSON (a list like [1, 2] or a record like {\"a\": 1})."); }
 }
 
@@ -90,7 +97,8 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
           <tbody>
             {shown.map((g) => (
               <tr key={g.name} className={openOf(g) ? undefined : "is-static"} onClick={rowClick(() => setDialog(openOf(g)))}>
-                <td className="ui-mono">$global.{g.name}</td><td>{KIND[kindOf(g.value)]}</td><td className="ui-mono cc-clip">{show(g.value)}</td>
+                <td className="ui-mono">$global.{g.name}</td><td>{KIND[kindOf(g.value, g.type)]}</td>
+                <td className="ui-mono cc-clip">{show(g.value)}{g.team_values?.length ? <span className="cc-none"> · {g.team_values.length} team value{g.team_values.length === 1 ? "" : "s"}</span> : null}</td>
                 <td>{g.changeable ? "Yes" : "No"}</td>
                 <td className="cc-clip">{!g.changeable ? <span className="cc-none">–</span> : g.my_value === undefined ? <span className="cc-none">Uses the shared one</span> : <span className="ui-mono">{show(g.my_value)}</span>}</td>
                 <td>{when(g.updated)}{g.updated_by ? " by " + g.updated_by : ""}</td>
@@ -112,18 +120,19 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
 /** One value's input by its kind: text, number, true/false or JSON. */
 function ValueInput({ kind, text, onChange, label }: { kind: Kind; text: string; onChange: (t: string) => void; label: string }) {
   return <Field label={label}>{(id) => kind === "boolean" ? <Select id={id} value={text === "true" ? "true" : "false"} onChange={(e) => onChange(e.target.value)} options={[{ value: "true", label: "True" }, { value: "false", label: "False" }]} />
+    : kind === "date" ? <TextInput id={id} type="date" value={text.slice(0, 10)} onChange={(e) => onChange(e.target.value)} />
     : kind === "json" ? <TextArea id={id} rows={4} value={text} placeholder='["a", "b"]  or  {"a": 1}' onChange={(e) => onChange(e.target.value)} />
       : <TextInput id={id} type={kind === "number" ? "number" : "text"} value={text} onChange={(e) => onChange(e.target.value)} />}</Field>;
 }
 
 function EditGlobal({ api, g, onClose, onSaved }: { api: CrApi; g: GlobalValue | null; onClose: () => void; onSaved: (t: string) => void }) {
   const [name, setName] = useState(g?.name ?? "");
-  const [kind, setKind] = useState<Kind>(g ? kindOf(g.value) : "text");
-  const [text, setText] = useState(g ? (kindOf(g.value) === "json" ? JSON.stringify(g.value, null, 2) : show(g.value)) : "");
+  const [kind, setKind] = useState<Kind>(g ? kindOf(g.value, g.type) : "text");
+  const [text, setText] = useState(g ? (kindOf(g.value, g.type) === "json" ? JSON.stringify(g.value, null, 2) : show(g.value)) : "");
   const [changeable, setChangeable] = useState(g?.changeable ?? false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
-  const save = () => { try { api.saveGlobal(name.trim(), read(kind, text), changeable).then(() => onSaved("Saved $global." + name.trim() + "."), (e) => setError(message(e))); } catch (e) { setError(message(e)); } };
+  const save = () => { try { const v = read(kind, text); api.saveGlobal(name.trim(), v, changeable, typeOf(kind, v)).then(() => onSaved("Saved $global." + name.trim() + "."), (e) => setError(message(e))); } catch (e) { setError(message(e)); } };
   return (
     <Dialog open title={g ? "Shared value " + g.name : "Create shared value"} width={560} onClose={onClose} footer={<>
       {g && <Button kind="danger" onClick={() => setConfirm(true)}>Delete</Button>}
@@ -141,13 +150,42 @@ function EditGlobal({ api, g, onClose, onSaved }: { api: CrApi; g: GlobalValue |
       <label className="st-check-line"><input type="checkbox" checked={changeable} onChange={(e) => setChangeable(e.target.checked)} /> People may set their own value (their runs use it instead)</label>
       {g?.changeable && !changeable && <p className="st-muted">Turning this off removes everyone's own values.</p>}
       <p className="cc-list-hint">Agents read it as <code>$global.{name || "name"}</code>.</p>
+      {g && <TeamValues api={api} g={g} kind={kind} onError={setError} />}
     </Dialog>
   );
 }
 
+/** Values per team (user group) of a shared value: added, changed or removed at once. */
+function TeamValues({ api, g, kind, onError }: { api: CrApi; g: GlobalValue; kind: Kind; onError: (e: string | null) => void }) {
+  const [teams, setTeams] = useState<CrTeam[]>([]);
+  const [rows, setRows] = useState(g.team_values ?? []);
+  const [team, setTeam] = useState("");
+  const [text, setText] = useState(kind === "boolean" ? "false" : "");
+  useEffect(() => { api.teams().then(setTeams, () => setTeams([])); }, [api]);
+  const free = teams.filter((t) => !rows.some((r) => r.team_id === t.id));
+  const add = () => { try {
+    const v = read(kind, text);
+    api.setTeamGlobal(g.name, team, v).then(() => { setRows([...rows, { team_id: team, team_name: teams.find((t) => t.id === team)?.name ?? team, value: v }]); setTeam(""); setText(kind === "boolean" ? "false" : ""); onError(null); },
+      (e) => onError(message(e)));
+  } catch (e) { onError(message(e)); } };
+  const remove = (id: string) => api.clearTeamGlobal(g.name, id).then(() => setRows(rows.filter((r) => r.team_id !== id)), (e) => onError(message(e)));
+  return <fieldset className="cc-guard-models"><legend>Team values</legend>
+    <p className="cc-list-hint">Runs of a team's members use its value, unless the person set their own.</p>
+    <ul className="cc-policy-folders" aria-label="Team values">
+      {rows.map((r) => <li key={r.team_id}><span className="cc-tag">{r.team_name}</span> <span className="ui-mono">{show(r.value)}</span> <Button kind="plain" onClick={() => remove(r.team_id)}>Remove</Button></li>)}
+      {!rows.length && <li className="cc-none">No team values: everyone uses the shared value (or their own).</li>}
+    </ul>
+    {free.length > 0 && <div className="cc-inline">
+      <Select aria-label="Team" value={team} onChange={(e) => setTeam(e.target.value)} options={[{ value: "", label: "Choose a team" }, ...free.map((t) => ({ value: t.id, label: t.name }))]} />
+      {team && <ValueInput kind={kind} text={text} onChange={setText} label="Team's value" />}
+      <Button kind="secondary" disabled={!team} onClick={add}>Add team value</Button>
+    </div>}
+  </fieldset>;
+}
+
 /** A person's own value of a value people may change; their runs use it instead of the shared one. */
 function MyValue({ api, g, onClose, onSaved }: { api: CrApi; g: GlobalValue; onClose: () => void; onSaved: (t: string) => void }) {
-  const kind = kindOf(g.value);
+  const kind = kindOf(g.value, g.type);
   const start = g.my_value !== undefined ? g.my_value : g.value;
   const [text, setText] = useState(kind === "json" ? JSON.stringify(start, null, 2) : show(start));
   const [error, setError] = useState<string | null>(null);

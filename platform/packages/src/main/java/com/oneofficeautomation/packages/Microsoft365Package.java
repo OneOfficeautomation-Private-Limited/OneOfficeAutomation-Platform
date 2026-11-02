@@ -447,25 +447,134 @@ public final class Microsoft365Package {
 
     private static final String D_DRIVE = "me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}.";
 
-    @Action(id = "upload_file", name = "Upload file (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Upload a local file (up to 250 MB) to a OneDrive or SharePoint folder path; creates or replaces it.",
-            panel = "access_token, local_path, remote_path, if_exists | drive, base_url")
+    public Map<String, Object> upload(ActionContext ctx, Object token, String local, String remote, String ifExists, String drive, String base) {
+        return upload(ctx, token, local, remote, ifExists, drive, base, 10);
+    }
+
+    /** Files up to this size go in one request; larger ones through an upload session in chunks. */
+    static final long SIMPLE_UPLOAD_LIMIT = 4L * 1024 * 1024;
+    /** Upload-session chunks must be multiples of 320 KiB, and at most 60 MiB. */
+    static final int CHUNK_UNIT = 320 * 1024;
+    static final int MAX_CHUNK_ATTEMPTS = 5;
+    /** First wait before resending a failed chunk; doubles each time (tests shorten it). */
+    static volatile long chunkRetryBaseMs = 1000;
+
+    /** Chunk size in bytes for a size in MB: a multiple of 320 KiB between 320 KiB and 60 MiB. */
+    static int chunkBytes(double megabytes) {
+        if (!(megabytes > 0) || megabytes > 60) throw new ActionException(P + ".BAD_OPTION", "chunk_size_mb must be more than 0 and at most 60", "Use 10 (the default) for most networks.");
+        long b = (long) (megabytes * 1024 * 1024);
+        return (int) Math.max(CHUNK_UNIT, b / CHUNK_UNIT * CHUNK_UNIT);
+    }
+
+    @Action(id = "upload_file", name = "Upload file (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 7200, capabilities = {"network", "filesystem"},
+            description = "Upload a local file of any size to a OneDrive or SharePoint folder path; creates or replaces it. Files over 4 MB go through a resumable upload session in chunks.",
+            panel = "access_token, local_path, remote_path, if_exists | chunk_size_mb, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Drive item id.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to the file.")
+    @Output(name = "size", type = OoaType.NUMBER, description = "Bytes uploaded.")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
             @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/summary.xlsx", description = "Target path in the drive, including the file name.") String remote,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
+            @Input(name = "chunk_size_mb", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0.3125, max = 60,
+                    description = "Size of each piece sent for files over 4 MB (rounded down to a multiple of 320 KB); smaller pieces suit slow or unreliable networks.") double chunkMb) {
         Path p = ctx.resolvePath(local);
-        byte[] data;
-        try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
-        if (data.length > 250L * 1024 * 1024) throw new ActionException(P + ".FILE_TOO_LARGE", "Files over 250 MB need an upload session", "Split the file or contact support.");
-        Map<String, Object> r = HttpJson.req(P, "PUT", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content" + conflict(ifExists, "replace")).bearer(token)
-                .bytes(data, "application/octet-stream").timeout(600).send(ctx).map();
-        return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path.");
+        String conflict = conflict(ifExists, "replace");
+        int chunk = chunkBytes(chunkMb);
+        long size;
+        try { size = Files.size(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        String target = drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":";
+        Map<String, Object> r;
+        if (size <= SIMPLE_UPLOAD_LIMIT) {
+            byte[] data;
+            try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+            r = HttpJson.req(P, "PUT", target + "/content" + conflict).bearer(token).bytes(data, "application/octet-stream").timeout(600).send(ctx).map();
+        } else {
+            String behaviour = ifExists == null || ifExists.isBlank() ? "replace" : ifExists.trim().toLowerCase(Locale.ROOT);
+            r = uploadSession(ctx, token, target + "/createUploadSession", p, size, chunk, behaviour, p.getFileName().toString());
+        }
+        return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"), "size", java.math.BigDecimal.valueOf(size));
+    }
+
+    /**
+     * Uploads a file through a Graph upload session: creates the session, sends the file in chunks with Content-Range,
+     * resumes from the ranges the service still expects after a failed chunk, and cancels the session when it gives up.
+     * The upload URL is pre-authorised, so the access token is not sent to it.
+     */
+    static Map<String, Object> uploadSession(ActionContext ctx, Object token, String createUrl, Path file, long size, int chunk, String conflictBehaviour, String name) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("@microsoft.graph.conflictBehavior", conflictBehaviour);
+        item.put("name", name);
+        Map<String, Object> session = HttpJson.req(P, "POST", createUrl).bearer(token).json(Map.of("item", item)).send(ctx).map();
+        String uploadUrl = s(session.get("uploadUrl"));
+        if (uploadUrl.isEmpty()) throw new ActionException(P + ".UPLOAD_FAILED", "The service did not open an upload session", "Try again later.", true);
+        boolean done = false;
+        try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(file, java.nio.file.StandardOpenOption.READ)) {
+            long offset = 0;
+            int failures = 0;
+            int sent = 0;
+            while (true) {
+                ctx.checkCancelled();
+                long end = Math.min(size, offset + chunk) - 1;
+                byte[] buf = new byte[(int) (end - offset + 1)];
+                java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(buf);
+                ch.position(offset);
+                while (bb.hasRemaining() && ch.read(bb) >= 0) { }
+                HttpJson.Response resp;
+                try {
+                    resp = HttpJson.req(P, "PUT", uploadUrl).header("Content-Range", "bytes " + offset + "-" + end + "/" + size)
+                            .bytes(buf, "application/octet-stream").timeout(600).send(ctx);
+                } catch (ActionException e) {
+                    int status = e.details() != null && e.details().get("status") instanceof Number n ? n.intValue() : 0;
+                    boolean retry = e.retryable() || status >= 500 || status == 0 || status == 416;
+                    if (status == 404 || status == 410) throw new ActionException(P + ".UPLOAD_EXPIRED", "The upload session expired after " + offset + " of " + size + " bytes", "Run the step again to start a new upload.", true);
+                    if (status == 409) throw new ActionException(P + ".EXISTS", "A file named " + name + " already exists there", "Set if_exists to replace or rename.");
+                    if (!retry || ++failures > MAX_CHUNK_ATTEMPTS) throw e;
+                    ctx.warn("Upload chunk at byte " + offset + " failed (" + e.getMessage() + "); resuming (" + failures + " of " + MAX_CHUNK_ATTEMPTS + ")");
+                    HttpJson.pause(ctx, Math.min(30_000, chunkRetryBaseMs << Math.min(failures, 5)));
+                    offset = nextExpected(ctx, uploadUrl, offset);
+                    continue;
+                }
+                failures = 0;
+                sent++;
+                if (resp.status() == 200 || resp.status() == 201) {
+                    done = true;
+                    ctx.info("Uploaded " + size + " bytes in " + sent + " pieces");
+                    return resp.map();
+                }
+                Map<String, Object> m = resp.map();
+                offset = m.get("nextExpectedRanges") instanceof List<?> l && !l.isEmpty() ? rangeStart(String.valueOf(l.get(0)), end + 1) : end + 1;
+                if (offset >= size) {  // every byte sent but no item yet: ask where things stand
+                    offset = nextExpected(ctx, uploadUrl, size);
+                    if (offset >= size) throw new ActionException(P + ".UPLOAD_FAILED", "The service accepted every byte but did not create the file", "Try again later.", true);
+                }
+            }
+        } catch (IOException e) {
+            throw new ActionException("FILE.IO_ERROR", "Cannot read " + file + ": " + e.getMessage(), null, true);
+        } finally {
+            if (!done) try { HttpJson.req(P, "DELETE", uploadUrl).timeout(30).send(ctx); } catch (RuntimeException ignored) { }
+        }
+    }
+
+    /** Where to continue: the first range the session still expects (GET on the upload URL), or {@code fallback}. */
+    static long nextExpected(ActionContext ctx, String uploadUrl, long fallback) {
+        try {
+            Map<String, Object> st = HttpJson.req(P, "GET", uploadUrl).timeout(60).send(ctx).map();
+            if (st.get("nextExpectedRanges") instanceof List<?> l && !l.isEmpty()) return rangeStart(String.valueOf(l.get(0)), fallback);
+        } catch (ActionException e) {
+            if (e.details() != null && e.details().get("status") instanceof Number n && (n.intValue() == 404 || n.intValue() == 410))
+                throw new ActionException(P + ".UPLOAD_EXPIRED", "The upload session expired", "Run the step again to start a new upload.", true);
+        }
+        return fallback;
+    }
+
+    /** Start of a range such as "26214400-" or "0-1023". */
+    static long rangeStart(String range, long fallback) {
+        try { return Long.parseLong(range.split("-", 2)[0].trim()); } catch (RuntimeException e) { return fallback; }
     }
 
     @Action(id = "download_file", name = "Download file (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -513,8 +622,81 @@ public final class Microsoft365Package {
         return teamsMessage(ctx, token, team, channel, message, html, subject, importance, replyTo, base, null, null);
     }
 
+    public Map<String, Object> teamsMessage(ActionContext ctx, Object token, String team, String channel, String message, boolean html, String subject,
+            String importance, String replyTo, String base, String teamName, String channelName) {
+        return teamsMessage(ctx, token, team, channel, message, html, subject, importance, replyTo, base, teamName, channelName, null);
+    }
+
+    static final String D_MENTIONS = "People to @mention, by email address or user id; also channel or team (channel posts only) to notify everyone. "
+            + "Write @[ann@contoso.com] in the message where a mention goes; mentions not placed in the text are put at the start.";
+    private static final java.util.regex.Pattern MENTION_SPOT = java.util.regex.Pattern.compile("@\\[([^\\]]+)\\]");
+
+    /**
+     * Turns the message into HTML with {@code <at id="n">Name</at>} tags and adds Graph's mentions list: users looked up
+     * by email or id, and the channel or team for channel posts. Plain text is HTML-escaped first.
+     */
+    static void applyMentions(ActionContext ctx, Object token, String base, Map<String, Object> msg, String message, boolean html, List<Object> mentions,
+                              String team, String channel) {
+        if (mentions == null || mentions.isEmpty()) return;
+        List<Map<String, Object>> list = new ArrayList<>();
+        Map<String, Integer> idByKey = new LinkedHashMap<>();
+        Map<Integer, String> textById = new LinkedHashMap<>();
+        for (Object o : mentions) {
+            String who = Values.text(o).trim();
+            if (who.isEmpty() || idByKey.containsKey(who.toLowerCase(Locale.ROOT))) continue;
+            int id = list.size();
+            Map<String, Object> mentioned;
+            String text;
+            String k = who.toLowerCase(Locale.ROOT);
+            if (k.equals("channel") || k.equals("team")) {
+                if (team == null) throw new ActionException(P + ".BAD_INPUT", "@" + k + " mentions work in channel posts only", "Mention people by email address in chats.");
+                String url = k.equals("team") ? g(base) + "/teams/" + HttpJson.enc(team) + "?$select=id,displayName"
+                        : g(base) + "/teams/" + HttpJson.enc(team) + "/channels/" + HttpJson.enc(channel) + "?$select=id,displayName";
+                Map<String, Object> c = HttpJson.req(P, "GET", url).bearer(token).send(ctx).map();
+                text = s(c.get("displayName")).isEmpty() ? k : s(c.get("displayName"));
+                mentioned = Map.of("conversation", Map.of("id", k.equals("team") ? team : channel, "displayName", text, "conversationIdentityType", k));
+            } else {
+                Map<String, Object> u;
+                try { u = HttpJson.req(P, "GET", g(base) + "/users/" + HttpJson.enc(who) + "?$select=id,displayName").bearer(token).send(ctx).map(); }
+                catch (ActionException e) {
+                    if (e.code().endsWith(".NOT_FOUND")) throw new ActionException(P + ".USER_NOT_FOUND", "No user '" + who + "' to mention", "Use the person's email address (user principal name) or user id.");
+                    throw e;
+                }
+                text = s(u.get("displayName")).isEmpty() ? who : s(u.get("displayName"));
+                mentioned = Map.of("user", Map.of("id", s(u.get("id")), "displayName", text, "userIdentityType", "aadUser"));
+            }
+            list.add(Map.of("id", id, "mentionText", text, "mentioned", mentioned));
+            idByKey.put(k, id);
+            textById.put(id, text);
+        }
+        String body = html ? message : escapeHtml(message).replace("\r\n", "\n").replace("\n", "<br>");
+        Set<Integer> placed = new HashSet<>();
+        java.util.regex.Matcher m = MENTION_SPOT.matcher(body);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String key = (html ? m.group(1) : unescapeHtml(m.group(1))).trim().toLowerCase(Locale.ROOT);
+            Integer id = idByKey.get(key);
+            if (id == null) throw new ActionException(P + ".BAD_INPUT", "The message mentions @[" + m.group(1) + "], which is not in mentions", "Add " + m.group(1) + " to mentions.");
+            placed.add(id);
+            m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement("<at id=\"" + id + "\">" + escapeHtml(textById.get(id)) + "</at>"));
+        }
+        m.appendTail(out);
+        StringBuilder lead = new StringBuilder();
+        for (var e : textById.entrySet()) if (!placed.contains(e.getKey())) lead.append("<at id=\"").append(e.getKey()).append("\">").append(escapeHtml(e.getValue())).append("</at> ");
+        msg.put("body", Map.of("contentType", "html", "content", lead + out.toString()));
+        msg.put("mentions", list);
+    }
+
+    static String escapeHtml(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    private static String unescapeHtml(String s) {
+        return s.replace("&quot;", "\"").replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&");
+    }
+
     @Action(id = "teams_message", name = "Post Teams message", category = "Teams", capabilities = "network", description = "Post a message to a Microsoft Teams channel, chosen by id or by name.",
-            panel = "access_token, (Team: By id = team_id / By name = team_name), (Channel: By id = channel_id / By name = channel_name), message | html, subject, importance, reply_to_message_id, base_url")
+            panel = "access_token, (Team: By id = team_id / By name = team_name), (Channel: By id = channel_id / By name = channel_name), message, mentions | html, subject, importance, reply_to_message_id, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message id.")
     public Map<String, Object> teamsMessage(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -527,7 +709,8 @@ public final class Microsoft365Package {
             @Input(name = "reply_to_message_id", type = OoaType.STRING, required = false, description = "Post as a reply in the thread of this message instead of a new post.") String replyTo,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
             @Input(name = "team_name", type = OoaType.STRING, required = false, example = "Finance", description = "Team display name (not case-sensitive), among the teams the signed-in user belongs to; used instead of team_id.") String teamName,
-            @Input(name = "channel_name", type = OoaType.STRING, required = false, example = "General", description = "Channel display name (not case-sensitive); used instead of channel_id.") String channelName) {
+            @Input(name = "channel_name", type = OoaType.STRING, required = false, example = "General", description = "Channel display name (not case-sensitive); used instead of channel_id.") String channelName,
+            @Input(name = "mentions", type = OoaType.LIST, required = false, example = "[\"ann@contoso.com\", \"channel\"]", description = D_MENTIONS) List<Object> mentions) {
         boolean byTeamId = team != null && !team.isBlank(), byTeamName = teamName != null && !teamName.isBlank();
         boolean byChannelId = channel != null && !channel.isBlank(), byChannelName = channelName != null && !channelName.isBlank();
         if (byTeamId == byTeamName) throw new ActionException(P + ".BAD_INPUT", byTeamId ? "Give team_id or team_name, not both" : "A team is required", "Set team_id or team_name.");
@@ -536,6 +719,7 @@ public final class Microsoft365Package {
         if (byTeamName) team = s(byName(joinedTeams(ctx, token, base, "me"), teamName, "team").get("id"));
         if (byChannelName) channel = s(byName(channels(ctx, token, base, team.trim()), channelName, "channel").get("id"));
         if (subject != null && !subject.isBlank() && (replyTo == null || replyTo.isBlank())) msg.put("subject", subject);
+        applyMentions(ctx, token, base, msg, message, html, mentions, team.trim(), channel.trim());
         String url = base.replaceAll("/+$", "") + "/teams/" + HttpJson.enc(team) + "/channels/" + HttpJson.enc(channel) + "/messages"
                 + (replyTo == null || replyTo.isBlank() ? "" : "/" + HttpJson.enc(replyTo.trim()) + "/replies");
         Map<String, Object> r = HttpJson.req(P, "POST", url).bearer(token).json(msg).send(ctx).map();
@@ -1033,6 +1217,80 @@ public final class Microsoft365Package {
         byte[] data = HttpJson.req(P, "GET", url + "/$value").bearer(token).binaryResponse().timeout(300).send(ctx).bytes();
         HttpJson.writeFile(p, data);
         return Map.of("path", p.toString());
+    }
+
+    @Action(id = "save_mail_as_msg", name = "Save email as MSG (Outlook)", category = "Mail", capabilities = {"network", "filesystem"}, timeoutSeconds = 600,
+            description = "Save an email, with its recipients, HTML body and attachments, as an Outlook .msg file that opens in Outlook.",
+            panel = "access_token, id, local_path, overwrite | mailbox, base_url")
+    @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
+    @Output(name = "attachments", type = OoaType.NUMBER, description = "Number of attachments saved in the file.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> saveMsg(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
+            @Input(name = "local_path", type = OoaType.FILE, example = "mail/order-123.msg", description = "Where to save the .msg file; a path ending in / or an existing folder gets a file named after the subject.") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String url = root(base, mailbox) + "/messages/" + HttpJson.enc(id);
+        Map<String, Object> j = HttpJson.req(P, "GET", url + "?$select=subject,body,from,toRecipients,ccRecipients,bccRecipients,sentDateTime,receivedDateTime,internetMessageId,importance,isRead,hasAttachments")
+                .bearer(token).send(ctx).map();
+        MsgFile.Message m = new MsgFile.Message();
+        m.subject = s(j.get("subject"));
+        Map<String, Object> body = j.get("body") instanceof Map<?, ?> b ? (Map<String, Object>) b : Map.of();
+        if ("html".equalsIgnoreCase(s(body.get("contentType")))) m.bodyHtml = s(body.get("content")); else m.bodyText = s(body.get("content"));
+        m.from = address(at(j, "from", "emailAddress"));
+        for (String[] k : new String[][]{{"toRecipients", "to"}, {"ccRecipients", "cc"}, {"bccRecipients", "bcc"}})
+            for (Object r : list(j.get(k[0]))) {
+                MsgFile.Address a = address(r instanceof Map<?, ?> rm ? rm.get("emailAddress") : null);
+                if (a != null) (k[1].equals("to") ? m.to : k[1].equals("cc") ? m.cc : m.bcc).add(a);
+            }
+        m.sent = instant(j.get("sentDateTime"));
+        m.received = instant(j.get("receivedDateTime"));
+        m.messageId = j.get("internetMessageId") == null ? null : s(j.get("internetMessageId"));
+        m.importance = s(j.get("importance")).isEmpty() ? "normal" : s(j.get("importance"));
+        m.read = !Boolean.FALSE.equals(j.get("isRead"));
+        if (Boolean.TRUE.equals(j.get("hasAttachments")) || (m.bodyHtml != null && m.bodyHtml.contains("cid:"))) {
+            String next = url + "/attachments";
+            while (next != null && !next.isEmpty()) {
+                Map<String, Object> page = HttpJson.req(P, "GET", next).bearer(token).timeout(300).send(ctx).map();
+                for (Object o : list(page.get("value"))) {
+                    Map<String, Object> a = (Map<String, Object>) o;
+                    String type = s(a.get("@odata.type"));
+                    String name = s(a.get("name"));
+                    if (type.endsWith("fileAttachment")) {
+                        byte[] data = a.get("contentBytes") != null ? Base64.getDecoder().decode(s(a.get("contentBytes")))
+                                : HttpJson.req(P, "GET", url + "/attachments/" + HttpJson.enc(s(a.get("id"))) + "/$value").bearer(token).binaryResponse().timeout(300).send(ctx).bytes();
+                        m.attachments.add(new MsgFile.Attachment(name, s(a.get("contentType")), data, a.get("contentId") == null ? null : s(a.get("contentId")), Boolean.TRUE.equals(a.get("isInline"))));
+                    } else if (type.endsWith("itemAttachment")) {  // an attached email or event: kept as its MIME text
+                        byte[] mime = HttpJson.req(P, "GET", url + "/attachments/" + HttpJson.enc(s(a.get("id"))) + "/$value").bearer(token).binaryResponse().timeout(300).send(ctx).bytes();
+                        m.attachments.add(new MsgFile.Attachment((name.isBlank() ? "item" : name) + ".eml", "message/rfc822", mime, null, false));
+                    } else ctx.warn("Attachment '" + name + "' is a link (" + type + ") and is not saved in the .msg file");
+                }
+                next = page.get("@odata.nextLink") == null ? null : s(page.get("@odata.nextLink"));
+            }
+        }
+        Path p = ctx.resolvePath(local);
+        if (local.endsWith("/") || local.endsWith("\\") || Files.isDirectory(p))
+            p = p.resolve(HttpJson.safeName((m.subject.isBlank() ? "email" : m.subject.replaceAll("[/\\\\]", "_")) + ".msg"));
+        if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
+        MsgFile.write(m, p);
+        return Map.of("path", p.toString(), "attachments", java.math.BigDecimal.valueOf(m.attachments.size()));
+    }
+
+    private static MsgFile.Address address(Object emailAddress) {
+        if (!(emailAddress instanceof Map<?, ?> e)) return null;
+        String mail = e.get("address") == null ? "" : String.valueOf(e.get("address"));
+        String name = e.get("name") == null ? "" : String.valueOf(e.get("name"));
+        return mail.isEmpty() && name.isEmpty() ? null : new MsgFile.Address(name, mail);
+    }
+
+    private static java.time.Instant instant(Object v) {
+        if (v == null) return null;
+        try { return java.time.OffsetDateTime.parse(String.valueOf(v)).toInstant(); }
+        catch (java.time.format.DateTimeParseException e) {
+            try { return java.time.Instant.parse(String.valueOf(v)); } catch (java.time.format.DateTimeParseException e2) { return null; }
+        }
     }
 
     // ------------------------------------ OneDrive / SharePoint files ----------------------------
@@ -1822,9 +2080,13 @@ public final class Microsoft365Package {
         return visibility(ctx, token, remote, sheet, "Visible", drive, base);
     }
 
-    @Action(id = "excel_copy_worksheet", name = "Copy worksheet (Excel online)", category = "Excel online", capabilities = "network",
-            description = "Copy a worksheet's cells (values, formulas and number formats) into a new worksheet, in the same workbook or another one. Colours, fonts and column widths are not copied.",
-            panel = "access_token, remote_path, sheet, [Into another workbook: target_remote_path], new_name | drive, base_url")
+    public Map<String, Object> excelCopySheet(ActionContext ctx, Object token, String remote, String sheet, String target, String newName, String drive, String base) {
+        return excelCopySheet(ctx, token, remote, sheet, target, newName, drive, base, "none");
+    }
+
+    @Action(id = "excel_copy_worksheet", name = "Copy worksheet (Excel online)", category = "Excel online", capabilities = "network", timeoutSeconds = 1800,
+            description = "Copy a worksheet's cells (values, formulas and number formats) into a new worksheet, in the same workbook or another one, with its column widths, row heights, fonts, fill colours and alignment.",
+            panel = "access_token, remote_path, sheet, [Into another workbook: target_remote_path], new_name | copy_formats, drive, base_url")
     @Output(name = "sheet_name", type = OoaType.STRING, description = "Name of the new worksheet.")
     @Output(name = "address", type = OoaType.STRING, description = "Cells written on the new worksheet, e.g. A1:F42; empty when the source sheet is empty.")
     public Map<String, Object> excelCopySheet(ActionContext ctx,
@@ -1834,7 +2096,11 @@ public final class Microsoft365Package {
             @Input(name = "target_remote_path", type = OoaType.STRING, required = false, description = "Workbook to copy into (path in the same drive, or id:{item-id}); the same workbook when empty.") String target,
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "Name of the new worksheet; the source sheet's name when empty, which must then be free in the target workbook.") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "copy_formats", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "sizes", "none"},
+                    description = "all copies column widths, row heights, fonts, fill colours and alignment; sizes only widths and heights; none only cells and number formats (fastest).") String copyFormats) {
+        String copyMode = copyFormats == null || copyFormats.isBlank() ? "all" : copyFormats.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("all", "sizes", "none").contains(copyMode)) throw new ActionException(P + ".BAD_OPTION", "Unknown copy_formats '" + copyFormats + "'", "Use all, sizes or none.");
         if (sheet == null || sheet.isBlank()) throw new ActionException(P + ".BAD_INPUT", "A worksheet to copy is required", "Set sheet.");
         String into = target == null || target.isBlank() ? remote : target;
         String name = newName == null || newName.isBlank() ? sheet : newName.trim();
@@ -1854,7 +2120,149 @@ public final class Microsoft365Package {
         List<List<Object>> formats = matrix(src.get("numberFormat"));
         if (!formats.isEmpty()) body.put("numberFormat", formats);
         HttpJson.req(P, "PATCH", book(drive, base, into, ws(made) + rangePath(cells))).bearer(token).json(body).send(ctx);
+        if (!copyMode.equals("none")) new FormatCopier(ctx, token, base, book(drive, base, remote, ws(sheet)), book(drive, base, into, ws(made)))
+                .copy(cells.toUpperCase(Locale.ROOT), copyMode.equals("all"));
         return Map.of("sheet_name", made, "address", cells.toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Copies sheet formatting with Graph JSON batches (20 requests each): column widths and row heights, then per row the
+     * font, fill and alignment; a row whose cells differ is read and written cell by cell. Formats that match a new
+     * sheet's defaults are not written. A request budget keeps very large sheets bounded (the rest is reported in the log).
+     */
+    static final class FormatCopier {
+        static final int BATCH = 20, MAX_REQUESTS = 4000, MAX_ROWS = 1000;
+        final ActionContext ctx; final Object token; final String root, from, to;
+        int requests;
+        FormatCopier(ActionContext ctx, Object token, String base, String fromSheet, String toSheet) {
+            this.ctx = ctx; this.token = token; this.root = g(base);
+            this.from = rel(fromSheet); this.to = rel(toSheet);
+        }
+        String rel(String absolute) { return absolute.startsWith(root) ? absolute.substring(root.length()) : absolute; }
+
+        /** Runs requests as JSON batches; answers by request index (null when that request failed). */
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> batch(List<Map<String, Object>> reqs) {
+            List<Map<String, Object>> out = new ArrayList<>(Collections.nCopies(reqs.size(), null));
+            for (int i = 0; i < reqs.size(); i += BATCH) {
+                ctx.checkCancelled();
+                List<Map<String, Object>> part = new ArrayList<>();
+                for (int j = i; j < Math.min(reqs.size(), i + BATCH); j++) {
+                    Map<String, Object> r = new LinkedHashMap<>(reqs.get(j));
+                    r.put("id", String.valueOf(j));
+                    if (r.containsKey("body")) r.put("headers", Map.of("Content-Type", "application/json"));
+                    part.add(r);
+                }
+                requests += part.size();
+                Map<String, Object> resp = HttpJson.req(P, "POST", root + "/$batch").bearer(token).json(Map.of("requests", part)).timeout(120).send(ctx).map();
+                for (Object o : list(resp.get("responses"))) {
+                    Map<String, Object> r = (Map<String, Object>) o;
+                    int status = r.get("status") instanceof Number n ? n.intValue() : 0;
+                    if (status / 100 == 2 && r.get("body") instanceof Map<?, ?> b) out.set(Integer.parseInt(s(r.get("id"))), (Map<String, Object>) b);
+                    else if (status / 100 == 2) out.set(Integer.parseInt(s(r.get("id"))), Map.of());
+                    else if (status == 429 || status >= 500) ctx.warn("A format request was refused (HTTP " + status + "); that part keeps the default format");
+                }
+            }
+            return out;
+        }
+
+        static Map<String, Object> get(String url) { return Map.of("method", "GET", "url", url); }
+        static Map<String, Object> patch(String url, Map<String, Object> body) { return Map.of("method", "PATCH", "url", url, "body", body); }
+        static String range(String a) { return "/range(address='" + a + "')"; }
+
+        static final java.util.regex.Pattern CELL = java.util.regex.Pattern.compile("([A-Z]{1,3})([0-9]{1,7})");
+
+        static int col(String letters) { int n = 0; for (char c : letters.toCharArray()) n = n * 26 + (c - 'A' + 1); return n; }
+        static String letters(int col) { StringBuilder b = new StringBuilder(); for (int n = col; n > 0; n = (n - 1) / 26) b.insert(0, (char) ('A' + (n - 1) % 26)); return b.toString(); }
+
+        /** Defaults of a new sheet: such formats are not written again. */
+        static final Map<String, Object> DEFAULT_FONT = Map.of("name", "Calibri", "size", 11, "color", "#000000", "bold", false, "italic", false, "underline", "None");
+        static final Map<String, Object> DEFAULT_ALIGN = Map.of("horizontalAlignment", "General", "verticalAlignment", "Bottom", "wrapText", false);
+        static final List<String> FONT = List.of("name", "size", "color", "bold", "italic", "underline"), ALIGN = List.of("horizontalAlignment", "verticalAlignment", "wrapText");
+
+        void copy(String address, boolean all) {
+            String[] parts = address.split(":");
+            java.util.regex.Matcher a = CELL.matcher(parts[0]), b = CELL.matcher(parts.length > 1 ? parts[1] : parts[0]);
+            if (!a.matches() || !b.matches()) return;
+            int c0 = col(a.group(1)), c1 = col(b.group(1)), r0 = Integer.parseInt(a.group(2)), r1 = Integer.parseInt(b.group(2));
+            int rowsLimit = Math.min(r1, r0 + MAX_ROWS - 1);
+            // 1. column widths and row heights
+            List<Map<String, Object>> reads = new ArrayList<>();
+            for (int c = c0; c <= c1; c++) reads.add(get(from + range(letters(c) + ":" + letters(c)) + "/format?$select=columnWidth"));
+            for (int r = r0; r <= rowsLimit; r++) reads.add(get(from + range(r + ":" + r) + "/format?$select=rowHeight"));
+            List<Map<String, Object>> got = batch(reads), writes = new ArrayList<>();
+            Set<String> heights = new HashSet<>();
+            for (int i = 0; i < got.size(); i++) {
+                Map<String, Object> g = got.get(i);
+                if (g == null) continue;
+                if (i <= c1 - c0) { if (g.get("columnWidth") instanceof Number w) writes.add(patch(to + range(letters(c0 + i) + ":" + letters(c0 + i)) + "/format", Map.of("columnWidth", w))); }
+                else if (g.get("rowHeight") instanceof Number h) { heights.add(String.valueOf(h)); writes.add(patch(to + range((r0 + i - (c1 - c0 + 1)) + ":" + (r0 + i - (c1 - c0 + 1))) + "/format", Map.of("rowHeight", h))); }
+            }
+            if (heights.size() == 1 && rowsLimit > r0) {  // every row the same height: one request for all of them
+                Object h = writes.stream().filter(w -> String.valueOf(w.get("url")).matches(".*range\\(address='\\d+:\\d+'\\).*")).findFirst().map(w -> ((Map<?, ?>) w.get("body")).get("rowHeight")).orElse(null);
+                writes.removeIf(w -> String.valueOf(w.get("url")).matches(".*range\\(address='\\d+:\\d+'\\).*"));
+                if (h != null) writes.add(patch(to + range(r0 + ":" + rowsLimit) + "/format", Map.of("rowHeight", h)));
+            }
+            batch(writes);
+            if (!all) return;
+            // 2. fonts, fills and alignment, row by row; rows whose cells differ are done cell by cell
+            for (int r = r0; r <= rowsLimit; r++) {
+                if (requests > MAX_REQUESTS) {
+                    ctx.warn("Formats were copied for rows " + r0 + " to " + (r - 1) + "; later rows keep the default format (sheet too large to copy cell formats)");
+                    return;
+                }
+                String row = letters(c0) + r + ":" + letters(c1) + r;
+                List<Map<String, Object>> rowReads = List.of(get(from + range(row) + "/format/font"), get(from + range(row) + "/format/fill"),
+                        get(from + range(row) + "/format?$select=horizontalAlignment,verticalAlignment,wrapText"));
+                List<Map<String, Object>> rg = batch(rowReads);
+                List<Map<String, Object>> rowWrites = new ArrayList<>();
+                List<String> mixed = new ArrayList<>();
+                plan(rg.get(0), FONT, DEFAULT_FONT, to + range(row) + "/format/font", rowWrites, mixed, "font");
+                plan(rg.get(2), ALIGN, DEFAULT_ALIGN, to + range(row) + "/format", rowWrites, mixed, "align");
+                Map<String, Object> fill = rg.get(1);
+                if (fill != null) {
+                    Object color = fill.get("color");
+                    if (color == null) mixed.add("fill");
+                    else if (!"#FFFFFF".equalsIgnoreCase(s(color))) rowWrites.add(patch(to + range(row) + "/format/fill", Map.of("color", color)));
+                }
+                if (!mixed.isEmpty() && c1 > c0) {
+                    List<Map<String, Object>> cellReads = new ArrayList<>();
+                    List<String[]> keys = new ArrayList<>();
+                    for (int c = c0; c <= c1; c++) for (String kind : mixed) {
+                        String cell = letters(c) + r;
+                        cellReads.add(get(from + range(cell) + (kind.equals("font") ? "/format/font" : kind.equals("fill") ? "/format/fill" : "/format?$select=horizontalAlignment,verticalAlignment,wrapText")));
+                        keys.add(new String[]{cell, kind});
+                    }
+                    List<Map<String, Object>> cg = batch(cellReads);
+                    for (int i = 0; i < cg.size(); i++) {
+                        Map<String, Object> g = cg.get(i);
+                        if (g == null) continue;
+                        String cell = keys.get(i)[0], kind = keys.get(i)[1];
+                        if (kind.equals("fill")) { if (g.get("color") != null && !"#FFFFFF".equalsIgnoreCase(s(g.get("color")))) rowWrites.add(patch(to + range(cell) + "/format/fill", Map.of("color", g.get("color")))); }
+                        else plan(g, kind.equals("font") ? FONT : ALIGN, kind.equals("font") ? DEFAULT_FONT : DEFAULT_ALIGN,
+                                to + range(cell) + (kind.equals("font") ? "/format/font" : "/format"), rowWrites, new ArrayList<>(), kind);
+                    }
+                }
+                batch(rowWrites);
+            }
+            if (rowsLimit < r1) ctx.warn("Formats were copied for the first " + MAX_ROWS + " rows; later rows keep the default format");
+        }
+
+        /** Adds a PATCH for the properties that are set and differ from the defaults; notes the kind as mixed when a property is null (cells differ). */
+        static void plan(Map<String, Object> got, List<String> props, Map<String, Object> defaults, String url, List<Map<String, Object>> writes, List<String> mixed, String kind) {
+            if (got == null) return;
+            Map<String, Object> body = new LinkedHashMap<>();
+            boolean anyNull = false;
+            for (String p : props) {
+                Object v = got.get(p);
+                if (v == null) { anyNull = true; continue; }
+                Object d = defaults.get(p);
+                boolean same = d instanceof Number dn && v instanceof Number vn ? dn.doubleValue() == vn.doubleValue() : String.valueOf(d).equalsIgnoreCase(String.valueOf(v));
+                if (!same) body.put(p, v);
+            }
+            if (anyNull) mixed.add(kind);
+            else if (!body.isEmpty()) writes.add(patch(url, body));
+        }
     }
 
     /** The signature before search_by was added. */
@@ -2245,12 +2653,19 @@ public final class Microsoft365Package {
     public Map<String, Object> updateEvent(ActionContext ctx, Object token, String id, String subject, LocalDateTime start, LocalDateTime end, String tz, String body,
             String location, boolean html, String importance, String showAs, String sensitivity, Integer reminder, List<Object> categories, String mailbox, String base) {
         return updateEvent(ctx, token, id, subject, start, end, tz, body, location, html, importance, showAs, sensitivity, reminder, categories, mailbox, base,
-                null, null, 1, null, null);
+                null, null, 1, null, null, null, null);
+    }
+
+    public Map<String, Object> updateEvent(ActionContext ctx, Object token, String id, String subject, LocalDateTime start, LocalDateTime end, String tz, String body,
+            String location, boolean html, String importance, String showAs, String sensitivity, Integer reminder, List<Object> categories, String mailbox, String base,
+            Boolean allDay, String recurrence, int interval, LocalDateTime recurrenceEnd, Integer count) {
+        return updateEvent(ctx, token, id, subject, start, end, tz, body, location, html, importance, showAs, sensitivity, reminder, categories, mailbox, base,
+                allDay, recurrence, interval, recurrenceEnd, count, null, null);
     }
 
     @Action(id = "update_event", name = "Update calendar event", category = "Calendar", idempotent = true, capabilities = "network",
             description = "Change the title, times, description, location, all-day setting or repeat pattern of an event; empty inputs are left unchanged.",
-            panel = "access_token, event_id, start, end, time_zone, subject, body, location, [Change the reminder: reminder_minutes], [Change all day: all_day], [Change the repeat: recurrence, recurrence_interval, recurrence_end, recurrence_count] | html, importance, show_as, sensitivity, categories, mailbox, base_url")
+            panel = "access_token, event_id, start, end, time_zone, subject, body, location, [Change the reminder: reminder_minutes], [Change all day: all_day], [Change the repeat: recurrence, recurrence_interval, recurrence_end, recurrence_count, recurrence_days_of_week, recurrence_week_of_month] | html, importance, show_as, sensitivity, categories, mailbox, base_url")
     @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
     public Map<String, Object> updateEvent(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -2274,9 +2689,15 @@ public final class Microsoft365Package {
                     description = "New repeat pattern for the whole series; none stops repeating; unchanged when empty. Weekly repeats on the start's weekday, monthly on its day of the month.") String recurrence,
             @Input(name = "recurrence_interval", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Repeat every this many days, weeks, months or years.") int interval,
             @Input(name = "recurrence_end", type = OoaType.DATETIME, required = false, description = "Last date of the series; it has no end when empty and no count is given.") LocalDateTime recurrenceEnd,
-            @Input(name = "recurrence_count", type = OoaType.NUMBER, required = false, description = "Number of occurrences, instead of an end date.") Integer count) {
+            @Input(name = "recurrence_count", type = OoaType.NUMBER, required = false, description = "Number of occurrences, instead of an end date.") Integer count,
+            @Input(name = "recurrence_days_of_week", type = OoaType.LIST, required = false, example = "[\"tuesday\"]",
+                    description = "Weekdays the series repeats on. For weekly repeats, instead of the start's weekday; for monthly or yearly repeats, used with recurrence_week_of_month (e.g. the second Tuesday).") List<Object> days,
+            @Input(name = "recurrence_week_of_month", type = OoaType.STRING, required = false, enumValues = {"first", "second", "third", "fourth", "last"},
+                    description = "For monthly or yearly repeats: which week of the month, with recurrence_days_of_week (or the start's weekday).") String weekOfMonth) {
         if (start != null && end != null && !end.isAfter(start) && !Boolean.TRUE.equals(allDay)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start");
         boolean repeat = recurrence != null && !recurrence.isBlank();
+        if (!repeat && ((days != null && !days.isEmpty()) || (weekOfMonth != null && !weekOfMonth.isBlank())))
+            throw new ActionException(P + ".BAD_OPTION", "Repeat days were given without a recurrence", "Set recurrence to weekly, monthly or yearly as well.");
         if (repeat) choice(recurrence, "recurrence", new LinkedHashSet<>(List.of("none", "daily", "weekly", "monthly", "yearly")));
         String url = event(base, mailbox, id);
         Map<String, Object> current = Map.of();
@@ -2308,7 +2729,7 @@ public final class Microsoft365Package {
         eventOptions(ev, importance, showAs, sensitivity, reminder, categories);
         if (repeat) {
             if (s0 == null && !recurrence.trim().equalsIgnoreCase("none")) throw new ActionException(P + ".BAD_TIMES", "The event's start could not be read", "Give start.");
-            ev.put("recurrence", recurrence.trim().equalsIgnoreCase("none") ? null : recurrence(recurrence, interval, s0, recurrenceEnd, count));
+            ev.put("recurrence", recurrence.trim().equalsIgnoreCase("none") ? null : recurrence(recurrence, interval, s0, recurrenceEnd, count, days, weekOfMonth));
             String type = s(current.get("type"));
             if ((type.equals("occurrence") || type.equals("exception")) && !s(current.get("seriesMasterId")).isEmpty())
                 url = event(base, mailbox, s(current.get("seriesMasterId")));
@@ -2651,9 +3072,13 @@ public final class Microsoft365Package {
         return sendChatMessage(ctx, token, chat, message, html, importance, base, null);
     }
 
+    public Map<String, Object> sendChatMessage(ActionContext ctx, Object token, String chat, String message, boolean html, String importance, String base, String to) {
+        return sendChatMessage(ctx, token, chat, message, html, importance, base, to, null);
+    }
+
     @Action(id = "send_chat_message", name = "Send chat message (Teams)", category = "Teams", capabilities = "network",
             description = "Send a message into an existing Teams chat, or straight to one person, starting a one-on-one chat with them when needed.",
-            panel = "access_token, (Send to: A chat = chat_id / A person = to), message | html, importance, base_url")
+            panel = "access_token, (Send to: A chat = chat_id / A person = to), message, mentions | html, importance, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message id.")
     @Output(name = "chat_id", type = OoaType.STRING, description = "Chat the message went to.")
     public Map<String, Object> sendChatMessage(ActionContext ctx,
@@ -2663,10 +3088,12 @@ public final class Microsoft365Package {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Message is HTML.") boolean html,
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "urgent"}, description = "Importance of the message.") String importance,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
-            @Input(name = "to", type = OoaType.STRING, required = false, example = "ann@contoso.com", description = "Person's email address or user id; their one-on-one chat with the signed-in user is used, or started. Used instead of chat_id.") String to) {
+            @Input(name = "to", type = OoaType.STRING, required = false, example = "ann@contoso.com", description = "Person's email address or user id; their one-on-one chat with the signed-in user is used, or started. Used instead of chat_id.") String to,
+            @Input(name = "mentions", type = OoaType.LIST, required = false, example = "[\"ann@contoso.com\"]", description = "People in the chat to @mention, by email address or user id. Write @[ann@contoso.com] in the message where a mention goes; others are put at the start.") List<Object> mentions) {
         boolean byChat = chat != null && !chat.isBlank(), byPerson = to != null && !to.isBlank();
         if (byChat == byPerson) throw new ActionException(P + ".BAD_INPUT", byChat ? "Give chat_id or to, not both" : "A chat or a person is required", "Set chat_id, or to with an email address.");
         Map<String, Object> body = chatBody(message, html, importance);
+        applyMentions(ctx, token, base, body, message, html, mentions, null, null);
         String id = byChat ? chat.trim() : s(createChat(ctx, token, to, base).get("chat_id"));
         Map<String, Object> r = HttpJson.req(P, "POST", g(base) + "/chats/" + HttpJson.enc(id) + "/messages").bearer(token).json(body).send(ctx).map();
         return Out.of("message_id", r.get("id"), "chat_id", id);

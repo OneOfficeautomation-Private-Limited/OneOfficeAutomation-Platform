@@ -91,6 +91,12 @@ public final class PromptSkills {
         if (out != null && !"text".equals(out) && !"json".equals(out)) throw new OoaException("CR.BAD_INPUT", "output is text or json");
         if (m.get("temperature") != null && !(m.get("temperature") instanceof Number)) throw new OoaException("CR.BAD_INPUT", "temperature is a number");
         if (m.get("inputs") != null && !(m.get("inputs") instanceof List)) throw new OoaException("CR.BAD_INPUT", "inputs is a list of {name, description, default}");
+        if (m.get("knowledge") != null) {
+            if (!(m.get("knowledge") instanceof Map<?, ?> k) || !(k.get("index") instanceof String ix) || ix.isBlank())
+                throw new OoaException("CR.BAD_INPUT", "knowledge is {\"index\": \"knowledge/policies.json\", \"top_k\": 4, \"query\": \"...\"}");
+            if (k.get("top_k") != null && (!(k.get("top_k") instanceof Number t) || t.intValue() < 1 || t.intValue() > 20)) throw new OoaException("CR.BAD_INPUT", "knowledge top_k is between 1 and 20");
+            if (k.get("query") != null && !(k.get("query") instanceof String)) throw new OoaException("CR.BAD_INPUT", "knowledge query is text");
+        }
         if (JsonLite.write(d).length() > MAX_DEFINITION) throw new OoaException("CR.TOO_LARGE", "A skill is at most " + MAX_DEFINITION + " characters");
     }
 

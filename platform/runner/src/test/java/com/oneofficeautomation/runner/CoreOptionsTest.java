@@ -267,7 +267,8 @@ class CoreOptionsTest {
         Thread t = new Thread(() -> out[0] = Runner.builder(registry()).build().run(flow("""
             {"kind":"TaskBot","id":"p","name":"p","steps":[{"id":"1","action":"core/pause"}]}"""), Map.of(), new Runner.RunOptions().pause(pause)));
         t.start();
-        Thread.sleep(300);
+        // wait for the run to reach its pause step (a fixed 300 ms was too short on a busy runner)
+        for (long end = System.currentTimeMillis() + 10_000; !pause.get() && System.currentTimeMillis() < end; ) Thread.sleep(20);
         assertTrue(pause.get(), "the run paused itself");
         assertNull(out[0]);
         pause.set(false);

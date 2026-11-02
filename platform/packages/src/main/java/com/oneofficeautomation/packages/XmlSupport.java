@@ -20,22 +20,40 @@ import java.util.*;
 final class XmlSupport {
     private XmlSupport() {}
 
+    /** An entity that would be read from a file or URL (the XXE attack); internal entities and DOCTYPE lines are fine. */
+    private static final java.util.regex.Pattern EXTERNAL_ENTITY = java.util.regex.Pattern.compile("(?is)<!ENTITY\\s+(?:%\\s+)?[^\\s>]+\\s+(?:SYSTEM|PUBLIC)\\b");
+
+    /**
+     * Parses XML safely. Documents with a DOCTYPE (an internal DTD, or a reference to an external one, which is never
+     * downloaded) are read like any other; every DOCTYPE used to be refused. Entities that point to files or URLs are refused
+     * (XML.EXTERNAL_ENTITY_NOT_ALLOWED), and entity expansion is capped by the JDK's secure processing limits.
+     */
     static Document parse(String xml, boolean namespaceAware) {
+        if (xml != null && EXTERNAL_ENTITY.matcher(xml).find())
+            throw new ActionException("XML.EXTERNAL_ENTITY_NOT_ALLOWED", "The XML declares an entity that reads a file or URL (SYSTEM/PUBLIC), which is refused for security",
+                    "Remove the external <!ENTITY ...> declaration; internal entities and DOCTYPE lines are allowed.");
         try {
             DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
             f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false);
             f.setFeature("http://xml.org/sax/features/external-general-entities", false);
             f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            f.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            f.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            f.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             f.setXIncludeAware(false);
-            f.setExpandEntityReferences(false);
+            f.setExpandEntityReferences(true);
             f.setNamespaceAware(namespaceAware);
             DocumentBuilder b = f.newDocumentBuilder();
             b.setErrorHandler(null);
+            b.setEntityResolver((publicId, systemId) -> { throw new org.xml.sax.SAXException("OOA_EXTERNAL " + systemId); });
             return b.parse(new InputSource(new StringReader(xml)));
         } catch (Exception e) {
             String msg = String.valueOf(e.getMessage());
-            if (msg.contains("DOCTYPE")) throw new ActionException("XML.DTD_NOT_ALLOWED", "XML with a DOCTYPE is refused for security", "Remove the DOCTYPE declaration from the document.");
+            if (msg.contains("OOA_EXTERNAL")) throw new ActionException("XML.EXTERNAL_ENTITY_NOT_ALLOWED", "The XML refers to an external entity, which is refused for security",
+                    "Remove the external entity or DTD reference.");
+            if (msg.contains("JAXP0001") || msg.contains("entity expansion") || msg.contains("entityExpansionLimit") || msg.contains("totalEntitySizeLimit"))
+                throw new ActionException("XML.TOO_MANY_ENTITIES", "The XML expands entities beyond the safe limit (an entity-expansion attack or a very unusual document)", "Remove the nested entity declarations.");
             throw new ActionException("XML.INVALID", "Invalid XML: " + msg, "Check the document is well-formed XML.");
         }
     }

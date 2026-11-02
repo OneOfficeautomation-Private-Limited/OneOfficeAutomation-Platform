@@ -202,23 +202,46 @@ public final class CryptoPackage {
 
     private static Cipher oaep() throws GeneralSecurityException { return Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding"); }
 
-    @Action(id = "rsa_generate_keys", name = "Generate RSA key pair", category = "RSA", capabilities = "filesystem", description = "Create public.pem and private.pem (RSA 3072-bit) in a folder; keep the private key protected.",
-            panel = "folder")
+    public Map<String, Object> rsaGenerate(ActionContext ctx, String folder) throws GeneralSecurityException { return rsaGenerate(ctx, folder, "error", 3072); }
+
+    @Action(id = "rsa_generate_keys", name = "Generate RSA key pair", category = "RSA", capabilities = "filesystem",
+            description = "Create public.pem and private.pem in a folder; keep the private key protected. Existing keys stop the step, or are replaced or kept as a backup (key rotation).",
+            panel = "folder | if_keys_exist, key_size")
     @Output(name = "public_key", type = OoaType.FILE, description = "Public key path.")
     @Output(name = "private_key", type = OoaType.FILE, description = "Private key path.")
-    public Map<String, Object> rsaGenerate(ActionContext ctx, @Input(name = "folder", type = OoaType.FILE, description = "Folder for the key files.") String folder) throws GeneralSecurityException {
+    @Output(name = "backup_private_key", type = OoaType.FILE, description = "With if_keys_exist = rotate: where the previous private key was moved; empty otherwise.")
+    public Map<String, Object> rsaGenerate(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.FILE, description = "Folder for the key files.") String folder,
+            @Input(name = "if_keys_exist", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "rotate", "overwrite"},
+                    description = "When the folder already has keys: error stops with CRYPTO.KEY_EXISTS; rotate renames them to *.pem.<date-time>.bak first; overwrite replaces them (the old private key is lost).") String ifExists,
+            @Input(name = "key_size", type = OoaType.NUMBER, required = false, defaultValue = "3072", enumValues = {"2048", "3072", "4096"},
+                    description = "Key length in bits; 3072 or more is recommended.") int keySize) throws GeneralSecurityException {
+        String mode = ifExists == null || ifExists.isBlank() ? "error" : ifExists.strip().toLowerCase(Locale.ROOT);
+        if (!List.of("error", "rotate", "overwrite").contains(mode))
+            throw new ActionException("CRYPTO.BAD_OPTION", "Unknown if_keys_exist '" + ifExists + "'", "Use error, rotate or overwrite.");
+        if (keySize != 2048 && keySize != 3072 && keySize != 4096)
+            throw new ActionException("CRYPTO.BAD_KEY_SIZE", "Key size must be 2048, 3072 or 4096 bits, not " + keySize, "Use 3072 or 4096.");
         java.security.KeyPairGenerator g = java.security.KeyPairGenerator.getInstance("RSA");
-        g.initialize(3072);
+        g.initialize(keySize);
         java.security.KeyPair kp = g.generateKeyPair();
         Path dir = ctx.resolvePath(folder), pub = dir.resolve("public.pem"), priv = dir.resolve("private.pem");
         Base64.Encoder enc = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII));
+        String backup = "";
         try {
             Files.createDirectories(dir);
-            if (Files.exists(priv)) throw new ActionException("CRYPTO.KEY_EXISTS", "private.pem already exists in " + dir, "Choose another folder; existing keys are never overwritten.");
+            boolean exists = Files.exists(priv) || Files.exists(pub);
+            if (exists && mode.equals("error"))
+                throw new ActionException("CRYPTO.KEY_EXISTS", "Keys already exist in " + dir, "Set if_keys_exist to rotate (keeps a backup) or overwrite, or choose another folder.");
+            if (exists && mode.equals("rotate")) {
+                String stamp = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+                if (Files.exists(priv)) { Path b = dir.resolve("private.pem." + stamp + ".bak"); Files.move(priv, b); backup = b.toString(); }
+                if (Files.exists(pub)) Files.move(pub, dir.resolve("public.pem." + stamp + ".bak"));
+                ctx.info("Previous keys kept as *.pem." + stamp + ".bak in " + dir);
+            }
             Files.writeString(pub, "-----BEGIN PUBLIC KEY-----\n" + enc.encodeToString(kp.getPublic().getEncoded()) + "\n-----END PUBLIC KEY-----\n");
             Files.writeString(priv, "-----BEGIN PRIVATE KEY-----\n" + enc.encodeToString(kp.getPrivate().getEncoded()) + "\n-----END PRIVATE KEY-----\n");
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
-        return Map.of("public_key", pub.toString(), "private_key", priv.toString());
+        return Map.of("public_key", pub.toString(), "private_key", priv.toString(), "backup_private_key", backup);
     }
 
     @Action(id = "rsa_encrypt", name = "RSA encrypt text", category = "RSA", description = "Encrypt a short text (up to about 300 characters) with a public key (RSA-OAEP SHA-256); returns Base64.",

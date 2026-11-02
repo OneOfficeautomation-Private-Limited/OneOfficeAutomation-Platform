@@ -86,10 +86,10 @@ public final class FilePackage {
         return new Filter(min == null ? null : min.longValue(), max == null ? null : max.longValue(), within == null ? null : within.intValue(), older == null ? null : older.intValue());
     }
 
-    /** True when the file was last changed after 'after' and before 'before' (local time); an empty limit always passes. */
+    /** True when the file was last changed after 'after' and before 'before' (UTC, like every DateTime and File info's modified); an empty limit always passes. */
     static boolean modifiedBetween(Path p, LocalDateTime after, LocalDateTime before) {
         if (after == null && before == null) return true;
-        LocalDateTime t = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(p)), ZoneId.systemDefault());
+        LocalDateTime t = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(p)), ZoneOffset.UTC);
         return (after == null || t.isAfter(after)) && (before == null || t.isBefore(before));
     }
 
@@ -138,8 +138,8 @@ public final class FilePackage {
             @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files last changed more than this many days ago.") Integer older,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at least this large.") Long min,
             @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at most this large.") Long max,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed after this date and time (local time).") LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime before) {
         Path p = ctx.resolvePath(path);
         if (pattern == null || pattern.isBlank()) {
             try { return Map.of("deleted", BigDecimal.valueOf(Files.deleteIfExists(p) ? 1 : 0)); } catch (IOException e) { throw io("delete", p, e); }
@@ -382,8 +382,8 @@ public final class FilePackage {
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With a pattern, also take matching files in sub-folders, keeping their folders under the target.") boolean sub,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at least this large.") Long min,
             @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at most this large.") Long max,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (local time).") LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime before) {
         return transferMany(ctx, source, target, overwrite, false, keepBoth, pattern, sub, min, max, after, before);
     }
 
@@ -408,8 +408,8 @@ public final class FilePackage {
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With a pattern, also take matching files in sub-folders, keeping their folders under the target.") boolean sub,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at least this large.") Long min,
             @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at most this large.") Long max,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (local time).") LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime before) {
         return transferMany(ctx, source, target, overwrite, true, keepBoth, pattern, sub, min, max, after, before);
     }
 

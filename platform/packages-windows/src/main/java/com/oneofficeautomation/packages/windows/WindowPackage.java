@@ -290,12 +290,13 @@ public final class WindowPackage {
     @Action(id = "get_info", name = "Get window details", category = "Window", idempotent = true, capabilities = "desktop",
             description = "Find a window and return its title, program, class, position, size and state, e.g. to keep it in a variable for later steps.",
             panel = "title | alternatives, timeout_seconds, process_id")
-    @Output(name = "window", type = OoaType.DICTIONARY, description = "title, process_name, class_name, x, y, width, height, state (normal, minimized or maximized), active.")
+    @Output(name = "window", type = OoaType.DICTIONARY, description = "title, process_name, class_name, x, y, width, height, state (normal, minimized or maximized), active, process_id.")
     @Output(name = "width", type = OoaType.NUMBER, description = "Width in pixels.")
     @Output(name = "height", type = OoaType.NUMBER, description = "Height in pixels.")
     @Output(name = "x", type = OoaType.NUMBER, description = "Left edge in pixels.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Top edge in pixels.")
     @Output(name = "state", type = OoaType.STRING, description = "normal, minimized or maximized.")
+    @Output(name = "process_id", type = OoaType.NUMBER, description = "Id of the program that owns the window, for Stop program.")
     public Map<String, Object> getInfo(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
@@ -308,7 +309,7 @@ public final class WindowPackage {
     static Map<String, Object> infoOutputs(Map<String, Object> d) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("window", d);
-        for (String k : List.of("width", "height", "x", "y", "state")) out.put(k, d.get(k));
+        for (String k : List.of("width", "height", "x", "y", "state", "process_id")) out.put(k, d.get(k));
         return out;
     }
 
@@ -327,6 +328,10 @@ public final class WindowPackage {
         m.put("height", java.math.BigDecimal.valueOf(r.bottom - r.top));
         m.put("state", state(pl.showCmd));
         m.put("active", w.hwnd().equals(User32.INSTANCE.GetForegroundWindow()));
+        // the owning process, so Stop program can end exactly this program (stopping by name stops every copy)
+        com.sun.jna.ptr.IntByReference pid = new com.sun.jna.ptr.IntByReference();
+        User32.INSTANCE.GetWindowThreadProcessId(w.hwnd(), pid);
+        m.put("process_id", java.math.BigDecimal.valueOf(Integer.toUnsignedLong(pid.getValue())));
         return m;
     }
 
@@ -399,10 +404,174 @@ public final class WindowPackage {
     interface User32Text extends com.sun.jna.Library {
         User32Text INSTANCE = loadText();
         boolean SetWindowTextW(WinDef.HWND hWnd, com.sun.jna.WString text);
+        /** WM_GETTEXT into a buffer; the result is the number of characters copied. */
+        WinDef.LRESULT SendMessageW(WinDef.HWND hWnd, int msg, WinDef.WPARAM wParam, char[] buffer);
+        WinDef.LRESULT SendMessageW(WinDef.HWND hWnd, int msg, WinDef.WPARAM wParam, com.sun.jna.WString text);
     }
 
     private static User32Text loadText() {
         try { return Native.load("user32", User32Text.class); } catch (UnsatisfiedLinkError | NoClassDefFoundError e) { return null; }
+    }
+
+    // ---------- typing into a window in the background ----------
+
+    static final int WM_SETTEXT = 0x000C, WM_GETTEXT = 0x000D, WM_GETTEXTLENGTH = 0x000E, WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_CHAR = 0x0102, EM_SETSEL = 0x00B1;
+
+    /** Special keys written in braces in the text, e.g. {ENTER}, {TAB}, {F5}; {{} and {}} type the braces themselves. */
+    static final Map<String, Integer> VKEYS = Map.ofEntries(Map.entry("ENTER", 0x0D), Map.entry("TAB", 0x09), Map.entry("BACKSPACE", 0x08), Map.entry("BS", 0x08),
+            Map.entry("DELETE", 0x2E), Map.entry("DEL", 0x2E), Map.entry("ESC", 0x1B), Map.entry("ESCAPE", 0x1B), Map.entry("HOME", 0x24), Map.entry("END", 0x23),
+            Map.entry("LEFT", 0x25), Map.entry("UP", 0x26), Map.entry("RIGHT", 0x27), Map.entry("DOWN", 0x28), Map.entry("PGUP", 0x21), Map.entry("PGDN", 0x22),
+            Map.entry("INSERT", 0x2D), Map.entry("SPACE", 0x20), Map.entry("F1", 0x70), Map.entry("F2", 0x71), Map.entry("F3", 0x72), Map.entry("F4", 0x73),
+            Map.entry("F5", 0x74), Map.entry("F6", 0x75), Map.entry("F7", 0x76), Map.entry("F8", 0x77), Map.entry("F9", 0x78), Map.entry("F10", 0x79),
+            Map.entry("F11", 0x7A), Map.entry("F12", 0x7B));
+
+    /** The text split into characters to type and {KEY} or {KEY n} presses: each entry is a String (text) or an int[]{vk, times}. */
+    static List<Object> keyPlan(String text) {
+        List<Object> out = new ArrayList<>();
+        StringBuilder plain = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '{') {
+                int close = text.indexOf('}', i + 2);
+                if (text.startsWith("{{}", i)) { plain.append('{'); i += 2; continue; }
+                if (text.startsWith("{}}", i)) { plain.append('}'); i += 2; continue; }
+                if (close > 0) {
+                    String[] parts = text.substring(i + 1, close).trim().toUpperCase(Locale.ROOT).split("\\s+");
+                    Integer vk = VKEYS.get(parts[0]);
+                    if (vk != null) {
+                        int times = 1;
+                        if (parts.length > 1) try { times = Math.max(1, Math.min(200, Integer.parseInt(parts[1]))); } catch (NumberFormatException e) { vk = null; }
+                        if (vk != null) {
+                            if (plain.length() > 0) { out.add(plain.toString()); plain.setLength(0); }
+                            out.add(new int[]{vk, times});
+                            i = close;
+                            continue;
+                        }
+                    }
+                    throw new ActionException("WINDOW.BAD_KEY", "Unknown key " + text.substring(i, close + 1), "Use {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {PGUP}, {PGDN}, {F1}-{F12}, optionally with a count such as {TAB 3}; {{} types {.");
+                }
+            }
+            plain.append(c == '\n' ? '\r' : c);
+        }
+        if (plain.length() > 0) out.add(plain.toString());
+        return out;
+    }
+
+    /** The control to type into: a child window of the given class (and index), the window's focused control, or the window itself. */
+    static WinDef.HWND inputControl(Win w, String controlClass, int index) {
+        if (controlClass != null && !controlClass.isBlank()) {
+            List<WinDef.HWND> found = new ArrayList<>();
+            User32.INSTANCE.EnumChildWindows(w.hwnd(), (h, d) -> {
+                char[] b = new char[256];
+                User32.INSTANCE.GetClassName(h, b, b.length);
+                String cls = Native.toString(b);
+                if (cls.equalsIgnoreCase(controlClass.trim()) || TitlePattern.matches(controlClass.trim(), cls)) found.add(h);
+                return true;
+            }, null);
+            if (index < 0 || index >= found.size())
+                throw new ActionException("WINDOW.NO_CONTROL", "Window '" + w.title() + "' has " + (found.isEmpty() ? "no" : found.size()) + " control" + (found.size() == 1 ? "" : "s") + " of class " + controlClass
+                        + (found.isEmpty() ? "" : "; index " + index + " is out of range"), "Check the class name (e.g. Edit, RichEdit20W) with a window spy, and use control_index 0 for the first.");
+            return found.get(index);
+        }
+        int thread = User32.INSTANCE.GetWindowThreadProcessId(w.hwnd(), null);
+        WinUser.GUITHREADINFO info = new WinUser.GUITHREADINFO();
+        info.cbSize = info.size();
+        if (User32.INSTANCE.GetGUIThreadInfo(thread, info) && info.hwndFocus != null) return info.hwndFocus;
+        // no focused control known: the first edit-like child, else the window
+        WinDef.HWND[] edit = {null};
+        User32.INSTANCE.EnumChildWindows(w.hwnd(), (h, d) -> {
+            char[] b = new char[256];
+            User32.INSTANCE.GetClassName(h, b, b.length);
+            String cls = Native.toString(b).toLowerCase(Locale.ROOT);
+            if (cls.equals("edit") || cls.startsWith("richedit") || cls.contains("scintilla")) { edit[0] = h; return false; }
+            return true;
+        }, null);
+        return edit[0] != null ? edit[0] : w.hwnd();
+    }
+
+    static String controlText(WinDef.HWND h) {
+        if (User32Text.INSTANCE == null) return "";
+        int len = User32.INSTANCE.SendMessage(h, WM_GETTEXTLENGTH, new WinDef.WPARAM(0), new WinDef.LPARAM(0)).intValue();
+        if (len <= 0) return "";
+        char[] buf = new char[Math.min(len, 1_000_000) + 1];
+        int n = User32Text.INSTANCE.SendMessageW(h, WM_GETTEXT, new WinDef.WPARAM(buf.length), buf).intValue();
+        return new String(buf, 0, Math.max(0, Math.min(n, buf.length)));
+    }
+
+    @Action(id = "type_in_background", name = "Type into window in background", category = "Keyboard", capabilities = "desktop", timeoutSeconds = 600,
+            description = "Type text and keys such as {ENTER} or {TAB} into a window without bringing it to the front or using the keyboard, so it works while the window is behind others or minimised and the person keeps working.",
+            panel = "title, text, (Into: Its focused control = / A control of a class = control_class, control_index), method | delay_ms, alternatives, timeout_seconds, process_id")
+    @Output(name = "control_class", type = OoaType.STRING, description = "Class of the control typed into, e.g. Edit.")
+    @Output(name = "control_text", type = OoaType.STRING, description = "The control's text afterwards, when it reports one (edit boxes do), to check the result.")
+    public Map<String, Object> typeInBackground(ActionContext ctx,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
+            @Input(name = "text", description = "Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; {{} types {). A Credential is typed without being logged.") Object text,
+            @Input(name = "control_class", type = OoaType.STRING, required = false, example = "Edit", description = "Window class of the control to type into, or a pattern with * and ?; the window's focused control when empty.") String controlClass,
+            @Input(name = "control_index", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Which control of that class (0 is the first).") int controlIndex,
+            @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"type\"", enumValues = {"type", "replace", "append"},
+                    description = "type sends each character and key to the control; replace sets the control's whole text (edit boxes); append adds the text at the end of it.") String method,
+            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1000, description = "Pause after each character or key, for programs that read input slowly.") int delayMs,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
+            @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) {
+        String m = method == null || method.isBlank() ? "type" : method.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("type", "replace", "append").contains(m)) throw new ActionException("WINDOW.BAD_OPTION", "method must be type, replace or append", null);
+        boolean secret = text instanceof SecureString;
+        String value = text instanceof SecureString s ? s.reveal() : text == null ? "" : com.oneofficeautomation.runner.Values.text(text);
+        List<Object> plan = m.equals("type") ? keyPlan(value) : List.of();
+        Win w = alternatives == null && wait <= 0 && (processId == null || processId <= 0) && title != null && !title.isBlank() ? find(title) : target(ctx, title, processId, alternatives, wait);
+        WinDef.HWND h = inputControl(w, controlClass, controlIndex);
+        char[] cb = new char[256];
+        User32.INSTANCE.GetClassName(h, cb, cb.length);
+        String cls = Native.toString(cb);
+        if (m.equals("replace") || m.equals("append")) {
+            if (User32Text.INSTANCE == null) throw new ActionException("WINDOW.NOT_SUPPORTED", "Cannot set text on this system", null);
+            String now = m.equals("append") ? controlText(h) + value.replace("\r\n", "\n").replace("\n", "\r\n") : value.replace("\r\n", "\n").replace("\n", "\r\n");
+            User32Text.INSTANCE.SendMessageW(h, WM_SETTEXT, new WinDef.WPARAM(0), new com.sun.jna.WString(now));
+        } else {
+            // Messages are sent, not posted: each one is handled by the program's thread before the next, so nothing arrives
+            // out of order or after the step has read the text back. Sent key presses do not pass through the program's
+            // message loop (TranslateMessage), so the character of Enter, Tab, Backspace, Esc and Space is sent with them.
+            for (Object step : plan) {
+                ctx.checkCancelled();
+                if (step instanceof String s) {
+                    for (int i = 0; i < s.length(); i++) {
+                        send(h, WM_CHAR, s.charAt(i), 1);
+                        pause(delayMs);
+                    }
+                } else {
+                    int[] k = (int[]) step;
+                    long scan = User32.INSTANCE.MapVirtualKeyEx(k[0], 0, null) & 0xFF;
+                    int ch = keyChar(k[0]);
+                    for (int t = 0; t < k[1]; t++) {
+                        send(h, WM_KEYDOWN, k[0], 1 | (scan << 16));
+                        if (ch != 0) send(h, WM_CHAR, ch, 1 | (scan << 16));
+                        send(h, WM_KEYUP, k[0], 1 | (scan << 16) | 0xC0000000L);
+                        pause(delayMs);
+                    }
+                }
+            }
+        }
+        if (!secret) ctx.info("Typed into " + cls + " of '" + w.title() + "' in the background");
+        String after = secret ? "" : controlText(h);
+        return Map.of("control_class", cls, "control_text", after);
+    }
+
+    /** The character a key types in an edit control (Enter, Tab, Backspace, Esc, Space), or 0. */
+    static int keyChar(int vk) {
+        return switch (vk) { case 0x0D -> '\r'; case 0x09 -> '\t'; case 0x08 -> '\b'; case 0x1B -> 0x1B; case 0x20 -> ' '; default -> 0; };
+    }
+
+    /** Sends a message and waits until the window's thread has handled it (at most 5 s, not at all when it hangs). */
+    private static void send(WinDef.HWND h, int msg, long wParam, long lParam) {
+        WinDef.DWORDByReference result = new WinDef.DWORDByReference();
+        WinDef.LRESULT ok = User32.INSTANCE.SendMessageTimeout(h, msg, new WinDef.WPARAM(wParam), new WinDef.LPARAM(lParam), 0x0002 /* SMTO_ABORTIFHUNG */, 5000, result);
+        if (ok.longValue() == 0) throw new ActionException("WINDOW.NOT_RESPONDING", "The window did not take the typed input within 5 s", "Check the program is not busy or showing a dialog.");
+    }
+
+    private static void pause(int ms) {
+        if (ms <= 0) return;
+        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped while typing"); }
     }
 
     @Action(id = "set_title", name = "Set window title", category = "Window", capabilities = "desktop",

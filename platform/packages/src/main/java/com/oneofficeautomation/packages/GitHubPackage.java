@@ -349,7 +349,7 @@ public final class GitHubPackage {
         }
     }
 
-    @Condition(id = "pull_request_is_merged", name = "Pull request is merged", description = "True when the pull request has been merged.")
+    @Condition(id = "pull_request_is_merged", capabilities = "network", name = "Pull request is merged", description = "True when the pull request has been merged.")
     public boolean isMerged(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,

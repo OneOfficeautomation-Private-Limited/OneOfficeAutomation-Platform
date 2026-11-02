@@ -52,14 +52,14 @@ public final class NetworkPackage {
         catch (IOException e) { return Map.of("open", false); }
     }
 
-    @Condition(id = "host_reachable", name = "Host is reachable", description = "True when the host answers a ping within the timeout.")
+    @Condition(id = "host_reachable", capabilities = "network", name = "Host is reachable", description = "True when the host answers a ping within the timeout.")
     public boolean reachable(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout) {
         try { return InetAddress.getByName(host).isReachable(timeout); } catch (IOException e) { return false; }
     }
 
-    @Condition(id = "port_open", name = "Port is open", description = "True when a TCP port accepts connections.")
+    @Condition(id = "port_open", capabilities = "network", name = "Port is open", description = "True when a TCP port accepts connections.")
     public boolean portOpen(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
             @Input(name = "port", type = OoaType.NUMBER, min = 1, max = 65535, description = "TCP port.") int port,

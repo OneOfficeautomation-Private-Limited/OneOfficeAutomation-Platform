@@ -58,7 +58,7 @@ public final class ExcelDesktopPackage {
         Path script = null;
         try {
             script = Files.createTempFile("ooa-excel-", ".ps1");
-            Files.writeString(script, s.full(), StandardCharsets.UTF_8);
+            Files.writeString(script, "\uFEFF" + ScriptPackage.UTF8_PREAMBLE + "\n" + s.full(), StandardCharsets.UTF_8);  // BOM: Windows PowerShell reads it as UTF-8
             List<String> cmd = new ArrayList<>(List.of("powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script.toString()));
             cmd.addAll(s.args());
             ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, ctx.workDir(), null, timeout, s.env(), StandardCharsets.UTF_8);
@@ -66,6 +66,8 @@ public final class ExcelDesktopPackage {
                 String err = r.stderr().isBlank() ? r.stdout() : r.stderr();
                 if (err.contains("80040154") || err.contains("Retrieving the COM class factory"))
                     throw new ActionException("EXCEL_DESKTOP.NOT_INSTALLED", "Microsoft Excel is not installed on this runner", "Install Excel, or use Excel (no Office needed).");
+                if (err.contains("Microsoft Print to PDF printer is missing"))
+                    throw new ActionException("EXCEL_DESKTOP.PDF_UNAVAILABLE", NO_PDF + ".", "Install the add-in, a newer Office, or the Microsoft Print to PDF printer (Windows features).");
                 if (err.toLowerCase(Locale.ROOT).contains("password"))
                     throw new ActionException("EXCEL_DESKTOP.WRONG_PASSWORD", "Excel could not open the workbook with the given password", "Check the password stored in the credential vault.");
                 throw new ActionException("EXCEL_DESKTOP.FAILED", "Excel reported an error: " + ApplicationPackage.tail(err), "Check the workbook, macro name and that macros are allowed.");
@@ -164,6 +166,14 @@ public final class ExcelDesktopPackage {
         return Map.of("count", new java.math.BigDecimal(last.matches("\\d+") ? last : "0"));
     }
 
+    static final String FROM_ENV = "OOA_XL_FROM", TO_ENV = "OOA_XL_TO", SHEET_ENV = "OOA_XL_SHEET";
+
+    /**
+     * Optional values travel in environment variables: they used to be passed as "-" when empty, and powershell -File reads
+     * a bare "-" as a parameter name, so every export without a sheet or page range failed. When Excel has no PDF export
+     * (Office 2007 without Microsoft's add-in answers "Value does not fall within the expected range"), the sheet or
+     * workbook is printed with the Microsoft Print to PDF printer instead.
+     */
     static Script exportPdfScript(String file, String target, String sheet, String quality, boolean includeProperties, boolean ignorePrintAreas,
                                   Integer from, Integer to, Object password) {
         String q = quality == null || quality.isBlank() || quality.equalsIgnoreCase("standard") ? "0" : quality.equalsIgnoreCase("minimum") ? "1" : null;
@@ -171,14 +181,25 @@ public final class ExcelDesktopPackage {
         if (from != null && from < 1 || to != null && to < 1 || from != null && to != null && to < from)
             throw new ActionException("EXCEL_DESKTOP.BAD_PAGES", "from_page and to_page must be 1 or more, with to_page not before from_page", "Fix the page numbers.");
         String body = open(true, secret(password) != null)
-                + "  $from = if ($args[5] -ne '-') { [int]$args[5] } else { [Type]::Missing }\n"
-                + "  $to = if ($args[6] -ne '-') { [int]$args[6] } else { [Type]::Missing }\n"
-                + "  $what = if ($args[7] -ne '-') { $wb.Worksheets.Item($args[7]) } else { $wb }\n"
-                + "  $what.ExportAsFixedFormat(0, $args[1], [int]$args[2], ($args[3] -eq '1'), ($args[4] -eq '1'), $from, $to)\n";
-        List<String> a = List.of(file, target, q, includeProperties ? "1" : "0", ignorePrintAreas ? "1" : "0",
-                from == null ? "-" : String.valueOf(from), to == null ? "-" : String.valueOf(to), sheet == null || sheet.isBlank() ? "-" : sheet);
-        return new Script(body, a, env(password), false);
+                + "  $from = if ($env:" + FROM_ENV + ") { [int]$env:" + FROM_ENV + " } else { [Type]::Missing }\n"
+                + "  $to = if ($env:" + TO_ENV + ") { [int]$env:" + TO_ENV + " } else { [Type]::Missing }\n"
+                + "  $what = if ($env:" + SHEET_ENV + ") { $wb.Worksheets.Item($env:" + SHEET_ENV + ") } else { $wb }\n"
+                + "  try { $what.ExportAsFixedFormat(0, $args[1], [int]$args[2], ($args[3] -eq '1'), ($args[4] -eq '1'), $from, $to) }\n"
+                + "  catch {\n"
+                + "    $why = $_.Exception.Message\n"
+                + "    if (-not (Get-CimInstance Win32_Printer -Filter \"Name='Microsoft Print to PDF'\")) { throw \"" + NO_PDF + " ($why)\" }\n"
+                + "    [Console]::Error.WriteLine(\"OOA_WARN Excel's own PDF export is not available ($why); the PDF was printed with Microsoft Print to PDF, so quality, document properties and print-area options do not apply\")\n"
+                + "    $what.PrintOut($from, $to, 1, $false, 'Microsoft Print to PDF', $true, $true, $args[1])\n"
+                + "  }\n";
+        List<String> a = List.of(file, target, q, includeProperties ? "1" : "0", ignorePrintAreas ? "1" : "0");
+        Map<String, String> env = env(password);
+        if (from != null) env.put(FROM_ENV, String.valueOf(from));
+        if (to != null) env.put(TO_ENV, String.valueOf(to));
+        if (sheet != null && !sheet.isBlank()) env.put(SHEET_ENV, sheet);
+        return new Script(body, a, env, false);
     }
+
+    static final String NO_PDF = "Excel cannot export to PDF on this runner and the Microsoft Print to PDF printer is missing. Office 2007 needs Microsoft's Save as PDF or XPS add-in; Office 2010 and later export directly";
 
     public Map<String, Object> exportPdf(ActionContext ctx, String path, String target, String sheet) {
         return exportPdf(ctx, path, target, sheet, "standard", true, false, null, null, true, null);
@@ -201,7 +222,9 @@ public final class ExcelDesktopPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = D_PASSWORD) Object password) {
         String src = file(ctx, path);
         Path t = target(ctx, target, overwrite);
-        excel(ctx, exportPdfScript(src, t.toString(), sheet, quality, includeProperties, ignorePrintAreas, from, to, password), 600);
+        ProcessRunner.Result r = excel(ctx, exportPdfScript(src, t.toString(), sheet, quality, includeProperties, ignorePrintAreas, from, to, password), 600);
+        for (String line : r.stderr().split("\\R")) if (line.startsWith("OOA_WARN ")) ctx.warn(line.substring(9));
+        OfficePdf.waitForFile(t, 120);
         return Map.of();
     }
 

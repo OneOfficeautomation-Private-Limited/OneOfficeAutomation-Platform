@@ -118,6 +118,7 @@ final class VtSshSession extends TerminalPackage.Session {
     private static final Pattern WAIT = Pattern.compile("Wait\\((\\d+),(\\w+)\\)");
     private static final Pattern PF = Pattern.compile("PF\\((\\d+)\\)");
     private static final Pattern CTRL = Pattern.compile("Ctrl\\(([A-Z@\\[\\\\\\]^_])\\)");
+    private static final Pattern SEQ = Pattern.compile("Seq\\(([0-9a-f]+)\\)");
     /** Escape sequences for PF5 to PF20 (the VT220 function keys F5 to F20). */
     private static final String[] FKEYS = {"15", "17", "18", "19", "20", "21", "23", "24", "25", "26", "28", "29", "31", "32", "33", "34"};
 
@@ -148,8 +149,9 @@ final class VtSshSession extends TerminalPackage.Session {
         return List.of();
     }
 
-    private static String keys(String action) {
+    static String keys(String action) {
         Matcher m;
+        if ((m = SEQ.matcher(action)).matches()) return new String(java.util.HexFormat.of().parseHex(m.group(1)), StandardCharsets.UTF_8);
         if ((m = PF.matcher(action)).matches()) {
             int n = Integer.parseInt(m.group(1));
             if (n >= 1 && n <= 4) return "\033O" + (char) ('P' + n - 1);

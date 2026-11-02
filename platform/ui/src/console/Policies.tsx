@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CodePolicy, CrApi, CrUser, ModelConnection, Policy, RepoFolder } from "../api/cr";
-import { Button, HelpButton, Menu, Select, TextInput, type HelpTopic } from "../components";
+import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "./RepoTools";
 
@@ -13,7 +13,9 @@ import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "./RepoTools";
  * Step 2 (1 Nov 2026): AI guardrails policies, sent with every run of an agent in their folders: personal data always
  * masked, only the model connections ticked, and answers checked for harmful content (logged, or the step stopped).
  */
-type Guardrails = { mask: boolean; mask_kinds?: string[]; models: string[]; content: "off" | "log" | "block" };
+type Toxicity = { action: "off" | "log" | "block"; level: "low" | "medium" | "high"; terms: string[] };
+type Guardrails = { mask: boolean; mask_kinds?: string[]; models: string[]; content: "off" | "log" | "block"; toxicity?: Toxicity };
+const TOXICITY_LEVELS: Record<Toxicity["level"], string> = { high: "High: threats, self-harm and hate", medium: "Medium: also insults and explicit content", low: "Low: also swearing" };
 /** The kinds of personal data a policy can mask (LlmClient.MASK_KINDS). */
 const MASK_KINDS: [string, string][] = [["names", "Names and places (with a Presidio analyzer set on the model connection)"], ["contacts", "E-mail addresses and phone numbers"],
   ["payment", "Card numbers and bank accounts (IBAN)"], ["government", "Government ids (social security numbers)"], ["network", "IP addresses"]];
@@ -203,6 +205,18 @@ function PolicyPage({ api, policy, kind, edit, taken, onClose, onSaved, onDelete
           <label className="cc-role-field">Content check<Select disabled={!edit} value={guard.content} onChange={(e) => setGuard({ ...guard, content: e.target.value as Guardrails["content"] })}
             options={Object.entries(CONTENT).map(([value, label]) => ({ value, label }))} /></label>
           <p className="cc-list-hint">Checks answers for harmful content with the provider's moderation service: Log only notes it in the run log, Block stops the step.</p>
+          {(() => { const tox: Toxicity = guard.toxicity ?? { action: "off", level: "medium", terms: [] }; const setTox = (t: Partial<Toxicity>) => setGuard({ ...guard, toxicity: { ...tox, ...t } });
+            return <fieldset className="cc-guard-models"><legend>Toxicity check</legend>
+              <label className="cc-role-field">Prompts and answers<Select disabled={!edit} value={tox.action} onChange={(e) => setTox({ action: e.target.value as Toxicity["action"] })}
+                options={Object.entries(CONTENT).map(([value, label]) => ({ value, label }))} /></label>
+              {tox.action !== "off" && <>
+                <label className="cc-role-field">Act from<Select disabled={!edit} value={tox.level} onChange={(e) => setTox({ level: e.target.value as Toxicity["level"] })}
+                  options={Object.entries(TOXICITY_LEVELS).map(([value, label]) => ({ value, label }))} /></label>
+                <label className="cc-role-field">Blocked terms (one per line)<TextArea rows={3} disabled={!edit} value={tox.terms.join("\n")}
+                  onChange={(e) => setTox({ terms: e.target.value.split("\n").map((t) => t.trim()).filter(Boolean) })} /></label>
+              </>}
+              <p className="cc-list-hint">Rates every AI step's prompt and answer with any model provider, without sending them anywhere else: Log only notes it in the run log, Block stops the step. Blocked terms always count as high.</p>
+            </fieldset>; })()}
         </div>
           : pol ? <CodeRules pol={pol} text={text} edit={edit} onPol={setPol} onText={setText} /> : <p className="cc-none" role="status">Loading…</p>}
       </div>}

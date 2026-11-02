@@ -71,15 +71,47 @@ public final class PowerPointPackage {
         return slide == null || slide == 0 ? d.ppt.getSlides() : List.of(slide(d, slide));
     }
 
-    private static void write(DeckSession d, Path target) { write(d, target, d.password); }
+    private static void write(DeckSession d, Path target) { write(null, d, target, d.password); }
 
-    private static void write(DeckSession d, Path target, String password) {
+    private static void write(DeckSession d, Path target, String password) { write(null, d, target, password); }
+
+    /**
+     * Writes the presentation; a .ppt or .odp target is written as .pptx first and converted with PowerPoint or
+     * LibreOffice on the runner (passwords are kept in .pptx files only).
+     */
+    private static void write(ActionContext ctx, DeckSession d, Path target, String password) {
         if (d.readOnly && target.toAbsolutePath().normalize().equals(d.path.toAbsolutePath().normalize()))
             throw new ActionException("PPT.READ_ONLY", "The presentation was opened read-only", "Use save_as with another path, or open it without read_only.");
+        String ext = com.oneofficeautomation.packages.OfficeConvert.extension(target);
+        if (com.oneofficeautomation.packages.OfficeConvert.needsConversion("powerpoint", ext)) {
+            if (password != null) throw new ActionException("PPT.PASSWORD_NOT_SUPPORTED", "Passwords can be kept in .pptx files only, not ." + ext, "Save as .pptx, or clear the password.");
+            if (ctx == null) throw new ActionException("PPT.SAVE_FAILED", "Cannot save ." + ext + " here", "Save as .pptx.");
+            Path tmp = null;
+            try {
+                tmp = Files.createTempFile("ooa-ppt-", ".pptx");
+                OfficeCrypto.write(tmp, OfficeCrypto.bytes(d.ppt::write), null);
+                com.oneofficeautomation.packages.OfficeConvert.convert(ctx, tmp, target, "powerpoint", "PPT", 600);
+            } catch (IOException e) { throw new ActionException("PPT.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open in PowerPoint.", true);
+            } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
+            return;
+        }
         try { OfficeCrypto.write(target, OfficeCrypto.bytes(d.ppt::write), password); }
         catch (IOException e) {
             throw new ActionException("PPT.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open in PowerPoint.", true);
         }
+    }
+
+    /** Opens a .ppt or .odp file by converting a copy to .pptx with PowerPoint or LibreOffice. */
+    static XMLSlideShow readConverted(ActionContext ctx, Path p) {
+        Path tmp = null;
+        try {
+            tmp = Files.createTempFile("ooa-ppt-", ".pptx");
+            com.oneofficeautomation.packages.OfficeConvert.convert(ctx, p, tmp, "powerpoint", "PPT", 600);
+            try (InputStream in = Files.newInputStream(tmp)) { return new XMLSlideShow(in); }
+        } catch (IOException | RuntimeException e) {
+            if (e instanceof ActionException a) throw a;
+            throw new ActionException("PPT.OPEN_FAILED", "Cannot open " + p + ": " + e.getMessage(), "Check the file opens in PowerPoint.", true);
+        } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
     }
 
     // ------------------------------------------------------------------------------------------------
@@ -89,7 +121,7 @@ public final class PowerPointPackage {
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
     @Action(id = "open", name = "Open presentation", category = "Presentation", capabilities = "filesystem",
-            description = "Open a .pptx presentation, or create a new empty one, as a named session; can open password-protected files and open read-only.",
+            description = "Open a .pptx, .ppt or .odp presentation, or create a new empty one, as a named session; can open password-protected .pptx files and open read-only. .ppt and .odp files are converted with PowerPoint or LibreOffice on the runner and saved back in their own format.",
             panel = "path, read_only, [The file has a password: password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Presentation path.") String path,
@@ -102,7 +134,11 @@ public final class PowerPointPackage {
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         XMLSlideShow ppt;
-        if (Files.exists(p)) {
+        String ext = com.oneofficeautomation.packages.OfficeConvert.extension(p);
+        if (Files.exists(p) && com.oneofficeautomation.packages.OfficeConvert.needsConversion("powerpoint", ext)) {
+            if (pw != null) throw new ActionException("PPT.PASSWORD_NOT_SUPPORTED", "Password-protected ." + ext + " files cannot be opened", "Remove the password in PowerPoint, or save the file as .pptx.");
+            ppt = readConverted(ctx, p);
+        } else if (Files.exists(p)) {
             try (InputStream in = OfficeCrypto.open(p, pw, "PPT")) { ppt = new XMLSlideShow(in); }
             catch (ActionException e) { throw e; }
             catch (IOException | RuntimeException e) {
@@ -123,7 +159,7 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "create_presentation", name = "Create presentation", category = "Presentation", capabilities = "filesystem",
-            description = "Create a new .pptx file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.",
+            description = "Create a new .pptx (or .ppt or .odp) file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.",
             panel = "path, [Require a password to open the file: password], [Require a password to edit the file: edit_password] | overwrite, template, session")
     public Map<String, Object> createPresentation(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new presentation.") String path,
@@ -139,14 +175,15 @@ public final class PowerPointPackage {
         if (template != null && !template.isBlank()) {
             Path t = ctx.resolvePath(template);
             if (!Files.isRegularFile(t)) throw new ActionException("PPT.NOT_FOUND", "Template not found: " + t, "Fix the template path.");
-            try (InputStream in = Files.newInputStream(t)) { ppt = new XMLSlideShow(in); }
+            if (com.oneofficeautomation.packages.OfficeConvert.needsConversion("powerpoint", com.oneofficeautomation.packages.OfficeConvert.extension(t))) ppt = readConverted(ctx, t);
+            else try (InputStream in = Files.newInputStream(t)) { ppt = new XMLSlideShow(in); }
             catch (IOException | RuntimeException e) { throw new ActionException("PPT.OPEN_FAILED", "Cannot open template " + t + ": " + e.getMessage(), "Use a .pptx template.", true); }
         } else ppt = new XMLSlideShow();
         String edit = OfficeCrypto.secret(editPassword);
         if (edit != null) modifyPassword(ppt, edit);
         DeckSession d = new DeckSession(p, ppt);
         d.password = OfficeCrypto.secret(password);
-        write(d, p);
+        write(ctx, d, p, d.password);
         Object old = ctx.sessions().put(session, d);
         if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
         return Map.of();
@@ -186,30 +223,49 @@ public final class PowerPointPackage {
                     description = "Encrypt the saved file with this password; the password the presentation was opened with when empty.") Object password) {
         DeckSession d = s(ctx, session);
         String pw = OfficeCrypto.secret(password);
-        write(d, path == null || path.isBlank() ? d.path : ctx.resolvePath(path), pw != null ? pw : d.password);
+        write(ctx, d, path == null || path.isBlank() ? d.path : ctx.resolvePath(path), pw != null ? pw : d.password);
         return Map.of();
     }
 
     public Map<String, Object> saveAs(ActionContext ctx, String path, String format, String session) { return saveAs(ctx, path, format, session, true, null); }
 
     @Action(id = "save_as", name = "Save as", category = "Presentation", capabilities = "filesystem",
-            description = "Save the presentation to a new .pptx file, optionally password-protected, and continue the session on that file; PDF and image export are not available.",
+            description = "Save the presentation to a new .pptx, .ppt or .odp file (.pptx optionally password-protected) and continue the session on that file, or export it as PDF.",
             panel = "path, overwrite | format, password, session")
     public Map<String, Object> saveAs(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Target file path.") String path,
-            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"pptx\"", enumValues = {"pptx"}, description = "File format; only pptx is supported.") String format,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"pptx\"", enumValues = {"pptx", "ppt", "odp", "pdf"},
+                    description = "pptx keeps the presentation; ppt (PowerPoint 97-2003) and odp are written with Microsoft PowerPoint (or LibreOffice) on the runner; pdf exports it the same way and the session stays on the previous file.") String format,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that already exists at the target path; false stops with PPT.EXISTS.") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new file with this password; later saves keep it.") Object password) {
         DeckSession d = s(ctx, session);
         Path target = ctx.resolvePath(path);
         String fmt = format == null || format.isBlank() ? "pptx" : format.toLowerCase(Locale.ROOT);
-        if (!fmt.equals("pptx") || target.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf"))
-            throw new ActionException("PPT.BAD_FORMAT", "Only the pptx format can be written", "Save as .pptx; use PowerPoint desktop automation for PDF.");
+        String targetExt = com.oneofficeautomation.packages.OfficeConvert.extension(target);
+        if (fmt.equals("pptx") && List.of("pdf", "ppt", "odp").contains(targetExt)) fmt = targetExt;
+        if (!List.of("pptx", "ppt", "odp", "pdf").contains(fmt)) throw new ActionException("PPT.BAD_FORMAT", "Unsupported format '" + format + "'", "Use pptx, ppt, odp or pdf.");
+        if (List.of("ppt", "odp").contains(fmt) && !targetExt.equals(fmt)) target = target.resolveSibling(target.getFileName() + "." + fmt);
         if (!overwrite && Files.exists(target)) throw new ActionException("PPT.EXISTS", "A file already exists at " + target, "Set overwrite to true or choose another path.");
+        if (fmt.equals("pdf")) {
+            Path tmp = null;
+            try {
+                tmp = Files.createTempFile("ooa-ppt-", ".pptx");
+                write(d, tmp, null);
+                if (target.getParent() != null) Files.createDirectories(target.getParent());
+                com.oneofficeautomation.packages.OfficePdf.Method m = com.oneofficeautomation.packages.OfficePdf.convert(ctx, tmp, target, "powerpoint", "PPT", 600);
+                ctx.info("Saved " + target + " as PDF (" + m.name().toLowerCase(Locale.ROOT).replace('_', ' ') + ")");
+            } catch (IOException e) { throw new ActionException("PPT.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Check the folder is writable.", true);
+            } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
+            return Map.of();
+        }
         String pw = OfficeCrypto.secret(password);
         String keep = pw != null ? pw : d.password;
-        write(d, target, keep);
+        if (List.of("ppt", "odp").contains(fmt)) {
+            if (pw != null) throw new ActionException("PPT.PASSWORD_NOT_SUPPORTED", "Passwords can be kept in .pptx files only, not ." + fmt, "Save as .pptx, or clear the password.");
+            keep = null;
+        }
+        write(ctx, d, target, keep);
         d.path = target;
         d.password = keep;
         d.readOnly = false;
@@ -224,7 +280,7 @@ public final class PowerPointPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
         session = ctx.sessionNameOrOnly(session, "powerpoint", DeckSession.class);
-        if (save && ctx.sessions().get(session) instanceof DeckSession d) write(d, d.path);
+        if (save && ctx.sessions().get(session) instanceof DeckSession d) write(ctx, d, d.path, d.password);
         Object o = ctx.sessions().remove(session);
         if (o instanceof DeckSession d) try { d.close(); } catch (IOException ignored) { }
         return Map.of();

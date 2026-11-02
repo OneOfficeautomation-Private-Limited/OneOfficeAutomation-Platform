@@ -156,4 +156,26 @@ class EmailMessagesTest {
             assertEquals("SESSION.NOT_FOUND", r.error().get("code"), step);
         }
     }
+
+    /** Gap: save as .msg - the MIME message is turned into the parts a .msg file holds. */
+    @Test void mimeMessageToMsgParts() throws Exception {
+        MimeMessage m = original("Importance: High\r\nBcc: audit@corp.com\r\n");
+        var msg = EmailPackage.toMsg(m);
+        assertEquals("Invoice 7", msg.subject);
+        assertEquals("Ann", msg.from.name());
+        assertEquals("ann@acme.com", msg.from.email());
+        assertEquals(List.of("me@corp.com", "bob@corp.com"), msg.to.stream().map(a -> a.email()).toList());
+        assertEquals("Bob, B.", msg.to.get(1).name());
+        assertEquals("carol@corp.com", msg.cc.get(0).email());
+        assertEquals("audit@corp.com", msg.bcc.get(0).email());
+        assertEquals("Hello team\nline2", msg.bodyText.replace("\r\n", "\n").strip());
+        assertEquals("<p>Hello team</p>", msg.bodyHtml.strip());
+        assertEquals("<m1@acme.com>", msg.messageId);
+        assertEquals("high", msg.importance);
+        assertEquals(java.time.Instant.parse("2026-10-19T09:00:00Z"), msg.sent);
+        assertEquals(1, msg.attachments.size());
+        assertEquals("INV-7.pdf", msg.attachments.get(0).name());
+        assertEquals("application/pdf", msg.attachments.get(0).contentType());
+        assertArrayEquals("%PDF-7".getBytes(StandardCharsets.UTF_8), msg.attachments.get(0).data());
+    }
 }

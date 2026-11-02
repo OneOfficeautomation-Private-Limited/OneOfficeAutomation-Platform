@@ -6,6 +6,7 @@ import com.oneofficeautomation.sdk.*;
 import javax.swing.JOptionPane;
 import java.awt.GraphicsEnvironment;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -17,6 +18,42 @@ import java.util.*;
 public final class AiAgentPackage {
 
     record Tool(String name, String botId, Map<String, Object> flow, Map<String, Object> schema, boolean sensitive) {}
+
+    /** A form the agent may show to the person at the runner to ask for information or a decision. */
+    record FormTool(String name, Path path, String title, String description, Map<String, Object> schema) {}
+
+    /** Shows a form and waits for the person; returns the display result (values, button, submitted). Replaceable in tests. */
+    interface FormAsker { Map<String, Object> ask(ActionContext ctx, FormTool form, Map<String, Object> values, double timeoutSeconds); }
+
+    static volatile FormAsker formAsker = (ctx, form, values, timeout) ->
+            new FormsPackage().display(ctx, form.path().toString(), "agent-" + form.name(), form.title(), values, "until_done", timeout, true, 560, 640, true);
+
+    /** Turns a form from the form designer into a tool: its input fields become optional arguments (values to fill in first). */
+    @SuppressWarnings("unchecked")
+    static FormTool formTool(ActionContext ctx, String formPath) {
+        Path p = ctx.resolvePath(formPath);
+        if (!java.nio.file.Files.isRegularFile(p)) throw new ActionException("AGENT.FORM_NOT_FOUND", "Form not found: " + p, "Choose a .form.json file made in the form designer.");
+        Map<String, Object> form;
+        try { form = (Map<String, Object>) JsonLite.parse(java.nio.file.Files.readString(p)); }
+        catch (Exception e) { throw new ActionException("AGENT.BAD_FORM", "Not a form from the form designer: " + p.getFileName(), "Open it in the form designer and save it again."); }
+        Map<String, Object> props = new LinkedHashMap<>();
+        for (Map<String, Object> fld : FormsPackage.inputs(form)) {
+            Map<String, Object> s = new LinkedHashMap<>();
+            String type = String.valueOf(fld.get("type"));
+            s.put("type", switch (type) { case "number" -> "number"; case "checkbox" -> "boolean"; default -> "string"; });
+            Object label = fld.get("label") != null ? fld.get("label") : fld.get("id");
+            s.put("description", "Value to fill in first for '" + label + "'");
+            if (fld.get("options") instanceof List<?> opts && !opts.isEmpty() && (type.equals("dropdown") || type.equals("radio"))) s.put("enum", opts.stream().map(String::valueOf).toList());
+            props.put(String.valueOf(fld.get("id")), s);
+        }
+        String id = String.valueOf(form.getOrDefault("id", p.getFileName().toString().replace(".form.json", "")));
+        String title = String.valueOf(form.getOrDefault("name", id));
+        String name = ("ask_" + id).replaceAll("[^A-Za-z0-9_-]", "_");
+        String desc = (form.get("description") instanceof String d && !d.isBlank() ? d.strip() + " " : "")
+                + "Shows the form '" + title + "' to the person at the computer and returns what they enter (values) and how they finished (submitted, or the button pressed). "
+                + "Use it to ask for missing information or a decision; pass values you already know to fill in first.";
+        return new FormTool(name.length() > 64 ? name.substring(0, 64) : name, p, title, desc, Map.of("type", "object", "properties", props, "required", List.of()));
+    }
 
     @SuppressWarnings("unchecked")
     static Tool tool(AutomationRepository repo, String botId, boolean sensitive) {
@@ -85,16 +122,16 @@ public final class AiAgentPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "run", name = "Run AI agent", category = "AI Agents", timeoutSeconds = 1800, capabilities = {"network", "ai"},
             description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.",
-            panel = "goal, instructions, tools, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii")
+            panel = "goal, instructions, tools, [Let the agent ask a person with forms: forms, form_timeout_seconds], (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, [Toxicity guardrail: toxicity_guardrail, toxicity_level, blocked_terms], max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii")
     @Output(name = "answer", type = OoaType.STRING, description = "The agent's final answer.")
-    @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached or stopped; with output fields also failed or cancelled, as the agent decided.")
+    @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached, stopped or blocked (by the toxicity guardrail); with output fields also failed or cancelled, as the agent decided.")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The output fields asked for (empty when none were).")
     @Output(name = "trace", type = OoaType.LIST, description = "Each model turn and tool call, for review and audit.")
     @Output(name = "tokens", type = OoaType.NUMBER, description = "Total tokens used.")
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "goal", type = OoaType.STRING, description = "What the agent should achieve, e.g. the customer email to handle.") String goal,
             @Input(name = "instructions", type = OoaType.STRING, required = false, defaultValue = "\"You are a careful business assistant. Use the tools to act; never invent results.\"", description = "Role, policy and rules for the agent.") String instructions,
-            @Input(name = "tools", type = OoaType.LIST, description = "Ids of the agents it may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
+            @Input(name = "tools", type = OoaType.LIST, required = false, description = "Ids of the agents it may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
             @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
             @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker", "aws_bedrock", "google_vertex"}, description = GenAiPackage.D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
@@ -112,9 +149,26 @@ public final class AiAgentPackage {
                     description = "Values the agent must return, name to description; they come back in outputs. Plain text answer when empty.") Map<String, Object> outputFields,
             @Input(name = "allow_cancel", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Let the agent end with status cancelled when the goal should not be pursued (with output fields only).") boolean allowCancel,
             @Input(name = "max_duration_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Stop with limit_reached after this many seconds; no time limit when 0.") int maxSeconds,
-            @Input(name = "temperature", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "0 = consistent, higher = more creative.") double temperature) {
+            @Input(name = "temperature", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "0 = consistent, higher = more creative.") double temperature,
+            @Input(name = "forms", type = OoaType.LIST, required = false, example = "[\"Forms/Approve refund.form.json\"]",
+                    description = "Forms from the form designer the agent may show to the person at the runner, as tools, to ask for information or a decision (attended runners).") List<Object> forms,
+            @Input(name = "form_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 10, max = 86400,
+                    description = "How long a form waits for the person; no answer is reported to the agent as not answered.") double formTimeout,
+            @Input(name = "toxicity_guardrail", type = OoaType.STRING, required = false, defaultValue = "\"off\"", enumValues = {"off", "log", "block"},
+                    description = "Check the goal, the model's answers and the arguments it gives tools for toxic language (threats, self-harm, hate, insults, swearing): "
+                            + "log records it in the trace; block stops the agent with status blocked.") String toxicityAction,
+            @Input(name = "toxicity_level", type = OoaType.STRING, required = false, defaultValue = "\"medium\"", enumValues = {"low", "medium", "high"},
+                    description = "From which level the guardrail acts: high only threats, self-harm and hate; medium also insults and explicit content; low also swearing.") String toxicityLevel,
+            @Input(name = "blocked_terms", type = OoaType.LIST, required = false, description = "Your own words or phrases the guardrail treats as high, e.g. competitor names or internal code names.") List<Object> blockedTerms) {
         return runAgent(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
-                role, plan, outputFields, allowCancel, maxSeconds, temperature);
+                role, plan, outputFields, allowCancel, maxSeconds, temperature, forms, formTimeout, Toxicity.setting(toxicityAction, toxicityLevel, blockedTerms, "AGENT"));
+    }
+
+    public Map<String, Object> run(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
+                                   String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
+                                   String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature) {
+        return run(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
+                role, plan, outputFields, allowCancel, maxSeconds, temperature, null, 600, "off", "medium", null);
     }
 
     /** Earlier signature, kept for callers written before role, plan, outputs and limits. */
@@ -126,7 +180,8 @@ public final class AiAgentPackage {
     @SuppressWarnings("unchecked")
     private Map<String, Object> runAgent(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
                                          String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
-                                         String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature) {
+                                         String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature,
+                                         List<Object> formPaths, double formTimeout, Toxicity.Setting toxic) {
         if (maxSeconds < 0) throw new ActionException("AGENT.BAD_OPTION", "max_duration_seconds cannot be negative");
         long deadline = maxSeconds > 0 ? System.nanoTime() + maxSeconds * 1_000_000_000L : Long.MAX_VALUE;
         boolean structured = outputFields != null && !outputFields.isEmpty();
@@ -144,17 +199,28 @@ public final class AiAgentPackage {
         Set<String> sensitive = new HashSet<>();
         if (sensitiveIds != null) for (Object o : sensitiveIds) sensitive.add(Values.text(o));
         Map<String, Tool> tools = new LinkedHashMap<>();
-        for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o))); tools.put(t.name(), t); }
-        if (tools.isEmpty()) throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent to use");
+        if (toolIds != null) for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o))); tools.put(t.name(), t); }
+        Map<String, FormTool> forms = new LinkedHashMap<>();
+        if (formPaths != null) for (Object o : formPaths) { FormTool ft = formTool(ctx, Values.text(o)); if (tools.containsKey(ft.name())) throw new ActionException("AGENT.BAD_OPTION", "A tool and a form are both named " + ft.name()); forms.put(ft.name(), ft); }
+        if (tools.isEmpty() && forms.isEmpty()) throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent or form to use");
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));
+        for (FormTool ft : forms.values()) toolSpecs.add(Map.of("name", ft.name(), "description", ft.description(), "input_schema", ft.schema()));
+        List<Object> trace0 = new ArrayList<>();
+        if (toxic != null && toxic.on()) {
+            Toxicity.Rating g = Toxicity.check(ctx, toxic, goal, "goal", "AGENT.TOXIC", true);
+            if (g != null && g.atLeast(toxic.level())) {
+                trace0.add(Out.of("type", "guardrail", "message", "toxicity in the goal: " + g.level(), "categories", g.categories()));
+                if (toxic.action().equals("block")) return result("blocked", "The goal was not acted on: the toxicity guardrail rated it " + g.level() + " (" + String.join(", ", g.categories()) + ").", trace0, 0);
+            }
+        }
         LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, temperature, 2048, mask, awsKeyId, awsRegion);
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", (instructions == null ? "" : instructions) + "\n" + extra + "Rules: act only through the tools; use only facts from the goal and tool results; "
                 + "if a tool is denied, do not retry it; when finished, reply with the final answer and no tool calls."));
         messages.add(Map.of("role", "user", "content", goal));
-        List<Object> trace = new ArrayList<>();
+        List<Object> trace = new ArrayList<>(trace0);
         int tokens = 0;
         for (int step = 1; step <= maxSteps; step++) {
             ctx.checkCancelled();
@@ -170,14 +236,26 @@ public final class AiAgentPackage {
             asst.put("tool_calls", calls);
             messages.add(asst);
             trace.add(Out.of("type", "model", "step", step, "text", r.text(), "tool_calls", r.toolCalls().stream().map(LlmClient.ToolCall::name).toList()));
+            if (toxic != null && toxic.on()) {  // the answer and the arguments the model wants to pass on
+                StringBuilder said = new StringBuilder(r.text() == null ? "" : r.text());
+                for (LlmClient.ToolCall tc : r.toolCalls()) said.append('\n').append(JsonLite.write(tc.args()));
+                Toxicity.Rating a = Toxicity.check(ctx, toxic, said.toString(), "model's answer", "AGENT.TOXIC", true);
+                if (a != null && a.atLeast(toxic.level())) {
+                    trace.add(Out.of("type", "guardrail", "message", "toxicity in the model's answer: " + a.level(), "categories", a.categories()));
+                    if (toxic.action().equals("block"))
+                        return result("blocked", "Stopped by the toxicity guardrail: the model's answer rated " + a.level() + " (" + String.join(", ", a.categories()) + ").", trace, tokens);
+                }
+            }
             if (r.toolCalls().isEmpty()) {
                 if (!structured) return result("completed", r.text() == null ? "" : r.text(), trace, tokens);
                 return structuredResult(r.text(), outputFields, allowCancel, trace, tokens);
             }
             for (LlmClient.ToolCall tc : r.toolCalls()) {
                 Tool t = tools.get(tc.name());
+                FormTool ft = forms.get(tc.name());
                 String content;
-                if (t == null) {
+                if (t == null && ft != null) content = askForm(ctx, ft, tc.args(), formTimeout, trace);
+                else if (t == null) {
                     content = JsonLite.write(Map.of("status", "rejected", "error", "Tool '" + tc.name() + "' is not available. Use one of " + tools.keySet() + "."));
                     trace.add(Map.of("type", "guardrail", "message", "rejected unknown tool " + tc.name()));
                 } else if (checkArgs(t, tc.args()) != null) {
@@ -201,6 +279,37 @@ public final class AiAgentPackage {
         }
         return result("limit_reached", "Stopped after " + maxSteps + " steps without a final answer.", trace, tokens);
     }
+
+    /** Shows a form to the person and reports what happened to the model; unattended runners have nobody to ask. */
+    @SuppressWarnings("unchecked")
+    static String askForm(ActionContext ctx, FormTool ft, Map<String, Object> args, double timeout, List<Object> trace) {
+        Map<String, Object> props = (Map<String, Object>) ft.schema().get("properties");
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (var e : args.entrySet()) if (props.containsKey(e.getKey())) values.put(e.getKey(), e.getValue());
+        if (formAsker == null || ((GraphicsEnvironment.isHeadless() || "unattended".equals(System.getProperty("ooa.runMode"))) && formAsker == DEFAULT_ASKER)) {
+            trace.add(Out.of("type", "form", "form", ft.title(), "status", "unavailable"));
+            return JsonLite.write(Map.of("status", "unavailable", "error", "Nobody is at this runner to fill in the form. Do not retry; finish without this information."));
+        }
+        Map<String, Object> r;
+        try { r = formAsker.ask(ctx, ft, values, timeout); }
+        catch (ActionException e) {
+            trace.add(Out.of("type", "form", "form", ft.title(), "status", "failed", "error", e.code()));
+            return JsonLite.write(Map.of("status", "failed", "error", e.getMessage()));
+        }
+        String button = String.valueOf(r.getOrDefault("button", ""));
+        boolean submitted = Boolean.TRUE.equals(r.get("submitted"));
+        String status = submitted ? "submitted" : button.equals("timeout") ? "not_answered" : button.equals("closed") ? "closed" : "button";
+        trace.add(Out.of("type", "form", "form", ft.title(), "status", status, "button", button));
+        Map<String, Object> reply = new LinkedHashMap<>();
+        reply.put("status", status);
+        if (!button.isEmpty()) reply.put("button", button);
+        if (submitted || status.equals("button")) reply.put("values", Values.toJsonable(r.get("values")));
+        if (status.equals("not_answered")) reply.put("note", "The person did not answer in time. Do not retry the form.");
+        if (status.equals("closed")) reply.put("note", "The person closed the form without submitting it.");
+        return JsonLite.write(reply);
+    }
+
+    static final FormAsker DEFAULT_ASKER = formAsker;
 
     private static Map<String, Object> result(String status, String answer, List<Object> trace, int tokens) {
         return Out.of("answer", answer, "status", status, "trace", trace, "tokens", BigDecimal.valueOf(tokens), "outputs", new LinkedHashMap<>());

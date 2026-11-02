@@ -19,7 +19,7 @@ public final class FirstPartyPackages {
             Microsoft365Package.class, GooglePackage.class, SalesforcePackage.class, ServiceNowPackage.class, JiraPackage.class, SlackPackage.class,
             WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, ExcelDesktopPackage.class, OutlookDesktopPackage.class,
             OcrPackage.class, PgpPackage.class, GenAiPackage.class, AiSkillsPackage.class, AiAgentPackage.class, KnowledgePackage.class,
-            WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, ConnectorPackage.class,
+            WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, SapBapiPackage.class, ConnectorPackage.class,
             FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class,
             GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
             OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class, FormsPackage.class, Ec2Package.class);

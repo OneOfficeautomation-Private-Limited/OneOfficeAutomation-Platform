@@ -87,7 +87,7 @@ public final class CredentialManagerPackage {
         long ft = ((long) c.LastWrittenHigh << 32) | (c.LastWrittenLow & 0xffffffffL);
         if (ft == 0) return null;
         long millis = ft / 10_000 - 11_644_473_600_000L;  // FILETIME counts 100 ns since 1601-01-01
-        return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault()).withNano(0);
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), java.time.ZoneOffset.UTC).withNano(0);  // UTC, like every DateTime
     }
 
     /** Blob to text: UTF-16LE when it looks like it (what Windows tools store), otherwise UTF-8; "auto" decides. */

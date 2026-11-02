@@ -30,7 +30,7 @@ public final class ScriptPackage {
 
     private Map<String, Object> run(ActionContext ctx, List<String> interpreters, List<String> preArgs, String ext, String script, String file,
                                     List<Object> args, String input, double timeout, boolean fail, String workingFolder, Map<String, Object> environment) {
-        Path temp = null;
+        Path temp = null, boot = null;
         Path target;
         if (file != null && !file.isBlank()) {
             target = ctx.resolvePath(file);
@@ -38,10 +38,17 @@ public final class ScriptPackage {
         } else if (script != null && !script.isBlank()) {
             try {
                 temp = Files.createTempFile("ooa-script-", ext);
-                Files.writeString(temp, script, ext.equals(".vbs") ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8);
+                // Windows PowerShell 5.1 reads a .ps1 without a byte order mark as ANSI, so "Grüße" in a typed script broke
+                if (ext.equals(".ps1")) Files.writeString(temp, "\uFEFF" + script, StandardCharsets.UTF_8);
+                else Files.writeString(temp, script, ext.equals(".vbs") ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8);
             } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
             target = temp;
         } else throw new ActionException("SCRIPT.NO_SCRIPT", "Give the script text or a script file", "Fill in 'script' or 'file'.");
+        if (ext.equals(".ps1")) {
+            try { boot = powershellBootstrap(target); }
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the PowerShell start file: " + e.getMessage(), null, true); }
+            target = boot;
+        }
         try {
             OoaException last = null;
             for (String interp : interpreters) {
@@ -54,6 +61,7 @@ public final class ScriptPackage {
                     Map<String, String> env = ApplicationPackage.env(environment);
                     Path dir = workingFolder == null || workingFolder.isBlank() ? ctx.workDir() : ctx.resolvePath(workingFolder);
                     ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, dir, input, timeout, env.isEmpty() ? null : env, StandardCharsets.UTF_8);
+                    if (storeAlias(r)) { last = new ActionException("PROCESS.NOT_FOUND", interp + " is only the Microsoft Store shortcut, not an installed Python"); continue; }
                     if (fail && r.exitCode() != 0)
                         throw new ActionException("SCRIPT.FAILED", "Script exited with code " + r.exitCode() + ": " + ApplicationPackage.tail(r.stderr().isBlank() ? r.stdout() : r.stderr()),
                                 "Read the error output, fix the script, or set fail_on_error to false.");
@@ -68,12 +76,42 @@ public final class ScriptPackage {
                     last = e;
                 }
             }
-            throw new ActionException("SCRIPT.INTERPRETER_NOT_FOUND", "None of " + interpreters + " is installed on this runner",
-                    "Install the interpreter on the runner or add it to the PATH.", false, last == null ? null : Map.of("detail", last.getMessage()));
+            boolean python = ext.equals(".py");
+            throw new ActionException("SCRIPT.INTERPRETER_NOT_FOUND", python ? "Python is not installed on this runner" + (last != null && last.getMessage().contains("Microsoft Store") ? " (python only opens the Microsoft Store)" : "")
+                            : "None of " + interpreters + " is installed on this runner",
+                    python ? "Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe."
+                            : "Install the interpreter on the runner or add it to the PATH.", false, last == null ? null : Map.of("detail", last.getMessage()));
         } finally {
             if (temp != null) try { Files.deleteIfExists(temp); } catch (IOException ignored) { }
+            if (boot != null) try { Files.deleteIfExists(boot); } catch (IOException ignored) { }
         }
     }
+
+    /** Windows' "python" placeholder that only offers the Microsoft Store (exit 9009 "Python was not found; run without arguments to install from the Microsoft Store"). */
+    static boolean storeAlias(ProcessRunner.Result r) {
+        return ProcessRunner.WINDOWS && r.exitCode() == 9009 && (r.stderr() + r.stdout()).contains("Microsoft Store");
+    }
+
+    /**
+     * A start file that switches the console to UTF-8 (output, input and text sent to programs) and then runs the script
+     * with the step's arguments. Without it Windows PowerShell wrote "Grüße" as "GrA�AYe" in the output. Exit codes stay
+     * as with -File: the script's exit N, 1 after a terminating error, 0 otherwise (even when the last program it ran failed).
+     */
+    static Path powershellBootstrap(Path script) throws IOException {
+        Path boot = Files.createTempFile("ooa-ps-start-", ".ps1");
+        String text = "\uFEFF" + UTF8_PREAMBLE + "\n"
+                + "$global:LASTEXITCODE = 0\n"
+                + "& '" + script.toAbsolutePath().toString().replace("'", "''") + "' @args\n"
+                + "if (-not $?) { exit $global:LASTEXITCODE }\n"
+                + "exit 0\n";
+        Files.writeString(boot, text, StandardCharsets.UTF_8);
+        return boot;
+    }
+
+    /** PowerShell statements that make output, input and text piped to programs UTF-8. */
+    static final String UTF8_PREAMBLE = "try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }; "
+            + "try { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }; "
+            + "$OutputEncoding = New-Object System.Text.UTF8Encoding $false";
 
     private static final String D_SCRIPT = "Script text (or use file).";
     private static final String D_FILE = "Script file (or use script).";
@@ -119,7 +157,7 @@ public final class ScriptPackage {
         return run(ctx, interp, List.of(), ".py", script, file, args, input, timeout, fail, workingFolder, environment);
     }
 
-    @Action(id = "run_javascript", name = "Run JavaScript", category = "Scripts", timeoutSeconds = 3600, description = "Run a JavaScript file with Node.js.",
+    @Action(id = "run_javascript", name = "Run JavaScript", category = "Scripts", timeoutSeconds = 3600, description = "Run JavaScript with Node.js, or with Windows' built-in JScript when Node.js is not installed.",
             panel = "(Script: Type it here = script / Use a file = file), arguments | input, timeout_seconds, fail_on_error, working_folder, environment, interpreter")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
@@ -134,8 +172,76 @@ public final class ScriptPackage {
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "working_folder", type = OoaType.FILE, required = false, description = "Folder the script runs in; the workspace when empty.") String workingFolder,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the script.") Map<String, Object> environment,
-            @Input(name = "interpreter", type = OoaType.STRING, required = false, example = "node", description = "Node.js program to use; node on the PATH when empty.") String interpreter) {
-        return run(ctx, interpreters(interpreter, List.of("node")), List.of(), ".js", script, file, args, input, timeout, fail, workingFolder, environment);
+            @Input(name = "interpreter", type = OoaType.STRING, required = false, example = "node", description = "Node.js program to use; node on the PATH when empty, and Windows' built-in JScript when Node.js is not installed.") String interpreter) {
+        try { return run(ctx, interpreters(interpreter, List.of("node")), List.of(), ".js", script, file, args, input, timeout, fail, workingFolder, environment); }
+        catch (ActionException e) {
+            // Windows always has JScript (Windows Script Host), as other RPA tools use; a fresh runner has no Node.js
+            if (!"SCRIPT.INTERPRETER_NOT_FOUND".equals(e.code()) || !ProcessRunner.WINDOWS || (interpreter != null && !interpreter.isBlank())) throw e;
+            ctx.info("Node.js is not installed; running the script with Windows JScript (console.log, process.argv and process.exit work; Node modules do not)");
+            Path src = file != null && !file.isBlank() ? ctx.resolvePath(file) : null;
+            if (src != null && !Files.isRegularFile(src)) throw new ActionException("FILE.NOT_FOUND", "Script not found: " + src, "Check the path.");
+            return jscript(ctx, src, script, null, null, args, input, timeout, fail, workingFolder, environment);
+        }
+    }
+
+    /** JScript stand-ins for console and process, and a JSON writer (Windows Script Host has neither); see jscript_prelude.js. */
+    static final String JSCRIPT_PRELUDE = resource("jscript_prelude.js");
+
+    private static String resource(String name) {
+        try (var in = ScriptPackage.class.getResourceAsStream(name)) {
+            if (in == null) throw new IllegalStateException(name + " is missing from the toolkit");
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) { throw new IllegalStateException(e); }
+    }
+
+    /**
+     * Runs JavaScript with Windows JScript: the user's code (read as UTF-8) is evaluated in global scope after the prelude;
+     * with a function name it is then called with the arguments and its result printed after the result marker, as the
+     * Node.js wrapper does. Output is read as Unicode (cscript //U), so non-English text survives.
+     */
+    private Map<String, Object> jscript(ActionContext ctx, Path file, String script, String function, List<Object> fnArgs, List<Object> args, String input,
+                                        double timeout, boolean fail, String workingFolder, Map<String, Object> environment) {
+        Path user = null, wrapper = null;
+        try {
+            if (file == null) { user = Files.createTempFile("ooa-js-", ".js"); Files.writeString(user, script == null ? "" : script, StandardCharsets.UTF_8); }
+            Path code = file != null ? file : user;
+            StringBuilder w = new StringBuilder(JSCRIPT_PRELUDE);
+            w.append("for (var __i = 0; __i < WScript.Arguments.length; __i++) process.argv.push(WScript.Arguments(__i));\n");
+            String lit = code.toAbsolutePath().toString().replace("\\", "\\\\").replace("'", "\\'");
+            if (function == null) w.append("eval(__ooaRead('").append(lit).append("'));\n");
+            else {
+                String argLit = JsonLite.write(Values.toJsonable(fnArgs == null ? List.of() : fnArgs)).replace("\u2028", "\\u2028").replace("\u2029", "\\u2029");
+                w.append("console.log = console.error;\n")   // printed text goes to error_output, keeping the result line clean
+                        .append("var __out;\ntry {\n  eval(__ooaRead('").append(lit).append("'));\n")
+                        .append("  var __t = this, __p = '").append(function).append("'.split('.');\n")
+                        .append("  for (var __j = 0; __j < __p.length; __j++) __t = __t == null ? undefined : __t[__p[__j]];\n")
+                        .append("  if (typeof __t != 'function') throw new TypeError('").append(function).append(" is not a function');\n")
+                        .append("  var __r = __t.apply(null, ").append(argLit).append(");\n")
+                        .append("  __out = '{\"ok\":true,\"result\":' + __ooaJson(__r === undefined ? null : __r) + '}';\n")
+                        .append("} catch (e) { __out = '{\"ok\":false,\"type\":' + __ooaJson(e.name || 'Error') + ',\"message\":' + __ooaJson(e.message !== undefined ? e.message : String(e)) + ',\"trace\":\"\"}'; }\n")
+                        .append("WScript.StdOut.WriteLine('');\nWScript.StdOut.WriteLine('").append(PY_RESULT_MARKER).append("' + __out);\n");
+            }
+            wrapper = Files.createTempFile("ooa-jscript-", ".js");
+            Files.writeString(wrapper, "\uFEFF" + w, StandardCharsets.UTF_16LE);  // cscript reads Unicode script files that start with a byte order mark
+            List<String> cmd = new ArrayList<>(List.of("cscript", "//NoLogo", "//U", "//E:JScript", wrapper.toString()));
+            if (args != null) for (Object a : args) cmd.add(Values.text(a));
+            Map<String, String> env = ApplicationPackage.env(environment);
+            Path dir = workingFolder == null || workingFolder.isBlank() ? ctx.workDir() : ctx.resolvePath(workingFolder);
+            ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, dir, input, timeout, env.isEmpty() ? null : env, StandardCharsets.UTF_16LE);
+            if (function != null) return r.toMap();
+            if (fail && r.exitCode() != 0)
+                throw new ActionException("SCRIPT.FAILED", "Script exited with code " + r.exitCode() + ": " + ApplicationPackage.tail(r.stderr().isBlank() ? r.stdout() : r.stderr()),
+                        "Read the error output, fix the script, or set fail_on_error to false.");
+            Map<String, Object> out = r.toMap();
+            Object json = null;
+            String t = r.stdout().strip();
+            if (t.startsWith("{") || t.startsWith("[")) try { json = JsonLite.parse(t); } catch (IllegalArgumentException ignored) { }
+            out.put("json", json);
+            return out;
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } finally {
+            for (Path p : new Path[]{user, wrapper}) if (p != null) try { Files.deleteIfExists(p); } catch (IOException ignored) { }
+        }
     }
 
     @Action(id = "run_vbscript", name = "Run VBScript", category = "Scripts", timeoutSeconds = 3600, description = "Run a VBScript with Windows Script Host (Windows only).",
@@ -159,7 +265,7 @@ public final class ScriptPackage {
 
     /** Windows PowerShell command line for a short inline script. Pass values through environment variables, never by pasting them into the script. */
     static List<String> powershellCommand(String script) {
-        return List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script);
+        return List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", UTF8_PREAMBLE + "; " + script);
     }
 
     static final String PY_RESULT_MARKER = "__OOA_RESULT__";
@@ -304,7 +410,7 @@ public final class ScriptPackage {
             """;
 
     @Action(id = "run_javascript_function", name = "Run JavaScript function", category = "Scripts", timeoutSeconds = 3600,
-            description = "Call one function in a JavaScript file with Node.js, passing JSON-compatible arguments, and return what it returns (promises are awaited).",
+            description = "Call one function in a JavaScript file with Node.js (or Windows' built-in JScript when Node.js is not installed), passing JSON-compatible arguments, and return what it returns (promises are awaited with Node.js).",
             panel = "(Code: Use a file = file / Type it here = script), function, arguments | timeout_seconds, fail_on_error, interpreter")
     @Output(name = "result", description = "Value returned by the function (numbers, text, lists and dictionaries).")
     @Output(name = "output", type = OoaType.STRING, description = "Text the function printed.")
@@ -331,14 +437,20 @@ public final class ScriptPackage {
             throw new ActionException("SCRIPT.BAD_FUNCTION", "Invalid function name '" + function + "'", "Give a plain JavaScript name such as calculateTotal.");
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("args", Values.toJsonable(args == null ? List.of() : args));
-        Map<String, Object> r = run(ctx, interpreters(interpreter, List.of("node")), List.of(), ".js", JS_WRAPPER, null, List.of(js.toString(), function), JsonLite.write(payload), timeout, false, null, null);
+        Map<String, Object> r;
+        try { r = run(ctx, interpreters(interpreter, List.of("node")), List.of(), ".js", JS_WRAPPER, null, List.of(js.toString(), function), JsonLite.write(payload), timeout, false, null, null); }
+        catch (ActionException e) {
+            if (!"SCRIPT.INTERPRETER_NOT_FOUND".equals(e.code()) || !ProcessRunner.WINDOWS || (interpreter != null && !interpreter.isBlank())) throw e;
+            ctx.info("Node.js is not installed; calling the function with Windows JScript (promises and Node modules are not available there)");
+            r = jscript(ctx, js, null, function, args, null, null, timeout, false, null, null);
+        }
         return functionResult(r, "JavaScript", "SCRIPT.JAVASCRIPT_ERROR", fail);
     }
 
     /** VBScript wrapper: runs the user's file with ExecuteGlobal, calls one function with text arguments and echoes the result after a marker. */
     static final String VBS_WRAPPER = String.join("\r\n",
             "Option Explicit",
-            "Dim fso, src, env, i, n, expr, result, msg",
+            "Dim fso, src, env, i, n, expr, result, msg, a",
             "Set fso = CreateObject(\"Scripting.FileSystemObject\")",
             "src = fso.OpenTextFile(WScript.Arguments(0), 1).ReadAll",
             "ExecuteGlobal src",
@@ -347,7 +459,13 @@ public final class ScriptPackage {
             "expr = WScript.Arguments(1) & \"(\"",
             "For i = 0 To n - 1",
             "  If i > 0 Then expr = expr & \", \"",
-            "  expr = expr & \"\"\"\" & Replace(Mid(env(\"OOA_VBS_ARG_\" & i), 2), \"\"\"\", \"\"\"\"\"\") & \"\"\"\"",
+            "  a = env(\"OOA_VBS_ARG_\" & i)",
+            // n = number (invariant literal), b = True/False, e = Empty, anything else is a quoted string
+            "  Select Case Left(a, 1)",
+            "    Case \"n\", \"b\": expr = expr & Mid(a, 2)",
+            "    Case \"e\": expr = expr & \"Empty\"",
+            "    Case Else: expr = expr & \"\"\"\" & Replace(Mid(a, 2), \"\"\"\", \"\"\"\"\"\") & \"\"\"\"",
+            "  End Select",
             "Next",
             "expr = expr & \")\"",
             "On Error Resume Next",
@@ -361,7 +479,7 @@ public final class ScriptPackage {
             "End If", "");
 
     @Action(id = "run_vbscript_function", name = "Run VBScript function", category = "Scripts", timeoutSeconds = 3600,
-            description = "Call one function in a VBScript file with text arguments and return its result as text (Windows only).",
+            description = "Call one function in a VBScript file and return its result as text (Windows only).",
             panel = "(Code: Use a file = file / Type it here = script), function, arguments | timeout_seconds, fail_on_error")
     @Output(name = "result", type = OoaType.STRING, description = "Value returned by the function, as text.")
     @Output(name = "output", type = OoaType.STRING, description = "Other text the script wrote.")
@@ -369,7 +487,7 @@ public final class ScriptPackage {
     public Map<String, Object> runVbScriptFunction(ActionContext ctx,
             @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "VBScript file (.vbs) that defines the function.") String file,
             @Input(name = "function", type = OoaType.STRING, example = "FormatInvoice", description = "Function name.") String function,
-            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, in order; each is passed as text.") List<Object> args,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, in order: numbers and true/false are passed as VBScript numbers and booleans, empty values as Empty, everything else as text.") List<Object> args,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the function raises an error; when false the error is returned in error.") boolean fail,
             @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = "Code that defines the function, typed in the agent, instead of a file.") String script) {
@@ -382,6 +500,14 @@ public final class ScriptPackage {
         return runVbScriptFunction(ctx, file, function, args, timeout, fail, null);
     }
 
+    /** A VBScript numeric literal (locale-independent); negative numbers are bracketed, very long ones written as 1.5E+20. */
+    static String vbsNumber(Number num) {
+        java.math.BigDecimal d = num instanceof java.math.BigDecimal bd ? bd : new java.math.BigDecimal(num.toString());
+        String t = d.stripTrailingZeros().toPlainString();
+        if (t.replace("-", "").replace(".", "").length() > 15) t = new java.math.BigDecimal(d.doubleValue()).round(java.math.MathContext.DECIMAL64).stripTrailingZeros().toString();
+        return d.signum() < 0 ? "(" + t + ")" : t;
+    }
+
     private Map<String, Object> runVbScriptFunction(ActionContext ctx, Path vbs, String function, List<Object> args, double timeout, boolean fail) {
         if (function == null || !function.matches("^[A-Za-z][A-Za-z0-9_]{0,127}$"))
             throw new ActionException("SCRIPT.BAD_FUNCTION", "Invalid function name '" + function + "'", "Give a plain VBScript name such as FormatInvoice.");
@@ -391,9 +517,15 @@ public final class ScriptPackage {
         int n = args == null ? 0 : args.size();
         if (n > 64) throw new ActionException("SCRIPT.BAD_ARGUMENT", "At most 64 arguments can be passed to a VBScript function");
         for (int i = 0; i < n; i++) {
-            String t = Values.text(args.get(i));
+            Object a = args.get(i);
+            // numbers and true/false arrive as VBScript numbers and booleans (Add(2, 3) is 5, not "23"); the first letter
+            // says which, and also keeps empty values (Windows drops empty variables)
+            if (a == null) { env.put("OOA_VBS_ARG_" + i, "e"); continue; }
+            if (a instanceof Boolean b) { env.put("OOA_VBS_ARG_" + i, "b" + (b ? "True" : "False")); continue; }
+            if (a instanceof Number num) { env.put("OOA_VBS_ARG_" + i, "n" + vbsNumber(num)); continue; }
+            String t = Values.text(a);
             if (t.indexOf('\n') >= 0 || t.indexOf('\r') >= 0) throw new ActionException("SCRIPT.BAD_ARGUMENT", "VBScript function arguments cannot contain line breaks", "Pass multi-line text through a file instead.");
-            env.put("OOA_VBS_ARG_" + i, "x" + t);  // prefix keeps empty values (Windows drops empty variables)
+            env.put("OOA_VBS_ARG_" + i, "s" + t);
         }
         env.put("OOA_VBS_ARGC", String.valueOf(n));
         Map<String, Object> r = run(ctx, List.of("cscript"), List.of("//NoLogo"), ".vbs", VBS_WRAPPER, null, List.of(vbs.toString(), function), null, timeout, false, null, env);

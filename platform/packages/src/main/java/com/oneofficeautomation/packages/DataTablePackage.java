@@ -217,16 +217,43 @@ public final class DataTablePackage {
 
     public Map<String, Object> rowCount(ActionContext ctx, Map<String, Object> table) { return rowCount(ctx, table, false); }
 
-    @Action(id = "sum_column", name = "Sum column", category = "Table", idempotent = true, description = "Add up the numeric values in a column; empty cells are ignored.",
-            panel = "table, column")
+    public Map<String, Object> sumColumn(ActionContext ctx, Map<String, Object> table, String column) { return sumColumn(ctx, table, column, "error", null); }
+
+    @Action(id = "sum_column", name = "Sum column", category = "Table", idempotent = true,
+            description = "Add up the numeric values in a column; empty cells are ignored, and text such as 1,000.50 or $ 12 is read as a number.",
+            panel = "table, column | if_not_number, locale")
     @Output(name = "total", type = OoaType.NUMBER, description = "Sum.")
+    @Output(name = "skipped", type = OoaType.NUMBER, description = "Cells that were not numbers and were left out (if_not_number = skip).")
     public Map<String, Object> sumColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "column", type = OoaType.STRING, description = "Column name.") String column) {
+            @Input(name = "column", type = OoaType.STRING, description = "Column name.") String column,
+            @Input(name = "if_not_number", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "skip"},
+                    description = "A cell that is not a number: error stops and names its row; skip leaves it out and counts it in skipped.") String ifNotNumber,
+            @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en-US\"",
+                    description = "How numbers written as text use separators, e.g. en-US (1,000.50) or de-DE (1.000,50).") String locale) {
         int c = col(table, column);
+        boolean skip = "skip".equalsIgnoreCase(ifNotNumber);
+        StringPackage text = new StringPackage();
         BigDecimal t = BigDecimal.ZERO;
-        for (List<Object> r : rows(table)) { Object v = cell(r, c); if (v != null && !"".equals(v)) t = t.add(Values.toNumber(v)); }
-        return Out.of("total", t);
+        int row = 0, skipped = 0;
+        for (List<Object> r : rows(table)) {
+            row++;
+            Object v = cell(r, c);
+            if (v == null || (v instanceof String s && s.isBlank())) continue;
+            BigDecimal n;
+            if (v instanceof Number num) n = Values.toNumber(num);
+            else {
+                // text written with grouping separators or a currency sign ("1,000.50", "$ 12") counts too
+                try { n = (BigDecimal) text.toNumber(ctx, Values.text(v), locale, null, null, true).get("result"); }
+                catch (ActionException e) {
+                    if (skip) { skipped++; continue; }
+                    throw new ActionException("DATATABLE.NOT_A_NUMBER", "Row " + row + " of column '" + column + "' is '" + Values.text(v) + "', not a number",
+                            "Fix the value, or set if_not_number to skip to leave such cells out.", false, Map.of("row", BigDecimal.valueOf(row)));
+                }
+            }
+            t = t.add(n);
+        }
+        return Out.of("total", t, "skipped", BigDecimal.valueOf(skipped));
     }
 
     @Action(id = "aggregate", name = "Group and summarise", category = "Table", idempotent = true,

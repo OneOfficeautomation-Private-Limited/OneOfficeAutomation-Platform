@@ -99,8 +99,13 @@ public final class PdfPackage {
                 for (int pg : pages(pages, d.getNumberOfPages())) { s.setStartPage(pg); s.setEndPage(pg); sb.append(s.getText(d)); }
                 text = sb.toString();
             } else {
-                s.setStartPage(Math.max(1, from));
-                s.setEndPage(to == null ? d.getNumberOfPages() : Math.min(to, d.getNumberOfPages()));
+                int count = d.getNumberOfPages();
+                // a start page past the end used to return "" as if the page were empty
+                if (from > count || from < 1 || (to != null && to < from))
+                    throw new ActionException("PDF.BAD_PAGES", from > count ? "There is no page " + from + "; the document has " + count + " page" + (count == 1 ? "" : "s")
+                            : "from_page and to_page must be 1 or more, with to_page not before from_page", "The document has " + count + " page" + (count == 1 ? "" : "s") + ".");
+                s.setStartPage(from);
+                s.setEndPage(to == null ? count : Math.min(to, count));
                 text = s.getText(d);
             }
             if (outputFile != null && !outputFile.isBlank()) {
@@ -373,7 +378,7 @@ public final class PdfPackage {
             for (var e : values.entrySet()) {
                 PDField f = form.getField(e.getKey());
                 if (f == null) { missing.add(e.getKey()); continue; }
-                f.setValue(e.getValue() == null ? "" : Values.text(Values.toJsonable(e.getValue())));
+                setField(f, e.getKey(), e.getValue());
                 n++;
             }
             if (!missing.isEmpty()) throw new ActionException("PDF.NO_FIELD", "Fields not found: " + missing, "Use Read form fields to see the exact field names.");
@@ -381,6 +386,34 @@ public final class PdfPackage {
             save(ctx, d, target);
             return Map.of("filled", BigDecimal.valueOf(n));
         } catch (IOException e) { throw new ActionException("PDF.FORM_FAILED", e.getMessage()); }
+    }
+
+    /**
+     * A check box takes true/false (or yes/no, on/off, 1/0, x) and is set to its own on-value or Off: {"agree": true} used
+     * to crash with IllegalArgumentException. A wrong choice for a check box, radio group or list is PDF.BAD_VALUE with the
+     * allowed values.
+     */
+    static void setField(PDField f, String name, Object value) throws IOException {
+        String text = value == null ? "" : Values.text(Values.toJsonable(value));
+        try {
+            if (f instanceof org.apache.pdfbox.pdmodel.interactive.form.PDCheckBox cb) {
+                String t = text.strip().toLowerCase(Locale.ROOT);
+                Set<String> on = cb.getOnValues();
+                if (value instanceof Boolean b ? b : List.of("true", "yes", "y", "on", "1", "x", "checked").contains(t)) cb.check();
+                else if (value instanceof Boolean || List.of("false", "no", "n", "off", "0", "", "unchecked").contains(t)) cb.unCheck();
+                else if (on.contains(text.strip())) cb.setValue(text.strip());
+                else throw new ActionException("PDF.BAD_VALUE", "Check box '" + name + "' cannot be set to '" + text + "'",
+                            "Use true or false" + (on.isEmpty() ? "." : ", or its on-value " + on + "."));
+                return;
+            }
+            f.setValue(text);
+        } catch (IllegalArgumentException e) {
+            List<String> options = new ArrayList<>();
+            if (f instanceof org.apache.pdfbox.pdmodel.interactive.form.PDButton btn) options.addAll(btn.getOnValues());
+            if (f instanceof org.apache.pdfbox.pdmodel.interactive.form.PDChoice ch) options.addAll(ch.getOptionsExportValues().isEmpty() ? ch.getOptions() : ch.getOptionsExportValues());
+            throw new ActionException("PDF.BAD_VALUE", "Field '" + name + "' cannot be set to '" + text + "'" + (options.isEmpty() ? ": " + e.getMessage() : ""),
+                    options.isEmpty() ? "Use Read form fields to see what the field accepts." : "Allowed values: " + options + ".");
+        }
     }
 
     public Map<String, Object> encrypt(ActionContext ctx, String path, String target, SecureString user, SecureString owner, boolean print) {
@@ -442,18 +475,11 @@ public final class PdfPackage {
     }
 
     /** Writes an image in a format ImageIO knows; JPEG and BMP get an RGB copy because they have no alpha channel. */
-    private static void writeImage(java.awt.image.BufferedImage img, String format, File f) throws IOException {
-        java.awt.image.BufferedImage out = img;
-        if ((format.equals("jpg") || format.equals("bmp")) && img.getType() != java.awt.image.BufferedImage.TYPE_INT_RGB
-                && img.getType() != java.awt.image.BufferedImage.TYPE_BYTE_GRAY && img.getType() != java.awt.image.BufferedImage.TYPE_BYTE_BINARY) {
-            out = new java.awt.image.BufferedImage(img.getWidth(), img.getHeight(), java.awt.image.BufferedImage.TYPE_INT_RGB);
-            var g = out.createGraphics();
-            g.setColor(java.awt.Color.WHITE);
-            g.fillRect(0, 0, img.getWidth(), img.getHeight());
-            g.drawImage(img, 0, 0, null);
-            g.dispose();
-        }
-        if (!ImageIO.write(out, format.equals("jpg") ? "jpeg" : format, f)) throw new IOException("No " + format + " writer available");
+    private static void writeImage(java.awt.image.BufferedImage img, String format, File f) throws IOException { writeImage(img, format, f, null, null); }
+
+    /** Writes an image with the JPEG quality and TIFF compression chosen on the step (see ImageFiles). */
+    private static void writeImage(java.awt.image.BufferedImage img, String format, File f, Integer jpegQuality, String tiffCompression) throws IOException {
+        com.oneofficeautomation.packages.ImageFiles.write(img, format, f, jpegQuality, tiffCompression);
     }
 
     private static String imageFormat(String format) {
@@ -467,9 +493,13 @@ public final class PdfPackage {
 
     public Map<String, Object> toImages(ActionContext ctx, String path, String folder, int dpi) { return toImages(ctx, path, folder, dpi, "png", "color", null, null, null); }
 
+    public Map<String, Object> toImages(ActionContext ctx, String path, String folder, int dpi, String format, String colour, String pages, String prefix, Object password) {
+        return toImages(ctx, path, folder, dpi, format, colour, pages, prefix, password, null, null);
+    }
+
     @Action(id = "to_images", name = "Convert to images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Save each page, or chosen pages, as an image (PNG, JPEG, BMP, GIF or TIFF) in colour, grey or black and white, for OCR or previews.",
-            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, dpi, color | file_prefix")
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, dpi, color | jpeg_quality, tiff_compression, file_prefix")
     @Output(name = "files", type = OoaType.LIST, description = "Created images.")
     public Map<String, Object> toImages(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
@@ -480,7 +510,11 @@ public final class PdfPackage {
                     description = "color keeps the colours; gray gives greyscale; black_white gives 1-bit images, often best for OCR.") String colour,
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Pages to convert, e.g. 1,3,5-7; every page when empty.") String pages,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1 and so on; the PDF's name when empty.") String prefix,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "jpeg_quality", type = OoaType.NUMBER, required = false, defaultValue = "90", min = 1, max = 100, visibleWhen = "format=jpg|tiff",
+                    description = "JPEG quality from 1 (smallest file) to 100 (best picture); also used for TIFF with jpeg compression.") Integer jpegQuality,
+            @Input(name = "tiff_compression", type = OoaType.STRING, required = false, defaultValue = "\"lzw\"", enumValues = {"lzw", "deflate", "packbits", "jpeg", "ccitt_g4", "none"}, visibleWhen = "format=tiff",
+                    description = "TIFF compression: lzw and deflate are lossless; ccitt_g4 gives the smallest black-and-white files (pages are made black and white); jpeg suits photos.") String tiffCompression) {
         List<Object> out = new ArrayList<>();
         String fmt = imageFormat(format);
         org.apache.pdfbox.rendering.ImageType type = switch (colour == null ? "color" : colour.toLowerCase(Locale.ROOT)) {
@@ -497,11 +531,39 @@ public final class PdfPackage {
             for (int pg : pages(pages, d.getNumberOfPages())) {
                 ctx.checkCancelled();
                 File f = dir.resolve(base + "_page" + pg + "." + fmt).toFile();
-                writeImage(r.renderImageWithDPI(pg - 1, Math.max(36, Math.min(600, dpi)), type), fmt, f);
+                writeImage(r.renderImageWithDPI(pg - 1, Math.max(36, Math.min(600, dpi)), type), fmt, f, fmt.equals("jpg") || fmt.equals("tiff") ? jpegQuality : null, tiffCompression);
                 out.add(f.getPath());
             }
         } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
         return Map.of("files", out);
+    }
+
+    @Action(id = "render_page", name = "Get page as picture", category = "Document", idempotent = true, timeoutSeconds = 120, capabilities = "filesystem",
+            description = "Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by One AgentStudio to draw an area to read, and to show a page in forms or emails.",
+            panel = "path, page, [The file has a password: password] | dpi")
+    @Output(name = "image", type = OoaType.STRING, description = "The page as a data:image/png;base64 URI.")
+    @Output(name = "width_points", type = OoaType.NUMBER, description = "Page width in points (72 per inch), as Extract text from area measures it.")
+    @Output(name = "height_points", type = OoaType.NUMBER, description = "Page height in points.")
+    @Output(name = "page_count", type = OoaType.NUMBER, description = "Number of pages in the file.")
+    public Map<String, Object> renderPage(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "1-based page number.") int page,
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "96", min = 36, max = 300, description = "Resolution of the picture.") int dpi,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        try (PDDocument d = load(ctx, path, password)) {
+            if (page < 1 || page > d.getNumberOfPages())
+                throw new ActionException("PDF.NO_PAGE", "There is no page " + page + " (the file has " + d.getNumberOfPages() + ")", "Use a page from 1 to " + d.getNumberOfPages() + ".");
+            PDPage p = d.getPage(page - 1);
+            org.apache.pdfbox.pdmodel.common.PDRectangle box = p.getCropBox();
+            boolean turned = p.getRotation() % 180 != 0;
+            java.awt.image.BufferedImage img = new PDFRenderer(d).renderImageWithDPI(page - 1, Math.max(36, Math.min(300, dpi)), org.apache.pdfbox.rendering.ImageType.RGB);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            ImageIO.write(img, "png", out);
+            return Map.of("image", "data:image/png;base64," + Base64.getEncoder().encodeToString(out.toByteArray()),
+                    "width_points", BigDecimal.valueOf(turned ? box.getHeight() : box.getWidth()).setScale(2, java.math.RoundingMode.HALF_UP),
+                    "height_points", BigDecimal.valueOf(turned ? box.getWidth() : box.getHeight()).setScale(2, java.math.RoundingMode.HALF_UP),
+                    "page_count", BigDecimal.valueOf(d.getNumberOfPages()));
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
     }
 
     @Action(id = "read_text_ocr", name = "Read text with OCR", category = "Document", idempotent = true, timeoutSeconds = 1800, capabilities = "filesystem",
@@ -544,9 +606,14 @@ public final class PdfPackage {
         return extractImages(ctx, path, folder, minSize, password, pages, format, prefix, colour, 0);
     }
 
+    public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password,
+                                             String pages, String format, String prefix, String colour, int dpi) {
+        return extractImages(ctx, path, folder, minSize, password, pages, format, prefix, colour, dpi, null, null);
+    }
+
     @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.",
-            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color, [Resize to a resolution: dpi] | min_size")
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color, [Resize to a resolution: dpi] | jpeg_quality, tiff_compression, min_size")
     @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
     public Map<String, Object> extractImages(ActionContext ctx,
@@ -557,12 +624,20 @@ public final class PdfPackage {
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Only pages listed here, e.g. 1,3,5-7; every page when empty.") String pages,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp", "gif", "tiff"}, description = "Image file format.") String format,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty.") String prefix,
-            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour,
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray", "black_white"},
+                    description = "Colour depth: color keeps the colours (24-bit); gray saves 8-bit greyscale copies; black_white saves 1-bit images.") String colour,
             @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1200,
-                    description = "Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size.") int dpi) {
+                    description = "Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size.") int dpi,
+            @Input(name = "jpeg_quality", type = OoaType.NUMBER, required = false, defaultValue = "90", min = 1, max = 100, visibleWhen = "format=jpg|tiff",
+                    description = "JPEG quality from 1 (smallest file) to 100 (best picture); also used for TIFF with jpeg compression.") Integer jpegQuality,
+            @Input(name = "tiff_compression", type = OoaType.STRING, required = false, defaultValue = "\"lzw\"", enumValues = {"lzw", "deflate", "packbits", "jpeg", "ccitt_g4", "none"}, visibleWhen = "format=tiff",
+                    description = "TIFF compression: lzw and deflate are lossless; ccitt_g4 gives the smallest black-and-white files (images are made black and white); jpeg suits photos.") String tiffCompression) {
         List<Object> out = new ArrayList<>();
         String fmt = imageFormat(format);
-        boolean gray = colour != null && (colour.equalsIgnoreCase("gray") || colour.equalsIgnoreCase("grey"));
+        String depth = colour == null || colour.isBlank() ? "color" : colour.trim().toLowerCase(Locale.ROOT).replace("grey", "gray").replace("colour", "color");
+        if (!List.of("color", "gray", "black_white").contains(depth))
+            throw new ActionException("PDF.BAD_COLOR", "Colour must be color, gray or black_white", "Use color, gray or black_white.");
+        boolean gray = depth.equals("gray");
         try (PDDocument d = load(ctx, path, password)) {
             Path dir = ctx.resolvePath(folder);
             Files.createDirectories(dir);
@@ -578,13 +653,10 @@ public final class PdfPackage {
                     if (bi == null || bi.getWidth() < minSize || bi.getHeight() < minSize) return;
                     double[] size = placed.get(img.getCOSObject());
                     if (size != null) bi = resize(bi, (int) Math.max(1, Math.round(size[0] / 72 * dpi)), (int) Math.max(1, Math.round(size[1] / 72 * dpi)));
-                    if (gray) {
-                        java.awt.image.BufferedImage g = new java.awt.image.BufferedImage(bi.getWidth(), bi.getHeight(), java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
-                        var gr = g.createGraphics(); gr.drawImage(bi, 0, 0, null); gr.dispose();
-                        bi = g;
-                    }
+                    if (gray) bi = com.oneofficeautomation.packages.ImageFiles.gray(bi);
+                    else if (depth.equals("black_white")) bi = com.oneofficeautomation.packages.ImageFiles.binary(bi);
                     File f = dir.resolve(base + "_page" + pageNo + "_img" + (++n[0]) + "." + fmt).toFile();
-                    writeImage(bi, fmt, f);
+                    writeImage(bi, fmt, f, fmt.equals("jpg") || fmt.equals("tiff") ? jpegQuality : null, tiffCompression);
                     out.add(f.getPath());
                 });
             }

@@ -127,7 +127,7 @@ public final class ExcelPackage {
         return r;
     }
 
-    @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = "filesystem",
+    @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = {"filesystem", "network"},
             description = "Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.",
             panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password], [The file is on OneDrive or SharePoint: access_token, drive] | create, session, graph_url")
     public Map<String, Object> open(ActionContext ctx,
@@ -196,7 +196,7 @@ public final class ExcelPackage {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("EXCEL.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XSSFWorkbook wb = new XSSFWorkbook();
-        try { wb.createSheet(sheet == null || sheet.isBlank() ? "Sheet1" : sheet); }
+        try { wb.createSheet(sheetName(sheet == null || sheet.isBlank() ? "Sheet1" : sheet)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         WorkbookSession s = new WorkbookSession(p, wb);
         s.password = OfficeCrypto.secret(password);
@@ -502,7 +502,7 @@ public final class ExcelPackage {
             if (!replace) throw new ActionException("EXCEL.SHEET_EXISTS", "Sheet '" + name + "' already exists", "Set replace to true or choose another name.");
             s.wb.removeSheetAt(idx);
         }
-        try { s.wb.createSheet(name); }
+        try { s.wb.createSheet(sheetName(name)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         if (position != null) {
             int n = s.wb.getNumberOfSheets();
@@ -833,10 +833,23 @@ public final class ExcelPackage {
         Sheet copy = s.wb.cloneSheet(s.wb.getSheetIndex(src));
         int idx = s.wb.getSheetIndex(copy);
         if (newName != null && !newName.isBlank()) {
-            try { s.wb.setSheetName(idx, newName); }
+            try { s.wb.setSheetName(idx, sheetName(newName)); }
             catch (IllegalArgumentException e) { s.wb.removeSheetAt(idx); throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         }
         return out("name", s.wb.getSheetName(idx));
+    }
+
+    /**
+     * Excel's rules for a sheet name, checked before POI sees it: POI cut names longer than 31 characters silently, so later
+     * steps using the full name did not find the sheet.
+     */
+    static String sheetName(String name) {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("A sheet name cannot be empty");
+        if (name.length() > 31) throw new IllegalArgumentException("Sheet name '" + name + "' has " + name.length() + " characters; Excel allows at most 31");
+        if (name.matches(".*[:\\\\/?*\\[\\]].*")) throw new IllegalArgumentException("Sheet name '" + name + "' contains one of : \\ / ? * [ ]");
+        if (name.startsWith("'") || name.endsWith("'")) throw new IllegalArgumentException("Sheet name '" + name + "' cannot start or end with an apostrophe");
+        if (name.equalsIgnoreCase("History")) throw new IllegalArgumentException("'History' is reserved by Excel");
+        return name;
     }
 
     public Map<String, Object> renameSheet(ActionContext ctx, String sheet, String newName, String session) { return renameSheet(ctx, sheet, newName, session, null); }
@@ -852,7 +865,7 @@ public final class ExcelPackage {
         int idx = s.wb.getSheetIndex(sheetByNameOrIndex(s, sheet, index));
         int clash = s.wb.getSheetIndex(newName);
         if (clash >= 0 && clash != idx) throw new ActionException("EXCEL.SHEET_EXISTS", "Sheet '" + newName + "' already exists", "Choose another name.");
-        try { s.wb.setSheetName(idx, newName); }
+        try { s.wb.setSheetName(idx, sheetName(newName)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         return Map.of();
     }
@@ -1153,20 +1166,49 @@ public final class ExcelPackage {
 
     public Map<String, Object> getTableRange(ActionContext ctx, String sheet, String session) { return getTableRange(ctx, sheet, session, null, true); }
 
+    public Map<String, Object> getTableRange(ActionContext ctx, String sheet, String session, String tableName, boolean includeHeader) {
+        return getTableRange(ctx, sheet, session, tableName, includeHeader, true);
+    }
+
+    /** Pivot tables of a sheet as {name, first row, first column, last row, last column} (0-based), from their location. */
+    static List<Object[]> pivotAreas(Sheet sh) {
+        List<Object[]> out = new ArrayList<>();
+        if (!(sh instanceof XSSFSheet xs)) return out;
+        for (org.apache.poi.xssf.usermodel.XSSFPivotTable p : xs.getPivotTables()) {
+            var def = p.getCTPivotTableDefinition();
+            if (def == null || def.getLocation() == null || def.getLocation().getRef() == null) continue;
+            org.apache.poi.ss.util.CellRangeAddress a = org.apache.poi.ss.util.CellRangeAddress.valueOf(def.getLocation().getRef());
+            // the location excludes the page (report filter) fields shown above the pivot: one row each plus a blank row
+            int pages = def.getPageFields() == null ? 0 : (int) def.getPageFields().getCount();
+            int top = pages > 0 ? Math.max(0, a.getFirstRow() - pages - 1) : a.getFirstRow();
+            out.add(new Object[]{def.getName(), top, a.getFirstColumn(), a.getLastRow(), a.getLastColumn()});
+        }
+        return out;
+    }
+
     @Action(id = "get_table_range", name = "Get table range", category = "Cells", idempotent = true,
-            description = "Return the address of the smallest rectangle holding all data on the sheet, or of a named Excel table, e.g. A1:D20.",
-            panel = "table, include_header | sheet, session")
+            description = "Return the address of the smallest rectangle holding all data on the sheet (including pivot tables), or of a named Excel table or pivot table, e.g. A1:D20.",
+            panel = "table, include_header, include_pivot_tables | sheet, session")
     @Output(name = "range", type = OoaType.STRING, description = "Used range address; empty when the sheet is empty.")
     @Output(name = "rows", type = OoaType.NUMBER, description = "Number of rows in the range.")
     @Output(name = "columns", type = OoaType.NUMBER, description = "Number of columns in the range.")
     public Map<String, Object> getTableRange(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "table", type = OoaType.STRING, required = false, description = "Excel table name, e.g. Table1; the sheet's used area when empty.") String tableName,
-            @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "For an Excel table, include its header row in the range.") boolean includeHeader) {
+            @Input(name = "table", type = OoaType.STRING, required = false, description = "Excel table or pivot table name, e.g. Table1 or PivotTable1; the sheet's used area when empty.") String tableName,
+            @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "For an Excel table, include its header row in the range.") boolean includeHeader,
+            @Input(name = "include_pivot_tables", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Count the whole area of the sheet's pivot tables (with their filter fields) as data, even cells Excel has not filled in yet.") boolean includePivots) {
         WorkbookSession s = session(ctx, session);
         if (tableName != null && !tableName.isBlank()) {
-            XSSFTable t = table(xlsx(s, "Excel tables"), tableName);
+            XSSFWorkbook wb = xlsx(s, "Excel tables");
+            for (int i = 0; i < wb.getNumberOfSheets(); i++)
+                for (Object[] p : pivotAreas(wb.getSheetAt(i)))
+                    if (String.valueOf(p[0]).equalsIgnoreCase(tableName.trim())) {
+                        int pr0 = (int) p[1], pc0 = (int) p[2], pr1 = (int) p[3], pc1 = (int) p[4];
+                        return out("range", addr(pr0, pc0) + ":" + addr(pr1, pc1), "rows", n(pr1 - pr0 + 1), "columns", n(pc1 - pc0 + 1));
+                    }
+            XSSFTable t = table(wb, tableName);
             CellReference a = t.getStartCellReference(), b = t.getEndCellReference();
             int r0 = a.getRow() + (includeHeader ? 0 : Math.max(0, t.getHeaderRowCount()));
             return out("range", addr(r0, a.getCol()) + ":" + addr(b.getRow(), b.getCol()), "rows", n(b.getRow() - r0 + 1), "columns", n(b.getCol() - a.getCol() + 1));
@@ -1176,6 +1218,10 @@ public final class ExcelPackage {
         for (Row r : sh) for (Cell c : r) if (!blank(c)) {
             r0 = Math.min(r0, r.getRowNum()); r1 = Math.max(r1, r.getRowNum());
             c0 = Math.min(c0, c.getColumnIndex()); c1 = Math.max(c1, c.getColumnIndex());
+        }
+        if (includePivots) for (Object[] p : pivotAreas(sh)) {
+            r0 = Math.min(r0, (int) p[1]); c0 = Math.min(c0, (int) p[2]);
+            r1 = Math.max(r1, (int) p[3]); c1 = Math.max(c1, (int) p[4]);
         }
         if (r1 < 0) return out("range", "", "rows", n(0), "columns", n(0));
         return out("range", addr(r0, c0) + ":" + addr(r1, c1), "rows", n(r1 - r0 + 1), "columns", n(c1 - c0 + 1));
@@ -1339,28 +1385,49 @@ public final class ExcelPackage {
     }
 
     public Map<String, Object> readColumn(ActionContext ctx, Object column, int startRow, String sheet, String session) {
-        return readColumn(ctx, column, startRow, sheet, session, null, "value");
+        return readColumn(ctx, column, startRow, sheet, session, null, "value", null);
     }
 
     @Action(id = "read_column", name = "Read column", category = "Cells", idempotent = true,
             description = "Read the values of one column, from a start row down to an end row or the last used row.",
-            panel = "column, start_row, end_row, read_as | sheet, session")
+            panel = "column, start_row, end_row, read_as | header_row, sheet, session")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values from top to bottom; empty cells are null.")
     public Map<String, Object> readColumn(ActionContext ctx,
-            @Input(name = "column", example = "B", description = "Column letter or 1-based number.") Object column,
+            @Input(name = "column", example = "B", description = "Column letter, 1-based number or header name (looked up in header_row).") Object column,
             @Input(name = "start_row", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "1-based row to start from, e.g. 2 to skip a header.") int startRow,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "end_row", type = OoaType.NUMBER, required = false, min = 1, description = "1-based last row to read; the last used row when empty.") Integer endRow,
-            @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"}, description = D_READ_AS) String readAs) {
+            @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"}, description = D_READ_AS) String readAs,
+            @Input(name = "header_row", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "Row with the column names. A column given by name is looked up here (row 1 when empty), and reading starts below this row.") Integer headerRow) {
         WorkbookSession s = session(ctx, session);
         Sheet sh = sheet(s, sheet);
         FormulaEvaluator ev = evaluator(s);
         DataFormatter fmt = new DataFormatter();
-        int c = columnIndex(column);
+        int first = rowIndex(startRow);
+        int c = -1;
+        String t = Values.text(column).trim();
+        boolean plain = column instanceof Number || t.matches("\\d+|[A-Za-z]{1,3}");
+        if (!plain || headerRow != null) {
+            // a header name (like filter and sort accept): an exact header match wins over a 1-3 letter column name
+            int h = rowIndex(headerRow == null ? 1 : headerRow);
+            Row hr = sh.getRow(h);
+            List<String> names = new ArrayList<>();
+            if (hr != null) for (Cell cell : hr) {
+                Object v = read(cell, ev);
+                if (v == null) continue;
+                names.add(Values.text(v).trim());
+                if (c < 0 && Values.text(v).trim().equalsIgnoreCase(t)) c = cell.getColumnIndex();
+            }
+            if (c >= 0) first = Math.max(first, h + 1);
+            else if (!plain) throw new ActionException("EXCEL.BAD_COLUMN", "There is no column named '" + t + "' in row " + (h + 1),
+                    names.isEmpty() ? "Row " + (h + 1) + " is empty; set header_row to the row with the column names." : "Column names in row " + (h + 1) + ": " + String.join(", ", names) + ".");
+        }
+        if (c < 0) c = columnIndex(column);
         int last = endRow == null ? sh.getLastRowNum() : rowIndex(endRow);
         List<Object> vals = new ArrayList<>();
-        for (int r = rowIndex(startRow); r <= last; r++) { Row row = sh.getRow(r); vals.add(row == null ? null : read(row.getCell(c), ev, readAs, fmt)); }
+        for (int r = first; r <= last; r++) { Row row = sh.getRow(r); vals.add(row == null ? null : read(row.getCell(c), ev, readAs, fmt)); }
         if (endRow == null) while (!vals.isEmpty() && vals.get(vals.size() - 1) == null) vals.remove(vals.size() - 1);
         return out("values", vals);
     }
@@ -1404,10 +1471,31 @@ public final class ExcelPackage {
         return String.format("#%02X%02X%02X", rgb[rgb.length - 3] & 0xff, rgb[rgb.length - 2] & 0xff, rgb[rgb.length - 1] & 0xff);
     }
 
+    /** Colour names people type, with Excel's standard palette values. */
+    static final Map<String, String> COLOR_NAMES = Map.ofEntries(
+            Map.entry("black", "000000"), Map.entry("white", "FFFFFF"), Map.entry("red", "FF0000"), Map.entry("green", "00B050"),
+            Map.entry("blue", "0070C0"), Map.entry("yellow", "FFFF00"), Map.entry("orange", "FFC000"), Map.entry("purple", "7030A0"),
+            Map.entry("gray", "808080"), Map.entry("grey", "808080"), Map.entry("pink", "FFC0CB"), Map.entry("brown", "996633"),
+            Map.entry("cyan", "00FFFF"), Map.entry("magenta", "FF00FF"), Map.entry("lime", "00FF00"), Map.entry("navy", "002060"),
+            Map.entry("teal", "008080"), Map.entry("maroon", "800000"), Map.entry("olive", "808000"), Map.entry("silver", "C0C0C0"),
+            Map.entry("gold", "FFD700"), Map.entry("lightgray", "D9D9D9"), Map.entry("lightgrey", "D9D9D9"), Map.entry("darkgray", "595959"),
+            Map.entry("darkgrey", "595959"), Map.entry("lightblue", "BDD7EE"), Map.entry("lightgreen", "C6EFCE"), Map.entry("lightyellow", "FFFFCC"),
+            Map.entry("lightred", "FFC7CE"), Map.entry("darkblue", "002060"), Map.entry("darkgreen", "006100"), Map.entry("darkred", "C00000"));
+
     static XSSFColor parseColor(String colour) {
-        String h = colour == null ? "" : colour.trim().replace("#", "");
+        String t = colour == null ? "" : colour.trim();
+        String h = t.replace("#", "");
+        String named = COLOR_NAMES.get(t.toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", ""));
+        if (named != null) h = named;
+        else if (h.matches("[0-9A-Fa-f]{3}")) h = "" + h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+        else if (t.matches("\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}")) {
+            String[] p = t.split("\\s*,\\s*");
+            int r = Integer.parseInt(p[0]), g = Integer.parseInt(p[1]), b = Integer.parseInt(p[2]);
+            if (r < 256 && g < 256 && b < 256) h = String.format("%02X%02X%02X", r, g, b);
+        }
         if (!h.matches("[0-9A-Fa-f]{6}"))
-            throw new ActionException("EXCEL.BAD_COLOR", "'" + colour + "' is not a colour", "Use a hex colour such as #FFC000.");
+            throw new ActionException("EXCEL.BAD_COLOR", "'" + colour + "' is not a colour",
+                    "Use a hex colour such as #FFC000, red,green,blue numbers such as 255,192,0, or a name: " + String.join(", ", new TreeSet<>(COLOR_NAMES.keySet())) + ".");
         int v = Integer.parseInt(h, 16);
         return new XSSFColor(new byte[]{(byte) (v >> 16), (byte) (v >> 8), (byte) v}, null);
     }
@@ -1447,7 +1535,7 @@ public final class ExcelPackage {
             panel = "range, target, color | sheet, session")
     public Map<String, Object> setCellColor(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:D1", description = "Cell or range to colour.") String range,
-            @Input(name = "color", type = OoaType.STRING, example = "#FFC000", description = "Hex colour.") String colour,
+            @Input(name = "color", type = OoaType.STRING, example = "#FFC000", description = "Hex colour (#FFC000), red,green,blue numbers (255,192,0) or a colour name such as yellow or light blue.") String colour,
             @Input(name = "target", type = OoaType.STRING, required = false, defaultValue = "\"fill\"", enumValues = {"fill", "font"}, description = "fill for the background, font for the text colour.") String target,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
@@ -1589,15 +1677,18 @@ public final class ExcelPackage {
 
     @Action(id = "unprotect_sheet", name = "Unprotect sheet", category = "Protection", description = "Remove protection from a worksheet; for .xlsx files the password is checked first.",
             panel = "password | sheet, session")
+    @Output(name = "was_protected", type = OoaType.BOOLEAN, description = "False when the sheet was not protected (nothing to do).")
     public Map<String, Object> unprotectSheet(ActionContext ctx,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Sheet password; a credential from the vault or text.") Object password,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
         Sheet sh = sheet(session(ctx, session), sheet);
+        // an unprotected sheet used to crash with IndexOutOfBoundsException inside POI: there is simply nothing to do
+        if (!sh.getProtect()) { ctx.info("Sheet '" + sh.getSheetName() + "' is not protected; nothing to unprotect"); return Map.of("was_protected", false); }
         if (sh instanceof XSSFSheet x && x.isSheetLocked() && !x.validateSheetPassword(Objects.requireNonNullElse(OfficeCrypto.secret(password), "")))
             throw new ActionException("EXCEL.WRONG_PASSWORD", "The sheet password is wrong", "Check the password stored in the credential vault.");
         sh.protectSheet(null);
-        return Map.of();
+        return Map.of("was_protected", true);
     }
 
     // ------------------------------------------------------------------------------------------------

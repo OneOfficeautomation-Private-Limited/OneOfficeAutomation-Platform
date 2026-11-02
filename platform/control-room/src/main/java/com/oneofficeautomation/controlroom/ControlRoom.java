@@ -1754,6 +1754,11 @@ public final class ControlRoom {
             for (Map<String, Object> g : db.query("SELECT name, json_value FROM global_values")) globals.put((String) g.get("name"), JsonLite.parse((String) g.get("json_value")));
             // a run-as user's runs use that user's identity (credentials, audit of the agent's own actions)
             Object principal = run.get("run_as") != null ? run.get("run_as") : run.get("requested_by");
+            // values set for a team the person belongs to (the first team by name when several set one)
+            Set<String> byTeam = new HashSet<>();
+            for (Map<String, Object> g : db.query("SELECT v.name, v.json_value FROM team_global_values v JOIN team_members m ON m.team_id = v.team_id JOIN teams t ON t.id = v.team_id "
+                    + "WHERE m.username = ? ORDER BY t.name", principal))
+                if (byTeam.add((String) g.get("name"))) globals.put((String) g.get("name"), JsonLite.parse((String) g.get("json_value")));
             // shared values a person may change for themselves: theirs when they set one
             for (Map<String, Object> g : db.query("SELECT u.name, u.json_value FROM user_global_values u JOIN global_values g ON g.name = u.name WHERE g.changeable = TRUE AND u.username = ?", principal))
                 globals.put((String) g.get("name"), JsonLite.parse((String) g.get("json_value")));
@@ -2708,15 +2713,80 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, Object> mine = new HashMap<>();
         for (Map<String, Object> v : db.query("SELECT name, json_value FROM user_global_values WHERE username = ?", by.username())) mine.put((String) v.get("name"), JsonLite.parse((String) v.get("json_value")));
+        Map<String, List<Object>> teams = new HashMap<>();
+        for (Map<String, Object> v : db.query("SELECT v.name, v.team_id, t.name AS team_name, v.json_value FROM team_global_values v JOIN teams t ON t.id = v.team_id ORDER BY t.name"))
+            teams.computeIfAbsent((String) v.get("name"), k -> new ArrayList<>()).add(Map.of("team_id", v.get("team_id"), "team_name", v.get("team_name"), "value", JsonLite.parse((String) v.get("json_value"))));
         for (Map<String, Object> g : db.query("SELECT * FROM global_values ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(g);
             m.remove("json_value");
+            m.remove("value_type");
             m.put("value", JsonLite.parse((String) g.get("json_value")));
+            m.put("type", g.get("value_type") == null ? "any" : g.get("value_type"));
             m.put("changeable", Boolean.TRUE.equals(g.get("changeable")));
             if (Boolean.TRUE.equals(g.get("changeable")) && mine.containsKey((String) g.get("name"))) m.put("my_value", mine.get((String) g.get("name")));
+            m.put("team_values", teams.getOrDefault((String) g.get("name"), List.of()));
             out.add(m);
         }
         return out;
+    }
+
+    /** Types a shared value can be given; any keeps whatever is set (values made before types existed). */
+    static final List<String> GLOBAL_TYPES = List.of("text", "number", "boolean", "date", "list", "record", "any");
+
+    /** Checks a value against its shared value's type; returns it in canonical form (numbers as numbers, dates as yyyy-MM-dd or ISO date-time). */
+    static Object typedGlobal(String name, String type, Object value) {
+        String t = type == null ? "any" : type;
+        String bad = "The value of " + name + " must be ";
+        return switch (t) {
+            case "text" -> { if (value instanceof String) yield value; throw new OoaException("CR.BAD_INPUT", bad + "text"); }
+            case "number" -> {
+                if (value instanceof Number) yield value;
+                if (value instanceof String s) try { yield new java.math.BigDecimal(s.trim()); } catch (NumberFormatException ignored) { }
+                throw new OoaException("CR.BAD_INPUT", bad + "a number");
+            }
+            case "boolean" -> {
+                if (value instanceof Boolean) yield value;
+                if ("true".equals(value) || "false".equals(value)) yield Boolean.parseBoolean((String) value);
+                throw new OoaException("CR.BAD_INPUT", bad + "true or false");
+            }
+            case "date" -> {
+                String s = value == null ? "" : String.valueOf(value).trim();
+                try { java.time.LocalDate.parse(s); yield s; } catch (java.time.DateTimeException ignored) { }
+                try { java.time.LocalDateTime.parse(s); yield s; } catch (java.time.DateTimeException ignored) { }
+                try { java.time.OffsetDateTime.parse(s); yield s; } catch (java.time.DateTimeException ignored) { }
+                throw new OoaException("CR.BAD_INPUT", bad + "a date (yyyy-MM-dd) or date and time (ISO 8601)");
+            }
+            case "list" -> { if (value instanceof List) yield value; throw new OoaException("CR.BAD_INPUT", bad + "a list, e.g. [\"a\", \"b\"]"); }
+            case "record" -> { if (value instanceof Map) yield value; throw new OoaException("CR.BAD_INPUT", bad + "a record, e.g. {\"key\": \"value\"}"); }
+            default -> value;
+        };
+    }
+
+    private String globalType(String name) {
+        Map<String, Object> g = db.one("SELECT value_type FROM global_values WHERE name = ?", name);
+        if (g == null) throw notFound("Shared value " + name);
+        return g.get("value_type") == null ? "any" : (String) g.get("value_type");
+    }
+
+    /** A team's value of a shared value: runs of the team's members use it (a person's own value still wins). */
+    public void setTeamGlobal(User by, String name, String teamId, Object value, String ip) {
+        require(by, "globals.manage", "manage shared values");
+        String type = globalType(name);
+        if (db.one("SELECT id FROM teams WHERE id = ?", teamId) == null) throw notFound("Team");
+        String json = JsonLite.write(typedGlobal(name, type, value));
+        if (json.length() > 100_000) throw new OoaException("CR.TOO_LARGE", "A shared value is at most 100000 characters");
+        db.tx(() -> {
+            if (db.update("UPDATE team_global_values SET json_value = ?, updated = ?, updated_by = ? WHERE name = ? AND team_id = ?", json, now(), by.username(), name, teamId) == 0)
+                db.update("INSERT INTO team_global_values (name, team_id, json_value, updated, updated_by) VALUES (?,?,?,?,?)", name, teamId, json, now(), by.username());
+            return null;
+        });
+        audit.record(by.username(), "global.team_value", "global", name, Map.of("team", teamId), "ok", ip);
+    }
+
+    public void deleteTeamGlobal(User by, String name, String teamId, String ip) {
+        require(by, "globals.manage", "manage shared values");
+        if (db.update("DELETE FROM team_global_values WHERE name = ? AND team_id = ?", name, teamId) == 0) throw notFound("The team's value of " + name);
+        audit.record(by.username(), "global.team_value_delete", "global", name, Map.of("team", teamId), "ok", ip);
     }
 
     // ---------------------------------------------------------------- saved connections
@@ -2814,30 +2884,52 @@ public final class ControlRoom {
 
     public void setGlobal(User by, String name, Object value, String ip) { setGlobal(by, name, value, null, ip); }
 
+    public void setGlobal(User by, String name, Object value, Boolean changeable, String ip) { setGlobal(by, name, value, changeable, null, ip); }
+
     /**
      * Sets a shared value. changeable (when given): each person may set their own value, which their runs use instead
      * of this one; turning it off removes everyone's own values.
      */
-    public void setGlobal(User by, String name, Object value, Boolean changeable, String ip) {
+    /**
+     * Sets a shared value. changeable (when given): each person may set their own value, which their runs use instead
+     * of this one; turning it off removes everyone's own values. type (when given) is checked for this value and for
+     * team and personal values; changing it removes team and personal values that no longer fit.
+     */
+    public void setGlobal(User by, String name, Object value, Boolean changeable, String type, String ip) {
         require(by, "globals.manage", "manage shared values");
         if (name == null || !name.matches("^[A-Za-z_][A-Za-z0-9_]{0,79}$")) throw new OoaException("CR.BAD_INPUT", "Shared value names use letters, digits and _ (not starting with a digit)");
-        String json = JsonLite.write(value);
+        if (type != null && !GLOBAL_TYPES.contains(type)) throw new OoaException("CR.BAD_INPUT", "The type is one of " + GLOBAL_TYPES);
+        Map<String, Object> existing = db.one("SELECT value_type FROM global_values WHERE name = ?", name);
+        String effective = type != null ? type : existing == null || existing.get("value_type") == null ? "any" : (String) existing.get("value_type");
+        String json = JsonLite.write(typedGlobal(name, effective, value));
         db.tx(() -> {
             if (db.update("UPDATE global_values SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), name) == 0)
                 db.update("INSERT INTO global_values (name, json_value, updated, updated_by) VALUES (?,?,?,?)", name, json, now(), by.username());
+            if (type != null) {
+                db.update("UPDATE global_values SET value_type = ? WHERE name = ?", type, name);
+                for (String table : List.of("user_global_values", "team_global_values"))
+                    for (Map<String, Object> v : db.query("SELECT json_value FROM " + table + " WHERE name = ?", name)) {
+                        try { typedGlobal(name, type, JsonLite.parse((String) v.get("json_value"))); }
+                        catch (OoaException misfit) { db.update("DELETE FROM " + table + " WHERE name = ? AND json_value = ?", name, v.get("json_value")); }
+                    }
+            }
             if (changeable != null) {
                 db.update("UPDATE global_values SET changeable = ? WHERE name = ?", changeable, name);
                 if (!changeable) db.update("DELETE FROM user_global_values WHERE name = ?", name);
             }
             return null;
         });
-        audit.record(by.username(), "global.set", "global", name, changeable == null ? null : Map.of("changeable", changeable), "ok", ip);
+        Map<String, Object> details = new LinkedHashMap<>();
+        if (changeable != null) details.put("changeable", changeable);
+        if (type != null) details.put("type", type);
+        audit.record(by.username(), "global.set", "global", name, details.isEmpty() ? null : details, "ok", ip);
     }
 
     public void deleteGlobal(User by, String name, String ip) {
         require(by, "globals.manage", "manage shared values");
         db.tx(() -> {
             db.update("DELETE FROM user_global_values WHERE name = ?", name);
+            db.update("DELETE FROM team_global_values WHERE name = ?", name);
             db.update("DELETE FROM global_values WHERE name = ?", name);
             return null;
         });
@@ -2850,7 +2942,7 @@ public final class ControlRoom {
         Map<String, Object> g = db.one("SELECT changeable FROM global_values WHERE name = ?", name);
         if (g == null) throw notFound("Shared value " + name);
         if (!Boolean.TRUE.equals(g.get("changeable"))) throw new OoaException("CR.FORBIDDEN", "Everyone uses the same value of " + name, "An administrator can let people change it for themselves.");
-        String json = JsonLite.write(value);
+        String json = JsonLite.write(typedGlobal(name, globalType(name), value));
         if (json.length() > 100_000) throw new OoaException("CR.TOO_LARGE", "A shared value is at most 100000 characters");
         db.tx(() -> {
             if (db.update("UPDATE user_global_values SET json_value = ?, updated = ? WHERE name = ? AND username = ?", json, now(), name, by.username()) == 0)

@@ -36,8 +36,8 @@ public final class PackageIntrospector {
             LoopIterator it = m.getAnnotation(LoopIterator.class);
             if (a != null) put(actions, spec("action", a.id(), a.name(), a.description(), a.category(), a.timeoutSeconds(),
                     a.idempotent(), List.of(a.capabilities()), m, a.panel()), meta);
-            if (c != null) put(conditions, spec("condition", c.id(), c.name(), c.description(), "Conditions", 60, true, List.of(), m, ""), meta);
-            if (it != null) put(iterators, spec("iterator", it.id(), it.name(), it.description(), "Iterators", 60, true, List.of(), m, ""), meta);
+            if (c != null) put(conditions, spec("condition", c.id(), c.name(), c.description(), "Conditions", 60, true, List.of(c.capabilities()), m, ""), meta);
+            if (it != null) put(iterators, spec("iterator", it.id(), it.name(), it.description(), "Iterators", 60, true, List.of(it.capabilities()), m, ""), meta);
         }
         return new PackageInfo(meta, actions, conditions, iterators);
     }
@@ -69,8 +69,12 @@ public final class PackageIntrospector {
                     throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' is shown when '" + other + "' has a value, but there is no such input");
         List<ActionSpec.OutputSpec> outputs = new ArrayList<>();
         for (Output o : m.getAnnotationsByType(Output.class)) outputs.add(new ActionSpec.OutputSpec(o.name(), o.type(), o.description()));
+        // a File input is a path on the runner: the command reads or writes local files, so it needs the filesystem
+        // capability whether or not the author listed it (162 commands had left it out, which governance policies rely on)
+        List<String> allCaps = new ArrayList<>(caps);
+        if (!allCaps.contains("filesystem") && inputs.stream().anyMatch(x -> x.type() == OoaType.FILE)) allCaps.add("filesystem");
         ActionSpec spec = new ActionSpec(kind, id, name, desc, category, List.copyOf(inputs), List.copyOf(outputs), timeout, idempotent,
-                caps, m, panel);
+                List.copyOf(allCaps), m, panel);
         spec.panelLayout();   // a panel that misses or repeats an input fails when the toolkit loads, not in Studio
         return spec;
     }
