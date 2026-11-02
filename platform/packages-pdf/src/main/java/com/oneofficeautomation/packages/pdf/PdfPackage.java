@@ -25,6 +25,26 @@ import java.util.*;
         description = "Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images.")
 public final class PdfPackage {
 
+    private static final java.util.concurrent.atomic.AtomicBoolean FONTS_STARTED = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /**
+     * Starts PDFBox's list of this computer's fonts in the background. PDFBox makes the list the first time it reads a font
+     * that a PDF names without embedding it (Helvetica, Arial and the like), and keeps it in .pdfbox.cache in the user's
+     * folder; on a computer where that never happened the first Extract text, Extract text from area or Convert to images
+     * waited for all of it: from 1 to more than 5 minutes on the Windows machines of GitHub's CI (STEP.TIMEOUT after 300 s
+     * on 2 Nov 2026). Hosts that run bots call this when they start (FirstPartyPackages.warmUp), so the first PDF step waits
+     * for what is left at most. Once per process; never fails.
+     */
+    public static void warmUp() {
+        if (!FONTS_STARTED.compareAndSet(false, true)) return;
+        Thread t = new Thread(() -> {
+            try { org.apache.pdfbox.pdmodel.font.FontMappers.instance().getFontBoxFont("Helvetica", null); }
+            catch (RuntimeException | LinkageError ignored) { /* the first PDF step that needs the fonts makes the list then */ }
+        }, "ooa-pdf-fonts");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private static PDDocument load(ActionContext ctx, String path, Object password) {
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "PDF not found: " + p, "Check the path.");

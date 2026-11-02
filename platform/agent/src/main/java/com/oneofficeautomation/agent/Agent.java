@@ -247,6 +247,7 @@ public final class Agent {
     public void run() {
         log("ONEOFFICEAUTOMATION OneRunner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
         log("Workspace: " + workspace);
+        com.oneofficeautomation.packages.FirstPartyPackages.warmUp();   // e.g. PDF's font list, so the first PDF step does not wait for it
         ScheduledExecutorService hb = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-agent-heartbeat"); t.setDaemon(true); return t; });
         hb.scheduleWithFixedDelay(this::heartbeat, 0, heartbeatMs, TimeUnit.MILLISECONDS);
         localTriggers.start(triggerPollMs);

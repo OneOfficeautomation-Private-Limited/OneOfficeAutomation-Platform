@@ -95,6 +95,7 @@ public final class StudioServer {
     Path workspaceRoot() { return workspace; }
 
     private void startServices() {
+        FirstPartyPackages.warmUp();   // e.g. PDF's font list, so the first PDF step run here does not wait for it
         cr = new ControlRoomLink(ws);
         triggers = new TriggerService(ws, (botPath, inputs) -> runFile(botPath, inputs));
         triggers.start();
