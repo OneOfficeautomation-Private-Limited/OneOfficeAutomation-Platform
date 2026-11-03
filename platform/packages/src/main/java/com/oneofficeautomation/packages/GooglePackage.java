@@ -10,7 +10,7 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/** Google Workspace through Google's REST APIs: Sheets, Drive, Calendar and Gmail. OAuth 2.0 access token from the vault. */
+/** Google Workspace through Google's REST APIs: Sheets, Docs, Drive, Calendar and Gmail. OAuth 2.0 access token from the vault. */
 @OoaPackage(id = "ooa.google", name = "Google Workspace", version = "1.0.0",
         description = "Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail.")
 public final class GooglePackage {
@@ -2348,6 +2348,134 @@ public final class GooglePackage {
             @Input(name = "calendar_id", type = OoaType.STRING, required = false, defaultValue = "\"primary\"", description = "Calendar id.") String cal,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         call(ctx, token, "DELETE", CAL + HttpJson.enc(blank(cal) ? "primary" : cal) + "/events/" + HttpJson.enc(id) + "?sendUpdates=" + (notify ? "all" : "none"), ep, null);
+        return Map.of();
+    }
+
+    // ------------------------------------------------------------------ Docs
+
+    private static final String DOCS = "https://docs.googleapis.com/v1/documents";
+    private static final String D_DOC = "The document: its id, or its full link (https://docs.google.com/document/d/...).";
+    private static final java.util.regex.Pattern DOC_LINK = java.util.regex.Pattern.compile("^https?://docs\\.google\\.com/document/(?:u/\\d+/)?d/([A-Za-z0-9_-]+)");
+
+    /** The id in a Google Docs link, or the input itself when it is made only of id characters (letters, digits, - and _). */
+    static String documentIdOf(String v) {
+        String t = v == null ? "" : v.trim();
+        if (t.isEmpty()) throw bad("Give the document id or link", null);
+        java.util.regex.Matcher m = DOC_LINK.matcher(t);
+        if (m.find()) return m.group(1);
+        if (t.matches("(?i)^https?://.*")) throw bad("Not a Google Docs link: " + t, "Copy the link from the browser while the document is open, or give its id.");
+        if (!SHEET_ID.matcher(t).matches()) throw bad("Invalid document id '" + t + "'", "A document id has only letters, digits, - and _; or give the document's link.");
+        return t;
+    }
+
+    private static String docUrl(String id) { return "https://docs.google.com/document/d/" + id + "/edit"; }
+
+    private static Map<String, Object> docsBatch(ActionContext ctx, Object token, String id, String ep, List<Map<String, Object>> requests) {
+        return call(ctx, token, "POST", DOCS + "/" + HttpJson.enc(id) + ":batchUpdate", ep, Map.of("requests", requests));
+    }
+
+    /** insertText at the end of the document body (before its final line break). */
+    private static Map<String, Object> insertAtEnd(String text) {
+        return Map.of("insertText", Map.of("text", text, "endOfSegmentLocation", Map.of("segmentId", "")));
+    }
+
+    /** Plain text of a list of structural elements: paragraphs, tables (cell by cell) and tables of contents. */
+    static void docText(Object content, StringBuilder out) {
+        for (Object o : list(content)) {
+            Map<String, Object> e = obj(o);
+            if (e.get("paragraph") instanceof Map<?, ?> p)
+                for (Object pe : list(p.get("elements"))) {
+                    Map<String, Object> run = obj(obj(pe).get("textRun"));
+                    if (run.get("content") != null) out.append(run.get("content"));
+                }
+            else if (e.get("table") instanceof Map<?, ?> t)
+                for (Object row : list(t.get("tableRows"))) for (Object cell : list(obj(row).get("tableCells"))) docText(obj(cell).get("content"), out);
+            else if (e.get("tableOfContents") instanceof Map<?, ?> toc) docText(toc.get("content"), out);
+        }
+    }
+
+    @Action(id = "docs_create_document", name = "Create Google Doc", category = "Docs", capabilities = "network",
+            description = "Create a new Google Docs document, optionally with starting text and in a Drive folder.",
+            panel = "access_token, title, text, folder_id | endpoint_override")
+    @Output(name = "document_id", type = OoaType.STRING, description = "Id of the new document.")
+    @Output(name = "url", type = OoaType.STRING, description = "Link to open the document.")
+    public Map<String, Object> docsCreate(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "title", type = OoaType.STRING, description = "Document title.") String title,
+            @Input(name = "text", type = OoaType.STRING, required = false, description = "Text to put in the new document; empty when not given.") String text,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Drive folder to put the document in; My Drive when empty.") String folder,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        if (blank(title)) throw bad("Give the document a title", null);
+        Map<String, Object> r = call(ctx, token, "POST", DOCS, ep, Map.of("title", title));
+        String id = str(r.get("documentId"));
+        if (blank(id)) throw new ActionException(P + ".BAD_RESPONSE", "Google Docs did not return the new document's id", null);
+        if (text != null && !text.isEmpty()) docsBatch(ctx, token, id, ep, List.of(insertAtEnd(text)));
+        if (!blank(folder)) driveMove(ctx, token, id, folder, ep);
+        return Out.of("document_id", id, "url", docUrl(id));
+    }
+
+    @Action(id = "docs_read_text", name = "Read Google Doc text", category = "Docs", idempotent = true, capabilities = "network",
+            description = "Read all the text of a Google Docs document as plain text, table cells included.",
+            panel = "access_token, document_id | endpoint_override")
+    @Output(name = "text", type = OoaType.STRING, description = "The document's text; paragraphs end with a line break.")
+    @Output(name = "title", type = OoaType.STRING, description = "Document title.")
+    public Map<String, Object> docsReadText(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC) String doc,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String id = documentIdOf(doc);
+        Map<String, Object> d = call(ctx, token, "GET", DOCS + "/" + HttpJson.enc(id), ep, null);
+        StringBuilder out = new StringBuilder();
+        docText(obj(d.get("body")).get("content"), out);
+        return Out.of("text", out.toString(), "title", d.get("title"));
+    }
+
+    @Action(id = "docs_replace_text", name = "Replace text in Google Doc", category = "Docs", capabilities = "network",
+            description = "Replace every occurrence of one or more texts in a Google Docs document, such as placeholders in a template.",
+            panel = "access_token, document_id, replacements, match_case | endpoint_override")
+    @Output(name = "occurrences_changed", type = OoaType.NUMBER, description = "Total number of places changed.")
+    public Map<String, Object> docsReplaceText(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC) String doc,
+            @Input(name = "replacements", type = OoaType.DICTIONARY, example = "{\"{{name}}\": \"Ann\", \"{{date}}\": \"3 Nov 2026\"}",
+                    description = "Text to find as each key, and the text to put in its place as the value.") Map<String, Object> replacements,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only replace text with the same upper and lower case.") boolean matchCase,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String id = documentIdOf(doc);
+        if (replacements == null || replacements.isEmpty()) throw bad("Give at least one text to replace", "replacements is a dictionary such as {\"{{name}}\": \"Ann\"}.");
+        List<Map<String, Object>> requests = new ArrayList<>();
+        for (var e : replacements.entrySet()) {
+            if (e.getKey() == null || e.getKey().isEmpty()) throw bad("A text to find cannot be empty", null);
+            requests.add(Map.of("replaceAllText", Map.of("containsText", Map.of("text", e.getKey(), "matchCase", matchCase),
+                    "replaceText", e.getValue() == null ? "" : Values.text(e.getValue()))));
+        }
+        long changed = 0;
+        for (Object reply : list(docsBatch(ctx, token, id, ep, requests).get("replies")))
+            if (obj(obj(reply).get("replaceAllText")).get("occurrencesChanged") instanceof Number n) changed += n.longValue();
+        return Out.of("occurrences_changed", num(changed));
+    }
+
+    @Action(id = "docs_append_text", name = "Add text to Google Doc", category = "Docs", capabilities = "network",
+            description = "Add text at the end of a Google Docs document.",
+            panel = "access_token, document_id, text, new_paragraph | endpoint_override")
+    public Map<String, Object> docsAppendText(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC) String doc,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to add.") String text,
+            @Input(name = "new_paragraph", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Start the text on a new line when the document already has text; when false it continues the last paragraph.") boolean newParagraph,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String id = documentIdOf(doc);
+        if (text == null || text.isEmpty()) throw bad("Give the text to add", null);
+        String t = text;
+        if (newParagraph) {
+            StringBuilder now = new StringBuilder();
+            docText(obj(call(ctx, token, "GET", DOCS + "/" + HttpJson.enc(id), ep, null).get("body")).get("content"), now);
+            String body = now.toString().endsWith("\n") ? now.substring(0, now.length() - 1) : now.toString();
+            // a new line only after text; not when the document is empty or already ends with an empty paragraph
+            if (!body.isEmpty() && !body.endsWith("\n") && !t.startsWith("\n")) t = "\n" + t;
+        }
+        docsBatch(ctx, token, id, ep, List.of(insertAtEnd(t)));
         return Map.of();
     }
 
