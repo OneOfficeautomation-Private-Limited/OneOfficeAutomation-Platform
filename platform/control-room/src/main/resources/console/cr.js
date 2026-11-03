@@ -856,7 +856,7 @@ const VIEWS = {
         ...S.chat.messages.map((m) => h("div", { class: "chat-msg " + m.role }, m.text,
           m === last && m.kind === "confirm" && !S.chat.busy ? h("div", { class: "chat-actions" },
             h("button", { type: "button", class: "primary", onclick: () => send("yes") }, "Yes, run it"), h("button", { type: "button", onclick: () => send("no") }, "No")) : null,
-          m.run ? h("div", { class: "chat-actions" }, h("button", { type: "button", onclick: () => go("activity") }, "Open Agent Runs")) : null)));
+          m.run && (m.kind === "started" || String(m.kind || "").startsWith("run_")) ? h("div", { class: "chat-actions" }, h("button", { type: "button", onclick: () => go("activity") }, "Open Agent Runs")) : null)));
       log.scrollTop = log.scrollHeight;
     };
     const form = h("form", { class: "chat-form", onsubmit: (e) => { e.preventDefault(); const t = input.value; input.value = ""; send(t); } },
@@ -865,9 +865,11 @@ const VIEWS = {
       h("button", { type: "button", onclick: () => { S.chat = null; go("chat"); } }, "New chat")),
       h("div", { class: "chat" }, log, form));
     draw(); input.focus();
-    // while an approval is pending, pick up the decision the Command Center adds to this chat
+    // while a run or an approval from this chat is still open, pick up what the Command Center adds (finished, failed, approved)
+    const open = () => S.chat.messages.some((m) => (m.kind === "awaiting_approval" && !S.chat.messages.some((x) => String(x.kind || "").startsWith("approval_")))
+      || ((m.kind === "started" || m.kind === "approval_approved") && m.run && !S.chat.messages.some((x) => x.run === m.run && String(x.kind || "").startsWith("run_"))));
     if (main.isConnected) S.timer = every(async () => {
-      if (S.page !== "chat" || S.chat.busy || !S.chat.session || !S.chat.messages.some((m) => m.kind === "awaiting_approval")) return;
+      if (S.page !== "chat" || S.chat.busy || !S.chat.session || !open()) return;
       try {
         const r = await api("GET", "chat/" + S.chat.session);
         if (r.messages.length > S.chat.messages.length) {

@@ -85,7 +85,7 @@ public final class Chat implements ChatPlatform {
 
     @Override
     public String startRun(Person p, String path, Map<String, Object> inputs) {
-        String name = path.replaceAll("\\.flow\\.json$", "");
+        String name = agentName(path);
         String target = setting("chat_runner").trim();
         String device = null, pool = null;
         if (!target.isEmpty() && (target.startsWith("pool_") || cr.db.one("SELECT id FROM device_pools WHERE id = ?", target) != null)) pool = target;
@@ -164,5 +164,39 @@ public final class Chat implements ChatPlatform {
             cr.db.update("INSERT INTO chat_sessions (id, username, data, updated) VALUES (?,?,?,?)", id, username, json, now());
     }
 
-    @Override public void deleteSessionsIdleSince(java.time.Instant cutoff) { cr.db.update("DELETE FROM chat_sessions WHERE updated < ?", cutoff); }
+    @Override public void deleteSessionsIdleSince(java.time.Instant cutoff) {
+        cr.db.update("DELETE FROM chat_sessions WHERE updated < ?", cutoff);
+        cr.db.update("DELETE FROM chat_runs WHERE created < ?", cutoff.minus(java.time.Duration.ofDays(7)));
+    }
+
+    @Override public void watchRun(String runId, String sessionId, String username) {
+        cr.db.update("INSERT INTO chat_runs (run_id, session_id, username, created, notified) VALUES (?,?,?,?,?)", runId, sessionId, username, now(), false);
+    }
+
+    /**
+     * Tells each chat about its runs that have ended, whichever way they ended (the runner reported, the runner was lost,
+     * stopped before it started, refused at dispatch). Called when a run finishes and on every clock tick; each run is
+     * claimed first, so it is reported once even with several Command Center nodes.
+     */
+    @SuppressWarnings("unchecked")
+    void deliverRunUpdates() {
+        for (Map<String, Object> r : cr.db.query("SELECT c.run_id, c.session_id, c.username, r.bot_path, r.status, r.outputs, r.error FROM chat_runs c "
+                + "JOIN runs r ON r.id = c.run_id WHERE c.notified = ? AND r.status IN ('success', 'failed', 'stopped')", false)) {
+            if (cr.db.update("UPDATE chat_runs SET notified = ? WHERE run_id = ? AND notified = ?", true, r.get("run_id"), false) == 0) continue; // another node has it
+            try {
+                conversation.runFinished((String) r.get("session_id"), (String) r.get("username"), (String) r.get("run_id"), agentName((String) r.get("bot_path")),
+                        (String) r.get("status"), r.get("outputs") instanceof String o ? (Map<String, Object>) JsonLite.parse(o) : Map.of(),
+                        r.get("error") instanceof String e ? (Map<String, Object>) JsonLite.parse(e) : null);
+            } catch (RuntimeException e) {
+                cr.audit.record("system", "chat.run_update", "run", (String) r.get("run_id"), String.valueOf(e.getMessage()), "failed", null);
+            }
+        }
+    }
+
+    /** The agent's display name from its production version, else its file name. */
+    @SuppressWarnings("unchecked")
+    private String agentName(String path) {
+        try { return ChatBot.of(path, (Map<String, Object>) cr.content(path, "production").get("flow")).name(); }
+        catch (RuntimeException e) { return String.valueOf(path).replaceAll("^.*/", "").replaceAll("\\.flow\\.json$", ""); }
+    }
 }

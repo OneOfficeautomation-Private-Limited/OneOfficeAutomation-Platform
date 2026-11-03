@@ -531,11 +531,14 @@ public final class Db implements AutoCloseable {
 
     /**
      * Version 25: One Chat's conversations (messages, inputs filled in so far, a confirmation waiting for yes), kept so a
-     * chat survives a restart and continues on any node of a cluster; chats idle for a working day are dropped.
+     * chat survives a restart and continues on any node of a cluster; chats idle for a working day are dropped. And the
+     * runs each chat started, so the chat says when they finish (notified once).
      */
     private static final String[] SCHEMA_V25 = {
         "CREATE TABLE chat_sessions (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, data VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL)",
         "CREATE INDEX chat_sessions_updated ON chat_sessions (updated)",
+        "CREATE TABLE chat_runs (run_id VARCHAR(40) PRIMARY KEY, session_id VARCHAR(40) NOT NULL, username VARCHAR(80) NOT NULL, created TIMESTAMP NOT NULL, notified BOOLEAN NOT NULL)",
+        "CREATE INDEX chat_runs_notified ON chat_runs (notified)",
     };
 
     /** The schema version this release needs. */

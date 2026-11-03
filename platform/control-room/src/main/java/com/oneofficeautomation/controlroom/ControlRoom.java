@@ -1635,6 +1635,7 @@ public final class ControlRoom {
         if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        if ("chat".equals(r.get("source"))) try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* the next clock tick tells the chat */ }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 
@@ -1831,6 +1832,7 @@ public final class ControlRoom {
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
+        try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

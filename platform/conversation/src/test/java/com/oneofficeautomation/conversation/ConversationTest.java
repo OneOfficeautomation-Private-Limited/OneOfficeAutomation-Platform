@@ -54,6 +54,18 @@ class ConversationTest {
         assertEquals("started", chat.message(ANNA, null, "show payables aging").get("kind"));
     }
 
+    @Test void finishedRunsAreToldInTheChatThatStartedThem() {
+        Map<String, Object> r = chat.message(ANNA, null, "show payables aging");
+        String sid = (String) r.get("session_id"), runId = (String) r.get("run_id");
+        assertEquals(sid, host.watched.get(runId), "the host is asked to watch the run for this chat");
+
+        chat.runFinished(sid, "anna", runId, "AP aging report", "stopped", Map.of(), null);
+        chat.runFinished(sid, "someone else", runId, "AP aging report", "success", Map.of(), null);
+        List<Map<String, Object>> h = chat.history("anna", sid);
+        assertEquals("AP aging report (run " + runId + ") was stopped.", h.get(h.size() - 1).get("text"));
+        assertEquals(3, h.size(), "an update for another person's chat is ignored");
+    }
+
     @Test void r3RunsOnlyAfterApproval() {
         String sid = (String) chat.message(ANNA, null, "start the payment run").get("session_id");
         Map<String, Object> asked = chat.message(ANNA, sid, "yes");
@@ -152,5 +164,8 @@ class ConversationTest {
 
         @Override public void saveSession(String id, String username, Map<String, Object> data) { store.put(id, JsonLite.write(data)); }
         @Override public void deleteSessionsIdleSince(Instant cutoff) { }
+
+        final Map<String, String> watched = new HashMap<>();
+        @Override public void watchRun(String runId, String sessionId, String username) { watched.put(runId, sessionId); }
     }
 }

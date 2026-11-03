@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ChatTest {
     static final String INVOICES = "Finance/Process invoices.flow.json", AGING = "Finance/Aging report.flow.json", PAYMENT = "Finance/Payment run.flow.json";
 
-    Db db; ControlRoom cr; Chat chat; ControlRoom.User admin, jane, val;
+    Db db; ControlRoom cr; Chat chat; ControlRoom.User admin, jane, val; String device;
 
     @BeforeAll void start() throws Exception {
         Path data = Files.createTempDirectory("ooa-chat");
@@ -39,7 +39,7 @@ class ChatTest {
                 "{\"examples\":[\"show payables aging\",\"ap aging report\"],\"risk\":\"R0\"}"), "v1", true, null);
         cr.checkin(admin, PAYMENT, flow("payment", "Vendor payment run", "Pays due invoices.", "[]",
                 "{\"examples\":[\"start the payment run\",\"pay due vendor invoices\"],\"risk\":\"R3\"}"), "v1", true, null);
-        String device = (String) cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null).get("device_id");
+        device = (String) cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null).get("device_id");
         cr.platform.updateSettings(admin, Map.of("chat_runner", device), null);
         chat = new Chat(cr, data, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
     }
@@ -102,6 +102,33 @@ class ChatTest {
         assertEquals(Map.of("vendor", "Globex", "from", "2026-11-03"), c.get("inputs"));
         assertEquals("cancelled", new Chat(cr, data, clock).message(admin, sid, "no", null).get("kind"));
         assertEquals(8, new Chat(cr, data, clock).history(admin, sid).size());
+    }
+
+    @Test void theChatSaysWhenItsRunsEnd() {
+        Map<String, Object> started = cr.chat.message(admin, null, "show payables aging", null);
+        String sid = (String) started.get("session_id"), runId = (String) started.get("run_id");
+        assertTrue(String.valueOf(started.get("reply")).contains("I'll tell you here when it finishes"));
+
+        // the runner picks the run up and reports it finished: the chat hears at once
+        db.update("UPDATE runs SET status = 'running', started = CURRENT_TIMESTAMP WHERE id = ?", runId);
+        cr.finish(db.one("SELECT * FROM devices WHERE id = ?", device), runId, Map.of("status", "success", "outputs", Map.of("note", "ok", "overdue_inr", 1840000)));
+        List<Map<String, Object>> h = cr.chat.history(admin, sid);
+        Map<String, Object> last = h.get(h.size() - 1);
+        assertEquals("run_success", last.get("kind"));
+        assertEquals(runId, last.get("run_id"));
+        String said = String.valueOf(last.get("text"));
+        assertTrue(said.contains("finished. Results: ") && said.contains("note = ok") && said.contains("overdue_inr = 1840000"), said);
+
+        // a run that ends another way (here: refused at dispatch) is picked up on the clock tick, and told once
+        String sid2 = (String) cr.chat.message(admin, null, "show payables aging", null).get("session_id");
+        String run2 = (String) cr.chat.history(admin, sid2).get(1).get("run_id");
+        db.update("UPDATE runs SET status = 'failed', finished = CURRENT_TIMESTAMP, error = ? WHERE id = ?",
+                JsonLite.write(Map.of("message", "SAP did not answer", "suggestedFix", "Try again in a few minutes.")), run2);
+        cr.reap();
+        cr.reap();
+        List<Map<String, Object>> h2 = cr.chat.history(admin, sid2);
+        assertEquals(1, h2.stream().filter(m -> String.valueOf(m.get("kind")).startsWith("run_")).count(), "told once: " + h2);
+        assertEquals("AP aging report (run " + run2 + ") failed: SAP did not answer Try again in a few minutes.", h2.get(h2.size() - 1).get("text"));
     }
 
     @Test void r0AgentStartsAtOnce() {

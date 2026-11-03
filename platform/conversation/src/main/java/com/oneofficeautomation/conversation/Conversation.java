@@ -75,7 +75,10 @@ public final class Conversation {
             s.history.add(Map.of("role", "user", "text", text, "at", at.toString()));
             Map<String, Object> out = respond(p, s, text.trim());
             out.put("session_id", s.id);
-            s.history.add(Map.of("role", "assistant", "text", out.get("reply"), "kind", out.get("kind"), "at", clock.instant().toString()));
+            Map<String, Object> said = new LinkedHashMap<>(Map.of("role", "assistant", "text", out.get("reply"), "kind", out.get("kind"), "at", clock.instant().toString()));
+            if (out.get("run_id") != null) said.put("run_id", out.get("run_id"));
+            if (out.get("task_id") != null) said.put("task_id", out.get("task_id"));
+            s.history.add(said);
             platform.saveSession(s.id, s.username, s.toMap());
             return out;
         }
@@ -150,7 +153,7 @@ public final class Conversation {
         ChatBot bot = bots.stream().filter(b -> b.path().equals(pr.path())).findFirst().orElse(null);
         if (bot == null) return reply("refused", "That agent is not available to you in chat.");
         if (bot.path().equals(MY_RUNS)) return myRuns(p);
-        if (!bot.needsConfirmation()) return start(p, bot, pr.inputs(), null);
+        if (!bot.needsConfirmation()) return start(p, s.id, bot, pr.inputs(), null);
 
         Pending pending = new Pending(platform.newId("cnf"), bot, pr.inputs(), hash(pr.inputs()), clock.instant().plus(CONFIRMATION_TTL), pr.engine());
         s.pending = pending;
@@ -170,7 +173,7 @@ public final class Conversation {
         boolean stillAllowed = platform.agents(p).stream().anyMatch(b -> b.path().equals(pending.bot().path()));
         if (!stillAllowed) return reply("refused", "You can no longer run " + pending.bot().name() + ".");
         if (pending.bot().needsApproval()) return requestApproval(p, s, pending);
-        return start(p, pending.bot(), pending.inputs(), pending);
+        return start(p, s.id, pending.bot(), pending.inputs(), pending);
     }
 
     private Map<String, Object> requestApproval(Person p, ChatSession s, Pending pending) {
@@ -205,7 +208,7 @@ public final class Conversation {
             } else {
                 ChatBot bot = platform.agents(asker).stream().filter(b -> b.path().equals(path)).findFirst().orElse(null);
                 Map<String, Object> started = bot == null ? reply("refused", requester + " can no longer run " + name + ".")
-                        : start(new Person(asker.username(), asker.role(), approver.ip()), bot, inputs, null);
+                        : start(new Person(asker.username(), asker.role(), approver.ip()), String.valueOf(request.get("session_id")), bot, inputs, null);
                 runId = (String) started.get("run_id");
                 message = runId != null ? approver.username() + " approved " + name + "; it started as run " + runId + "."
                         : approver.username() + " approved " + name + ", but it did not start: " + started.get("reply");
@@ -231,17 +234,48 @@ public final class Conversation {
         return runId;
     }
 
-    private Map<String, Object> start(Person p, ChatBot bot, Map<String, Object> inputs, Pending pending) {
+    private Map<String, Object> start(Person p, String sessionId, ChatBot bot, Map<String, Object> inputs, Pending pending) {
         try {
             String runId = platform.startRun(p, bot.path(), inputs);
             if (pending != null) platform.audit(p, "chat.confirm", "run", runId, Map.of("confirmation", pending.id(), "input_hash", pending.inputHash()));
-            Map<String, Object> m = reply("started", "Started " + bot.name() + " (run " + runId + "). Ask \"what are my runs?\" to see how it is going.");
+            platform.watchRun(runId, sessionId, p.username());
+            Map<String, Object> m = reply("started", "Started " + bot.name() + " (run " + runId + "). I'll tell you here when it finishes.");
             m.put("agent", bot.path());
             m.put("run_id", runId);
             return m;
         } catch (ChatPlatform.Refused e) {
             return reply(e.kind(), e.getMessage());
         }
+    }
+
+    /**
+     * The host calls this once a run this chat started has ended. Adds a message to the chat (if it is still kept): the
+     * results on success (the first few outputs), the reason and the suggested fix on failure.
+     *
+     * @param name   the agent's display name
+     * @param status success, failed or stopped
+     */
+    public void runFinished(String sessionId, String username, String runId, String name, String status,
+                            Map<String, Object> outputs, Map<String, Object> error) {
+        String text = switch (status) {
+            case "success" -> name + " (run " + runId + ") finished." + (outputs == null || outputs.isEmpty() ? "" : " Results: "
+                    + outputs.entrySet().stream().limit(5).map(e -> e.getKey() + " = " + shorten(e.getValue())).collect(Collectors.joining(", "))
+                    + (outputs.size() > 5 ? ", ..." : "") + ".");
+            case "stopped" -> name + " (run " + runId + ") was stopped.";
+            default -> name + " (run " + runId + ") failed" + (error == null || error.get("message") == null ? "." : ": " + error.get("message"))
+                    + (error != null && error.get("suggestedFix") != null ? " " + error.get("suggestedFix") : "");
+        };
+        synchronized (lock(sessionId)) {
+            ChatSession s = load(sessionId);
+            if (s == null || !s.username.equals(username)) return;
+            s.history.add(new LinkedHashMap<>(Map.of("role", "assistant", "text", text, "kind", "run_" + status, "run_id", runId, "at", clock.instant().toString())));
+            platform.saveSession(s.id, s.username, s.toMap());
+        }
+    }
+
+    private static String shorten(Object v) {
+        String s = String.valueOf(v);
+        return s.length() > 80 ? s.substring(0, 80) + "..." : s;
     }
 
     private Map<String, Object> myRuns(Person p) {

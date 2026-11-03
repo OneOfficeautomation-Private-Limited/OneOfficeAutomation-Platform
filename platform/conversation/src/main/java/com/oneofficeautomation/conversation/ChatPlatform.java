@@ -57,6 +57,12 @@ public interface ChatPlatform {
     /** Drops stored chats not used since this time. */
     void deleteSessionsIdleSince(java.time.Instant cutoff);
 
+    /**
+     * Remembers that this chat started the run. When the run ends (success, failed or stopped) the host calls
+     * {@link Conversation#runFinished} once for it.
+     */
+    void watchRun(String runId, String sessionId, String username);
+
     /** An R3 request waiting for someone other than the person who asked. */
     record ApprovalRequest(String sessionId, String agent, String agentName, Map<String, Object> inputs, String summary,
                            String confirmationId, String inputHash) {}
