@@ -51,6 +51,8 @@ public final class ControlRoom {
     public final RepoFiles repoFiles;
     /** Prompt Skills kept in the Command Center. */
     public final PromptSkills promptSkills;
+    /** One Chat: plain-language requests to run agents, under the same permissions and with confirmation. */
+    public final Chat chat;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     private final FlowValidator validator;
@@ -155,6 +157,7 @@ public final class ControlRoom {
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
+        this.chat = new Chat(this);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
         this.serverless = new ServerlessRuns(this, registry, dataDir);

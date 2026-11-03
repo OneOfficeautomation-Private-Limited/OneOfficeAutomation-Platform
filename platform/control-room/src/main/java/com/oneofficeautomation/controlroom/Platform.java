@@ -44,6 +44,7 @@ public final class Platform {
         DEFAULTS.put("mcp_agents", "");
         DEFAULTS.put("mcp_runner", "");
         DEFAULTS.put("mcp_timeout_seconds", 120);
+        DEFAULTS.put("chat_runner", "");
         DEFAULTS.put("run_retention_days", 0);
         DEFAULTS.put("run_log_retention_days", 0);
         DEFAULTS.put("syslog_target", "");
