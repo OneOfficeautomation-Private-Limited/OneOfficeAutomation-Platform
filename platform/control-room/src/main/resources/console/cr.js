@@ -201,7 +201,7 @@ const PAGES = [
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
-  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
+  ["chat", "One Chat", "runs.view", "shieldai", "#2563eb"], ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
@@ -214,7 +214,7 @@ const NAV_GROUPS = [
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
   ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
-  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
+  ["ai", "AI", "shieldai", ["chat", "skills", "connections", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
@@ -830,6 +830,41 @@ const VIEWS = {
           { label: "", sort: false, render: (q) => can("queues.work") ? h("button", { type: "button", onclick: async () => {
             try { await api("POST", "queues/" + q.id + (q.processing ? "/stop" : "/start")); go("queues"); } catch (e) { toast(e.message, true); } } }, q.processing ? "Stop" : "Start") : "" }]}));
     if (main.isConnected) S.timer = every(() => { if (S.page === "queues" && $("modal").hidden && $("drawer").hidden) go("queues"); }, 5000);
+  },
+
+  async chat(main) {
+    // One Chat: ask in plain words for an agent run or for your runs; anything that changes data waits for your yes
+    S.chat = S.chat || { session: null, messages: [], busy: false };
+    const log = h("div", { class: "chat-log", role: "log", "aria-live": "polite" });
+    const input = h("input", { type: "text", "aria-label": "Message", placeholder: "For example: post today's invoices for Acme, or: what are my runs?", maxlength: "2000" });
+    const send = async (text) => {
+      text = String(text || "").trim();
+      if (!text || S.chat.busy) return;
+      S.chat.busy = true; S.chat.messages.push({ role: "user", text }); draw();
+      try {
+        const r = await api("POST", "chat", { session_id: S.chat.session, message: text });
+        S.chat.session = r.session_id;
+        S.chat.messages.push({ role: "assistant", text: r.reply, kind: r.kind, run: r.run_id });
+      } catch (e) {
+        if (e.code === "CR.NOT_FOUND") S.chat.session = null;   // the chat expired on the server: the next message starts a new one
+        S.chat.messages.push({ role: "assistant", text: e.message, kind: "error" });
+      } finally { S.chat.busy = false; draw(); input.focus(); }
+    };
+    const draw = () => {
+      const last = S.chat.messages[S.chat.messages.length - 1];
+      log.replaceChildren(...(S.chat.messages.length ? [] : [h("p", { class: "muted", text: "Ask for an agent by name or describe the task. I only offer agents you may run, and I ask before running anything that changes data." })]),
+        ...S.chat.messages.map((m) => h("div", { class: "chat-msg " + m.role }, m.text,
+          m === last && m.kind === "confirm" && !S.chat.busy ? h("div", { class: "chat-actions" },
+            h("button", { type: "button", class: "primary", onclick: () => send("yes") }, "Yes, run it"), h("button", { type: "button", onclick: () => send("no") }, "No")) : null,
+          m.run ? h("div", { class: "chat-actions" }, h("button", { type: "button", onclick: () => go("activity") }, "Open Agent Runs")) : null)));
+      log.scrollTop = log.scrollHeight;
+    };
+    const form = h("form", { class: "chat-form", onsubmit: (e) => { e.preventDefault(); const t = input.value; input.value = ""; send(t); } },
+      input, h("button", { type: "submit", class: "primary" }, "Send"));
+    main.replaceChildren(...header("One Chat", "Run agents and check your runs in plain words. Runs start as you, with your permissions, and show in Agent Runs and the One Audit Trail.",
+      h("button", { type: "button", onclick: () => { S.chat = null; go("chat"); } }, "New chat")),
+      h("div", { class: "chat" }, log, form));
+    draw(); input.focus();
   },
 
   async inbox(main) {

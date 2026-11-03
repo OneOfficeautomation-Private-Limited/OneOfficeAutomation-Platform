@@ -120,6 +120,29 @@ class ChatTest {
         assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> chat.history(jane, sid)).code());
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void chatOverTheApi() throws Exception {
+        ControlRoomServer server = new ControlRoomServer(cr, "127.0.0.1", 0);
+        server.start();
+        try {
+            String token = (String) cr.login("admin", "Admin-Passw0rd-2026", null).get("token");
+            var http = java.net.http.HttpClient.newHttpClient();
+            java.util.function.BiFunction<String, String, Map<String, Object>> call = (method, pathAndBody) -> {
+                String[] pb = pathAndBody.split(" ", 2);
+                var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:" + server.port() + "/api/" + pb[0]))
+                        .header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
+                        .method(method, pb.length > 1 ? java.net.http.HttpRequest.BodyPublishers.ofString(pb[1]) : java.net.http.HttpRequest.BodyPublishers.noBody()).build();
+                try { return (Map<String, Object>) JsonLite.parse(http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString()).body()); }
+                catch (Exception e) { throw new RuntimeException(e); }
+            };
+            Map<String, Object> r = call.apply("POST", "chat {\"message\":\"show payables aging\"}");
+            assertEquals("started", r.get("kind"), String.valueOf(r));
+            Map<String, Object> history = call.apply("GET", "chat/" + r.get("session_id"));
+            assertEquals(2, ((List<Object>) history.get("messages")).size());
+            assertEquals("CR.NOT_FOUND", ((Map<String, Object>) call.apply("GET", "chat/chat_unknown").get("error")).get("code"));
+        } finally { server.stop(); }
+    }
+
     @Test void everyProposalAndConfirmationIsAudited() {
         Map<String, Object> r = chat.message(admin, null, "run the ap run for acme from yesterday", null);
         assertEquals(Map.of("vendor", "Acme", "from", "2026-11-02"), r.get("inputs"));

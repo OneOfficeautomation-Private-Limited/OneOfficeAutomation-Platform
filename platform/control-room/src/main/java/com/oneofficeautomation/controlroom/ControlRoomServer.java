@@ -514,6 +514,13 @@ public final class ControlRoomServer {
                 Map<String, Object> res = mcp.handle(u, body(ex), ip);
                 if (res == null) ex.sendResponseHeaders(202, -1); else sendJson(ex, 200, res);
             }
+            case "chat" -> {
+                // One Chat: POST {session_id?, message} sends a message; GET chat/{session} reads that chat's messages
+                if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.chat.message(u, (String) b.get("session_id"), (String) b.get("message"), ip)); }
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("session_id", seg[1], "messages", cr.chat.history(u, seg[1])));
+                else notFound(ex);
+            }
             case "workflows" -> {
                 if (m.equals("GET") && route.equals("workflows/runs") && q.get("reference") != null) sendJson(ex, 200, cr.workflows.run(u, null, q.get("reference")));
                 else if (m.equals("GET") && route.equals("workflows/runs")) sendJson(ex, 200, Map.of("runs", cr.workflows.runs(u, q.get("status"))));
