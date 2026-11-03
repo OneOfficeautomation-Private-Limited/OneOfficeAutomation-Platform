@@ -19,11 +19,13 @@ const SECTIONS: { label: string; color: string; icon: IconName; items: Entry[] }
     { label: "Users and roles", page: "users" }, { label: "Vault", page: "credentials" }, { label: "Audit", page: "audit" },
     { label: "Licenses", page: "licenses" }, { label: "Settings", page: "settings" }] },
   { label: "AI", color: "#7c3aed", icon: "spark", items: [
-    { label: "Model connections", page: "connections" }, { label: "Prompt Skills", page: "skills" }, { label: "AI governance", page: "governance" }] },
+    { label: "Model connections", page: "connections" }, { label: "Prompt Skills", page: "skills" }, { label: "AI governance", page: "governance" },
+    { label: "Document Automation", page: "documents" }] },
 ];
 
-export function CommandMenu({ view, onView, controlRoom, editing = false }:
-  { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null; editing?: boolean }) {
+/** `currentPage` marks a Command Center page as the open one, for screens served outside Studio (Document Automation). */
+export function CommandMenu({ view, onView, controlRoom, editing = false, currentPage }:
+  { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null; editing?: boolean; currentPage?: string }) {
   // while an agent is open the menu folds to icons, as AA's editor hides the Control Room menu, so the steps keep their
   // room; it can still be opened, and the person's own choice for the other pages is left as it was
   const [chosenMini, setChosenMini] = usePersistent("menu.mini", false);
@@ -32,7 +34,8 @@ export function CommandMenu({ view, onView, controlRoom, editing = false }:
   const mini = editing ? !openWhileEditing : chosenMini;
   const setMini = (m: boolean) => { if (editing) setOpenWhileEditing(!m); else setChosenMini(m); };
   const [closed, setClosed] = usePersistent<string[]>("menu.closed", []);
-  const pageLink = (page: string) => controlRoom ? controlRoom + "?page=" + page : undefined;
+  // Document Automation is its own page beside the console (/documents/); the others are console pages
+  const pageLink = (page: string) => !controlRoom ? undefined : page === "documents" ? controlRoom.replace(/\/?$/, "/") + "documents/" : controlRoom + "?page=" + page;
   const toggleSection = (label: string) => setClosed(closed.includes(label) ? closed.filter((x) => x !== label) : [...closed, label]);
   const home = controlRoom
     ? <a className="st-menu-home" href={controlRoom} title="Home"><Icon name="home" size={18} />{!mini && "Home"}</a>
@@ -71,8 +74,9 @@ export function CommandMenu({ view, onView, controlRoom, editing = false }:
                       onClick={() => onView(it.view!)}>{it.label}</button></li>;
                   }
                   const href = pageLink(it.page!);
+                  const current = currentPage === it.page;
                   return <li key={it.label}>{href
-                    ? <a className="st-menu-item" href={href}>{it.label}</a>
+                    ? <a className={`st-menu-item${current ? " is-current" : ""}`} href={href} aria-current={current ? "page" : undefined}>{it.label}</a>
                     : <span className="st-menu-item is-off" aria-disabled="true" title="Connect Studio to a Command Center to open this page">{it.label}</span>}</li>;
                 })}
               </ul>

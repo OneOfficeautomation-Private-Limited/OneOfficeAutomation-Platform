@@ -33,6 +33,7 @@ public final class ControlRoomServer {
     private final ControlRoom cr;
     private final McpServer mcp;
     private final Sso sso;
+    private final DocFlowProxy docflow;
     private final String host;
     private final int port;
     private HttpServer server;
@@ -43,7 +44,7 @@ public final class ControlRoomServer {
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
-        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
+        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr); this.docflow = new DocFlowProxy(cr);
         // a SaaS region sets one request limit for all its tenants (TenantHost)
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
@@ -153,6 +154,7 @@ public final class ControlRoomServer {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
+            else if (path.equals("/documents") || path.startsWith("/documents/")) documentsPage(ex, path);
             else serveStatic(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
@@ -162,6 +164,7 @@ public final class ControlRoomServer {
                 case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED", "CR.LICENSE_LIMIT", "LICENSE.TOO_FEW_SEATS" -> 409;
                 case "CR.POLICY_VIOLATION" -> 422;
                 case "CR.LOCKED_OUT", "CR.RATE_LIMITED" -> 429;
+                case "DOCS.UNAVAILABLE", "DOCS.TOKEN" -> 502;
                 default -> 400;
             };
             if (status == 401 && ex.getRequestURI().getPath().equals("/api/mcp")) {
@@ -475,6 +478,7 @@ public final class ControlRoomServer {
         }
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
+            case "docflow" -> docflow.forward(ex, u, m, route.startsWith("docflow/") ? route.substring(8) : "");   // Document Automation (DocFlowProxy)
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
             case "changes" -> sendJson(ex, 200, cr.changes(u, q.get("since"), ControlRoom.intOr(q.get("wait"), 0)));
             case "license" -> {
@@ -939,6 +943,43 @@ public final class ControlRoomServer {
 
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml",
         "json", "application/json; charset=utf-8");
+
+    /** Files of Document Automation's page (platform/ui's docflow.html, built with Studio into /studio-next/). */
+    private static final java.util.regex.Pattern DOCS_FILE = java.util.regex.Pattern.compile("^(|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
+    private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
+
+    /**
+     * AI > Document Automation at /documents/. The page signs in like the console (it asks /api/auth/me) and reaches
+     * DocFlow only through /api/docflow/ (DocFlowProxy). A build made without Node.js has no page and says so.
+     */
+    private void documentsPage(HttpExchange ex, String path) throws IOException {
+        if (path.equals("/documents")) { ex.getResponseHeaders().set("Location", "/documents/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); return; }
+        String name = path.substring("/documents/".length());
+        if (!DOCS_FILE.matcher(name).matches()) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/" + (name.isEmpty() ? "docflow.html" : name))) {
+            if (in == null && name.isEmpty()) {
+                securityHeaders(ex);
+                ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+                writeBody(ex, 503, "Document Automation's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+            byte[] b = in.readAllBytes();
+            securityHeaders(ex);
+            if (name.isEmpty()) {
+                // a fresh nonce per page for the one style element the dialogs add, as in Studio
+                byte[] r = new byte[16];
+                NONCES.nextBytes(r);
+                String nonce = Base64.getEncoder().encodeToString(r);
+                b = new String(b, StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+                ex.getResponseHeaders().set("Content-Type", TYPES.get("html"));
+            } else {
+                ex.getResponseHeaders().set("Content-Type", name.endsWith(".woff2") ? "font/woff2" : TYPES.getOrDefault(name.substring(name.lastIndexOf('.') + 1), "application/octet-stream"));
+            }
+            writeBody(ex, 200, b);
+        }
+    }
 
     private void serveStatic(HttpExchange ex, String path) throws IOException {
         String name = path.equals("/") ? "index.html" : path.substring(1);

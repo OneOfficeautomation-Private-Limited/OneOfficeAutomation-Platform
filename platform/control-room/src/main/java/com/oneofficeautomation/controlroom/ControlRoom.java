@@ -463,6 +463,7 @@ public final class ControlRoom {
         Map<String, Object> m = new LinkedHashMap<>(publicUser(u));
         m.put("permissions", permissionsOf(u));
         m.put("roles", rolesOf(u.username(), u.role()));
+        if (tenant != null) m.put("tenant", tenant);
         // team leads change their own team's members; the console shows them the Teams page for it
         m.put("leads_team", count("SELECT COUNT(*) AS n FROM team_members WHERE username = ? AND team_role = 'lead'", u.username()) > 0);
         if (mfa.setupNeeded(u)) m.put("mfa_setup_required", true);

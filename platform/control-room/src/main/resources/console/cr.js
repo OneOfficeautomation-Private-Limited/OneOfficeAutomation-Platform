@@ -214,13 +214,13 @@ const NAV_GROUPS = [
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
   ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
-  ["ai", "AI", "shieldai", ["chat", "skills", "connections", "governance"]],
+  ["ai", "AI", "shieldai", ["chat", "documents", "skills", "connections", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
 function stored(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
 function groupOf(page) { return NAV_GROUPS.find((g) => g[3].includes(page)) || null; }
-function pageLabel(id) { if (id === "studio") return "One Agent Studio"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
+function pageLabel(id) { if (id === "studio") return "One Agent Studio"; if (id === "documents") return "Document Automation"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
 
 function navButton(id) {
   if (id === "studio") {
@@ -228,6 +228,12 @@ function navButton(id) {
     const a = h("a", { class: "nav-link", href: "/studio/", target: "ooa-studio", "aria-label": "One Agent Studio", title: "Build and test agents in One Agent Studio (opens in a new tab)" },
       ic("code", "#2563eb"), h("span", { class: "nav-label", text: "One Agent Studio" }), h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
     return a;
+  }
+  if (id === "documents") {
+    // Document Automation is its own page (/documents/), reached through the Command Center's sign-in
+    if (!canAny("docs.view")) return null;
+    return h("a", { class: "nav-link", href: "/documents/", "aria-label": "Document Automation", title: "Read, check and route documents" },
+      ic("inbox", "#fff"), h("span", { class: "nav-label", text: "Document Automation" }));
   }
   const page = PAGES.find((x) => x[0] === id);
   if (!page || (page[2] && !canAny(page[2]))) return null;
@@ -992,6 +998,7 @@ const VIEWS = {
       const gitUrl = txt("git_remote_url", "https://github.com/acme/agents.git"), gitBranch = txt("git_branch", "main"), gitUser = txt("git_username", "(any, for a token)"),
         gitToken = txt("git_token_ref", "git/agents-repo/token");
       const gitAuto = h("input", { type: "checkbox", checked: Number(st.git_auto_push) === 1 });
+      const docUrl = txt("docflow_url", "http://127.0.0.1:8085"), docToken = txt("docflow_token_ref", "docflow/service/token");
       const gitState = h("p", { class: "muted" });
       const showGit = (g) => gitState.textContent = !g.configured ? "Not set up." : g.state === "never" ? "Not synced yet." : g.state === "ok" ? "Last sync " + local(g.at) + ": " + g.agents + " agent(s)" + (g.changed ? ", commit " + String(g.commit).slice(0, 8) : ", nothing changed") + "." : "Last sync failed " + local(g.at) + ": " + g.error;
       api("GET", "git/status").then(showGit).catch(() => {});
@@ -1040,6 +1047,9 @@ const VIEWS = {
               const r = await api("POST", "git/sync"); showGit(Object.assign({ configured: true }, r)); toast(r.changed ? "Pushed to Git" : "Git is up to date"); }
             catch (err) { toast(err.message, true); api("GET", "git/status").then(showGit).catch(() => {}); } finally { e.target.disabled = false; } } }, "Save and sync now"))),
         gitState,
+        h("h3", {}, ic("inbox", "#0d9488", "sm"), "Document Automation"),
+        h("p", { class: "muted", text: "AI > Document Automation reads documents with the DocFlow service. The Command Center forwards each request with the person's tenant and name; the browser never sees the service's address or token. Put the same token in DocFlow's DOCAUTO_API_TOKEN and in the vault." }),
+        h("div", { class: "grid2" }, h("label", {}, "DocFlow address (empty = http://127.0.0.1:8085)", docUrl), h("label", {}, "Service token (vault reference folder/credential/attribute)", docToken)),
         h("h3", {}, ic("bolt", "#7c3aed", "sm"), "AI assistants (Model Context Protocol)"),
         h("p", { class: "muted", text: "Assistants connect to " + location.origin + "/api/mcp with a user's API key and can run the agents listed here as tools, with that user's permissions." }),
         h("div", { class: "grid2" }, h("label", {}, "Agents offered as tools (paths, comma separated; * for all)", mcpAgents), h("label", {}, "Runner or runner pool id (empty = any online runner)", mcpRunner),
@@ -1125,6 +1135,7 @@ const VIEWS = {
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
+              docflow_url: docUrl.value.trim(), docflow_token_ref: docToken.value.trim(),
               ip_allow_list: allowList.value.trim(), trusted_proxies: trustedProxies.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
               switched_off_roles: roleOff.filter(([, b]) => b.checked).map(([r]) => r).join(","), outbound_proxy: proxy.value.trim(), outbound_proxy_bypass: proxyBypass.value.trim() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
