@@ -10,11 +10,11 @@ const FOLDERS = ["Finance / Accounts payable", "Finance / Expenses", "Operations
  * Add documents: the files, then which process reads them (or recognise automatically, or a new process), then which
  * folder they are filed in (the process's own by default).
  */
-export function AddDocumentsDialog({ api, open, onClose, processes, initialProcess, onAdded, onNewProcess }:
-  { api: DocFlowApi; open: boolean; onClose: () => void; processes: ProcessSummary[]; initialProcess?: string;
+export function AddDocumentsDialog({ api, open, onClose, processes, initialProcess, initialFiles = [], onAdded, onNewProcess }:
+  { api: DocFlowApi; open: boolean; onClose: () => void; processes: ProcessSummary[]; initialProcess?: string; initialFiles?: File[];
     onAdded: (processId: string) => void; onNewProcess: () => void }) {
   const picker = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>(initialFiles);
   const [mode, setMode] = useState<"auto" | "process">(initialProcess ? "process" : "auto");
   const real = processes.filter((p) => p.id !== "smart-inbox");
   const [processId, setProcessId] = useState(initialProcess ?? real[0]?.id ?? "");

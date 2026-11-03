@@ -47,8 +47,8 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     steps: [
       "Click a stage at the top to set it up, left to right.",
       "Under Checks, switch each check on or off and choose what happens if it fails.",
-      "Click Save draft while you work. Live documents are not affected.",
-      "Click Test with a sample, then Go live.",
+      "Click Save draft. On a live process, Save changes applies at once.",
+      "Click Go live: new documents then use this version.",
     ],
   },
   types: {
@@ -64,8 +64,8 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     summary: "Lists that checks look values up in, such as known suppliers.",
     steps: [
       "Click Upload a table and choose an Excel or CSV file.",
-      "Choose the column to match on, for example VAT number.",
-      "Use it in a process: Processes, then Checks, then Known supplier.",
+      "Click a table to see its rows. Search or filter to find a value.",
+      "Use it in a process: Processes, Checks, Add check, Reference data lookup.",
       "Upload again when the list changes. The old list is replaced.",
     ],
   },

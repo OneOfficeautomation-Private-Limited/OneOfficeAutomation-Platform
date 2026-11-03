@@ -84,4 +84,28 @@ describe("HttpDocFlowApi", () => {
     const { api } = fake({ "/df/overview": new Response(JSON.stringify({ error: { code: "DOCS.UNAVAILABLE", message: "The Document Automation service is not reachable" } }), { status: 502 }) });
     await expect(api.overview()).rejects.toThrow("not reachable");
   });
+
+  it("saves a process section by section, keeping what the screens do not show", async () => {
+    const stored = { ...flow, review: { ...flow.review, documentConfidence: 0.7, slaWebhook: "https://x" }, deliveries: [{ id: "d1", type: "excel", name: "Excel register", enabled: true, on: ["success"], params: { path: "D:\\r.xlsx", sheet: "AP" } }] };
+    const { api, calls } = fake({ "PUT /df/flows/ap": stored, "/df/flows/ap": stored, "/df/doctypes": [{ id: "invoice", name: "Invoice", fields: [], learning: { aliases: {} } }] });
+    const d = await api.processDesign("ap");
+    expect(d.deliveries[0]).toMatchObject({ type: "excel", target: "D:\\r.xlsx" });
+    d.settings.fieldConfidence = 0.9;
+    d.checks[0].on = false;
+    d.deliveries[0].target = "E:\\new.xlsx";
+    await api.saveProcess(d);
+    const put = JSON.parse(String(calls.find((c) => c.method === "PUT")!.body));
+    expect(put.review).toEqual({ fieldConfidence: 0.9, slaHours: 24, documentConfidence: 0.7, slaWebhook: "https://x" });
+    expect(put.rules[0]).toMatchObject({ id: "r1", type: "expression", enabled: false, action: "review" });
+    expect(put.deliveries[0].params).toEqual({ path: "E:\\new.xlsx", sheet: "AP" });
+  });
+
+  it("uploads a reference table and changes a document's type", async () => {
+    const { api, calls } = fake({ "POST /df/reftables": { id: "suppliers" }, "POST /df/documents/d1/reclassify": { id: "d2", status: "validation" } });
+    expect(await api.uploadRefTable(new File(["a,b"], "Suppliers.csv"), "Suppliers")).toEqual({ id: "suppliers" });
+    expect((calls[0].body as FormData).get("name")).toBe("Suppliers");
+    expect(await api.changeDocType("d1", "receipt")).toEqual({ documentId: "d2", needsReview: true });
+    expect(JSON.parse(String(calls[1].body))).toEqual({ docType: "receipt" });
+    expect(api.exportUrl("ap", "xlsx")).toBe("/api/docflow/df/flows/ap/export?format=xlsx");
+  });
 });

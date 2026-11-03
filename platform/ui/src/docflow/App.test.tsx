@@ -71,7 +71,7 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Folder path"), { target: { value: "\\\\scan01\\ksa" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Email inbox/ }));
     fireEvent.click(create);
-    await waitFor(() => expect(location.hash).toBe("#/processes"));
+    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-ksa"));
     const made = (await api.processes()).find((p) => p.name === "Supplier invoices KSA")!;
     expect(made.sources).toEqual(["upload", "folder", "email"]);
     expect(made.state).toBe("draft");
@@ -134,7 +134,7 @@ describe("Document Automation", () => {
   });
 
   it("builds a process: checks switch on and off and say what happens when they fail", async () => {
-    start(); await go("#/processes");
+    start(); await go("#/processes/supplier-invoices-ksa");
     const checks = await screen.findByRole("region", { name: "Checks and lookups" });
     expect(within(checks).getByText("6 of 6 checks")).toBeTruthy();
     expect(screen.getByText("5 of 6 checks on")).toBeTruthy();
@@ -142,8 +142,34 @@ describe("Document Automation", () => {
     expect(screen.getByText("6 of 6 checks on")).toBeTruthy();
     fireEvent.change(within(checks).getByLabelText("If it fails"), { target: { value: "reject" } });
     expect(within(checks).getByText("1 of 6 checks")).toBeTruthy();
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Go live" }));
-    expect(screen.getByText("Live · version 1")).toBeTruthy();
+    expect(await screen.findByText("Live · version 2")).toBeTruthy();       // saved first, so it counts as a new version
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
+  });
+
+  it("adds a check and a delivery, and saves the draft", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa");
+    const checks = await screen.findByRole("region", { name: "Checks and lookups" });
+    fireEvent.click(within(checks).getByRole("button", { name: "Add check" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add check" });
+    fireEvent.change(within(dialog).getByLabelText("Kind of check"), { target: { value: "required" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Invoice date" }));
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Has a date" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(within(checks).getByText("Has a date")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Deliver/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add delivery" }));
+    const d = await screen.findByRole("dialog", { name: "Add delivery" });
+    fireEvent.change(within(d).getByLabelText("Excel file"), { target: { value: "D:\\AP\\register.xlsx" } });
+    fireEvent.click(within(d).getByRole("button", { name: "Save" }));
+    expect(screen.getByText("Excel register · D:\\AP\\register.xlsx · when done with no review, approved by a reviewer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    const saved = await api.processDesign("supplier-invoices-ksa");
+    expect(saved.checks.at(-1)).toMatchObject({ name: "Has a date", type: "required", params: { fields: ["invoice_date"] }, test: "invoice_date" });
+    expect(saved.deliveries).toHaveLength(1);
+    expect(saved.version).toBe(2);
   });
 
   it("filters document type fields and reference data rows", async () => {
@@ -153,7 +179,8 @@ describe("Document Automation", () => {
     expect(within(fields).getByText("3 of 8 fields")).toBeTruthy();
     await go("#/refdata");
     const rows = await screen.findByRole("region", { name: "Rows" });
-    fireEvent.change(within(rows).getByLabelText("Status"), { target: { value: "blocked" } });
+    await within(rows).findByText("Summit Facilities LLC");
+    fireEvent.change(within(rows).getByLabelText("status"), { target: { value: "Blocked" } });
     expect(within(rows).getByText("Summit Facilities LLC")).toBeTruthy();
     expect(within(rows).getAllByRole("row")).toHaveLength(2);
   });

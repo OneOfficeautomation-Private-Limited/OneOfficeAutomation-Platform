@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { estimate, type DocFlowApi, type EngineOption, type Routing } from "./api";
+import { estimate, type DocFlowApi, type Engine, type EngineField, type EngineOption, type Routing } from "./api";
 import { HINTS } from "./help";
-import { Chip, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, useLoad } from "./ui";
+import { Chip, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
 
 const STATUS = { ready: { tone: "ok", label: "Ready" }, optin: { tone: "mute", label: "Needs cloud opt-in" }, setup: { tone: "warn", label: "Not set up" } } as const;
 
@@ -80,7 +80,7 @@ export function Engines({ api, onOptIn }: { api: DocFlowApi; onOptIn?: (on: bool
               );
             })}
           </div>
-          <EngineTable key={option.id} option={option} />
+          <EngineTable key={option.id} api={api} option={option} />
         </div>
         <CostCard optIn={routing.cloudOptIn} />
       </div>
@@ -94,7 +94,13 @@ export function Engines({ api, onOptIn }: { api: DocFlowApi; onOptIn?: (on: bool
   );
 }
 
-function EngineTable({ option }: { option: EngineOption }) {
+function EngineTable({ api, option }: { api: DocFlowApi; option: EngineOption }) {
+  const [tested, setTested] = useState<Record<string, { ok: boolean; message: string } | "running">>({});
+  const [configuring, setConfiguring] = useState<string | null>(null);
+  const test = (id: string) => {
+    setTested({ ...tested, [id]: "running" });
+    api.testEngine(id).then((r) => setTested((t) => ({ ...t, [id]: r })), (e) => setTested((t) => ({ ...t, [id]: { ok: false, message: e instanceof Error ? e.message : String(e) } })));
+  };
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "ready" | "optin" | "setup">("all");
   const [runs, setRuns] = useState<"all" | "server" | "cloud">("all");
@@ -116,19 +122,53 @@ function EngineTable({ option }: { option: EngineOption }) {
           <tbody>
             {rows.map((e) => (
               <tr key={e.id}>
-                <td><b>{e.name}</b><div className="df-small">{e.does}</div></td>
+                <td><b>{e.name}</b><div className="df-small">{e.does}</div>
+                  {tested[e.id] && <div className={`df-small ${tested[e.id] === "running" ? "" : (tested[e.id] as { ok: boolean }).ok ? "df-text-ok" : "df-text-bad"}`} role="status">
+                    {tested[e.id] === "running" ? "Testing…" : (tested[e.id] as { message: string }).message}</div>}</td>
                 <td><Chip tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Chip></td>
                 <td className="df-muted">{e.runs === "server" ? "This server" : "Cloud"}</td>
                 <td className="df-right df-num">{e.price}</td>
                 <td className="df-muted">{e.key}</td>
-                <td className="df-right" style={{ whiteSpace: "nowrap" }}><Button>Test</Button> <Button kind="plain">Configure</Button></td>
+                <td className="df-right" style={{ whiteSpace: "nowrap" }}><Button disabled={tested[e.id] === "running"} onClick={() => test(e.id)} aria-label={"Test " + e.name}>Test</Button>{" "}
+                  <Button kind="plain" onClick={() => setConfiguring(e.id)} aria-label={"Configure " + e.name}>Configure</Button></td>
               </tr>
             ))}
           </tbody>
         </table>
         {!rows.length && <div className="df-empty">No engine matches these filters.</div>}
       </div>
+      {configuring && <EngineSettings key={configuring} api={api} engine={option.engines.find((x) => x.id === configuring)!} onClose={() => setConfiguring(null)} />}
     </section>
+  );
+}
+
+/** An engine's own settings (address, key, model…). They apply to the whole server, so only its administrators can save them. */
+function EngineSettings({ api, engine, onClose }: { api: DocFlowApi; engine: Engine; onClose: () => void }) {
+  const [fields, setFields] = useState<EngineField[] | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.engineSettings(engine.id).then((f) => { setFields(f); setValues(Object.fromEntries(f.map((x) => [x.key, x.value]))); }, (e) => { reportError(e); onClose(); }); }, [api, engine.id]);
+  const save = async () => {
+    setBusy(true);
+    try { await api.saveEngineSettings(values); onClose(); } catch (e) { reportError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={"Configure " + engine.name} width={560}
+      footer={<><Button onClick={onClose}>Cancel</Button>{fields && fields.length > 0 && <Button kind="primary" disabled={busy} onClick={save}>Save</Button>}</>}>
+      {!fields ? <Loading /> : !fields.length ? <p style={{ margin: 0 }}>{engine.name} needs no settings.</p> : <>
+        <p className="df-muted" style={{ margin: 0 }}>These settings apply to every client on this server. Keys are stored by DocFlow and never shown again.</p>
+        {fields.map((f) => (
+          <Field key={f.key} label={f.label} hint={f.help}>
+            {(id) => f.type === "bool"
+              ? <Select id={id} value={values[f.key] === "true" ? "true" : "false"} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} />
+              : f.type === "select" && f.options
+                ? <Select id={id} value={values[f.key]} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} options={f.options.map((o) => ({ value: o, label: o || "(none)" }))} />
+                : <TextInput id={id} type={f.type === "secret" ? "password" : "text"} autoComplete="off" value={values[f.key]} placeholder={f.placeholder}
+                    onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />}
+          </Field>
+        ))}
+      </>}
+    </Dialog>
   );
 }
 

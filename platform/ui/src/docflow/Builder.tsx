@@ -1,53 +1,92 @@
 import { useEffect, useState } from "react";
 import { Button, Icon } from "../components";
-import type { Check, DocFlowApi, ProcessDesign } from "./api";
+import { stagesOf, type Check, type Delivery, type DocFlowApi, type ProcessDesign, type ProcessSettings, type ProcessSummary, type RefTable } from "./api";
 import { HINTS } from "./help";
+import { CheckDialog, ClassifyStage, DeliverStage, DeliveryDialog, ExtractStage, IF_FAILS, IntakeStage, ReviewStage } from "./stages";
 import { Chip, Empty, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError } from "./ui";
 
-const IF_FAILS = { review: "Send to review", reject: "Reject", warn: "Warn only" } as const;
-
-/** The process builder: six stages; the Checks and lookups stage holds the rules, each with what happens when it fails. */
-export function Builder({ api }: { api: DocFlowApi }) {
+/**
+ * The process builder: six stages, each with its settings; Checks and lookups holds the rules, each with what happens
+ * when it fails. Changes stay on this page until saved. A draft only reads uploads; Go live also starts its watched folder.
+ * DocFlow keeps one version of a process, so saving a live process applies to new documents straight away.
+ */
+export function Builder({ api, processId }: { api: DocFlowApi; processId?: string }) {
+  const [processes, setProcesses] = useState<ProcessSummary[] | null>(null);
   const [design, setDesign] = useState<ProcessDesign | null>(null);
+  const [saved, setSaved] = useState<ProcessDesign | null>(null);
+  const [tables, setTables] = useState<RefTable[]>([]);
   const [stage, setStage] = useState(3);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("all");
   const [onOff, setOnOff] = useState<"all" | "on" | "off">("all");
   const [fails, setFails] = useState<"all" | Check["ifFails"]>("all");
-  const [savedAs, setSavedAs] = useState<"" | "draft" | "live">("");
-  const [none, setNone] = useState(false);
-  // the most recent process (One Inbox has no stages to design)
-  useEffect(() => {
-    api.processes().then((ps) => {
-      const p = ps.filter((x) => x.id !== "smart-inbox").at(-1);
-      if (!p) { setNone(true); return; }
-      return api.processDesign(p.id).then(setDesign);
-    }).catch(reportError);
-  }, [api]);
-  if (none) return <Empty>No process yet. Create one from the Inbox with New process, then design its checks here.</Empty>;
-  if (!design) return <Loading />;
+  const [busy, setBusy] = useState(false);
+  const [editCheck, setEditCheck] = useState<Check | "new" | null>(null);
+  const [editDelivery, setEditDelivery] = useState<Delivery | "new" | null>(null);
 
-  const setCheck = (id: string, patch: Partial<Check>) => {
-    setSavedAs("");
-    setDesign({ ...design, checks: design.checks.map((c) => c.id === id ? { ...c, ...patch } : c) });
+  // the process in the address, or the most recent one (One Inbox only recognises and splits)
+  useEffect(() => {
+    let live = true;
+    api.processes().then((ps) => {
+      if (!live) return;
+      setProcesses(ps);
+      const id = processId ?? ps.filter((x) => x.id !== "smart-inbox").at(-1)?.id;
+      if (!id) return;
+      return api.processDesign(id).then((d) => { if (live) { setDesign(d); setSaved(d); } });
+    }).catch(reportError);
+    api.refTables().then((t) => { if (live) setTables(t); }, () => undefined);
+    return () => { live = false; };
+  }, [api, processId]);
+
+  if (processes && !design && !processes.some((p) => p.id !== "smart-inbox") && !processId)
+    return <Empty>No process yet. Create one from the Inbox with New process, then design it here.</Empty>;
+  if (!design || !saved) return <Loading />;
+
+  const dirty = JSON.stringify({ ...design, stages: [] }) !== JSON.stringify({ ...saved, stages: [] });
+  const change = (patch: Partial<ProcessDesign>) => {
+    const next = { ...design, ...patch };
+    setDesign({ ...next, stages: stagesOf(next, (e) => e) });
   };
+  const setSettings = (p: Partial<ProcessSettings>) => change({ settings: { ...design.settings, ...p } });
+  const setCheck = (id: string, patch: Partial<Check>) => change({ checks: design.checks.map((c) => c.id === id ? { ...c, ...patch } : c) });
+  const saveDraft = async () => {
+    setBusy(true);
+    try { const d = await api.saveProcess(design); setDesign(d); setSaved(d); } catch (e) { reportError(e); } finally { setBusy(false); }
+  };
+  const goLive = async (live: boolean) => {
+    setBusy(true);
+    try {
+      const d = dirty ? await api.saveProcess(design) : design;
+      await api.setLive(d.id, live);
+      const after = { ...d, state: live ? "live" as const : "draft" as const };
+      setDesign(after); setSaved(after);
+    } catch (e) { reportError(e); } finally { setBusy(false); }
+  };
+
   const rows = design.checks.filter((c) => matches(q, c.name, c.test, c.kind) && (kind === "all" || c.kind === kind)
     && (onOff === "all" || c.on === (onOff === "on")) && (fails === "all" || c.ifFails === fails));
   const onCount = design.checks.filter((c) => c.on).length;
-  const live = savedAs === "live" || design.state === "live";
+  const live = design.state === "live";
   const current = design.stages[stage];
+  const choices = (processes ?? []).some((p) => p.id === design.id) ? processes ?? [] : [{ id: design.id, name: design.name }, ...(processes ?? [])];
 
   return (
     <div className="df-page">
       <div className="df-page-head">
-        <a className="ui-icon-btn" href="#/inbox" aria-label="Back to the Inbox"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
-        <h2 style={{ fontSize: 20 }}>{design.name}</h2>
+        <a className="ui-icon-btn" href={"#/process/" + encodeURIComponent(design.id)} aria-label="Back to the process"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
+        <select className="ui-input ui-select df-title-select" aria-label="Process" value={design.id}
+          onChange={(e) => { location.hash = "#/processes/" + encodeURIComponent(e.target.value); }}>
+          {choices.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
         <Chip tone={live ? "ok" : "mute"}>{live ? "Live · version " + design.version : "Draft · version " + design.version}</Chip>
-        <span className="df-muted">{design.folder} · {design.docType}</span>
+        <span className="df-muted">{design.folder}{design.folder ? " · " : ""}{design.docType}</span>
         <span className="df-grow" />
-        <Button>Test with a sample</Button>
-        <Button onClick={() => setSavedAs("draft")}>{savedAs === "draft" ? "Draft saved" : "Save draft"}</Button>
-        <Button kind="run" disabled={live} onClick={() => setSavedAs("live")}>{live ? "Live" : "Go live"}</Button>
+        {dirty && <span className="df-text-warn" role="status">{live ? "Unsaved changes: new documents use them once saved" : "Unsaved changes"}</span>}
+        <a className="ui-btn ui-btn-secondary" href="#/testlab">Test with a sample</a>
+        <Button disabled={!dirty || busy} onClick={saveDraft}>{!dirty ? "Saved" : live ? "Save changes" : "Save draft"}</Button>
+        {live
+          ? <Button disabled={busy} onClick={() => goLive(false)}>Take offline</Button>
+          : <Button kind="run" disabled={busy} onClick={() => goLive(true)}>Go live</Button>}
       </div>
 
       <div role="tablist" aria-label="Stages" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -64,7 +103,7 @@ export function Builder({ api }: { api: DocFlowApi }) {
           <section className="df-card df-span2" aria-label="Checks and lookups" style={{ overflow: "hidden" }}>
             <div className="df-head-row df-pad">
               <div><b style={{ fontSize: 15 }}>4 · Checks and lookups</b><div className="df-muted">Run on every document after its fields are read. Each check decides what happens when it fails.</div></div>
-              <span className="df-grow" /><Button kind="primary" icon="plus">Add check</Button>
+              <span className="df-grow" /><Button kind="primary" icon="plus" onClick={() => setEditCheck("new")}>Add check</Button>
             </div>
             <FilterBar onClear={() => { setQ(""); setKind("all"); setOnOff("all"); setFails("all"); }} count={`${rows.length} of ${design.checks.length} checks`}>
               <SearchBox value={q} onChange={setQ} placeholder="Search checks" />
@@ -87,19 +126,27 @@ export function Builder({ api }: { api: DocFlowApi }) {
                         onChange={(e) => setCheck(c.id, { ifFails: e.target.value as Check["ifFails"] })}>
                         {(Object.keys(IF_FAILS) as Check["ifFails"][]).map((k) => <option key={k} value={k}>{IF_FAILS[k]}</option>)}
                       </select></td>
-                      <td className="df-right"><Button kind="plain">Edit</Button></td>
+                      <td className="df-right" style={{ whiteSpace: "nowrap" }}>
+                        <Button kind="plain" onClick={() => setEditCheck(c)}>Edit</Button>
+                        <Button kind="plain" aria-label={"Remove " + c.name} onClick={() => change({ checks: design.checks.filter((x) => x.id !== c.id) })}>Remove</Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {!rows.length && <div className="df-empty">No check matches these filters.</div>}
+              {!design.checks.length && <div className="df-empty">No checks yet. Click Add check.</div>}
+              {design.checks.length > 0 && !rows.length && <div className="df-empty">No check matches these filters.</div>}
             </div>
           </section>
         ) : (
-          <section className="df-card df-pad df-span2" aria-label={current.name}>
-            <b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b>
-            <p className="df-muted">{current.summary}</p>
-            <p className="df-small">This stage's settings come in the next build; the checks stage shows the pattern each stage follows.</p>
+          <section className="df-card df-pad df-span2" aria-label={current.name} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
+            {stage === 0 && <IntakeStage s={design.settings} set={setSettings} />}
+            {stage === 1 && <ClassifyStage s={design.settings} set={setSettings} />}
+            {stage === 2 && <ExtractStage s={design.settings} set={setSettings} />}
+            {stage === 4 && <ReviewStage s={design.settings} set={setSettings} />}
+            {stage === 5 && <DeliverStage deliveries={design.deliveries} onAdd={() => setEditDelivery("new")} onEdit={setEditDelivery}
+              onRemove={(id) => change({ deliveries: design.deliveries.filter((d) => d.id !== id) })} />}
           </section>
         )}
 
@@ -112,9 +159,16 @@ export function Builder({ api }: { api: DocFlowApi }) {
               <b>{s.name}</b><span /><span className="df-muted">{i === 3 ? `${onCount} of ${design.checks.length} checks on` : s.summary}</span>
             </div>
           ))}
-          <div className="df-note df-warn" style={{ marginTop: 12 }}>Before going live: run a test with 1–3 sample invoices to see what each stage would do.</div>
+          <div className="df-note df-warn" style={{ marginTop: 12 }}>Before going live: run a test with 1–3 sample documents to see what each stage would do.</div>
         </section>
       </div>
+
+      {editCheck && <CheckDialog key={editCheck === "new" ? "new" : editCheck.id} open value={editCheck === "new" ? null : editCheck} design={design} tables={tables}
+        onClose={() => setEditCheck(null)}
+        onSave={(c) => { change({ checks: design.checks.some((x) => x.id === c.id) ? design.checks.map((x) => x.id === c.id ? c : x) : [...design.checks, c] }); setEditCheck(null); }} />}
+      {editDelivery && <DeliveryDialog key={editDelivery === "new" ? "new" : editDelivery.id} open value={editDelivery === "new" ? null : editDelivery}
+        onClose={() => setEditDelivery(null)}
+        onSave={(d) => { change({ deliveries: design.deliveries.some((x) => x.id === d.id) ? design.deliveries.map((x) => x.id === d.id ? d : x) : [...design.deliveries, d] }); setEditDelivery(null); }} />}
     </div>
   );
 }

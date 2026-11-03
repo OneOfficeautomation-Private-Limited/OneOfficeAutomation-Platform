@@ -1,6 +1,8 @@
-import type {
-  DocFlowApi, DocStatus, DocType, DocTypeField, DocumentRow, Engine, EngineOption, NewProcess, Overview, ProcessDesign, ProcessSummary,
-  RefTable, ReviewTask, Routing, Source, TestResult,
+import {
+  RULE_KIND, ruleTest, stagesOf,
+  type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
+  type EngineField, type EngineOption, type NewProcess, type Overview, type ProcessDesign, type ProcessSummary, type RefTable, type ReviewTask, type Routing,
+  type RefRow, type RuleType, type Source, type TestResult,
 } from "./api";
 
 /**
@@ -19,12 +21,13 @@ interface DfDocType {
   id: string; name: string; description: string; category: string; languages: string[]; keywords: string[]; fields: DfFieldDef[];
   checks: string[]; learning: { enabled: boolean; aliases: Record<string, string[]> }; version: number; createdAt: string;
 }
-interface DfRule { id: string; type: string; name: string; enabled: boolean; action: "review" | "reject" | "warn"; params: Record<string, unknown> }
+interface DfRule { id: string; type: RuleType; name: string; enabled: boolean; action: "review" | "reject" | "warn"; docTypes?: string[]; params: Record<string, unknown> }
+interface DfDelivery { id: string; type: DeliveryType; name: string; enabled: boolean; on: string[]; params: Record<string, unknown> }
 interface DfFlow {
   id: string; name: string; description: string; folder?: string; docTypes: string[]; status: "draft" | "live"; isInbox: boolean; version: number;
-  classify: { mode: string; split: boolean }; engine: { option: string; ocrProvider: string; extractionProvider: string };
+  classify: { mode: "single" | "auto"; split: boolean; minScore?: number }; engine: { option: string; ocrProvider: string; extractionProvider: string };
   review: { fieldConfidence: number; slaHours: number }; rules: DfRule[];
-  deliveries: { type: string; name: string; enabled: boolean; params: Record<string, unknown> }[];
+  deliveries: DfDelivery[];
   intake: { inputFolder: string; pollSeconds: number }; updatedAt: string;
   stats?: Stats; docTypeNames?: string[];
 }
@@ -85,22 +88,18 @@ function fieldType(t: string): DocTypeField["type"] {
   return t === "date" ? "Date" : t === "currency" || t === "number" ? "Amount" : t === "table" ? "Table" : "Text";
 }
 
-const RULE_KIND: Record<string, string> = {
-  duplicate: "Duplicate", lookup: "Reference data lookup", ksa_vat: "KSA VAT (ZATCA)", threshold: "Amount threshold", required: "Required fields", expression: "Arithmetic",
+/** Where a delivery points, by kind: the bot to start, the webhook address, or the folder / Excel path. */
+const targetOf = (d: DfDelivery) => String((d.type === "start_bot" ? d.params.bot : d.type === "webhook" ? d.params.url : d.params.path) ?? "");
+const paramsOf = (d: Delivery, old?: DfDelivery): Record<string, unknown> => {
+  const keep = { ...(old?.params ?? {}) };
+  if (d.type === "start_bot") return { ...keep, bot: d.target };
+  if (d.type === "webhook") return { ...keep, url: d.target };
+  return { ...keep, path: d.target };
 };
-
-function ruleTest(r: DfRule): string {
-  const p = r.params ?? {};
-  switch (r.type) {
-    case "expression": return String(p.expression ?? p.expr ?? "—");
-    case "lookup": return `${text(p.field)} is in "${text(p.table)}"`;
-    case "threshold": return `${text(p.field)} over ${text(p.max ?? p.value)}`;
-    case "duplicate": return `Same ${Array.isArray(p.fields) ? (p.fields as string[]).join(" and ") : "values"} seen before`;
-    case "ksa_vat": return `${text(p.field ?? "supplier_vat")}: 15 digits, starts and ends with 3`;
-    case "required": return Array.isArray(p.fields) ? (p.fields as string[]).join(", ") : "Every required field is filled";
-    default: return "—";
-  }
-}
+const checkOf = (r: DfRule): Check => ({
+  id: r.id, on: r.enabled, name: r.name || RULE_KIND[r.type] || r.type, kind: RULE_KIND[r.type] ?? r.type, test: ruleTest(r.type, r.params ?? {}),
+  ifFails: r.action, type: r.type, params: r.params ?? {},
+});
 
 export class HttpError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -229,9 +228,9 @@ export class HttpDocFlowApi implements DocFlowApi {
     const engines = [...new Set(result?.provenance.steps.filter((s) => s.stage === "digitize").map((s) => ENGINE_NAMES[s.providerId] ?? s.providerId) ?? [])];
     const label = (f: DfFieldDef) => (f.label ?? f.name).split(" / ")[0];
     return {
-      documentId, processId: d.flowId, name: d.file_name, processName: flow?.name ?? d.flowId, docType: type?.name ?? "Not recognised",
+      documentId, processId: d.flowId, status: status(d.status), reviewedBy: d.validated_by ?? undefined, name: d.file_name, processName: flow?.name ?? d.flowId, docType: type?.name ?? "Not recognised",
       cameIn: `${clock(d.created_at)} by ${sourceOf({ ...d, instance_id: d.flowId, flags: d.flags, confidence: null }).label.toLowerCase()}`,
-      dueIn: mine ? `${Math.max(0, Math.round(mine.slaHours - mine.ageHours))} h` : "—",
+      dueIn: mine ? `${Math.max(0, Math.round(mine.slaHours - mine.ageHours))} h` : "—", targetHours: mine?.slaHours ?? flow?.review.slaHours ?? 24,
       position: at >= 0 ? at + 1 : 1, of: Math.max(queue.length, 1),
       engineTrail: engines.length ? "read by " + engines.join(", re-read by ") + (result?.confidence ? ` (${pct(result.confidence)}%)` : "") : "—",
       pageLines: (result?.pages ?? []).flatMap((p) => p.lines.map((l) => ({ text: l.text }))).slice(0, 200),
@@ -249,8 +248,33 @@ export class HttpDocFlowApi implements DocFlowApi {
     };
   }
 
-  async completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<void> {
-    await this.call("POST", `/df/documents/${encodeURIComponent(documentId)}/review`, { fields, action: decision === "approve" ? "submit" : "invalid" });
+  async completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<{ next?: string }> {
+    const r = await this.call<{ nextDocumentId?: string | null }>("POST", `/df/documents/${encodeURIComponent(documentId)}/review`,
+      { fields, action: decision === "approve" ? "submit" : "invalid" });
+    return { next: r?.nextDocumentId ?? undefined };
+  }
+
+  async changeDocType(documentId: string, docTypeId: string): Promise<{ documentId: string; needsReview: boolean }> {
+    const d = await this.call<{ id: string; status: string }>("POST", `/df/documents/${encodeURIComponent(documentId)}/reclassify`, { docType: docTypeId });
+    return { documentId: d.id, needsReview: d.status === "validation" };
+  }
+
+  exportUrl(processId: string, format: "xlsx" | "csv"): string {
+    return `${this.base}/df/flows/${encodeURIComponent(processId)}/export?format=${format}`;
+  }
+
+  async testEngine(id: string): Promise<{ ok: boolean; message: string }> {
+    const r = await this.call<{ ok: boolean; message: string; output?: string }>("POST", `/admin/providers/${encodeURIComponent(id)}/test`);
+    return { ok: r.ok, message: r.message + (r.output ? `: "${r.output}"` : "") };
+  }
+
+  async engineSettings(id: string): Promise<EngineField[]> {
+    const s = await this.call<{ engines: Record<string, { fields: (EngineField & { default?: string })[] }> }>("GET", "/admin/settings");
+    return (s.engines[id]?.fields ?? []).map((f) => ({ key: f.key, label: f.label, type: f.type, value: String(f.value ?? ""), help: f.help, options: f.options, placeholder: f.placeholder }));
+  }
+
+  async saveEngineSettings(values: Record<string, string>): Promise<void> {
+    await this.call("PUT", "/admin/settings", { values });
   }
 
   async engines(): Promise<{ routing: Routing; options: EngineOption[] }> {
@@ -289,20 +313,52 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   async processDesign(id: string): Promise<ProcessDesign> {
     const [f, types] = await Promise.all([this.call<DfFlow>("GET", `/df/flows/${encodeURIComponent(id)}`), this.call<DfDocType[]>("GET", "/df/doctypes")]);
-    const names = f.docTypes.map((t) => types.find((x) => x.id === t)?.name ?? t);
-    const on = f.rules.filter((r) => r.enabled).length;
-    return {
-      id: f.id, name: f.name, state: f.status, version: f.version, folder: f.folder ?? "", docType: f.isInbox ? "Any" : names.join(", "),
-      stages: [
-        { name: "Intake", summary: ["Upload", f.intake.inputFolder ? `${f.intake.inputFolder} every ${f.intake.pollSeconds} s` : ""].filter(Boolean).join(", "), done: true },
-        { name: "Classify & split", summary: f.classify.mode === "auto" ? `Recognised automatically${f.classify.split ? "; batches are split" : ""}` : `Every file is read as ${names[0] ?? "the process's type"}`, done: true },
-        { name: "Extract", summary: `Fields of ${names.join(", ") || "each type"}; ${f.engine.extractionProvider === "auto" ? "default engine" : ENGINE_NAMES[f.engine.extractionProvider] ?? f.engine.extractionProvider}`, done: true },
-        { name: "Checks & lookups", summary: f.rules.length ? `${on} of ${f.rules.length} checks on` : "No checks yet", done: f.rules.length > 0 },
-        { name: "Review", summary: `Fields under ${Math.round(f.review.fieldConfidence * 100)}% go to the Task inbox; ${f.review.slaHours} h target`, done: true },
-        { name: "Deliver", summary: f.deliveries.length ? f.deliveries.map((d) => d.name || d.type).join(", ") : "Choose: Excel register, folder, webhook or start a bot", done: f.deliveries.length > 0 },
-      ],
-      checks: f.rules.map((r) => ({ id: r.id, on: r.enabled, name: r.name || RULE_KIND[r.type] || r.type, kind: RULE_KIND[r.type] ?? r.type, test: ruleTest(r), ifFails: r.action })),
+    return this.design(f, types);
+  }
+
+  private design(f: DfFlow, types: DfDocType[]): ProcessDesign {
+    const mine = f.docTypes.map((t) => types.find((x) => x.id === t)).filter((t): t is DfDocType => !!t);
+    const base = {
+      docType: f.isInbox ? "Any" : (mine.map((t) => t.name).join(", ") || f.docTypes.join(", ")),
+      checks: f.rules.map(checkOf),
+      settings: {
+        inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
+        extraction: f.engine.extractionProvider, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
+      },
+      deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d) })),
     };
+    const seen = new Set<string>();
+    const fields = (f.isInbox ? types : mine).flatMap((t) => t.fields).filter((x) => x.type !== "table" && !seen.has(x.name) && seen.add(x.name))
+      .map((x) => ({ name: x.name, label: (x.label ?? x.name).split(" / ")[0] }));
+    return { id: f.id, name: f.name, state: f.status, version: f.version, folder: f.folder ?? "", ...base, fields,
+      stages: stagesOf(base, (e) => ENGINE_NAMES[e] ?? e) };
+  }
+
+  async saveProcess(d: ProcessDesign): Promise<ProcessDesign> {
+    // DocFlow replaces whole sections, so each one starts from what it holds now (keeps settings these screens do not show)
+    const cur = await this.call<DfFlow>("GET", `/df/flows/${encodeURIComponent(d.id)}`);
+    const s = d.settings;
+    const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
+      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds },
+      classify: { ...cur.classify, mode: s.classifyMode, split: s.split },
+      engine: { ...cur.engine, extractionProvider: s.extraction },
+      review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours },
+      rules: d.checks.map((c) => {
+        const old = cur.rules.find((r) => r.id === c.id);
+        return { ...(old ?? {}), id: c.id, type: c.type, name: c.name, enabled: c.on, action: c.ifFails, params: c.params };
+      }),
+      deliveries: d.deliveries.map((x) => {
+        const old = cur.deliveries.find((o) => o.id === x.id);
+        return { ...(old ?? {}), id: x.id, type: x.type, name: x.name, enabled: x.enabled, on: x.on, params: paramsOf(x, old) };
+      }),
+    });
+    this.flowsCache = null;
+    return this.design(saved, await this.call<DfDocType[]>("GET", "/df/doctypes"));
+  }
+
+  async setLive(id: string, live: boolean): Promise<void> {
+    await this.call("POST", `/df/flows/${encodeURIComponent(id)}/live?live=${live}`);
+    this.flowsCache = null;
   }
 
   async docTypes(): Promise<DocType[]> {
@@ -331,15 +387,30 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   async refTables(): Promise<RefTable[]> {
     const [list, flows] = await Promise.all([
-      this.call<{ id: string; name: string; columns: string[]; rowCount: number; updatedAt: string }[]>("GET", "/df/reftables"), this.flows(),
+      this.call<{ id: string; name: string; columns: string[]; rowCount: number; updatedAt: string }[]>("GET", "/df/reftables"), this.flows(true),
     ]);
     return list.map((t) => {
       const usedBy = flows.filter((f) => f.rules.some((r) => r.type === "lookup" && r.params?.table === t.id)).map((f) => f.name);
       return {
-        id: t.id, name: t.name, rows: t.rowCount, updated: new Date(t.updatedAt).toLocaleString(), usedBy,
+        id: t.id, name: t.name, rows: t.rowCount, columns: t.columns, updated: new Date(t.updatedAt).toLocaleString(), usedBy,
         meta: usedBy.length ? `Used by ${usedBy.length} process${usedBy.length > 1 ? "es" : ""} · ${clock(t.updatedAt)}` : "Not used by any check",
       };
     });
+  }
+
+  async refTableRows(id: string, limit = 200): Promise<RefRow[]> {
+    return (await this.call<{ rows: RefRow[] }>("GET", `/df/reftables/${encodeURIComponent(id)}?limit=${limit}`)).rows;
+  }
+
+  async uploadRefTable(file: File, name: string): Promise<{ id: string }> {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("name", name);
+    return this.call<{ id: string }>("POST", "/df/reftables", form);
+  }
+
+  async deleteRefTable(id: string): Promise<void> {
+    await this.call("DELETE", `/df/reftables/${encodeURIComponent(id)}`);
   }
 
   async runTest(): Promise<TestResult[]> {

@@ -8,6 +8,7 @@ import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoa
 export function Inbox({ api }: { api: DocFlowApi }) {
   const [processes, reload] = useLoad(() => api.processes(), [api]);
   const [adding, setAdding] = useState<string | null>(null);   // "" = from the toolbar, else a process id
+  const [dropped, setDropped] = useState<File[]>([]);           // files dropped on the box go straight into the dialog
   const [creating, setCreating] = useState(false);
   const [over, setOver] = useState(false);
   const [q, setQ] = useState("");
@@ -35,7 +36,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
       </div>
 
       <button type="button" className={`df-drop${over ? " is-over" : ""}`} onClick={() => setAdding("")}
-        onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); setAdding(""); }}>
+        onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); setDropped(Array.from(e.dataTransfer.files)); setAdding(""); }}>
         <span><b>Drop files here</b> or click to choose. You pick the process and folder next.</span>
       </button>
 
@@ -89,12 +90,12 @@ export function Inbox({ api }: { api: DocFlowApi }) {
       </section>
 
       {adding !== null && (
-        <AddDocumentsDialog api={api} open onClose={() => setAdding(null)} processes={processes} initialProcess={adding || undefined}
-          onNewProcess={() => { setAdding(null); setCreating(true); }}
-          onAdded={(id) => { setAdding(null); location.hash = "#/process/" + id; }} />
+        <AddDocumentsDialog api={api} open onClose={() => setAdding(null)} processes={processes} initialProcess={adding || undefined} initialFiles={dropped}
+          onNewProcess={() => { setAdding(null); setDropped([]); setCreating(true); }}
+          onAdded={(id) => { setAdding(null); setDropped([]); location.hash = "#/process/" + id; }} />
       )}
       <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
-        onCreated={() => { setCreating(false); reload(); location.hash = "#/processes"; }} />
+        onCreated={(id) => { setCreating(false); reload(); location.hash = "#/processes/" + encodeURIComponent(id); }} />
     </div>
   );
 }

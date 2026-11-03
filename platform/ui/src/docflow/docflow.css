@@ -161,3 +161,4 @@
 .df-help-row { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding: 12px 24px 0; }
 .df-help-row .df-help { align-self: stretch; margin: 0; }
 .df-hint-bubble.is-left { left: auto; right: -8px; }
+.df-title-select { height: 34px; max-width: 360px; font-size: 18px; font-weight: 600; }
