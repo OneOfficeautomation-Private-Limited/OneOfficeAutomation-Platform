@@ -229,7 +229,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const engines = [...new Set(result?.provenance.steps.filter((s) => s.stage === "digitize").map((s) => ENGINE_NAMES[s.providerId] ?? s.providerId) ?? [])];
     const label = (f: DfFieldDef) => (f.label ?? f.name).split(" / ")[0];
     return {
-      documentId, name: d.file_name, processName: flow?.name ?? d.flowId, docType: type?.name ?? "Not recognised",
+      documentId, processId: d.flowId, name: d.file_name, processName: flow?.name ?? d.flowId, docType: type?.name ?? "Not recognised",
       cameIn: `${clock(d.created_at)} by ${sourceOf({ ...d, instance_id: d.flowId, flags: d.flags, confidence: null }).label.toLowerCase()}`,
       dueIn: mine ? `${Math.max(0, Math.round(mine.slaHours - mine.ageHours))} h` : "—",
       position: at >= 0 ? at + 1 : 1, of: Math.max(queue.length, 1),

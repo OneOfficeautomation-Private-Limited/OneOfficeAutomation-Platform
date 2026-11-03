@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { estimate, type DocFlowApi, type EngineOption, type Routing } from "./api";
-import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, useLoad } from "./ui";
+import { HINTS } from "./help";
+import { Chip, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, useLoad } from "./ui";
 
 const STATUS = { ready: { tone: "ok", label: "Ready" }, optin: { tone: "mute", label: "Needs cloud opt-in" }, setup: { tone: "warn", label: "Not set up" } } as const;
 
@@ -40,7 +41,7 @@ export function Engines({ api, onOptIn }: { api: DocFlowApi; onOptIn?: (on: bool
           <div><h2 style={{ margin: 0, fontSize: 16 }}>How a page is routed</h2>
             <p className="df-muted" style={{ margin: "2px 0 0" }}>Free local engines first. Paid cloud engines only for weak pages, and only when the client has opted in.</p></div>
           <span className="df-grow" />
-          <b id="df-optin-label">Cloud opt-in</b>
+          <b id="df-optin-label">Cloud opt-in</b><Hint about="Cloud opt-in" text={HINTS.cloudOptIn} />
           <button type="button" role="switch" className="df-switch" aria-checked={routing.cloudOptIn} aria-labelledby="df-optin-label"
             onClick={() => routing.cloudOptIn ? setOptIn(false) : setConfirmOptIn(true)} />
           <span className="df-muted">{routing.cloudOptIn ? "On" : "Off"}</span>
@@ -54,11 +55,11 @@ export function Engines({ api, onOptIn }: { api: DocFlowApi; onOptIn?: (on: bool
           ))}
         </ol>
         <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
-          <Field label="Retry pages below">{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => { setSaved(false); setRouting({ ...routing, retryBelow: Number(e.target.value) }); }}
+          <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => { setSaved(false); setRouting({ ...routing, retryBelow: Number(e.target.value) }); }}
             options={[{ value: "0.85", label: "85% confidence (plan)" }, { value: "0.8", label: "80%" }, { value: "0.9", label: "90%" }, { value: "0", label: "Never retry" }]} />}</Field>
-          <Field label="Local retry engine">{(id) => <Select id={id} value={routing.localRetry} onChange={(e) => { setSaved(false); setRouting({ ...routing, localRetry: e.target.value }); }}
+          <Field label="Local retry engine" info={HINTS.localRetry}>{(id) => <Select id={id} value={routing.localRetry} onChange={(e) => { setSaved(false); setRouting({ ...routing, localRetry: e.target.value }); }}
             options={[{ value: "paddleocr", label: "PaddleOCR" }, { value: "", label: "None" }]} />}</Field>
-          <Field label="Cloud engine for pages still weak">{(id) => <Select id={id} value={routing.cloudEngine} onChange={(e) => { setSaved(false); setRouting({ ...routing, cloudEngine: e.target.value }); }}
+          <Field label="Cloud engine for pages still weak" info={HINTS.cloudEngine}>{(id) => <Select id={id} value={routing.cloudEngine} onChange={(e) => { setSaved(false); setRouting({ ...routing, cloudEngine: e.target.value }); }}
             options={[{ value: "", label: "None" }, ...cloudEngines.map((e) => ({ value: e.id, label: e.name }))]} />}</Field>
           <Button kind="primary" onClick={() => save(routing)}>{saved ? "Saved" : "Save routing"}</Button>
         </div>

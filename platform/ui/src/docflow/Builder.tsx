@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button, Icon } from "../components";
 import type { Check, DocFlowApi, ProcessDesign } from "./api";
-import { Chip, Empty, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError } from "./ui";
+import { HINTS } from "./help";
+import { Chip, Empty, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError } from "./ui";
 
 const IF_FAILS = { review: "Send to review", reject: "Reject", warn: "Warn only" } as const;
 
@@ -75,7 +76,7 @@ export function Builder({ api }: { api: DocFlowApi }) {
             </FilterBar>
             <div className="df-table-wrap">
               <table className="df-table" style={{ minWidth: 720 }}>
-                <thead><tr><th>On</th><th>Check</th><th>What it tests</th><th>If it fails</th><th><span className="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>On</th><th>Check</th><th>What it tests</th><th>If it fails<Hint about="If it fails" text={HINTS.ifFails} /></th><th><span className="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   {rows.map((c) => (
                     <tr key={c.id}>

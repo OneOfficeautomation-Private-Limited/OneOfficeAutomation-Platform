@@ -169,4 +169,26 @@ describe("Document Automation", () => {
     expect(screen.queryByRole("region", { name: "Field results" })).toBeNull();
     expect(screen.queryByLabelText("Engine B")).toBeNull();
   });
+
+  it("shows how to use each page on the first visit, and remembers when it is hidden", async () => {
+    start();
+    await go("#/inbox");
+    const help = await screen.findByRole("region", { name: "How to use this page" });
+    expect(within(help).getAllByRole("listitem")[0].textContent).toContain("Add documents");
+    fireEvent.click(within(help).getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();
+    await go("#/engines");
+    expect(within(await screen.findByRole("region", { name: "How to use this page" })).getByText(/Cloud opt-in off/)).toBeTruthy();
+    await go("#/inbox");
+    expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "How to use this page" }));
+    expect(screen.getByRole("region", { name: "How to use this page" })).toBeTruthy();
+  });
+
+  it("explains an option in one line", async () => {
+    start();
+    await go("#/engines");
+    fireEvent.click(await screen.findByRole("button", { name: "About Cloud opt-in" }));
+    expect(screen.getByRole("note").textContent).toContain("never leave this server");
+  });
 });

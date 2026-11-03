@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button, Icon, IconButton } from "../components";
 import type { DocFlowApi, ReviewTask } from "./api";
-import { Chip, Loading } from "./ui";
+import { HINTS } from "./help";
+import { Chip, Hint, Loading } from "./ui";
 
 /**
  * The review task a reviewer opens from the Task inbox: the page with the flagged value marked, the fields with what
@@ -23,7 +24,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
     setSaving(true);
     await api.completeReview(task.documentId, values, decision);
     setSaving(false);
-    location.hash = "#/process/ap-invoices";
+    location.hash = task.processId ? "#/process/" + encodeURIComponent(task.processId) : "#/inbox";
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); void finish("approve"); } };
@@ -39,7 +40,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div className="df-head-row" style={{ padding: "12px 24px", borderBottom: "1px solid var(--ui-divider)" }}>
-        <a className="ui-icon-btn" href="#/process/ap-invoices" aria-label="Back to the process"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
+        <a className="ui-icon-btn" href={task.processId ? "#/process/" + encodeURIComponent(task.processId) : "#/inbox"} aria-label="Back to the process"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
         <div style={{ minWidth: 0 }}>
           <div className="df-head-row"><h1 style={{ margin: 0, fontSize: 18 }}>{task.name}</h1><Chip tone="warn">Needs review</Chip></div>
           <div className="df-muted">{task.processName} · {task.docType} · came in {task.cameIn} · <b className="df-text-warn">due in {task.dueIn}</b> (24 h target)</div>
@@ -114,8 +115,8 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
             })}
           </div>
           <div className="df-head-row" style={{ padding: "12px 20px", borderTop: "1px solid var(--ui-border)", background: "var(--ui-soft)" }}>
-            <Button kind="danger" disabled={saving} onClick={() => finish("reject")}>Reject</Button>
-            <Button kind="plain">Change document type</Button>
+            <Button kind="danger" disabled={saving} onClick={() => finish("reject")}>Reject</Button><Hint about="Reject" text={HINTS.reviewReject} />
+            <Button kind="plain">Change document type</Button><Hint about="Change document type" text={HINTS.changeType} />
             <span className="df-grow" />
             <Button kind="run" disabled={saving} onClick={() => finish("approve")}>Approve and next <span style={{ fontWeight: 400, opacity: .85, fontSize: 12 }}>Ctrl+Enter</span></Button>
           </div>

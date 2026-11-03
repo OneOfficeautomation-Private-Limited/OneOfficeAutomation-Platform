@@ -98,3 +98,37 @@ export const Loading = () => <div className="df-empty" role="status">Loading…<
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="df-empty">{children}</div>;
 }
+
+/** The header button that shows or hides "How to use this page". */
+export function HelpButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className="df-help-btn" aria-expanded={open} aria-controls="df-help" onClick={onToggle}>
+      <span className="df-help-q" aria-hidden="true">?</span>How to use this page
+    </button>
+  );
+}
+
+/** "How to use this page": what the page is for, then numbered steps, one action each. */
+export function HelpPanel({ summary, steps, onHide }: { summary: string; steps: string[]; onHide: () => void }) {
+  return (
+    <section id="df-help" className="df-help" aria-label="How to use this page">
+      <div className="df-help-head"><b>How to use this page.</b><span>{summary}</span><span className="df-grow" />
+        <button type="button" className="df-link" onClick={onHide}>Hide</button></div>
+      <ol className="df-help-steps">{steps.map((s, i) => <li key={i}><span className="df-help-n" aria-hidden="true">{i + 1}</span>{s}</li>)}</ol>
+    </section>
+  );
+}
+
+/** A one-line explanation of an option, behind a small "i" (hover, focus or click). */
+export function Hint({ about, text }: { about: string; text: string }) {
+  const [open, setOpen] = useState(false);
+  const [toLeft, setToLeft] = useState(false);   // near the right edge the bubble opens leftwards, so it stays on screen
+  return (
+    <span className="df-hint">
+      <button type="button" className="ui-info" aria-label={"About " + about} aria-expanded={open} title={text}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToLeft(e.currentTarget.getBoundingClientRect().right + 280 > window.innerWidth); setOpen(!open); }}
+        onBlur={() => setOpen(false)}>i</button>
+      {open && <span className={`df-hint-bubble${toLeft ? " is-left" : ""}`} role="note">{text}</span>}
+    </span>
+  );
+}

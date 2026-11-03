@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Icon } from "../components";
+import { Icon, usePersistent } from "../components";
 import { CommandMenu } from "../studio/CommandMenu";
 import type { DocFlowApi } from "./api";
 import { Builder } from "./Builder";
@@ -11,7 +11,8 @@ import { ProcessPage } from "./ProcessPage";
 import { RefData } from "./RefData";
 import { Review } from "./Review";
 import { TestLab } from "./TestLab";
-import { Chip, DF_ERROR, reportError } from "./ui";
+import { HELP, type HelpPage } from "./help";
+import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
 
 /**
  * Document Automation in the Command Center: AI > Document Automation, with its own tabs. Screens are addressed by the
@@ -37,6 +38,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
   const [optIn, setOptIn] = useState(false);
   const [error, setError] = useState("");
+  // "How to use this page" shows on a person's first visit to each page, until they hide it
+  const [helpHidden, setHelpHidden] = usePersistent<Record<string, boolean>>("docflow.helpHidden", {});
   useEffect(() => {
     const onHash = () => { setRoute(parseRoute(location.hash)); setError(""); };
     const onError = (e: Event) => setError((e as CustomEvent<string>).detail);
@@ -47,6 +50,10 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route]);
 
   const reviewing = route.tab === "review";
+  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab as HelpPage;
+  const helpOpen = !helpHidden[helpPage];
+  const toggleHelp = () => setHelpHidden({ ...helpHidden, [helpPage]: helpOpen });
+  const help = helpOpen && <HelpPanel {...HELP[helpPage]} onHide={toggleHelp} />;
   const crumb = reviewing ? "Review" : route.process ? "Process" : TABS.find((t) => t.tab === route.tab)!.label;
   const initials = user.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
@@ -82,6 +89,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
                 {optIn
                   ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
                   : <Chip tone="ok">Local-only: nothing leaves this server</Chip>}
+                <span className="df-grow" />
+                <HelpButton open={helpOpen} onToggle={toggleHelp} />
               </div>
               <nav className="df-tabs" aria-label="Document Automation">
                 {TABS.map((t) => (
@@ -96,6 +105,9 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
               <button type="button" className="df-link" onClick={() => setError("")}>Dismiss</button>
             </div>
           )}
+          {reviewing
+            ? <div className="df-help-row"><HelpButton open={helpOpen} onToggle={toggleHelp} />{help}</div>
+            : help && <div className="df-help-row">{help}</div>}
           <Screen route={route} api={api} onOptIn={setOptIn} />
         </main>
       </div>

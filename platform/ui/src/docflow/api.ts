@@ -21,7 +21,7 @@ export interface DocumentRow {
 export interface ReviewField { id: string; label: string; value: string; confidence: number; flagged?: { reason: string; suggestion?: string } }
 export interface ReviewCheck { text: string; passed: boolean; detail: string }
 export interface ReviewTask {
-  documentId: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; position: number; of: number;
+  documentId: string; processId?: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; position: number; of: number;
   engineTrail: string; pageLines: { text: string; mark?: "flag" | "ok"; bold?: boolean }[]; fields: ReviewField[]; checks: ReviewCheck[];
 }
 
@@ -120,7 +120,7 @@ const DOCUMENTS: DocumentRow[] = [
 ];
 
 const REVIEW: ReviewTask = {
-  documentId: "scan_0457", name: "scan_0457.jpg", processName: "AP invoices", docType: "Supplier invoice", cameIn: "10:40 from \\\\scan01\\invoices",
+  documentId: "scan_0457", processId: "ap-invoices", name: "scan_0457.jpg", processName: "AP invoices", docType: "Supplier invoice", cameIn: "10:40 from \\\\scan01\\invoices",
   dueIn: "3 h", position: 1, of: 9, engineTrail: "read by Tesseract, re-read by PaddleOCR (78%)",
   pageLines: [
     { text: "Red Sea Print House", bold: true }, { text: "Tax Invoice", bold: true }, { text: "Invoice Number: INV-2026-3944" },
