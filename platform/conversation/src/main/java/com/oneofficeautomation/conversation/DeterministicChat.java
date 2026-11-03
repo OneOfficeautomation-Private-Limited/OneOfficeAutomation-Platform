@@ -33,10 +33,22 @@ final class DeterministicChat implements ChatEngine {
     @Override public String id() { return ID; }
 
     /** Inputs filled so far for one agent, and the input asked for. */
-    record Fill(String path, Map<String, Object> inputs, String awaiting, double confidence, int tries) {}
+    record Fill(String path, Map<String, Object> inputs, String awaiting, double confidence, int tries) {
+        /** Kept in the session as plain JSON values, so a chat survives a restart. */
+        Map<String, Object> toMap() { return Map.of("path", path, "inputs", inputs, "awaiting", awaiting, "confidence", confidence, "tries", tries); }
+
+        @SuppressWarnings("unchecked")
+        static Fill from(Object o) {
+            if (!(o instanceof Map<?, ?> m) || m.get("path") == null || m.get("awaiting") == null) return null;
+            return new Fill(String.valueOf(m.get("path")), m.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of(),
+                    String.valueOf(m.get("awaiting")), m.get("confidence") instanceof Number c ? c.doubleValue() : 0,
+                    m.get("tries") instanceof Number t ? t.intValue() : 0);
+        }
+    }
 
     @Override public Result decide(ChatSession s, List<ChatBot> bots, String text) {
-        if (s.state.get(STATE) instanceof Fill f) {
+        Fill f = Fill.from(s.state.get(STATE));
+        if (f != null) {
             Optional<Result> r = continueFill(s, bots, f, text);
             if (r.isPresent()) return r.get();
         }
@@ -59,7 +71,7 @@ final class DeterministicChat implements ChatEngine {
             List<Match> ranked = rank(text, bots);
             if (!ranked.isEmpty() && ranked.get(0).score >= minScore && !ranked.get(0).bot.path().equals(bot.path())) return Optional.empty(); // a new request
             if (f.tries + 1 >= MAX_TRIES) { s.state.remove(STATE); return Optional.of(new Handoff("could not read " + f.awaiting, true)); }
-            s.state.put(STATE, new Fill(f.path, f.inputs, f.awaiting, f.confidence, f.tries + 1));
+            s.state.put(STATE, new Fill(f.path, f.inputs, f.awaiting, f.confidence, f.tries + 1).toMap());
             return Optional.of(new Clarify("Sorry, I couldn't read that. " + prompt(bot, variable), missing(bot, f.inputs), bot.path()));
         }
         Map<String, Object> inputs = new LinkedHashMap<>(f.inputs);
@@ -72,7 +84,7 @@ final class DeterministicChat implements ChatEngine {
         List<String> missing = missing(bot, inputs);
         if (missing.isEmpty()) { s.state.remove(STATE); return new Proposal(bot.path(), inputs, confidence, ID); }
         String field = missing.get(0);
-        s.state.put(STATE, new Fill(bot.path(), Map.copyOf(inputs), field, confidence, 0));
+        s.state.put(STATE, new Fill(bot.path(), Map.copyOf(inputs), field, confidence, 0).toMap());
         Map<String, Object> variable = bot.inputs().stream().filter(v -> field.equals(v.get("name"))).findFirst().orElse(Map.of());
         return new Clarify(prompt(bot, variable), missing, bot.path());
     }

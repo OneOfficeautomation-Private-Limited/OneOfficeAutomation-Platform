@@ -35,6 +35,21 @@ class ConversationTest {
         assertTrue(host.audit.containsAll(List.of("chat.propose", "chat.confirm")), String.valueOf(host.audit));
     }
 
+    @Test void aChatSurvivesARestartMidQuestionAndMidConfirmation() {
+        Clock clock = Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata"));
+        String sid = (String) chat.message(ANNA, null, "process vendor invoices").get("session_id");
+
+        Conversation afterRestart = new Conversation(host, clock);
+        Map<String, Object> q = afterRestart.message(ANNA, sid, "globex");
+        assertEquals("question", q.get("kind"), "the half-filled inputs came back: " + q);
+
+        Map<String, Object> c = new Conversation(host, clock).message(ANNA, sid, "3 Nov");
+        assertEquals("confirm", c.get("kind"));
+        assertEquals("started", new Conversation(host, clock).message(ANNA, sid, "yes").get("kind"), "the pending confirmation came back");
+        assertEquals(Map.of("vendor", "Globex", "from", "2026-11-03"), host.runs.get(0).get("inputs"));
+        assertEquals(8, new Conversation(host, clock).history("anna", sid).size(), "four messages and four replies");
+    }
+
     @Test void r0RunsAtOnce() {
         assertEquals("started", chat.message(ANNA, null, "show payables aging").get("kind"));
     }
@@ -128,5 +143,14 @@ class ConversationTest {
 
         @Override public void audit(Person p, String action, String objectType, String objectId, Map<String, Object> details) { audit.add(action); }
         @Override public String newId(String prefix) { return prefix + "_" + (++ids); }
+
+        /** Stored as JSON text, as a database would, so only plain values survive. */
+        final Map<String, String> store = new HashMap<>();
+
+        @Override @SuppressWarnings("unchecked")
+        public Map<String, Object> loadSession(String id) { return store.containsKey(id) ? (Map<String, Object>) JsonLite.parse(store.get(id)) : null; }
+
+        @Override public void saveSession(String id, String username, Map<String, Object> data) { store.put(id, JsonLite.write(data)); }
+        @Override public void deleteSessionsIdleSince(Instant cutoff) { }
     }
 }

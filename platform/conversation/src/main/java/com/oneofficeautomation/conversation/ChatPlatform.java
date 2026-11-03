@@ -48,6 +48,15 @@ public interface ChatPlatform {
     /** A new unique id with this prefix (chat, cnf, ...). */
     String newId(String prefix);
 
+    /** A stored chat (what {@link #saveSession} was given), or null when there is none with this id. */
+    Map<String, Object> loadSession(String id);
+
+    /** Stores a chat after each message, replacing the earlier copy; {@code data} holds plain JSON values only. */
+    void saveSession(String id, String username, Map<String, Object> data);
+
+    /** Drops stored chats not used since this time. */
+    void deleteSessionsIdleSince(java.time.Instant cutoff);
+
     /** An R3 request waiting for someone other than the person who asked. */
     record ApprovalRequest(String sessionId, String agent, String agentName, Map<String, Object> inputs, String summary,
                            String confirmationId, String inputHash) {}

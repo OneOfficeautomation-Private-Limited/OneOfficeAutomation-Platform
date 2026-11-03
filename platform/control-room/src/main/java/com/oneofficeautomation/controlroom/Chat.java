@@ -150,4 +150,19 @@ public final class Chat implements ChatPlatform {
     }
 
     @Override public String newId(String prefix) { return id(prefix); }
+
+    @Override @SuppressWarnings("unchecked")
+    public Map<String, Object> loadSession(String id) {
+        Map<String, Object> r = cr.db.one("SELECT data FROM chat_sessions WHERE id = ?", id);
+        return r == null ? null : (Map<String, Object>) JsonLite.parse((String) r.get("data"));
+    }
+
+    @Override
+    public void saveSession(String id, String username, Map<String, Object> data) {
+        String json = JsonLite.write(data);
+        if (cr.db.update("UPDATE chat_sessions SET data = ?, updated = ? WHERE id = ? AND username = ?", json, now(), id, username) == 0)
+            cr.db.update("INSERT INTO chat_sessions (id, username, data, updated) VALUES (?,?,?,?)", id, username, json, now());
+    }
+
+    @Override public void deleteSessionsIdleSince(java.time.Instant cutoff) { cr.db.update("DELETE FROM chat_sessions WHERE updated < ?", cutoff); }
 }

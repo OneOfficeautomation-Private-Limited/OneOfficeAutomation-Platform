@@ -89,6 +89,21 @@ class ChatTest {
         assertEquals("cancelled", chat.message(admin, sid, "no", null).get("kind"));
     }
 
+    @Test void aChatSurvivesARestartOfTheCommandCenter() throws Exception {
+        Clock clock = Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata"));
+        Path data = Files.createTempDirectory("ooa-chat-restart");
+        String sid = (String) chat.message(admin, null, "process vendor invoices", null).get("session_id");
+        assertNotNull(db.one("SELECT username FROM chat_sessions WHERE id = ?", sid), "stored after the message");
+
+        Chat restarted = new Chat(cr, data, clock);   // a new Command Center process reads the same database
+        assertEquals("question", restarted.message(admin, sid, "globex", null).get("kind"));
+        Map<String, Object> c = restarted.message(admin, sid, "today", null);
+        assertEquals("confirm", c.get("kind"));
+        assertEquals(Map.of("vendor", "Globex", "from", "2026-11-03"), c.get("inputs"));
+        assertEquals("cancelled", new Chat(cr, data, clock).message(admin, sid, "no", null).get("kind"));
+        assertEquals(8, new Chat(cr, data, clock).history(admin, sid).size());
+    }
+
     @Test void r0AgentStartsAtOnce() {
         Map<String, Object> r = chat.message(admin, null, "show payables aging", null);
         assertEquals("started", r.get("kind"), String.valueOf(r));

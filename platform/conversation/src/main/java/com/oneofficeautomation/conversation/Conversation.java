@@ -13,7 +13,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -40,7 +39,7 @@ public final class Conversation {
     private final ChatPlatform platform;
     private final Clock clock;
     private final ChatEngine deterministic, llm;
-    private final Map<String, ChatSession> sessions = new ConcurrentHashMap<>();
+    private volatile Instant lastPurge = Instant.EPOCH;
 
     public Conversation(ChatPlatform platform, Clock clock) {
         this.platform = platform;
@@ -65,9 +64,11 @@ public final class Conversation {
     public Map<String, Object> message(Person p, String sessionId, String text) {
         if (text == null || text.isBlank()) throw new OoaException("CR.BAD_INPUT", "Write a message", null);
         purgeIdle();
-        ChatSession s = sessionId == null || sessionId.isBlank() ? open(p) : sessions.get(sessionId);
-        if (s == null || !s.username.equals(p.username())) throw notFound(sessionId); // someone else's chat stays invisible
-        synchronized (s) {
+        boolean fresh = sessionId == null || sessionId.isBlank();
+        String id = fresh ? platform.newId("chat") : sessionId;
+        synchronized (lock(id)) {
+            ChatSession s = fresh ? new ChatSession(id, p.username(), clock.instant()) : load(id);
+            if (s == null || !s.username.equals(p.username())) throw notFound(sessionId); // someone else's chat stays invisible
             Instant at = clock.instant();
             s.lastUsed = at;
             s.person = p;
@@ -75,28 +76,36 @@ public final class Conversation {
             Map<String, Object> out = respond(p, s, text.trim());
             out.put("session_id", s.id);
             s.history.add(Map.of("role", "assistant", "text", out.get("reply"), "kind", out.get("kind"), "at", clock.instant().toString()));
+            platform.saveSession(s.id, s.username, s.toMap());
             return out;
         }
     }
 
     /** The messages of one of the person's chats, oldest first. */
     public List<Map<String, Object>> history(String username, String sessionId) {
-        ChatSession s = sessions.get(sessionId);
+        ChatSession s = sessionId == null ? null : load(sessionId);
         if (s == null || !s.username.equals(username)) throw notFound(sessionId);
-        synchronized (s) { return List.copyOf(s.history); }
+        return List.copyOf(s.history);
     }
 
     private static OoaException notFound(String sessionId) { return new OoaException("CR.NOT_FOUND", "Chat " + sessionId + " not found"); }
 
-    private ChatSession open(Person p) {
-        ChatSession s = new ChatSession(platform.newId("chat"), p.username(), clock.instant());
-        sessions.put(s.id, s);
-        return s;
+    /** One lock per chat on this node; the stored copy is read fresh under it, so the host's store is the truth. */
+    private static Object lock(String id) { return ("ooa.chat:" + id).intern(); }
+
+    private ChatSession load(String id) {
+        Map<String, Object> stored = platform.loadSession(id);
+        if (stored == null) return null;
+        ChatSession s = ChatSession.fromMap(stored);
+        return s.lastUsed.isBefore(clock.instant().minus(IDLE)) ? null : s;
     }
 
+    /** Drops chats idle for longer than a working day, at most every ten minutes. */
     private void purgeIdle() {
-        Instant cutoff = clock.instant().minus(IDLE);
-        sessions.values().removeIf(s -> s.lastUsed.isBefore(cutoff));
+        Instant now = clock.instant();
+        if (now.isBefore(lastPurge.plus(Duration.ofMinutes(10)))) return;
+        lastPurge = now;
+        platform.deleteSessionsIdleSince(now.minus(IDLE));
     }
 
     private Map<String, Object> respond(Person p, ChatSession s, String text) {
@@ -208,12 +217,16 @@ public final class Conversation {
                 runId == null ? Map.of("agent", path, "requested_by", requester) : Map.of("agent", path, "requested_by", requester, "run", runId));
         platform.notify(requester, (approved ? "Approved: " : "Rejected: ") + name, message,
                 runId == null ? Map.of("agent", path) : Map.of("agent", path, "run_id", runId));
-        ChatSession s = sessions.get(String.valueOf(request.get("session_id")));
-        if (s != null && s.username.equals(requester)) synchronized (s) {
-            Map<String, Object> m = new LinkedHashMap<>(Map.of("role", "assistant", "text", message, "kind", approved ? "approval_approved" : "approval_rejected",
-                    "at", clock.instant().toString()));
-            if (runId != null) m.put("run_id", runId);
-            s.history.add(m);
+        String sessionId = String.valueOf(request.get("session_id"));
+        synchronized (lock(sessionId)) {
+            ChatSession s = load(sessionId);
+            if (s != null && s.username.equals(requester)) {
+                Map<String, Object> m = new LinkedHashMap<>(Map.of("role", "assistant", "text", message, "kind", approved ? "approval_approved" : "approval_rejected",
+                        "at", clock.instant().toString()));
+                if (runId != null) m.put("run_id", runId);
+                s.history.add(m);
+                platform.saveSession(s.id, s.username, s.toMap());
+            }
         }
         return runId;
     }
