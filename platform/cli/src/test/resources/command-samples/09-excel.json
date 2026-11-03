@@ -223,5 +223,34 @@
   {"command": "ooa.excel/unprotect_workbook", "name": "structure password still checked", "steps": [
      {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/po3.xlsx"}},
      {"action": "ooa.excel/protect_workbook", "args": {"password": "right"}},
-     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"}
+     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"},
+  {"command": "ooa.excel/create_pivot_table", "name": "region by quarter", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/pv.xlsx", "sheet": "Sales"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Region", "Quarter", "Amount"], "rows": [["North", "Q1", 100], ["South", "Q1", 80], ["North", "Q2", 120]]}}},
+     {"action": "ooa.excel/create_pivot_table", "args": {"rows": ["Region"], "columns": ["Quarter"], "values": ["Amount"]}, "out": {"name": "n", "sheet": "s"}},
+     {"action": "ooa.excel/close", "args": {"save": true}}], "expect": {"n": "PivotTable1", "s": "Pivot"}, "expectFiles": {"pv.xlsx": true}},
+  {"command": "ooa.excel/create_pivot_table", "name": "no value fields", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/pv2.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Region", "Amount"], "rows": [["North", 1]]}}},
+     {"action": "ooa.excel/create_pivot_table", "args": {"rows": ["Region"], "values": []}}], "error": "EXCEL.NO_VALUES"},
+  {"command": "ooa.excel/create_chart", "name": "column chart", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/ch.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Month", "Sales"], "rows": [["Jan", 10], ["Feb", 12]]}}},
+     {"action": "ooa.excel/create_chart", "args": {"range": "A1:B3", "title": "Sales"}, "out": {"range": "r"}},
+     {"action": "ooa.excel/close", "args": {"save": true}}], "expect": {"r": "D1:K15"}},
+  {"command": "ooa.excel/create_table", "name": "named table", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/tb.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Item", "Qty"], "rows": [["pen", 2], ["cup", 3]]}}},
+     {"action": "ooa.excel/create_table", "args": {"name": "Stock"}, "out": {"name": "n"}},
+     {"action": "ooa.excel/close", "args": {"save": true}}], "expect": {"n": "Stock"}},
+  {"command": "ooa.excel/format_cells", "name": "header row", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/fm.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Item", "Price"], "rows": [["pen", 2.5]]}}},
+     {"action": "ooa.excel/format_cells", "args": {"range": "A1:B1", "bold": true, "fill_color": "light gray", "borders": "all"}, "out": {"count": "n"}},
+     {"action": "ooa.excel/close", "args": {"save": true}}], "expect": {"n": 2}},
+  {"command": "ooa.excel/text_to_columns", "name": "comma separated", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/tc.xlsx"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "Acme;12;Paid"}},
+     {"action": "ooa.excel/text_to_columns", "args": {"column": "A", "delimiter": ";"}, "out": {"columns": "k"}},
+     {"action": "ooa.excel/get_cell", "args": {"cell": "B1"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"k": 3, "v": 12}}
 ]

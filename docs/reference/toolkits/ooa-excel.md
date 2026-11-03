@@ -10,10 +10,11 @@ Toolkit `ooa.excel`, version 1.0.0. Read and write .xlsx workbooks without Micro
 - **Workbook**: Append workbook, Close, Create workbook, Open workbook, Save, Save as
 - **Links**: Break workbook links, Change workbook link, Get workbook links
 - **Addresses**: Get cell address, Get column name, Get row and column number
-- **Cells**: Delete cells, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Replace, Select range, Set cell, Set formula, Sort, Write from Data Table
+- **Pivot tables and charts**: Create chart, Create pivot table, Create Excel table
+- **Cells**: Delete cells, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Replace, Select range, Set cell, Set formula, Sort, Text to columns, Write from Data Table
 - **Rows and columns**: Delete columns, Delete rows, Hide columns, Hide rows, Insert columns, Insert rows, Remove blank rows, Get number of rows, Unhide columns, Unhide rows
 - **Tables**: Delete table column, Insert table column
-- **Formatting**: Get cell colour, Set cell colour
+- **Formatting**: Format cells, Get cell colour, Set cell colour
 - **Sensitivity**: Get sensitivity label, Set sensitivity label
 - **Protection**: Protect sheet, Protect workbook, Unprotect sheet, Unprotect workbook
 - **Loop types**: Each row in a worksheet
@@ -327,7 +328,7 @@ Open an .xlsx or .xls workbook, or create a new one, as a named session; can ope
 | Session | `session` | Text | No | `excel` | More options | Session name used by later steps. |
 | Graph address (URL) | `graph_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Microsoft Graph address (national clouds, tests). |
 
-*Time limit 60 s; needs: filesystem.*
+*Time limit 60 s; needs: filesystem, network.*
 
 ### Save
 
@@ -494,6 +495,92 @@ Split a cell address such as B7 into its row and column numbers.
 | `column_name` | Text | Column letters. |
 
 *Time limit 60 s; safe to repeat.*
+
+## Pivot tables and charts
+
+### Create chart
+
+`ooa.excel/create_chart` (action)
+
+Add a column, bar, line or pie chart of a range: the first column gives the categories, the header row the series names and each further column one series.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet with the data; active sheet when empty. |
+| Range | `range` | Text | Yes |  | Main | Data with a header row: categories in the first column, one series per further column. Example: `A1:C13` |
+| Chart type | `chart_type` | Text | No | `column` | Main | column (vertical bars), bar (horizontal bars), line, or pie (the first series only). One of: `column`, `bar`, `line`, `pie` |
+| Title | `title` | Text | No |  | Main | Chart title; none when empty. Example: `Sales by month` |
+| Destination sheet | `destination_sheet` | Text | No |  | Main | Sheet to put the chart on; the data sheet when empty; created when it does not exist. |
+| Position | `position` | Text | No |  | Main | Top-left cell of the chart; two columns right of the data when empty. |
+| Width | `width` | Number | No | `8` | Main | Width in columns. Range: 1 to 100 |
+| Height | `height` | Number | No | `15` | Main | Height in rows. Range: 1 to 500 |
+| Legend | `legend` | Text | No | `right` | More options | Where the legend goes. One of: `right`, `bottom`, `top`, `left`, `none` |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `range` | Text | Cells the chart covers, e.g. H2:O17. |
+
+*Time limit 60 s.*
+
+### Create pivot table
+
+`ooa.excel/create_pivot_table` (action)
+
+Create a pivot table from a range with a header row: fields as rows, columns, values (Sum, Count, Average, Max or Min) and filters. Excel fills in the figures when the workbook is opened.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet with the source data; active sheet when empty. |
+| Range | `range` | Text | No |  | Main | Source range including its header row; the used area of the sheet when empty. Example: `A1:F200` |
+| Destination sheet | `destination_sheet` | Text | No |  | Main | Sheet to put the pivot table on; created when it does not exist; a new sheet named Pivot when empty. Example: `Pivot` |
+| Destination | `destination` | Text | No | `A3` | Main | Top-left cell of the pivot table. |
+| Name | `name` | Text | No |  | Main | Pivot table name; PivotTable1, PivotTable2 � when empty. Example: `SalesByRegion` |
+| Rows | `rows` | List | No |  | Main | Fields shown down the side (header names). Example: `["Region"]` |
+| Columns | `columns` | List | No |  | Main | Fields shown across the top. Example: `["Quarter"]` |
+| Values | `values` | List | Yes |  | Main | Fields to summarise, each as Field or Field:function, function sum (the default), count, average, max or min. Example: `["Amount", "Amount:count"]` |
+| Filters | `filters` | List | No |  | Main | Fields offered as report filters above the table. Example: `["Year"]` |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `name` | Text | Name of the pivot table. |
+| `sheet` | Text | Sheet the pivot table is on. |
+
+*Time limit 60 s.*
+
+### Create Excel table
+
+`ooa.excel/create_table` (action)
+
+Turn a range with a header row into a named Excel table with a table style, like Ctrl+T in Excel.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Range | `range` | Text | No |  | Main | Range including its header row; the used area when empty. Example: `A1:F200` |
+| Name | `name` | Text | No |  | Main | Table name: letters, digits, _ and ., starting with a letter; Table1, Table2 � when empty. Example: `Invoices` |
+| Style | `style` | Text | No | `TableStyleMedium2` | Main | Excel table style: TableStyleLight1�21, TableStyleMedium1�28 or TableStyleDark1�11. Example: `TableStyleLight9` |
+| Banded rows | `banded_rows` | Yes/No | No | Yes | Main | Shade every other row. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `name` | Text | Name of the new table. |
+
+*Time limit 60 s.*
 
 ## Cells
 
@@ -676,14 +763,15 @@ Read a rectangular range such as A1:D20 as a table.
 
 `ooa.excel/get_table_range` (action)
 
-Return the address of the smallest rectangle holding all data on the sheet, or of a named Excel table, e.g. A1:D20.
+Return the address of the smallest rectangle holding all data on the sheet (including pivot tables), or of a named Excel table or pivot table, e.g. A1:D20.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Table | `table` | Text | No |  | Main | Excel table name, e.g. Table1; the sheet's used area when empty. |
+| Table | `table` | Text | No |  | Main | Excel table or pivot table name, e.g. Table1 or PivotTable1; the sheet's used area when empty. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | For an Excel table, include its header row in the range. |
+| Include pivot tables | `include_pivot_tables` | Yes/No | No | Yes | Main | Count the whole area of the sheet's pivot tables (with their filter fields) as data, even cells Excel has not filled in yet. |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -753,10 +841,11 @@ Read the values of one column, from a start row down to an end row or the last u
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number. Example: `B` |
+| Column | `column` | Any | Yes |  | Main | Column letter, 1-based number or header name (looked up in header_row). Example: `B` |
 | Start row | `start_row` | Number | No | `1` | Main | 1-based row to start from, e.g. 2 to skip a header. Range: 1 to  |
 | End row | `end_row` | Number | No |  | Main | 1-based last row to read; the last used row when empty. Range: 1 to  |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
+| Header row | `header_row` | Number | No |  | More options | Row with the column names. A column given by name is looked up here (row 1 when empty), and reading starts below this row. Range: 1 to  |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -914,6 +1003,35 @@ Sort the rows of a range (or of the used area) by one column and an optional sec
 | Then by | `then_by` | Any | No |  | More options | Second sort column used when the first column's values are equal: letter, number or header name. Example: `A` |
 | Then descending | `then_descending` | Yes/No | No | No | More options | Sort the second column from largest to smallest. Shown when: `{"then_by": ["!", ""]}` |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Text to columns
+
+`ooa.excel/text_to_columns` (action)
+
+Split the text of a column into several columns at a delimiter, like Excel's Text to Columns; the parts overwrite the cells to the right.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | Yes |  | Main | Column holding the text: letter or 1-based number. Example: `A` |
+| Delimiter | `delimiter` | Text | No | `,` | Main | Text between the parts: a character such as , ; \| or the words tab or space. Parts inside double quotes are kept whole. Example: `;` |
+| Start row | `start_row` | Number | No |  | Main; choice Rows = From a row | First row to split; the first used row when empty. Range: 1 to  |
+| End row | `end_row` | Number | No |  | Main; choice Rows = From a row | Last row to split; the last used row when empty. Range: 1 to  |
+| Destination | `destination` | Any | No |  | Main | Column to write the first part to; the column itself when empty. Example: `B` |
+| Trim | `trim` | Yes/No | No | Yes | Main | Remove spaces around each part. |
+| Convert numbers | `convert_numbers` | Yes/No | No | Yes | Main | Store parts that are plain numbers, such as 12.5, as numbers, as Excel does. |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `rows` | Number | Number of cells split. |
+| `columns` | Number | Most parts any cell was split into. |
 
 *Time limit 60 s.*
 
@@ -1157,6 +1275,40 @@ Add a named column to an Excel table, moving the table cells to its right over b
 
 ## Formatting
 
+### Format cells
+
+`ooa.excel/format_cells` (action)
+
+Set the number format, font, fill, alignment, wrapping and borders of a range or the selection; only the options given change, the rest of each cell's format stays.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Range | `range` | Text | No |  | Main; choice Cells = A specific range | Cell or range to format; when empty, the range chosen by select_range or the cell chosen by go_to_cell. Example: `B2:D20` |
+| Number format | `number_format` | Text | No |  | Main | Excel number format, e.g. #,##0.00, 0%, dd/mm/yyyy, @ for text or General. Example: `#,##0.00` |
+| Bold | `bold` | Yes/No | No |  | Main | Bold on or off; unchanged when empty. |
+| Italic | `italic` | Yes/No | No |  | Main | Italic on or off; unchanged when empty. |
+| Underline | `underline` | Yes/No | No |  | Main | Single underline on or off; unchanged when empty. |
+| Font name | `font_name` | Text | No |  | Main | Font name; unchanged when empty. Example: `Calibri` |
+| Font size | `font_size` | Number | No |  | Main | Font size in points; unchanged when empty. Example: `12`; Range: 1 to 409 |
+| Font color | `font_color` | Text | No |  | Main | Text colour: hex (#C00000), red,green,blue numbers or a name such as dark red; unchanged when empty. .xlsx only. Example: `#C00000` |
+| Fill color | `fill_color` | Text | No |  | Main | Solid background colour, as for font_color; none removes the fill; unchanged when empty. .xlsx only. Example: `light yellow` |
+| Horizontal | `horizontal` | Text | No |  | Main | Horizontal alignment; unchanged when empty. One of: `general`, `left`, `center`, `right`, `justify` |
+| Vertical | `vertical` | Text | No |  | Main | Vertical alignment; unchanged when empty. One of: `top`, `center`, `bottom` |
+| Wrap text | `wrap_text` | Yes/No | No |  | Main | Wrap long text onto several lines; unchanged when empty. |
+| Borders | `borders` | Text | No |  | Main | all draws thin lines around every cell; outline only around the range; none removes the lines; unchanged when empty. One of: `all`, `outline`, `none` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of cells formatted. |
+
+*Time limit 60 s.*
+
 ### Get cell colour
 
 `ooa.excel/get_cell_color` (action)
@@ -1193,7 +1345,7 @@ Give a cell or range a solid fill colour or a font colour.
 | --- | --- | --- | --- | --- | --- | --- |
 | Range | `range` | Text | Yes |  | Main | Cell or range to colour. Example: `A1:D1` |
 | Target | `target` | Text | No | `fill` | Main | fill for the background, font for the text colour. One of: `fill`, `font` |
-| Color | `color` | Text | Yes |  | Main | Hex colour. Example: `#FFC000` |
+| Color | `color` | Text | Yes |  | Main | Hex colour (#FFC000), red,green,blue numbers (255,192,0) or a colour name such as yellow or light blue. Example: `#FFC000` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -1303,6 +1455,12 @@ Remove protection from a worksheet; for .xlsx files the password is checked firs
 | Password | `password` | Credential (vault) | No |  | Main | Sheet password; a credential from the vault or text. |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `was_protected` | Yes/No | False when the sheet was not protected (nothing to do). |
 
 *Time limit 60 s.*
 

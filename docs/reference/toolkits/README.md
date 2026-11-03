@@ -33,7 +33,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 18 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
 | [Excel (desktop, needs Excel)](ooa-excel_desktop.md) | `ooa.excel_desktop` | 5 | 0 | 0 | Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel. |
-| [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 63 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
+| [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 68 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [File](ooa-file.md) | `ooa.file` | 16 | 4 | 1 | Read, write, copy, move and delete files. |
 | [Folder](ooa-folder.md) | `ooa.folder` | 8 | 2 | 1 | Create, list, copy and delete folders. |
 | [FTP / SFTP](ooa-file_transfer.md) | `ooa.file_transfer` | 13 | 0 | 0 | Connect to FTP, FTPS or SFTP servers to list, upload, download, rename and delete files. |

@@ -86,6 +86,16 @@ The **Excel** group works on workbook files directly, so it runs on servers and 
 **Delete rows**, **Insert columns**, **Delete columns**, **Replace**, **Sort**, **Filter**, **Remove blank rows**,
 **Set cell colour**.
 
+**Reports: pivot tables, charts, tables and formats** (.xlsx)
+
+| Action | What it does |
+| --- | --- |
+| **Create pivot table** | From a range with a header row: **Rows**, **Columns**, **Values** (each `Amount` or `Amount:average`; sum, count, average, max or min) and **Filters**, on a new sheet called Pivot or one you name. Excel fills in the figures when the workbook is opened, so read them back with Excel open (Excel desktop) rather than with Get range. |
+| **Create chart** | Column, bar, line or pie chart of a range: categories in the first column, one series per further column, names from the header row. **Title**, **Position**, size in columns and rows, **Legend**. |
+| **Create Excel table** | Turns a range into a named Excel table with a style (like Ctrl+T), e.g. `TableStyleMedium2`. |
+| **Format cells** | Number format (`#,##0.00`, `0%`, `dd/mm/yyyy`), bold, italic, underline, font, size, font and fill colours, alignment, wrap text and borders (all, outline or none). Only what you set changes. |
+| **Text to columns** | Splits a column at a delimiter (`,` `;` `|` tab or space) into the next columns; text in double quotes stays whole, numbers become numbers, codes with a leading 0 stay text. |
+
 **Worksheets and workbooks**
 
 **Create workbook**, **Create worksheet**, **Delete worksheet**, **Rename worksheet**, **Copy worksheet**,
