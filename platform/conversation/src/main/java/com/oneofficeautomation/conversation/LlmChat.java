@@ -59,7 +59,7 @@ final class LlmChat implements ChatEngine {
             Set<String> known = bot.inputs().stream().map(v -> String.valueOf(v.get("name"))).collect(Collectors.toSet());
             if (call.get("args") instanceof Map<?, ?> a) a.forEach((k, v) -> { if (known.contains(String.valueOf(k)) && v != null) args.put(String.valueOf(k), v); });
             List<String> missing = bot.inputs().stream().filter(BotTools::required).map(v -> String.valueOf(v.get("name"))).filter(n -> !args.containsKey(n)).toList();
-            if (!missing.isEmpty()) return new Clarify("What should I use for " + String.join(" and ", missing) + "?", missing, bot.path());
+            if (!missing.isEmpty()) return new Clarify(Messages.t(s.lang, "what_for", String.join(", ", missing)), missing, bot.path());
             return new Proposal(bot.path(), args, 0.9, ID);
         }
         String answer = reply.get("text") instanceof String t ? t.trim() : "";
@@ -82,7 +82,8 @@ final class LlmChat implements ChatEngine {
     /** The system prompt with today's date, then the conversation so far (the current message is already in it). */
     private List<Map<String, Object>> messages(ChatSession s, String text) {
         List<Map<String, Object>> out = new ArrayList<>();
-        out.add(Map.of("role", "system", "content", SYSTEM + "\n\nToday's date: " + LocalDate.now(clock) + "."));
+        out.add(Map.of("role", "system", "content", SYSTEM + "\n\nToday's date: " + LocalDate.now(clock) + ". Answer in " + Messages.name(s.lang)
+                + " (the person's console language); keep agent names, codes and values as they are."));
         List<Map<String, Object>> history = s.history.subList(Math.max(0, s.history.size() - 20), s.history.size());
         for (Map<String, Object> m : history) out.add(Map.of("role", "user".equals(m.get("role")) ? "user" : "assistant", "content", String.valueOf(m.get("text"))));
         if (history.isEmpty() || !text.equals(history.getLast().get("text"))) out.add(Map.of("role", "user", "content", text));

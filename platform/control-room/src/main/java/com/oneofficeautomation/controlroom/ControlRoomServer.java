@@ -521,7 +521,7 @@ public final class ControlRoomServer {
             case "chat" -> {
                 // One Chat: POST {session_id?, message} sends a message; GET chat/{session} reads that chat's messages
                 if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex));
-                    sendJson(ex, 200, cr.chat.message(u, (String) b.get("session_id"), (String) b.get("message"), ip)); }
+                    sendJson(ex, 200, cr.chat.message(u, (String) b.get("session_id"), (String) b.get("message"), (String) b.get("lang"), ip)); }
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("session_id", seg[1], "messages", cr.chat.history(u, seg[1])));
                 else notFound(ex);
             }

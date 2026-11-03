@@ -39,8 +39,11 @@ public final class Chat implements ChatPlatform {
     // ---- what the API, the Task inbox and the console call ----
 
     /** Handles one message from a signed-in person; see {@link Conversation#message}. */
-    public Map<String, Object> message(User u, String sessionId, String text, String ip) {
-        return conversation.message(person(u, ip), sessionId, text);
+    public Map<String, Object> message(User u, String sessionId, String text, String ip) { return message(u, sessionId, text, null, ip); }
+
+    /** As above, with the person's console language (en, de, fr, es, ja) for the replies; null keeps the chat's. */
+    public Map<String, Object> message(User u, String sessionId, String text, String lang, String ip) {
+        return conversation.message(person(u, ip), sessionId, text, lang);
     }
 
     /** The messages of one of the person's chats, oldest first. */
@@ -85,17 +88,17 @@ public final class Chat implements ChatPlatform {
 
     @Override
     public String startRun(Person p, String path, Map<String, Object> inputs) {
-        String name = agentName(path);
         String target = setting("chat_runner").trim();
         String device = null, pool = null;
         if (!target.isEmpty() && (target.startsWith("pool_") || cr.db.one("SELECT id FROM device_pools WHERE id = ?", target) != null)) pool = target;
         else if (!target.isEmpty()) device = target;
         else device = cr.platform.onlineRunner();
-        if (device == null && pool == null) throw new Refused("no_runner", "No runner is online to run " + name + " right now. Try again later.");
+        if (device == null && pool == null) throw new Refused("no_runner", "no runner online");
         try {
             return (String) cr.startRun(p.username(), p.role(), path, device, pool, inputs, "chat", p.ip(), 5, null).get("run_id");
         } catch (OoaException e) {
-            throw new Refused("refused", "The Command Center did not start " + name + ": " + e.getMessage() + (e.suggestedFix() == null ? "" : " " + e.suggestedFix()));
+            // the reason as the platform gives it; the conversation module words the sentence around it in the person's language
+            throw new Refused("refused", e.getMessage() + (e.suggestedFix() == null ? "" : " " + e.suggestedFix()));
         }
     }
 

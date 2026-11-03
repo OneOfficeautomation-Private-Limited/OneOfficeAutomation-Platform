@@ -48,6 +48,7 @@ public final class Platform {
         DEFAULTS.put("chat_mode", "deterministic");
         DEFAULTS.put("chat_connection", "");
         DEFAULTS.put("chat_approvers", "role:admin");
+        DEFAULTS.put("chat_mode_by_role", "");   // lines role=mode (deterministic, llm, hybrid) that override chat_mode for that main role
         DEFAULTS.put("run_retention_days", 0);
         DEFAULTS.put("run_log_retention_days", 0);
         DEFAULTS.put("syslog_target", "");
@@ -199,6 +200,13 @@ public final class Platform {
                     throw ControlRoom.notInSaas("Choosing a folder on the server");
                 if (k.equals("chat_mode") && !Chat.MODES.contains(s))
                     throw new OoaException("CR.BAD_INPUT", "One Chat's mode is one of " + String.join(", ", Chat.MODES));
+                if (k.equals("chat_mode_by_role") && !s.isEmpty()) for (String line : s.split("[\\n,;]")) {
+                    if (line.isBlank()) continue;
+                    String[] kv = line.split("=", 2);
+                    if (kv.length != 2 || !cr.roleExists(kv[0].trim()) || !Chat.MODES.contains(kv[1].trim()))
+                        throw new OoaException("CR.BAD_INPUT", "Each line is role=mode, with an existing role and a mode of " + String.join(", ", Chat.MODES),
+                                "For example: bot_runner=deterministic, admin=hybrid");
+                }
                 if (k.equals("chat_approvers") && !s.isEmpty() && !Arrays.stream(s.split(",")).map(String::trim).allMatch(a -> a.matches("(user|role):[^\\s,]+")))
                     throw new OoaException("CR.BAD_INPUT", "Approvers are user:name or role:name entries, comma separated", "For example role:admin, user:fin.lead");
                 if (k.equals("saml_idp_sso_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s]+"))

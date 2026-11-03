@@ -21,7 +21,8 @@ import java.util.stream.Collectors;
  * person may run are offered; anything but an R0 agent waits for the person's yes on a summary this class writes, never
  * the engine; the run starts as that person. A confirmation is used once, so a repeated yes cannot start a second run.
  * R3 agents (money, bulk changes) go to the host's approvers after the yes: someone other than the person who asked
- * must approve, and only then does the run start, as the person who asked.
+ * must approve, and only then does the run start, as the person who asked. Replies are in the person's console
+ * language ({@link Messages}), kept with the chat.
  */
 public final class Conversation {
     /** The built-in "my runs" action, offered like an agent. */
@@ -30,8 +31,11 @@ public final class Conversation {
     public static final List<String> MODES = List.of("deterministic", "llm", "hybrid");
 
     private static final Duration CONFIRMATION_TTL = Duration.ofMinutes(10), IDLE = Duration.ofHours(8);
-    private static final Set<String> YES = Set.of("yes", "y", "yeah", "yep", "ok", "okay", "sure", "confirm", "go ahead", "do it", "proceed", "haan", "ha", "ji");
-    private static final Set<String> NO = Set.of("no", "n", "nope", "cancel", "stop", "don't", "dont", "do not", "abort", "nahi", "na");
+    /** Yes and no in the console languages (and Hindi, which people often type in Latin letters). */
+    private static final Set<String> YES = Set.of("yes", "y", "yeah", "yep", "ok", "okay", "sure", "confirm", "go ahead", "do it", "proceed",
+            "haan", "ha", "ji", "ja", "jawohl", "gerne", "oui", "d'accord", "si", "sí", "claro", "vale", "はい", "お願いします", "ええ");
+    private static final Set<String> NO = Set.of("no", "n", "nope", "cancel", "stop", "don't", "dont", "do not", "abort", "nahi", "na",
+            "nein", "abbrechen", "non", "annuler", "cancelar", "いいえ", "キャンセル", "やめて");
     private static final ChatBot MY_RUNS_BOT = new ChatBot(MY_RUNS, "My runs", "The person's recent agent runs and their status.", "R0",
             List.of("what are my runs", "show my recent runs", "status of my runs", "did my run finish", "what did I run today", "my jobs"),
             List.of(), List.of(), List.of(), Map.of());
@@ -48,20 +52,35 @@ public final class Conversation {
         this.llm = new LlmChat(platform, clock);
     }
 
-    private ChatEngine engine() {
-        return switch (platform.setting("chat_mode").trim()) {
+    /** The mode for this person: a per-role setting (chat_mode_by_role, role=mode lines) first, else chat_mode. */
+    private ChatEngine engine(Person p) {
+        return switch (modeFor(p)) {
             case "llm" -> llm;
             case "hybrid" -> new ChatEngine.Router(List.of(deterministic, llm), 0.6);
             default -> deterministic;
         };
     }
 
+    /** chat_mode_by_role holds lines such as finance=deterministic and it=hybrid; the person's main role decides. */
+    String modeFor(Person p) {
+        for (String line : platform.setting("chat_mode_by_role").split("[\\n,;]")) {
+            String[] kv = line.split("=", 2);
+            if (kv.length == 2 && kv[0].trim().equals(p.role()) && MODES.contains(kv[1].trim())) return kv[1].trim();
+        }
+        return platform.setting("chat_mode").trim();
+    }
+
+    /** As {@link #message(Person, String, String, String)}, keeping the chat's language (English for a new chat). */
+    public Map<String, Object> message(Person p, String sessionId, String text) { return message(p, sessionId, text, null); }
+
     /**
      * Handles one message and returns the reply: session_id, kind (answer, question, confirm, started, cancelled,
      * not_understood, awaiting_approval, refused, no_runner), reply text, and the agent, inputs, run or task id where
      * they apply. A missing or someone else's session is CR.NOT_FOUND.
+     *
+     * @param lang the person's console language (en, de, fr, es, ja); null keeps the chat's
      */
-    public Map<String, Object> message(Person p, String sessionId, String text) {
+    public Map<String, Object> message(Person p, String sessionId, String text, String lang) {
         if (text == null || text.isBlank()) throw new OoaException("CR.BAD_INPUT", "Write a message", null);
         purgeIdle();
         boolean fresh = sessionId == null || sessionId.isBlank();
@@ -69,6 +88,7 @@ public final class Conversation {
         synchronized (lock(id)) {
             ChatSession s = fresh ? new ChatSession(id, p.username(), clock.instant()) : load(id);
             if (s == null || !s.username.equals(p.username())) throw notFound(sessionId); // someone else's chat stays invisible
+            if (lang != null && !lang.isBlank()) s.lang = Messages.language(lang);
             Instant at = clock.instant();
             s.lastUsed = at;
             s.person = p;
@@ -111,20 +131,26 @@ public final class Conversation {
         platform.deleteSessionsIdleSince(now.minus(IDLE));
     }
 
+    /** A yes or no answer, whatever the language: lower case, letters and apostrophes only. */
+    static String answerWord(String text) {
+        return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}' ]", "").trim().replaceAll("\\s+", " ");
+    }
+
     private Map<String, Object> respond(Person p, ChatSession s, String text) {
+        String lang = s.lang;
         Pending pending = s.pending;
         if (pending != null) {
             s.pending = null;
-            String answer = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z' ]", "").trim();
+            String answer = answerWord(text);
             if (YES.contains(answer)) return confirm(p, s, pending);
             if (NO.contains(answer)) {
                 platform.audit(p, "chat.decline", "bot", pending.bot().path(), Map.of("confirmation", pending.id()));
-                return reply("cancelled", "OK, I won't run " + pending.bot().name() + ".");
+                return reply("cancelled", Messages.t(lang, "declined", pending.bot().name()));
             }
             // anything else is a new request; the confirmation lapses
         }
         List<ChatBot> bots = catalog(p);
-        Result r = engine().decide(s, bots, text);
+        Result r = engine(p).decide(s, bots, text);
         if (r == null) r = new Handoff("no engine answered", false);
         return switch (r) {
             case Reply x -> reply("answer", x.text());
@@ -133,11 +159,9 @@ public final class Conversation {
                 if (c.path() != null) { m.put("agent", c.path()); m.put("missing", c.missing()); }
                 yield m;
             }
-            case Handoff h when h.reason().startsWith("the model") -> reply("not_understood", "I couldn't get an answer from the AI model ("
-                    + h.reason().substring(10) + "). Try again, or ask for an agent by its name.");
-            case Handoff h -> reply("not_understood", "Sorry, I didn't understand that. Ask for an agent by its name"
-                    + bots.stream().filter(b -> !b.path().equals(MY_RUNS)).findFirst().map(b -> ", for example \"" + b.name() + "\"").orElse("")
-                    + ", or ask \"what are my runs?\".");
+            case Handoff h when h.reason().startsWith("the model") -> reply("not_understood", Messages.t(lang, "model_failed", h.reason().substring(10)));
+            case Handoff h -> reply("not_understood", bots.stream().filter(b -> !b.path().equals(MY_RUNS)).findFirst()
+                    .map(b -> Messages.t(lang, "not_understood_example", b.name())).orElse(Messages.t(lang, "not_understood")));
             case Proposal pr -> propose(p, s, bots, pr);
         };
     }
@@ -150,18 +174,17 @@ public final class Conversation {
     }
 
     private Map<String, Object> propose(Person p, ChatSession s, List<ChatBot> bots, Proposal pr) {
+        String lang = s.lang;
         ChatBot bot = bots.stream().filter(b -> b.path().equals(pr.path())).findFirst().orElse(null);
-        if (bot == null) return reply("refused", "That agent is not available to you in chat.");
-        if (bot.path().equals(MY_RUNS)) return myRuns(p);
-        if (!bot.needsConfirmation()) return start(p, s.id, bot, pr.inputs(), null);
+        if (bot == null) return reply("refused", Messages.t(lang, "not_available"));
+        if (bot.path().equals(MY_RUNS)) return myRuns(p, lang);
+        if (!bot.needsConfirmation()) return start(p, s.id, lang, bot, pr.inputs(), null);
 
         Pending pending = new Pending(platform.newId("cnf"), bot, pr.inputs(), hash(pr.inputs()), clock.instant().plus(CONFIRMATION_TTL), pr.engine());
         s.pending = pending;
         platform.audit(p, "chat.propose", "bot", bot.path(),
                 Map.of("confirmation", pending.id(), "engine", pr.engine(), "inputs", new ArrayList<>(pr.inputs().keySet()), "input_hash", pending.inputHash()));
-        Map<String, Object> m = reply("confirm", summary(bot, pr.inputs()) + (bot.needsApproval()
-                ? "\nThis is a high-impact (R3) agent: after your yes, someone other than you must approve it in the Task inbox before it runs.\nShall I ask for approval? (yes/no)"
-                : "\nShall I go ahead? (yes/no)"));
+        Map<String, Object> m = reply("confirm", summary(lang, bot, pr.inputs()) + "\n" + Messages.t(lang, bot.needsApproval() ? "confirm_r3" : "confirm"));
         m.put("agent", bot.path());
         m.put("inputs", pr.inputs());
         m.put("confirmation", Map.of("id", pending.id(), "expires", pending.expires().toString(), "risk", bot.risk()));
@@ -169,20 +192,20 @@ public final class Conversation {
     }
 
     private Map<String, Object> confirm(Person p, ChatSession s, Pending pending) {
-        if (clock.instant().isAfter(pending.expires())) return reply("cancelled", "That confirmation expired. Ask again and I'll prepare it afresh.");
+        if (clock.instant().isAfter(pending.expires())) return reply("cancelled", Messages.t(s.lang, "expired"));
         boolean stillAllowed = platform.agents(p).stream().anyMatch(b -> b.path().equals(pending.bot().path()));
-        if (!stillAllowed) return reply("refused", "You can no longer run " + pending.bot().name() + ".");
+        if (!stillAllowed) return reply("refused", Messages.t(s.lang, "no_longer", pending.bot().name()));
         if (pending.bot().needsApproval()) return requestApproval(p, s, pending);
-        return start(p, s.id, pending.bot(), pending.inputs(), pending);
+        return start(p, s.id, s.lang, pending.bot(), pending.inputs(), pending);
     }
 
     private Map<String, Object> requestApproval(Person p, ChatSession s, Pending pending) {
         ChatBot bot = pending.bot();
+        // the approvers read the request in the Task inbox: in English, whatever language the person chats in
         String taskId = platform.requestApproval(p, new ApprovalRequest(s.id, bot.path(), bot.name(), pending.inputs(),
-                summary(bot, pending.inputs()), pending.id(), pending.inputHash()));
+                summary("en", bot, pending.inputs()), pending.id(), pending.inputHash()));
         platform.audit(p, "chat.approval_requested", "task", taskId, Map.of("agent", bot.path(), "confirmation", pending.id(), "input_hash", pending.inputHash()));
-        Map<String, Object> m = reply("awaiting_approval", "I've asked for approval (task " + taskId + "). " + bot.name()
-                + " runs once someone other than you approves it in the Task inbox; I'll tell you here.");
+        Map<String, Object> m = reply("awaiting_approval", Messages.t(s.lang, "awaiting", taskId, bot.name()));
         m.put("agent", bot.path());
         m.put("task_id", taskId);
         return m;
@@ -191,36 +214,40 @@ public final class Conversation {
     /**
      * The host calls this once an approver decides an approval request from {@link #requestApproval}. Approved: the run
      * starts as the person who asked, under their permissions at this moment. Either way they get a notice from the host
-     * and, if their chat is still open, a message there. Returns the run id when one started.
+     * and, if their chat is still open, a message there, in their chat's language. Returns the run id when one started.
      *
      * @param request the stored request: requested_by, session_id, agent, inputs
      */
     @SuppressWarnings("unchecked")
     public String decided(String taskId, Map<String, Object> request, Person approver, boolean approved, String comment) {
         String requester = String.valueOf(request.get("requested_by")), path = String.valueOf(request.get("agent"));
+        String sessionId = String.valueOf(request.get("session_id"));
         Map<String, Object> inputs = request.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of();
-        String name = path.replaceAll("\\.flow\\.json$", "");
+        ChatSession peek = load(sessionId);
+        String lang = peek != null && peek.username.equals(requester) ? peek.lang : "en";
+        String name = path.replaceAll("^.*/", "").replaceAll("\\.flow\\.json$", "");
         String message, runId = null;
         if (approved) {
             Person asker = platform.person(requester);
             if (asker == null) {
-                message = approver.username() + " approved " + name + ", but " + requester + " no longer has an account, so it did not start.";
+                message = Messages.t(lang, "approved_no_account", approver.username(), name, requester);
             } else {
                 ChatBot bot = platform.agents(asker).stream().filter(b -> b.path().equals(path)).findFirst().orElse(null);
-                Map<String, Object> started = bot == null ? reply("refused", requester + " can no longer run " + name + ".")
-                        : start(new Person(asker.username(), asker.role(), approver.ip()), String.valueOf(request.get("session_id")), bot, inputs, null);
+                if (bot != null) name = bot.name();
+                Map<String, Object> started = bot == null ? reply("refused", Messages.t(lang, "requester_cannot", requester, name))
+                        : start(new Person(asker.username(), asker.role(), approver.ip()), sessionId, lang, bot, inputs, null);
                 runId = (String) started.get("run_id");
-                message = runId != null ? approver.username() + " approved " + name + "; it started as run " + runId + "."
-                        : approver.username() + " approved " + name + ", but it did not start: " + started.get("reply");
+                message = runId != null ? Messages.t(lang, "approved_started", approver.username(), name, runId)
+                        : Messages.t(lang, "approved_not_started", approver.username(), name, started.get("reply"));
             }
         } else {
-            message = approver.username() + " rejected " + name + (comment == null || comment.isBlank() ? "." : ": " + comment);
+            message = comment == null || comment.isBlank() ? Messages.t(lang, "rejected", approver.username(), name)
+                    : Messages.t(lang, "rejected_comment", approver.username(), name, comment);
         }
         platform.audit(approver, approved ? "chat.approved" : "chat.rejected", "task", taskId,
                 runId == null ? Map.of("agent", path, "requested_by", requester) : Map.of("agent", path, "requested_by", requester, "run", runId));
-        platform.notify(requester, (approved ? "Approved: " : "Rejected: ") + name, message,
+        platform.notify(requester, Messages.t(lang, approved ? "notice_approved" : "notice_rejected", name), message,
                 runId == null ? Map.of("agent", path) : Map.of("agent", path, "run_id", runId));
-        String sessionId = String.valueOf(request.get("session_id"));
         synchronized (lock(sessionId)) {
             ChatSession s = load(sessionId);
             if (s != null && s.username.equals(requester)) {
@@ -234,40 +261,43 @@ public final class Conversation {
         return runId;
     }
 
-    private Map<String, Object> start(Person p, String sessionId, ChatBot bot, Map<String, Object> inputs, Pending pending) {
+    private Map<String, Object> start(Person p, String sessionId, String lang, ChatBot bot, Map<String, Object> inputs, Pending pending) {
         try {
             String runId = platform.startRun(p, bot.path(), inputs);
             if (pending != null) platform.audit(p, "chat.confirm", "run", runId, Map.of("confirmation", pending.id(), "input_hash", pending.inputHash()));
             platform.watchRun(runId, sessionId, p.username());
-            Map<String, Object> m = reply("started", "Started " + bot.name() + " (run " + runId + "). I'll tell you here when it finishes.");
+            Map<String, Object> m = reply("started", Messages.t(lang, "started", bot.name(), runId));
             m.put("agent", bot.path());
             m.put("run_id", runId);
             return m;
         } catch (ChatPlatform.Refused e) {
-            return reply(e.kind(), e.getMessage());
+            return reply(e.kind(), e.kind().equals("no_runner") ? Messages.t(lang, "no_runner", bot.name())
+                    : Messages.t(lang, "not_started", bot.name(), e.getMessage()));
         }
     }
 
     /**
-     * The host calls this once a run this chat started has ended. Adds a message to the chat (if it is still kept): the
-     * results on success (the first few outputs), the reason and the suggested fix on failure.
+     * The host calls this once a run this chat started has ended. Adds a message to the chat (if it is still kept), in
+     * the chat's language: the results on success (the first few outputs), the reason and the suggested fix on failure.
      *
      * @param name   the agent's display name
      * @param status success, failed or stopped
      */
     public void runFinished(String sessionId, String username, String runId, String name, String status,
                             Map<String, Object> outputs, Map<String, Object> error) {
-        String text = switch (status) {
-            case "success" -> name + " (run " + runId + ") finished." + (outputs == null || outputs.isEmpty() ? "" : " Results: "
-                    + outputs.entrySet().stream().limit(5).map(e -> e.getKey() + " = " + shorten(e.getValue())).collect(Collectors.joining(", "))
-                    + (outputs.size() > 5 ? ", ..." : "") + ".");
-            case "stopped" -> name + " (run " + runId + ") was stopped.";
-            default -> name + " (run " + runId + ") failed" + (error == null || error.get("message") == null ? "." : ": " + error.get("message"))
-                    + (error != null && error.get("suggestedFix") != null ? " " + error.get("suggestedFix") : "");
-        };
         synchronized (lock(sessionId)) {
             ChatSession s = load(sessionId);
             if (s == null || !s.username.equals(username)) return;
+            String lang = s.lang;
+            String text = switch (status) {
+                case "success" -> outputs == null || outputs.isEmpty() ? Messages.t(lang, "run_success", name, runId)
+                        : Messages.t(lang, "run_results", name, runId, outputs.entrySet().stream().limit(5)
+                                .map(e -> e.getKey() + " = " + shorten(e.getValue())).collect(Collectors.joining(", ")) + (outputs.size() > 5 ? ", ..." : ""));
+                case "stopped" -> Messages.t(lang, "run_stopped", name, runId);
+                default -> error == null || error.get("message") == null ? Messages.t(lang, "run_failed", name, runId)
+                        : Messages.t(lang, "run_failed_reason", name, runId, error.get("message")
+                                + (error.get("suggestedFix") != null ? " " + error.get("suggestedFix") : ""));
+            };
             s.history.add(new LinkedHashMap<>(Map.of("role", "assistant", "text", text, "kind", "run_" + status, "run_id", runId, "at", clock.instant().toString())));
             platform.saveSession(s.id, s.username, s.toMap());
         }
@@ -278,10 +308,10 @@ public final class Conversation {
         return s.length() > 80 ? s.substring(0, 80) + "..." : s;
     }
 
-    private Map<String, Object> myRuns(Person p) {
+    private Map<String, Object> myRuns(Person p, String lang) {
         List<Map<String, Object>> runs = platform.recentRuns(p, 5);
-        if (runs.isEmpty()) return reply("answer", "You have no runs yet.");
-        Map<String, Object> m = reply("answer", "Your recent runs:\n" + runs.stream()
+        if (runs.isEmpty()) return reply("answer", Messages.t(lang, "no_runs"));
+        Map<String, Object> m = reply("answer", Messages.t(lang, "recent_runs") + "\n" + runs.stream()
                 .map(r -> "- " + r.get("run_id") + " | " + String.valueOf(r.get("agent")).replaceAll("\\.flow\\.json$", "") + " | " + r.get("status"))
                 .collect(Collectors.joining("\n")));
         m.put("runs", runs);
@@ -289,10 +319,10 @@ public final class Conversation {
     }
 
     /** The component's own words for what will run, so the person confirms what actually runs. */
-    static String summary(ChatBot bot, Map<String, Object> inputs) {
-        if (inputs.isEmpty()) return "I'll run " + bot.name() + ".";
-        return "I'll run " + bot.name() + " with " + inputs.entrySet().stream()
-                .map(e -> e.getKey() + " = " + e.getValue()).collect(Collectors.joining(", ")) + ".";
+    static String summary(String lang, ChatBot bot, Map<String, Object> inputs) {
+        if (inputs.isEmpty()) return Messages.t(lang, "summary", bot.name());
+        return Messages.t(lang, "summary_with", bot.name(), inputs.entrySet().stream()
+                .map(e -> e.getKey() + " = " + e.getValue()).collect(Collectors.joining(", ")));
     }
 
     private static Map<String, Object> reply(String kind, String text) {

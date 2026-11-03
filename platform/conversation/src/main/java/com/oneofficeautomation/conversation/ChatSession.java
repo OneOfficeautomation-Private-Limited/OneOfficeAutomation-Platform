@@ -24,6 +24,8 @@ public final class ChatSession {
     Pending pending;
     /** The person speaking, as signed in for the current message (not stored). */
     Person person;
+    /** The person's console language (en, de, fr, es, ja); later updates use it too. */
+    String lang = "en";
     Instant lastUsed;
 
     ChatSession(String id, String username, Instant now) { this.id = id; this.username = username; this.lastUsed = now; }
@@ -60,6 +62,7 @@ public final class ChatSession {
             m.put("pending", p);
         }
         m.put("last_used", lastUsed.toString());
+        m.put("lang", lang);
         return m;
     }
 
@@ -70,6 +73,7 @@ public final class ChatSession {
         if (m.get("history") instanceof List<?> h) for (Object o : h) if (o instanceof Map<?, ?> msg) s.history.add((Map<String, Object>) msg);
         if (m.get("state") instanceof Map<?, ?> st) s.state.putAll((Map<String, Object>) st);
         s.activeEngine = m.get("active_engine") instanceof String a ? a : null;
+        s.lang = Messages.language(m.get("lang") instanceof String l ? l : "en");
         if (m.get("pending") instanceof Map<?, ?> p) {
             ChatBot bot = new ChatBot(String.valueOf(p.get("agent")), String.valueOf(p.get("name")), "", String.valueOf(p.get("risk")),
                     List.of(), List.of(), List.of(), List.of(), Map.of());

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 final class DeterministicChat implements ChatEngine {
     static final String ID = "deterministic";
     private static final String STATE = "deterministic.fill";
-    private static final Set<String> CANCEL = Set.of("cancel", "stop", "never mind", "nevermind", "forget it");
+    private static final Set<String> CANCEL = Set.of("cancel", "stop", "never mind", "nevermind", "forget it", "abbrechen", "annuler", "cancelar", "キャンセル", "やめて");
     private static final int MAX_TRIES = 2;
 
     private final Clock clock;
@@ -57,12 +57,12 @@ final class DeterministicChat implements ChatEngine {
         if (ranked.isEmpty() || ranked.get(0).score < minScore) return new Handoff("no agent matched", true);
         Match top = ranked.get(0);
         if (ranked.size() > 1 && ranked.get(1).score >= minScore && top.score - ranked.get(1).score < margin)
-            return Clarify.question("Did you mean " + top.bot.name() + " or " + ranked.get(1).bot.name() + "?");
+            return Clarify.question(Messages.t(s.lang, "did_you_mean", top.bot.name(), ranked.get(1).bot.name()));
         return next(s, top.bot, extractAll(text, top.bot), top.score);
     }
 
     private Optional<Result> continueFill(ChatSession s, List<ChatBot> bots, Fill f, String text) {
-        if (CANCEL.contains(text.trim().toLowerCase(Locale.ROOT))) { s.state.remove(STATE); return Optional.of(new Reply("OK, I've dropped that request.")); }
+        if (CANCEL.contains(text.trim().toLowerCase(Locale.ROOT))) { s.state.remove(STATE); return Optional.of(new Reply(Messages.t(s.lang, "dropped"))); }
         ChatBot bot = bots.stream().filter(b -> b.path().equals(f.path)).findFirst().orElse(null);
         if (bot == null) return Optional.empty();
         Map<String, Object> variable = bot.inputs().stream().filter(v -> f.awaiting.equals(v.get("name"))).findFirst().orElse(Map.of());
@@ -72,7 +72,7 @@ final class DeterministicChat implements ChatEngine {
             if (!ranked.isEmpty() && ranked.get(0).score >= minScore && !ranked.get(0).bot.path().equals(bot.path())) return Optional.empty(); // a new request
             if (f.tries + 1 >= MAX_TRIES) { s.state.remove(STATE); return Optional.of(new Handoff("could not read " + f.awaiting, true)); }
             s.state.put(STATE, new Fill(f.path, f.inputs, f.awaiting, f.confidence, f.tries + 1).toMap());
-            return Optional.of(new Clarify("Sorry, I couldn't read that. " + prompt(bot, variable), missing(bot, f.inputs), bot.path()));
+            return Optional.of(new Clarify(Messages.t(s.lang, "could_not_read", prompt(s.lang, bot, variable)), missing(bot, f.inputs), bot.path()));
         }
         Map<String, Object> inputs = new LinkedHashMap<>(f.inputs);
         inputs.put(f.awaiting, value.get());
@@ -86,18 +86,18 @@ final class DeterministicChat implements ChatEngine {
         String field = missing.get(0);
         s.state.put(STATE, new Fill(bot.path(), Map.copyOf(inputs), field, confidence, 0).toMap());
         Map<String, Object> variable = bot.inputs().stream().filter(v -> field.equals(v.get("name"))).findFirst().orElse(Map.of());
-        return new Clarify(prompt(bot, variable), missing, bot.path());
+        return new Clarify(prompt(s.lang, bot, variable), missing, bot.path());
     }
 
     private static List<String> missing(ChatBot bot, Map<String, Object> inputs) {
         return bot.inputs().stream().filter(BotTools::required).map(v -> String.valueOf(v.get("name"))).filter(n -> !inputs.containsKey(n)).toList();
     }
 
-    /** The question for an input: the ui.chat prompt, else its description; with the choices when it has an enum. */
-    private static String prompt(ChatBot bot, Map<String, Object> variable) {
+    /** The question for an input: the author's chat prompt as written, else its description; with the choices when it has an enum. */
+    private static String prompt(String lang, ChatBot bot, Map<String, Object> variable) {
         String name = String.valueOf(variable.get("name"));
         String q = bot.prompts().containsKey(name) ? bot.prompts().get(name)
-                : "What should I use for " + (variable.get("description") instanceof String d && !d.isBlank() ? d : name) + "?";
+                : Messages.t(lang, "what_for", variable.get("description") instanceof String d && !d.isBlank() ? d : name);
         return variable.get("enum") instanceof List<?> en ? q + " (" + en.stream().map(String::valueOf).collect(Collectors.joining(", ")) + ")" : q;
     }
 

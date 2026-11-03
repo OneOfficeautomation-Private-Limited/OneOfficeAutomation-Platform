@@ -842,13 +842,14 @@ const VIEWS = {
     // One Chat: ask in plain words for an agent run or for your runs; anything that changes data waits for your yes
     S.chat = S.chat || { session: null, messages: [], busy: false };
     const log = h("div", { class: "chat-log", role: "log", "aria-live": "polite" });
+    const chatLang = () => (window.OOA_I18N && window.OOA_I18N.lang) || document.documentElement.lang || "en";
     const input = h("input", { type: "text", "aria-label": "Message", placeholder: "For example: post today's invoices for Acme, or: what are my runs?", maxlength: "2000" });
     const send = async (text) => {
       text = String(text || "").trim();
       if (!text || S.chat.busy) return;
       S.chat.busy = true; S.chat.messages.push({ role: "user", text }); draw();
       try {
-        const r = await api("POST", "chat", { session_id: S.chat.session, message: text });
+        const r = await api("POST", "chat", { session_id: S.chat.session, message: text, lang: chatLang() });
         S.chat.session = r.session_id;
         S.chat.messages.push({ role: "assistant", text: r.reply, kind: r.kind, run: r.run_id });
       } catch (e) {
@@ -859,7 +860,8 @@ const VIEWS = {
     const draw = () => {
       const last = S.chat.messages[S.chat.messages.length - 1];
       log.replaceChildren(...(S.chat.messages.length ? [] : [h("p", { class: "muted", text: "Ask for an agent by name or describe the task. I only offer agents you may run, and I ask before running anything that changes data." })]),
-        ...S.chat.messages.map((m) => h("div", { class: "chat-msg " + m.role }, m.text,
+        // replies come already in the person's language and what people type stays as typed: the page translator keeps out
+        ...S.chat.messages.map((m) => h("div", { class: "chat-msg " + m.role }, h("span", { "data-no-i18n": "" }, m.text),
           m === last && m.kind === "confirm" && !S.chat.busy ? h("div", { class: "chat-actions" },
             h("button", { type: "button", class: "primary", onclick: () => send("yes") }, "Yes, run it"), h("button", { type: "button", onclick: () => send("no") }, "No")) : null,
           m.run && (m.kind === "started" || String(m.kind || "").startsWith("run_")) ? h("div", { class: "chat-actions" }, h("button", { type: "button", onclick: () => go("activity") }, "Open Agent Runs")) : null)));
@@ -975,6 +977,7 @@ const VIEWS = {
         chatMode = h("select", {}, [["deterministic", "Rules only (no AI model)"], ["hybrid", "Rules first, the AI model when unsure"], ["llm", "AI model"]]
           .map(([v, l]) => h("option", { value: v, text: l, selected: (st.chat_mode || "deterministic") === v }))),
         chatConn = txt("chat_connection", "empty = the person's first allowed connection"), chatRunner = txt("chat_runner"), chatApprovers = txt("chat_approvers", "role:admin"),
+        chatByRole = h("textarea", { rows: 3, placeholder: "bot_runner=deterministic\nadmin=hybrid", value: String(st.chat_mode_by_role || "") }),
         mcpAud = txt("mcp_oauth_audience", "api://ooa-mcp (empty = API keys only)"), mcpScope = txt("mcp_oauth_scope", "mcp.use (optional)");
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500), keepAudit = num("audit_retention_days", 0, 36500);
@@ -1060,7 +1063,8 @@ const VIEWS = {
         h("p", { class: "muted", text: "People ask in plain words for their agents. Runs start as them, and anything that changes data waits for their yes. With an AI model, only the person's words and the agent descriptions go to the model, through the chosen One Model Connection (its masking and budget apply)." }),
         h("div", { class: "grid2" }, h("label", {}, "How chat understands requests", chatMode), h("label", {}, "One Model Connection for chat", chatConn),
           h("label", {}, "Runner or runner pool id (empty = any online runner)", chatRunner),
-          h("label", {}, "Who approves high-impact (R3) requests (user:name, role:name; never the person who asked)", chatApprovers)),
+          h("label", {}, "Who approves high-impact (R3) requests (user:name, role:name; never the person who asked)", chatApprovers),
+          h("label", {}, "A different mode for some roles (one role=mode per line; mode is deterministic, hybrid or llm)", chatByRole)),
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
@@ -1130,7 +1134,7 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), chat_mode: chatMode.value, chat_connection: chatConn.value.trim(), chat_runner: chatRunner.value.trim(), chat_approvers: chatApprovers.value.trim(), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
+              mcp_timeout_seconds: Number(mcpTimeout.value), chat_mode: chatMode.value, chat_connection: chatConn.value.trim(), chat_runner: chatRunner.value.trim(), chat_approvers: chatApprovers.value.trim(), chat_mode_by_role: chatByRole.value.trim(), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),

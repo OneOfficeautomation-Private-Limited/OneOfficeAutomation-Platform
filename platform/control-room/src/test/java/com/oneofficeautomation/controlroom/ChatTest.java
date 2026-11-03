@@ -178,6 +178,18 @@ class ChatTest {
         assertTrue(cr.workflows.tasks(jane, "open", false).stream().anyMatch(t -> String.valueOf(t.get("description")).contains("not this week")));
     }
 
+    @Test void perRoleModesAreChecked() {
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("chat_mode_by_role", "nobody=llm"), null)).code());
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("chat_mode_by_role", "admin=magic"), null)).code());
+        cr.platform.updateSettings(admin, Map.of("chat_mode_by_role", "bot_runner=deterministic\nadmin=hybrid"), null);
+        cr.platform.updateSettings(admin, Map.of("chat_mode_by_role", ""), null);
+    }
+
+    @Test void theApiAnswersInTheConsoleLanguage() {
+        Map<String, Object> r = chat.message(admin, null, "order pizza for the team", "fr", null);
+        assertTrue(String.valueOf(r.get("reply")).startsWith("Désolé, je n'ai pas compris."), String.valueOf(r));
+    }
+
     @Test void approversSettingIsChecked() {
         assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("chat_approvers", "finance team"), null)).code());
         cr.platform.updateSettings(admin, Map.of("chat_approvers", "role:admin, user:olga"), null);

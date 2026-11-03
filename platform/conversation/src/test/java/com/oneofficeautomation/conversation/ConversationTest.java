@@ -50,6 +50,42 @@ class ConversationTest {
         assertEquals(8, new Conversation(host, clock).history("anna", sid).size(), "four messages and four replies");
     }
 
+    @Test void aGermanChatIsAnsweredInGermanAndUnderstandsJa() {
+        Map<String, Object> q = chat.message(ANNA, null, "process vendor invoices", "de");
+        String sid = (String) q.get("session_id");
+        assertEquals("question", q.get("kind"));
+        Map<String, Object> q2 = chat.message(ANNA, sid, "globex", null);
+        assertTrue(String.valueOf(q2.get("reply")).startsWith("Was soll ich für "), "the language stays with the chat: " + q2);
+        Map<String, Object> c = chat.message(ANNA, sid, "today", null);
+        assertTrue(String.valueOf(c.get("reply")).contains("Ich führe Process vendor invoices aus mit vendor = Globex"), String.valueOf(c));
+        assertTrue(String.valueOf(c.get("reply")).endsWith("Soll ich fortfahren? (ja/nein)"));
+        Map<String, Object> started = chat.message(ANNA, sid, "Ja", null);
+        assertEquals("started", started.get("kind"));
+        assertTrue(String.valueOf(started.get("reply")).startsWith("Process vendor invoices wurde gestartet"), String.valueOf(started));
+
+        chat.runFinished(sid, "anna", (String) started.get("run_id"), "Process vendor invoices", "failed", Map.of(), Map.of("message", "SAP antwortet nicht"));
+        List<Map<String, Object>> h = chat.history("anna", sid);
+        assertEquals("Process vendor invoices (Lauf " + started.get("run_id") + ") ist fehlgeschlagen: SAP antwortet nicht", h.get(h.size() - 1).get("text"));
+    }
+
+    @Test void aJapaneseNoCancels() {
+        String sid = (String) chat.message(ANNA, null, "post today's invoices for acme", "ja").get("session_id");
+        Map<String, Object> no = chat.message(ANNA, sid, "いいえ", null);
+        assertEquals("cancelled", no.get("kind"));
+        assertEquals("了解しました。Process vendor invoices は実行しません。", no.get("reply"));
+        assertTrue(host.runs.isEmpty());
+    }
+
+    @Test void aRoleCanHaveItsOwnMode() {
+        host.settings.put("chat_mode", "deterministic");
+        host.settings.put("chat_mode_by_role", "bot_runner=llm\nadmin=hybrid");
+        assertEquals("llm", chat.modeFor(ANNA));
+        assertEquals("hybrid", chat.modeFor(LEAD));
+        assertEquals("deterministic", chat.modeFor(new ChatPlatform.Person("v", "viewer", null)));
+        assertEquals("not_understood", chat.message(ANNA, null, "post today's invoices for acme").get("kind"), "anna's role uses the model, which this host has not");
+        host.settings.remove("chat_mode_by_role");
+    }
+
     @Test void r0RunsAtOnce() {
         assertEquals("started", chat.message(ANNA, null, "show payables aging").get("kind"));
     }
