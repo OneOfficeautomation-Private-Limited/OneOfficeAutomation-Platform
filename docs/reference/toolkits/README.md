@@ -38,7 +38,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Folder](ooa-folder.md) | `ooa.folder` | 8 | 2 | 1 | Create, list, copy and delete folders. |
 | [FTP / SFTP](ooa-file_transfer.md) | `ooa.file_transfer` | 13 | 0 | 0 | Connect to FTP, FTPS or SFTP servers to list, upload, download, rename and delete files. |
 | [Fuzzy Match](ooa-fuzzy.md) | `ooa.fuzzy` | 3 | 1 | 0 | Score how alike two texts are, pick the closest candidate from a list and join tables on near-matching values. |
-| [Generative AI](ooa-genai.md) | `ooa.genai` | 13 | 0 | 0 | Prompt large language models (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI, self-hosted) to answer, read pictures, draw pictures and analyse text. |
+| [Generative AI](ooa-genai.md) | `ooa.genai` | 14 | 0 | 0 | Prompt large language models (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI, self-hosted) to answer, read pictures, draw pictures and analyse text. |
 | [GitHub](ooa-github.md) | `ooa.github` | 21 | 1 | 0 | Work with GitHub repositories: issues, pull requests, branches, files, releases and Actions workflows. Works with github.com and GitHub Enterprise Server. |
 | [Google Workspace](ooa-google.md) | `ooa.google` | 68 | 0 | 0 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
 | [Hash, encryption and encoding](ooa-crypto.md) | `ooa.crypto` | 14 | 0 | 0 | Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding. |
