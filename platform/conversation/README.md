@@ -53,6 +53,12 @@ may keep the same block under `ui.chat`.
 }
 ```
 
+## Acceptance test (UAT)
+
+`uat/one-chat-uat.ps1` starts a fresh Command Center from the installed build and drives One Chat only through the
+HTTP API: four people with their own sign-ins, a scripted runner, R0/R2/R3, approvals, languages, chat mode per role,
+the schema check and a restart. It writes `uat/UAT-report.md` (the latest run is checked in).
+
 ## Languages
 
 Replies follow the person's console language (en, de, fr, es, ja; `Messages`). Yes/no and cancel words are understood
