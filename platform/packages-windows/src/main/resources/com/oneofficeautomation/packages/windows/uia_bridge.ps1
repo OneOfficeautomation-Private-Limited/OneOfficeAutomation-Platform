@@ -271,6 +271,7 @@ public static class Bridge {
             case "find": return Find(req);
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
+            case "parent": return Parent(req);
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
             case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true),
                 Str(req, "window_title", ""), Str(req, "process", ""));
@@ -847,6 +848,56 @@ public static class Bridge {
 
     static string ProcessPath(int pid) {
         try { return Process.GetProcessById(pid).MainModule.FileName; } catch (Exception) { return ""; }
+    }
+
+    // gap G10 (3 Nov 2026): the element that contains a found element, captured like a picked one
+    static Dictionary<string, object> Parent(Dictionary<string, object> req) {
+        AutomationElement e = Ref(req);
+        int levels = Math.Max(1, Int(req, "levels", 1));
+        string stopAt = Str(req, "control_type", null);
+        ControlType want = null;
+        if (!string.IsNullOrEmpty(stopAt)) {
+            want = ControlTypeNamed(stopAt);
+            if (want == null) throw new BridgeError("BAD_REQUEST", "Unknown control type '" + stopAt + "'");
+        }
+        TreeWalker walker = TreeWalker.ControlViewWalker;
+        AutomationElement root = AutomationElement.RootElement, cur = e;
+        int up = 0;
+        while (true) {
+            AutomationElement p = walker.GetParent(cur);
+            if (p == null || Automation.Compare(p, root))
+                throw new BridgeError("NO_PARENT", want != null ? "No containing element of type " + stopAt + " above this one" : "The element has no containing element " + (up + 1) + " levels up (the window is the top)");
+            cur = p; up++;
+            if (want != null ? cur.Current.ControlType == want : up >= levels) break;
+        }
+        Dictionary<string, object> d = CaptureOf(cur, Bool(req, "screenshot", false));
+        d["levels_up"] = up;
+        return d;
+    }
+
+    /** The capture of one element, as CaptureAt makes for the element under a point. */
+    static Dictionary<string, object> CaptureOf(AutomationElement e, bool shot) {
+        Dictionary<string, object> props = Detail(e, false);
+        TreeWalker walker = TreeWalker.ControlViewWalker;
+        AutomationElement root = AutomationElement.RootElement;
+        List<AutomationElement> ancestors = new List<AutomationElement>();
+        AutomationElement cur = walker.GetParent(e);
+        while (cur != null && !Automation.Compare(cur, root)) { ancestors.Insert(0, cur); cur = walker.GetParent(cur); }
+        AutomationElement top = ancestors.Count > 0 ? ancestors[0] : e;
+        Dictionary<string, object> win = new Dictionary<string, object>();
+        win["title"] = top.Current.Name ?? "";
+        win["class_name"] = top.Current.ClassName ?? "";
+        win["process"] = ProcessName(top.Current.ProcessId);
+        win["handle"] = top.Current.NativeWindowHandle;
+        win["path"] = ProcessPath(top.Current.ProcessId);
+        System.Windows.Rect tr = top.Current.BoundingRectangle;
+        if (!tr.IsEmpty) { win["width"] = (int)tr.Width; win["height"] = (int)tr.Height; }
+        List<object> path = new List<object>();
+        foreach (AutomationElement a in ancestors) path.Add(Summary(a));
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        d["element"] = props; d["window"] = win; d["path"] = path;
+        d["screenshot"] = shot ? Screenshot(e.Current.BoundingRectangle) : "";
+        return d;
     }
 
     static Dictionary<string, object> CaptureAt(int x, int y, bool shot) {

@@ -242,8 +242,10 @@ click type and method; Set text offers **Clear first**, the typing method and th
 window is behind others.
 
 Other actions in **Capture / Desktop objects**: **Find desktop objects**, **Get desktop object properties**,
-**Wait for desktop object**, **Get desktop table**, and for older programs **Find legacy (MSAA) objects** and
-**Legacy (MSAA) object action**. Java programs (Swing/AWT) have their own group, **Java applications**.
+**Wait for desktop object**, **Get desktop table**, **Get parent object** (the control that contains a captured one,
+one or more levels up or the nearest of a type such as Pane or Group; its result is an object the other actions take,
+for example to list the children of the panel around a label), and for older programs **Find legacy (MSAA) objects**
+and **Legacy (MSAA) object action**. Java programs (Swing/AWT) have their own group, **Java applications**.
 
 **Older Windows programs (MSAA).** Some older programs (owner-drawn Win32, VB6, Delphi, and many ERP or terminal front
 ends) describe their controls better through MSAA than through UI Automation. Try these when Capture finds nothing
