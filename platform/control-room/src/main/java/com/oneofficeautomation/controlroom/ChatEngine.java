@@ -38,7 +38,7 @@ interface ChatEngine {
      * An agent as One Chat sees it: its production flow's name, description and inputs, plus the optional
      * {@code ui.chat} block (examples, aliases, not_for, risk, prompts) that helps people reach it in plain words.
      *
-     * @param risk R0 runs at once; R1 and R2 need the person's yes; R3 also needs a second person (not from chat yet)
+     * @param risk R0 runs at once; R1 and R2 need the person's yes; R3 also needs a second person's approval in the Task inbox
      */
     record ChatBot(String path, String name, String description, String risk, List<String> examples, List<String> aliases,
                    List<String> notFor, List<Map<String, Object>> inputs, Map<String, String> prompts) {

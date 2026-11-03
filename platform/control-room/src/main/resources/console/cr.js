@@ -865,6 +865,17 @@ const VIEWS = {
       h("button", { type: "button", onclick: () => { S.chat = null; go("chat"); } }, "New chat")),
       h("div", { class: "chat" }, log, form));
     draw(); input.focus();
+    // while an approval is pending, pick up the decision the Command Center adds to this chat
+    if (main.isConnected) S.timer = every(async () => {
+      if (S.page !== "chat" || S.chat.busy || !S.chat.session || !S.chat.messages.some((m) => m.kind === "awaiting_approval")) return;
+      try {
+        const r = await api("GET", "chat/" + S.chat.session);
+        if (r.messages.length > S.chat.messages.length) {
+          S.chat.messages = r.messages.map((m) => ({ role: m.role, text: m.text, kind: m.kind, run: m.run_id }));
+          draw();
+        }
+      } catch (_) { /* the chat expired; the next message starts a new one */ }
+    }, 10000);
   },
 
   async inbox(main) {
@@ -955,7 +966,7 @@ const VIEWS = {
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600),
         chatMode = h("select", {}, [["deterministic", "Rules only (no AI model)"], ["hybrid", "Rules first, the AI model when unsure"], ["llm", "AI model"]]
           .map(([v, l]) => h("option", { value: v, text: l, selected: (st.chat_mode || "deterministic") === v }))),
-        chatConn = txt("chat_connection", "empty = the person's first allowed connection"), chatRunner = txt("chat_runner"),
+        chatConn = txt("chat_connection", "empty = the person's first allowed connection"), chatRunner = txt("chat_runner"), chatApprovers = txt("chat_approvers", "role:admin"),
         mcpAud = txt("mcp_oauth_audience", "api://ooa-mcp (empty = API keys only)"), mcpScope = txt("mcp_oauth_scope", "mcp.use (optional)");
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500), keepAudit = num("audit_retention_days", 0, 36500);
@@ -1036,7 +1047,8 @@ const VIEWS = {
         h("h3", {}, ic("shieldai", "#2563eb", "sm"), "One Chat"),
         h("p", { class: "muted", text: "People ask in plain words for their agents. Runs start as them, and anything that changes data waits for their yes. With an AI model, only the person's words and the agent descriptions go to the model, through the chosen One Model Connection (its masking and budget apply)." }),
         h("div", { class: "grid2" }, h("label", {}, "How chat understands requests", chatMode), h("label", {}, "One Model Connection for chat", chatConn),
-          h("label", {}, "Runner or runner pool id (empty = any online runner)", chatRunner)),
+          h("label", {}, "Runner or runner pool id (empty = any online runner)", chatRunner),
+          h("label", {}, "Who approves high-impact (R3) requests (user:name, role:name; never the person who asked)", chatApprovers)),
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
@@ -1106,7 +1118,7 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), chat_mode: chatMode.value, chat_connection: chatConn.value.trim(), chat_runner: chatRunner.value.trim(), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
+              mcp_timeout_seconds: Number(mcpTimeout.value), chat_mode: chatMode.value, chat_connection: chatConn.value.trim(), chat_runner: chatRunner.value.trim(), chat_approvers: chatApprovers.value.trim(), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
@@ -2491,7 +2503,7 @@ function taskField(f, value) {
 
 async function openTask(t) {
   const fields = t.kind === "form" && t.form ? (t.form.fields || []).map((f) => [f, taskField(f, (t.result || {})[f.id])]) : [];
-  const ctx = Object.keys(t.data || {}).length ? h("details", { open: t.kind === "approval" }, h("summary", { text: "Workflow data" }), kv(Object.entries(t.data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]))) : null;
+  const ctx = Object.keys(t.data || {}).length ? h("details", { open: t.kind === "approval" }, h("summary", { text: t.stage === "chat_approval" ? "Request details (One Chat)" : "Workflow data" }), kv(Object.entries(t.data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]))) : null;
   const comment = h("textarea", { rows: 2, placeholder: "Comment (optional)" });
   const done = !t.can_act;
   const submit = async (outcome) => {

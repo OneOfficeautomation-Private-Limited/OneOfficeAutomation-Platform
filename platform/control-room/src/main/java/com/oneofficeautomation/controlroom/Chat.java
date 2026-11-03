@@ -22,7 +22,8 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * production version that the person may run (role and folder access) are offered; anything but an R0 agent waits for
  * the person's yes on a summary the Command Center writes, never the engine; the run starts as that person with source
  * "chat", so it shows in Agent Runs and the One Audit Trail. A confirmation is used once, so a repeated yes cannot start
- * a second run. R3 agents (money, bulk changes) are not started from chat until second-person approval is wired in.
+ * a second run. R3 agents (money, bulk changes) go to the Task inbox after the yes: someone other than the person who
+ * asked must approve, and only then does the run start, as the person who asked.
  */
 public final class Chat {
     /** The built-in "my runs" action, offered like an agent. */
@@ -125,7 +126,7 @@ public final class Chat {
         if (p != null) {
             s.pending = null;
             String answer = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z' ]", "").trim();
-            if (YES.contains(answer)) return confirm(u, p, ip);
+            if (YES.contains(answer)) return confirm(u, s, p, ip);
             if (NO.contains(answer)) {
                 cr.audit.record(u.username(), "chat.decline", "bot", p.bot().path(), Map.of("confirmation", p.id()), "ok", ip);
                 return reply("cancelled", "OK, I won't run " + p.bot().name() + ".");
@@ -173,28 +174,107 @@ public final class Chat {
         ChatBot bot = bots.stream().filter(b -> b.path().equals(pr.path())).findFirst().orElse(null);
         if (bot == null) return reply("refused", "That agent is not available to you in chat.");
         if (bot.path().equals(MY_RUNS)) return myRuns(u);
-        if (bot.needsApproval())
-            return reply("needs_approval", bot.name() + " is a high-impact (R3) agent. Starting it from chat needs a second person's approval, "
-                    + "which One Chat does not offer yet; start it from One Command Center.");
         if (!bot.needsConfirmation()) return start(u, bot, pr.inputs(), null, ip);
 
         Pending p = new Pending(id("cnf"), bot, pr.inputs(), hash(pr.inputs()), clock.instant().plus(CONFIRMATION_TTL), pr.engine());
         s.pending = p;
         cr.audit.record(u.username(), "chat.propose", "bot", bot.path(),
                 Map.of("confirmation", p.id(), "engine", pr.engine(), "inputs", new ArrayList<>(pr.inputs().keySet()), "input_hash", p.inputHash()), "ok", ip);
-        Map<String, Object> m = reply("confirm", summary(bot, pr.inputs()) + "\nShall I go ahead? (yes/no)");
+        Map<String, Object> m = reply("confirm", summary(bot, pr.inputs()) + (bot.needsApproval()
+                ? "\nThis is a high-impact (R3) agent: after your yes, someone other than you must approve it in the Task inbox before it runs.\nShall I ask for approval? (yes/no)"
+                : "\nShall I go ahead? (yes/no)"));
         m.put("agent", bot.path());
         m.put("inputs", pr.inputs());
         m.put("confirmation", Map.of("id", p.id(), "expires", p.expires().toString(), "risk", bot.risk()));
         return m;
     }
 
-    private Map<String, Object> confirm(User u, Pending p, String ip) {
+    private Map<String, Object> confirm(User u, Session s, Pending p, String ip) {
         if (clock.instant().isAfter(p.expires())) return reply("cancelled", "That confirmation expired. Ask again and I'll prepare it afresh.");
         ChatBot now = catalog(u).stream().filter(b -> b.path().equals(p.bot().path())).findFirst().orElse(null);
         if (now == null) return reply("refused", "You can no longer run " + p.bot().name() + ".");
+        if (p.bot().needsApproval()) return requestApproval(u, s, p, ip);
         return start(u, p.bot(), p.inputs(), p, ip);
     }
+
+    // ---- second-person approval for R3 agents, through the Task inbox ----
+
+    /** The stage name that marks a Task inbox approval as One Chat's (it has no workflow run). */
+    static final String APPROVAL_STAGE = "chat_approval";
+
+    /** Who decides R3 requests from chat: user:x and role:y entries, comma separated (setting chat_approvers). */
+    private String approvers() {
+        String a = String.valueOf(cr.platform.setting("chat_approvers")).trim();
+        return a.isEmpty() ? "role:admin" : a;
+    }
+
+    private Map<String, Object> requestApproval(User u, Session s, Pending p, String ip) {
+        String taskId = id("task");
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("source", "chat");
+        data.put("agent", p.bot().path());
+        data.put("inputs", p.inputs());
+        data.put("requested_by", u.username());
+        data.put("session_id", s.id);
+        data.put("confirmation", p.id());
+        data.put("input_hash", p.inputHash());
+        cr.db.update("INSERT INTO human_tasks (id, workflow_run_id, stage, kind, title, description, data, assignee, status, created) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                taskId, null, APPROVAL_STAGE, "approval", "Approve " + p.bot().name() + " for " + u.username(),
+                u.username() + " asked One Chat: " + summary(p.bot(), p.inputs()) + " It runs as " + u.username() + " once you approve.",
+                JsonLite.write(data), approvers(), "open", now());
+        cr.audit.record(u.username(), "chat.approval_requested", "task", taskId, Map.of("agent", p.bot().path(), "confirmation", p.id(), "input_hash", p.inputHash()), "ok", ip);
+        Map<String, Object> m = reply("awaiting_approval", "I've asked for approval (task " + taskId + "). " + p.bot().name()
+                + " runs once someone other than you approves it in the Task inbox; I'll tell you here.");
+        m.put("agent", p.bot().path());
+        m.put("task_id", taskId);
+        return m;
+    }
+
+    /** The person who asked for a chat approval task, or null for other tasks. */
+    @SuppressWarnings("unchecked")
+    static String requester(Map<String, Object> task) {
+        if (!APPROVAL_STAGE.equals(task.get("stage")) || task.get("data") == null) return null;
+        return String.valueOf(((Map<String, Object>) JsonLite.parse((String) task.get("data"))).get("requested_by"));
+    }
+
+    /**
+     * Called by the Task inbox once an approver decides a chat approval task. Approved: the run starts as the person who
+     * asked, under their permissions at this moment (source "chat"). Either way they get a notice in the Task inbox and,
+     * if their chat is still open, a message there. Returns the run id when one started.
+     */
+    @SuppressWarnings("unchecked")
+    String decided(Map<String, Object> task, User approver, String outcome, String comment, String ip) {
+        Map<String, Object> data = (Map<String, Object>) JsonLite.parse((String) task.get("data"));
+        String requester = String.valueOf(data.get("requested_by")), path = String.valueOf(data.get("agent"));
+        Map<String, Object> inputs = data.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of();
+        String name = path.replaceAll("\\.flow\\.json$", "");
+        String message, runId = null;
+        if ("approved".equals(outcome)) {
+            Map<String, Object> person = cr.db.one("SELECT role FROM users WHERE username = ?", requester);
+            Map<String, Object> started = person == null ? reply("refused", "The person who asked no longer has an account.")
+                    : start(new User(requester, requester, (String) person.get("role"), requester, false), ChatBot.of(path, flowOf(path)), inputs, null, ip);
+            runId = (String) started.get("run_id");
+            message = runId != null ? approver.username() + " approved " + name + "; it started as run " + runId + "."
+                    : approver.username() + " approved " + name + ", but it did not start: " + started.get("reply");
+        } else {
+            message = approver.username() + " rejected " + name + (comment == null || comment.isBlank() ? "." : ": " + comment);
+        }
+        cr.audit.record(approver.username(), "approved".equals(outcome) ? "chat.approved" : "chat.rejected", "task", String.valueOf(task.get("id")),
+                runId == null ? Map.of("agent", path, "requested_by", requester) : Map.of("agent", path, "requested_by", requester, "run", runId), "ok", ip);
+        cr.db.update("INSERT INTO human_tasks (id, workflow_run_id, stage, kind, title, description, data, assignee, status, created) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                id("task"), null, APPROVAL_STAGE, "notification", ("approved".equals(outcome) ? "Approved: " : "Rejected: ") + name, message,
+                JsonLite.write(runId == null ? Map.of("agent", path) : Map.of("agent", path, "run_id", runId)), "user:" + requester, "open", now());
+        Session s = sessions.get(String.valueOf(data.get("session_id")));
+        if (s != null && s.username.equals(requester)) synchronized (s) {
+            Map<String, Object> m = new LinkedHashMap<>(Map.of("role", "assistant", "text", message, "kind", "approval_" + outcome, "at", clock.instant().toString()));
+            if (runId != null) m.put("run_id", runId);
+            s.history.add(m);
+        }
+        return runId;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> flowOf(String path) { return (Map<String, Object>) cr.content(path, "production").get("flow"); }
 
     private Map<String, Object> start(User u, ChatBot bot, Map<String, Object> inputs, Pending p, String ip) {
         String target = String.valueOf(cr.platform.setting("chat_runner")).trim();

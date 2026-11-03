@@ -399,6 +399,9 @@ public final class Workflows {
         if (!Set.of("open", "claimed").contains(String.valueOf(t.get("status")))) throw new OoaException("CR.CONFLICT", "This task is already " + t.get("status"));
         if (!mayAct(u, t)) throw denied("complete this task");
         String kind = String.valueOf(t.get("kind"));
+        // One Chat's R3 approvals: never your own request, administrators included
+        if (kind.equals("approval") && u.username().equals(Chat.requester(t)))
+            throw new OoaException("CR.FORBIDDEN", "You cannot approve your own request", "Someone else among the approvers decides it.");
         Map<String, Object> result = new LinkedHashMap<>();
         String forcedNext = null;
         String out;
@@ -428,6 +431,10 @@ public final class Workflows {
         if (t.get("workflow_run_id") != null && !kind.equals("notification"))
             resume((String) t.get("workflow_run_id"), String.valueOf(t.get("stage")), result, kind.equals("approval") ? out : "task_completed",
                     Map.of("task_id", taskId, "by", u.username()), forcedNext);
+        if (kind.equals("approval") && Chat.APPROVAL_STAGE.equals(t.get("stage"))) {
+            String runId = cr.chat.decided(t, u, out, comment, ip);
+            if (runId != null) return Map.of("ok", true, "outcome", out, "run_id", runId);
+        }
         return Map.of("ok", true, "outcome", out);
     }
 

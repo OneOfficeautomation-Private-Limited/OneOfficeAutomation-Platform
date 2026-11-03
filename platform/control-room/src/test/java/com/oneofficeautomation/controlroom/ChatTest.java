@@ -95,11 +95,51 @@ class ChatTest {
         assertEquals(AGING, r.get("agent"));
     }
 
-    @Test void r3AgentIsNotStartedFromChat() {
+    @Test @SuppressWarnings("unchecked")
+    void r3AgentRunsOnlyAfterSomeoneElseApproves() {
+        ControlRoom.User olga = RepositoryLifecycleTest.person(cr, admin, "olga", "admin");
         long before = runs("admin");
-        Map<String, Object> r = chat.message(admin, null, "start the payment run", null);
-        assertEquals("needs_approval", r.get("kind"));
-        assertEquals(before, runs("admin"));
+        Map<String, Object> c = cr.chat.message(admin, null, "start the payment run", null);
+        assertEquals("confirm", c.get("kind"));
+        assertTrue(String.valueOf(c.get("reply")).contains("someone other than you must approve"), String.valueOf(c));
+        String sid = (String) c.get("session_id");
+        Map<String, Object> asked = cr.chat.message(admin, sid, "yes", null);
+        assertEquals("awaiting_approval", asked.get("kind"), String.valueOf(asked));
+        String task = (String) asked.get("task_id");
+        assertEquals(before, runs("admin"), "nothing runs before the approval");
+
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.workflows.complete(admin, task, "approved", Map.of(), null, null)).code(),
+                "never your own request, even as an administrator");
+        Map<String, Object> done = cr.workflows.complete(olga, task, "approved", Map.of(), "checked", null);
+        String runId = (String) done.get("run_id");
+        assertNotNull(runId, String.valueOf(done));
+        Map<String, Object> run = db.one("SELECT requested_by, source, bot_path FROM runs WHERE id = ?", runId);
+        assertEquals("admin", run.get("requested_by"), "the run is the requester's, under their permissions");
+        assertEquals("chat", run.get("source"));
+        assertEquals(PAYMENT, run.get("bot_path"));
+
+        List<Map<String, Object>> history = cr.chat.history(admin, sid);
+        assertTrue(String.valueOf(history.get(history.size() - 1).get("text")).contains("olga approved"), String.valueOf(history));
+        assertTrue(cr.workflows.tasks(admin, "open", false).stream().anyMatch(t -> String.valueOf(t.get("title")).startsWith("Approved: ")), "a notice in the requester's inbox");
+        List<String> actions = db.query("SELECT action FROM audit WHERE object_id = ?", task).stream().map(a -> String.valueOf(a.get("action"))).toList();
+        assertTrue(actions.containsAll(List.of("chat.approval_requested", "task.complete", "chat.approved")), String.valueOf(actions));
+    }
+
+    @Test void aRejectedR3RequestRunsNothing() {
+        ControlRoom.User rita = RepositoryLifecycleTest.person(cr, admin, "rita", "admin");
+        long before = runs("jane");
+        String sid = (String) chat.message(jane, null, "start the payment run", null).get("session_id");
+        String task = (String) chat.message(jane, sid, "yes", null).get("task_id");
+        assertNotNull(task);
+        assertEquals(Map.of("ok", true, "outcome", "rejected"), cr.workflows.complete(rita, task, "rejected", Map.of(), "not this week", null));
+        assertEquals(before, runs("jane"));
+        assertTrue(cr.workflows.tasks(jane, "open", false).stream().anyMatch(t -> String.valueOf(t.get("description")).contains("not this week")));
+    }
+
+    @Test void approversSettingIsChecked() {
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("chat_approvers", "finance team"), null)).code());
+        cr.platform.updateSettings(admin, Map.of("chat_approvers", "role:admin, user:olga"), null);
+        cr.platform.updateSettings(admin, Map.of("chat_approvers", "role:admin"), null);
     }
 
     @Test void negativeExamplesAndUnknownRequestsAreNotUnderstood() {

@@ -47,6 +47,7 @@ public final class Platform {
         DEFAULTS.put("chat_runner", "");
         DEFAULTS.put("chat_mode", "deterministic");
         DEFAULTS.put("chat_connection", "");
+        DEFAULTS.put("chat_approvers", "role:admin");
         DEFAULTS.put("run_retention_days", 0);
         DEFAULTS.put("run_log_retention_days", 0);
         DEFAULTS.put("syslog_target", "");
@@ -196,6 +197,8 @@ public final class Platform {
                     throw ControlRoom.notInSaas("Choosing a folder on the server");
                 if (k.equals("chat_mode") && !Chat.MODES.contains(s))
                     throw new OoaException("CR.BAD_INPUT", "One Chat's mode is one of " + String.join(", ", Chat.MODES));
+                if (k.equals("chat_approvers") && !s.isEmpty() && !Arrays.stream(s.split(",")).map(String::trim).allMatch(a -> a.matches("(user|role):[^\\s,]+")))
+                    throw new OoaException("CR.BAD_INPUT", "Approvers are user:name or role:name entries, comma separated", "For example role:admin, user:fin.lead");
                 if (k.equals("saml_idp_sso_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s]+"))
                     throw new OoaException("CR.BAD_INPUT", "The identity provider's sign-in address starts with https://");
                 if (k.equals("saml_idp_certificate") && !s.isEmpty()) {
