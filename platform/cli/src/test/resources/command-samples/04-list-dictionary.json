@@ -37,5 +37,21 @@
   {"command": "ooa.dictionary/key_has_value", "name": "condition", "vars": {"d": {"a": "x"}, "ok": false},
    "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.dictionary/key_has_value", "args": {"dictionary": "$d", "key": "a", "value": "x"}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
   {"command": "ooa.dictionary/is_empty", "name": "condition", "vars": {"d": {}, "ok": false},
-   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.dictionary/is_empty", "args": {"dictionary": "$d"}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}}
+   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.dictionary/is_empty", "args": {"dictionary": "$d"}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
+  {"command": "ooa.list/shuffle", "name": "same items (G06)", "vars": {"l": [1, 2, 3, 4, 5]},
+   "steps": [{"action": "ooa.list/shuffle", "args": {"list": "$l"}, "out": {"list": "s"}}, {"action": "ooa.list/sort", "args": {"list": "$s"}, "out": {"list": "back"}},
+             {"action": "ooa.list/size", "args": {"list": "$s"}, "out": {"count": "n"}}],
+   "expect": {"back": [1, 2, 3, 4, 5], "n": 5}},
+  {"command": "ooa.list/intersect", "name": "invoices in both", "vars": {"a": ["INV-1", "INV-2", "INV-2", "INV-3"], "b": ["INV-3", "INV-2", "INV-9"]},
+   "steps": [{"action": "ooa.list/intersect", "args": {"list": "$a", "other": "$b"}, "out": {"list": "l", "count": "n"}}], "expect": {"l": ["INV-2", "INV-3"], "n": 2}},
+  {"command": "ooa.list/subtract", "name": "not yet processed", "vars": {"a": ["INV-1", "INV-2", "INV-3"], "b": ["INV-2"]},
+   "steps": [{"action": "ooa.list/subtract", "args": {"list": "$a", "other": "$b"}, "out": {"list": "l", "count": "n"}}], "expect": {"l": ["INV-1", "INV-3"], "n": 2}},
+  {"command": "ooa.list/filter", "name": "numbers and record fields", "vars": {"nums": [50, 150, 99.5, 300], "recs": [{"name": "Acme Ltd", "total": 10}, {"name": "Zeta", "total": 20}]},
+   "steps": [{"action": "ooa.list/filter", "args": {"list": "$nums", "operator": "gt", "value": 100}, "out": {"list": "big", "count": "n"}},
+             {"action": "ooa.list/filter", "args": {"list": "$recs", "field": "name", "operator": "contains", "value": "acme"}, "out": {"list": "acme"}}],
+   "expect": {"big": [150, 300], "n": 2, "acme": [{"name": "Acme Ltd", "total": 10}]}},
+  {"command": "ooa.list/select", "name": "one field of records", "vars": {"recs": [{"c": {"email": "a@x.io"}}, {"c": {}}, {"c": {"email": "b@x.io"}}]},
+   "steps": [{"action": "ooa.list/select", "args": {"list": "$recs", "field": "c.email"}, "out": {"list": "all"}},
+             {"action": "ooa.list/select", "args": {"list": "$recs", "field": "c.email", "skip_missing": true}, "out": {"list": "some"}}],
+   "expect": {"all": ["a@x.io", null, "b@x.io"], "some": ["a@x.io", "b@x.io"]}}
 ]

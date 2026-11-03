@@ -6,7 +6,7 @@ Toolkit `ooa.datatable`, version 1.0.0. Build, filter, sort, search and change i
 
 ## Contents
 
-- **Table**: Add column from list, Add row, Group and summarise, Change column type, Clear rows, Column count, Column name, Column names, Delete column, Delete rows, Filter rows, Find value, Create from records, Get value, Insert column, Insert row, Join tables, Look up value, Merge tables, Remove duplicate rows, Rename column, Row count, Set value, Sort, Sum column, Convert to records, Write to file
+- **Table**: Add column from list, Add row, Group and summarise, Change column type, Clear rows, Column count, Column name, Column names, Column to list, Delete column, Delete rows, Filter rows, Find value, Create from CSV text, Create from records, Get value, Insert column, Insert row, Join tables, Look up value, Merge tables, Remove duplicate rows, Remove empty rows, Rename column, Replace values, Row count, Set value, Sort, Sum column, Convert to CSV text, Convert to HTML table, Convert to records, Write to file
 - **Conditions**: Column count is, Column contains value, Table has column, Table is empty, Row count is
 
 ## Table
@@ -185,6 +185,29 @@ List the column names in order.
 
 *Time limit 60 s; safe to repeat.*
 
+### Column to list
+
+`ooa.datatable/column_to_list` (action)
+
+Return the values of one column as a list, e.g. every invoice number.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Table | `table` | Table | Yes |  | Main | Source table. |
+| Column | `column` | Text | No |  | Main | Column name. |
+| Column index | `column_index` | Number | No |  | More options | Zero-based column index; used when 'column' is empty. Range: 0 to  |
+| Skip empty | `skip_empty` | Yes/No | No | No | More options | Leave out empty cells. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `list` | List | The column's values, top to bottom. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Delete column
 
 `ooa.datatable/delete_column` (action)
@@ -281,6 +304,30 @@ Return the zero-based numbers of rows containing a value, in one column or in an
 | `found` | Yes/No | True when at least one row matches. |
 | `cells` | List | Every matching cell as a dictionary with zero-based row and column numbers and the column name. |
 | `first_row` | Number | Zero-based number of the first matching row, or -1. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Create from CSV text
+
+`ooa.datatable/from_csv_text` (action)
+
+Build a table from CSV text held in a variable (for example an e-mail body or an API answer), with quoted fields understood.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | CSV text, one row per line. |
+| Delimiter | `delimiter` | Text | No | `,` | Main | One character between fields: , ; \| or tab. |
+| First row is the header | `header` | Yes/No | No | Yes | Main | The first line holds the column names; Column1, Column2 � when off. |
+| Convert numbers | `convert_numbers` | Yes/No | No | No | More options | Store fields that are plain numbers, such as 12.5, as numbers; codes with a leading 0 stay text. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | New table. |
+| `row_count` | Number | Number of data rows. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -470,6 +517,27 @@ Keep the first row for each distinct value of the chosen columns (all columns wh
 
 *Time limit 60 s; safe to repeat.*
 
+### Remove empty rows
+
+`ooa.datatable/remove_empty_rows` (action)
+
+Drop the rows in which every cell is empty (or only spaces).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Table | `table` | Table | Yes |  | Main | Source table. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Table without empty rows. |
+| `count` | Number | Number of rows removed. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Rename column
 
 `ooa.datatable/rename_column` (action)
@@ -490,6 +558,32 @@ Give a column a new name; its values stay as they are.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Updated table. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Replace values
+
+`ooa.datatable/replace_values` (action)
+
+Replace text in the cells of one column or of every column: inside the cell text, or whole cells only.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Table | `table` | Table | Yes |  | Main | Source table. |
+| Find | `find` | Text | Yes |  | Main | Text to replace. |
+| Replace with | `replace_with` | Text | No | (empty) | Main | New text; empty removes the text found. |
+| Column | `column` | Text | No |  | Main | Only this column; every column when empty. |
+| Whole cell | `whole_cell` | Yes/No | No | No | More options | Replace only cells whose whole value is the text, e.g. N/A. |
+| Match case | `match_case` | Yes/No | No | No | More options | Match upper and lower case exactly. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Updated table. |
+| `count` | Number | Number of cells changed. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -567,7 +661,7 @@ Sort rows by a column.
 
 `ooa.datatable/sum_column` (action)
 
-Add up the numeric values in a column; empty cells are ignored.
+Add up the numeric values in a column; empty cells are ignored, and text such as 1,000.50 or $ 12 is read as a number.
 
 **Settings**
 
@@ -575,12 +669,60 @@ Add up the numeric values in a column; empty cells are ignored.
 | --- | --- | --- | --- | --- | --- | --- |
 | Table | `table` | Table | Yes |  | Main | Source table. |
 | Column | `column` | Text | Yes |  | Main | Column name. |
+| If not number | `if_not_number` | Text | No | `error` | More options | A cell that is not a number: error stops and names its row; skip leaves it out and counts it in skipped. One of: `error`, `skip` |
+| Locale | `locale` | Text | No | `en-US` | More options | How numbers written as text use separators, e.g. en-US (1,000.50) or de-DE (1.000,50). |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `total` | Number | Sum. |
+| `skipped` | Number | Cells that were not numbers and were left out (if_not_number = skip). |
+
+*Time limit 60 s; safe to repeat.*
+
+### Convert to CSV text
+
+`ooa.datatable/to_csv_text` (action)
+
+Turn a table into CSV text in a variable, for an e-mail, an API call or a message, without writing a file.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Table | `table` | Table | Yes |  | Main | Source table. |
+| Delimiter | `delimiter` | Text | No | `,` | Main | One character between fields: , ; \| or tab. |
+| First row is the header | `header` | Yes/No | No | Yes | Main | Put the column names on the first line. |
+| Line ending | `line_ending` | Text | No | `crlf` | More options | Line ending after each row. One of: `crlf`, `lf` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | The CSV text. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Convert to HTML table
+
+`ooa.datatable/to_html` (action)
+
+Turn a table into an HTML <table> for an e-mail body or a report; cell text is escaped so it shows as written.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Table | `table` | Table | Yes |  | Main | Source table. |
+| First row is the header | `header` | Yes/No | No | Yes | Main | Put the column names in a header row. |
+| Borders | `borders` | Yes/No | No | Yes | Main | Draw thin grey lines around the cells (inline styles, so e-mail programs keep them). |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `html` | Text | The HTML table. |
 
 *Time limit 60 s; safe to repeat.*
 

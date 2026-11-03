@@ -6,7 +6,7 @@ Toolkit `ooa.list`, version 1.0.0. Add, read, remove, sort and join list items.
 
 ## Contents
 
-- **List**: Add item, Append list, Clear, Get item, Find item, Join, Remove duplicates, Remove item, Reverse, Set item, Get size, Sort
+- **List**: Add item, Append list, Clear, Filter, Get item, Find item, Items in both lists, Join, Remove duplicates, Remove item, Reverse, Select field, Set item, Shuffle, Get size, Sort, Items not in other list
 - **Conditions**: List contains item, List is empty
 
 ## List
@@ -76,6 +76,31 @@ Return an empty list; map it back to the variable to empty it.
 
 *Time limit 60 s; safe to repeat.*
 
+### Filter
+
+`ooa.list/filter` (action)
+
+Keep the items that pass a test, such as greater than 100 or contains Acme; for a list of records, test one field.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| List | `list` | List | Yes |  | Main | Source list. |
+| Field | `field` | Text | No |  | Main | For a list of records (dictionaries): the field to test; the item itself when empty. |
+| Operator | `operator` | Text | Yes |  | Main | Test; matches takes a regular expression. One of: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `contains`, `not_contains`, `starts_with`, `ends_with`, `matches`, `empty`, `not_empty` |
+| Value | `value` | Any | No |  | Main | Value to compare with (not needed for empty/not_empty). Shown when: `{"operator": ["!", "empty", "not_empty"]}` |
+| Match case | `match_case` | Yes/No | No | No | Main | Compare text with upper/lower case taken into account. Shown when: `{"operator": ["eq", "ne", "contains", "not_contains", "starts_with", "ends_with", "matches"]}` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `list` | List | Items kept. |
+| `count` | Number | Number of items kept. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Get item
 
 `ooa.list/get_item` (action)
@@ -120,6 +145,28 @@ Return the zero-based position of the first (or last) item equal to a value.
 | --- | --- | --- |
 | `index` | Number | Zero-based position, or -1 when the value is not in the list. |
 | `found` | Yes/No | True when the value is in the list. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Items in both lists
+
+`ooa.list/intersect` (action)
+
+Return the items of the first list that are also in the second, in the first list's order, each once.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| List | `list` | List | Yes |  | Main | First list. |
+| Other | `other` | List | Yes |  | Main | Second list. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `list` | List | Items in both lists. |
+| `count` | Number | Number of items. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -211,6 +258,28 @@ Return the items in reverse order.
 
 *Time limit 60 s; safe to repeat.*
 
+### Select field
+
+`ooa.list/select` (action)
+
+Turn a list of records (dictionaries) into a list of one field's values, e.g. the e-mail of every customer.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| List | `list` | List | Yes |  | Main | List of records. |
+| Field | `field` | Text | Yes |  | Main | Field name; a.b reads a field inside a field. Example: `email` |
+| Skip missing | `skip_missing` | Yes/No | No | No | More options | Leave out records without the field; when off they give an empty value, so the positions still match. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `list` | List | The field's values, in the same order. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Set item
 
 `ooa.list/set_item` (action)
@@ -232,6 +301,26 @@ Replace the item at a position.
 | `list` | List | Updated list. |
 
 *Time limit 60 s; safe to repeat.*
+
+### Shuffle
+
+`ooa.list/shuffle` (action)
+
+Return the items in a random order, e.g. to pick a random sample.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| List | `list` | List | Yes |  | Main | Source list. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `list` | List | The same items in random order. |
+
+*Time limit 60 s.*
 
 ### Get size
 
@@ -272,6 +361,28 @@ Sort items (numbers numerically, text alphabetically).
 | Name | Type | Description |
 | --- | --- | --- |
 | `list` | List | Sorted list. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Items not in other list
+
+`ooa.list/subtract` (action)
+
+Return the items of the first list that are not in the second, e.g. invoices not yet processed.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| List | `list` | List | Yes |  | Main | First list. |
+| Other | `other` | List | Yes |  | Main | Items to leave out. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `list` | List | Items only in the first list. |
+| `count` | Number | Number of items. |
 
 *Time limit 60 s; safe to repeat.*
 

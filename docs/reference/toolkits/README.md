@@ -23,7 +23,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
 | [Custom Connectors](ooa-connector.md) | `ooa.connector` | 5 | 0 | 0 | Call any REST API imported from an OpenAPI, Swagger or Postman file as named operations with typed inputs and authentication. |
-| [Data Table](ooa-datatable.md) | `ooa.datatable` | 27 | 5 | 0 | Build, filter, sort, search and change in-memory tables. |
+| [Data Table](ooa-datatable.md) | `ooa.datatable` | 33 | 5 | 0 | Build, filter, sort, search and change in-memory tables. |
 | [Database](ooa-database.md) | `ooa.database` | 12 | 0 | 1 | Connect to databases and run parameterised queries, updates and transactions. |
 | [Databricks](ooa-databricks.md) | `ooa.databricks` | 14 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
 | [Date and time](ooa-datetime.md) | `ooa.datetime` | 14 | 7 | 0 | Current time, add, difference, format and time zone conversion. |
@@ -51,7 +51,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [JSON](ooa-json.md) | `ooa.json` | 12 | 0 | 0 | Parse, query and write JSON documents. |
 | [Kafka](ooa-kafka.md) | `ooa.kafka` | 6 | 0 | 0 | Send messages to Kafka topics, read messages, and create or inspect topics through a Kafka REST Proxy. |
 | [Knowledge Q&A](ooa-knowledge.md) | `ooa.knowledge` | 3 | 0 | 0 | Index your documents and answer questions from them, with the passages each answer comes from. |
-| [List](ooa-list.md) | `ooa.list` | 12 | 2 | 0 | Add, read, remove, sort and join list items. |
+| [List](ooa-list.md) | `ooa.list` | 17 | 2 | 0 | Add, read, remove, sort and join list items. |
 | [Log to file](ooa-log.md) | `ooa.log` | 3 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
 | [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 94 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 15 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
