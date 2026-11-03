@@ -58,7 +58,7 @@ final class DeterministicChat implements ChatEngine {
         Match top = ranked.get(0);
         if (ranked.size() > 1 && ranked.get(1).score >= minScore && top.score - ranked.get(1).score < margin)
             return Clarify.question(Messages.t(s.lang, "did_you_mean", top.bot.name(), ranked.get(1).bot.name()));
-        return next(s, top.bot, extractAll(text, top.bot), top.score);
+        return next(s, top.bot, extractAll(text, s.lang, top.bot), top.score);
     }
 
     private Optional<Result> continueFill(ChatSession s, List<ChatBot> bots, Fill f, String text) {
@@ -66,7 +66,7 @@ final class DeterministicChat implements ChatEngine {
         ChatBot bot = bots.stream().filter(b -> b.path().equals(f.path)).findFirst().orElse(null);
         if (bot == null) return Optional.empty();
         Map<String, Object> variable = bot.inputs().stream().filter(v -> f.awaiting.equals(v.get("name"))).findFirst().orElse(Map.of());
-        Optional<Object> value = extract(new Text(text), variable, true);
+        Optional<Object> value = extract(new Text(text, s.lang), variable, true);
         if (value.isEmpty()) {
             List<Match> ranked = rank(text, bots);
             if (!ranked.isEmpty() && ranked.get(0).score >= minScore && !ranked.get(0).bot.path().equals(bot.path())) return Optional.empty(); // a new request
@@ -76,7 +76,7 @@ final class DeterministicChat implements ChatEngine {
         }
         Map<String, Object> inputs = new LinkedHashMap<>(f.inputs);
         inputs.put(f.awaiting, value.get());
-        extractAll(text, bot).forEach(inputs::putIfAbsent);
+        extractAll(text, s.lang, bot).forEach(inputs::putIfAbsent);
         return Optional.of(next(s, bot, inputs, f.confidence));
     }
 
@@ -162,9 +162,9 @@ final class DeterministicChat implements ChatEngine {
     }
 
     /** Free-form requests: enums first, then dates, then numbers, so later kinds skip words already used. */
-    private Map<String, Object> extractAll(String text, ChatBot bot) {
+    private Map<String, Object> extractAll(String text, String lang, ChatBot bot) {
         Map<String, Object> found = new LinkedHashMap<>();
-        Text t = new Text(text);
+        Text t = new Text(text, lang);
         for (Kind pass : List.of(Kind.ENUM, Kind.DATE, Kind.NUMBER))
             for (Map<String, Object> v : bot.inputs())
                 if (!found.containsKey(String.valueOf(v.get("name"))) && kind(v) == pass)
@@ -192,13 +192,28 @@ final class DeterministicChat implements ChatEngine {
             MONTH_DAY = Pattern.compile("\\b" + MONTHS + "\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b"),
             RELATIVE = Pattern.compile("\\b(today|yesterday|tomorrow)\\b"),
             NUMBER = Pattern.compile("(?<![\\p{L}\\d.,-])(\\d{1,3}(?:,\\d{2,3})+|\\d+)(\\.\\d+)?\\s*(lakhs?|lacs?|crores?|cr|k|thousand)?(?![\\p{L}\\d])");
-    private static final List<String> MONTH_KEYS = List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec");
+    /** Today, yesterday and tomorrow in the console languages; used only in the person's own language, so an English "hier" is never a date. */
+    private static final Map<String, List<String>> DAYS = Map.of("de", List.of("heute", "gestern", "morgen"), "fr", List.of("aujourd'hui", "hier", "demain"),
+            "es", List.of("hoy", "ayer", "mañana"), "ja", List.of("今日", "昨日", "明日"));
+    private static final List<String> MONTH_KEYS =List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec");
 
-    /** A date as ISO yyyy-MM-dd: today/yesterday/tomorrow, 2026-11-03, 03/11/2026 (day first), 3 Nov, Nov 3. */
+    /**
+     * A date as ISO yyyy-MM-dd: today/yesterday/tomorrow (also in the person's language: heute, hier, mañana, 明日 ...),
+     * 2026-11-03, 03/11/2026 (day first), 3 Nov, Nov 3.
+     */
     private Optional<Object> date(Text t) {
         LocalDate today = LocalDate.now(clock);
         Matcher m = RELATIVE.matcher(t.lower);
         if (m.find()) { t.use(m); return Optional.of((switch (m.group(1)) { case "yesterday" -> today.minusDays(1); case "tomorrow" -> today.plusDays(1); default -> today; }).toString()); }
+        List<String> days = DAYS.getOrDefault(t.lang, List.of());
+        for (int i = 0; i < days.size(); i++) {
+            // Japanese has no spaces between words
+            String w = Pattern.quote(days.get(i));
+            if ((m = Pattern.compile("ja".equals(t.lang) ? w : "(?<!\\p{L})" + w + "(?!\\p{L})").matcher(t.lower)).find()) {
+                t.use(m);
+                return Optional.of((i == 1 ? today.minusDays(1) : i == 2 ? today.plusDays(1) : today).toString());
+            }
+        }
         if ((m = ISO.matcher(t.lower)).find()) return date(t, m, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
         if ((m = DMY.matcher(t.lower)).find()) return date(t, m, Integer.parseInt(m.group(3)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(1)));
         if ((m = DAY_MONTH.matcher(t.lower)).find())
@@ -223,18 +238,18 @@ final class DeterministicChat implements ChatEngine {
     }
 
     private static Optional<Object> yesNo(String answer) {
-        String a = answer.trim().toLowerCase(Locale.ROOT);
-        if (a.matches("(yes|y|true|yeah|yep|haan)\\b.*")) return Optional.of(true);
-        if (a.matches("(no|n|false|nope|nahi)\\b.*")) return Optional.of(false);
+        String a = answer.trim().toLowerCase(Locale.ROOT), word = Conversation.answerWord(answer);
+        if (a.matches("(yes|y|true|yeah|yep|haan)\\b.*") || Conversation.YES.contains(word)) return Optional.of(true);
+        if (a.matches("(no|n|false|nope|nahi)\\b.*") || Conversation.NO.contains(word)) return Optional.of(false);
         return Optional.empty();
     }
 
     /** The message with the words already used by earlier inputs blanked out. */
     private static final class Text {
-        final String original;
+        final String original, lang;
         String lower;
 
-        Text(String s) { original = s; lower = s.toLowerCase(Locale.ROOT); }
+        Text(String s, String lang) { original = s; this.lang = lang; lower = s.toLowerCase(Locale.ROOT).replace('’', '\''); }
 
         boolean has(String phrase) { return phrase(phrase).matcher(lower).find(); }
         void use(String phrase) { Matcher m = phrase(phrase).matcher(lower); if (m.find()) use(m); }

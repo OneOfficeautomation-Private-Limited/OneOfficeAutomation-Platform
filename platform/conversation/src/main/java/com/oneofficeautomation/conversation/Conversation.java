@@ -32,9 +32,9 @@ public final class Conversation {
 
     private static final Duration CONFIRMATION_TTL = Duration.ofMinutes(10), IDLE = Duration.ofHours(8);
     /** Yes and no in the console languages (and Hindi, which people often type in Latin letters). */
-    private static final Set<String> YES = Set.of("yes", "y", "yeah", "yep", "ok", "okay", "sure", "confirm", "go ahead", "do it", "proceed",
+    static final Set<String> YES = Set.of("yes", "y", "yeah", "yep", "ok", "okay", "sure", "confirm", "go ahead", "do it", "proceed",
             "haan", "ha", "ji", "ja", "jawohl", "gerne", "oui", "d'accord", "si", "sí", "claro", "vale", "はい", "お願いします", "ええ");
-    private static final Set<String> NO = Set.of("no", "n", "nope", "cancel", "stop", "don't", "dont", "do not", "abort", "nahi", "na",
+    static final Set<String> NO = Set.of("no", "n", "nope", "cancel", "stop", "don't", "dont", "do not", "abort", "nahi", "na",
             "nein", "abbrechen", "non", "annuler", "cancelar", "いいえ", "キャンセル", "やめて");
     private static final ChatBot MY_RUNS_BOT = new ChatBot(MY_RUNS, "My runs", "The person's recent agent runs and their status.", "R0",
             List.of("what are my runs", "show my recent runs", "status of my runs", "did my run finish", "what did I run today", "my jobs"),

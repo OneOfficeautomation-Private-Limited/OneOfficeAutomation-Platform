@@ -76,6 +76,21 @@ class ConversationTest {
         assertTrue(host.runs.isEmpty());
     }
 
+    /** Today, yesterday and tomorrow in the person's language; never in another one ("hier" is "here" in English). */
+    @Test void relativeDatesFollowTheChatLanguage() {
+        String de = (String) chat.message(ANNA, null, "process vendor invoices", "de").get("session_id");
+        chat.message(ANNA, de, "globex", null);
+        assertEquals(Map.of("vendor", "Globex", "from", "2026-11-02"), chat.message(ANNA, de, "gestern", null).get("inputs"));
+
+        String fr = (String) chat.message(ANNA, null, "process vendor invoices", "fr").get("session_id");
+        assertEquals(Map.of("vendor", "Acme", "from", "2026-11-03"), chat.message(ANNA, fr, "acme aujourd’hui", null).get("inputs"));
+        assertEquals(Map.of("vendor", "Acme", "from", "2026-11-04"), chat.message(ANNA, null, "process vendor invoices for acme mañana", "es").get("inputs"));
+        assertEquals(Map.of("vendor", "Acme", "from", "2026-11-04"), chat.message(ANNA, null, "process vendor invoices for acme 明日", "ja").get("inputs"));
+
+        Map<String, Object> en = chat.message(ANNA, null, "process vendor invoices for acme from hier", "en");
+        assertEquals("question", en.get("kind"), "hier is not a date in English: " + en);
+    }
+
     @Test void aRoleCanHaveItsOwnMode() {
         host.settings.put("chat_mode", "deterministic");
         host.settings.put("chat_mode_by_role", "bot_runner=llm\nadmin=hybrid");
