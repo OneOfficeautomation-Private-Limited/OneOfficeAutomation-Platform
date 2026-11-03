@@ -18,11 +18,15 @@ public final class RestPackage {
 
     @Action(id = "request", name = "Send request", category = "HTTP", timeoutSeconds = 120, capabilities = "network",
             description = "Send an HTTP request and return status, headers and body (parsed as JSON when possible).",
-            panel = "url, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, content_type, query, fail_on_error, insecure_tls, accept_cookies, follow_redirects")
+            panel = "url, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token"
+                    + " / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth"
+                    + " / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method"
+                    + " / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, content_type, query, fail_on_error, insecure_tls, accept_cookies, follow_redirects")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "body", type = OoaType.STRING, description = "Response text.")
     @Output(name = "json", description = "Parsed JSON body, or empty.")
     @Output(name = "headers", type = OoaType.DICTIONARY, description = "Response headers.")
+    @Output(name = "refresh_token", type = OoaType.CREDENTIAL, description = "With an OAuth 2.0 refresh token: the newest refresh token (the server may issue a new one); save it to the vault for the next run. Empty otherwise.")
     public Map<String, Object> request(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, pattern = "^https?://", description = "Absolute URL.") String url,
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"GET\"", enumValues = {"GET", "POST", "PUT", "PATCH", "DELETE"}, description = "HTTP method.") String method,
@@ -50,8 +54,50 @@ public final class RestPackage {
             @Input(name = "body_file", type = OoaType.FILE, required = false, visibleWhen = "method!=GET",
                     description = "File sent as the raw body, byte for byte; content_type gives its type.") String bodyFile,
             @Input(name = "windows_auth", type = OoaType.STRING, required = false, enumValues = {"current_user", "user_password"},
-                    description = "Windows sign-in (NTLM or Kerberos) for intranet sites, SharePoint on premises, IIS and Exchange: current_user signs in as the runner's Windows account (Windows runners); user_password uses basic_user (DOMAIN\\user) and basic_password.") String windowsAuth) {
+                    description = "Windows sign-in (NTLM or Kerberos) for intranet sites, SharePoint on premises, IIS and Exchange: current_user signs in as the runner's Windows account (Windows runners); user_password uses basic_user (DOMAIN\\user) and basic_password.") String windowsAuth,
+            @Input(name = "oauth_token_url", type = OoaType.STRING, required = false, pattern = "^https?://", example = "https://login.example.com/oauth2/token",
+                    description = "OAuth 2.0 token endpoint; the request is sent with a token fetched there (kept for the run and renewed before it expires).") String oauthTokenUrl,
+            @Input(name = "oauth_client_id", type = OoaType.STRING, required = false, description = "OAuth 2.0 client (application) id.") String oauthClientId,
+            @Input(name = "oauth_client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "OAuth 2.0 client secret from the vault; needed for client credentials, optional with a refresh token.") Object oauthClientSecret,
+            @Input(name = "oauth_refresh_token", type = OoaType.CREDENTIAL, required = false,
+                    description = "Refresh token from the vault: signs in with the refresh-token grant instead of client credentials. A new refresh token from the server is used for the rest of the run and returned as refresh_token.") Object oauthRefreshToken,
+            @Input(name = "oauth_scope", type = OoaType.STRING, required = false, example = "api://orders/.default", description = "Scopes to ask for, separated by spaces.") String oauthScope,
+            @Input(name = "oauth_audience", type = OoaType.STRING, required = false, description = "Audience sent to the token endpoint (some providers, e.g. Auth0, need it).") String oauthAudience,
+            @Input(name = "oauth_resource", type = OoaType.STRING, required = false, description = "Resource sent to the token endpoint (e.g. Microsoft Entra v1 and AD FS).") String oauthResource,
+            @Input(name = "oauth_client_auth", type = OoaType.STRING, required = false, defaultValue = "\"basic\"", enumValues = {"basic", "body"},
+                    description = "How the client id and secret reach the token endpoint: basic (HTTP Basic header, the OAuth standard) or body (form fields client_id and client_secret).") String oauthClientAuth,
+            @Input(name = "oauth1_consumer_key", label = "OAuth 1.0a consumer key", type = OoaType.STRING, required = false, description = "OAuth 1.0a consumer key: the request is signed (RFC 5849).") String oauth1ConsumerKey,
+            @Input(name = "oauth1_consumer_secret", label = "OAuth 1.0a consumer secret", type = OoaType.CREDENTIAL, required = false, description = "OAuth 1.0a consumer secret from the vault.") Object oauth1ConsumerSecret,
+            @Input(name = "oauth1_token", label = "OAuth 1.0a token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 1.0a access token from the vault; empty for a consumer-only (two-legged) request.") Object oauth1Token,
+            @Input(name = "oauth1_token_secret", label = "OAuth 1.0a token secret", type = OoaType.CREDENTIAL, required = false, description = "OAuth 1.0a token secret from the vault.") Object oauth1TokenSecret,
+            @Input(name = "oauth1_signature_method", label = "OAuth 1.0a signature method", type = OoaType.STRING, required = false, defaultValue = "\"HMAC-SHA1\"", enumValues = {"HMAC-SHA1", "HMAC-SHA256"},
+                    description = "OAuth 1.0a signature method.") String oauth1Method,
+            @Input(name = "ntlm_user", label = "Windows user name", type = OoaType.STRING, required = false, description = "Windows (NTLM) user name for intranet sites, IIS, SharePoint on premises and Exchange.") String ntlmUser,
+            @Input(name = "ntlm_domain", label = "Windows domain", type = OoaType.STRING, required = false, example = "CONTOSO", description = "Windows domain of the NTLM user; empty when the user name already has it (DOMAIN\\user or user@domain).") String ntlmDomain,
+            @Input(name = "ntlm_password", label = "Windows password", type = OoaType.CREDENTIAL, required = false, description = "Windows password of the NTLM user, from the vault.") Object ntlmPassword) {
         IntegratedAuthHttp.check(windowsAuth);
+        // the new sign-in options (OAuth 2.0, OAuth 1.0a, NTLM) are each used alone
+        boolean oauth2 = given(oauthTokenUrl) || given(oauthClientId) || given(oauthClientSecret) || given(oauthRefreshToken);
+        boolean oauth1 = given(oauth1ConsumerKey) || given(oauth1ConsumerSecret) || given(oauth1Token) || given(oauth1TokenSecret);
+        boolean ntlm = given(ntlmUser) || given(ntlmPassword);
+        boolean older = given(basicUser) || given(basicPassword) || given(bearer) || given(windowsAuth);
+        if ((oauth2 ? 1 : 0) + (oauth1 ? 1 : 0) + (ntlm ? 1 : 0) + (older ? 1 : 0) > 1 && (oauth2 || oauth1 || ntlm))
+            throw new ActionException("REST.BAD_AUTH", "More than one sign-in was given (" + String.join(", ",
+                    java.util.stream.Stream.of(older ? "user name and password, bearer token or windows_auth" : null, oauth2 ? "OAuth 2.0" : null, oauth1 ? "OAuth 1.0a" : null, ntlm ? "NTLM" : null)
+                            .filter(Objects::nonNull).toList()) + "), so the request was not sent", "Fill the fields of one sign-in option only.");
+        RestSignIn.OAuth2 o2 = oauth2 ? oauth2Settings(oauthTokenUrl, oauthClientId, oauthClientSecret, oauthRefreshToken, oauthScope, oauthAudience, oauthResource, oauthClientAuth) : null;
+        RestSignIn.OAuth1 o1 = oauth1 ? oauth1Settings(oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret, oauth1Method) : null;
+        if (ntlm) {
+            if (!given(ntlmUser)) throw new ActionException("REST.NO_USER", "NTLM sign-in needs ntlm_user and ntlm_password", "Fill ntlm_user (and ntlm_domain) and ntlm_password.");
+            if (!(vaultSecret(ntlmPassword, "ntlm_password") instanceof SecureString))
+                throw new ActionException("REST.NO_SECRET", "NTLM sign-in needs ntlm_password from the vault, so the request was not sent",
+                        "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
+            String u = ntlmUser.strip();
+            basicUser = !given(ntlmDomain) || u.contains("\\") || u.contains("@") ? u : ntlmDomain.strip() + "\\" + u;
+            basicPassword = ntlmPassword;
+            windowsAuth = "user_password";
+        }
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects);
         long bodies = java.util.stream.Stream.of(json, form, multipart, body, bodyFile).filter(Objects::nonNull).count();
         if (bodies > 1) throw new ActionException("REST.BAD_BODY", "More than one body was given", "Give only one of json, form, multipart, body or body_file.");
@@ -99,10 +145,58 @@ public final class RestPackage {
         if (vaultSecret(bearer, "bearer_token") instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
         b.method(method, pub);
         ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"));
-        HttpResponse<String> resp = sendHonouringRateLimit(ctx, opts.client(ctx, CLIENT), b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+        HttpClient client = opts.client(ctx, CLIENT);
+        HttpResponse<String> resp;
+        if (o2 == null && o1 == null) resp = sendHonouringRateLimit(ctx, client, b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+        else {
+            List<String[]> formFields = new ArrayList<>();
+            if (form != null) form.forEach((k, v) -> formFields.add(new String[]{k, String.valueOf(v)}));
+            for (int attempt = 0; ; attempt++) {
+                HttpRequest.Builder rb = b.copy();
+                rb.setHeader("Authorization", o2 != null ? RestSignIn.authorization(ctx, client, o2, attempt > 0, timeout)
+                        : RestSignIn.oauth1Header(o1, method, u.toString(), formFields));
+                resp = sendHonouringRateLimit(ctx, client, rb.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+                if (resp.statusCode() != 401 || o2 == null || attempt > 0) break;
+                ctx.info("HTTP 401: getting a new OAuth token and sending once more");
+            }
+        }
         Map<String, Object> hdrs = new LinkedHashMap<>();
         resp.headers().map().forEach((k, v) -> hdrs.put(k, String.join(", ", v)));
-        return result(method, url, resp.statusCode(), resp.body(), hdrs, failOnError);
+        Map<String, Object> out = result(method, url, resp.statusCode(), resp.body(), hdrs, failOnError);
+        if (o2 != null) out.put("refresh_token", RestSignIn.latestRefreshToken(ctx, o2));
+        return out;
+    }
+
+    private static boolean given(Object v) { return v != null && !(v instanceof String s && s.isBlank()); }
+
+    private static RestSignIn.OAuth2 oauth2Settings(String tokenUrl, String clientId, Object secret, Object refreshToken, String scope, String audience, String resource, String clientAuth) {
+        if (!given(tokenUrl) || !tokenUrl.strip().matches("(?i)^https?://.+"))
+            throw new ActionException("REST.OAUTH_SETTINGS", "OAuth 2.0 sign-in needs oauth_token_url (an http or https address), so the request was not sent",
+                    "Give the provider's token endpoint, e.g. https://login.example.com/oauth2/token.");
+        if (!given(clientId)) throw new ActionException("REST.OAUTH_SETTINGS", "OAuth 2.0 sign-in needs oauth_client_id, so the request was not sent", "Give the client (application) id.");
+        SecureString s = vaultSecret(secret, "oauth_client_secret") instanceof SecureString x && !x.reveal().isEmpty() ? x : null;
+        SecureString r = vaultSecret(refreshToken, "oauth_refresh_token") instanceof SecureString x && !x.reveal().isEmpty() ? x : null;
+        if (s == null && r == null)
+            throw new ActionException("REST.OAUTH_SETTINGS", "OAuth 2.0 client credentials sign-in needs oauth_client_secret, so the request was not sent",
+                    "Give the client secret from the vault, or a refresh token in oauth_refresh_token.");
+        String auth = clientAuth == null || clientAuth.isBlank() ? "basic" : clientAuth.strip();
+        if (!auth.equals("basic") && !auth.equals("body"))
+            throw new ActionException("REST.OAUTH_SETTINGS", "Unknown oauth_client_auth '" + clientAuth + "'", "Use basic or body.");
+        return new RestSignIn.OAuth2(tokenUrl.strip(), clientId.strip(), s, r, scope, audience, resource, auth);
+    }
+
+    private static RestSignIn.OAuth1 oauth1Settings(String consumerKey, Object consumerSecret, Object token, Object tokenSecret, String method) {
+        if (!given(consumerKey)) throw new ActionException("REST.OAUTH_SETTINGS", "OAuth 1.0a sign-in needs oauth1_consumer_key, so the request was not sent", "Give the consumer key.");
+        if (!(vaultSecret(consumerSecret, "oauth1_consumer_secret") instanceof SecureString cs))
+            throw new ActionException("REST.OAUTH_SETTINGS", "OAuth 1.0a sign-in needs oauth1_consumer_secret from the vault, so the request was not sent", "Give the consumer secret from the vault.");
+        SecureString t = vaultSecret(token, "oauth1_token") instanceof SecureString x && !x.reveal().isEmpty() ? x : null;
+        SecureString ts = vaultSecret(tokenSecret, "oauth1_token_secret") instanceof SecureString x ? x : null;
+        if (t != null && ts == null)
+            throw new ActionException("REST.OAUTH_SETTINGS", "OAuth 1.0a sign-in with oauth1_token needs oauth1_token_secret, so the request was not sent", "Give the token secret from the vault.");
+        String m = method == null || method.isBlank() ? "HMAC-SHA1" : method.strip().toUpperCase(Locale.ROOT);
+        if (!m.equals("HMAC-SHA1") && !m.equals("HMAC-SHA256"))
+            throw new ActionException("REST.OAUTH_SETTINGS", "Unknown oauth1_signature_method '" + method + "'", "Use HMAC-SHA1 or HMAC-SHA256.");
+        return new RestSignIn.OAuth1(consumerKey.strip(), cs, t, ts, m);
     }
 
     private static Map<String, Object> result(String method, String url, int status, String text, Map<String, Object> hdrs, boolean failOnError) {
@@ -112,7 +206,7 @@ public final class RestPackage {
             throw new ActionException("REST.HTTP_ERROR", method + " " + url + " returned HTTP " + status,
                     status == 401 || status == 403 ? "Check the credentials and permissions." : null,
                     status == 429 || status >= 500, Map.of("status", BigDecimal.valueOf(status), "body", text.length() > 500 ? text.substring(0, 500) : text));
-        return Out.of("status", BigDecimal.valueOf(status), "body", text, "json", parsed, "headers", hdrs);
+        return Out.of("status", BigDecimal.valueOf(status), "body", text, "json", parsed, "headers", hdrs, "refresh_token", null);
     }
 
     /** The request body as bytes, for the Windows sign-in path (which sends it itself); sets Content-Type for a multipart body. */
@@ -145,6 +239,15 @@ public final class RestPackage {
             Map<String, Object> multipart, String bodyFile) {
         return request(ctx, url, method, query, headers, json, form, body, basicUser, basicPassword, bearer, timeout, failOnError, contentType, insecure, proxy,
                 proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, multipart, bodyFile, null);
+    }
+
+    public Map<String, Object> request(ActionContext ctx, String url, String method, Map<String, Object> query, Map<String, Object> headers, Object json,
+            Map<String, Object> form, String body, String basicUser, Object basicPassword, Object bearer, int timeout, boolean failOnError, String contentType,
+            boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, boolean cookies, boolean redirects,
+            Map<String, Object> multipart, String bodyFile, String windowsAuth) {
+        return request(ctx, url, method, query, headers, json, form, body, basicUser, basicPassword, bearer, timeout, failOnError, contentType, insecure, proxy,
+                proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, multipart, bodyFile, windowsAuth,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** Multipart parts from {field: text | {"file": path, "content_type": type}}. */
