@@ -157,7 +157,7 @@ public final class ControlRoom {
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
-        this.chat = new Chat(this);
+        this.chat = new Chat(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
         this.serverless = new ServerlessRuns(this, registry, dataDir);

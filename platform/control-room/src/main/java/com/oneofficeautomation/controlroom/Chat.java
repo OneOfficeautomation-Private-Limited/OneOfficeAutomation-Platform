@@ -34,16 +34,33 @@ public final class Chat {
             List.of("what are my runs", "show my recent runs", "status of my runs", "did my run finish", "what did I run today", "my jobs"),
             List.of(), List.of(), List.of(), Map.of());
 
+    static final List<String> MODES = List.of("deterministic", "llm", "hybrid");
+
     private final ControlRoom cr;
-    private final ChatEngine engine;
+    private final ChatEngine fixedEngine, deterministic, llm;
     private final Clock clock;
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
-    Chat(ControlRoom cr) { this(cr, Clock.systemDefaultZone()); }
+    Chat(ControlRoom cr, java.nio.file.Path dataDir) { this(cr, dataDir, Clock.systemDefaultZone()); }
 
-    Chat(ControlRoom cr, Clock clock) { this(cr, new DeterministicChat(clock), clock); }
+    /** The mode follows the chat_mode setting: deterministic (no model, the default), llm, or hybrid (deterministic first, the model when unsure). */
+    Chat(ControlRoom cr, java.nio.file.Path dataDir, Clock clock) {
+        this.cr = cr; this.clock = clock; this.fixedEngine = null;
+        this.deterministic = new DeterministicChat(clock);
+        this.llm = new LlmChat(new ChatModel(cr, dataDir), clock, () -> String.valueOf(cr.platform.setting("chat_connection")).trim());
+    }
 
-    Chat(ControlRoom cr, ChatEngine engine, Clock clock) { this.cr = cr; this.engine = engine; this.clock = clock; }
+    /** Always this engine, whatever the settings (tests). */
+    Chat(ControlRoom cr, ChatEngine engine, Clock clock) { this.cr = cr; this.fixedEngine = engine; this.clock = clock; this.deterministic = null; this.llm = null; }
+
+    private ChatEngine engine() {
+        if (fixedEngine != null) return fixedEngine;
+        return switch (String.valueOf(cr.platform.setting("chat_mode")).trim()) {
+            case "llm" -> llm;
+            case "hybrid" -> new ChatEngine.Router(List.of(deterministic, llm), 0.6);
+            default -> deterministic;
+        };
+    }
 
     /** One person's conversation: its messages, the engines' working state and a confirmation waiting for yes or no. */
     static final class Session {
@@ -54,6 +71,8 @@ public final class Chat {
         /** The engine that asked the last question, which gets the answer first. */
         String activeEngine;
         Pending pending;
+        /** The person speaking, as signed in for the current message. */
+        User user;
         Instant lastUsed;
 
         Session(String id, String username, Instant now) { this.id = id; this.username = username; this.lastUsed = now; }
@@ -74,6 +93,7 @@ public final class Chat {
         synchronized (s) {
             Instant at = clock.instant();
             s.lastUsed = at;
+            s.user = u;
             s.history.add(Map.of("role", "user", "text", text, "at", at.toString()));
             Map<String, Object> out = respond(u, s, text.trim(), ip);
             out.put("session_id", s.id);
@@ -113,7 +133,7 @@ public final class Chat {
             // anything else is a new request; the confirmation lapses
         }
         List<ChatBot> bots = catalog(u);
-        Result r = engine.decide(s, bots, text);
+        Result r = engine().decide(s, bots, text);
         if (r == null) r = new Handoff("no engine answered", false);
         return switch (r) {
             case Reply x -> reply("answer", x.text());
@@ -122,6 +142,8 @@ public final class Chat {
                 if (c.path() != null) { m.put("agent", c.path()); m.put("missing", c.missing()); }
                 yield m;
             }
+            case Handoff h when h.reason().startsWith("the model") -> reply("not_understood", "I couldn't get an answer from the AI model ("
+                    + h.reason().substring(10) + "). Try again, or ask for an agent by its name.");
             case Handoff h -> reply("not_understood", "Sorry, I didn't understand that. Ask for an agent by its name"
                     + bots.stream().filter(b -> !b.path().equals(MY_RUNS)).findFirst().map(b -> ", for example \"" + b.name() + "\"").orElse("")
                     + ", or ask \"what are my runs?\".");

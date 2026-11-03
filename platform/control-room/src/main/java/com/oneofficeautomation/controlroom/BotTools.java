@@ -39,10 +39,13 @@ final class BotTools {
     }
 
     /** The JSON Schema of a flow's inputs, as MCP tools and model tool calls expect it. */
-    static Map<String, Object> inputSchema(Map<String, Object> flow) {
+    static Map<String, Object> inputSchema(Map<String, Object> flow) { return schema(inputs(flow)); }
+
+    /** The JSON Schema of these input variables. */
+    static Map<String, Object> schema(List<Map<String, Object>> inputs) {
         Map<String, Object> props = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
-        for (Map<String, Object> v : inputs(flow)) {
+        for (Map<String, Object> v : inputs) {
             Map<String, Object> s = new LinkedHashMap<>();
             s.put("type", jsonType(String.valueOf(v.get("type"))));
             if (v.get("description") instanceof String d) s.put("description", d);

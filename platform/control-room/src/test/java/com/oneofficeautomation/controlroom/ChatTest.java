@@ -41,7 +41,7 @@ class ChatTest {
                 "{\"examples\":[\"start the payment run\",\"pay due vendor invoices\"],\"risk\":\"R3\"}"), "v1", true, null);
         String device = (String) cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null).get("device_id");
         cr.platform.updateSettings(admin, Map.of("chat_runner", device), null);
-        chat = new Chat(cr, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
+        chat = new Chat(cr, data, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
     }
 
     @AfterAll void stop() { cr.triggerPollers.stop(); db.close(); }
