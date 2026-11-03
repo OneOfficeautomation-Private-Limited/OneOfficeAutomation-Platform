@@ -59,7 +59,7 @@ public final class LogPackage {
 
     static String render(Object v) {
         if (v instanceof SecureString) return SecureString.MASK;
-        return com.oneofficeautomation.runner.Values.text(com.oneofficeautomation.runner.Values.toJsonable(v));
+        return com.oneofficeautomation.runner.Values.text(com.oneofficeautomation.runner.Values.toDisplay(v));
     }
 
     @Action(id = "log_variables", name = "Log variables to file", category = "Logging", capabilities = "filesystem",
@@ -76,7 +76,7 @@ public final class LogPackage {
                     description = "File encoding: utf-8, utf-16le (Unicode, written with a byte-order mark) or ansi (the runner's code page). Match the existing file when appending.") String encoding,
             @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", visibleWhen = "timestamp=true", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat,
             @Input(name = "all_of_type", type = OoaType.STRING, required = false,
-                    enumValues = {"", "all", "String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"},
+                    enumValues = {"", "all", "String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any", "Time", "TimeSpan", "Image", "Binary"},
                     description = "Also write every variable of the bot declared with this type (all = every variable), in declaration order, after the ones listed in variables. Credentials are written as ****.") String allOfType) {
         String type = allOfType == null || allOfType.isBlank() ? null : allOfType.trim();
         if ((variables == null || variables.isEmpty()) && type == null)
@@ -93,7 +93,7 @@ public final class LogPackage {
             if (!type.equalsIgnoreCase("all")) {
                 for (OoaType t : OoaType.values()) if (t.flowName().equalsIgnoreCase(type)) want = t.flowName();
                 if (want == null) throw new ActionException("LOG.BAD_TYPE", "Unknown variable type '" + allOfType + "'",
-                        "Use all, String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential or Any.");
+                        "Use all, String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential, Any, Time, TimeSpan, Image or Binary.");
             }
             for (var e : fv.declared().entrySet()) {
                 if (rows.containsKey(e.getKey())) continue;
@@ -148,7 +148,7 @@ public final class LogPackage {
         String lvl = level(level);
         String text = message == null ? "" : message;
         if (source != null && !source.isBlank()) text = "[" + source.strip().replaceAll("[\r\n]+", " ") + "] " + text;
-        if (details != null && !details.isEmpty()) text += " " + JsonLite.write(com.oneofficeautomation.runner.Values.toJsonable(details));
+        if (details != null && !details.isEmpty()) text += " " + JsonLite.write(com.oneofficeautomation.runner.Values.toDisplay(details));
         ctx.log(lvl, text);  // ActionContext masks every secret of the run before the line leaves the action
         return Map.of();
     }

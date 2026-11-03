@@ -95,7 +95,7 @@ Other workspace item types sit beside agents: forms `*.form.json`, workflows `*.
 
 | Property | Values |
 | --- | --- |
-| `type` | `String`, `Number`, `Boolean`, `DateTime`, `List`, `Dictionary`, `Table`, `Record`, `File`, `Window`, `UIElement`, `Credential`, `Any` (`OoaType`) |
+| `type` | `String`, `Number`, `Boolean`, `DateTime`, `List`, `Dictionary`, `Table`, `Record`, `File`, `Window`, `UIElement`, `Credential`, `Any`, `Time`, `TimeSpan`, `Image`, `Binary` (`OoaType`) |
 | `direction` | `input` (supplied by the caller), `output` (returned), `in_out` (both), `local` (default) |
 | `required` | For inputs: missing gives `RUN.INPUT_MISSING` |
 | `default` | Starting value (deep-copied for each run) |
@@ -108,6 +108,23 @@ Rules enforced by the engine (`Runner.Scope`):
 - Values are converted to the declared type on every assignment (`Values.coerce`). Numbers are always `BigDecimal`
   (expressions use `MathContext.DECIMAL128`), so money arithmetic is exact.
 - A Table is `{"columns": [...], "rows": [[...], ...]}`.
+- **Time** (`LocalTime`) is a time of day without a date or zone. It is read from `14:30`, `14:30:05`, `9:05`, `2:30 PM`
+  or a DateTime (its time of day); its text and JSON form is `14:30:00`.
+- **TimeSpan** (`Duration`) is a length of time and may be negative. It is read from ISO 8601 (`PT2H15M`, `P1DT3H`,
+  `-PT30M`), a clock (`01:30:00`, `1.02:03:04` with days), units (`2h 15m`, `1d 3h`, `90s`, `1.5 hours`) or a number of
+  seconds; its text and JSON form is ISO 8601 (`PT2H15M`, `-PT30M`, `PT0S`).
+- **Binary** (`sdk.BinaryValue`) is bytes held in memory with a media type. It is read from a file path (relative paths
+  from the run's working folder; at most 256 MB), Base64 text, a `data:` URI, a list of byte values (0 to 255), an Image,
+  or its JSON form `{"$binary": "<Base64>", "mime": "text/plain"}`.
+- **Image** (`sdk.ImageValue`) is a picture held in memory as PNG bytes with its width and height. It is read from a
+  picture file (PNG, JPEG, BMP or GIF; other formats are converted to PNG once), a Binary holding a picture, Base64 text
+  or `{"$binary": ...}`; its JSON form adds `"mime": "image/png", "width": w, "height": h`. An Image can be given
+  directly to the `image` and `template` file fields of the Image commands (and the `image` field of the Word and PowerPoint picture commands): the runner writes it to
+  a temporary PNG that is deleted when the run ends. Any other file field refuses it with `VAR.TYPE_MISMATCH`.
+- Image and Binary values are never written out in full in events, logs or the debugger: `Values.safeRepr` and
+  `Values.toDisplay` show `Image 640x480` or `Binary 1.2 KB`. Run outputs (`RunResult.toMap`) carry the JSON form, which
+  a variable of the same type reads back unchanged. The text of an Image or Binary (`${pic}`, a String variable) is
+  the same summary; use `toBase64()` for the bytes.
 - Supplying an input that is not declared as `input` or `in_out` fails with `RUN.INPUT_UNKNOWN`.
 - An input given as `{"$credential": "folder/credential/attribute"}` is resolved from the vault before the run starts
   and becomes a `SecureString`.
@@ -192,9 +209,28 @@ and no method call on objects. The functions (`Functions`) are:
 
 `upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean
 round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch
-regexExtract jsonParse jsonStringify if`
+regexExtract jsonParse jsonStringify if time timeSpan timeBetween totalSeconds totalMinutes totalHours totalDays
+imageWidth imageHeight binaryLength toBase64 fromBase64`
 
 Date units are seconds, minutes, hours, days and weeks. Bad syntax raises `EXPR.INVALID`.
+
+Time and TimeSpan in expressions (the operators on the older types are unchanged):
+
+| Expression | Result |
+| --- | --- |
+| `$date + $span`, `$date - $span`, `dateAdd($date, $span)` | DateTime |
+| `$time + $span`, `$time - $span` | Time (wraps round midnight) |
+| `$span + $span`, `$span - $span`, `$span * 2`, `$span / 4`, `-$span` | TimeSpan |
+| `$span / $otherSpan` | Number |
+| `$time > '12:00'`, `$span < '3h'` | Boolean (text on one side is read as a Time or TimeSpan) |
+| `time('2:30 PM')`, `time(9, 5)`, `time($date)` | Time |
+| `timeSpan('2h 15m')`, `timeSpan(90, 'minutes')` | TimeSpan |
+| `timeBetween($start, $end)` | TimeSpan between two DateTimes or two Times (`$date - $date` stays an error) |
+| `totalSeconds($span)`, `totalMinutes`, `totalHours`, `totalDays` | Number |
+| `imageWidth($pic)`, `imageHeight($pic)`, `binaryLength($bytes)`, `len($bytes)` | Number |
+| `toBase64($bytes)` (also an Image, or text as UTF-8), `fromBase64('aGk=', 'text/plain')` | Text, Binary |
+
+A zero TimeSpan and an empty Binary count as false in conditions.
 
 ## 7. Conditions
 

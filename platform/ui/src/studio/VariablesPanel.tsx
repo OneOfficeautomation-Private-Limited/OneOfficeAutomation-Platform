@@ -5,7 +5,7 @@ import { Button, Dialog, Field, Icon, Menu, Select, TextArea, TextInput } from "
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
 import {
-  compatible, directionOf, GROUPS, guessType, isInput, isOutput, saveVariable, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
+  compatible, directionOf, GROUPS, guessType, isInput, isOutput, parseTime, parseTimeSpan, saveVariable, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
 } from "./variables";
 
 /**
@@ -117,6 +117,12 @@ function ValueEditor({ type, value, onChange, options }: { type: string; value: 
     onChange={(e) => { const t = e.target.value.trim(); const n = Number(t); onChange(t === "" ? undefined : Number.isFinite(n) ? n : t); }} />;
   if (type === "DateTime") return <TextInput aria-label="Default value" type="datetime-local" step="1"
     defaultValue={typeof value === "string" ? value.slice(0, 19) : ""} onChange={(e) => onChange(e.target.value ? (e.target.value.length === 16 ? e.target.value + ":00" : e.target.value) : undefined)} />;
+  if (type === "Time") return <TextInput aria-label="Default value" type="time" step="1"
+    defaultValue={typeof value === "string" ? parseTime(value) ?? value : ""} onChange={(e) => onChange(e.target.value ? parseTime(e.target.value) ?? e.target.value : undefined)} />;
+  if (type === "TimeSpan") return <TimeSpanEditor value={typeof value === "string" ? value : value === undefined ? "" : showValue(value)} onChange={onChange} />;
+  if (type === "Image" || type === "Binary") return <TextInput aria-label="Default value" defaultValue={typeof value === "string" ? value : value === undefined ? "" : plainValue(value)}
+    placeholder={type === "Image" ? "pictures/logo.png (read when the agent starts)" : "data/file.pdf or Base64 text"}
+    onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />;
   if (type === "List") return <ListEditor value={Array.isArray(value) ? value : []} onChange={(l) => onChange(l.length ? l : undefined)} />;
   if (type === "Dictionary" || type === "Record") return <PairsEditor value={value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}}
     onChange={(o) => onChange(Object.keys(o).length ? o : undefined)} />;
@@ -126,6 +132,19 @@ function ValueEditor({ type, value, onChange, options }: { type: string; value: 
   return <TextInput aria-label="Default value" defaultValue={value === undefined ? "" : showValue(value)}
     placeholder={type === "File" ? "data/orders.csv or C:\\Folder\\file.xlsx" : type === "Window" ? "Window title, e.g. *Notepad" : ""}
     onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />;
+}
+
+/** A length of time typed as people write it (2h 15m, 01:30:00); kept as ISO 8601 (PT2H15M), which the runner reads. */
+function TimeSpanEditor({ value, onChange }: { value: string; onChange: (v: unknown) => void }) {
+  const [text, setText] = useState(value);
+  const iso = text.trim() ? parseTimeSpan(text) : undefined;
+  return (
+    <div className="st-ve">
+      <TextInput aria-label="Default value" value={text} placeholder="2h 15m, 1d 3h, 01:30:00 or PT2H15M"
+        onChange={(e) => { const t = e.target.value; setText(t); onChange(t.trim() === "" ? undefined : parseTimeSpan(t) ?? t); }} />
+      {text.trim() !== "" && <span className={iso ? "st-muted" : "st-error"} role={iso ? undefined : "alert"}>{iso ? "Saved as " + iso : "Not a length of time: write it like 2h 15m or 01:30:00."}</span>}
+    </div>
+  );
 }
 
 function ListEditor({ value, onChange }: { value: unknown[]; onChange: (v: unknown[]) => void }) {

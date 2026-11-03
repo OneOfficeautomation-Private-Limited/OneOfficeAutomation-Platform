@@ -11,13 +11,13 @@ The production platform is Java 21; it must pass the same conformance suite.
 - [Conformance suite](../contracts/conformance/README.md): language-neutral cases every Runner must pass
 
 ## Writing a Flow (rules an LLM must follow)
-- Every variable used as `$name` must be declared in `variables` with a type: String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential, Any
+- Every variable used as `$name` must be declared in `variables` with a type: String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential, Any, Time (14:30:05), TimeSpan (ISO 8601 such as PT2H15M; also read from 2h 15m or 01:30:00), Image (picture in memory; JSON {"$binary": Base64, "mime": "image/png", "width", "height"}), Binary (bytes in memory; JSON {"$binary": Base64, "mime"})
 - Argument values: literal; `"$a.b[0]"` reference (keeps type); `"text ${name} ${len($xs)}"` interpolation; `{"expr": "$a * 2"}` expression; `{"literal": "$x"}` escape
 - Conditions: expression string, `{"op": "gt", "left": ..., "right": ...}`, `{"all": [...]}`, `{"any": [...]}`, `{"not": ...}`, or `{"condition": "package/condition", "args": {...}}`
 - Containers: `core/if` (children, elseIf, else), `core/loop` (iterator times|while|list|dictionary|table_rows|package/iterator, `as`, `index`), `core/try` (children, catch[codes, as], finally), `core/step`, `core/parallel`
 - Action outputs map to variables with `"out": {"outputName": "variableName"}`
 - Credentials are passed as `{"$credential": "locker/credential/attribute"}`; they can never be interpolated or copied to text
-- Expression functions: upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch regexExtract jsonParse jsonStringify if
+- Expression functions: upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch regexExtract jsonParse jsonStringify if time timeSpan timeBetween totalSeconds totalMinutes totalHours totalDays imageWidth imageHeight binaryLength toBase64 fromBase64 (DateTime or Time + TimeSpan works with + and -; the time between two dates is timeBetween(a, b))
 - Run `ooa manifest` for every action's inputs, outputs and descriptions; run `ooa validate FILE` before publishing
 
 ## Agents

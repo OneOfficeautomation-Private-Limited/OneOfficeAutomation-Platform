@@ -181,11 +181,15 @@ public final class Runner {
     /** Bot-level variable scope. Child bots get a new scope (inputs/outputs only). */
     /** Names reserved for built-in, read-only variables: $sys.* (system values) and $global.* (global values). */
     public static final Set<String> RESERVED = Set.of("sys", "global");
+    /** File fields that read a picture: an Image variable may be given to them directly. */
+    static final Set<String> PICTURE_INPUTS = Set.of("image", "template");
 
     static final class Scope {
         final Map<String, String> types = new LinkedHashMap<>();
         final Map<String, Object> values = new HashMap<>();
         final Map<String, java.util.function.Supplier<Object>> builtins = new HashMap<>();
+        /** Where relative file paths given to Image and Binary variables are read from (the run's working folder). */
+        Path baseDir;
 
         synchronized Object get(String name) {
             java.util.function.Supplier<Object> b = builtins.get(name);
@@ -199,7 +203,7 @@ public final class Runner {
             if (builtins.containsKey(name)) throw new OoaException("VAR.READ_ONLY", "'" + name + "' is a built-in variable and cannot be changed",
                     "Assign to one of your own variables instead.");
             if (!types.containsKey(name)) throw new OoaException("VAR.UNDECLARED", "Variable '" + name + "' is not declared");
-            Object v = Values.coerce(value, types.get(name), name);
+            Object v = Values.coerce(value, types.get(name), name, baseDir);
             values.put(name, v);
             return v;
         }
@@ -212,6 +216,9 @@ public final class Runner {
         long deadlineNanos;
         final int depth;
         final Scope scope = new Scope();
+        { scope.baseDir = workDir; }
+        /** Picture files written for Image values given to the Image commands' picture fields; deleted when the run ends. */
+        final List<Path> tempFiles = new CopyOnWriteArrayList<>();
         final Map<String, Object> requires;
         Map<String, Object> sessions = new ConcurrentHashMap<>();
         boolean borrowedSessions;
@@ -410,6 +417,8 @@ public final class Runner {
             } finally {
                 if (!borrowedSessions) closeSessions();
                 workers.forEach(ExecutorService::shutdownNow);
+                for (Path p : tempFiles) { try { java.nio.file.Files.deleteIfExists(p); } catch (java.io.IOException ignored) { } }
+                tempFiles.clear();
             }
             Map<String, Object> outputs = new LinkedHashMap<>();
             for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
@@ -617,7 +626,7 @@ public final class Runner {
                     synchronized (run.scope) {
                         for (String name : run.scope.types.keySet()) {
                             Object v = run.scope.values.get(name);
-                            out.put(name, v instanceof SecureString || (v instanceof String str && run.secrets.contains(str)) ? SecureString.MASK : Values.toJsonable(v));
+                            out.put(name, v instanceof SecureString || (v instanceof String str && run.secrets.contains(str)) ? SecureString.MASK : Values.toDisplay(v));
                         }
                     }
                     return out;
@@ -1185,8 +1194,9 @@ public final class Runner {
                 if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
                 else if (v != null) refuseVaultReference(in.name(), v, 0);
                 if (v != null) {
+                    if (in.type() == OoaType.FILE && v instanceof com.oneofficeautomation.sdk.ImageValue img && PICTURE_INPUTS.contains(in.name())) v = pictureFile(img);
                     if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {
-                        try { v = Values.coerce(v, in.type().flowName(), in.name()); }
+                        try { v = Values.coerce(v, in.type().flowName(), in.name(), workDir); }
                         catch (OoaException e) {
                             // name the step's input, not a variable: "Input 'values' expects Dictionary, got List"
                             if (!"VAR.TYPE_MISMATCH".equals(e.code())) throw e;
@@ -1371,9 +1381,22 @@ public final class Runner {
             }
         }
 
+        /** An Image given to a picture field (which takes a file): written once to a temporary PNG, deleted when the run ends. */
+        String pictureFile(com.oneofficeautomation.sdk.ImageValue img) {
+            try {
+                Path p = java.nio.file.Files.createTempFile("ooa-image-", ".png");
+                tempFiles.add(p);
+                java.nio.file.Files.write(p, img.bytes());
+                return p.toString();
+            } catch (java.io.IOException e) {
+                throw new OoaException("ACTION.INPUT_INVALID", "Cannot hand the Image to the command as a file: " + e.getMessage());
+            }
+        }
+
         /** Package results may use int/long/double; the runtime model uses BigDecimal. SecureString is kept. */
         Object normalise(Object v) {
-            if (v instanceof SecureString || v instanceof java.time.LocalDateTime) return v;
+            if (v instanceof SecureString || v instanceof java.time.LocalDateTime || v instanceof java.time.LocalTime || v instanceof java.time.Duration
+                    || v instanceof com.oneofficeautomation.sdk.ImageValue || v instanceof com.oneofficeautomation.sdk.BinaryValue) return v;
             return Values.toJsonable(v);
         }
     }

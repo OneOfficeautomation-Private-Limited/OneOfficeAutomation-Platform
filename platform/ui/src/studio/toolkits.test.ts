@@ -38,6 +38,8 @@ describe("steps view", () => {
     expect(conditionText({ op: "eq", left: "$ok", right: true })).toBe("$ok is true");
     expect(plainValue({ expr: "toString(round($total, 2))" })).toBe("round($total, 2)");
     expect(plainValue({ source: "credential", name: "sap/password" })).toBe("credential sap/password");
+    expect(plainValue({ $binary: "iVBO".repeat(500), mime: "image/png", width: 3, height: 2 })).toBe("Image 3x2");
+    expect(plainValue({ $binary: "aGk=", mime: "application/octet-stream" })).toBe("Binary 2 bytes");
     expect(summarize({ id: "i", action: "core/if", args: { condition: { op: "gt", left: "$days", right: "$policy.window_days" } } }))
       .toBe("$days is greater than $policy.window_days");
   });

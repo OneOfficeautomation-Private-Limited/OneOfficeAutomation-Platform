@@ -159,15 +159,23 @@ Variables hold values while the agent runs. Open the **Variables** panel from th
 | Number | A whole or decimal number |
 | Boolean | True or false |
 | DateTime | A date and time |
+| Time | A time of day without a date, such as 14:30:05. Type 14:30 or 2:30 PM |
+| TimeSpan | A length of time, such as 2h 15m, 1d 3h or 01:30:00 (kept as PT2H15M). It can be negative |
 | List | Ordered items |
 | Dictionary | Named keys and values |
 | Table | Rows and columns |
 | Record | One row of named values |
 | File | A file or folder path |
+| Image | A picture held in memory (shown as Image 640x480). Its default is a picture file, read when the agent starts. Give it straight to the picture fields of the Image commands |
+| Binary | Bytes held in memory, such as a file's contents (shown as Binary 1.2 KB). Its default is a file path or Base64 text |
 | Window | An application window |
 | UIElement | An element on screen or in a web page |
 | Credential | A secret from the vault |
 | Any | Any kind of value |
+
+A Time default is picked with a time field; a TimeSpan default is typed as you would say it and shows what it is saved as.
+Add a TimeSpan to a date or a time in a calculation (`$start + $duration`), and use `timeBetween($a, $b)` for the
+time between two dates.
 
 Lists, dictionaries, records and tables get small editors (**+ Item**, **+ Key**, **+ Column**, **+ Row**) with
 **Edit as JSON** for when you prefer to type.
