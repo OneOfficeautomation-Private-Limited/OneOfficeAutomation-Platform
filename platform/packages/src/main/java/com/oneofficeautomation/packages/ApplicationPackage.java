@@ -362,7 +362,7 @@ public final class ApplicationPackage {
         return Map.of("exit_code", BigDecimal.valueOf(code));
     }
 
-    @Condition(id = "is_running",name = "Program is running", description = "True when a process with this program file name is running.")
+    @Condition(id = "is_running", name = "Program is running", description = "True when a process with this program file name is running.")
     public boolean isRunning(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = "Program file name, e.g. EXCEL.EXE.") String name) {
         return ProcessHandle.allProcesses().anyMatch(h -> matches(h, name));
     }
