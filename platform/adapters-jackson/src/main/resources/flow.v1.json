@@ -52,6 +52,7 @@
       }
     },
     "agent": {"$ref": "#/$defs/agent"},
+    "chat": {"$ref": "#/$defs/chat"},
     "ui": {
       "type": "object",
       "description": "Studio layout (canvas positions keyed by step id). Kept apart from logic so diffs and AI generation stay clean. Ignored by the Runner."
@@ -141,6 +142,18 @@
         "timeoutSeconds": {"type": "number", "exclusiveMinimum": 0, "description": "Overrides the action's manifest timeout."},
         "connection": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$", "description": "Name of a saved connection (Command Center or connections.json) that supplies this step's address and sign-in inputs."},
         "continueOnError": {"type": "boolean", "default": false}
+      }
+    },
+    "chat": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How people reach this automation in One Chat (plain-language requests in One Command Center). Ignored by the Runner. Inputs come from the input variables; secrets (Credential) are never asked for.",
+      "properties": {
+        "risk": {"enum": ["R0", "R1", "R2", "R3"], "default": "R2", "description": "R0 runs at once; R1 and R2 wait for the person's yes on a summary; R3 also needs a second person's approval in the Task inbox."},
+        "examples": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Things people say to ask for it, e.g. 'post today's invoices for Acme'. The rules mode matches requests against these."},
+        "aliases": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Short names that always mean this automation, e.g. 'AP run'."},
+        "not_for": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Requests that sound similar but belong to another automation, e.g. 'issue a credit note'."},
+        "prompts": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}, "description": "The question to ask for a missing input, by input variable name."}
       }
     },
     "agent": {

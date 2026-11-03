@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 /**
  * Deterministic One Chat mode: no model, nothing leaves the Command Center. Picks the agent whose name, examples or
  * aliases best match the words, fills its inputs from enums, dates, numbers and yes/no answers, and asks for whatever
- * is still missing (the ui.chat prompt, or the input's description).
+ * is still missing (the flow's chat prompt, or the input's description).
  */
 final class DeterministicChat implements ChatEngine {
     static final String ID = "deterministic";

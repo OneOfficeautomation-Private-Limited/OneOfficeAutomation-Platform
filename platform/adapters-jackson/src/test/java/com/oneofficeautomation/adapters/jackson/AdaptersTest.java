@@ -36,6 +36,17 @@ class AdaptersTest {
         assertFalse(problems.isEmpty());
     }
 
+    /** The One Chat block: risk R0 to R3, lists of phrases, prompts by input name, nothing else. */
+    @Test void schemaChecksTheChatBlock() {
+        var v = new NetworkntFlowSchemaValidator();
+        Map<String, Object> chat = Map.of("risk", "R2", "examples", List.of("post today's invoices for Acme"), "aliases", List.of("AP run"),
+                "not_for", List.of("issue a credit note"), "prompts", Map.of("vendor", "Which vendor should I process?"));
+        assertEquals(List.of(), v.validate(Map.of("kind", "TaskBot", "id", "x", "name", "X", "steps", List.of(), "chat", chat)));
+        assertFalse(v.validate(Map.of("kind", "TaskBot", "id", "x", "name", "X", "steps", List.of(), "chat", Map.of("risk", "R9"))).isEmpty(), "risk is R0 to R3");
+        assertFalse(v.validate(Map.of("kind", "TaskBot", "id", "x", "name", "X", "steps", List.of(), "chat", Map.of("colour", "blue"))).isEmpty(), "no unknown fields");
+        assertFalse(v.validate(Map.of("kind", "TaskBot", "id", "x", "name", "X", "steps", List.of(), "chat", Map.of("examples", "one"))).isEmpty(), "examples is a list");
+    }
+
     @SuppressWarnings("unchecked")
     @Test void everyExampleFlowValidates() throws Exception {
         FlowValidator v = new FlowValidator(FirstPartyPackages.registry(), new NetworkntFlowSchemaValidator());

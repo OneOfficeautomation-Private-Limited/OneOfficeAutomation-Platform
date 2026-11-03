@@ -36,7 +36,8 @@ public interface ChatEngine {
 
     /**
      * An agent as One Chat sees it: its production flow's name, description and inputs, plus the optional
-     * {@code ui.chat} block (examples, aliases, not_for, risk, prompts) that helps people reach it in plain words.
+     * {@code chat} block of the flow (examples, aliases, not_for, risk, prompts; OOA Flow v1 schema) that helps people
+     * reach it in plain words. Flows written before that field keep working with the same block under {@code ui.chat}.
      *
      * @param risk R0 runs at once; R1 and R2 need the person's yes; R3 also needs a second person's approval in the Task inbox
      */
@@ -50,7 +51,8 @@ public interface ChatEngine {
         /** Builds the chat view of a production flow. Agents without a risk class are treated as R2: always confirm. */
         @SuppressWarnings("unchecked")
         public static ChatBot of(String path, Map<String, Object> flow) {
-            Map<String, Object> chat = flow.get("ui") instanceof Map<?, ?> ui && ui.get("chat") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
+            Map<String, Object> chat = flow.get("chat") instanceof Map<?, ?> c ? (Map<String, Object>) c
+                    : flow.get("ui") instanceof Map<?, ?> ui && ui.get("chat") instanceof Map<?, ?> old ? (Map<String, Object>) old : Map.of();
             String risk = chat.get("risk") instanceof String r && RISKS.contains(r) ? r : "R2";
             Map<String, String> prompts = new LinkedHashMap<>();
             if (chat.get("prompts") instanceof Map<?, ?> p) p.forEach((k, v) -> prompts.put(String.valueOf(k), String.valueOf(v)));

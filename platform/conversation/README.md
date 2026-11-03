@@ -34,9 +34,26 @@ tested on its own (`ConversationTest` uses an in-memory host) and could later be
 ## Host settings read through `ChatPlatform.setting`
 
 `chat_mode` (deterministic, llm, hybrid), `chat_connection` (One Model Connection; blank = the person's first allowed one).
+`chat_mode_by_role` (one `role=mode` per line; the person's main role decides; anyone not listed gets `chat_mode`).
 The Command Center also uses `chat_runner` and `chat_approvers`.
 
 ## Making an agent easy to reach in chat
 
-Add a `chat` block under the flow's `ui`: `examples`, `aliases`, `not_for`, `risk` (R0 to R3; R2 when absent) and
-`prompts` (the question to ask per input).
+Add a top-level `chat` block to the flow (part of the OOA Flow v1 schema): `examples`, `aliases`, `not_for`,
+`risk` (R0 to R3; R2 when absent) and `prompts` (the question to ask per input). Flows written before that field
+may keep the same block under `ui.chat`.
+
+```json
+"chat": {
+  "risk": "R2",
+  "examples": ["post today's invoices for Acme"],
+  "aliases": ["AP run"],
+  "not_for": ["issue a credit note"],
+  "prompts": {"vendor": "Which vendor should I process?"}
+}
+```
+
+## Languages
+
+Replies follow the person's console language (en, de, fr, es, ja; `Messages`). Yes/no and cancel words are understood
+in all of them. Agent names, codes and values are never translated.

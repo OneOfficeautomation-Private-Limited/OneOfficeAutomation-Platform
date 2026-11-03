@@ -50,7 +50,7 @@ class ChatTest {
     static Map<String, Object> flow(String id, String name, String description, String variables, String chat) {
         return (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"description\":\"" + description + "\","
                 + "\"variables\":" + variables.replaceFirst("^\\[", "[{\"name\":\"note\",\"type\":\"String\",\"direction\":\"output\"}" + (variables.equals("[]") ? "" : ",")) + ","
-                + "\"steps\":[{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"note\",\"value\":\"ok\"}}],\"ui\":{\"chat\":" + chat + "}}");
+                + "\"steps\":[{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"note\",\"value\":\"ok\"}}],\"chat\":" + chat + "}");
     }
 
     long runs(String user) { return ((Number) db.one("SELECT COUNT(*) AS n FROM runs WHERE requested_by = ?", user).get("n")).longValue(); }
@@ -176,6 +176,15 @@ class ChatTest {
         assertEquals(Map.of("ok", true, "outcome", "rejected"), cr.workflows.complete(rita, task, "rejected", Map.of(), "not this week", null));
         assertEquals(before, runs("jane"));
         assertTrue(cr.workflows.tasks(jane, "open", false).stream().anyMatch(t -> String.valueOf(t.get("description")).contains("not this week")));
+    }
+
+    @Test void olderAgentsWithUiChatStillWork() {
+        @SuppressWarnings("unchecked") Map<String, Object> old = (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"old_style\",\"name\":\"Old style report\","
+                + "\"description\":\"Read-only.\",\"variables\":[{\"name\":\"note\",\"type\":\"String\",\"direction\":\"output\"}],"
+                + "\"steps\":[{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"note\",\"value\":\"ok\"}}],"
+                + "\"ui\":{\"chat\":{\"examples\":[\"old style status report\"],\"risk\":\"R0\"}}}");
+        cr.checkin(admin, "Finance/Old style.flow.json", old, "v1", true, null);
+        assertEquals("started", chat.message(admin, null, "old style status report", null).get("kind"), "ui.chat still works for older agents");
     }
 
     @Test void perRoleModesAreChecked() {
