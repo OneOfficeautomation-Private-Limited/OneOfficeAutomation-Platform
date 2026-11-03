@@ -17,7 +17,7 @@ The production platform is Java 21; it must pass the same conformance suite.
 - Containers: `core/if` (children, elseIf, else), `core/loop` (iterator times|while|list|dictionary|table_rows|package/iterator, `as`, `index`), `core/try` (children, catch[codes, as], finally), `core/step`, `core/parallel`
 - Action outputs map to variables with `"out": {"outputName": "variableName"}`
 - Credentials are passed as `{"$credential": "locker/credential/attribute"}`; they can never be interpolated or copied to text
-- Expression functions: upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch regexExtract jsonParse jsonStringify if
+- Expression functions: upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch regexExtract jsonParse jsonStringify if guid first last union intersection base64Encode base64Decode uriEncode uriDecode
 - Run `ooa manifest` for every action's inputs, outputs and descriptions; run `ooa validate FILE` before publishing
 
 ## Agents

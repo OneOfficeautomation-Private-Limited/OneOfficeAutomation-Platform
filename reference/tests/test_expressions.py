@@ -7,7 +7,7 @@ from ooa.sdk.errors import ExpressionError, VariableError
 from ooa.sdk.types import SecureString
 
 VARS = {"a": Decimal(2), "s": "Acme Ltd", "inv": {"total": Decimal("100.50"), "lines": [{"q": Decimal(3)}]},
-        "pw": SecureString("hunter2"), "none": None}
+        "pw": SecureString("hunter2"), "none": None, "acc": "héllo", "url": "a b&c/é"}
 look = VARS.get
 
 
@@ -27,6 +27,18 @@ look = VARS.get
     ("if($a > 1, 'big', 'small')", "big"),
     ("$missing.deep.path", None),
     ("regexExtract('INV-2026-0042', '(\\\\d{4})$', 1)", "0042"),
+    # gap G05: the same results as the Java runner
+    ("first([1, 2, 3])", Decimal(1)),
+    ("last([1, 2, 3])", Decimal(3)),
+    ("first('Acme')", "A"),
+    ("last([])", None),
+    ("union([1, 2], [2, 3])", [Decimal(1), Decimal(2), Decimal(3)]),
+    ("intersection([1, 2, 2], [2, 3])", [Decimal(2)]),
+    ("base64Encode($acc)", "aMOpbGxv"),
+    ("base64Decode('aMOpbGxv')", "héllo"),
+    ("uriEncode($url)", "a%20b%26c%2F%C3%A9"),
+    ("uriDecode('a%20b%26c+d')", "a b&c+d"),
+    ("len(guid())", Decimal(36)),
 ])
 def test_evaluate(src, expected):
     assert evaluate(src, look) == expected

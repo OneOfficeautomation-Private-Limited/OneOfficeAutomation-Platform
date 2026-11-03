@@ -326,6 +326,59 @@ def _regex_extract(s, pattern, group=0):
     return m.group(int(to_number(group))) if m else None
 
 
+def _items(v):
+    if v is None:
+        return []
+    if isinstance(v, dict) and "rows" in v and "columns" in v:
+        return list(v["rows"])
+    return list(v) if isinstance(v, (list, tuple)) else [v]
+
+
+def _edge(v, first):
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return (v[0] if first else v[-1]) if v else None
+    items = _items(v)
+    return (items[0] if first else items[-1]) if items else None
+
+
+def _union(a, b):
+    out = []
+    for x in _items(a) + _items(b):
+        if x not in out:
+            out.append(x)
+    return out
+
+
+def _intersection(a, b):
+    other = _items(b)
+    out = []
+    for x in _items(a):
+        if x in other and x not in out:
+            out.append(x)
+    return out
+
+
+def _b64decode(s):
+    import base64
+    import binascii
+    try:
+        return base64.b64decode(re.sub(r"\s", "", _s(s)), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        raise ExpressionError("base64Decode(): the text is not Base64")
+
+
+def _uri_encode(s):
+    from urllib.parse import quote
+    return quote(_s(s), safe="-_.!~*'()")
+
+
+def _uri_decode(s):
+    from urllib.parse import unquote
+    return unquote(_s(s))
+
+
 FUNCTIONS: dict[str, Callable] = {
     "upper": lambda s: _s(s).upper(),
     "lower": lambda s: _s(s).lower(),
@@ -363,6 +416,16 @@ FUNCTIONS: dict[str, Callable] = {
     "jsonParse": lambda s: json.loads(_s(s), parse_float=Decimal, parse_int=Decimal),
     "jsonStringify": lambda v: json.dumps(to_jsonable(v)),
     "if": lambda c, a, b: a if truthy(c) else b,
+    # gap G05 (3 Nov 2026), as the Java runner
+    "guid": lambda: str(__import__("uuid").uuid4()),
+    "first": lambda v: _edge(v, True),
+    "last": lambda v: _edge(v, False),
+    "union": _union,
+    "intersection": _intersection,
+    "base64Encode": lambda s: __import__("base64").b64encode(_s(s).encode("utf-8")).decode("ascii"),
+    "base64Decode": _b64decode,
+    "uriEncode": _uri_encode,
+    "uriDecode": _uri_decode,
 }
 
 
