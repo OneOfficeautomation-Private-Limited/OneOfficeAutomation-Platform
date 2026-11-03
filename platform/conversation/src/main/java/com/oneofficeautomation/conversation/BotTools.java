@@ -1,4 +1,4 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.conversation;
 
 import java.util.*;
 
@@ -7,12 +7,18 @@ import java.util.*;
  * MCP server and One Chat, so both offer an agent the same way. Credential inputs are left out: secrets never come
  * from an assistant.
  */
-final class BotTools {
+public final class BotTools {
     private BotTools() {}
+
+    /** Tool name from an agent path: Finance/Invoice worker.flow.json -> Finance_Invoice_worker (at most 64 characters). */
+    public static String toolName(String path) {
+        String n = path.replaceAll("\\.flow\\.json$", "").replaceAll("[^A-Za-z0-9_-]+", "_").replaceAll("_+", "_");
+        return n.length() > 64 ? n.substring(0, 64) : n;
+    }
 
     /** The input and in/out variables of a flow, in declared order, without Credential ones. */
     @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> inputs(Map<String, Object> flow) {
+    public static List<Map<String, Object>> inputs(Map<String, Object> flow) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
             if (!(o instanceof Map<?, ?> v) || !Arrays.asList("input", "in_out").contains(v.get("direction"))) continue;
@@ -23,12 +29,12 @@ final class BotTools {
     }
 
     /** Whether the run is rejected without this input: required and no default. */
-    static boolean required(Map<String, Object> variable) {
+    public static boolean required(Map<String, Object> variable) {
         return Boolean.TRUE.equals(variable.get("required")) && variable.get("default") == null;
     }
 
     /** JSON Schema type of an OOA type. */
-    static String jsonType(String ooaType) {
+    public static String jsonType(String ooaType) {
         return switch (ooaType) {
             case "Number" -> "number";
             case "Boolean" -> "boolean";
@@ -39,10 +45,10 @@ final class BotTools {
     }
 
     /** The JSON Schema of a flow's inputs, as MCP tools and model tool calls expect it. */
-    static Map<String, Object> inputSchema(Map<String, Object> flow) { return schema(inputs(flow)); }
+    public static Map<String, Object> inputSchema(Map<String, Object> flow) { return schema(inputs(flow)); }
 
     /** The JSON Schema of these input variables. */
-    static Map<String, Object> schema(List<Map<String, Object>> inputs) {
+    public static Map<String, Object> schema(List<Map<String, Object>> inputs) {
         Map<String, Object> props = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
         for (Map<String, Object> v : inputs) {

@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.conversation.BotTools;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -51,10 +52,7 @@ final class McpServer {
     }
 
     /** Tool name from an agent path: Finance/Invoice worker.flow.json -> Finance_Invoice_worker. */
-    static String toolName(String path) {
-        String n = path.replaceAll("\\.flow\\.json$", "").replaceAll("[^A-Za-z0-9_-]+", "_").replaceAll("_+", "_");
-        return n.length() > 64 ? n.substring(0, 64) : n;
-    }
+    static String toolName(String path) { return BotTools.toolName(path); }
 
     private List<String> exposed() {
         String s = String.valueOf(cr.platform.setting("mcp_agents")).trim();

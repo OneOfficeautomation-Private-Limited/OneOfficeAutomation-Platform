@@ -1,6 +1,6 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.conversation;
 
-import com.oneofficeautomation.controlroom.ChatEngine.*;
+import com.oneofficeautomation.conversation.ChatEngine.*;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -35,7 +35,7 @@ final class DeterministicChat implements ChatEngine {
     /** Inputs filled so far for one agent, and the input asked for. */
     record Fill(String path, Map<String, Object> inputs, String awaiting, double confidence, int tries) {}
 
-    @Override public Result decide(Chat.Session s, List<ChatBot> bots, String text) {
+    @Override public Result decide(ChatSession s, List<ChatBot> bots, String text) {
         if (s.state.get(STATE) instanceof Fill f) {
             Optional<Result> r = continueFill(s, bots, f, text);
             if (r.isPresent()) return r.get();
@@ -49,7 +49,7 @@ final class DeterministicChat implements ChatEngine {
         return next(s, top.bot, extractAll(text, top.bot), top.score);
     }
 
-    private Optional<Result> continueFill(Chat.Session s, List<ChatBot> bots, Fill f, String text) {
+    private Optional<Result> continueFill(ChatSession s, List<ChatBot> bots, Fill f, String text) {
         if (CANCEL.contains(text.trim().toLowerCase(Locale.ROOT))) { s.state.remove(STATE); return Optional.of(new Reply("OK, I've dropped that request.")); }
         ChatBot bot = bots.stream().filter(b -> b.path().equals(f.path)).findFirst().orElse(null);
         if (bot == null) return Optional.empty();
@@ -68,7 +68,7 @@ final class DeterministicChat implements ChatEngine {
         return Optional.of(next(s, bot, inputs, f.confidence));
     }
 
-    private Result next(Chat.Session s, ChatBot bot, Map<String, Object> inputs, double confidence) {
+    private Result next(ChatSession s, ChatBot bot, Map<String, Object> inputs, double confidence) {
         List<String> missing = missing(bot, inputs);
         if (missing.isEmpty()) { s.state.remove(STATE); return new Proposal(bot.path(), inputs, confidence, ID); }
         String field = missing.get(0);

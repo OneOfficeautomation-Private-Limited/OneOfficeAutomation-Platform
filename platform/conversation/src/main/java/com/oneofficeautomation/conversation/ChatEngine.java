@@ -1,19 +1,19 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.conversation;
 
 import java.util.*;
 
 /**
  * One conversational mode of One Chat: deterministic (no model), a self-hosted model or a frontier model. Every mode
- * returns the same small result, so the policy in {@link Chat} (permissions, confirmation, starting the run) never
- * depends on the mode. An engine only decides; it never starts anything.
+ * returns the same small result, so the rules in {@link Conversation} (confirmation, approval, starting the run) never
+ * depend on the mode. An engine only decides; it never starts anything.
  */
-interface ChatEngine {
+public interface ChatEngine {
 
-    /** Stable id: deterministic, oss-llm, frontier, hybrid. */
+    /** Stable id: deterministic, llm, hybrid. */
     String id();
 
     /** Decides what to do with one message, given the agents this person may run. */
-    Result decide(Chat.Session session, List<ChatBot> bots, String text);
+    Result decide(ChatSession session, List<ChatBot> bots, String text);
 
     sealed interface Result permits Reply, Clarify, Proposal, Handoff {}
 
@@ -49,7 +49,7 @@ interface ChatEngine {
 
         /** Builds the chat view of a production flow. Agents without a risk class are treated as R2: always confirm. */
         @SuppressWarnings("unchecked")
-        static ChatBot of(String path, Map<String, Object> flow) {
+        public static ChatBot of(String path, Map<String, Object> flow) {
             Map<String, Object> chat = flow.get("ui") instanceof Map<?, ?> ui && ui.get("chat") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
             String risk = chat.get("risk") instanceof String r && RISKS.contains(r) ? r : "R2";
             Map<String, String> prompts = new LinkedHashMap<>();
@@ -80,7 +80,7 @@ interface ChatEngine {
 
         @Override public String id() { return "hybrid"; }
 
-        @Override public Result decide(Chat.Session session, List<ChatBot> bots, String text) {
+        @Override public Result decide(ChatSession session, List<ChatBot> bots, String text) {
             Result fallback = null;
             for (ChatEngine e : order(session.activeEngine)) {
                 Result r = e.decide(session, bots, text);
