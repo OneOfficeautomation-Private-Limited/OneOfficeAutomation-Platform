@@ -223,5 +223,42 @@
   {"command": "ooa.excel/unprotect_workbook", "name": "structure password still checked", "steps": [
      {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/po3.xlsx"}},
      {"action": "ooa.excel/protect_workbook", "args": {"password": "right"}},
-     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"}
+     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"},
+  {"command": "ooa.excel/copy_range", "name": "formula follows the copy", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/cr.xlsx"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": 4}}, {"action": "ooa.excel/set_formula", "args": {"cell": "B1", "formula": "A1*10"}},
+     {"action": "ooa.excel/copy_range", "args": {"range": "A1:B1", "destination": "A3"}, "out": {"range": "r"}},
+     {"action": "ooa.excel/read_formula", "args": {"cell": "B3"}, "out": {"formula": "f"}}, {"action": "ooa.excel/close"}],
+   "expect": {"r": "A3:B3", "f": "=A3*10"}},
+  {"command": "ooa.excel/copy_range", "name": "unknown paste kind", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/cr2.xlsx"}},
+     {"action": "ooa.excel/copy_range", "args": {"range": "A1", "destination": "B1", "paste": "comments"}}], "error": "FLOW.INVALID"},
+  {"command": "ooa.excel/clear_range", "name": "contents", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/cl.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["k"], "rows": [["x"], ["y"]]}}},
+     {"action": "ooa.excel/clear_range", "args": {"range": "A2:A3"}, "out": {"count": "n"}},
+     {"action": "ooa.excel/row_count", "out": {"count": "rows"}}, {"action": "ooa.excel/close"}], "expect": {"n": 2, "rows": 1}},
+  {"command": "ooa.excel/fill_range", "name": "down", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/fi.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["q", "t"], "rows": [[1, null], [2, null], [3, null]]}}},
+     {"action": "ooa.excel/set_formula", "args": {"cell": "B2", "formula": "A2*2"}},
+     {"action": "ooa.excel/fill_range", "args": {"range": "B2:B4"}, "out": {"count": "n"}},
+     {"action": "ooa.excel/get_cell", "args": {"cell": "B4"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"n": 2, "v": 6}},
+  {"command": "ooa.excel/remove_duplicates", "name": "by one column", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/du.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Vendor", "Amount"], "rows": [["Acme", 1], ["Zeta", 2], ["ACME", 3]]}}},
+     {"action": "ooa.excel/remove_duplicates", "args": {"columns": ["Vendor"]}, "out": {"count": "n", "remaining": "left"}},
+     {"action": "ooa.excel/get_all_cells", "out": {"table": "t"}}, {"action": "ooa.excel/close"}],
+   "expect": {"n": 1, "left": 2, "t": {"columns": ["Vendor", "Amount"], "rows": [["Acme", 1], ["Zeta", 2]]}}},
+  {"command": "ooa.excel/autofit_columns", "name": "every used column", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/af.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a much longer heading", "b"], "rows": [[1, 2]]}}},
+     {"action": "ooa.excel/autofit_columns", "out": {"count": "n"}}, {"action": "ooa.excel/close"}], "expect": {"n": 2}},
+  {"command": "ooa.excel/set_column_width", "name": "out of range", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/cw.xlsx"}},
+     {"action": "ooa.excel/set_column_width", "args": {"column": "A", "width": 256}}], "error": "FLOW.INVALID"},
+  {"command": "ooa.excel/set_row_height", "name": "sets", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/rh.xlsx"}},
+     {"action": "ooa.excel/set_row_height", "args": {"row": 2, "count": 3, "height": 24}},
+     {"action": "ooa.excel/close", "args": {"save": true}}], "expectFiles": {"rh.xlsx": true}}
 ]
