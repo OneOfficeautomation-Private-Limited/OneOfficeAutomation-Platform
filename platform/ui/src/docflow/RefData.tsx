@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "../components";
 import type { DocFlowApi } from "./api";
-import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, useLoad } from "./ui";
+import { Chip, Empty, FilterBar, FilterSelect, Loading, SearchBox, matches, useLoad } from "./ui";
 
 /** Reference data: master data that lookup checks use, e.g. "is this supplier known?". Uploaded as CSV or Excel. */
 export function RefData({ api }: { api: DocFlowApi }) {
@@ -13,6 +13,17 @@ export function RefData({ api }: { api: DocFlowApi }) {
   const [active, setActive] = useState<"all" | "active" | "blocked">("all");
   const [matched, setMatched] = useState<"all" | "month" | "never">("all");
   if (!tables) return <Loading />;
+  if (!tables.length) {
+    return (
+      <div className="df-page">
+        <div className="df-page-head">
+          <div><h2>Reference data</h2><p>Master data that checks look values up in, e.g. "is this supplier known?". Upload a CSV or Excel file.</p></div>
+          <span className="df-grow" /><Button kind="primary" icon="plus">Upload a table</Button>
+        </div>
+        <Empty>No tables yet. Upload a list of suppliers, purchase orders or cost centres for checks to look values up in.</Empty>
+      </div>
+    );
+  }
 
   const list = tables.filter((t) => matches(listQ, t.name, t.meta));
   const t = tables.find((x) => x.id === chosen) ?? tables[0];

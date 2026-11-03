@@ -11,7 +11,7 @@ import { ProcessPage } from "./ProcessPage";
 import { RefData } from "./RefData";
 import { Review } from "./Review";
 import { TestLab } from "./TestLab";
-import { Chip } from "./ui";
+import { Chip, DF_ERROR, reportError } from "./ui";
 
 /**
  * Document Automation in the Command Center: AI > Document Automation, with its own tabs. Screens are addressed by the
@@ -36,12 +36,15 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   { api: DocFlowApi; controlRoom?: string | null; tenants?: string[]; user?: string }) {
   const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
   const [optIn, setOptIn] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
-    const onHash = () => setRoute(parseRoute(location.hash));
+    const onHash = () => { setRoute(parseRoute(location.hash)); setError(""); };
+    const onError = (e: Event) => setError((e as CustomEvent<string>).detail);
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener(DF_ERROR, onError);
+    return () => { window.removeEventListener("hashchange", onHash); window.removeEventListener(DF_ERROR, onError); };
   }, []);
-  useEffect(() => { void api.engines().then((e) => setOptIn(e.routing.cloudOptIn)); }, [api, route]);
+  useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route]);
 
   const reviewing = route.tab === "review";
   const crumb = reviewing ? "Review" : route.process ? "Process" : TABS.find((t) => t.tab === route.tab)!.label;
@@ -57,12 +60,15 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
           <span className="st-crumb-current">{crumb}</span>
         </nav>
         <div className="st-top-actions">
-          <label className="df-filter" style={{ color: "var(--ui-frame-text-2)" }}>
-            <span style={{ fontWeight: 400 }}>Tenant</span>
-            <select className="ui-input ui-select" aria-label="Tenant" style={{ height: 28, minWidth: 0 }}>
-              {tenants.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </label>
+          {tenants.length > 1 && (
+            <label className="df-filter" style={{ color: "var(--ui-frame-text-2)" }}>
+              <span style={{ fontWeight: 400 }}>Tenant</span>
+              <select className="ui-input ui-select" aria-label="Tenant" style={{ height: 28, minWidth: 0 }}>
+                {tenants.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </label>
+          )}
+          {tenants.length === 1 && <span style={{ color: "var(--ui-frame-text-2)" }}>Tenant: {tenants[0]}</span>}
           <span className="df-avatar" title={user} aria-label={"Signed in as " + user}>{initials}</span>
         </div>
       </header>
@@ -82,6 +88,12 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
                   <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
                 ))}
               </nav>
+            </div>
+          )}
+          {error && (
+            <div className="df-alert" role="alert">
+              <b>Something went wrong.</b> {error}
+              <button type="button" className="df-link" onClick={() => setError("")}>Dismiss</button>
             </div>
           )}
           <Screen route={route} api={api} onOptIn={setOptIn} />

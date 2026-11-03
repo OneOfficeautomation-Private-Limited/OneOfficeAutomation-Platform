@@ -15,7 +15,7 @@ describe("Document Automation", () => {
     start();
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
-    expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("href")).toBe("/?page=documents");
+    expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("href")).toBe("/documents/");
     const tabs = screen.getByRole("navigation", { name: "Document Automation" });
     expect(within(tabs).getAllByRole("link").map((a) => a.textContent))
       .toEqual(["Overview", "Inbox", "Processes", "Document types", "Reference data", "Engines", "Test lab"]);

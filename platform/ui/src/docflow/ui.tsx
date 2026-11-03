@@ -75,13 +75,19 @@ export function FilterSelect<T extends string>({ label, value, onChange, options
 
 export const matches = (q: string, ...texts: string[]) => !q.trim() || texts.some((t) => t.toLowerCase().includes(q.trim().toLowerCase()));
 
+/** A failed call: the page's banner shows it (App listens), so a screen never waits on "Loading…" for ever. */
+export const DF_ERROR = "df-error";
+export function reportError(e: unknown) {
+  window.dispatchEvent(new CustomEvent(DF_ERROR, { detail: e instanceof Error ? e.message : String(e) }));
+}
+
 /** Loads data for a screen; `reload` fetches it again after a change. Null while loading. */
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): [T | null, () => void] {
   const [data, setData] = useState<T | null>(null);
   const [n, setN] = useState(0);
   useEffect(() => {
     let live = true;
-    void load().then((d) => { if (live) setData(d); });
+    load().then((d) => { if (live) setData(d); }, (e) => { if (live) reportError(e); });
     return () => { live = false; };
   }, [...deps, n]);   // `load` is a new function each render; the caller's deps say when it really changes
   return [data, () => setN((x) => x + 1)];

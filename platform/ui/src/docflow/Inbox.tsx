@@ -18,6 +18,9 @@ export function Inbox({ api }: { api: DocFlowApi }) {
   if (!processes) return <Loading />;
 
   const total = (k: "review" | "processing" | "done" | "failed" | "today") => processes.reduce((n, p) => n + p[k], 0);
+  // done documents that needed nobody: each process's straight-through share of its done documents
+  const straight = processes.reduce((n, p) => n + Math.round(p.done * p.straightThrough / 100), 0);
+  const waiting = processes.find((p) => p.review > 0);
   const rows = processes.filter((p) => matches(q, p.name, p.folder, p.lastDocument) && (folder === "all" || p.folder.startsWith(folder))
     && (source === "all" || p.sources.includes(source)) && (status === "all" || p[status] > 0));
   const clear = () => { setQ(""); setStatus("all"); setFolder("all"); setSource("all"); setPeriod("today"); };
@@ -38,8 +41,8 @@ export function Inbox({ api }: { api: DocFlowApi }) {
 
       <div className="df-grid df-g4">
         <Kpi label="Received today" value={total("today")} />
-        <Kpi label="Straight through" value={total("done")} sub={Math.round(total("done") / Math.max(1, total("today")) * 100) + "%"} tone="ok" />
-        <Kpi label="Waiting for review" value={total("review")} sub={<a href="#/review/scan_0457">Open Task inbox</a>} />
+        <Kpi label="Straight through" value={straight} sub={Math.round(straight / Math.max(1, total("done")) * 100) + "%"} tone="ok" />
+        <Kpi label="Waiting for review" value={total("review")} sub={waiting ? <a href={"#/process/" + encodeURIComponent(waiting.id)}>Open {waiting.name}</a> : undefined} />
         <Kpi label="Failed" value={total("failed")} tone={total("failed") ? "bad" : undefined} />
       </div>
 

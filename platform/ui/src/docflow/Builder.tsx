@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Icon } from "../components";
 import type { Check, DocFlowApi, ProcessDesign } from "./api";
-import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches } from "./ui";
+import { Chip, Empty, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError } from "./ui";
 
 const IF_FAILS = { review: "Send to review", reject: "Reject", warn: "Warn only" } as const;
 
@@ -14,7 +14,16 @@ export function Builder({ api }: { api: DocFlowApi }) {
   const [onOff, setOnOff] = useState<"all" | "on" | "off">("all");
   const [fails, setFails] = useState<"all" | Check["ifFails"]>("all");
   const [savedAs, setSavedAs] = useState<"" | "draft" | "live">("");
-  useEffect(() => { void api.processDesign("supplier-invoices-ksa").then(setDesign); }, [api]);
+  const [none, setNone] = useState(false);
+  // the most recent process (One Inbox has no stages to design)
+  useEffect(() => {
+    api.processes().then((ps) => {
+      const p = ps.filter((x) => x.id !== "smart-inbox").at(-1);
+      if (!p) { setNone(true); return; }
+      return api.processDesign(p.id).then(setDesign);
+    }).catch(reportError);
+  }, [api]);
+  if (none) return <Empty>No process yet. Create one from the Inbox with New process, then design its checks here.</Empty>;
   if (!design) return <Loading />;
 
   const setCheck = (id: string, patch: Partial<Check>) => {

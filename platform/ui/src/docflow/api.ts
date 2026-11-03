@@ -51,13 +51,14 @@ export interface Overview {
 
 export interface TestResult { field: string; a: string; aConf: string; b: string; bConf: string; check: string; differs: boolean }
 
-export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; mailbox?: string; fromBot: boolean }
+/** docType is a document type id (DocType.id). */
+export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; mailbox?: string; fromBot: boolean }
 
 export interface DocFlowApi {
   overview(): Promise<Overview>;
   processes(): Promise<ProcessSummary[]>;
   documents(processId: string): Promise<DocumentRow[]>;
-  addDocuments(files: string[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
+  addDocuments(files: File[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
   createProcess(p: NewProcess): Promise<{ id: string }>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<void>;
@@ -246,9 +247,9 @@ export class SampleApi implements DocFlowApi {
   async overview() { return copy(OVERVIEW); }
   async processes() { return copy(this.processesData); }
   async documents(processId: string) { return copy(this.documentsData.filter((d) => d.processId === processId)); }
-  async addDocuments(files: string[], processId: string | "auto") {
+  async addDocuments(files: File[], processId: string | "auto") {
     const target = processId === "auto" ? "smart-inbox" : processId;
-    files.forEach((name, i) => this.documentsData.unshift(doc({ id: "new_" + Date.now() + "_" + i, processId: target, name, status: "processing",
+    files.forEach((f, i) => this.documentsData.unshift(doc({ id: "new_" + Date.now() + "_" + i, processId: target, name: f.name, status: "processing",
       time: "now", sourceLabel: "Upload · you", engine: "Waiting to start" })));
     const p = this.processesData.find((x) => x.id === target);
     if (p) { p.today += files.length; p.processing += files.length; }
@@ -256,7 +257,7 @@ export class SampleApi implements DocFlowApi {
   }
   async createProcess(n: NewProcess) {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
-    this.processesData.push({ id, name: n.name, folder: n.folder, docType: n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,
+    this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,
       failed: 0, done: 0, straightThrough: 0, lastDocument: "—", lastTime: "", deliversTo: [],
       sources: ["upload", ...(n.watchedFolder ? ["folder" as const] : []), ...(n.mailbox ? ["email" as const] : []), ...(n.fromBot ? ["bot" as const] : [])] });
     return { id };

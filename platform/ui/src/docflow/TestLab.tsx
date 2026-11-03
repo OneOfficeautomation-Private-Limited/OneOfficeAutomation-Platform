@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Field, Select } from "../components";
 import type { DocFlowApi, TestResult } from "./api";
-import { FilterBar, FilterSelect, Kpi } from "./ui";
+import { FilterBar, FilterSelect, Kpi, reportError } from "./ui";
 
 const ENGINES = [{ value: "tesseract", label: "Tesseract 5" }, { value: "paddleocr", label: "PaddleOCR" }, { value: "routing", label: "Routing (as live)" }];
 
@@ -15,7 +15,10 @@ export function TestLab({ api }: { api: DocFlowApi }) {
   const [show, setShow] = useState<"all" | "diff" | "failed">("all");
   const name = (v: string) => ENGINES.find((e) => e.value === v)?.label ?? v;
 
-  const run = async () => { setRunning(true); setResults(await api.runTest("fax_0931.png", a, compare ? b : null)); setRunning(false); };
+  const run = async () => {
+    setRunning(true);
+    try { setResults(await api.runTest("fax_0931.png", a, compare ? b : null)); } catch (e) { reportError(e); } finally { setRunning(false); }
+  };
   const rows = (results ?? []).filter((r) => show === "all" || (show === "diff" ? r.differs : /fail|missing/.test(r.check)));
   const right = (side: "a" | "b") => (results ?? []).filter((r) => !(side === "a" ? r.differs : false) && (side === "a" ? r.a !== "—" : r.b)).length;
 

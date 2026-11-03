@@ -1,9 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
-import type { DocFlowApi, ProcessSummary } from "./api";
+import type { DocFlowApi, DocType, ProcessSummary } from "./api";
 
 const FOLDERS = ["Finance / Accounts payable", "Finance / Expenses", "Operations / Goods received", "Shared / Unsorted"];
-const DOC_TYPES = ["Supplier invoice", "Receipt", "Delivery note", "Credit note"];
 
 /**
  * Add documents: the files, then which process reads them (or recognise automatically, or a new process), then which
@@ -13,7 +12,7 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
   { api: DocFlowApi; open: boolean; onClose: () => void; processes: ProcessSummary[]; initialProcess?: string;
     onAdded: (processId: string) => void; onNewProcess: () => void }) {
   const picker = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<"auto" | "process">(initialProcess ? "process" : "auto");
   const real = processes.filter((p) => p.id !== "smart-inbox");
   const [processId, setProcessId] = useState(initialProcess ?? real[0]?.id ?? "");
@@ -25,9 +24,11 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
 
   const start = async () => {
     setBusy(true);
-    const r = await api.addDocuments(files, mode === "auto" ? "auto" : processId, shownFolder);
-    setBusy(false); setFiles([]);
-    onAdded(r.processId);
+    try {
+      const r = await api.addDocuments(files, mode === "auto" ? "auto" : processId, shownFolder);
+      setFiles([]);
+      onAdded(r.processId);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -41,12 +42,12 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
         <b style={{ display: "block", marginBottom: 8 }}>1. Files</b>
         <div className="df-files">
           {files.map((f) => (
-            <div key={f}><Icon name="doc" /><b>{f}</b><span className="df-grow" />
-              <button type="button" className="df-link" aria-label={"Remove " + f} onClick={() => setFiles(files.filter((x) => x !== f))}><Icon name="close" size={14} /></button></div>
+            <div key={f.name}><Icon name="doc" /><b>{f.name}</b><span className="df-grow" />
+              <button type="button" className="df-link" aria-label={"Remove " + f.name} onClick={() => setFiles(files.filter((x) => x !== f))}><Icon name="close" size={14} /></button></div>
           ))}
           <div>
             <input ref={picker} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" aria-label="Choose files"
-              onChange={(e) => setFiles([...files, ...Array.from(e.target.files ?? []).map((f) => f.name).filter((n) => !files.includes(n))])} />
+              onChange={(e) => setFiles([...files, ...Array.from(e.target.files ?? []).filter((f) => !files.some((x) => x.name === f.name))])} />
             <button type="button" className="df-link" onClick={() => picker.current?.click()}>+ Choose files</button>
             <span className="df-small">PDF, PNG, JPG or TIFF, up to 500 pages each</span>
           </div>
@@ -97,7 +98,9 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
 export function NewProcessDialog({ api, open, onClose, onCreated }:
   { api: DocFlowApi; open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const [name, setName] = useState("");
-  const [docType, setDocType] = useState(DOC_TYPES[0]);
+  const [types, setTypes] = useState<DocType[]>([]);
+  const [docType, setDocType] = useState("");
+  useEffect(() => { if (open) void api.docTypes().then((t) => { setTypes(t); setDocType((cur) => cur || t[0]?.id || ""); }); }, [api, open]);
   const [folder, setFolder] = useState(FOLDERS[0]);
   const [watch, setWatch] = useState(false);
   const [path, setPath] = useState("");
@@ -105,11 +108,11 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   const [mail, setMail] = useState(false);
   const [mailbox, setMailbox] = useState("invoices@acme-trading.com");
   const [bot, setBot] = useState(false);
-  const valid = name.trim() && (!watch || path.trim());
+  const valid = name.trim() && docType && (!watch || path.trim());
 
   const create = async () => {
     const r = await api.createProcess({ name: name.trim(), docType, folder, watchedFolder: watch ? path.trim() : undefined,
-      mailbox: mail ? mailbox : undefined, fromBot: bot });
+      pollSeconds: Number(every), mailbox: mail ? mailbox : undefined, fromBot: bot });
     setName(""); setWatch(false); setMail(false); setBot(false); setPath("");
     onCreated(r.id);
   };
@@ -124,7 +127,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
       <div className="df-grid df-g2">
         <Field label="Process name">{(id) => <TextInput id={id} value={name} placeholder="e.g. Supplier invoices KSA" onChange={(e) => setName(e.target.value)} />}</Field>
         <Field label="Document type" hint="The fields to read and the checks to run.">
-          {(id) => <Select id={id} value={docType} onChange={(e) => setDocType(e.target.value)} options={DOC_TYPES.map((d) => ({ value: d, label: d }))} />}
+          {(id) => <Select id={id} value={docType} onChange={(e) => setDocType(e.target.value)} options={types.map((d) => ({ value: d.id, label: d.name }))} />}
         </Field>
       </div>
       <Field label="Folder" hint="Its documents and results are filed here, and only people with access to this folder see them.">

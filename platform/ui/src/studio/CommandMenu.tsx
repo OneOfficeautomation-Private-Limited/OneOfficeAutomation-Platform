@@ -34,7 +34,8 @@ export function CommandMenu({ view, onView, controlRoom, editing = false, curren
   const mini = editing ? !openWhileEditing : chosenMini;
   const setMini = (m: boolean) => { if (editing) setOpenWhileEditing(!m); else setChosenMini(m); };
   const [closed, setClosed] = usePersistent<string[]>("menu.closed", []);
-  const pageLink = (page: string) => controlRoom ? controlRoom + "?page=" + page : undefined;
+  // Document Automation is its own page beside the console (/documents/); the others are console pages
+  const pageLink = (page: string) => !controlRoom ? undefined : page === "documents" ? controlRoom.replace(/\/?$/, "/") + "documents/" : controlRoom + "?page=" + page;
   const toggleSection = (label: string) => setClosed(closed.includes(label) ? closed.filter((x) => x !== label) : [...closed, label]);
   const home = controlRoom
     ? <a className="st-menu-home" href={controlRoom} title="Home"><Icon name="home" size={18} />{!mini && "Home"}</a>

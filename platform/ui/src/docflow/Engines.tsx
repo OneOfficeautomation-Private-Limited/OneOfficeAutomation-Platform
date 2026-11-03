@@ -30,7 +30,7 @@ export function Engines({ api, onOptIn }: { api: DocFlowApi; onOptIn?: (on: bool
         ? <Chip tone="warn">{cloudEngines.find((e) => e.id === routing.cloudEngine)?.name.split(" ")[0]} · key not set</Chip> : <Chip tone="mute">No engine chosen</Chip>,
       color: "#8b6ae8", off: !routing.cloudOptIn || !routing.cloudEngine },
     { n: "5 · LOCAL", title: "Read the fields", text: "Rules from the document type", chip: <Chip tone="ok">Rules · Ready</Chip>, color: "#2f6fde" },
-    { n: "6 · ALWAYS", title: "Checks and review", text: `Under ${pct}% or a failed check`, chip: <a className="df-chip df-info" href="#/review/scan_0457">Task inbox</a>, color: "#4b5565" },
+    { n: "6 · ALWAYS", title: "Checks and review", text: `Under ${pct}% or a failed check`, chip: <a className="df-chip df-info" href="#/inbox">Inbox</a>, color: "#4b5565" },
   ];
 
   return (
