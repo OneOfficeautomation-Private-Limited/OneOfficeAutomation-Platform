@@ -76,7 +76,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Slack](ooa-slack.md) | `ooa.slack` | 10 | 0 | 0 | Post messages to Slack channels and users. |
 | [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 11 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
-| [String](ooa-string.md) | `ooa.string` | 13 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
+| [String](ooa-string.md) | `ooa.string` | 16 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
 | [System](ooa-system.md) | `ooa.system` | 8 | 0 | 0 | Read environment variables and runner information; lock, sign out, restart or shut down the runner. |
 | [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 18 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. |
 | [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 3 | Wait for events (new files, timer ticks, process starts) and run the loop's nested steps once per event. |
