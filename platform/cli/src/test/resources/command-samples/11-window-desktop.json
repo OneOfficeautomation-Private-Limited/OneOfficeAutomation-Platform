@@ -609,5 +609,20 @@
   "expect": {
    "m": false
   }
- }
+ },
+ {"command": "ooa.window/hide", "name": "hide, then show again (G03)", "requires": "desktop", "steps": [
+   {"action": "ooa.application/start_program", "args": {"program": "powershell.exe", "arguments": ["-NoProfile", "-Command",
+      "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'OOA hide sample'; $f.Width = 300; $f.Height = 200; [System.Windows.Forms.Application]::Run($f)"]}},
+   {"action": "ooa.window/wait_for", "args": {"title": "OOA hide sample", "timeout_seconds": 30}},
+   {"action": "ooa.window/hide", "args": {"title": "OOA hide sample"}, "out": {"title": "hidden"}},
+   {"action": "ooa.window/list", "out": {"titles": "visible"}},
+   {"action": "ooa.window/show", "args": {"title": "OOA hide sample", "activate": false}, "out": {"title": "shown"}},
+   {"action": "ooa.window/close", "args": {"title": "OOA hide sample"}}],
+  "expect": {"hidden": "OOA hide sample", "shown": "OOA hide sample"}},
+ {"command": "ooa.window/hide", "name": "no window named", "steps": [
+   {"action": "ooa.window/hide", "args": {}}], "error": "WINDOW.NO_TARGET"},
+ {"command": "ooa.window/show", "name": "no window named", "steps": [
+   {"action": "ooa.window/show", "args": {}}], "error": "WINDOW.NO_TARGET"},
+ {"command": "ooa.window/show", "name": "nothing hidden or visible by that title", "steps": [
+   {"action": "ooa.window/show", "args": {"title": "no such window 7f3a"}}], "error": "WINDOW.NOT_FOUND"}
 ]

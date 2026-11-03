@@ -6,7 +6,8 @@ Toolkit `ooa.window`, version 1.0.0. Find, activate, move, resize, minimise, max
 
 ## Contents
 
-- **Window**: Activate window, Capture window, Close window, Close all matching windows, Get active window title, Get window details, List windows, Maximise window, Minimise window, Move and resize window, Restore window, Set window title, Wait for window
+- **Window**: Activate window, Capture window, Close window, Close all matching windows, Get active window title, Get window details, Hide window, List windows, Maximise window, Minimise window, Move and resize window, Restore window, Set window title, Show window, Wait for window
+- **Keyboard**: Type into window in background
 - **Conditions**: Window exists, Window is active
 
 ## Window
@@ -144,14 +145,39 @@ Find a window and return its title, program, class, position, size and state, e.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `window` | Dictionary | title, process_name, class_name, x, y, width, height, state (normal, minimized or maximized), active. |
+| `window` | Dictionary | title, process_name, class_name, x, y, width, height, state (normal, minimized or maximized), active, process_id. |
 | `width` | Number | Width in pixels. |
 | `height` | Number | Height in pixels. |
 | `x` | Number | Left edge in pixels. |
 | `y` | Number | Top edge in pixels. |
 | `state` | Text | normal, minimized or maximized. |
+| `process_id` | Number | Id of the program that owns the window, for Stop program. |
 
 *Time limit 60 s; safe to repeat; needs: desktop.*
+
+### Hide window
+
+`ooa.window/hide` (action)
+
+Hide a window completely: unlike Minimise it also leaves the taskbar. The program keeps running, and Show window brings it back.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Show at end | `show_at_end` | Yes/No | No | Yes | Main | Show the window again when the run ends (also when it fails), so no invisible windows are left behind. Turn off to keep it hidden after the run. |
+| Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
+| Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `title` | Text | Full title of the hidden window. |
+
+*Time limit 60 s; needs: desktop.*
 
 ### List windows
 
@@ -283,6 +309,29 @@ Change the title bar text of a window, e.g. to tell several copies of the same p
 
 *Time limit 60 s; needs: desktop.*
 
+### Show window
+
+`ooa.window/show` (action)
+
+Show a window that was hidden (by Hide window or by its program), optionally bringing it to the front.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive). Hidden windows are searched first, then visible ones. May be empty when process_id is given. |
+| Activate | `activate` | Yes/No | No | Yes | Main | Also bring the window to the front. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
+| Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `title` | Text | Full title of the window shown. |
+
+*Time limit 60 s; needs: desktop.*
+
 ### Wait for window
 
 `ooa.window/wait_for` (action)
@@ -308,6 +357,37 @@ Wait until a window whose title contains the text (or the main window of a proce
 | `met` | Yes/No | True when the window opened or closed in time. |
 
 *Time limit 3600 s; needs: desktop.*
+
+## Keyboard
+
+### Type into window in background
+
+`ooa.window/type_in_background` (action)
+
+Type text and keys such as {ENTER} or {TAB} into a window without bringing it to the front or using the keyboard, so it works while the window is behind others or minimised and the person keeps working.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Text | `text` | Any | Yes |  | Main | Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; {{} types {). A Credential is typed without being logged. |
+| Control class | `control_class` | Text | No |  | Main; choice Into = A control of a class | Window class of the control to type into, or a pattern with * and ?; the window's focused control when empty. Example: `Edit` |
+| Control index | `control_index` | Number | No | `0` | Main; choice Into = A control of a class | Which control of that class (0 is the first). Range: 0 to  |
+| Method | `method` | Text | No | `type` | Main | type sends each character and key to the control; replace sets the control's whole text (edit boxes); append adds the text at the end of it. One of: `type`, `replace`, `append` |
+| Delay (milliseconds) | `delay_ms` | Number | No | `0` | More options | Pause after each character or key, for programs that read input slowly. Range: 0 to 1000 |
+| Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
+| Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `control_class` | Text | Class of the control typed into, e.g. Edit. |
+| `control_text` | Text | The control's text afterwards, when it reports one (edit boxes do), to check the result. |
+
+*Time limit 600 s; needs: desktop.*
 
 ## Conditions
 

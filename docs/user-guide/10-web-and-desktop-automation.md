@@ -277,7 +277,7 @@ SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) 
 
 | Group | Typical actions |
 | --- | --- |
-| **Window** | Activate, Maximise, Minimise, Restore, Move and resize, Close, Wait for window, Capture window, Get active window title; conditions **Window exists**, **Window is active** |
+| **Window** | Activate, Maximise, Minimise, Restore, Move and resize, **Hide window** and **Show window** (hidden windows leave the taskbar too; **Show again when the run ends**, on by default, brings back any the run left hidden), Close, Wait for window, Capture window, Get active window title; conditions **Window exists**, **Window is active** |
 | **Application** | Start program, Run program and wait, Open file, Stop program; condition **Program is running** |
 | **Mouse and keyboard** | Mouse click, Mouse move, Mouse scroll, Type text, Press keys, Capture screen, clipboard actions, Message box, Prompt for value / yes/no / password / file / folder |
 
