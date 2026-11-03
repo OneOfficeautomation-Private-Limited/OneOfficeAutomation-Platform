@@ -204,6 +204,30 @@ When the agent runs from a work queue and returns `validation` as an output name
 **To validate** in One CommandCenter. A person opens **Validate**, sees the unsure fields in red, corrects them and
 **Approve**s (the item goes back to the agent with `validated_fields`) or **Reject**s it.
 
+### 8.4 Ready-made cloud AI services (AWS, Azure, Google)
+
+If your company already pays for a cloud provider's AI services, three toolkits call them directly, with no REST
+set-up. Each starts with **Connect** (keys come from the vault, never typed into the step); the other steps use that
+session.
+
+| Toolkit | Connect with | Steps |
+| --- | --- | --- |
+| **AWS AI services** (`ooa.aws_ai`) | Region, access key id and secret key (and a session token for temporary keys). **Check now** confirms the keys with a free identity check. | Comprehend: sentiment, entities, language, personal data (with a masked copy). Textract: text of a scan; forms and tables, each table as a Data Table. Rekognition: labels and text in a picture. |
+| **Azure AI services** (`ooa.azure_ai`) | The resource's endpoint and key (or a Microsoft Entra access token). | Language: sentiment, entities, personal data. Document Intelligence: read any document; analyse invoices, receipts or layout into fields, key and value pairs and Data Tables. Vision: caption, tags, objects and text of a picture. |
+| **Google Cloud AI** (`ooa.google_ai`) | An API key, or an OAuth access token; the project and location (us or eu) for Document AI. | Natural Language: sentiment, entities. Vision: labels, text (OCR). Document AI: send a file to any processor and get its text, entities, form fields and tables. |
+
+Good to know:
+
+- Files are read from the run's workspace. Each step names its size limit (for example 5 MB for Rekognition, 10 MB
+  for Textract, 50 MB for Document Intelligence) and fails with a clear error when a file is too large or missing.
+- Azure Document Intelligence works in the background: the step waits for the result, up to `timeout_seconds`
+  (120 by default), and then fails with `AZURE_AI.ANALYSIS_TIMEOUT`, which a retry can repeat.
+- Document AI does not take API keys; connect with an access token of a service account.
+- Errors start with `AWS_AI.`, `AZURE_AI.` or `GOOGLE_AI.`. `AUTH_FAILED` and `FORBIDDEN` say how to fix the sign-in;
+  `RATE_LIMITED`, `THROTTLED` and `SERVER_ERROR` are marked retryable, so a step's retry policy can try again.
+- The text and files go to the provider's cloud: check that this is allowed for the data before you use these steps,
+  and prefer **Detect personal data** / **Find personal data** to mask text before sending it elsewhere.
+
 ## 9. The Studio assistant
 
 The **Assistant** button in the top bar opens **Agent assistant** with two tabs:

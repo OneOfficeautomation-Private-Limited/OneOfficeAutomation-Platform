@@ -1,0 +1,1153 @@
+[
+ {
+  "command": "ooa.aws_ai/connect",
+  "name": "not a region",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "Ireland",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   }
+  ],
+  "error": "AWS_AI.BAD_REGION"
+ },
+ {
+  "command": "ooa.aws_ai/connect",
+  "name": "keys refused by the identity check",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "status": 403,
+    "body": "<ErrorResponse><Error><Code>InvalidClientTokenId</Code><Message>The security token included in the request is invalid.</Message></Error></ErrorResponse>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": true
+    }
+   }
+  ],
+  "error": "AWS_AI.AUTH_FAILED"
+ },
+ {
+  "command": "ooa.aws_ai/comprehend_sentiment",
+  "name": "sentiment from a stand-in Comprehend",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "body": {
+     "Sentiment": "POSITIVE",
+     "SentimentScore": {
+      "Positive": 0.98,
+      "Negative": 0.01,
+      "Neutral": 0.01,
+      "Mixed": 0
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/comprehend_sentiment",
+    "args": {
+     "text": "Great service",
+     "language": "en"
+    },
+    "out": {
+     "sentiment": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "POSITIVE"
+  }
+ },
+ {
+  "command": "ooa.aws_ai/comprehend_sentiment",
+  "name": "IAM policy refuses the call",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "status": 400,
+    "body": {
+     "__type": "AccessDeniedException",
+     "Message": "not authorized"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/comprehend_sentiment",
+    "args": {
+     "text": "Hello"
+    }
+   }
+  ],
+  "error": "AWS_AI.FORBIDDEN"
+ },
+ {
+  "command": "ooa.aws_ai/comprehend_entities",
+  "name": "throttled",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "status": 400,
+    "body": {
+     "__type": "ThrottlingException",
+     "message": "Rate exceeded"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/comprehend_entities",
+    "args": {
+     "text": "Acme Ltd"
+    }
+   }
+  ],
+  "error": "AWS_AI.THROTTLED"
+ },
+ {
+  "command": "ooa.aws_ai/comprehend_detect_pii",
+  "name": "server error",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "status": 500,
+    "body": {
+     "__type": "InternalServerException",
+     "message": "oops"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/comprehend_detect_pii",
+    "args": {
+     "text": "Mail bob@acme.test"
+    }
+   }
+  ],
+  "error": "AWS_AI.SERVER_ERROR"
+ },
+ {
+  "command": "ooa.aws_ai/comprehend_sentiment",
+  "name": "text over 5,000 bytes",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/comprehend_sentiment",
+    "args": {
+     "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+   }
+  ],
+  "error": "AWS_AI.TEXT_TOO_LONG"
+ },
+ {
+  "command": "ooa.aws_ai/textract_detect_text",
+  "name": "file that is not there",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/textract_detect_text",
+    "args": {
+     "file": "missing.png"
+    }
+   }
+  ],
+  "error": "AWS_AI.FILE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.aws_ai/textract_analyze_document",
+  "name": "form field and table from a stand-in Textract",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "files": {
+   "scan.png": "not really a picture"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "body": {
+     "DocumentMetadata": {
+      "Pages": 1
+     },
+     "Blocks": [
+      {
+       "Id": "l1",
+       "BlockType": "LINE",
+       "Text": "Invoice: INV-1",
+       "Page": 1
+      },
+      {
+       "Id": "w1",
+       "BlockType": "WORD",
+       "Text": "Invoice:"
+      },
+      {
+       "Id": "w2",
+       "BlockType": "WORD",
+       "Text": "INV-1"
+      },
+      {
+       "Id": "w3",
+       "BlockType": "WORD",
+       "Text": "Item"
+      },
+      {
+       "Id": "w4",
+       "BlockType": "WORD",
+       "Text": "Pens"
+      },
+      {
+       "Id": "k1",
+       "BlockType": "KEY_VALUE_SET",
+       "EntityTypes": [
+        "KEY"
+       ],
+       "Relationships": [
+        {
+         "Type": "VALUE",
+         "Ids": [
+          "v1"
+         ]
+        },
+        {
+         "Type": "CHILD",
+         "Ids": [
+          "w1"
+         ]
+        }
+       ]
+      },
+      {
+       "Id": "v1",
+       "BlockType": "KEY_VALUE_SET",
+       "EntityTypes": [
+        "VALUE"
+       ],
+       "Relationships": [
+        {
+         "Type": "CHILD",
+         "Ids": [
+          "w2"
+         ]
+        }
+       ]
+      },
+      {
+       "Id": "t1",
+       "BlockType": "TABLE",
+       "Relationships": [
+        {
+         "Type": "CHILD",
+         "Ids": [
+          "c1",
+          "c2"
+         ]
+        }
+       ]
+      },
+      {
+       "Id": "c1",
+       "BlockType": "CELL",
+       "RowIndex": 1,
+       "ColumnIndex": 1,
+       "Relationships": [
+        {
+         "Type": "CHILD",
+         "Ids": [
+          "w3"
+         ]
+        }
+       ]
+      },
+      {
+       "Id": "c2",
+       "BlockType": "CELL",
+       "RowIndex": 2,
+       "ColumnIndex": 1,
+       "Relationships": [
+        {
+         "Type": "CHILD",
+         "Ids": [
+          "w4"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/textract_analyze_document",
+    "args": {
+     "file": "scan.png"
+    },
+    "out": {
+     "fields": "f",
+     "table_count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "f": {
+    "Invoice:": "INV-1"
+   },
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.aws_ai/rekognition_detect_labels",
+  "name": "labels from a stand-in Rekognition",
+  "credentials": {
+   "kid": "test/aws/id",
+   "sk": "test/aws/secret"
+  },
+  "secrets": {
+   "test/aws/id": "AKIDEXAMPLE",
+   "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"
+  },
+  "files": {
+   "car.jpg": "jpeg"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/",
+    "body": {
+     "Labels": [
+      {
+       "Name": "Car",
+       "Confidence": 99
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.aws_ai/connect",
+    "args": {
+     "region": "eu-west-1",
+     "access_key_id": "$kid",
+     "secret_access_key": "$sk",
+     "endpoint": "{mock}",
+     "check_now": false
+    }
+   },
+   {
+    "action": "ooa.aws_ai/rekognition_detect_labels",
+    "args": {
+     "file": "car.jpg"
+    },
+    "out": {
+     "label_names": "l"
+    }
+   }
+  ],
+  "expect": {
+   "l": [
+    "Car"
+   ]
+  }
+ },
+ {
+  "command": "ooa.azure_ai/language_sentiment",
+  "name": "sentiment from a stand-in Language service",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/language/:analyze-text",
+    "body": {
+     "kind": "SentimentAnalysisResults",
+     "results": {
+      "documents": [
+       {
+        "id": "1",
+        "sentiment": "positive",
+        "confidenceScores": {
+         "positive": 0.99,
+         "neutral": 0.01,
+         "negative": 0
+        },
+        "sentences": []
+       }
+      ],
+      "errors": []
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/language_sentiment",
+    "args": {
+     "text": "Great service"
+    },
+    "out": {
+     "sentiment": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "positive"
+  }
+ },
+ {
+  "command": "ooa.azure_ai/language_entities",
+  "name": "wrong key",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/language/:analyze-text",
+    "status": 401,
+    "body": {
+     "error": {
+      "code": "401",
+      "message": "Access denied due to invalid subscription key or wrong API endpoint."
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/language_entities",
+    "args": {
+     "text": "Contoso"
+    }
+   }
+  ],
+  "error": "AZURE_AI.AUTH_FAILED"
+ },
+ {
+  "command": "ooa.azure_ai/language_pii",
+  "name": "rate limited",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/language/:analyze-text",
+    "status": 429,
+    "body": {
+     "error": {
+      "code": "429",
+      "message": "Rate limit is exceeded."
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/language_pii",
+    "args": {
+     "text": "Call 555 0100"
+    }
+   }
+  ],
+  "error": "AZURE_AI.RATE_LIMITED"
+ },
+ {
+  "command": "ooa.azure_ai/language_pii",
+  "name": "text over 5,120 characters",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/language_pii",
+    "args": {
+     "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+   }
+  ],
+  "error": "AZURE_AI.TEXT_TOO_LONG"
+ },
+ {
+  "command": "ooa.azure_ai/document_analyze",
+  "name": "file that is not there",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/document_analyze",
+    "args": {
+     "file": "missing.pdf",
+     "model": "prebuilt-invoice"
+    }
+   }
+  ],
+  "error": "AZURE_AI.FILE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.azure_ai/document_read",
+  "name": "service error when starting",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "files": {
+   "a.pdf": "%PDF-1.4"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/documentintelligence/*",
+    "status": 503,
+    "body": {
+     "error": {
+      "code": "ServiceUnavailable",
+      "message": "Try again"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/document_read",
+    "args": {
+     "file": "a.pdf"
+    }
+   }
+  ],
+  "error": "AZURE_AI.SERVER_ERROR"
+ },
+ {
+  "command": "ooa.azure_ai/vision_analyze",
+  "name": "feature it does not know",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "files": {
+   "a.png": "png"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/vision_analyze",
+    "args": {
+     "file": "a.png",
+     "features": [
+      "faces"
+     ]
+    }
+   }
+  ],
+  "error": "AZURE_AI.BAD_FEATURE"
+ },
+ {
+  "command": "ooa.azure_ai/vision_analyze",
+  "name": "caption and tags from a stand-in Vision",
+  "credentials": {
+   "key": "test/azure/key"
+  },
+  "secrets": {
+   "test/azure/key": "az-key"
+  },
+  "files": {
+   "a.png": "png"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/computervision/imageanalysis:analyze",
+    "body": {
+     "captionResult": {
+      "text": "a receipt",
+      "confidence": 0.8
+     },
+     "tagsResult": {
+      "values": [
+       {
+        "name": "text",
+        "confidence": 0.99
+       }
+      ]
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_ai/connect",
+    "args": {
+     "endpoint": "{mock}",
+     "credential": "$key"
+    }
+   },
+   {
+    "action": "ooa.azure_ai/vision_analyze",
+    "args": {
+     "file": "a.png"
+    },
+    "out": {
+     "caption": "c",
+     "tag_names": "t"
+    }
+   }
+  ],
+  "expect": {
+   "c": "a receipt",
+   "t": [
+    "text"
+   ]
+  }
+ },
+ {
+  "command": "ooa.google_ai/language_sentiment",
+  "name": "sentiment from a stand-in Natural Language",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v1/documents:analyzeSentiment",
+    "body": {
+     "documentSentiment": {
+      "score": 0.8,
+      "magnitude": 0.8
+     },
+     "language": "en",
+     "sentences": []
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "api_key",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/language_sentiment",
+    "args": {
+     "text": "Lovely staff"
+    },
+    "out": {
+     "sentiment": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "positive"
+  }
+ },
+ {
+  "command": "ooa.google_ai/language_entities",
+  "name": "API key not valid",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v1/documents:analyzeEntities",
+    "status": 400,
+    "body": {
+     "error": {
+      "code": 400,
+      "message": "API key not valid. Please pass a valid API key.",
+      "status": "INVALID_ARGUMENT",
+      "details": [
+       {
+        "reason": "API_KEY_INVALID"
+       }
+      ]
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "api_key",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/language_entities",
+    "args": {
+     "text": "Google"
+    }
+   }
+  ],
+  "error": "GOOGLE_AI.AUTH_FAILED"
+ },
+ {
+  "command": "ooa.google_ai/vision_labels",
+  "name": "service unavailable",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "files": {
+   "a.png": "png"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v1/images:annotate",
+    "status": 503,
+    "body": {
+     "error": {
+      "code": 503,
+      "message": "unavailable",
+      "status": "UNAVAILABLE"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "api_key",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/vision_labels",
+    "args": {
+     "file": "a.png"
+    }
+   }
+  ],
+  "error": "GOOGLE_AI.SERVER_ERROR"
+ },
+ {
+  "command": "ooa.google_ai/vision_ocr",
+  "name": "file that is not there",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "api_key",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/vision_ocr",
+    "args": {
+     "file": "missing.png"
+    }
+   }
+  ],
+  "error": "GOOGLE_AI.FILE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.google_ai/vision_ocr",
+  "name": "text from a stand-in Vision",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "files": {
+   "a.png": "png"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v1/images:annotate",
+    "body": {
+     "responses": [
+      {
+       "fullTextAnnotation": {
+        "text": "TOTAL 9.99"
+       },
+       "textAnnotations": [
+        {
+         "description": "TOTAL 9.99",
+         "locale": "en"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "api_key",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/vision_ocr",
+    "args": {
+     "file": "a.png"
+    },
+    "out": {
+     "text": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "TOTAL 9.99"
+  }
+ },
+ {
+  "command": "ooa.google_ai/documentai_process",
+  "name": "an API key is not enough for Document AI",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "files": {
+   "a.pdf": "%PDF"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "api_key",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/documentai_process",
+    "args": {
+     "processor_id": "abc123",
+     "file": "a.pdf"
+    }
+   }
+  ],
+  "error": "GOOGLE_AI.TOKEN_REQUIRED"
+ },
+ {
+  "command": "ooa.google_ai/documentai_process",
+  "name": "entities from a stand-in Document AI",
+  "credentials": {
+   "key": "test/google/key"
+  },
+  "secrets": {
+   "test/google/key": "AIzaTest"
+  },
+  "files": {
+   "a.pdf": "%PDF"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v1/projects/acme-ai/locations/us/processors/*",
+    "body": {
+     "document": {
+      "text": "INV-7",
+      "entities": [
+       {
+        "type": "invoice_id",
+        "mentionText": "INV-7"
+       }
+      ],
+      "pages": []
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google_ai/connect",
+    "args": {
+     "credential": "$key",
+     "credential_type": "access_token",
+     "project": "acme-ai",
+     "endpoint": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.google_ai/documentai_process",
+    "args": {
+     "processor_id": "abc123",
+     "file": "a.pdf"
+    },
+    "out": {
+     "fields": "f"
+    }
+   }
+  ],
+  "expect": {
+   "f": {
+    "invoice_id": "INV-7"
+   }
+  }
+ }
+]

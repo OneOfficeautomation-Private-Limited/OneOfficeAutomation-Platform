@@ -17,7 +17,7 @@ const BY_TOOLKIT: [RegExp, Mark][] = [
   [/database|snowflake|databricks/, { color: "#334155", icon: "db" }],
   [/sap|terminal|java_apps|desktop|window|application|dll|services|printer|sound|system|credential_manager/, { color: "#475569", icon: "desk" }],
   [/forms|interrupts/, { color: "#0f766e", icon: "person" }],
-  [/asana|jira|zendesk|servicenow|salesforce|workday|github|azure_devops|google|okta|active_directory|aws_ec2/, { color: "#0e7490", icon: "process" }],
+  [/asana|jira|zendesk|servicenow|salesforce|workday|github|azure_devops|google|okta|active_directory|aws_ec2|aws_ai|azure_ai|google_ai/, { color: "#0e7490", icon: "process" }],
   [/file|folder|box|file_transfer|log|pgp|crypto/, { color: "#a16207", icon: "folder" }],
   [/datatable|dictionary|list|json|xml|string|number|boolean|datetime|currency|fuzzy|global_values|run_context/, { color: "#1e40af", icon: "code" }],
 ];
