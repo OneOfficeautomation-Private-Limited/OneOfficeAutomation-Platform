@@ -278,11 +278,18 @@ SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) 
 | Group | Typical actions |
 | --- | --- |
 | **Window** | Activate, Maximise, Minimise, Restore, Move and resize, Close, Wait for window, Capture window, Get active window title; conditions **Window exists**, **Window is active** |
-| **Application** | Start program, Run program and wait, Open file, Stop program; condition **Program is running** |
+| **Application** | Start program, Run program and wait, Open file, Stop program, Open / Write to / Read / Close command session; condition **Program is running** |
 | **Mouse and keyboard** | Mouse click, Mouse move, Mouse scroll, Type text, Press keys, Capture screen, clipboard actions, Message box, Prompt for value / yes/no / password / file / folder |
 
 **Press keys** has a **+ key** list with ENTER, TAB, ESC, CTRL+A, ALT+F4 and other keys. **Type text** can type a
 credential from the vault.
+
+**Run program and wait** runs a program to the end. To work with a console program step by step, use a **command
+session**: **Open command session** starts cmd.exe, powershell.exe or another console program and keeps it open;
+**Write to command session** sends a line (or a password from the vault, which never appears in logs or output);
+**Read command session** returns what the program printed and can wait for a prompt or a question; **Close command
+session** ends it and any program it started. Sessions left open are stopped when the run ends. Command sessions need no
+desktop.
 
 Desktop steps need a signed-in Windows desktop. Message boxes and prompts wait for a person; in unattended runs they fail
 at once unless they have a timeout.
