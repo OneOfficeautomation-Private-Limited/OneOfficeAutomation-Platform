@@ -6,8 +6,8 @@ Toolkit `ooa.file_transfer`, version 1.0.0. Connect to FTP, FTPS or SFTP servers
 
 ## Contents
 
-- **Folders**: Change folder, Delete folder, Download folder, Upload folder
-- **Connection**: Connect, Disconnect
+- **Folders**: Change folder, Delete folder, Download folder, Synchronise folders, Upload folder
+- **Connection**: Connect, Disconnect, Send FTP command
 - **Files**: Create folder, Delete, Delete files, Download, List files, Rename or move, Upload
 
 ## Folders
@@ -84,6 +84,38 @@ Download a remote folder with all its files and sub-folders into a local folder;
 
 *Time limit 7200 s; needs: network, filesystem.*
 
+### Synchronise folders
+
+`ooa.file_transfer/sync_folder` (action)
+
+Make a local and a remote folder match: copy new and changed files one way or both ways, optionally delete files that are no longer on the source side, or only report what would change.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `transfer` | Main | Session name. |
+| Direction | `direction` | Text | Yes |  | Main | upload makes the remote folder match the local one, download the other way round; both copies each side's new and newer files to the other. One of: `upload`, `download`, `both` |
+| Local folder | `local_folder` | File path | Yes |  | Main | Local folder. |
+| Remote folder | `remote_folder` | Text | Yes |  | Main | Remote folder. |
+| Pattern | `pattern` | Text | No | `*` | Main | Only files whose names match this wildcard (* and ?); other files are neither copied nor deleted. Example: `*.csv` |
+| Compare | `compare` | Text | No | `newer` | Main | When a file is on both sides, copy it when the source is newer (newer), when the sizes differ (size), or either (both). Times within 2 seconds count as the same; on FTP servers that only give times to the minute, within a minute. One of: `newer`, `size`, `both` |
+| Include subfolders | `include_subfolders` | Yes/No | No | Yes | More options | Also synchronise sub-folders and their files. |
+| Delete extra | `delete_extra` | Yes/No | No | No | More options | Delete files on the target side that are not on the source side; folders are left in place. Not allowed when direction is both. |
+| Dry run | `dry_run` | Yes/No | No | No | More options | Only report what would be copied and deleted; change nothing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `uploaded` | Number | Files copied to the server (or that would be, in a dry run). |
+| `downloaded` | Number | Files copied from the server. |
+| `deleted` | Number | Files deleted on the target side. |
+| `skipped` | Number | Source files left alone because the target copy is the same, or, in both directions, because neither copy is newer. |
+| `details` | List | One entry per file: {path, action}; path is relative to the folders, action is upload, download, delete_remote, delete_local, skip or conflict. |
+
+*Time limit 7200 s; needs: network, filesystem.*
+
 ### Upload folder
 
 `ooa.file_transfer/upload_folder` (action)
@@ -139,7 +171,7 @@ Connect and sign in to an FTP, FTPS or SFTP server, optionally trying again when
 | Retry delay (seconds) | `retry_delay_seconds` | Number | No | `5` | More options; tick Try again when connecting fails | Seconds to wait between tries. Range: 0 to 600 |
 | Start folder | `start_folder` | Text | No |  | More options | Remote folder to change to right after signing in; later relative paths start from it. Example: `/outgoing` |
 
-*Time limit 600 s; needs: network.*
+*Time limit 600 s; needs: network, filesystem.*
 
 ### Disconnect
 
@@ -154,6 +186,29 @@ Close the connection.
 | Session | `session` | Text | No | `transfer` | Main | Session name. |
 
 *Time limit 60 s.*
+
+### Send FTP command
+
+`ooa.file_transfer/send_command` (action)
+
+Send one raw command, such as SITE CHMOD 644 file.txt, FEAT or SYST, to an FTP or FTPS server and return its reply. SFTP sessions do not take raw commands.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `transfer` | Main | Session name. |
+| Command | `command` | Text | Yes |  | Main | The command and its arguments. Commands that sign in, change security or the data channel, or close the connection are refused. Example: `SITE CHMOD 644 report.csv` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `reply_code` | Number | The server's three-digit reply code, such as 200 or 550. |
+| `reply_text` | Text | The server's reply, all lines. |
+| `ok` | Yes/No | True when the reply code is 2xx or 3xx. |
+
+*Time limit 300 s; needs: network.*
 
 ## Files
 

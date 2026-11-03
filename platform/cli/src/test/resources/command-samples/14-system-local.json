@@ -1945,5 +1945,76 @@
   "expect": {
    "n": 2
   }
+ },
+ {
+  "command": "ooa.file_transfer/send_command",
+  "name": "refuses a command that closes the connection",
+  "steps": [
+   {
+    "action": "ooa.file_transfer/send_command",
+    "args": {
+     "command": "QUIT"
+    }
+   }
+  ],
+  "error": "TRANSFER.BAD_COMMAND"
+ },
+ {
+  "command": "ooa.file_transfer/send_command",
+  "name": "refuses a sign-in command",
+  "steps": [
+   {
+    "action": "ooa.file_transfer/send_command",
+    "args": {
+     "command": "USER eve"
+    }
+   }
+  ],
+  "error": "TRANSFER.BAD_COMMAND"
+ },
+ {
+  "command": "ooa.file_transfer/send_command",
+  "name": "refuses a command that needs a data connection",
+  "steps": [
+   {
+    "action": "ooa.file_transfer/send_command",
+    "args": {
+     "command": "LIST /"
+    }
+   }
+  ],
+  "error": "TRANSFER.BAD_COMMAND"
+ },
+ {
+  "command": "ooa.file_transfer/sync_folder",
+  "name": "delete_extra is not allowed both ways",
+  "steps": [
+   {
+    "action": "ooa.file_transfer/sync_folder",
+    "args": {
+     "direction": "both",
+     "local_folder": "sync",
+     "remote_folder": "/data",
+     "delete_extra": true
+    }
+   }
+  ],
+  "error": "TRANSFER.BAD_OPTION"
+ },
+ {
+  "command": "ooa.file_transfer/sync_folder",
+  "name": "unknown compare is caught when the flow is checked",
+  "steps": [
+   {
+    "action": "ooa.file_transfer/sync_folder",
+    "args": {
+     "direction": "upload",
+     "local_folder": "sync",
+     "remote_folder": "/data",
+     "compare": "hash"
+    }
+   }
+  ],
+  "error": "FLOW.INVALID"
  }
 ]

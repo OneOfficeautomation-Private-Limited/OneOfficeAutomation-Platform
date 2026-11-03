@@ -63,6 +63,7 @@ class FileTransferFoldersTest {
         }
         public void cd(String dir) throws Exception { String a = abs(dir); if (!dirs.contains(a)) throw new java.io.FileNotFoundException(dir); cwd = a; }
         public String pwd() { return cwd; }
+        public void setModified(String remote, java.time.Instant t) { if (files.containsKey(abs(remote))) times.put(abs(remote), java.time.LocalDateTime.ofInstant(t, java.time.ZoneOffset.UTC)); }
         public void close() { }
     }
 

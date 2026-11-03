@@ -156,7 +156,7 @@ All of them follow the same pattern (address + token from the vault):
 | **Zendesk** | Tickets and users (your Zendesk subdomain) |
 | **Snowflake**, **Databricks**, **Kafka** | Data platforms over their REST interfaces (no drivers needed) |
 | **Database** | Any database with a JDBC driver: Connect, Read from (query), Insert/update/delete, Bulk insert, stored procedures, transactions |
-| **FTP / SFTP** | File transfer with FTP, FTPS and SFTP |
+| **FTP / SFTP** | File transfer with FTP, FTPS and SFTP; **Synchronise folders** keeps a local and a remote folder in step (upload, download or both ways, by time or size, with a dry run), and **Send FTP command** sends a raw command such as `SITE CHMOD 644 file.txt` on FTP/FTPS |
 
 Toolkits that are not in the standard groups (for example new or custom toolkits) appear in the Actions panel under
 **More toolkits**, named after the toolkit.
