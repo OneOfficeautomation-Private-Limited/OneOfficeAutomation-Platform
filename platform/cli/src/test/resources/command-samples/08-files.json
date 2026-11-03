@@ -60,5 +60,7 @@
   {"command": "ooa.folder/exists", "name": "condition", "files": {"a/x.txt": "1"}, "vars": {"ok": false},
    "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.folder/exists", "args": {"path": "{tmp}/a"}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
   {"command": "ooa.folder/is_empty", "name": "condition", "files": {"a/x.txt": "1"}, "vars": {"ok": true},
-   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.folder/is_empty", "args": {"path": "{tmp}/a"}}}, "else": [{"action": "core/set", "args": {"variable": "ok", "value": false}}]}], "expect": {"ok": false}}
+   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.folder/is_empty", "args": {"path": "{tmp}/a"}}}, "else": [{"action": "core/set", "args": {"variable": "ok", "value": false}}]}], "expect": {"ok": false}},
+  {"command": "ooa.image/compare_images", "name": "missing picture (G11)", "files": {"a.txt": "not a picture"},
+   "steps": [{"action": "ooa.image/compare_images", "args": {"image": "{tmp}/a.txt", "other": "{tmp}/none.png"}}], "error": "IMAGE.UNSUPPORTED"}
 ]

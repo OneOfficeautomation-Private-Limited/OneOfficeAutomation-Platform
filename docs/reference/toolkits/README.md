@@ -42,7 +42,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [GitHub](ooa-github.md) | `ooa.github` | 21 | 1 | 0 | Work with GitHub repositories: issues, pull requests, branches, files, releases and Actions workflows. Works with github.com and GitHub Enterprise Server. |
 | [Google Workspace](ooa-google.md) | `ooa.google` | 68 | 0 | 0 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
 | [Hash, encryption and encoding](ooa-crypto.md) | `ooa.crypto` | 14 | 0 | 0 | Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding. |
-| [Image recognition](ooa-image.md) | `ooa.image` | 5 | 2 | 0 | Find, wait for and click images on the screen or inside image files. |
+| [Image recognition](ooa-image.md) | `ooa.image` | 6 | 2 | 0 | Find, wait for and click images on the screen or inside image files. |
 | [Insights](ooa-insights.md) | `ooa.insights` | 4 | 0 | 0 | Record business values and timed transactions from agents for dashboards and ROI reports, and read them back. |
 | [Interactive forms](ooa-forms.md) | `ooa.forms` | 18 | 0 | 0 | Show a form to the person at the runner, react to its buttons and changes, and read or change its fields while it is open. |
 | [Interrupt handlers](ooa-interrupts.md) | `ooa.interrupts` | 5 | 0 | 0 | Rules that deal with unexpected windows and pop-ups during UI automation, checked before each UI action. |

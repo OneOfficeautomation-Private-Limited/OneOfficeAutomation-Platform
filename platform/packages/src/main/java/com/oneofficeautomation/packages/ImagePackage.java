@@ -524,4 +524,84 @@ public final class ImagePackage {
         BufferedImage t = load(ctx, template);
         return Boolean.TRUE.equals(result(find(load(ctx, image), t), t, tol).get("found"));
     }
+
+    // ---------- compare two images (gap G11, 3 Nov 2026) ----------
+
+    @Action(id = "compare_images", name = "Compare images", category = "Image", idempotent = true, capabilities = "filesystem",
+            description = "Compare two pictures pixel by pixel: whether they are the same, how much differs, where, and optionally a copy of the first with the changes in red.",
+            panel = "image, other, tolerance, max_difference_percent | size_mismatch, difference_image")
+    @Output(name = "same", type = OoaType.BOOLEAN, description = "True when no more than max_difference_percent of the pixels differ.")
+    @Output(name = "difference_percent", type = OoaType.NUMBER, description = "Share of pixels that differ, 0 to 100, two decimals.")
+    @Output(name = "changed_pixels", type = OoaType.NUMBER, description = "Number of pixels that differ.")
+    @Output(name = "changed_area", type = OoaType.DICTIONARY, description = "x, y, width and height of the box around every changed pixel (in the first image); empty when nothing changed.")
+    @Output(name = "difference_image", type = OoaType.FILE, description = "Path of the difference picture; empty when none was asked for.")
+    public Map<String, Object> compareImages(ActionContext ctx,
+            @Input(name = "image", type = OoaType.FILE, description = "First picture, e.g. the approved layout (PNG, JPG, BMP or GIF).") String image,
+            @Input(name = "other", type = OoaType.FILE, description = "Second picture, e.g. a screen capture saved by an earlier step.") String other,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100,
+                    description = "How different one pixel's colour may be and still count as the same, in percent (0 = exact); ignores compression noise and slight colour shifts.") double tolerance,
+            @Input(name = "max_difference_percent", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 100,
+                    description = "Share of pixels that may differ while the pictures still count as the same.") double maxDifference,
+            @Input(name = "size_mismatch", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "scale"},
+                    description = "When the sizes differ: error stops with IMAGE.SIZE_MISMATCH; scale stretches the second picture to the first one's size first.") String sizeMismatch,
+            @Input(name = "difference_image", type = OoaType.FILE, required = false, example = "output/diff.png",
+                    description = "Save a PNG copy of the first picture with the changed pixels in red here; none when empty.") String differenceImage) {
+        if (tolerance < 0 || tolerance > 100 || maxDifference < 0 || maxDifference > 100)
+            throw new ActionException("IMAGE.BAD_OPTION", "tolerance and max_difference_percent must be 0 to 100", "Give percentages from 0 to 100.");
+        BufferedImage a = load(ctx, image), b = load(ctx, other);
+        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) {
+            if (!"scale".equals(sizeMismatch))
+                throw new ActionException("IMAGE.SIZE_MISMATCH", "The pictures differ in size: " + a.getWidth() + " x " + a.getHeight() + " and " + b.getWidth() + " x " + b.getHeight(),
+                        "Capture both at the same size, or set size_mismatch to scale.");
+            BufferedImage s = new BufferedImage(a.getWidth(), a.getHeight(), BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = s.createGraphics();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(b, 0, 0, a.getWidth(), a.getHeight(), null);
+            g.dispose();
+            b = s;
+        }
+        int w = a.getWidth(), h = a.getHeight();
+        int limit = (int) Math.round(tolerance / 100.0 * 765);   // sum of the red, green and blue differences
+        boolean wantDiff = differenceImage != null && !differenceImage.isBlank();
+        BufferedImage diff = wantDiff ? new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB) : null;
+        long changed = 0;
+        int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, x1 = -1, y1 = -1;
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+            int p = a.getRGB(x, y), q = b.getRGB(x, y);
+            int d = Math.abs(((p >> 16) & 255) - ((q >> 16) & 255)) + Math.abs(((p >> 8) & 255) - ((q >> 8) & 255)) + Math.abs((p & 255) - (q & 255));
+            boolean differs = d > limit;
+            if (differs) { changed++; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+            if (diff != null) {
+                if (differs) diff.setRGB(x, y, 0xFF0000);
+                else {   // unchanged pixels faded, so the red stands out
+                    int r = ((p >> 16) & 255) / 3 + 170, gg = ((p >> 8) & 255) / 3 + 170, bb = (p & 255) / 3 + 170;
+                    diff.setRGB(x, y, (r << 16) | (gg << 8) | bb);
+                }
+            }
+        }
+        long total = (long) w * h;
+        BigDecimal pct = total == 0 ? BigDecimal.ZERO : BigDecimal.valueOf(changed * 100.0 / total).setScale(2, RoundingMode.HALF_UP);
+        boolean same = changed * 100.0 / Math.max(1, total) <= maxDifference;
+        Map<String, Object> area = new LinkedHashMap<>();
+        if (changed > 0) {
+            area.put("x", BigDecimal.valueOf(x0)); area.put("y", BigDecimal.valueOf(y0));
+            area.put("width", BigDecimal.valueOf(x1 - x0 + 1)); area.put("height", BigDecimal.valueOf(y1 - y0 + 1));
+        }
+        String diffPath = "";
+        if (diff != null) {
+            Path dp = ctx.resolvePath(differenceImage);
+            try {
+                if (dp.getParent() != null) Files.createDirectories(dp.getParent());
+                ImageIO.write(diff, "png", dp.toFile());
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + dp + ": " + e.getMessage(), null, true); }
+            diffPath = dp.toAbsolutePath().toString();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("same", same);
+        out.put("difference_percent", pct);
+        out.put("changed_pixels", BigDecimal.valueOf(changed));
+        out.put("changed_area", area);
+        out.put("difference_image", diffPath);
+        return out;
+    }
 }
