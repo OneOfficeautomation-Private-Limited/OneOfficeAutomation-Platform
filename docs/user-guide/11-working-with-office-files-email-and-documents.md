@@ -109,6 +109,25 @@ The **Excel** group works on workbook files directly, so it runs on servers and 
 
 These need Windows with Excel installed on the runner. Leave **Visible** off for unattended runs.
 
+### Files a person already has open
+
+**Open Excel and Word files** works in a workbook or document that is already open on the desktop, in the same window,
+so a person can keep working while the agent reads or fills it in. Name the file as Excel or Word shows it
+(`Sales.xlsx`) or give its full path.
+
+| Action | Use |
+| --- | --- |
+| **List open workbooks** / **List open documents** | The open files, their paths, sheets, and whether they have unsaved changes |
+| **Read range from open workbook** | A range or the used area as a Data Table, including values not saved yet |
+| **Write to open workbook** | A value, a list of rows or a Data Table from a start cell |
+| **Read open document** | The document's text |
+| **Replace text in open document** | Replace every match (up to 255 characters); returns how many |
+| **Append text to open document** | Add text at the end, as a new paragraph or not |
+| **Save open workbook** / **Save open document** | Save in place |
+
+These actions never open, close or quit anything. They need an attended runner, signed in as the same Windows user who
+opened the file. If the file is not open, the error lists the files that are.
+
 ## 5. Word
 
 **Word** reads and writes .docx files without Word installed (**Extract text from a file** also reads old .doc and .rtf).

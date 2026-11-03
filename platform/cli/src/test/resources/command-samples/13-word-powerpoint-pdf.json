@@ -659,5 +659,7 @@
    }
   ],
   "error": "PDF.NO_FORM"
- }
+ },
+ {"command": "ooa.office_attach/word_replace_text", "name": "Word replaces at most 255 characters at a time", "steps": [{"action": "ooa.office_attach/word_replace_text", "args": {"document": "Letter.docx", "find": "{{name}}", "replace_with": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}], "error": "WORD_OPEN.TOO_LONG"},
+ {"command": "ooa.office_attach/word_append_text", "name": "nothing to add", "steps": [{"action": "ooa.office_attach/word_append_text", "args": {"document": "Letter.docx", "text": ""}}], "error": "WORD_OPEN.NO_TEXT"}
 ]

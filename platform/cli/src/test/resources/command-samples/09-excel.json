@@ -223,5 +223,7 @@
   {"command": "ooa.excel/unprotect_workbook", "name": "structure password still checked", "steps": [
      {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/po3.xlsx"}},
      {"action": "ooa.excel/protect_workbook", "args": {"password": "right"}},
-     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"}
+     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"},
+ {"command": "ooa.office_attach/excel_read_range", "name": "a range that is not an address is refused before Excel is asked", "steps": [{"action": "ooa.office_attach/excel_read_range", "args": {"workbook": "Sales.xlsx", "range": "first rows"}}], "error": "EXCEL_OPEN.BAD_RANGE"},
+ {"command": "ooa.office_attach/excel_write_range", "name": "a start that is not a cell is refused", "steps": [{"action": "ooa.office_attach/excel_write_range", "args": {"workbook": "Sales.xlsx", "start_cell": "B", "values": "x"}}], "error": "EXCEL_OPEN.BAD_RANGE"}
 ]

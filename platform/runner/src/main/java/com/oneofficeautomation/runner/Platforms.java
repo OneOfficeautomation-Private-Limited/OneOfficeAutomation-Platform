@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
  */
 public final class Platforms {
     private static final Pattern WINDOWS = Pattern.compile(
-            "\"action\"\\s*:\\s*\"(ooa\\.(desktop|desktop_ui|window|dll|java_apps|credential_manager|application|excel_desktop)/|ooa\\.script/run_vbscript\")");
+            "\"action\"\\s*:\\s*\"(ooa\\.(desktop|desktop_ui|window|dll|java_apps|credential_manager|application|excel_desktop|office_attach)/|ooa\\.script/run_vbscript\")");
 
     private Platforms() { }
 
