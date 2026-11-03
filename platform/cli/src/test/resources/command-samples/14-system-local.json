@@ -1945,5 +1945,18 @@
   "expect": {
    "n": 2
   }
- }
+ },
+ {"command": "ooa.log/add_log_fields", "name": "fields set and removed (G16)", "steps": [
+   {"action": "ooa.log/add_log_fields", "args": {"fields": {"invoice": "INV-7", "customer": "Acme"}}, "out": {"fields": "all"}},
+   {"action": "core/log", "args": {"message": "working"}},
+   {"action": "ooa.log/remove_log_fields", "args": {"names": ["customer"]}, "out": {"fields": "left"}}],
+  "expect": {"all": {"invoice": "INV-7", "customer": "Acme"}, "left": {"invoice": "INV-7"}}},
+ {"command": "ooa.log/add_log_fields", "name": "a name must start with a letter", "steps": [
+   {"action": "ooa.log/add_log_fields", "args": {"fields": {"1st": "x"}}}], "error": "LOG.BAD_FIELD"},
+ {"command": "ooa.log/remove_log_fields", "name": "nothing set", "steps": [
+   {"action": "ooa.log/remove_log_fields", "args": {}, "out": {"fields": "left"}}], "expect": {"left": {}}},
+ {"command": "ooa.desktop/show_callout", "name": "needs a text (G16)", "steps": [
+   {"action": "ooa.desktop/show_callout", "args": {"text": " "}}], "error": "DESKTOP.NO_TEXT"},
+ {"command": "ooa.desktop/show_callout", "name": "points at a spot", "requires": "desktop", "steps": [
+   {"action": "ooa.desktop/show_callout", "args": {"text": "Here", "x": 300, "y": 200, "seconds": 1, "wait": true}}]}
 ]

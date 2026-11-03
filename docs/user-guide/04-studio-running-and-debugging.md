@@ -112,7 +112,9 @@ When the run ends:
 - The step that failed stays marked on the canvas.
 
 > **Tip:** Use **Log message** steps (with `${…}` text) to write what the agent is doing; they appear in the Run log here
-> and in One CommandCenter's run details.
+> and in One CommandCenter's run details. **Add log fields** (Log toolkit) attaches values such as the invoice number or
+> customer to every following log line, shown as `[invoice=INV-7, customer=Acme]` and searchable in Agent Activity,
+> until **Remove log fields**.
 
 ## 6. Debug with breakpoints
 

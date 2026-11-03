@@ -603,6 +603,84 @@ public final class DesktopPackage {
         return Map.of("button", buttonName(btn, chosen));
     }
 
+    // ---------- callout (gap G16, 3 Nov 2026) ----------
+
+    @Action(id = "show_callout", name = "Show callout", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 120,
+            description = "Show a small note pointing at a place on the screen for a few seconds, e.g. to tell the person in an attended run which field the agent is about to fill. It takes no clicks and does not take the focus.",
+            panel = "text, (Point at: The mouse pointer = / A point = x, y, relative_to, window), seconds | wait, color")
+    public Map<String, Object> showCallout(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, example = "Filling in the invoice number here", description = "Text of the note; a few words work best.") String text,
+            @Input(name = "x", type = OoaType.NUMBER, required = false, description = "Point the note at: pixels from the left; the mouse pointer when x and y are empty.") Integer x,
+            @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Point the note at: pixels from the top.") Integer y,
+            @Input(name = "relative_to", type = OoaType.STRING, required = false, defaultValue = "\"screen\"", enumValues = {"screen", "window"}, description = D_RELATIVE) String relativeTo,
+            @Input(name = "window", type = OoaType.STRING, required = false, visibleWhen = "relative_to=window", description = D_WINDOW) String window,
+            @Input(name = "seconds", type = OoaType.NUMBER, required = false, defaultValue = "3", min = 1, max = 60, description = "How long the note shows.") int seconds,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until the note has gone before the next step; by default the agent carries on while it shows.") boolean wait,
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"yellow\"", enumValues = {"yellow", "blue", "green", "red"}, description = "Colour of the note.") String color) {
+        if (text == null || text.isBlank()) throw new ActionException("DESKTOP.NO_TEXT", "The callout needs a text", "Fill in the text.");
+        if (seconds < 1 || seconds > 60) throw new ActionException("DESKTOP.BAD_OPTION", "seconds must be 1 to 60", "Show the note for 1 to 60 seconds.");
+        String col = choice("color", color, "yellow", "yellow", "blue", "green", "red");
+        DesktopSupport.requireDesktop();
+        int[] at;
+        if (x == null || y == null) {
+            if (x != null || y != null) throw new ActionException("DESKTOP.BAD_OPTION", "Give both x and y, or neither", "Leave both empty to point at the mouse pointer.");
+            PointerInfo pi = MouseInfo.getPointerInfo();
+            Point p = pi == null ? new Point(200, 200) : pi.getLocation();
+            at = new int[]{p.x, p.y};
+        } else {
+            boolean rel = "window".equals(relativeTo);
+            at = target(x, y, rel ? "window" : "screen", focusWindow(window, rel));
+        }
+        Color[] c = switch (col) {   // fill, border
+            case "blue" -> new Color[]{new Color(0xDCEBFF), new Color(0x1F5FBF)};
+            case "green" -> new Color[]{new Color(0xDFF5E1), new Color(0x1E7B34)};
+            case "red" -> new Color[]{new Color(0xFDE2E1), new Color(0xB42318)};
+            default -> new Color[]{new Color(0xFFF6C8), new Color(0x8A6D00)};
+        };
+        String shown = text.strip().length() > 300 ? text.strip().substring(0, 300) + "…" : text.strip();
+        onEdt(() -> {
+            javax.swing.JWindow w = new javax.swing.JWindow();
+            w.setAlwaysOnTop(true);
+            w.setFocusableWindowState(false);   // never takes the keyboard from the application
+            javax.swing.JLabel label = new javax.swing.JLabel("<html><body style='width:" + Math.min(260, 8 * shown.length()) + "px'>"
+                    + shown.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</body></html>");
+            label.setFont(label.getFont().deriveFont(Font.PLAIN, 13f));
+            label.setForeground(new Color(0x1A1A1A));
+            final int tip = 10;
+            javax.swing.JPanel panel = new javax.swing.JPanel(new BorderLayout()) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int bw = getWidth() - 1, bh = getHeight() - 1 - tip;
+                    java.awt.geom.Path2D shape = new java.awt.geom.Path2D.Double();
+                    shape.append(new java.awt.geom.RoundRectangle2D.Double(0, tip, bw, bh, 12, 12), false);
+                    Polygon arrow = new Polygon(new int[]{12, 22, 32}, new int[]{tip + 1, 0, tip + 1}, 3);
+                    g2.setColor(c[0]); g2.fill(shape); g2.fillPolygon(arrow);
+                    g2.setColor(c[1]); g2.draw(shape);
+                    g2.drawLine(12, tip, 22, 0); g2.drawLine(22, 0, 32, tip);
+                    g2.setColor(c[0]); g2.drawLine(13, tip, 31, tip);
+                    g2.dispose();
+                }
+            };
+            panel.setOpaque(false);
+            panel.setBorder(javax.swing.BorderFactory.createEmptyBorder(tip + 8, 12, 9, 12));
+            panel.add(label);
+            w.setBackground(new Color(0, 0, 0, 0));
+            w.setContentPane(panel);
+            w.pack();
+            w.setLocation(at[0] - 22, at[1] + 6);   // the arrow's tip just below the point
+            w.setVisible(true);
+            javax.swing.Timer t = new javax.swing.Timer(seconds * 1000, e -> w.dispose());
+            t.setRepeats(false);
+            t.start();
+            return null;
+        });
+        if (wait) {
+            try { Thread.sleep(seconds * 1000L + 200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        }
+        return Map.of();
+    }
+
     @Action(id = "prompt_value", name = "Prompt for value", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to type a value, optionally hidden as it is typed.",
             panel = "title, question, masked | default, timeout_seconds, always_on_top")
     @Output(name = "value", type = OoaType.STRING, description = "Entered text.")

@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class Runner {
     public static final int MAX_CHILD_DEPTH = 10;
+    /** Session key of the run's log fields: name to value, added to every log event (ooa.log Add log fields). */
+    public static final String LOG_FIELDS_SESSION = "ooa.log.fields";
 
     private final PackageRegistry registry;
     private final Map<String, Object> services;
@@ -362,7 +364,15 @@ public final class Runner {
 
         void log(String level, String message, String stepId) {
             for (String s : secrets) if (!s.isEmpty()) message = message.replace(s, SecureString.MASK);
-            emit("log", stepId, data("level", level, "message", message));
+            emit("log", stepId, logData(level, message));
+        }
+
+        /** A log event's data: level and message, plus the run's log fields (Add log fields) when any are set. */
+        @SuppressWarnings("unchecked")
+        Map<String, Object> logData(String level, String message) {
+            Map<String, Object> d = data("level", level, "message", message);
+            if (sessions.get(LOG_FIELDS_SESSION) instanceof Map<?, ?> f && !f.isEmpty()) d.put("fields", new LinkedHashMap<>((Map<String, Object>) f));
+            return d;
         }
 
         @SuppressWarnings("unchecked")
@@ -1175,7 +1185,7 @@ public final class Runner {
 
         ActionContext ctx(String stepId) {
             return new ActionContext(runId, stepId, tenantId, workDir, sessions, stepServices(), cancel, () -> List.copyOf(secrets),
-                    (lvl, msg) -> emit("log", stepId, data("level", lvl, "message", msg)));
+                    (lvl, msg) -> emit("log", stepId, logData(lvl, msg)));
         }
 
         Map<String, Object> prepareArgs(ActionSpec spec, Map<String, Object> raw) {

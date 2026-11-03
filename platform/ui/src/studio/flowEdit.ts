@@ -297,6 +297,13 @@ export function parseLoose(text: string): unknown {
 
 export const showValue = (v: unknown) => v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v);
 
+/** A log event's fields (Add log fields) as "  [invoice=INV-7, customer=Acme]"; empty when it has none. */
+export function logFields(f: unknown): string {
+  if (!f || typeof f !== "object") return "";
+  const parts = Object.entries(f as Record<string, unknown>).map(([k, v]) => k + "=" + showValue(v));
+  return parts.length ? "  [" + parts.join(", ") + "]" : "";
+}
+
 /**
  * The order of an action's fields: the main ones first, then those under More options, as its panel layout lists
  * them; any input the layout does not mention goes under More options.

@@ -8,7 +8,7 @@ Toolkit `ooa.desktop`, version 1.1.0. Click, type, press keys, capture the scree
 
 - **Screen**: Capture screen
 - **Clipboard**: Clear clipboard, Get clipboard text, Copy to clipboard
-- **Dialogs**: Message box, Prompt for file, Prompt for folder, Prompt for password, Prompt for value, Prompt for yes/no
+- **Dialogs**: Message box, Prompt for file, Prompt for folder, Prompt for password, Prompt for value, Prompt for yes/no, Show callout
 - **Mouse**: Mouse click, Mouse move, Mouse scroll
 - **Keyboard**: Press keys, Type text
 
@@ -32,6 +32,7 @@ Save a screenshot of the whole screen, all screens, a region or a window as a PN
 | Path | `path` | File path | Yes |  | Main | Image file to save. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false an existing file stops the step. |
 | Format | `format` | Text | No | `png` | More options | Image format. One of: `png`, `jpg`, `bmp` |
+| Jpeg quality | `jpeg_quality` | Number | No | `90` | More options | JPEG quality from 1 (smallest file) to 100 (best picture). Range: 1 to 100; Shown when: `{"format": ["jpg"]}` |
 | All screens | `all_screens` | Yes/No | No | No | More options | Capture every monitor together instead of the main one (when no region or window is given). |
 
 **Results**
@@ -40,7 +41,7 @@ Save a screenshot of the whole screen, all screens, a region or a window as a PN
 | --- | --- | --- |
 | `path` | File path | Saved image path. |
 
-*Time limit 60 s; needs: desktop.*
+*Time limit 60 s; needs: desktop, filesystem.*
 
 ## Clipboard
 
@@ -145,7 +146,7 @@ Ask the user to choose one or more files, optionally of given types.
 | `paths` | List | All chosen files. |
 | `cancelled` | Yes/No | True when cancelled or timed out. |
 
-*Time limit 3600 s; needs: desktop.*
+*Time limit 3600 s; needs: desktop, filesystem.*
 
 ### Prompt for folder
 
@@ -170,7 +171,7 @@ Ask the user to choose a folder.
 | `path` | File path | Chosen folder, empty when cancelled. |
 | `cancelled` | Yes/No | True when cancelled or timed out. |
 
-*Time limit 3600 s; needs: desktop.*
+*Time limit 3600 s; needs: desktop, filesystem.*
 
 ### Prompt for password
 
@@ -246,6 +247,27 @@ Ask the user a yes/no question.
 | `timed_out` | Yes/No | True when nobody answered before the timeout (or the window was closed). |
 
 *Time limit 3600 s; needs: desktop.*
+
+### Show callout
+
+`ooa.desktop/show_callout` (action)
+
+Show a small note pointing at a place on the screen for a few seconds, e.g. to tell the person in an attended run which field the agent is about to fill. It takes no clicks and does not take the focus.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text of the note; a few words work best. Example: `Filling in the invoice number here` |
+| X | `x` | Number | No |  | Main; choice Point at = A point | Point the note at: pixels from the left; the mouse pointer when x and y are empty. |
+| Y | `y` | Number | No |  | Main; choice Point at = A point | Point the note at: pixels from the top. |
+| Relative to | `relative_to` | Text | No | `screen` | Main; choice Point at = A point | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
+| Window | `window` | Text | No |  | Main; choice Point at = A point | Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front. Shown when: `{"relative_to": ["window"]}` |
+| Seconds | `seconds` | Number | No | `3` | Main | How long the note shows. Range: 1 to 60 |
+| Wait | `wait` | Yes/No | No | No | More options | Wait until the note has gone before the next step; by default the agent carries on while it shows. |
+| Color | `color` | Text | No | `yellow` | More options | Colour of the note. One of: `yellow`, `blue`, `green`, `red` |
+
+*Time limit 120 s; needs: desktop.*
 
 ## Mouse
 

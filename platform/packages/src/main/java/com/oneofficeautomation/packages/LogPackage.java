@@ -156,4 +156,43 @@ public final class LogPackage {
     public Map<String, Object> logToCommandCenter(ActionContext ctx, String message, String level, Map<String, Object> details) {
         return logToCommandCenter(ctx, message, level, details, null);
     }
+
+    // ---------- log fields (gap G16, 3 Nov 2026) ----------
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> fields(ActionContext ctx) {
+        return (Map<String, Object>) ctx.sessions().computeIfAbsent(com.oneofficeautomation.runner.Runner.LOG_FIELDS_SESSION, k -> new LinkedHashMap<String, Object>());
+    }
+
+    @Action(id = "add_log_fields", name = "Add log fields", category = "Logging",
+            description = "Attach name and value pairs, such as the invoice number or customer, to every following line of this run's log until they are removed, so the log can be searched and filtered by them. Adding a name again changes its value.",
+            panel = "fields")
+    @Output(name = "fields", type = OoaType.DICTIONARY, description = "Every log field now set.")
+    public Map<String, Object> addLogFields(ActionContext ctx,
+            @Input(name = "fields", type = OoaType.DICTIONARY, example = "{\"invoice\": \"$invoice_no\", \"customer\": \"Acme\"}",
+                    description = "Names and values; values are stored as text, credentials as ****.") Map<String, Object> fields) {
+        if (fields == null || fields.isEmpty()) throw new ActionException("LOG.NO_FIELDS", "No log fields given", "Give at least one name and value.");
+        Map<String, Object> f = fields(ctx);
+        for (var e : fields.entrySet()) {
+            String name = e.getKey() == null ? "" : e.getKey().strip();
+            if (!name.matches("[A-Za-z][A-Za-z0-9_.-]{0,63}"))
+                throw new ActionException("LOG.BAD_FIELD", "'" + e.getKey() + "' cannot be a log field name", "Start with a letter; use letters, digits, _ . and -, at most 64 characters.");
+            String v = ctx.redact(render(e.getValue()));
+            f.put(name, v.length() > 1000 ? v.substring(0, 1000) : v);
+        }
+        if (f.size() > 50) throw new ActionException("LOG.TOO_MANY_FIELDS", "A run can have at most 50 log fields", "Remove fields that are no longer needed.");
+        return Map.of("fields", new LinkedHashMap<>(f));
+    }
+
+    @Action(id = "remove_log_fields", name = "Remove log fields", category = "Logging",
+            description = "Stop attaching log fields to the following lines: the ones named, or all of them.",
+            panel = "names")
+    @Output(name = "fields", type = OoaType.DICTIONARY, description = "The log fields still set.")
+    public Map<String, Object> removeLogFields(ActionContext ctx,
+            @Input(name = "names", type = OoaType.LIST, required = false, example = "[\"invoice\"]", description = "Field names to remove; all when empty.") List<Object> names) {
+        Map<String, Object> f = fields(ctx);
+        if (names == null || names.isEmpty()) f.clear();
+        else for (Object n : names) f.remove(String.valueOf(n).strip());
+        return Map.of("fields", new LinkedHashMap<>(f));
+    }
 }

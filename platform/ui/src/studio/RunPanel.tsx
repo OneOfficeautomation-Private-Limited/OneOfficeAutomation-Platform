@@ -1,6 +1,6 @@
 import type { DebugCommand, DebugState, RunEvent, RunResult } from "../api/client";
 import { Button, withKey } from "../components";
-import { showValue } from "./flowEdit";
+import { logFields, showValue } from "./flowEdit";
 
 /** A run of the open agent from this Studio: what it reported so far and, when it is being debugged, where it stopped. */
 export type LiveRun = { id: string; debug: boolean; state: string; events: RunEvent[]; result?: RunResult; stopped?: DebugState; elapsed: number };
@@ -34,7 +34,7 @@ function line(e: RunEvent, stepName: (id: string) => string): { text: string; to
     case "step.finished": return { text: at + "done" + (typeof d.durationMs === "number" ? ` in ${d.durationMs} ms` : "") };
     case "step.failed": return { text: at + "failed: " + String(d.message ?? d.code ?? ""), tone: "bad" };
     case "step.retry": return { text: at + "trying again" };
-    case "log": return { text: at + String(d.message ?? ""), tone: d.level === "error" ? "bad" : undefined };
+    case "log": return { text: at + String(d.message ?? "") + logFields(d.fields), tone: d.level === "error" ? "bad" : undefined };
     case "variable.set": return { text: at + "$" + String(d.name) + " = " + showValue(d.value) };
     case "run.paused": return { text: "Paused" };
     case "run.resumed": return { text: "Resumed" };

@@ -279,7 +279,7 @@ SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) 
 | --- | --- |
 | **Window** | Activate, Maximise, Minimise, Restore, Move and resize, Close, Wait for window, Capture window, Get active window title; conditions **Window exists**, **Window is active** |
 | **Application** | Start program, Run program and wait, Open file, Stop program; condition **Program is running** |
-| **Mouse and keyboard** | Mouse click, Mouse move, Mouse scroll, Type text, Press keys, Capture screen, clipboard actions, Message box, Prompt for value / yes/no / password / file / folder |
+| **Mouse and keyboard** | Mouse click, Mouse move, Mouse scroll, Type text, Press keys, Capture screen, clipboard actions, Message box, **Show callout** (a short note pointing at a spot for a few seconds, without taking the focus), Prompt for value / yes/no / password / file / folder |
 
 **Press keys** has a **+ key** list with ENTER, TAB, ESC, CTRL+A, ALT+F4 and other keys. **Type text** can type a
 credential from the vault.
