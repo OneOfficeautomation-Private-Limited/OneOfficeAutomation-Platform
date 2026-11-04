@@ -112,9 +112,14 @@ export function DeliveryDialog({ open, value, onClose, onSave }: { open: boolean
           options={(Object.keys(DELIVERY_KIND) as DeliveryType[]).map((k) => ({ value: k, label: DELIVERY_KIND[k].label }))} />}</Field>
         <Field label="Name (optional)">{(id) => <TextInput id={id} value={d.name} placeholder={kind.label} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
       </div>
-      <Field label={kind.target} hint={d.type === "start_bot" ? "The bot's path in the agent repository. It gets the document's fields as input." : undefined}>
+      <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
         {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
       </Field>
+      {d.type === "start_bot" && (
+        <Field label="Runner pool (optional)" hint="Empty: your default runner.">
+          {(id) => <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}
+        </Field>
+      )}
       <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
         <legend style={{ fontWeight: 600, padding: 0, marginBottom: 6 }}>Send when a document is</legend>
         <div className="df-grid df-g2" style={{ gap: 6 }}>

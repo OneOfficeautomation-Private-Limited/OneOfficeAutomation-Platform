@@ -843,15 +843,15 @@ const VIEWS = {
     const admin = can("users.manage");
     const allBox = admin ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!S.inboxAll, onchange: (e) => { S.inboxAll = e.target.checked; go("inbox"); } }), "Everyone's tasks") : null;
     const r = await api("GET", "tasks?status=" + (S.inboxTab === "open" ? "open" : "completed") + (S.inboxAll ? "&all=true" : ""));
-    const kindLabel = { form: "Fill in", approval: "Approve", notification: "Notice" };
-    main.replaceChildren(...header("Task inbox", "Work that workflows assign to you or your role: forms to fill in, approvals and notices."),
+    const kindLabel = { form: "Fill in", approval: "Approve", notification: "Notice", document_review: "Review document" };
+    main.replaceChildren(...header("Task inbox", "Work assigned to you or your role: forms to fill in, approvals, notices and documents to review."),
       h("div", { class: "toolbar" }, tabStrip([["open", "To do"], ["done", "Done"]], S.inboxTab, (t) => { S.inboxTab = t; go("inbox"); }), h("span", { class: "spacer" }), allBox),
       dataTable({ rows: r.tasks, search: "Search tasks", exportName: "tasks", onRow: openTask, empty: S.inboxTab === "open" ? "Nothing waiting for you. \u2728" : "No completed tasks yet.",
         columns: [
-          { label: "Task", value: (t) => t.title, render: (t) => h("div", { class: "name-cell" }, ic(t.kind === "approval" ? "shield" : t.kind === "form" ? "form" : "bolt", t.kind === "approval" ? "#d97706" : "#0d9488", "sm"),
+          { label: "Task", value: (t) => t.title, render: (t) => h("div", { class: "name-cell" }, ic(t.kind === "approval" ? "shield" : t.kind === "form" ? "form" : t.kind === "document_review" ? "inbox" : "bolt", t.kind === "approval" ? "#d97706" : "#0d9488", "sm"),
             h("div", {}, h("strong", { text: t.title }), h("div", { class: "muted small", text: t.description || "" }))) },
           { label: "Kind", value: (t) => kindLabel[t.kind] || t.kind },
-          { label: "Assigned to", value: (t) => t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee },
+          { label: "Assigned to", value: (t) => t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee === "perm:docs.review" ? "Document reviewers" : t.assignee },
           { label: "Due", value: (t) => t.due || "", render: (t) => t.due ? h("span", { class: t.overdue ? "pill failed" : "", title: local(t.due), text: (t.overdue ? "Overdue " : "") + ago(t.due) }) : "\u2014" },
           { label: S.inboxTab === "open" ? "Created" : "Outcome", value: (t) => S.inboxTab === "open" ? t.created : t.outcome, render: (t) => S.inboxTab === "open" ? ago(t.created) : pill(t.outcome || t.status) }]}));
     if (main.isConnected) S.timer = every(() => { if (S.page === "inbox" && $("modal").hidden && $("drawer").hidden) go("inbox"); }, 10000);
@@ -2459,6 +2459,8 @@ function taskField(f, value) {
 }
 
 async function openTask(t) {
+  // a document review happens on Document Automation's review screen; the task closes when it is approved or rejected
+  if (t.kind === "document_review" && t.can_act && t.data && t.data.link) { location.href = t.data.link; return; }
   const fields = t.kind === "form" && t.form ? (t.form.fields || []).map((f) => [f, taskField(f, (t.result || {})[f.id])]) : [];
   const ctx = Object.keys(t.data || {}).length ? h("details", { open: t.kind === "approval" }, h("summary", { text: "Workflow data" }), kv(Object.entries(t.data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]))) : null;
   const comment = h("textarea", { rows: 2, placeholder: "Comment (optional)" });

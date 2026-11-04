@@ -92,7 +92,7 @@ function fieldType(t: string): DocTypeField["type"] {
 const targetOf = (d: DfDelivery) => String((d.type === "start_bot" ? d.params.bot : d.type === "webhook" ? d.params.url : d.params.path) ?? "");
 const paramsOf = (d: Delivery, old?: DfDelivery): Record<string, unknown> => {
   const keep = { ...(old?.params ?? {}) };
-  if (d.type === "start_bot") return { ...keep, bot: d.target };
+  if (d.type === "start_bot") return { ...keep, bot: d.target, pool: d.pool ?? "" };
   if (d.type === "webhook") return { ...keep, url: d.target };
   return { ...keep, path: d.target };
 };
@@ -325,7 +325,8 @@ export class HttpDocFlowApi implements DocFlowApi {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
         extraction: f.engine.extractionProvider, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
       },
-      deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d) })),
+      deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
+        ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}) })),
     };
     const seen = new Set<string>();
     const fields = (f.isInbox ? types : mine).flatMap((t) => t.fields).filter((x) => x.type !== "table" && !seen.has(x.name) && seen.add(x.name))

@@ -142,6 +142,8 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
+        // documents waiting for review in Document Automation become Task inbox tasks
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.syncReviews(); } catch (RuntimeException ignored) { } }, 10, 20, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -329,6 +331,8 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/token")) { sendJson(ex, 200, cr.verifyToken(token(ex))); return; }
+        // Document Automation's "Start a bot" delivery: DocFlow calls back with the service token (DocFlowProxy.startBot)
+        if (m.equals("POST") && route.equals("docflow-callback/start-bot")) { sendJson(ex, 200, docflow.startBot(ex, ip)); return; }
         if (seg[0].equals("apitasks") && seg.length >= 3 && (seg[2].equals("run") || seg[2].equals("runs"))) {
             String t = ex.getRequestHeaders().getFirst("X-OOA-Task-Token");
             if (t == null) t = token(ex);

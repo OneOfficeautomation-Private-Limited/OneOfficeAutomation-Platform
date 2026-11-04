@@ -37,7 +37,7 @@ export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "threshold" | "requi
 export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn"; type: RuleType; params: Record<string, unknown> }
 export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
-export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[] }
+export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string }
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
   fieldConfidence: number; slaHours: number;
