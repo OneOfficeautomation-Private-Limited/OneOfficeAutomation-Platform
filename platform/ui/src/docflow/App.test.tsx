@@ -28,6 +28,7 @@ describe("Document Automation", () => {
     expect(parseRoute("#/process/ap-invoices")).toEqual({ tab: "inbox", process: "ap-invoices" });
     expect(parseRoute("#/review/scan_0457")).toEqual({ tab: "review", document: "scan_0457" });
     expect(parseRoute("#/engines")).toEqual({ tab: "engines" });
+    expect(parseRoute("#/engines/catalog/onemind")).toEqual({ tab: "engines", section: "catalog", item: "onemind" });
     expect(parseRoute("#/nowhere")).toEqual({ tab: "overview" });
   });
 
@@ -104,15 +105,21 @@ describe("Document Automation", () => {
     expect(menu).toBeTruthy();
   });
 
-  it("routes local first: cloud opt-in asks first, and the options show one at a time", async () => {
+  it("shows Engines in sections: routing first, then engines by option, each option across the page", async () => {
     start(); await go("#/engines");
+    expect(await screen.findByRole("region", { name: "How a page is routed" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Monthly cost estimate" })).toBeNull();      // cost is a section of its own
+    await go("#/engines/catalog");
     const options = await screen.findByRole("tablist", { name: "Engine options" });
     expect(screen.getByRole("region", { name: "OneCore engines" })).toBeTruthy();
     fireEvent.click(within(options).getByRole("tab", { name: /OneMind/ }));
-    const mind = screen.getByRole("region", { name: "OneMind engines" });
-    expect(within(mind).getByText("Claude (Anthropic)")).toBeTruthy();
+    await waitFor(() => expect(location.hash).toBe("#/engines/catalog/onemind"));
+    await go("#/engines/catalog/onemind");
+    const mind = await screen.findByRole("region", { name: "OneMind engines" });
+    expect(within(mind).getByRole("article", { name: "Claude (Anthropic)" })).toBeTruthy();
     fireEvent.change(within(mind).getByLabelText("Price"), { target: { value: "free" } });
     expect(within(mind).getByText("1 of 3")).toBeTruthy();
+    expect(within(mind).getAllByRole("article")).toHaveLength(1);
 
     const optIn = screen.getByRole("switch", { name: "Cloud opt-in" });
     expect(optIn.getAttribute("aria-checked")).toBe("false");
@@ -126,11 +133,13 @@ describe("Document Automation", () => {
   it("estimates monthly cost like the strategy plan ($33 for 10,000 pages)", async () => {
     expect(estimate(10000, 0.2, 0.3, "azure-di", "azure-di").total).toBe(33);
     expect(estimate(10000, 0.2, 0.3, "azure-di", "claude-sonnet-5-5").total).toBe(51);
-    start(); await go("#/engines");
+    start(); await go("#/engines/cost");
     const card = await screen.findByRole("region", { name: "Monthly cost estimate" });
-    expect(within(card).getByText("$33.00")).toBeTruthy();
+    expect(within(card).getByText("$33.00", { selector: "[aria-live]" })).toBeTruthy();
     fireEvent.change(within(card).getByLabelText("Field extraction by"), { target: { value: "builtin-rules" } });
     expect(within(card).getByText("$3.00", { selector: "[aria-live]" })).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Claude Sonnet 5.5" }));                 // compare: pick another
+    expect(within(card).getByText("$51.00", { selector: "[aria-live]" })).toBeTruthy();
   });
 
   it("builds a process: checks switch on and off and say what happens when they fail", async () => {

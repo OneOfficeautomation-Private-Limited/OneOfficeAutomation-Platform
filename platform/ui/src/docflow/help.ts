@@ -73,9 +73,9 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     summary: "Which engines read the pages, and when the cloud may be used.",
     steps: [
       "Leave Cloud opt-in off unless the client agreed to it.",
-      "Choose when weak pages are read again, and by which engine.",
-      "Click OneCore, OneConnect or OneMind to see their engines.",
-      "Check the monthly cost before turning the cloud on.",
+      "How pages are routed: choose when weak pages are read again, and by which engine.",
+      "Engines: click OneCore, OneConnect or OneMind, then Test or Configure an engine.",
+      "Monthly cost: enter the client's volumes before turning the cloud on.",
     ],
   },
   testlab: {
