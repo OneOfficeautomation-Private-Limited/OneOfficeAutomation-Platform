@@ -637,5 +637,17 @@
    {"action": "ooa.desktop/wait_for_input", "args": {"wait_for": "key", "key": "F24", "timeout_seconds": 1}, "out": {"timed_out": "t", "input": "i"}}],
   "expect": {"t": true, "i": ""}},
  {"command": "ooa.desktop/unblock_input", "name": "nothing blocked", "steps": [
-   {"action": "ooa.desktop/unblock_input", "out": {"was_blocked": "b"}}], "expect": {"b": false}}
+   {"action": "ooa.desktop/unblock_input", "out": {"was_blocked": "b"}}], "expect": {"b": false}},
+ {"command": "ooa.desktop_ui/get_parent", "name": "label to its group box (G10)", "requires": "desktop", "steps": [
+   {"action": "ooa.application/start_program", "args": {"program": "powershell.exe", "arguments": ["-NoProfile", "-Command",
+      "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'OOA parent sample'; $g = New-Object Windows.Forms.GroupBox; $g.Text = 'Customer'; $g.SetBounds(12, 12, 300, 120); $l = New-Object Windows.Forms.Label; $l.Text = 'Total due'; $l.SetBounds(12, 30, 100, 20); $g.Controls.Add($l); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"]}},
+   {"action": "ooa.window/wait_for", "args": {"title": "OOA parent sample", "timeout_seconds": 30}},
+   {"action": "ooa.desktop_ui/get_parent", "args": {"object": {"technology": "desktop", "window": {"title": "OOA parent sample", "title_match": "equals"},
+      "properties": [{"name": "ControlType", "value": "Text", "match": "equals", "use": true}, {"name": "Name", "value": "Total due", "match": "equals", "use": true}], "index": 0}},
+    "out": {"name": "n", "control_type": "t"}},
+   {"action": "ooa.window/close", "args": {"title": "OOA parent sample"}}],
+  "expect": {"n": "Customer", "t": "Group"}},
+ {"command": "ooa.desktop_ui/get_parent", "name": "levels must be at least 1", "steps": [
+   {"action": "ooa.desktop_ui/get_parent", "args": {"object": {"window": {"title": "x"}, "properties": [{"name": "Name", "value": "x", "match": "equals", "use": true}]}, "levels": 0}}],
+  "error": "FLOW.INVALID"}
 ]

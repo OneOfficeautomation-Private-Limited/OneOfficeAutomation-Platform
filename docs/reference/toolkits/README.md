@@ -27,7 +27,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Database](ooa-database.md) | `ooa.database` | 12 | 0 | 1 | Connect to databases and run parameterised queries, updates and transactions. |
 | [Databricks](ooa-databricks.md) | `ooa.databricks` | 14 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
 | [Date and time](ooa-datetime.md) | `ooa.datetime` | 14 | 7 | 0 | Current time, add, difference, format and time zone conversion. |
-| [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 9 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
+| [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
