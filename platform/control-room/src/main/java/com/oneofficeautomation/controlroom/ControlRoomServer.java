@@ -33,6 +33,7 @@ public final class ControlRoomServer {
     private final ControlRoom cr;
     private final McpServer mcp;
     private final Sso sso;
+    private final DocFlowProxy docflow;
     private final String host;
     private final int port;
     private HttpServer server;
@@ -43,7 +44,7 @@ public final class ControlRoomServer {
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
-        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
+        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr); this.docflow = new DocFlowProxy(cr);
         // a SaaS region sets one request limit for all its tenants (TenantHost)
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
@@ -150,6 +151,10 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
+        // documents waiting for review in Document Automation become Task inbox tasks
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.syncReviews(); } catch (RuntimeException ignored) { } }, 10, 20, TimeUnit.SECONDS);
+        // and their email inboxes
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.pollMail(); } catch (RuntimeException ignored) { } }, 15, 30, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -168,6 +173,7 @@ public final class ControlRoomServer {
             // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
             else if (path.equals("/") && ex.getRequestURI().getRawQuery() == null) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
+            else if (path.equals("/documents") || path.startsWith("/documents/")) documentsPage(ex, path);
             else serveStatic(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
@@ -177,6 +183,7 @@ public final class ControlRoomServer {
                 case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED", "CR.LICENSE_LIMIT", "LICENSE.TOO_FEW_SEATS" -> 409;
                 case "CR.POLICY_VIOLATION" -> 422;
                 case "CR.LOCKED_OUT", "CR.RATE_LIMITED" -> 429;
+                case "DOCS.UNAVAILABLE", "DOCS.TOKEN" -> 502;
                 default -> 400;
             };
             if (status == 401 && ex.getRequestURI().getPath().equals("/api/mcp")) {
@@ -379,6 +386,8 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/token")) { sendJson(ex, 200, cr.verifyToken(token(ex))); return; }
+        // Document Automation's "Start a bot" delivery: DocFlow calls back with the service token (DocFlowProxy.startBot)
+        if (m.equals("POST") && route.equals("docflow-callback/start-bot")) { sendJson(ex, 200, docflow.startBot(ex, ip)); return; }
         if (seg[0].equals("apitasks") && seg.length >= 3 && (seg[2].equals("run") || seg[2].equals("runs"))) {
             String t = ex.getRequestHeaders().getFirst("X-OOA-Task-Token");
             if (t == null) t = token(ex);
@@ -500,6 +509,7 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
+            else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;
@@ -543,6 +553,7 @@ public final class ControlRoomServer {
         }
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
+            case "docflow" -> docflow.forward(ex, u, m, route.startsWith("docflow/") ? route.substring(8) : "");   // Document Automation (DocFlowProxy)
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
             // pages optional modules add (Document Automation): what is installed, for the menu's plug-in pages
             case "plugins" -> sendJson(ex, 200, Map.of("plugins", ConsolePlugin.installed()));
@@ -1094,6 +1105,42 @@ public final class ControlRoomServer {
                         + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
             }
             ex.getResponseHeaders().set("Content-Type", page ? "text/html; charset=utf-8" : TYPES.getOrDefault(file.substring(file.lastIndexOf('.') + 1), "application/octet-stream"));
+            writeBody(ex, 200, b);
+        }
+    }
+
+    /** Files of Document Automation's page (platform/ui's docflow.html, built with Studio into /studio-next/). */
+    private static final java.util.regex.Pattern DOCS_FILE = java.util.regex.Pattern.compile("^(|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
+
+    /**
+     * AI > Document Automation at /documents/. The page signs in like the console (it asks /api/auth/me) and reaches
+     * DocFlow only through /api/docflow/ (DocFlowProxy). A build made without Node.js has no page and says so.
+     */
+    private void documentsPage(HttpExchange ex, String path) throws IOException {
+        if (path.equals("/documents")) { ex.getResponseHeaders().set("Location", "/documents/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); return; }
+        String name = path.substring("/documents/".length());
+        if (!DOCS_FILE.matcher(name).matches()) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/" + (name.isEmpty() ? "docflow.html" : name))) {
+            if (in == null && name.isEmpty()) {
+                securityHeaders(ex);
+                ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+                writeBody(ex, 503, "Document Automation's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+            byte[] b = in.readAllBytes();
+            securityHeaders(ex);
+            if (name.isEmpty()) {
+                // a fresh nonce per page for the one style element the dialogs add, as in Studio
+                byte[] r = new byte[16];
+                NONCES.nextBytes(r);
+                String nonce = Base64.getEncoder().encodeToString(r);
+                b = new String(b, StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+                ex.getResponseHeaders().set("Content-Type", TYPES.get("html"));
+            } else {
+                ex.getResponseHeaders().set("Content-Type", name.endsWith(".woff2") ? "font/woff2" : TYPES.getOrDefault(name.substring(name.lastIndexOf('.') + 1), "application/octet-stream"));
+            }
             writeBody(ex, 200, b);
         }
     }

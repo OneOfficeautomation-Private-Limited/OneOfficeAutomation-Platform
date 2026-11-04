@@ -12,10 +12,11 @@ export type StudioView = "automation";
 
 const LOCAL = new Set(["automation"]);
 
-export function CommandMenu({ view, onView, controlRoom, editing = false }:
-  { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null; editing?: boolean }) {
+/** `currentPage` marks a One CommandCenter page as the open one, for pages served outside Studio (Document Automation). */
+export function CommandMenu({ view, onView, controlRoom, editing = false, currentPage }:
+  { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null; editing?: boolean; currentPage?: string }) {
   return (
-    <Menu sections={MENU_SECTIONS} current={view} local={LOCAL} onLocal={(id) => onView(id as StudioView)} editing={editing}
+    <Menu sections={MENU_SECTIONS} current={view ?? (currentPage === "documents" ? "docautomation" : currentPage ?? null)} local={LOCAL} onLocal={(id) => onView(id as StudioView)} editing={editing}
       hrefFor={(page) => controlRoom ? controlRoom + "next/#/" + page : undefined} home={{ href: controlRoom ? controlRoom + "next/" : undefined }}
       offTitle="Sign in to One CommandCenter (Automation, Public tab) to open this page" console />
   );

@@ -630,9 +630,18 @@ public final class Db implements AutoCloseable {
             + "updated_by VARCHAR(80), PRIMARY KEY (name, team_id))",
     };
 
+    /**
+     * Version 33: where each Document Automation process's email inbox was read up to, and how the last check went.
+     * Made on master as version 25, the number this branch had already used: a database upgraded by that release is
+     * put right in migrate().
+     */
+    private static final String[] SCHEMA_V33 = {
+        "CREATE TABLE docflow_mail (process_id VARCHAR(120) PRIMARY KEY, mail_cursor VARCHAR(200), last_check TIMESTAMP, last_error VARCHAR(1000), documents INT)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 32;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32 };
+    public static final int LATEST = 33;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {
@@ -652,12 +661,16 @@ public final class Db implements AutoCloseable {
         if (current > LATEST) throw new OoaException("CR.DB_NEWER", "The database holds schema version " + current + ", made by a newer release; this release knows version " + LATEST,
             "Start the release that upgraded the database, or restore a backup taken before the upgrade");
         if (current == LATEST) return;
+        // the Document Automation release numbered its docflow_mail table version 25, which here is the runners' version
+        // (its table is version 33 here): a database it upgraded gets the runners' version 25 now, and keeps its table
+        boolean docflowAt25 = current == 25 && hasTable("docflow_mail");
         try {
             tx(() -> {
+                if (docflowAt25) for (String ddl : SCHEMA_V25) execute(ddl(ddl, sqlServer));
                 if (current == 0) execute(sqlServer ? "IF OBJECT_ID('schema_version', 'U') IS NULL CREATE TABLE schema_version (version INT NOT NULL)"
                     : "CREATE TABLE IF NOT EXISTS schema_version (version INT NOT NULL)");
                 for (int v = current + 1; v <= LATEST; v++) {
-                    for (String ddl : SCHEMA[v - 1]) execute(ddl(ddl, sqlServer));
+                    if (!(v == 33 && docflowAt25)) for (String ddl : SCHEMA[v - 1]) execute(ddl(ddl, sqlServer));
                     update("INSERT INTO schema_version (version) VALUES (" + v + ")");
                 }
                 return null;
@@ -668,6 +681,12 @@ public final class Db implements AutoCloseable {
                     + "; the account " + user + " may not change tables", "Run: ooa db migrate (it signs in with the setup account)");
             throw e;
         }
+    }
+
+    /** True when the table is there (read before an upgrade, outside its transaction: a failed read would spoil it). */
+    boolean hasTable(String table) {
+        try { one("SELECT 1 AS x FROM " + table + " WHERE 1 = 0"); return true; }
+        catch (OoaException e) { return false; }
     }
 
     private void execute(String sql) { withConn(c -> { try (Statement s = c.createStatement()) { s.execute(sql); } return null; }); }

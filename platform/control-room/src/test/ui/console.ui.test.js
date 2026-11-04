@@ -64,8 +64,8 @@ async function page() {
   const ai = [...d.querySelectorAll('#nav .nav-section[aria-label="AI"] .nav-fly button')].map((b) => b.textContent);
   check("AI holds model connections, Prompt Skills, Document Automation and AI governance", ai.join("|") === "Model Connections|Prompt Skills|Document Automation|AI governance", ai.join("|"));
   nav("Document Automation");
-  check("Document Automation is a plug-in page: without the module it says what it does and that it is not installed",
-    await until(() => d.getElementById("main").textContent.includes("Not installed on this One CommandCenter") && d.getElementById("main").textContent.includes("learning instance")));
+  check("Document Automation is a plug-in page: the module is installed, so it describes it and opens its pages at /documents/",
+    await until(() => d.getElementById("main").textContent.includes("Open Document Automation") && !!d.querySelector('#main a[href="/documents/"]')));
   nav("Licenses");
   check("Licenses says no license is installed and lists seats, people and runners", await until(() => { const t = d.getElementById("main").textContent; return t.includes("No license installed") && t.includes("Unattended Runner") && t.includes("Install license"); }),
     d.getElementById("main").textContent.slice(0, 300));

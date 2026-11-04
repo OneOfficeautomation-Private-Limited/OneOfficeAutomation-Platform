@@ -62,6 +62,61 @@ final class ImapMailSource implements MailSource {
         }
     }
 
+    /** The message's attached files: the whole message is fetched (without marking it read) and its MIME parts read. */
+    @Override public List<Attachment> attachments(Map<String, Object> message) throws IOException {
+        SocketFactory f = ssl ? SSLSocketFactory.getDefault() : SocketFactory.getDefault();
+        try (Socket s = f.createSocket()) {
+            s.connect(new InetSocketAddress(host, port), timeoutMs);
+            s.setSoTimeout(timeoutMs);
+            Conn c = new Conn(new BufferedInputStream(s.getInputStream()), s.getOutputStream());
+            String greet = c.line();
+            if (greet == null || !greet.startsWith("* OK")) throw new IOException("Not an IMAP server: " + greet);
+            c.ok("LOGIN " + quote(user) + " " + quote(password), "Sign-in to the mailbox failed");
+            c.ok("SELECT " + quote(folder), "Mailbox folder '" + folder + "' cannot be opened");
+            Resp r = c.ok("UID FETCH " + Long.parseLong(String.valueOf(message.get("uid"))) + " (BODY.PEEK[])", "Fetch failed");
+            c.logout();
+            for (Untagged u : r.untagged) if (u.text.contains("FETCH") && !u.literals.isEmpty()) return attachmentsOf(u.literals.get(0));
+            return List.of();
+        }
+    }
+
+    /** The attached files of a raw MIME message (parts with a file name, any depth), decoded. */
+    static List<Attachment> attachmentsOf(byte[] raw) {
+        List<Attachment> out = new ArrayList<>();
+        part(new String(raw, StandardCharsets.ISO_8859_1), out, 0);
+        return out;
+    }
+
+    private static final Pattern BOUNDARY = Pattern.compile("(?i)boundary=\"?([^\";]+)\"?");
+    private static final Pattern NAME = Pattern.compile("(?i)(?:file)?name\\*?=\"?([^\";]+)\"?");
+
+    /** One MIME part, as ISO-8859-1 text (one character per byte, so binary content survives). */
+    private static void part(String text, List<Attachment> out, int depth) {
+        if (depth > 10) return;
+        int split = text.indexOf("\r\n\r\n"), gap = 4;
+        if (split < 0) { split = text.indexOf("\n\n"); gap = 2; }
+        if (split < 0) return;
+        Map<String, String> h = headers(text.substring(0, split));
+        String body = text.substring(split + gap), type = h.getOrDefault("content-type", "text/plain");
+        Matcher b = BOUNDARY.matcher(type);
+        if (type.toLowerCase(Locale.ROOT).startsWith("multipart/") && b.find()) {
+            String[] pieces = body.split("(?m)^--" + Pattern.quote(b.group(1)) + "(?:--)?[ \t]*\r?$");
+            for (int i = 1; i < pieces.length; i++) part(pieces[i].replaceFirst("^\r?\n", ""), out, depth + 1);
+            return;
+        }
+        String disposition = h.getOrDefault("content-disposition", "");
+        Matcher n = NAME.matcher(disposition);
+        String name = n.find() ? n.group(1) : null;
+        if (name == null) { Matcher t = NAME.matcher(type); name = t.find() ? t.group(1) : null; }
+        if (name == null || disposition.toLowerCase(Locale.ROOT).startsWith("inline") && type.toLowerCase(Locale.ROOT).startsWith("text/")) return;
+        if (name.contains("''")) name = java.net.URLDecoder.decode(name.substring(name.indexOf("''") + 2), StandardCharsets.UTF_8);   // RFC 2231
+        else name = decodeWords(new String(name.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8));
+        String enc = h.getOrDefault("content-transfer-encoding", "").trim().toLowerCase(Locale.ROOT);
+        byte[] data = enc.equals("base64") ? Base64.getMimeDecoder().decode(body.replaceAll("\\s", ""))
+                : enc.equals("quoted-printable") ? qp(body) : body.replaceFirst("\r?\n$", "").getBytes(StandardCharsets.ISO_8859_1);
+        out.add(new Attachment(name, type.split(";")[0].trim(), data));
+    }
+
     Map<String, Object> message(long uid, Untagged u) {
         byte[] header = null, text = null;
         for (int i = 0; i < u.literals.size(); i++) {

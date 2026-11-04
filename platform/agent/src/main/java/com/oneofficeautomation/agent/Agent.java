@@ -412,11 +412,25 @@ public final class Agent {
                             w.send(Map.of("type", "credential", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }
                     });
+                    case "docflow" -> io.submit(() -> {
+                        try {
+                            Path file = Path.of(String.valueOf(msg.get("file")));
+                            String query = "run_id=" + enc(w.runId) + "&process=" + enc(String.valueOf(msg.get("process"))) + "&wait=" + Boolean.TRUE.equals(msg.get("wait"));
+                            Map<String, Object> r = client.postFile("docflow/documents?" + query, file.getFileName().toString(), Files.readAllBytes(file));
+                            w.send(Map.of("type", "docflow", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "docflow", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        } catch (IOException | RuntimeException e) {
+                            w.send(Map.of("type", "docflow", "id", msg.get("id"), "error", Map.of("code", "DOCS.FILE", "message", String.valueOf(e.getMessage()))));
+                        }
+                    });
                     default -> { }
                 }
             }
         } catch (IOException ignored) { }
     }
+
+    private static String enc(String s) { return java.net.URLEncoder.encode(s, StandardCharsets.UTF_8); }
 
     private void flush(Worker w) {
         List<Object> batch;

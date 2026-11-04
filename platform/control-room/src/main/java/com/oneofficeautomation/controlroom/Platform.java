@@ -136,6 +136,8 @@ public final class Platform {
         DEFAULTS.put("ldap_user_filter", "(|(sAMAccountName={0})(userPrincipalName={0}))");
         DEFAULTS.put("ldap_name_attribute", "sAMAccountName");   // the user name an account gets
         DEFAULTS.put("ldap_nested_groups", 0);          // AD: groups inside groups count too
+        DEFAULTS.put("docflow_url", "");         // Document Automation: the DocFlow service (empty: http://127.0.0.1:8085)
+        DEFAULTS.put("docflow_token_ref", "");   // and its service token, a vault reference folder/credential/attribute
     }
 
     static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
@@ -309,6 +311,11 @@ public final class Platform {
                 if (k.equals("outbound_proxy_bypass") && !s.isEmpty() && !s.matches("[A-Za-z0-9.*\\-|,; ]+"))
                     throw new OoaException("CR.BAD_INPUT", "List host names to reach directly, for example *.example.com, 10.*");
                 if (k.equals("mail_smtp_security") && !List.of("starttls", "ssl", "none").contains(s)) throw new OoaException("CR.BAD_INPUT", "The mail security is starttls, ssl or none");
+                // in the SaaS service the region's operator says where DocFlow is (OOA_DOCFLOW_URL), not the tenant
+                if (cr.tenant != null && k.startsWith("docflow_") && !s.isEmpty()) throw ControlRoom.notInSaas("Choosing the Document Automation service");
+                if (k.equals("docflow_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+/?"))
+                    throw new OoaException("CR.BAD_INPUT", "The Document Automation service is a web address such as http://127.0.0.1:8085");
+                if (k.equals("docflow_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The Document Automation token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("mail_smtp_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The mail password is a vault reference: vault folder/credential/attribute");
                 if (k.equals("mail_smtp_host") && !s.isEmpty() && !s.matches("[A-Za-z0-9.-]+")) throw new OoaException("CR.BAD_INPUT", "The mail server is a host name, for example smtp.office365.com");
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);

@@ -224,7 +224,7 @@ const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
 function stored(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
 function groupOf(page) { return NAV_GROUPS.find((g) => g[3].includes(page)) || null; }
-function pageLabel(id) { if (id === "studio") return "One AgentStudio"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
+function pageLabel(id) { if (id === "studio") return "One AgentStudio"; if (id === "documents") return "Document Automation"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
 
 function navButton(id) {
   if (id === "studio") {
@@ -232,6 +232,12 @@ function navButton(id) {
     const a = h("a", { class: "nav-link", href: "/studio/", target: "_blank", rel: "noopener", "aria-label": "One AgentStudio", title: "Build and test agents in One AgentStudio (opens in a new tab)" },
       ic("code", "#2563eb"), h("span", { class: "nav-label", text: "One AgentStudio" }), h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
     return a;
+  }
+  if (id === "documents") {
+    // Document Automation is its own page (/documents/), reached through the Command Center's sign-in
+    if (!canAny("docs.view")) return null;
+    return h("a", { class: "nav-link", href: "/documents/", "aria-label": "Document Automation", title: "Read, check and route documents" },
+      ic("inbox", "#fff"), h("span", { class: "nav-label", text: "Document Automation" }));
   }
   const page = PAGES.find((x) => x[0] === id);
   if (!page || (page[2] && !canAny(page[2]))) return null;
@@ -841,15 +847,15 @@ const VIEWS = {
     const admin = can("users.manage");
     const allBox = admin ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!S.inboxAll, onchange: (e) => { S.inboxAll = e.target.checked; go("inbox"); } }), "Everyone's tasks") : null;
     const r = await api("GET", "tasks?status=" + (S.inboxTab === "open" ? "open" : "completed") + (S.inboxAll ? "&all=true" : ""));
-    const kindLabel = { form: "Fill in", approval: "Approve", notification: "Notice" };
-    main.replaceChildren(...header("Task inbox", "Work that workflows assign to you or your role: forms to fill in, approvals and notices."),
+    const kindLabel = { form: "Fill in", approval: "Approve", notification: "Notice", document_review: "Review document" };
+    main.replaceChildren(...header("Task inbox", "Work assigned to you or your role: forms to fill in, approvals, notices and documents to review."),
       h("div", { class: "toolbar" }, tabStrip([["open", "To do"], ["done", "Done"]], S.inboxTab, (t) => { S.inboxTab = t; go("inbox"); }), h("span", { class: "spacer" }), allBox),
       dataTable({ rows: r.tasks, search: "Search tasks", exportName: "tasks", onRow: openTask, empty: S.inboxTab === "open" ? "Nothing waiting for you. \u2728" : "No completed tasks yet.",
         columns: [
-          { label: "Task", value: (t) => t.title, render: (t) => h("div", { class: "name-cell" }, ic(t.kind === "approval" ? "shield" : t.kind === "form" ? "form" : "bolt", t.kind === "approval" ? "#d97706" : "#0d9488", "sm"),
+          { label: "Task", value: (t) => t.title, render: (t) => h("div", { class: "name-cell" }, ic(t.kind === "approval" ? "shield" : t.kind === "form" ? "form" : t.kind === "document_review" ? "inbox" : "bolt", t.kind === "approval" ? "#d97706" : "#0d9488", "sm"),
             h("div", {}, h("strong", { text: t.title }), h("div", { class: "muted small", text: t.description || "" }))) },
           { label: "Kind", value: (t) => kindLabel[t.kind] || t.kind },
-          { label: "Assigned to", value: (t) => t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee },
+          { label: "Assigned to", value: (t) => t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee === "perm:docs.review" ? "Document reviewers" : t.assignee },
           { label: "Due", value: (t) => t.due || "", render: (t) => t.due ? h("span", { class: t.overdue ? "pill failed" : "", title: local(t.due), text: (t.overdue ? "Overdue " : "") + ago(t.due) }) : "\u2014" },
           { label: S.inboxTab === "open" ? "Created" : "Outcome", value: (t) => S.inboxTab === "open" ? t.created : t.outcome, render: (t) => S.inboxTab === "open" ? ago(t.created) : pill(t.outcome || t.status) }]}));
     if (main.isConnected) S.timer = every(() => { if (S.page === "inbox" && $("modal").hidden && $("drawer").hidden) go("inbox"); }, 10000);
@@ -969,6 +975,7 @@ const VIEWS = {
       const gitUrl = txt("git_remote_url", "https://github.com/acme/agents.git"), gitBranch = txt("git_branch", "main"), gitUser = txt("git_username", "(any, for a token)"),
         gitToken = txt("git_token_ref", "git/agents-repo/token");
       const gitAuto = h("input", { type: "checkbox", checked: Number(st.git_auto_push) === 1 });
+      const docUrl = txt("docflow_url", "http://127.0.0.1:8085"), docToken = txt("docflow_token_ref", "docflow/service/token");
       const gitState = h("p", { class: "muted" });
       const showGit = (g) => gitState.textContent = !g.configured ? "Not set up." : g.state === "never" ? "Not synced yet." : g.state === "ok" ? "Last sync " + local(g.at) + ": " + g.agents + " agent(s)" + (g.changed ? ", commit " + String(g.commit).slice(0, 8) : ", nothing changed") + "." : "Last sync failed " + local(g.at) + ": " + g.error;
       api("GET", "git/status").then(showGit).catch(() => {});
@@ -1020,6 +1027,9 @@ const VIEWS = {
               const r = await api("POST", "git/sync"); showGit(Object.assign({ configured: true }, r)); toast(r.changed ? "Pushed to Git" : "Git is up to date"); }
             catch (err) { toast(err.message, true); api("GET", "git/status").then(showGit).catch(() => {}); } finally { e.target.disabled = false; } } }, "Save and sync now"))),
         gitState,
+        h("h3", {}, ic("inbox", "#0d9488", "sm"), "Document Automation"),
+        h("p", { class: "muted", text: "AI > Document Automation reads documents with the DocFlow service. The Command Center forwards each request with the person's tenant and name; the browser never sees the service's address or token. Put the same token in DocFlow's DOCAUTO_API_TOKEN and in the vault." }),
+        h("div", { class: "grid2" }, h("label", {}, "DocFlow address (empty = http://127.0.0.1:8085)", docUrl), h("label", {}, "Service token (vault reference folder/credential/attribute)", docToken)),
         h("h3", {}, ic("bolt", "#7c3aed", "sm"), "AI assistants (Model Context Protocol)"),
         h("p", { class: "muted", text: "Assistants connect to " + location.origin + "/api/mcp with a user's API key and can run the agents listed here as tools, with that user's permissions." }),
         h("div", { class: "grid2" }, h("label", {}, "Agents offered as tools (paths, comma separated; * for all)", mcpAgents), h("label", {}, "Runner or runner pool id (empty = any online runner)", mcpRunner),
@@ -1103,6 +1113,7 @@ const VIEWS = {
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value), runner_cpu_max: Number(cpuMax.value), runner_mem_max: Number(memMax.value), runner_screen_pictures: screenPics.checked ? 1 : 0,
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
+              docflow_url: docUrl.value.trim(), docflow_token_ref: docToken.value.trim(),
               ip_allow_list: allowList.value.trim(), trusted_proxies: trustedProxies.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
               switched_off_roles: roleOff.filter(([, b]) => b.checked).map(([r]) => r).join(","), outbound_proxy: proxy.value.trim(), outbound_proxy_bypass: proxyBypass.value.trim() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
@@ -2482,6 +2493,8 @@ function taskField(f, value) {
 }
 
 async function openTask(t) {
+  // a document review happens on Document Automation's review screen; the task closes when it is approved or rejected
+  if (t.kind === "document_review" && t.can_act && t.data && t.data.link) { location.href = t.data.link; return; }
   const fields = t.kind === "form" && t.form ? (t.form.fields || []).map((f) => [f, taskField(f, (t.result || {})[f.id])]) : [];
   const ctx = Object.keys(t.data || {}).length ? h("details", { open: t.kind === "approval" }, h("summary", { text: "Workflow data" }), kv(Object.entries(t.data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]))) : null;
   const comment = h("textarea", { rows: 2, placeholder: "Comment (optional)" });

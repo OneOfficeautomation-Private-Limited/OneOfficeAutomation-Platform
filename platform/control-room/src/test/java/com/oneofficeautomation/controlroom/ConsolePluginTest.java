@@ -9,17 +9,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Optional modules add pages to the console by listing themselves as a ConsolePlugin (GET /api/plugins lists them). */
 class ConsolePluginTest {
-    /** A module as Document Automation would be: registered in this test's META-INF/services only. */
-    public static class SampleDocumentAutomation implements ConsolePlugin {
-        @Override public String id() { return "document-automation"; }
-        @Override public String name() { return "Document Automation"; }
-        @Override public String description() { return "Learning instances, validation and evaluation."; }
-        @Override public String path() { return "/plugins/document-automation/"; }
-    }
-
     @Test void installedModulesAreListedForTheConsole() {
+        // Document Automation (its pages at /documents/, the DocFlow service behind them) fills AI > Document Automation
         List<Map<String, Object>> all = ConsolePlugin.installed();
-        assertEquals(List.of(Map.of("id", "document-automation", "name", "Document Automation", "description", "Learning instances, validation and evaluation.",
-                "path", "/plugins/document-automation/")), all);
+        assertEquals(1, all.size(), String.valueOf(all));
+        assertEquals("document-automation", all.get(0).get("id"));
+        assertEquals("Document Automation", all.get(0).get("name"));
+        assertEquals("/documents/", all.get(0).get("path"));
+        assertFalse(String.valueOf(all.get(0).get("description")).isBlank());
     }
 }

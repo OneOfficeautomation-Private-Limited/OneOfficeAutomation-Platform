@@ -13,7 +13,8 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     sourcemap: false,
-    rollupOptions: { input: { studio: "index.html", console: "console.html" } },
+    // Studio, the console, and Document Automation (AI > Document Automation, its own page) built from the same components
+    rollupOptions: { input: { studio: "index.html", console: "console.html", docflow: "docflow.html" } },
   },
   test: {
     environment: "jsdom",

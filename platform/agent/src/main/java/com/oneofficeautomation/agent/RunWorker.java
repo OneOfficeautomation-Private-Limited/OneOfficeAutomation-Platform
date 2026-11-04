@@ -55,7 +55,7 @@ public final class RunWorker {
                         case "cancel" -> { cancel.set(true); pause.set(false); }
                         case "pause" -> pause.set(true);
                         case "resume" -> pause.set(false);
-                        case "credential" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
+                        case "credential", "docflow" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
                         default -> { }
                     }
                 }
@@ -87,6 +87,21 @@ public final class RunWorker {
         Map<String, Object> globals = (Map<String, Object>) job.getOrDefault("global_values", Map.of());
         writeFiles(workspace, (Map<String, Object>) job.getOrDefault("files", Map.of()));
         Map<String, Object> skills = (Map<String, Object>) job.getOrDefault("skills", Map.of());
+        // Document Automation's "Send document to process": the runner sends the file to the Command Center for this run
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> docflow = req -> {
+            long id = ids.incrementAndGet();
+            CompletableFuture<Map<String, Object>> f = new CompletableFuture<>();
+            waiting.put(id, f);
+            Map<String, Object> msg = new LinkedHashMap<>(req);
+            msg.put("type", "docflow");
+            msg.put("id", id);
+            send(msg);
+            Map<String, Object> r;
+            try { r = f.get(16, TimeUnit.MINUTES); }
+            catch (Exception e) { throw new OoaException("DOCS.TIMEOUT", "No answer from the Command Center about the document", null, true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            return (Map<String, Object>) r.getOrDefault("result", Map.of());
+        };
         PackageRegistry registry = FirstPartyPackages.registry();
         String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
@@ -105,6 +120,7 @@ public final class RunWorker {
                 .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
                 // Settings: no pictures of the screen when a step fails
                 .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
+                .service("docflow", docflow)
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.

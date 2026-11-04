@@ -347,6 +347,7 @@ public final class Workflows {
         for (String a : String.valueOf(assignee).split(",")) {
             String t = a.trim();
             if (t.equals("user:" + u.username()) || t.equals("role:*") || (t.startsWith("role:") && roles.contains(t.substring(5)))) return true;
+            if (t.startsWith("perm:") && cr.can(u, t.substring(5))) return true;   // everyone with a permission (e.g. perm:docs.review)
         }
         return false;
     }
@@ -415,6 +416,8 @@ public final class Workflows {
         if (!Set.of("open", "claimed").contains(String.valueOf(t.get("status")))) throw new OoaException("CR.CONFLICT", "This task is already " + t.get("status"));
         if (!mayAct(u, t)) throw denied("complete this task");
         String kind = String.valueOf(t.get("kind"));
+        if (kind.equals(DocFlowProxy.TASK_KIND))
+            throw new OoaException("CR.BAD_INPUT", "Open the document to review it", "Approve or reject it on the review screen; the task then closes by itself.");
         Map<String, Object> result = new LinkedHashMap<>();
         String forcedNext = null;
         String out;
