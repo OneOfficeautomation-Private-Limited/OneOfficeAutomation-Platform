@@ -270,4 +270,17 @@ describe("Document Automation", () => {
     expect((await api.processDesign("supplier-invoices-ksa")).settings.email).toEqual({ enabled: true, kind: "email", host: "imap.example.com",
       username: "invoices@example.com", password_ref: "mail/invoices/password", subject_contains: "invoice" });
   });
+
+  it("counts every document of a process in the Inbox, not only today's", async () => {
+    const api = new SampleApi();
+    const all = await api.processes();
+    api.processes = async () => all.map((p) => (p.id === "deliveries" ? { ...p, today: 0, done: 2, review: 1, processing: 0, failed: 0 } : p));
+    start(api); await go("#/inbox");
+    const region = await screen.findByRole("region", { name: "Processes" });
+    const row = within(region).getByRole("link", { name: "Deliveries" }).closest("tr")!;
+    expect(within(row).getByText("3")).toBeTruthy();
+    expect(within(row).queryByText("No documents yet")).toBeNull();
+    expect(screen.queryByLabelText("Period")).toBeNull();
+    expect(screen.getByText(/You choose the process next/)).toBeTruthy();
+  });
 });
