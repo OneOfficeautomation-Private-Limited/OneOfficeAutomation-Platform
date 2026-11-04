@@ -11,6 +11,7 @@ import {
   pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
   moveCase, parseLoose, setCaseValues, showValue,
+  addSubflow, listOf, removeSubflow, renameSubflow, swapSubflow,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
@@ -27,7 +28,7 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
-import { agentRows, describeAction, summarize, toolkitMark, type StepRow } from "./toolkits";
+import { agentRows, describeAction, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -146,9 +147,11 @@ function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) =>
   );
 }
 
-export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo, askTrigger,
+export function AgentView({ api, path, flow: whole, list: shown = null, onList: setShown = () => {}, packages, selected, onSelect, onEdit: onEditWhole, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo, askTrigger,
   run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, onChecked, dirty }:
-  { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
+  { api: StudioApi; path: string; flow: Flow;
+    /** The subflow shown (null: the main steps), and switching it. */
+    list?: string | null; onList?: (name: string | null) => void; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
     /** A workspace trigger kind picked in the command list (n changes each time). */
@@ -159,6 +162,21 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void;
     /** The problems a check without saving found. */
     onChecked: (problems: Problem[]) => void; dirty: boolean }) {
+  // Subflows: the steps list shows the main steps or one subflow. Everything below edits `flow`, a view of the agent with
+  // the shown subflow's steps as its steps (swapSubflow); each edit is swapped back before it reaches the agent. The
+  // Studio keeps which list is shown (library clicks and drops go into it too).
+  const sub = shown !== null && whole.subflows?.some((s) => s.name === shown) ? shown : null;
+  const flow = useMemo(() => swapSubflow(whole, sub), [whole, sub]);
+  const onEdit = (next: Flow, select?: string[]) => { if (next !== flow) onEditWhole(swapSubflow(next, sub), select); };
+  const [subDialog, setSubDialog] = useState<{ rename?: string } | null>(null);
+  /** Shows the list that holds a step (a selected step, or where a debugged run stopped) when it is not the one shown. */
+  const showListOf = (id: string | undefined | null) => {
+    if (!id || findStep(flow, id)) return;
+    const where = listOf(whole, id);
+    if (where !== undefined) setShown(where);
+  };
+  useEffect(() => { showListOf(selected.find((k) => !k.startsWith("@"))); }, [selected]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { showListOf(run?.stopped?.stepId); }, [run?.stopped?.stepId]);   // eslint-disable-line react-hooks/exhaustive-deps
   // Full screen: only the canvas (its toolbar, the steps and the details panel); the browser's own full screen when it
   // allows it, else the page area. Esc, or the button again, brings everything back.
   const [full, setFull] = useState(false);
@@ -209,7 +227,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const checkNow = async () => {
     setChecking(true);
     try {
-      const found = await api.validate(flow);
+      const found = await api.validate(whole);
       onChecked(found);
       setBottomTab("problems");
       onNotice(found.length ? found.length + " problem" + (found.length > 1 ? "s" : "") + " to check." : "No problems found.");
@@ -294,7 +312,17 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
-  const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
+  // a step of the list on screen by its line; one in another list (a subflow, or the main steps) by its line there and the list's name
+  const lineOf = (id: string) => {
+    const name = (r: StepRow | undefined, where?: string) => r?.kind === "step" ? `Line ${r.n}${where ? " of " + where : ""} ${describeAction(r.step.action, packages).name}` : undefined;
+    const here = name(rows.find((x) => x.kind === "step" && x.step.id === id));
+    if (here) return here;
+    const list = listOf(whole, id);
+    if (list === undefined) return id;
+    // the main steps are numbered with their On error steps after them, as Main shows them
+    const other = list === null ? agentRows(whole).rows : stepRows(whole.subflows?.find((s) => s.name === list)?.steps ?? []);
+    return name(other.find((x) => x.kind === "step" && x.step.id === id), list === null ? "Main" : list) ?? id;
+  };
   const ids = rows.flatMap((r) => r.kind === "step" ? [r.step.id] : []);
   const chosen = ids.filter((id) => selected.includes(id));   // in the agent's order
   const one = chosen.length === 1 ? rows.find((r) => r.kind === "step" && r.step.id === chosen[0]) : undefined;
@@ -464,6 +492,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     );
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
       items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
+    const target = step.action === "core/run_subflow" ? String(step.args?.subflow ?? "") : "";
+    if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
+      items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
     if (!running && chosen.length === 1 && !inHandler(flow, step.id)) items.push(   // the error handler's steps run only after an error
       { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
@@ -559,8 +590,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               { key: "replace", label: "Find and replace…", shortcut: keyOf("steps.replace"), onSelect: () => setReplacing(true) },
               ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", shortcut: keyOf("steps.foldAll"), separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
               ...(folded.size ? [{ key: "unfold", label: "Unfold all", shortcut: keyOf("steps.unfoldAll"), onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
-              flow.onError ? { key: "onerror", label: "Go to On error", description: "The steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onSelect([ON_ERROR]) }
-                : { key: "onerror", label: "Add error steps (On error)", description: "Steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onEdit(addOnError(flow), [ON_ERROR]) },
+              { key: "add-subflow", label: "Add a subflow…", description: "A named list of steps that Run subflow steps run", separatorBefore: true, onSelect: () => setSubDialog({}) },
+              ...(sub === null ? [flow.onError ? { key: "onerror", label: "Go to On error", description: "The steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onSelect([ON_ERROR]) } : { key: "onerror", label: "Add error steps (On error)", description: "Steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onEdit(addOnError(flow), [ON_ERROR]) }] : []),
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
@@ -594,6 +625,26 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>
             <HelpButton topic={EDITOR_HELP} />
           </div>
+          {!!whole.subflows?.length && <div className="st-subflow-bar">
+            <div className="st-seg" role="radiogroup" aria-label="Steps shown">
+              {[null, ...whole.subflows.map((s) => s.name)].map((n) => <button key={n ?? "@main"} type="button" role="radio" aria-checked={sub === n} className="st-seg-btn"
+                title={n === null ? "The agent's main steps" : "Subflow " + n} onClick={() => { if (sub !== n) { setShown(n); onSelect([]); } }}>{n ?? "Main"}</button>)}
+            </div>
+            <button type="button" className="st-tool" aria-label="Add a subflow" title="Add a subflow" onClick={() => setSubDialog({})}><Icon name="plus" size={16} /></button>
+            {sub !== null && <Menu label={"Subflow " + sub} align="start" items={[
+              { key: "rename", label: "Rename subflow…", description: "Run subflow steps follow the new name", onSelect: () => setSubDialog({ rename: sub }) },
+              { key: "delete", label: "Delete subflow", description: "With its steps; " + keyOf("app.undo") + " brings it back",
+                onSelect: () => { onEditWhole(removeSubflow(whole, sub), []); setShown(null); onNotice("Deleted subflow " + sub + ". " + keyOf("app.undo") + " undoes it."); } },
+            ]} trigger={<button type="button" className="st-tool" aria-label={"Subflow " + sub + " actions"} title="Rename or delete this subflow"><Icon name="more" size={16} stroke={3} /></button>} />}
+          </div>}
+          {subDialog && <SubflowDialog rename={subDialog.rename} onClose={() => setSubDialog(null)} onSave={(name) => {
+            try {
+              if (subDialog.rename !== undefined) onEditWhole(renameSubflow(whole, subDialog.rename, name));
+              else onEditWhole(addSubflow(whole, name), []);
+              setShown(name.trim()); setSubDialog(null);
+              return null;
+            } catch (e) { return e instanceof Error ? e.message : String(e); }
+          }} />}
           {longNames > 0 && !noRename && <div className="st-offer" role="status">
             <span>{longNames} recorded variable{longNames === 1 ? " has a long name" : "s have long names"} (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?</span>
             <Button kind="primary" onClick={() => { onEdit(shortenRecordedNames(flow)); onNotice("Renamed the recorded variables to short numbered names. Undo with Ctrl+Z."); }}>Rename</Button>
@@ -708,11 +759,14 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 : problems.length === 0 ? <p className="st-pad">No problems found at the last check.</p>
                 : <ul className="st-problem-list">{problems.map((p, i) => {
                     const row = rows.find((r) => r.kind === "step" && r.step.id === p.stepId);
+                    // a step in a list not shown now (the main steps or another subflow): name the list and offer to show it
+                    const other = !row && p.stepId ? listOf(whole, p.stepId) : undefined;
                     return (
                       <li key={i}>
                         <span className="st-check">CHECK</span>
-                        <span>{row?.kind === "step" ? `Line ${row.n}: ` : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
+                        <span>{row?.kind === "step" ? `Line ${row.n}: ` : other !== undefined ? (other === null ? "Main steps: " : `Subflow ${other}: `) : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
                         {row?.kind === "step" && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Go to line {row.n}</Button>}
+                        {other !== undefined && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Show the step</Button>}
                       </li>
                     );
                   })}</ul>}
@@ -764,6 +818,24 @@ function ReplaceDialog({ flow, selected, onClose, onReplace }: { flow: Flow; sel
       <Field label="Replace with">{(id) => <TextInput id={id} value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
       <label className="st-check-line"><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case</label>
       {selected.length > 0 && <label className="st-check-line"><input type="checkbox" checked={onlySelected} onChange={(e) => setOnlySelected(e.target.checked)} /> {selected.length === 1 ? "Only the selected step (and the steps inside it)" : "Only the " + selected.length + " selected steps (and the steps inside them)"}</label>}
+    </Dialog>
+  );
+}
+
+/** Name a new subflow, or rename one; onSave returns a message when the name cannot be used. */
+function SubflowDialog({ rename, onClose, onSave }: { rename?: string; onClose: () => void; onSave: (name: string) => string | null }) {
+  const [name, setName] = useState(rename ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const save = () => setError(onSave(name));
+  return (
+    <Dialog open title={rename === undefined ? "Add a subflow" : "Rename subflow " + rename} width={440} onClose={onClose} footer={<>
+      <span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Cancel</Button>
+      <Button kind="primary" disabled={!name.trim()} onClick={save}>{rename === undefined ? "Add" : "Rename"}</Button></>}>
+      <Field label="Name" hint="Run subflow steps choose it by this name. Letters, digits, spaces, _ and -.">{(id) =>
+        <TextInput id={id} autoFocus value={name} onChange={(e) => { setName(e.target.value); setError(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { e.preventDefault(); save(); } }} />}</Field>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {rename === undefined && <p className="st-muted">A subflow is a list of steps kept beside the main steps. It uses the agent's variables, and runs where a Run subflow step runs it.</p>}
     </Dialog>
   );
 }

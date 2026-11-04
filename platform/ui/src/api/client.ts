@@ -54,7 +54,9 @@ export type FlowStep = {
 };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
-export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; onError?: FlowOnError; ui?: FlowUi };
+/** A named list of steps inside an agent, run by a Run subflow step; it shares the agent's variables. */
+export type Subflow = { name: string; description?: string; steps: FlowStep[] };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError; ui?: FlowUi };
 
 /**
  * The agent's error handler: steps that run once when an error no Try block caught ends the run, while its windows and

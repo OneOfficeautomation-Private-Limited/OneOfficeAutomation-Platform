@@ -27,6 +27,10 @@ public final class Runner {
     public static final String LOG_FIELDS_SESSION = "ooa.log.fields";
     /** Extra time the agent's error handler gets when the run went over its time limit. */
     static final long HANDLER_GRACE_NANOS = 60L * 1_000_000_000L;
+    /** How deep Run subflow calls may nest inside one agent (a subflow may call itself; this stops endless recursion). */
+    public static final int MAX_SUBFLOW_DEPTH = 100;
+    /** Go to jumps allowed in one run unless RunOptions.maxJumps says otherwise (stops endless jumping). */
+    public static final int DEFAULT_MAX_JUMPS = 10_000;
 
     private final PackageRegistry registry;
     private final Map<String, Object> services;
@@ -78,6 +82,7 @@ public final class Runner {
         r.onlyStep = opts.onlyStep;
         r.carryOver = opts.carryOver;
         r.trail = opts.trail;
+        r.maxJumps = opts.maxJumps;
         return r.execute(inputs == null ? Map.of() : inputs, true);
     }
 
@@ -93,8 +98,13 @@ public final class Runner {
         /** Step nesting across agents, for step over and step out: deeper steps have a higher level. */
         int level();
         String automation();
-        /** Outermost first: {automation, stepId} for each agent that is running. */
+        /**
+         * Outermost first: {automation, stepId} for each agent that is running, and for each Run subflow call within an
+         * agent; entries for steps inside a subflow also have "subflow" (its name).
+         */
         List<Map<String, Object>> stack();
+        /** The subflow the step is in, or null for the agent's main steps. */
+        default String subflow() { return null; }
         /** Declared variables of the current agent; credentials are masked. */
         Map<String, Object> variables();
         /** Change a variable while stopped (the value is converted to the variable's type). */
@@ -111,13 +121,17 @@ public final class Runner {
      *       runs only the branch that holds the start step. Try keeps its Catch and Finally when the start step is in the Try
      *       part. After the enclosing blocks end, the run carries on normally with the steps that follow them.</li>
      *   <li>With onlyStep, the run ends successfully once the start step (and, for a block, everything inside it) has run.</li>
+     *   <li>A start step inside a subflow runs that subflow from the step to its end, as if called; the main steps do not run
+     *       and the run ends with the subflow.</li>
      * </ul>
      * The skipped steps never set their variables, so these keep their defaults and inputs, unless {@link #carryOver(Map)}
      * gives values (usually the ones an earlier run had when it reached the start step, from its {@link ValueTrail}).
      */
     public static final class RunOptions {
         String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger; String startAt; boolean onlyStep;
-        Map<String, Object> carryOver; ValueTrail trail;
+        Map<String, Object> carryOver; ValueTrail trail; int maxJumps = DEFAULT_MAX_JUMPS;
+        /** Go to jumps allowed in the run (each child agent gets the same allowance); more fail the run with GOTO.LIMIT. */
+        public RunOptions maxJumps(int n) { maxJumps = Math.max(0, n); return this; }
         public RunOptions startAt(String stepId) { startAt = stepId == null || stepId.isBlank() ? null : stepId; return this; }
         /**
          * With startAt: values for the agent's variables before the start step, in place of the ones the skipped steps
@@ -172,6 +186,16 @@ public final class Runner {
     private static final class StopSignal extends RuntimeException {
         final boolean failed; final String reason;
         StopSignal(boolean failed, String reason) { super(null, null, false, false); this.failed = failed; this.reason = reason; }
+    }
+
+    /** core/goto: caught by the step list that holds the label, which carries on from it; Finally blocks run on the way. */
+    private static final class GotoSignal extends RuntimeException {
+        final String label;
+        GotoSignal(String label) { super(null, null, false, false); this.label = label; }
+    }
+    /** core/exit_subflow: leaves the subflow being run; the Run subflow step that called it ends normally. */
+    private static final class ExitSubflowSignal extends RuntimeException {
+        ExitSubflowSignal() { super(null, null, false, false); }
     }
 
     private static String labelOf(RuntimeException e) {
@@ -244,6 +268,14 @@ public final class Runner {
         String parentStep;
         volatile int nesting;
         final List<ExecutorService> workers = new CopyOnWriteArrayList<>();
+        /** Go to: the jumps allowed and made in this run. */
+        int maxJumps = DEFAULT_MAX_JUMPS;
+        final AtomicInteger jumps = new AtomicInteger();
+        /** Run subflow calls in progress on this thread, outermost first: {subflow name, id of the calling step}. Parallel branches start with a copy. */
+        final InheritableThreadLocal<ArrayDeque<String[]>> calls = new InheritableThreadLocal<>() {
+            @Override protected ArrayDeque<String[]> initialValue() { return new ArrayDeque<>(); }
+            @Override protected ArrayDeque<String[]> childValue(ArrayDeque<String[]> parent) { return new ArrayDeque<>(parent); }
+        };
 
         @SuppressWarnings("unchecked")
         Run(Map<String, Object> flow, String runId, AtomicBoolean cancel, Double maxRunSeconds, int depth) {
@@ -398,28 +430,41 @@ public final class Runner {
                 if (validate) validator.validateOrThrow(flow);
                 bindInputs(inputs);
                 planHash = planHash(inputs);
+                String startIn = null;   // run from a step inside a subflow: only that subflow runs, from the step to its end
                 if (startAt != null) {
                     List<String> path = pathTo((List<Object>) flow.get("steps"), startAt);
+                    if (path == null) for (var sub : Steps.subflows(flow).entrySet())
+                        if ((path = pathTo(sub.getValue(), startAt)) != null) { startIn = sub.getKey(); break; }
                     if (path == null) throw new OoaException("RUN.START_NOT_FOUND", "There is no step '" + startAt + "' in agent " + aid,
                             "Choose a step of the agent being run.");
                     startPath = Set.copyOf(path.subList(0, path.size() - 1));
                 }
                 List<String> carried = startAt != null && carryOver != null ? applyCarryOver(inputs) : List.of();
                 emit("run.started", null, data("automation", aid, "kind", flow.get("kind"), "planHash", planHash, "depth", depth,
-                        "totalSteps", Steps.walk((List<Object>) flow.get("steps")).size(), "startAt", startAt, "onlyStep", onlyStep));
-                if (startAt != null) log("info", (onlyStep ? "Running only step " : "Running from step ") + startAt + "; earlier steps are skipped", null);
+                        "totalSteps", Steps.walkFlow(flow).size() - Steps.walk(Steps.onErrorSteps(flow)).size(), "startAt", startAt, "onlyStep", onlyStep));
+                if (startAt != null) log("info", (onlyStep ? "Running only step " : "Running from step ") + startAt
+                        + (startIn == null ? "" : " in subflow " + startIn + " (the run ends with the subflow)") + "; earlier steps are skipped", null);
                 if (!carried.isEmpty()) {
                     log("info", "Values from the last run: " + String.join(", ", carried), null);
                     for (String n : carried) emit("variable.set", null, data("name", n, "value", Values.safeRepr(scope.values.get(n)), "carried", true));
                 }
-                try { execSteps((List<Object>) flow.get("steps"), true); }
-                catch (OoaException e) { if (!handleError(e)) throw e; handled = e; }
+                try {
+                    if (startIn != null) runSubflow(startIn, null);
+                    else execSteps((List<Object>) flow.get("steps"), true);
+                } catch (OoaException e) { if (!handleError(e)) throw e; handled = e; }
             } catch (OoaException e) {
                 status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : "failed";
                 error = e.toMap();
             } catch (BreakSignal | ContinueSignal e) {
                 status = "failed";
                 error = new OoaException("FLOW.BAD_BREAK", "break/continue used outside a loop" + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'")).toMap();
+            } catch (GotoSignal e) {
+                status = "failed";
+                error = new OoaException("FLOW.BAD_GOTO", "Go to label '" + e.label + "': there is no such label in the step list or in a list around it",
+                        "Put a Label step with this name in the same list as the Go to, or in a list around it.").toMap();
+            } catch (ExitSubflowSignal e) {
+                status = "failed";
+                error = new OoaException("FLOW.BAD_EXIT_SUBFLOW", "Exit subflow used outside a subflow", "Use Stop agent to end the agent's main steps.").toMap();
             } catch (StopSignal e) {
                 if (e.failed) {
                     status = "failed";
@@ -433,6 +478,7 @@ public final class Runner {
                 workers.forEach(ExecutorService::shutdownNow);
                 for (Path p : tempFiles) { try { java.nio.file.Files.deleteIfExists(p); } catch (java.io.IOException ignored) { } }
                 tempFiles.clear();
+                calls.remove();
             }
             Map<String, Object> outputs = new LinkedHashMap<>();
             for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
@@ -551,22 +597,76 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         void execSteps(List<Object> steps, boolean topLevel) {
             boolean continueDefault = topLevel && "continue".equals(((Map<String, Object>) flow.getOrDefault("errorHandling", Map.of())).get("default"));
-            if (!topLevel) nesting++;
+            execList(steps, continueDefault, !topLevel);
+        }
+
+        /**
+         * Runs a step list in order. A Go to whose label is in this list (and was not caught by a list inside it) carries
+         * on from the label; any other Go to goes up to the lists around this one.
+         */
+        @SuppressWarnings("unchecked")
+        void execList(List<Object> steps, boolean forceContinue, boolean nested) {
+            if (nested) nesting++;
             try {
-                for (Object o : steps == null ? List.of() : steps) {
+                List<Object> list = steps == null ? List.of() : steps;
+                for (int i = 0; i < list.size(); i++) {
                     if (onlyDone) return;
-                    Map<String, Object> s = (Map<String, Object>) o;
+                    Map<String, Object> s = (Map<String, Object>) list.get(i);
                     boolean off = Boolean.TRUE.equals(s.get("disabled"));
                     String id = String.valueOf(s.get("id"));
                     if (startAt != null && !reached) {
                         if (id.equals(startAt)) reached = true;
                         else { if (!off && startPath.contains(id)) enterTowards(s); continue; }
                     }
-                    if (!off) execStep(s, continueDefault);
+                    try {
+                        if (!off) execStep(s, forceContinue);
+                    } catch (GotoSignal g) {
+                        int at = labelIndex(list, g.label);
+                        if (at < 0) throw g;
+                        i = at - 1;   // the loop's i++ lands on the label
+                        continue;
+                    }
                     if (onlyStep && id.equals(startAt)) onlyDone = true;
                 }
-            } finally { if (!topLevel) nesting--; }
+            } finally { if (nested) nesting--; }
         }
+
+        /** Where the Label step with this name is in a list (disabled or not), or -1. */
+        @SuppressWarnings("unchecked")
+        int labelIndex(List<Object> list, String label) {
+            for (int i = 0; i < list.size(); i++)
+                if (list.get(i) instanceof Map<?, ?> m && "core/label".equals(m.get("action")) && m.get("args") instanceof Map<?, ?> a
+                        && label.equals(String.valueOf(a.get("name")).strip())) return i;
+            return -1;
+        }
+
+        /**
+         * Runs a subflow by name in this run: same variables, sessions and events. Exit subflow ends it; Exit loop,
+         * Continue loop and Go to cannot leave it. `callStep` is the Run subflow step (null for Run from here inside it).
+         */
+        void runSubflow(String name, String callStep) {
+            List<Object> body = Steps.subflows(flow).get(name);
+            if (body == null) throw new OoaException("SUBFLOW.NOT_FOUND", "There is no subflow named '" + name + "'",
+                    Steps.subflows(flow).isEmpty() ? "Add the subflow to the agent, or remove the Run subflow step." : "Subflows: " + String.join(", ", Steps.subflows(flow).keySet()) + ".");
+            ArrayDeque<String[]> stack = calls.get();
+            if (stack.size() >= MAX_SUBFLOW_DEPTH) throw new OoaException("SUBFLOW.DEPTH", "Subflows are nested more than " + MAX_SUBFLOW_DEPTH + " deep (subflow '" + name + "')",
+                    "A subflow that runs itself needs a condition that stops it; check the Run subflow steps.");
+            stack.addLast(new String[]{name, callStep});
+            try {
+                execSteps(body, false);
+            } catch (ExitSubflowSignal e) {
+                log("info", "Left subflow " + name, callStep);
+            } catch (BreakSignal | ContinueSignal e) {
+                throw new OoaException("FLOW.BAD_BREAK", "Exit loop or Continue loop in subflow '" + name + "' is not inside a loop of the subflow"
+                        + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'"), "A subflow can only leave or continue its own loops.");
+            } catch (GotoSignal e) {
+                throw new OoaException("FLOW.BAD_GOTO", "Go to label '" + e.label + "' in subflow '" + name + "': the label is not in the subflow",
+                        "Go to can only jump to a label in the same subflow, in the same step list or a list around it.");
+            } finally { stack.removeLast(); }
+        }
+
+        /** The subflow the current thread is in, or null in the main steps. */
+        String currentSubflow() { ArrayDeque<String[]> s = calls.get(); return s.isEmpty() ? null : s.peekLast()[0]; }
 
         /** Ids from the outermost block down to the step with `id`, or null when the agent has no such step. */
         @SuppressWarnings("unchecked")
@@ -624,15 +724,24 @@ public final class Runner {
         /** The debugger's view of this run, stopped before `step`. */
         Frame frame(Map<String, Object> step) {
             Run run = this;
+            List<String[]> subCalls = List.copyOf(calls.get());
             return new Frame() {
                 public String stepId() { return String.valueOf(step.get("id")); }
                 public String action() { return String.valueOf(step.get("action")); }
                 public int depth() { return depth; }
                 public int level() { int l = nesting; for (Run p = parent; p != null; p = p.parent) l += p.nesting + 1; return l; }
                 public String automation() { return String.valueOf(flow.getOrDefault("id", "?")); }
+                public String subflow() { return subCalls.isEmpty() ? null : subCalls.get(subCalls.size() - 1)[0]; }
                 public List<Map<String, Object>> stack() {
                     LinkedList<Map<String, Object>> out = new LinkedList<>();
-                    out.addFirst(Map.of("automation", automation(), "stepId", stepId()));
+                    // this agent: the step, then the Run subflow steps that led to it (innermost first, as they are added at the front)
+                    String in = subflow();
+                    out.addFirst(in == null ? Map.of("automation", automation(), "stepId", stepId()) : Map.of("automation", automation(), "stepId", stepId(), "subflow", in));
+                    for (int k = subCalls.size() - 1; k >= 0; k--) {
+                        String caller = k > 0 ? subCalls.get(k - 1)[0] : null, callStep = subCalls.get(k)[1];
+                        if (callStep == null) continue;   // Run from here inside a subflow: no step called it
+                        out.addFirst(caller == null ? Map.of("automation", automation(), "stepId", callStep) : Map.of("automation", automation(), "stepId", callStep, "subflow", caller));
+                    }
                     String at = parentStep;
                     for (Run p = parent; p != null; at = p.parentStep, p = p.parent)
                         out.addFirst(Map.of("automation", String.valueOf(p.flow.getOrDefault("id", "?")), "stepId", at == null ? "" : at));
@@ -673,7 +782,7 @@ public final class Runner {
                 String pid = act.substring(0, act.indexOf('/')), aid = act.substring(act.indexOf('/') + 1);
                 if (pid.equals("core")) execCore(step, aid); else execLeaf(step, pid, aid);
                 stepsExecuted.incrementAndGet();
-            } catch (BreakSignal | ContinueSignal | StopSignal sig) {
+            } catch (BreakSignal | ContinueSignal | StopSignal | GotoSignal | ExitSubflowSignal sig) {
                 emit("step.finished", sid, data("action", act, "durationMs", (System.nanoTime() - t0) / 1_000_000));
                 throw sig;
             } catch (OoaException e) {
@@ -757,6 +866,23 @@ public final class Runner {
                 }
                 case "pause" -> pauseHere(a, sid);
                 case "run_bot" -> runChild(step, a);
+                case "run_subflow" -> {
+                    String name = optText(a.get("subflow"));
+                    if (name == null) throw new OoaException("SUBFLOW.NOT_FOUND", "Run subflow has no subflow chosen", "Choose the subflow to run.");
+                    runSubflow(name.strip(), sid);
+                }
+                case "exit_subflow" -> {
+                    // outside a subflow it reaches the run, which fails with FLOW.BAD_EXIT_SUBFLOW
+                    throw new ExitSubflowSignal();
+                }
+                case "label" -> { }
+                case "goto" -> {
+                    String label = Values.text(a.get("label")).strip();
+                    if (jumps.incrementAndGet() > maxJumps)
+                        throw new OoaException("GOTO.LIMIT", "The run made more than " + maxJumps + " Go to jumps (last to label '" + label + "')",
+                                "Go to may be jumping round endlessly: check the condition that ends it, or use a Loop.");
+                    throw new GotoSignal(label);
+                }
                 default -> throw new OoaException("FLOW.UNKNOWN_ACTION", "Unknown core action '" + aid + "'");
             }
         }
@@ -1053,12 +1179,25 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         Map<String, Object> errorInfo(OoaException e) {
             Map<String, Object> m = new LinkedHashMap<>(e.toMap());
-            if (walked == null) walked = Steps.walkFlow(flow);
+            // the main steps then the error handler's, numbered on as One AgentStudio shows them; subflows are numbered apart
+            if (walked == null) {
+                walked = Steps.walk(flow.get("steps") instanceof List<?> l ? (List<Object>) l : List.of());
+                walked.addAll(Steps.walk(Steps.onErrorSteps(flow)));
+            }
             Object line = null, action = null;
             for (int i = 0; i < walked.size(); i++)
                 if (String.valueOf(walked.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = walked.get(i).get("action"); break; }
+            String inSub = null;
+            if (line == null)   // a step of a subflow: its line within the subflow, as One AgentStudio numbers it
+                for (var sub : Steps.subflows(flow).entrySet()) {
+                    List<Map<String, Object>> w = Steps.walk(sub.getValue());
+                    for (int i = 0; i < w.size() && line == null; i++)
+                        if (String.valueOf(w.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = w.get(i).get("action"); inSub = sub.getKey(); }
+                    if (line != null) break;
+                }
             m.put("line", line);
             m.put("action", action);
+            if (inSub != null) m.put("subflow", inSub);
             return m;
         }
 
@@ -1112,8 +1251,10 @@ public final class Runner {
                 if ("RUN.CANCELLED".equals(x.code())) { emitHandlerFinished(sid, "stopped", t0); throw x; }
                 log("error", "The error handler failed with " + x.code() + ": " + x.getMessage() + "; the run fails with the original error " + e.code(), x.stepId());
                 outcome = "failed"; succeed = false;
-            } catch (BreakSignal | ContinueSignal x) {
-                log("error", "The error handler used break/continue outside a loop; the run fails with the original error " + e.code(), sid);
+            } catch (BreakSignal | ContinueSignal | GotoSignal | ExitSubflowSignal x) {
+                log("error", "The error handler used " + (x instanceof GotoSignal ? "Go to with a label outside its steps"
+                        : x instanceof ExitSubflowSignal ? "Exit subflow outside a subflow" : "break/continue outside a loop")
+                        + "; the run fails with the original error " + e.code(), sid);
                 outcome = "failed"; succeed = false;
             }
             emitHandlerFinished(sid, outcome, t0);
@@ -1145,11 +1286,9 @@ public final class Runner {
                         if (c.get("line_to") instanceof String lt) scope.set(lt, err.get("line"));
                         log("info", "Caught " + e.code(), sid);
                         List<Object> body = c.get("children") instanceof List<?> l ? (List<Object>) l : List.of();
-                        if (Boolean.TRUE.equals(c.get("continueOnError"))) {
-                            nesting++;
-                            try { for (Object s : body) if (!Boolean.TRUE.equals(((Map<String, Object>) s).get("disabled"))) execStep((Map<String, Object>) s, true); }
-                            finally { nesting--; }
-                        } else execSteps(body, false);
+                        // continueOnError: every step of the Catch runs even when one fails (execList also handles Go to in it)
+                        if (Boolean.TRUE.equals(c.get("continueOnError"))) execList(body, true, true);
+                        else execSteps(body, false);
                         handled = true;
                         if (Boolean.TRUE.equals(c.get("rethrow"))) throw e;
                         break;
@@ -1169,17 +1308,24 @@ public final class Runner {
             Semaphore permits = new Semaphore(Math.max(1, n));
             List<OoaException> errors = new CopyOnWriteArrayList<>();
             List<StopSignal> stops = new CopyOnWriteArrayList<>();
+            List<ExitSubflowSignal> exits = new CopyOnWriteArrayList<>();
             try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {
                 for (Map<String, Object> b : branches) ex.submit(() -> {
                     try { permits.acquire(); execStep(b, false); }
                     catch (OoaException e) { errors.add(e); }
                     catch (StopSignal s) { stops.add(s); }
+                    catch (GotoSignal g) {
+                        errors.add(new OoaException("FLOW.BAD_GOTO", "Go to label '" + g.label + "' cannot leave a Parallel branch",
+                                "Jump only to labels inside the same branch.").atStep(String.valueOf(b.get("id"))));
+                    }
+                    catch (ExitSubflowSignal x) { exits.add(x); }
                     catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                     finally { permits.release(); }
                 });
             }
             if (!errors.isEmpty()) throw errors.get(0);
             if (!stops.isEmpty()) throw stops.get(0);
+            if (!exits.isEmpty()) throw exits.get(0);   // Exit subflow in a branch: the subflow ends once every branch is done
         }
 
         @SuppressWarnings("unchecked")
@@ -1210,6 +1356,7 @@ public final class Runner {
                 child.debugger = debugger;
                 child.parent = this;
                 child.parentStep = String.valueOf(step.get("id"));
+                child.maxJumps = maxJumps;
                 if (same) { child.sessions = sessions; child.borrowedSessions = true; }
                 RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
                 runs++;

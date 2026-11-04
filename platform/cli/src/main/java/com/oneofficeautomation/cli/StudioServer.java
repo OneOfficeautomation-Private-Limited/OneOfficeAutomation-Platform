@@ -743,6 +743,9 @@ public final class StudioServer {
                 + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
                 + "To set several variables at once use core/set_many with \"args\": {\"assignments\": [{\"variable\": \"name\", \"value\": ...}]}, run in order. "
                 + "Errors no Try catches end the agent; its On error steps (flow \"onError\", edited apart from these steps) then run once, so answer with steps for the request only. "
+                + "core/run_subflow {\"subflow\": name} runs one of the agent's subflows (named step lists sharing its variables"
+                + (Steps.subflows(flow).isEmpty() ? "; this agent has none" : "; this agent's: " + String.join(", ", Steps.subflows(flow).keySet())) + "). "
+                + "core/label {\"name\"} marks a place; core/goto {\"label\"} carries on from a label in the same step list or a list around it (prefer core/loop). "
                 + "Reference variables as $name, or inside text as ${name}. Declare every variable you use. Types: String, Number, Boolean, DateTime, List, "
                 + "Dictionary, Table, Record, File, Credential, Any, Time, TimeSpan, Image, Binary. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
@@ -772,6 +775,9 @@ public final class StudioServer {
         check.putIfAbsent("kind", "TaskBot"); check.putIfAbsent("id", "check"); check.putIfAbsent("name", "check");
         check.put("variables", vars);
         check.put("steps", answer.getOrDefault("steps", List.of()));
+        // the agent's subflows by name only, so Run subflow steps check but their steps' ids do not clash with new ones
+        if (flow.containsKey("subflows"))
+            check.put("subflows", Steps.subflows(flow).keySet().stream().map(n -> (Object) Map.of("name", n, "steps", List.of())).toList());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("variables", answer.getOrDefault("variables", List.of()));
         out.put("steps", answer.getOrDefault("steps", List.of()));

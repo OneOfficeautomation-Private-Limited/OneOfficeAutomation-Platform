@@ -1,5 +1,5 @@
 import type { Flow, FlowStep, FlowVariable, RunEvent } from "../api/client";
-import { innerLists } from "./flowEdit";
+import { allSteps } from "./flowEdit";
 
 /**
  * Variables, as pure functions: their types and colours, how they are used (input, output, both, inside), which
@@ -122,10 +122,6 @@ export function guessType(v: unknown): string {
   return "String";
 }
 
-function* every(steps: FlowStep[]): Generator<FlowStep> {
-  for (const s of steps) { yield s; for (const inner of innerLists(s)) yield* every(inner); }
-}
-
 /** $name and the start of ${name ...}; group 1 keeps the "{" so a rename puts it back. */
 const refRegex = (name: string) => new RegExp("\\$(\\{\\s*)?" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9_])", "g");
 const NAME_ARGS = ["variable", "as", "index"];
@@ -137,7 +133,7 @@ const assignments = (s: FlowStep) => s.action === "core/set_many" && Array.isArr
 export function usageCount(flow: Flow, name: string): number {
   const re = refRegex(name);
   let n = 0;
-  for (const s of every([...flow.steps, ...(flow.onError?.steps ?? [])])) {
+  for (const s of allSteps(flow)) {
     n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition), (s.cases ?? []).map((c) => c.values)]).match(re) ?? []).length;
     n += Object.values(s.out ?? {}).filter((v) => v === name).length;
     n += NAME_ARGS.filter((k) => s.args?.[k] === name).length;
@@ -153,7 +149,7 @@ export function renameRefs(flow: Flow, oldName: string, newName: string): Flow {
   const re = refRegex(oldName);
   const map = (v: unknown): unknown => typeof v === "string" ? v.replace(re, (_m, brace) => "$" + (brace ?? "") + newName)
     : Array.isArray(v) ? v.map(map) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, map(x)])) : v;
-  for (const s of every([...f.steps, ...(f.onError?.steps ?? [])])) {
+  for (const s of allSteps(f)) {
     if (s.args) { s.args = map(s.args) as Record<string, unknown>; for (const k of NAME_ARGS) if (s.args[k] === oldName) s.args[k] = newName; }
     for (const r of assignments(s)) if (r.variable === oldName) r.variable = newName;
     for (const b of s.elseIf ?? []) b.condition = map(b.condition);

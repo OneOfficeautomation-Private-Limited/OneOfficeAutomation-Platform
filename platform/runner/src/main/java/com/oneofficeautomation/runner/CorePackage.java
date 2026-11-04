@@ -143,6 +143,24 @@ public final class CorePackage {
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"success\"", enumValues = {"success", "failed"},
                     description = "success ends the agent normally; failed ends it with error AGENT.STOPPED.") String status) { return interp(); }
 
+    @Action(id = "run_subflow", name = "Run subflow", category = "Agent",
+            description = "Run one of this agent's subflows (a named list of steps kept beside the main steps) and carry on when it ends; it uses the agent's own variables.")
+    public Map<String, Object> runSubflow(ActionContext c,
+            @Input(name = "subflow", type = OoaType.STRING, description = "Name of the subflow to run.") String subflow) { return interp(); }
+
+    @Action(id = "exit_subflow", name = "Exit subflow", category = "Agent",
+            description = "Leave the subflow being run at once (Finally blocks still run); the agent carries on after the Run subflow step.")
+    public Map<String, Object> exitSubflow(ActionContext c) { return interp(); }
+
+    @Action(id = "label", name = "Label", category = "Logic", description = "A named place in the steps that Go to can jump to; does nothing itself.")
+    public Map<String, Object> label(ActionContext c,
+            @Input(name = "name", type = OoaType.STRING, pattern = "^[A-Za-z0-9_ -]+$", description = "Name of the place, unique among the labels Go to steps can see.") String name) { return interp(); }
+
+    @Action(id = "goto", name = "Go to", category = "Logic",
+            description = "Carry on from a Label in the same step list or a list around it (never into a block or out of a subflow); a run fails with GOTO.LIMIT after too many jumps.")
+    public Map<String, Object> gotoAction(ActionContext c,
+            @Input(name = "label", type = OoaType.STRING, description = "Name of the Label to carry on from.") String label) { return interp(); }
+
     @Action(id = "pause", name = "Pause agent", category = "Agent", description = "Pause the run until someone resumes it from One AgentStudio or One CommandCenter, or until the optional timeout.")
     public Map<String, Object> pause(ActionContext c,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Why the run is waiting; shown with the paused run.") String message,

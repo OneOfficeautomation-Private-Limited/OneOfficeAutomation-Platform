@@ -59,6 +59,7 @@ Validation failures raise `FLOW.INVALID` with the number of problems and the fir
   },
   "variables": [ ... ],
   "steps": [ ... ],
+  "subflows": [ {"name": "Login", "steps": [ ... ]} ],
   "errorHandling": {"default": "stop", "retry": {"max": 2, "backoff": "exponential", "delayMs": 500}},
   "ui": { ... }
 }
@@ -190,6 +191,25 @@ All control flow is expressed with `core/*` actions:
 | `core/pause` | Pause the run from inside, as the Pause button does |
 | `core/comment` | Nothing at run time |
 | `core/run_bot` | Run a child agent (section 10) |
+| `core/run_subflow`, `core/exit_subflow` | Run one of the agent's subflows by name; leave the subflow being run (see below) |
+| `core/label`, `core/goto` | A named place; carry on from a label (see below) |
+
+**Subflows.** Next to `steps`, an agent may have `"subflows": [{"name": "Login", "steps": [...]}]`: named step lists
+kept inside the same agent. `core/run_subflow` (`args.subflow`) runs one in the same run, with the agent's own
+variables, sessions and events (no inputs or outputs of its own; for that use a child agent, section 10). A subflow
+may run other subflows and itself, up to `Runner.MAX_SUBFLOW_DEPTH` (100) deep, `SUBFLOW.DEPTH` beyond. Its errors
+reach the Try around the Run subflow step. `core/exit_subflow` ends the subflow (Finally blocks run on the way out) and
+the caller carries on. Exit loop, Continue loop and Go to cannot leave a subflow: the check refuses them, and at run
+time they fail with `FLOW.BAD_BREAK` / `FLOW.BAD_GOTO`. The check also refuses unknown subflow names, duplicate and empty
+names, and Exit subflow in the main steps. Step ids are unique across the main steps and every subflow; a Catch's `line`
+for a subflow step is its line within the subflow, with `subflow` naming it.
+
+**Labels and Go to.** `core/goto` (`args.label`) carries on from the `core/label` with that `name` in the same step list
+or a list around it; Finally blocks of the blocks it leaves run, and Loops it leaves end. It cannot jump into a block,
+out of a Parallel branch or out of a subflow, and a label name may be used only once among the labels a Go to can see;
+the check refuses all of these. It is a signal caught by the step list that holds the label, which continues from the
+label's place. A run allows `RunOptions.maxJumps` jumps (default 10,000; child agents get the same allowance), then
+fails with `GOTO.LIMIT`.
 
 Toolkit iterators can be endless (for example the trigger loop), so range options are applied while reading.
 
@@ -372,7 +392,8 @@ same hash, which lets operators compare runs, replay with confidence and tie a r
 | `stepId()`, `action()`, `automation()` | Where the run is |
 | `depth()` | 0 for the agent being run, 1 for its children, … |
 | `level()` | Step nesting across agents, for step over and step out |
-| `stack()` | `{automation, stepId}` for each running agent, outermost first |
+| `stack()` | `{automation, stepId}` for each running agent and each Run subflow call, outermost first; entries inside a subflow also have `subflow` |
+| `subflow()` | The subflow the step is in, or null for the main steps |
 | `variables()` | Declared variables, credentials masked |
 | `setVariable(name, value)` | Change a value while stopped (converted to its type; emits `variable.set` with `edited`) |
 
@@ -388,7 +409,8 @@ by blocking in `beforeStep`. The runner itself has no Studio code; only this int
   a Switch goes into the case (or default) holding the start step without comparing values, a Loop runs one pass
   without setting its item or index, a Parallel runs only the branch with the start step, and a
   Try keeps its Catch and Finally when the start step is in the Try part. After those blocks the run continues
-  normally. An unknown step gives `RUN.START_NOT_FOUND`.
+  normally. An unknown step gives `RUN.START_NOT_FOUND`. A start step inside a subflow runs that subflow from the step
+  to its end, as if called; the main steps do not run and the run ends with the subflow.
 - `onlyStep(stepId)` – **Run this step only**. As above, then the run ends successfully after that step (for a block,
   after everything in it).
 - `trail(ValueTrail)` – records the agent's variables (plain JSON copies, never credentials or secret values) when each

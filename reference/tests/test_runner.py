@@ -202,3 +202,28 @@ def test_validator_checks_the_error_handler(reg):
     assert any(p["path"] == "onError/as" for p in probs)
     probs = validate_flow({**_with_handler(_THROW), "onError": {"steps": _THROW}}, reg, raise_on_error=False)
     assert any("Duplicate step id" in p["message"] for p in probs)
+
+
+def test_subflow_recursion_limit_and_goto_limit(reg):
+    count = {"id": "i", "action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}
+    n = [{"name": "n", "type": "Number", "direction": "output", "default": 0}]
+    again = bot([{"id": "c", "action": "core/run_subflow", "args": {"subflow": "Again"}}], n,
+                subflows=[{"name": "Again", "steps": [count, {"id": "r", "action": "core/run_subflow", "args": {"subflow": "Again"}}]}])
+    res = Runner(reg).run(again)
+    assert res.error["code"] == "SUBFLOW.DEPTH" and res.outputs["n"] == 100
+    spin = bot([{"id": "l", "action": "core/label", "args": {"name": "x"}}, count, {"id": "g", "action": "core/goto", "args": {"label": "x"}}], n)
+    res = Runner(reg).run(spin, max_jumps=5)
+    assert res.error["code"] == "GOTO.LIMIT" and res.outputs["n"] == 6
+
+
+def test_validation_of_subflows_and_labels(reg):
+    from ooa.runner import validate_flow
+    f = bot([{"id": "c", "action": "core/run_subflow", "args": {"subflow": "Nope"}},
+             {"id": "g", "action": "core/goto", "args": {"label": "inside"}},
+             {"id": "s", "action": "core/step", "children": [{"id": "l", "action": "core/label", "args": {"name": "inside"}}]},
+             {"id": "e", "action": "core/exit_subflow"}],
+            subflows=[{"name": "A", "steps": [{"id": "b", "action": "core/break"}]}, {"name": "A", "steps": []}])
+    msgs = " | ".join(p["message"] for p in validate_flow(f, reg, raise_on_error=False))
+    for frag in ("There is no subflow named 'Nope'", "jump into a block", "Exit subflow is only for subflows",
+                 "Exit loop is not inside a loop of subflow 'A'", "Duplicate subflow name 'A'"):
+        assert frag in msgs, frag
