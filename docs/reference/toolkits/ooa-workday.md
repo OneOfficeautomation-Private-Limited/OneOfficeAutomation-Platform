@@ -124,7 +124,7 @@ Start an inbound EIB with a file to load (a spreadsheet or XML attached at launc
 | --- | --- | --- |
 | `event_id` | Text | Integration event WID; pass it to Get integration event. |
 
-*Time limit 600 s; needs: network,filesystem.*
+*Time limit 600 s; needs: network,filesystem, filesystem.*
 
 ### Launch integration
 
@@ -183,7 +183,7 @@ Run a custom report exposed as a web service and return its rows as a table.
 | `count` | Number | Number of rows. |
 | `path` | File path | The saved file, when save_to_file was given. |
 
-*Time limit 600 s; safe to repeat; needs: network.*
+*Time limit 600 s; safe to repeat; needs: network, filesystem.*
 
 ## Workers
 

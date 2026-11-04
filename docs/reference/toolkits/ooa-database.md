@@ -84,7 +84,7 @@ Insert every row of a Data Table, or of a delimited text file read line by line,
 | --- | --- | --- |
 | `rows_inserted` | Number | Rows inserted. |
 
-*Time limit 3600 s; needs: network.*
+*Time limit 3600 s; needs: network, filesystem.*
 
 ### Run stored procedure
 
@@ -125,11 +125,11 @@ Open a database connection as a named session.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Database type | `database_type` | Text | No |  | Main; choice Connect using = Connection details | Kind of database, used to build the URL when jdbc_url is empty. One of: `sqlserver`, `postgresql`, `mysql`, `oracle`, `sqlite`, `h2`, `access` |
+| Database type | `database_type` | Text | No |  | Main; choice Connect using = Connection details | Kind of database, used to build the URL when jdbc_url is empty. odbc: any ODBC data source on a Windows runner (a DSN name or an ODBC connection string in database); excel: an Excel workbook through the Excel ODBC driver (sheets are tables, e.g. [Sheet1$]). One of: `sqlserver`, `postgresql`, `mysql`, `oracle`, `sqlite`, `h2`, `access`, `odbc`, `excel` |
 | Server | `server` | Text | No |  | Main; choice Connect using = Connection details | Database server name or address. Example: `dbserver01`; Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle"]}` |
 | Port | `port` | Number | No |  | Main; choice Connect using = Connection details | Server port; the database's usual port when empty. Range: 1 to 65535; Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle"]}` |
-| Database | `database` | Text | No |  | Main; choice Connect using = Connection details | Database name (service name for Oracle). Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle"]}` |
-| File | `file` | File path | No |  | Main; choice Connect using = Connection details | Database file for SQLite, H2 or Access. Shown when: `{"database_type": ["sqlite", "h2", "access"]}` |
+| Database | `database` | Text | No |  | Main; choice Connect using = Connection details | Database name (service name for Oracle; for odbc a DSN name, or a connection string such as Driver={SQL Server};Server=db01;Trusted_Connection=Yes). Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle", "odbc"]}` |
+| File | `file` | File path | No |  | Main; choice Connect using = Connection details | Database file for SQLite, H2 or Access, or the workbook for excel. Shown when: `{"database_type": ["sqlite", "h2", "access", "excel"]}` |
 | Database address (JDBC URL) | `jdbc_url` | Text | No |  | Main; choice Connect using = A JDBC address | JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below. |
 | User | `user` | Text | No |  | Main | User name. |
 | Password | `password` | Credential (vault) | No |  | Main | Password from the vault. |
@@ -137,10 +137,10 @@ Open a database connection as a named session.
 | Driver class | `driver_class` | Text | No |  | More options; tick Load a specific driver class | JDBC driver class to load first, for drivers that do not register themselves. Example: `org.postgresql.Driver` |
 | Login timeout (seconds) | `login_timeout_seconds` | Number | No | `0` | More options | Give up connecting after this many seconds; 0 uses the driver's default. Range: 0 to  |
 | Properties | `properties` | Dictionary | No |  | More options | Extra driver properties, e.g. {"encrypt": "true"}; Credential values are revealed only to the driver. |
-| Read only | `read_only` | Yes/No | No | No | More options | Open the connection read-only, so the agent cannot change data by mistake (when the driver supports it). |
+| Read only | `read_only` | Yes/No | No | No | More options | Open the connection read-only, so the agent cannot change data by mistake: the database enforces it where it can (PostgreSQL, MySQL/MariaDB, Oracle), and otherwise OOA refuses statements that change data. |
 | Auto commit | `auto_commit` | Yes/No | No | Yes | More options | Save each statement at once; false starts in a transaction that needs Commit. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 60 s; needs: network, filesystem.*
 
 ### Disconnect
 

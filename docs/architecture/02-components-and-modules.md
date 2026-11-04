@@ -35,7 +35,7 @@ oneofficeautomation/
 │  ├─ control-room/ agent/ cli/ vendor-tools/
 │  ├─ browser-extension/        Edge/Chrome/Firefox extension (plain JavaScript)
 │  ├─ docker/                   Dockerfile, compose.yaml, compose.saas.yaml, entrypoint
-│  ├─ linux/                    systemd unit for the Command Center
+│  ├─ linux/                    systemd unit for One CommandCenter
 │  ├─ customer/                 START-OOA.cmd and README.txt for the customer zip
 │  ├─ customer-setup/           Install.cmd, Install-OOA.ps1, Uninstall-OOA.ps1
 │  └─ scripts/                  start-ooa.bat, desktop shortcut, runner task, License Studio launcher
@@ -72,8 +72,8 @@ oneofficeautomation/
 | `packages-transfer` | FTP, FTPS, SFTP | Apache Commons Net 3.11.1, JSch 0.2.20 |
 | `packages-windows` | Window control, DLL calls, Windows Credential Manager, desktop objects through UI Automation (`DesktopObject`, `UiaBridge`), Java applications (Swing/AWT), hotkeys | JNA platform 5.14.0 |
 | `adapters-jackson` | `JacksonJsonCodec`, `NetworkntFlowSchemaValidator` (JSON Schema validation of agents against `flow.v1.json`) | Jackson 2.17.2, networknt json-schema-validator 1.4.0 |
-| `control-room` | One Command Center. Core services `ControlRoom` and `Platform`; `ControlRoomServer` (HTTP API and console); `Db`, `DbConfig`, `SqlServerDialect`; security (`Security`, `Rbac`, `Folders`, `Mfa`, `Sso`, `Saml`, `RateLimiter`, `IpAllowList`, `TlsConfig`, `NetGuard`); vault (`Vault`, `VaultAdmin`, `ExternalVaults`, `KeySources`); `Audit` and `SyslogForwarder`; automation (`TriggerKinds`, `TriggerPollers`, `ImapMailSource`, `GraphMailSource`, `PollHttp`, `JsonPath`, `Workflows`, `ApiTasks`, `ServerlessRuns`); repository (`RepoFiles`, `ProductionApproval`, `CodeAnalysis`, `Lifecycle`, `GitSync`, `Templates`, `TestSets`); `PromptSkills`, `McpServer`, `Analytics`, `Dashboards`, `Teams`, `Backups`, `Mailer`, `RunnerUpdates`, `CustomToolkits`, `Cluster`; licensing (`License`, `Licensing`); SaaS (`Tenants`, `TenantHost`, `RegionConfig`, `RegionDirectory`). Console UI in `src/main/resources/console` (`index.html`, `cr.js`, `cr.css`) | POI 5.3.0 (spreadsheet import/export), JGit 6.10 (Git mirror); runtime JDBC drivers H2 2.2.224, PostgreSQL 42.7.4, mssql-jdbc 12.8.1 |
-| `agent` | One Runner. `Agent` (register, heartbeat, long poll, run jobs), `RunWorker` (the child process that runs one job), `AgentClient` (HTTP with device id and secret), `LocalTriggers` (machine events), `DesktopSession` (screen state, lock, sign-out), `Network` (proxy and certificate trust), `Updater` and `UpdateHelper` (self-update), `Diagnose` (`ooa agent diagnose`) | JNA platform 5.14.0 |
+| `control-room` | One CommandCenter. Core services `ControlRoom` and `Platform`; `ControlRoomServer` (HTTP API and console); `Db`, `DbConfig`, `SqlServerDialect`; security (`Security`, `Rbac`, `Folders`, `Mfa`, `Sso`, `Saml`, `RateLimiter`, `IpAllowList`, `TlsConfig`, `NetGuard`); vault (`Vault`, `VaultAdmin`, `ExternalVaults`, `KeySources`); `Audit` and `SyslogForwarder`; automation (`TriggerKinds`, `TriggerPollers`, `ImapMailSource`, `GraphMailSource`, `PollHttp`, `JsonPath`, `Workflows`, `ApiTasks`, `ServerlessRuns`); repository (`RepoFiles`, `ProductionApproval`, `CodeAnalysis`, `Lifecycle`, `GitSync`, `Templates`, `TestSets`); `PromptSkills`, `McpServer`, `Analytics`, `Dashboards`, `Teams`, `Backups`, `Mailer`, `RunnerUpdates`, `CustomToolkits`, `Cluster`; licensing (`License`, `Licensing`); SaaS (`Tenants`, `TenantHost`, `RegionConfig`, `RegionDirectory`). Console UI in `src/main/resources/console` (`index.html`, `cr.js`, `cr.css`) | POI 5.3.0 (spreadsheet import/export), JGit 6.10 (Git mirror); runtime JDBC drivers H2 2.2.224, PostgreSQL 42.7.4, mssql-jdbc 12.8.1 |
+| `agent` | OneRunner. `Agent` (register, heartbeat, long poll, run jobs), `RunWorker` (the child process that runs one job), `AgentClient` (HTTP with device id and secret), `LocalTriggers` (machine events), `DesktopSession` (screen state, lock, sign-out), `Network` (proxy and certificate trust), `Updater` and `UpdateHelper` (self-update), `Diagnose` (`ooa agent diagnose`) | JNA platform 5.14.0 |
 | `cli` | The `ooa` program. `Ooa` and `OoaCli` (picocli command tree), `CoreCommands` and `FullCommands`, `OoaNative` (GraalVM entry point); `StudioServer` (Studio API), `Workspace` (My Workspace files), `ControlRoomLink` (check-in and check-out), `StudioDebugger`, `RunWindow`, `TriggerService` (Studio's local triggers), `EnvVault` (development vault from environment variables); `Assistant`/`AssistantClient` (desktop assistant); `NativeHost` and `BrowserConnector` (browser connector host and install); `DbCommand`, `TlsCommand`, `BackupCommand`, `WindowsService`, `ToolkitCommand`, `LicenseCommand`, `ReleaseCommand`, `ReleasePage`, `RegionCommand`, `CheckCommand`. Studio UI in `src/main/resources/studio` (`index.html`, `studio.js`, `studio.css`) | picocli 4.7.6, JNA 5.14.0, Logback 1.5.8 (runtime) |
 | `vendor-tools` | `LicenseStudio` (local web page for issuing licences) and `VendorLicenseTools` (`ooa license keygen`, `issue`, `ui`); its jar carries the marker `META-INF/ooa-vendor` | none |
 
@@ -105,10 +105,10 @@ The rules are enforced by `cli/src/test/java/com/oneofficeautomation/cli/Archite
 
 | Test | Rule |
 | --- | --- |
-| `moduleBoundaries` | `sdk` imports no other OOA module. `runner` imports neither toolkits, Studio, the Command Center nor the runner service. Built-in `packages` never import Studio or optional modules. Each optional module imports only the SDK, the runner, built-in packages and itself. `cli` never imports optional modules directly (it loads them by class name). `control-room` imports neither `cli` nor `agent`. `agent` imports neither `cli` nor `controlroom`: it talks to the Command Center only over HTTP. |
+| `moduleBoundaries` | `sdk` imports no other OOA module. `runner` imports neither toolkits, Studio, One CommandCenter nor the runner service. Built-in `packages` never import Studio or optional modules. Each optional module imports only the SDK, the runner, built-in packages and itself. `cli` never imports optional modules directly (it loads them by class name). `control-room` imports neither `cli` nor `agent`. `agent` imports neither `cli` nor `controlroom`: it talks to One CommandCenter only over HTTP. |
 | `noShellExecutionAnywhere` | No `Runtime.exec`, no `cmd /c`, `sh -c` or `bash -c`: programs start with argument lists. |
 | `xmlParsingOnlyThroughTheHardenedParser` | All XML parsing in toolkits goes through `XmlSupport`, which blocks external entities. |
-| `controlRoomUsesOnlyParameterisedSql` | Command Center SQL is built from constants and `?` placeholders only. |
+| `controlRoomUsesOnlyParameterisedSql` | One CommandCenter SQL is built from constants and `?` placeholders only. |
 | `packagesNeverPrintToTheConsole` | Toolkits log through `ActionContext`, so secrets are masked. |
 | `everyCommandIsDocumentedAndConsistentlyNamed` | First-party toolkit ids start with `ooa.` (except `core`), every toolkit and action has a description, ids are snake case. |
 
@@ -126,7 +126,7 @@ ooa.optionalModules=packages-office,packages-email,packages-pdf,packages-browser
   compile time.
 - `FirstPartyPackages.OPTIONAL` names the optional toolkit classes as strings. `FirstPartyPackages.registry()` tries
   `Class.forName` for each and skips the ones that are missing (`ClassNotFoundException` or `LinkageError`).
-- Each runner reports the toolkits it has (`id@version`) in its heartbeat. The Command Center refuses to send a job to
+- Each runner reports the toolkits it has (`id@version`) in its heartbeat. One CommandCenter refuses to send a job to
   a runner that lacks a toolkit the agent uses (`RUN.TOOLKIT_MISSING`), except custom toolkits, which travel with the
   job.
 
@@ -183,17 +183,17 @@ optional module.
 | Developer run | `gradlew :cli:run --args="server"` | Everything, from source |
 | Full install (vendor build) | `gradlew :cli:installDist` → `cli/build/install/ooa` | Product plus `vendor-tools` |
 | Customer zip | `gradlew :cli:customerDistZip` → `ooa-customer-<version>.zip` | Product without `vendor-tools`; `START-OOA.cmd`, `README.txt` |
-| Native executable | `gradlew :cli:nativeExecutable` → `cli/build/native/ooa(.exe)` | Commands that need no Command Center; runs only built-in toolkits (others stop with `ACTION.NOT_IN_THIS_PROGRAM`) |
+| Native executable | `gradlew :cli:nativeExecutable` → `cli/build/native/ooa(.exe)` | Commands that need no One CommandCenter; runs only built-in toolkits (others stop with `ACTION.NOT_IN_THIS_PROGRAM`) |
 | SBOM | `gradlew :cli:sbom` | CycloneDX bill of materials, also inside each package as `sbom.cdx.json` |
-| Container image | `docker/Dockerfile` | Command Center image, entrypoint `docker-entrypoint.sh` |
+| Container image | `docker/Dockerfile` | One CommandCenter image, entrypoint `docker-entrypoint.sh` |
 | Release manifest | `ooa release sign` (vendor) / `ooa release verify` | Ed25519-signed list of release files with SHA-256 |
 
 ## 9. Front ends
 
 | UI | File | Served from | Notes |
 | --- | --- | --- | --- |
-| Command Center console | `control-room/src/main/resources/console/cr.js` | `/` on the Command Center | Pages registered in `PAGES` and `VIEWS`; helpers `h()`, `header()`, `dataTable()`, `modal()`, `openDrawer()`, `tabStrip()`; live updates by a long request to `/api/changes` |
-| One Agent Studio | `platform/ui` (TypeScript and React, built into the CLI) | `/studio/` inside `ooa server`, or `ooa studio` on port 8710 | Automation page, agent steps (list or flow), Actions panel by toolkit family, settings panels built from manifests (`x-ooa-panel`), debugger, output panel, capture and record |
+| One CommandCenter console | `control-room/src/main/resources/console/cr.js` | `/` on One CommandCenter | Pages registered in `PAGES` and `VIEWS`; helpers `h()`, `header()`, `dataTable()`, `modal()`, `openDrawer()`, `tabStrip()`; live updates by a long request to `/api/changes` |
+| One AgentStudio | `platform/ui` (TypeScript and React, built into the CLI) | `/studio/` inside `ooa server`, or `ooa studio` on port 8710 | Automation page, agent steps (list or flow), Actions panel by toolkit family, settings panels built from manifests (`x-ooa-panel`), debugger, output panel, capture and record |
 | Browser extension | `browser-extension/background.js`, `content.js` | Loaded unpacked or by policy | Manifest V3 for Edge/Chrome, `manifest.firefox.json` for Firefox |
 
 ## Related documents

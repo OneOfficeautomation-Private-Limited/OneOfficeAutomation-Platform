@@ -283,7 +283,7 @@ public final class WebObjects {
     @SuppressWarnings("unchecked")
     static Map<String, Object> object(Object o) {
         Object v = o instanceof String s && s.trim().startsWith("{") ? JsonLite.parse(s) : o;
-        if (!(v instanceof Map<?, ?> m)) throw new ActionException("BROWSER.BAD_OBJECT", "The captured object must be a dictionary", "Use Capture in Agent Studio to record it.");
+        if (!(v instanceof Map<?, ?> m)) throw new ActionException("BROWSER.BAD_OBJECT", "The captured object must be a dictionary", "Use Capture in One AgentStudio to record it.");
         Map<String, Object> obj = (Map<String, Object>) m;
         if (obj.get("technology") != null && !"web".equals(obj.get("technology")))
             throw new ActionException("BROWSER.BAD_OBJECT", "This object was captured from a " + obj.get("technology") + " application, not a web page", "Use the Desktop objects toolkit for desktop applications.");

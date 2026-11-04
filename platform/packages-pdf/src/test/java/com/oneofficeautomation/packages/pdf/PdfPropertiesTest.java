@@ -133,6 +133,54 @@ class PdfPropertiesTest {
         assertEquals(0, n(pdf.extractImages(ctx, "four.pdf", "ex2", 1, null, "1,3", "png", null, "color").get("count")));
     }
 
+    /** Gap: image options (JPEG quality, TIFF compression, colour depth) on Convert to images and Extract images. */
+    @Test void imageQualityCompressionAndDepth() throws Exception {
+        @SuppressWarnings("unchecked") List<Object> hi = (List<Object>) pdf.toImages(ctx, "four.pdf", "q", 100, "jpg", "color", "2", "hi", null, 95, null).get("files");
+        @SuppressWarnings("unchecked") List<Object> lo = (List<Object>) pdf.toImages(ctx, "four.pdf", "q", 100, "jpg", "color", "2", "lo", null, 5, null).get("files");
+        long big = Files.size(Path.of(hi.get(0).toString())), small = Files.size(Path.of(lo.get(0).toString()));
+        assertTrue(small < big, "quality 5 (" + small + " bytes) is smaller than quality 95 (" + big + " bytes)");
+        assertEquals("IMAGE.BAD_QUALITY", code(() -> pdf.toImages(ctx, "four.pdf", "q", 50, "jpg", "color", "2", "x", null, 0, null)));
+
+        for (String c : List.of("lzw", "deflate", "packbits", "none", "ccitt_g4", "jpeg")) {
+            @SuppressWarnings("unchecked") List<Object> t = (List<Object>) pdf.toImages(ctx, "four.pdf", "t", 72, "tiff", "color", "2", "p_" + c, null, 80, c).get("files");
+            Path p = Path.of(t.get(0).toString());
+            BufferedImage img = ImageIO.read(p.toFile());
+            assertNotNull(img, c + " TIFF reads back");
+            try (var in = ImageIO.createImageInputStream(p.toFile())) {
+                var r = ImageIO.getImageReaders(in).next(); r.setInput(in);
+                var md = r.getImageMetadata(0).getAsTree("javax_imageio_1.0");
+                String compression = text(md, "CompressionTypeName");
+                if (c.equals("ccitt_g4")) { assertEquals("CCITT T.6", compression); assertEquals(1, img.getColorModel().getPixelSize(), "G4 pages are black and white"); }
+                if (c.equals("lzw")) assertEquals("LZW", compression);
+                if (c.equals("none")) assertTrue(compression == null || compression.equalsIgnoreCase("none"), compression);
+            }
+        }
+        assertEquals("IMAGE.BAD_COMPRESSION", code(() -> pdf.toImages(ctx, "four.pdf", "t", 50, "tiff", "color", "2", "x", null, null, "zip")));
+
+        Map<String, Object> bw = pdf.extractImages(ctx, "four.pdf", "exbw", 1, null, "2", "png", "bw", "black_white", 0, null, null);
+        assertEquals(1, ImageIO.read(Path.of(((List<?>) bw.get("files")).get(0).toString()).toFile()).getColorModel().getPixelSize(), "1-bit");
+        Map<String, Object> tif = pdf.extractImages(ctx, "four.pdf", "extif", 1, null, "2", "tiff", "g4", "color", 0, null, "ccitt_g4");
+        assertNotNull(ImageIO.read(Path.of(((List<?>) tif.get("files")).get(0).toString()).toFile()));
+        assertEquals("PDF.BAD_COLOR", code(() -> pdf.extractImages(ctx, "four.pdf", "x", 1, null, "2", "png", "x", "sepia", 0, null, null)));
+    }
+
+    /** Gap: draw the area to read in One AgentStudio - the page comes back as a picture with its size in points. */
+    @Test void pageAsPictureForTheAreaPicker() throws Exception {
+        Map<String, Object> r = pdf.renderPage(ctx, "four.pdf", 2, 72, null);
+        String img = (String) r.get("image");
+        assertTrue(img.startsWith("data:image/png;base64,"));
+        BufferedImage bi = ImageIO.read(new java.io.ByteArrayInputStream(Base64.getDecoder().decode(img.substring(img.indexOf(',') + 1))));
+        assertEquals(((BigDecimal) r.get("width_points")).intValue(), bi.getWidth(), 1, "at 72 dpi one pixel is one point");
+        assertEquals(4, ((BigDecimal) r.get("page_count")).intValue());
+        assertEquals("PDF.NO_PAGE", code(() -> pdf.renderPage(ctx, "four.pdf", 9, 72, null)));
+    }
+
+    private static String text(org.w3c.dom.Node n, String name) {
+        if (name.equals(n.getNodeName()) && n.getAttributes() != null && n.getAttributes().getNamedItem("value") != null) return n.getAttributes().getNamedItem("value").getNodeValue();
+        for (org.w3c.dom.Node c = n.getFirstChild(); c != null; c = c.getNextSibling()) { String v = text(c, name); if (v != null) return v; }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     @Test void customPropertiesAndProtectedForm() throws Exception {
         Map<String, Object> props = (Map<String, Object>) pdf.getProperties(ctx, "four.pdf", null, true).get("properties");

@@ -19,11 +19,13 @@ def test_schema_is_valid_draft_2020_12():
 def _actions(steps):
     for s in steps or []:
         yield s.get("action", "")
-        for k in ("children", "else", "finally"):
+        for k in ("children", "else", "finally", "default"):
             yield from _actions(s.get(k))
         for c in s.get("catch", []) or []:
             yield from _actions(c.get("children"))
         for c in s.get("elseIf", []) or []:
+            yield from _actions(c.get("children"))
+        for c in s.get("cases", []) or []:
             yield from _actions(c.get("children"))
 
 

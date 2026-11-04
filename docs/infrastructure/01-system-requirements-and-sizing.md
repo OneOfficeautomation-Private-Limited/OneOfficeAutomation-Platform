@@ -3,7 +3,7 @@
 ## What this covers / audience
 
 The operating systems, Java runtime, browsers, databases and hardware that ONEOFFICEAUTOMATION needs, how to size a
-Command Center and its runners, the load figures measured so far, and how much disk the repository and backups take.
+One CommandCenter and its runners, the load figures measured so far, and how much disk the repository and backups take.
 For infrastructure architects and server administrators planning an installation.
 
 ## Contents
@@ -12,7 +12,7 @@ For infrastructure architects and server administrators planning an installation
 2. Java runtime
 3. Browsers
 4. Databases
-5. Command Center hardware by size
+5. One CommandCenter hardware by size
 6. Runner hardware
 7. What `ooa check` tests
 8. Measured load figures
@@ -23,14 +23,14 @@ For infrastructure architects and server administrators planning an installation
 
 | Component | Supported | Tested in CI on every push |
 | --- | --- | --- |
-| Command Center (Windows) | 64-bit Windows Server 2022 (the version used by the cloud install and security tests) or another 64-bit Windows that runs Java 21; Windows 10/11 for evaluation | `windows-latest`: full build and every test suite; MSI install with Command Center and runner services |
-| Command Center (Linux package) | Any 64-bit Linux with Java 21: Ubuntu 22.04 and later, RHEL 9 and later | `ubuntu-latest`: the customer package started without a container and checked with `/api/health/ready` |
-| Command Center (container) | Any OCI runtime: Docker, Amazon ECS/Fargate, Azure Container Apps/AKS, Google GKE/Cloud Run (always at least one instance) | `ubuntu-latest`: image alone, with PostgreSQL 16, backup and restore, a SaaS region with two tenants |
+| One CommandCenter (Windows) | 64-bit Windows Server 2022 (the version used by the cloud install and security tests) or another 64-bit Windows that runs Java 21; Windows 10/11 for evaluation | `windows-latest`: full build and every test suite; MSI install with One CommandCenter and runner services |
+| One CommandCenter (Linux package) | Any 64-bit Linux with Java 21: Ubuntu 22.04 and later, RHEL 9 and later | `ubuntu-latest`: the customer package started without a container and checked with `/api/health/ready` |
+| One CommandCenter (container) | Any OCI runtime: Docker, Amazon ECS/Fargate, Azure Container Apps/AKS, Google GKE/Cloud Run (always at least one instance) | `ubuntu-latest`: image alone, with PostgreSQL 16, backup and restore, a SaaS region with two tenants |
 | Runner for screen agents | 64-bit Windows 10/11 or Windows Server with a signed-in, unlocked desktop session | Windows build-and-test job |
 | Headless runner (no screen) | Windows service; Linux; macOS | `ubuntu-latest` on every push, `macos-latest` on the main branch |
-| Agent Studio | Windows (same machine as `ooa server`), opened in a browser on that machine | Studio UI tests on Linux |
+| One AgentStudio | Windows (same machine as `ooa server`), opened in a browser on that machine | Studio UI tests on Linux |
 
-`ooa check` reports a non-Windows operating system as WARN, not FAIL: the Command Center is supported there, but
+`ooa check` reports a non-Windows operating system as WARN, not FAIL: One CommandCenter is supported there, but
 runners that use the screen need Windows. A 32-bit system is a FAIL.
 
 Not supported in this version:
@@ -55,8 +55,8 @@ The bundled Java is not replaced by a runner self-update; update it by installin
 
 | Use | Browsers |
 | --- | --- |
-| Command Center console | Current Chrome, Edge or Firefox |
-| Agent Studio | Chrome or Edge on the Studio computer |
+| One CommandCenter console | Current Chrome, Edge or Firefox |
+| One AgentStudio | Chrome or Edge on the Studio computer |
 | Agents that start their own browser | Playwright-driven Chromium-family browser started by the runner |
 | Browser connector (agents in the user's own browser) | Edge and Chrome (Manifest V3 extension), Firefox 140 or later |
 
@@ -66,11 +66,11 @@ The bundled Java is not replaced by a runner self-update; update it by installin
 | --- | --- | --- |
 | Microsoft SQL Server | 2019 or later (Express, Standard, Enterprise; Azure SQL Database and Managed Instance; Amazon RDS; Cloud SQL) | Production, the usual choice. Tested on SQL Server 2022. |
 | PostgreSQL | 14 or later | Production; required for SaaS regions. Tested on PostgreSQL 16. |
-| H2 (embedded) | Bundled | Evaluation on one computer only. A licence cannot be installed while the Command Center runs on it. |
+| H2 (embedded) | Bundled | Evaluation on one computer only. A licence cannot be installed while One CommandCenter runs on it. |
 
 Details are in [05. Databases](05-databases.md).
 
-## 5. Command Center hardware by size
+## 5. One CommandCenter hardware by size
 
 The figures below are starting points. They follow from the checks built into `ooa check` (8 GB memory and 4
 processors recommended, 2 GB free disk the minimum without a warning) and from the load test in section 8. Measure
@@ -90,7 +90,7 @@ Notes:
   [06. High availability and scaling](06-high-availability-and-scaling.md).
 - Waiting runners hold one request open each (up to 25 seconds). The server serves every request on a virtual
   thread, so a waiting runner costs very little memory.
-- Serverless API tasks run inside the Command Center: at most 4 at once per node, 5 minutes each. Plan CPU for them
+- Serverless Agent APIs run inside One CommandCenter: at most 4 at once per node, 5 minutes each. Plan CPU for them
   if you use them.
 - A cloud Windows virtual machine starts at 4 vCPU and 16 GB ([02](02-installation-windows.md), section 13).
 
@@ -105,13 +105,13 @@ drive, plus:
 | Memory | 8 GB; 16 GB for heavy Excel, browser or document work |
 | Disk | 1 GB free at the least (`ooa agent diagnose` warns below 1 GB) plus the applications and the agent workspace (`%USERPROFILE%\OOA Agent Workspace`) |
 | Session | For screen agents: a dedicated Windows account, signed in, screen saver lock off |
-| Clock | Within 60 seconds of the Command Center (`ooa agent diagnose` warns otherwise) |
+| Clock | Within 60 seconds of One CommandCenter (`ooa agent diagnose` warns otherwise) |
 
 Repository files travel with each run: up to 50 MB per run, each file up to 25 MB.
 
 ## 7. What `ooa check` tests
 
-Run `ooa check [--data DIR] [--port N]` before installing or upgrading a Command Center. The setup package runs it
+Run `ooa check [--data DIR] [--port N]` before installing or upgrading One CommandCenter. The setup package runs it
 first (skip with `-SkipCheck`). Each line is PASS, WARN or FAIL; the exit code is the number of FAIL lines.
 
 | Check | PASS | WARN | FAIL |
@@ -123,7 +123,7 @@ first (skip with `-SkipCheck`). Each line is PASS, WARN or FAIL; the exit code i
 | Processors | 4 or more | Fewer than 4 | - |
 | Data folder | Can be created and written | - | Cannot be created or written |
 | Free disk space | 2 GB or more | 200 MB to 2 GB | Under 200 MB |
-| Port | Free, or a Command Center already answers on it | - | Used by another program |
+| Port | Free, or One CommandCenter already answers on it | - | Used by another program |
 | Database | Configured, reachable, schema current | Built-in evaluation database, or empty schema | Cannot connect |
 | Database encryption | Connection encrypted | Not encrypted | - |
 | Vault key and database | The key opens the stored credentials | - | It does not (wrong key) |
@@ -134,7 +134,7 @@ first (skip with `-SkipCheck`). Each line is PASS, WARN or FAIL; the exit code i
 ## 8. Measured load figures
 
 A load test ships with the product (`gradlew :cli:loadTest`, tagged `load`, not part of the normal build). It starts a
-Command Center over HTTP with simulated runners that send heartbeats and long polls, drains a work queue through a
+One CommandCenter over HTTP with simulated runners that send heartbeats and long polls, drains a work queue through a
 runner pool, and writes and verifies a large audit trail. Its parameters are `-Pooa.load.runners`,
 `-Pooa.load.items`, `-Pooa.load.audit`, and `-Pooa.test.db=...` to run it on SQL Server or PostgreSQL. CI runs a
 short version on every push (20 runners, 300 items, 2,000 audit records).
@@ -154,7 +154,7 @@ The last full run on record (26 October 2026, one developer laptop, embedded H2 
 
 How to read them:
 
-- The queue figure is the coordination overhead of the Command Center: real agents take seconds or minutes each, so
+- The queue figure is the coordination overhead of One CommandCenter: real agents take seconds or minutes each, so
   real throughput is set by the number of runners, not by the server.
 - Each audit record is chained (HMAC) to the one before it, so writes are serialized; about 150 a second is the
   ceiling measured on H2. Every sign-in, change, run and credential use writes one. Repeat the test on your

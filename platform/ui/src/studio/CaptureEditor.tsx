@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FlowStep, OpenWindow } from "../api/client";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { locate } from "./flowEdit";
+import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
+import { findStep } from "./flowEdit";
 import {
   DESKTOP_LABELS, desktopWindowVariable, fillWindowFromCapture, MATCHES, shareDesktopWindow, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
 } from "./capture";
@@ -61,10 +61,10 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
       // the captured window also goes into a numbered window variable (the step's window on the web, the object's on
       // the desktop), as one change
       let f = structuredClone(vars.flow);
-      let at = locate(f.steps, step.id);
+      let at = findStep(f, step.id);
       if (!at) return;
       const shared = desktop ? shareDesktopWindow(f, next) : null;
-      if (shared) { f = shared.flow; at = locate(f.steps, step.id)!; }
+      if (shared) { f = shared.flow; at = findStep(f, step.id)!; }
       at.step.args = { ...(at.step.args ?? {}), object: shared ? shared.obj : next };
       vars.edit(desktop ? f : fillWindowFromCapture(f, at.step, next, "window" in (at.step.args ?? {}) || step.action.startsWith("ooa.browser/")));
       vars.notice?.("Captured " + (next.properties ?? []).length + " properties" + (shared?.name ? "; the window is in $" + shared.name : "") + ".");
@@ -120,7 +120,7 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
                 onBlur={(e) => { if (e.target.value !== String(p.value ?? "")) setProp(i, { value: e.target.value }); }} /></td>
               <td><div className="st-row-tight"><Select aria-label={"Match for " + name(p)} value={p.match || "equals"} onChange={(e) => setProp(i, { match: e.target.value })}
                 options={MATCHES.map(([v, l]) => ({ value: v, label: l }))} />
-                {p.custom && <Button kind="plain" aria-label="Remove this property" onClick={() => put({ ...obj, properties: props.filter((_, j) => j !== i) })}>Remove</Button>}</div></td>
+                {p.custom && <button type="button" className="st-tool" aria-label={"Remove this property"} title={"Remove this property"} onClick={() => put({ ...obj, properties: props.filter((_, j) => j !== i) })}><Icon name="trash" size={15} /></button>}</div></td>
             </tr>
           ))}
           {!shown.length && <tr><td colSpan={4} className="st-muted">{f ? "No property matches “" + filter + "”." : "No property is selected: show all properties and tick the ones to search by."}</td></tr>}
@@ -250,9 +250,10 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
     const walk = (list: FlowStep[]) => { for (const s of list) {
       const o = s.args?.object as Captured | undefined;
       if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) s.args = { ...s.args, object: { ...o, window: "$" + name } };
-      for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children)]) if (l) walk(l);
+      for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children),
+        ...(s.cases ?? []).map((c) => c.children), s.default]) if (l) walk(l);
     } };
-    walk(f.steps);
+    walk(f.steps); walk(f.onError?.steps ?? []);
     vars.edit(f);
     vars.notice?.("The steps in this window now use $" + name + ".");
   };
@@ -291,7 +292,7 @@ export const browserOf = (w: OpenWindow) => w.browser || (/^msedge$/i.test(w.pro
  * window, where only that application's clicks and typing are recorded; or a new page at an address. A browser
  * window Studio cannot reach says how to connect it, and offers a new recording window or desktop recording instead.
  */
-export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "One Agent Studio" }:
+export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "One AgentStudio" }:
   { mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; onChoose: (c: WhereChoice) => void; onClose: () => void;
     onRefresh?: () => Promise<OpenWindow[]>; ownTitle?: string }) {
   const [all, setAll] = useState(given);
@@ -353,14 +354,14 @@ export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefre
           <div className="st-where-head">Browser windows ({browserWindows.length})</div>
           {browserWindows.map((w, i) => <button key={i} type="button" className={`st-where${unreached === w ? " is-on" : ""}`} aria-pressed={unreached === w}
             onClick={() => setUnreached(w)}>
-            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to Studio"}</span></button>)}
+            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to One AgentStudio"}</span></button>)}
         </div>}
         {!tabs.length && !programs.length && !browserWindows.length && <p className="st-muted">{mode === "record"
           ? "No open window was found. Open the application or page first and press Refresh, or open a new page."
           : "No open browser window: open a new page."}</p>}
       </div>
       {unreached && <div className="st-where-help" role="status">
-        <p><strong>{BROWSER_NAMES[ub]} is not connected to Studio</strong>, so its pages cannot be recorded as web steps.
+        <p><strong>{BROWSER_NAMES[ub]} is not connected to One AgentStudio</strong>, so its pages cannot be recorded as web steps.
           Add the ONEOFFICEAUTOMATION Browser Connector to {BROWSER_NAMES[ub]} and press Refresh: its tabs then appear above.</p>
         <div className="st-cr-acts">
           {ub !== "firefox" && <Button kind="primary" onClick={() => { setBrowser(ub === "chrome" ? "chrome" : "edge"); setAsking(true); setUnreached(null); }}>Record a page in a new {BROWSER_NAMES[ub]} window…</Button>}

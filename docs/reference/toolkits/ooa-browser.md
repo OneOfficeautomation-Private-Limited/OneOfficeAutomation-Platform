@@ -41,7 +41,7 @@ Connect to an Edge or Chrome that is already running, through its DevTools debug
 | `tab_count` | Number | Number of open tabs in the browser. |
 | `window` | Dictionary | A window choice for this session, to pass as the window of element actions. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, network.*
 
 ### Close browser
 
@@ -81,7 +81,7 @@ Go back, go forward or reload the page.
 
 `ooa.browser/list_windows` (action)
 
-List the browser tabs an agent can reach (in this run's sessions and in browsers with a debugging port) and, on Windows, the titles of open desktop windows. Used by Agent Studio to offer windows to choose from.
+List the browser tabs an agent can reach (in this run's sessions and in browsers with a debugging port) and, on Windows, the titles of open desktop windows. Used by One AgentStudio to offer windows to choose from.
 
 **Settings**
 
@@ -112,7 +112,7 @@ Open a URL in the current tab and wait for it to load.
 | Address (URL) | `url` | Text | Yes |  | Main | Address to open. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, network.*
 
 ### Open browser
 
@@ -126,16 +126,16 @@ Start a browser, optionally open a URL, as a named session.
 | --- | --- | --- | --- | --- | --- | --- |
 | Open in | `open_in` | Text | No | `new_window` | Main | new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab. One of: `new_window`, `new_tab`, `existing_tab` |
 | Window | `window` | Dictionary | No |  | Main | For new_tab and existing_tab: the tab to use. Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. Shown when: `{"open_in": ["!", "new_window"]}` |
-| Browser | `browser` | Text | No | `edge` | Main | edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright. One of: `edge`, `chrome`, `chromium`, `firefox`; Shown when: `{"open_in": ["new_window"]}` |
+| Browser | `browser` | Text | No | `edge` | Main | edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB). One of: `edge`, `chrome`, `chromium`, `firefox`; Shown when: `{"open_in": ["new_window"]}` |
 | Address (URL) | `url` | Text | No |  | Main | Page to open. |
 | Download folder | `download_folder` | File path | No |  | More options | Where downloads are saved. Shown when: `{"open_in": ["new_window"]}` |
 | Headless | `headless` | Yes/No | No | No | More options | Run without a visible window (for unattended agents). Shown when: `{"open_in": ["new_window"]}` |
-| Keep the browser open after the run | `keep_open` | Yes/No | No | Yes | More options | Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let Studio and later agents reach it. False closes the browser with the run, as before. |
+| Keep the browser open after the run | `keep_open` | Yes/No | No | Yes | More options | Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let One AgentStudio and later agents reach it. False closes the browser with the run, as before. |
 | Engine | `engine` | Text | No | `auto` | More options | connector: open a window in the person's own Edge, Chrome or Firefox through the ONEOFFICEAUTOMATION Browser Connector extension; playwright: a browser the agent starts itself; auto: the connector when that browser has it, else playwright. One of: `auto`, `connector`, `playwright` |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `240000` | More options | How long to wait for the page to load. Range: 1000 to  |
 
-*Time limit 180 s; needs: browser.*
+*Time limit 180 s; needs: browser, network, filesystem.*
 
 ### Start browser for automation
 
@@ -169,7 +169,7 @@ Start Edge or Chrome with a debugging port and its own profile folder in the wor
 | `started` | Yes/No | True when a new browser was started; false when one already listened on the port. |
 | `pid` | Number | Process id of the started browser, or 0 when an existing one was reused. |
 
-*Time limit 180 s; needs: browser, filesystem.*
+*Time limit 180 s; needs: browser, filesystem, network.*
 
 ### Switch tab
 
@@ -231,11 +231,12 @@ Click a link or button that starts a download and save the file into a folder.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element that starts the download, used when no captured object is given. |
 | Folder | `folder` | File path | Yes |  | Main | Folder to save into. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
-| Wait up to (milliseconds) | `timeout_ms` | Number | No | `120000` | More options | How long to wait for the download. Range: 0 to  |
+| Wait up to (milliseconds) | `timeout_ms` | Number | No | `120000` | More options | How long to wait for the element and the download. Range: 0 to  |
+| Start timeout (milliseconds) | `start_timeout_ms` | Number | No | `15000` | More options | How long to wait after the click for the download to start; BROWSER.NO_DOWNLOAD when it does not (the file itself may then take up to timeout_ms). Range: 0 to  |
 
 **Results**
 
@@ -275,7 +276,7 @@ Download a file from its address and save it, signing in with Windows (NTLM/Kerb
 
 `ooa.browser/find_broken_links` (action)
 
-Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail or return an HTTP error; optionally save the list to a CSV file.
+Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail or return an HTTP error (links to files, file:, are looked up on disk); optionally save the list to a CSV file.
 
 **Settings**
 
@@ -302,7 +303,7 @@ Collect the links on the current page (or on a page or whole site given by its a
 | `broken_count` | Number | Number of links that failed. |
 | `checked_count` | Number | Number of distinct links checked. |
 
-*Time limit 3600 s; needs: browser, network.*
+*Time limit 3600 s; needs: browser, network, filesystem.*
 
 ### Get page source
 
@@ -326,7 +327,7 @@ Return the current HTML of the page (after scripts have run), and optionally sav
 | `source` | Text | HTML of the page. |
 | `path` | File path | Saved file, or empty. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, filesystem.*
 
 ### Get URL and title
 
@@ -353,14 +354,14 @@ Return the current page's URL and title.
 
 `ooa.browser/run_javascript` (action)
 
-Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).
+Run JavaScript in the page and return its result: an expression such as document.title, or statements with return.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Script | `script` | Text | No |  | Main; choice Script = Type it here | JavaScript expression or function, typed here. Example: `document.querySelectorAll('.item').length`; Shown when: `{"script_file": [""]}` |
+| Script | `script` | Text | No |  | Main; choice Script = Type it here | JavaScript typed here: an expression, a function, or statements that end with return. Example: `document.querySelectorAll('.item').length`; Shown when: `{"script_file": [""]}` |
 | Script file | `script_file` | File path | No |  | Main; choice Script = Run a file | Or a .js file to run (UTF-8), used instead of the typed script. Shown when: `{"script": [""]}` |
 | Frame | `frame` | Dictionary | No |  | More options | Run the script inside this iframe instead of the main page: the captured iframe element. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
@@ -371,7 +372,7 @@ Run JavaScript in the page and return its result (use a return-value expression,
 | --- | --- | --- |
 | `result` | Any | Value returned by the script. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, filesystem.*
 
 ### Take screenshot
 
@@ -384,7 +385,7 @@ Save a PNG screenshot of the page or one element.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | Only this element: the captured object from Capture or Pick in Agent Studio. |
+| Captured object | `object` | Dictionary | No |  | Main | Only this element: the captured object from Capture or Pick in One AgentStudio. |
 | Selector | `selector` | Text | No |  | Main | Only this element (selector). |
 | Path | `path` | File path | Yes |  | Main | PNG file to create. |
 | Full page | `full_page` | Yes/No | No | No | Main | Whole scrollable page. |
@@ -411,7 +412,7 @@ Click an element (waits until it is visible and enabled).
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Double-click | `double_click` | Yes/No | No | No | Main | Double-click. |
 | Then wait for | `then_wait_for` | Text | No | `nothing` | Main | After the click, wait until the page has loaded, or until the element in wait_selector appears or is gone (for example a spinner): no fixed Delay needed when Next keeps the same page. One of: `nothing`, `page_load`, `element_visible`, `element_gone` |
@@ -435,7 +436,7 @@ Read an attribute of an element, e.g. href or value.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Attribute | `attribute` | Text | Yes |  | Main | Attribute name; use value for input fields. Example: `href` |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
@@ -462,7 +463,7 @@ Read the visible text of an element.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Self-healing fallbacks recorded with the element (Pick records them): automation_id, name, id, aria_label, tag, class, index, text, relative {anchor, direction}. Tried in that order when the selector finds nothing; the one that works is logged. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
@@ -489,7 +490,7 @@ Choose an option in a drop-down list by its value or visible text.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Option | `option` | Text | Yes |  | Main | Option value or visible text. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Self-healing fallbacks recorded with the element (Pick records them): automation_id, name, id, aria_label, tag, class, index, text, relative {anchor, direction}. Tried in that order when the selector finds nothing; the one that works is logged. |
@@ -509,7 +510,7 @@ Fill a text field (replacing its content); Credential values are typed without e
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Text | `text` | Any | Yes |  | Main | Text, or a Credential variable for passwords. |
 | Press Enter afterwards | `press_enter` | Yes/No | No | No | Main | Press Enter afterwards. |
@@ -530,7 +531,7 @@ Wait until an element appears, becomes visible, hidden or is removed.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | State | `state` | Text | No | `visible` | Main | State to wait for. One of: `visible`, `attached`, `hidden`, `detached` |
 | Any of | `any_of` | List | No |  | More options | Other elements (captured objects or selectors): the wait ends when the element or any of these is visible (or there). Output which tells which one: 0 for the element, 1 for the first of these, and so on. |
@@ -558,9 +559,9 @@ Do one action on a captured element: click, type, read text, attributes or all p
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture in Agent Studio: the properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard, regex), search_by (properties, css or xpath), index when several elements match, and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture in One AgentStudio: the properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard, regex), search_by (properties, css or xpath), index when several elements match, and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. Used when no captured object is given. |
-| Action | `action` | Text | Yes |  | Main | What to do with the element. Studio lists the actions that suit the captured control type. One of: `click`, `double_click`, `right_click`, `middle_click`, `hover`, `focus`, `set_text`, `append_text`, `clear`, `press_key`, `get_text`, `get_value`, `get_attribute`, `get_property`, `get_all_properties`, `get_html`, `get_inner_html`, `get_coordinates`, `get_children_text`, `get_table`, `select_by_text`, `select_by_value`, `select_by_index`, `get_selected`, `get_options`, `check`, `uncheck`, `is_checked`, `is_visible`, `is_enabled`, `is_present`, `count`, `scroll_into_view`, `highlight`, `wait_to_appear`, `wait_to_disappear`, `drag_to`, `upload_file`, `screenshot`, `get_status`, `toggle`, `select`, `get_selected_index`, `get_total_items`, `get_total_rows`, `get_total_columns`, `get_cell_text`, `get_cell_index_by_text`, `set_cell_text`, `click_cell`, `set_position`, `get_control_type` |
+| Action | `action` | Text | Yes |  | Main | What to do with the element. One AgentStudio lists the actions that suit the captured control type. One of: `click`, `double_click`, `right_click`, `middle_click`, `hover`, `focus`, `set_text`, `append_text`, `clear`, `press_key`, `get_text`, `get_value`, `get_attribute`, `get_property`, `get_all_properties`, `get_html`, `get_inner_html`, `get_coordinates`, `get_children_text`, `get_table`, `select_by_text`, `select_by_value`, `select_by_index`, `get_selected`, `get_options`, `check`, `uncheck`, `is_checked`, `is_visible`, `is_enabled`, `is_present`, `count`, `scroll_into_view`, `highlight`, `wait_to_appear`, `wait_to_disappear`, `drag_to`, `upload_file`, `screenshot`, `get_status`, `toggle`, `select`, `get_selected_index`, `get_total_items`, `get_total_rows`, `get_total_columns`, `get_cell_text`, `get_cell_index_by_text`, `set_cell_text`, `click_cell`, `set_position`, `get_control_type` |
 | Value | `value` | Any | No |  | Main | Depends on the action: the text to type, the key (e.g. Enter, Ctrl+A), the attribute or property name, the option text, value or index, the target selector for drag_to, the file path(s) for upload_file, or the image path for screenshot. Credentials allowed for set_text. |
 | Row | `row` | Number | No |  | Main | Table cell actions: the row, 1 for the first. |
 | Column | `column` | Number | No |  | Main | Table cell actions: the column, 1 for the first. |
@@ -594,7 +595,7 @@ Do one action on a captured element: click, type, read text, attributes or all p
 
 `ooa.browser/pick_element` (action)
 
-Open a page and let a person click one element; returns a robust selector and the element's details. Used by Agent Studio's Pick button.
+Open a page and let a person click one element; returns a robust selector and the element's details. Used by One AgentStudio's Pick button.
 
 **Settings**
 
@@ -623,7 +624,7 @@ Open a page and let a person click one element; returns a robust selector and th
 
 `ooa.browser/test_object` (action)
 
-Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by Agent Studio's Test button.
+Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by One AgentStudio's Test button.
 
 **Settings**
 
@@ -684,7 +685,7 @@ Read an HTML table into a Data Table (first row as column names), or chosen colu
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No | `table` | Main | Selector of the table element, used when no captured object is given. |
 | Columns | `columns` | Dictionary | No |  | Main; tick Choose the columns | Columns to read instead of the whole table: column name to an XPath inside each row (its text, or an attribute such as .//a/@href). Example: `{"Name": "td[1]", "Link": ".//a/@href"}` |
 | Row XPath | `row_xpath` | Text | No | `.//tr[td]` | Main; tick Choose the columns | With columns: XPath of the rows inside the table or container; table rows with cells when empty. |
@@ -718,6 +719,9 @@ Open a browser, record your clicks, typing and selections as steps, and return t
 | Browser | `browser` | Text | No | `edge` | Main | Browser to record in. One of: `edge`, `chrome`, `chromium` |
 | Timeout (minutes) | `timeout_minutes` | Number | No | `30` | More options | Stop recording automatically after this long. |
 | Tab ID | `tab_id` | Number | No |  | More options | Record in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list) instead of a new browser. |
+| Endpoint | `endpoint` | Text | No |  | More options | Record in an open tab of the browser on this debugging address (the one agents keep open, from the open-windows list) instead of a new window. |
+| Tab title | `tab_title` | Text | No |  | More options | With endpoint: the tab to record in, by its exact title. |
+| Tab address (URL) | `tab_url` | Text | No |  | More options | With endpoint: the tab to record in, by its address. |
 
 **Results**
 
@@ -742,7 +746,7 @@ True when at least one element matches the selector (right away, or within the w
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Session | `session` | Text | No | `browser` | Main | Session name. |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
@@ -758,7 +762,7 @@ True when the element's text (or a field's value) equals, contains, starts with 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Text | `text` | Text | Yes |  | Main | Text to compare with. |
 | Match | `match` | Text | No | `equals` | Main | How the text is compared; matches takes a regular expression. One of: `equals`, `contains`, `starts_with`, `matches` |
@@ -777,7 +781,7 @@ True when the captured element (or one matching the selector) is visible (right 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
+| Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in One AgentStudio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector, used when no captured object is given: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. |
 | Session | `session` | Text | No | `browser` | Main | Session name. |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |

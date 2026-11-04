@@ -1,0 +1,610 @@
+[
+ {
+  "command": "ooa.exchange/list",
+  "name": "connect, find unread invoices and read the first (stand-in EWS server)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindItemResponse><m:ResponseMessages><m:FindItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder IncludesLastItemInRange=\"true\"><t:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:DateTimeReceived>2026-11-03T09:15:00Z</t:DateTimeReceived><t:HasAttachments>false</t:HasAttachments><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From><t:IsRead>false</t:IsRead></t:Message><t:Message><t:ItemId Id=\"AAMkID2\" ChangeKey=\"CK\"/><t:Subject>Invoice 43</t:Subject><t:DateTimeReceived>2026-11-02T09:15:00Z</t:DateTimeReceived><t:HasAttachments>false</t:HasAttachments><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From><t:IsRead>false</t:IsRead></t:Message></t:Items></m:RootFolder></m:FindItemResponseMessage></m:ResponseMessages></m:FindItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:Body BodyType=\"Text\">Please pay</t:Body><t:IsRead>true</t:IsRead><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/list",
+    "args": {
+     "unread_only": true,
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "table": "t",
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.datatable/get_value",
+    "args": {
+     "table": "$t",
+     "row": 0,
+     "column": "id"
+    },
+    "out": {
+     "value": "id"
+    }
+   },
+   {
+    "action": "ooa.exchange/get",
+    "args": {
+     "id": "$id",
+     "mark_read": false
+    },
+    "out": {
+     "email": "e"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "text",
+     "value": {
+      "expr": "$e.text"
+     }
+    }
+   },
+   {
+    "action": "ooa.exchange/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 2,
+   "id": "AAMkID1",
+   "text": "Please pay"
+  },
+  "expectRequests": [
+   "POST /EWS/Exchange.asmx <m:GetFolder",
+   "POST /EWS/Exchange.asmx IsRead",
+   "POST /EWS/Exchange.asmx <m:GetItem"
+  ]
+ },
+ {
+  "command": "ooa.exchange/send",
+  "name": "send keeps a copy in Sent Items (stand-in EWS server)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items/></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/send",
+    "args": {
+     "to": "ap@acme.test",
+     "subject": "Report",
+     "body": "Done"
+    }
+   }
+  ],
+  "expectRequests": [
+   "POST /EWS/Exchange.asmx <m:GetFolder",
+   "POST /EWS/Exchange.asmx MessageDisposition=\"SendAndSaveCopy\""
+  ]
+ },
+ {
+  "command": "ooa.exchange/move",
+  "name": "move to a folder path, new id returned (stand-in EWS server)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder IncludesLastItemInRange=\"true\"><t:Folders><t:Folder><t:FolderId Id=\"DONEID\"/><t:DisplayName>Done</t:DisplayName></t:Folder></t:Folders></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:MoveItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:MoveItemResponse><m:ResponseMessages><m:MoveItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkNEW\" ChangeKey=\"CK\"/></t:Message></m:Items></m:MoveItemResponseMessage></m:ResponseMessages></m:MoveItemResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/move",
+    "args": {
+     "id": "AAMkID1",
+     "to_folder": "Inbox/Done"
+    },
+    "out": {
+     "new_id": "nid"
+    }
+   }
+  ],
+  "expect": {
+   "nid": "AAMkNEW"
+  }
+ },
+ {
+  "command": "ooa.exchange/mark",
+  "name": "mark read, then delete to Deleted Items (stand-in EWS server)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:UpdateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:UpdateItemResponse><m:ResponseMessages><m:UpdateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:UpdateItemResponseMessage></m:ResponseMessages></m:UpdateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:DeleteItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:DeleteItemResponse><m:ResponseMessages><m:DeleteItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:DeleteItemResponseMessage></m:ResponseMessages></m:DeleteItemResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/mark",
+    "args": {
+     "id": "AAMkID1",
+     "read": true
+    }
+   },
+   {
+    "action": "ooa.exchange/delete",
+    "args": {
+     "id": "AAMkID1"
+    }
+   }
+  ],
+  "expectRequests": [
+   "POST /EWS/Exchange.asmx <m:GetFolder",
+   "POST /EWS/Exchange.asmx <t:IsRead>true</t:IsRead>",
+   "POST /EWS/Exchange.asmx DeleteType=\"MoveToDeletedItems\""
+  ]
+ },
+ {
+  "command": "ooa.exchange/save_attachments",
+  "name": "save the PDF attachment only (stand-in EWS server)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\"/><t:Attachments><t:FileAttachment><t:AttachmentId Id=\"ATT1\"/><t:Name>inv.pdf</t:Name></t:FileAttachment><t:FileAttachment><t:AttachmentId Id=\"ATT2\"/><t:Name>note.txt</t:Name></t:FileAttachment></t:Attachments></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetAttachment",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetAttachmentResponse><m:ResponseMessages><m:GetAttachmentResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Attachments><t:FileAttachment><t:Name>inv.pdf</t:Name><t:Content>JVBERi0xLjc=</t:Content></t:FileAttachment></m:Attachments></m:GetAttachmentResponseMessage></m:ResponseMessages></m:GetAttachmentResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/save_attachments",
+    "args": {
+     "id": "AAMkID1",
+     "target_folder": "{tmp}/att",
+     "name_pattern": "*.pdf"
+    },
+    "out": {
+     "files": "f"
+    }
+   }
+  ],
+  "expectFiles": {
+   "att/inv.pdf": "%PDF-1.7",
+   "att/note.txt": false
+  }
+ },
+ {
+  "command": "ooa.exchange/connect",
+  "name": "not a web address",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "mail.example.test/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw"
+    }
+   }
+  ],
+  "error": "EXCHANGE.BAD_URL"
+ },
+ {
+  "command": "ooa.exchange/connect",
+  "name": "password typed as plain text is refused",
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "https://mail.example.test/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "secret"
+    }
+   }
+  ],
+  "error": "EXCHANGE.NO_SECRET"
+ },
+ {
+  "command": "ooa.exchange/connect",
+  "name": "impersonate without a mailbox",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "https://mail.example.test/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "impersonate": true
+    }
+   }
+  ],
+  "error": "EXCHANGE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.exchange/connect",
+  "name": "sign-in refused (HTTP 401)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "status": 401,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   }
+  ],
+  "error": "EXCHANGE.AUTH_FAILED"
+ },
+ {
+  "command": "ooa.exchange/connect",
+  "name": "address is not an EWS service (HTTP 404)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/owa",
+    "status": 200,
+    "body": "x"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   }
+  ],
+  "error": "EXCHANGE.BAD_URL"
+ },
+ {
+  "command": "ooa.exchange/connect",
+  "name": "mailbox the user may not open (ErrorAccessDenied)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Error\"><m:MessageText>Access is denied.</m:MessageText><m:ResponseCode>ErrorAccessDenied</m:ResponseCode></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic",
+     "mailbox": "ceo@acme.test"
+    }
+   }
+  ],
+  "error": "EXCHANGE.ACCESS_DENIED"
+ },
+ {
+  "command": "ooa.exchange/get",
+  "name": "email no longer there (ErrorItemNotFound)",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Error\"><m:MessageText>The specified object was not found in the store.</m:MessageText><m:ResponseCode>ErrorItemNotFound</m:ResponseCode></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/get",
+    "args": {
+     "id": "AAMkGone"
+    }
+   }
+  ],
+  "error": "EXCHANGE.NOT_FOUND"
+ },
+ {
+  "command": "ooa.exchange/list",
+  "name": "no open session",
+  "steps": [
+   {
+    "action": "ooa.exchange/list"
+   }
+  ],
+  "error": "SESSION.NOT_FOUND"
+ },
+ {
+  "command": "ooa.exchange/list",
+  "name": "unread_only and read_only together",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/list",
+    "args": {
+     "unread_only": true,
+     "read_only": true
+    }
+   }
+  ],
+  "error": "EXCHANGE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.exchange/send",
+  "name": "no recipient",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/send",
+    "args": {
+     "to": " ; ",
+     "subject": "x"
+    }
+   }
+  ],
+  "error": "EXCHANGE.BAD_ADDRESS"
+ },
+ {
+  "command": "ooa.exchange/move",
+  "name": "destination folder missing",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder IncludesLastItemInRange=\"true\"><t:Folders/></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/move",
+    "args": {
+     "id": "AAMkID1",
+     "to_folder": "Inbox/Nowhere"
+    }
+   }
+  ],
+  "error": "EXCHANGE.NO_FOLDER"
+ }
+]

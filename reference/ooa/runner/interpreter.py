@@ -25,13 +25,14 @@ from ..sdk.errors import (ActionException, OoaError, RunCancelled, StepTimeoutEr
 from ..sdk.package import ActionContext
 from ..sdk.registry import PackageRegistry, canonical
 from ..sdk.types import SecureString, coerce, safe_repr, to_jsonable
-from .core_package import CONTAINERS
+from .core_package import CONTAINERS, SWITCH_MATCHES, SWITCH_OPS
 from .error_codes import any_matches
 from .events import EventSink, ListSink, RunEvent
 from .expressions import binary, evaluate, resolve, truthy
-from .validate import validate_flow
+from .validate import validate_flow, walk_steps
 
 MAX_CHILD_DEPTH = 10
+HANDLER_GRACE_SECONDS = 60   # extra time the error handler gets when the run went over its time limit
 
 
 class _Break(Exception):
@@ -40,6 +41,21 @@ class _Break(Exception):
 
 class _Continue(Exception):
     pass
+
+
+MAX_SUBFLOW_DEPTH = 100
+DEFAULT_MAX_JUMPS = 10_000
+
+
+class _Goto(Exception):
+    """core/goto: caught by the step list that holds the label, which carries on from it."""
+    def __init__(self, label: str):
+        super().__init__(label)
+        self.label = label
+
+
+class _ExitSubflow(Exception):
+    """core/exit_subflow: ends the subflow being run."""
 
 
 @dataclass
@@ -108,9 +124,10 @@ class Runner:
 
     def run(self, flow: dict, inputs: dict[str, Any] | None = None, *, run_id: str | None = None,
             cancel_event: threading.Event | None = None, max_run_seconds: float | None = None,
-            depth: int = 0, validate: bool = True) -> RunResult:
+            depth: int = 0, validate: bool = True, max_jumps: int = DEFAULT_MAX_JUMPS) -> RunResult:
         run = _Run(self, flow, run_id or f"run_{uuid.uuid4().hex[:12]}", cancel_event or threading.Event(),
                    max_run_seconds, depth)
+        run.max_jumps = max_jumps
         return run.execute(inputs or {}, validate)
 
 
@@ -131,6 +148,9 @@ class _Run:
         self._seq_lock = threading.Lock()
         self._local = threading.local()
         self.steps_executed = 0
+        self.max_jumps = DEFAULT_MAX_JUMPS
+        self.jumps = 0
+        self.subflow_depth = 0
 
     # ---------- events ----------
     def emit(self, type_: str, step_id: str | None = None, **data) -> None:
@@ -149,7 +169,7 @@ class _Run:
     def execute(self, inputs: dict, validate: bool) -> RunResult:
         t0 = time.monotonic()
         aid = self.flow.get("id", "?")
-        status, error = "success", None
+        status, error, handled = "success", None, None
         plan_hash = ""
         try:
             if self.flow.get("kind") == "Agent":
@@ -161,11 +181,23 @@ class _Run:
             plan_hash = self._plan_hash(inputs)
             self.emit("run.started", automation=aid, kind=self.flow["kind"], planHash=plan_hash,
                       depth=self.depth, inputs=self._masked_inputs())
-            self._exec_steps(self.flow.get("steps", []), top_level=True)
+            try:
+                self._exec_steps(self.flow.get("steps", []), top_level=True)
+            except RunCancelled:
+                raise
+            except OoaError as e:
+                if not self._handle_error(e):
+                    raise
+                handled = e
         except RunCancelled as e:
             status, error = "stopped", e.to_dict()
         except (_Break, _Continue):
             status, error = "failed", OoaError("break/continue used outside a loop", code="FLOW.BAD_BREAK").to_dict()
+        except _Goto as g:
+            status, error = "failed", OoaError(f"Go to label '{g.label}': there is no such label in the step list or in a list around it",
+                                               code="FLOW.BAD_GOTO").to_dict()
+        except _ExitSubflow:
+            status, error = "failed", OoaError("Exit subflow used outside a subflow", code="FLOW.BAD_EXIT_SUBFLOW").to_dict()
         except OoaError as e:
             status, error = "failed", e.to_dict()
         except Exception as e:  # defensive: never crash the agent
@@ -175,7 +207,8 @@ class _Run:
         outputs = {v["name"]: self.scope.values.get(v["name"]) for v in self.flow.get("variables", [])
                    if v.get("direction") == "output"}
         dur = int((time.monotonic() - t0) * 1000)
-        self.emit("run.finished", status=status, durationMs=dur, error=error, outputs=outputs)
+        extra = {"handledError": handled.to_dict()} if handled is not None else {}   # ended as succeeded by the error handler
+        self.emit("run.finished", status=status, durationMs=dur, error=error, outputs=outputs, **extra)
         self.secrets.clear()
         return RunResult(self.run_id, aid, status, outputs if status == "success" else outputs, error, dur,
                          plan_hash, self.steps_executed)
@@ -215,7 +248,9 @@ class _Run:
         """Same Flow + inputs + package versions -> same plan (determinism, replay, audit)."""
         logic = {k: v for k, v in self.flow.items() if k != "ui"}
         versions = {}
-        for pid in sorted({s.split("/")[0] for s in _all_actions(self.flow.get("steps", []))}):
+        every = [*self.flow.get("steps", []), *(st for sub in self.flow.get("subflows") or [] for st in sub.get("steps") or []),
+                 *((self.flow.get("onError") or {}).get("steps") or [])]
+        for pid in sorted({s.split("/")[0] for s in _all_actions(every)}):
             try:
                 versions[pid] = self.r.registry.resolve(pid, self.requires.get(pid)).version
             except OoaError:
@@ -232,6 +267,43 @@ class _Run:
                 except Exception:
                     pass
         self.sessions.clear()
+
+    def _handle_error(self, e: OoaError) -> bool:
+        """The agent's error handler (flow "onError"): runs once for an error no Try block caught, while sessions are
+        still open. True ends the run as succeeded ("then": "succeed"); False fails it with the original error. An
+        error inside the handler is logged and the run fails with the original error."""
+        h = self.flow.get("onError")
+        if not isinstance(h, dict) or isinstance(e, RunCancelled):
+            return False
+        sid = e.step_id
+        succeed = h.get("then") == "succeed"
+        if e.code == "RUN.TIMEOUT" or (self.deadline and time.monotonic() > self.deadline):
+            self.deadline = time.monotonic() + HANDLER_GRACE_SECONDS   # a little extra time for the handler
+        self.emit("error_handler.started", sid, code=e.code, message=e.message, then="succeed" if succeed else "fail")
+        self._log("info", f"Running the agent's error handler for {e.code}", sid)
+        t0, outcome = time.monotonic(), "done"
+        try:
+            err = e.to_dict()
+            walked = [s for s, _ in walk_steps(self.flow.get("steps"))] + [s for s, _ in walk_steps(h.get("steps"))]
+            at = next((i for i, s in enumerate(walked) if s.get("id") == sid), None)
+            err["line"] = Decimal(at + 1) if at is not None else None
+            err["action"] = walked[at]["action"] if at is not None else None
+            err["stack"] = [{"automation": str(self.flow.get("id", "?")), "stepId": sid or ""}]
+            if h.get("as"):
+                self.scope.set(h["as"], err)
+            self._exec_steps(h.get("steps"))
+        except RunCancelled:
+            self.emit("error_handler.finished", sid, status="stopped", durationMs=_ms(t0))
+            raise
+        except (OoaError, _Break, _Continue, _Goto, _ExitSubflow) as x:
+            what = (f"{x.code}: {x.message}" if isinstance(x, OoaError) else "Go to with a label outside its steps" if isinstance(x, _Goto)
+                    else "Exit subflow outside a subflow" if isinstance(x, _ExitSubflow) else "break/continue outside a loop")
+            self._log("error", f"The error handler failed with {what}; the run fails with the original error {e.code}", sid)
+            outcome, succeed = "failed", False
+        self.emit("error_handler.finished", sid, status=outcome, durationMs=_ms(t0))
+        if succeed:
+            self._log("warning", f"The error handler handled {e.code} ({e.message}); the run ends as succeeded", sid)
+        return succeed
 
     # ---------- execution ----------
     def lookup(self, name: str) -> Any:
@@ -271,17 +343,48 @@ class _Run:
 
     def _check(self) -> None:
         if self.cancel.is_set():
-            raise RunCancelled("Run was stopped from Control Center")
+            raise RunCancelled("Run was stopped from One CommandCenter")
         if self.deadline and time.monotonic() > self.deadline:
             raise StepTimeoutError("Run exceeded its maximum duration", code="RUN.TIMEOUT", retryable=False,
                                    suggested_fix="Raise the run time limit or split the bot.")
 
     def _exec_steps(self, steps: list[dict], top_level: bool = False) -> None:
         continue_default = top_level and (self.flow.get("errorHandling") or {}).get("default") == "continue"
-        for step in steps or []:
+        steps = steps or []
+        i = 0
+        while i < len(steps):
+            step = steps[i]
+            i += 1
             if step.get("disabled"):
                 continue
-            self._exec_step(step, force_continue=continue_default)
+            try:
+                self._exec_step(step, force_continue=continue_default)
+            except _Goto as g:
+                # a Go to whose label is in this list carries on from the label; others go up to the lists around it
+                at = next((k for k, s in enumerate(steps) if s.get("action") == "core/label"
+                           and str((s.get("args") or {}).get("name", "")).strip() == g.label), -1)
+                if at < 0:
+                    raise
+                i = at
+
+    def _run_subflow(self, name: str, call_step: str | None) -> None:
+        subs = {s["name"]: s.get("steps") or [] for s in self.flow.get("subflows") or []}
+        if name not in subs:
+            raise OoaError(f"There is no subflow named '{name}'", code="SUBFLOW.NOT_FOUND")
+        if self.subflow_depth >= MAX_SUBFLOW_DEPTH:
+            raise OoaError(f"Subflows are nested more than {MAX_SUBFLOW_DEPTH} deep (subflow '{name}')", code="SUBFLOW.DEPTH",
+                           suggested_fix="A subflow that runs itself needs a condition that stops it.")
+        self.subflow_depth += 1
+        try:
+            self._exec_steps(subs[name])
+        except _ExitSubflow:
+            self._log("info", f"Left subflow {name}", call_step)
+        except (_Break, _Continue):
+            raise OoaError(f"Exit loop or Continue loop in subflow '{name}' is not inside a loop of the subflow", code="FLOW.BAD_BREAK")
+        except _Goto as g:
+            raise OoaError(f"Go to label '{g.label}' in subflow '{name}': the label is not in the subflow", code="FLOW.BAD_GOTO")
+        finally:
+            self.subflow_depth -= 1
 
     def _exec_step(self, step: dict, force_continue: bool = False) -> None:
         self._check()
@@ -297,7 +400,7 @@ class _Run:
             else:
                 self._exec_leaf(step, pid, aid)
             self.steps_executed += 1
-        except (_Break, _Continue):
+        except (_Break, _Continue, _Goto, _ExitSubflow):
             self.emit("step.finished", sid, action=act, durationMs=_ms(t0))
             raise
         except RunCancelled:
@@ -322,6 +425,8 @@ class _Run:
                 if self.condition(b["condition"], sid):
                     return self._exec_steps(b["children"])
             return self._exec_steps(step.get("else"))
+        if aid == "switch":
+            return self._switch(step, a)
         if aid == "loop":
             return self._loop(step, a)
         if aid == "try":
@@ -334,6 +439,12 @@ class _Run:
             value = resolve(a.get("value"), self.lookup)
             stored = self.scope.set(a["variable"], value)
             self.emit("variable.set", sid, name=a["variable"], value=safe_repr(stored))
+            return
+        if aid == "set_many":
+            # in order, so a later value can use a variable assigned above it
+            for row in a.get("assignments") or []:
+                stored = self.scope.set(row["variable"], resolve(row.get("value"), self.lookup))
+                self.emit("variable.set", sid, name=row["variable"], value=safe_repr(stored))
             return
         if aid == "log":
             return self._log(a.get("level", "info"), str(resolve(a["message"], self.lookup)), sid)
@@ -359,7 +470,46 @@ class _Run:
             raise _Continue()
         if aid == "run_bot":
             return self._run_child(step, a)
+        if aid == "run_subflow":
+            return self._run_subflow(str(resolve(a.get("subflow"), self.lookup) or "").strip(), sid)
+        if aid == "exit_subflow":
+            raise _ExitSubflow()
+        if aid == "label":
+            return
+        if aid == "goto":
+            label = str(a.get("label", "")).strip()
+            self.jumps += 1
+            if self.jumps > self.max_jumps:
+                raise OoaError(f"The run made more than {self.max_jumps} Go to jumps (last to label '{label}')", code="GOTO.LIMIT",
+                               suggested_fix="Go to may be jumping round endlessly: check the condition that ends it, or use a Loop.")
+            raise _Goto(label)
         raise OoaError(f"Unknown core action '{aid}'", code="FLOW.UNKNOWN_ACTION")
+
+    def _switch(self, step: dict, a: dict) -> None:
+        """core/switch: the first case with a value that matches runs (no fall-through); otherwise the default steps."""
+        sid = step["id"]
+        match = resolve(a.get("match"), self.lookup) or "equals"
+        if match not in SWITCH_MATCHES:
+            raise OoaError(f"Unknown match '{match}'", code="SWITCH.BAD_MATCH", suggested_fix="Use one of " + ", ".join(SWITCH_MATCHES) + ".")
+        by_condition = match == "expression"
+        value = None if by_condition else resolve(a.get("value"), self.lookup)
+        lower = not by_condition and bool(coerce(resolve(a.get("ignore_case", False), self.lookup), "Boolean"))
+        fold = lambda v: v.lower() if lower and isinstance(v, str) else v  # noqa: E731
+        shown = "" if by_condition else f" (value {safe_repr(value)})"
+        for i, case in enumerate(step.get("cases") or []):
+            for raw in case.get("values") or []:
+                if by_condition:
+                    hit = self.condition(raw, sid)
+                else:
+                    try:
+                        hit = _compare(SWITCH_OPS[match], fold(value), fold(resolve(raw, self.lookup)))
+                    except re.error as e:
+                        raise OoaError(f"Case {i + 1} has an invalid pattern: {e}", code="SWITCH.BAD_REGEX", suggested_fix="Fix the regular expression.")
+                if hit:
+                    self._log("info", f"Switch: case {i + 1} matched{shown}", sid)
+                    return self._exec_steps(case.get("children"))
+        self._log("info", f"Switch: no case matched{shown}" + ("; running the default steps" if "default" in step else "; nothing to run"), sid)
+        return self._exec_steps(step.get("default"))
 
     def _sleep(self, seconds: float) -> None:
         end = time.monotonic() + seconds
@@ -504,6 +654,7 @@ class _Run:
         child = _Run(self.r, child_flow, f"{self.run_id}.{step['id']}", self.cancel,
                      None, self.depth + 1)
         child.deadline = self.deadline
+        child.max_jumps = self.max_jumps
         res = child.execute(args.get("inputs") or {}, validate=True)
         self.steps_executed += res.steps_executed
         if res.status == "stopped":
@@ -613,11 +764,13 @@ def _while(check):
 def _all_actions(steps):
     for s in steps or []:
         yield s["action"]
-        for k in ("children", "else", "finally"):
+        for k in ("children", "else", "finally", "default"):
             yield from _all_actions(s.get(k))
         for b in s.get("elseIf", []) or []:
             yield from _all_actions(b.get("children"))
         for c in s.get("catch", []) or []:
+            yield from _all_actions(c.get("children"))
+        for c in s.get("cases", []) or []:
             yield from _all_actions(c.get("children"))
 
 

@@ -236,7 +236,7 @@ class ActionContext:
 
     def check_cancelled(self) -> None:
         if self.cancel_event.is_set():
-            raise RunCancelled("Run was stopped from Control Center")
+            raise RunCancelled("Run was stopped from One CommandCenter")
 
     def resolve_path(self, p: str) -> Path:
         path = Path(p)

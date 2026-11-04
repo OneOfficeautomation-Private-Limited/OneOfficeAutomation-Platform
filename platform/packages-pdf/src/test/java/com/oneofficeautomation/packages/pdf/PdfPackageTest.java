@@ -63,4 +63,22 @@ class PdfPackageTest {
         RunResult locked = Runner.builder(FirstPartyPackages.registry()).workDir(w).build().run(wrong, Map.of());
         assertEquals("PDF.PASSWORD_REQUIRED", locked.error().get("code"));
     }
+
+    /** The font list is made in the background: warmUp returns at once, once per process, and the PDF steps still work. */
+    @Test void fontListWarmsUpInTheBackground() throws Exception {
+        long t0 = System.nanoTime();
+        FirstPartyPackages.warmUp();
+        FirstPartyPackages.warmUp();
+        PdfPackage.warmUp();
+        assertTrue(System.nanoTime() - t0 < 5_000_000_000L, "warmUp must not wait for the font list");
+        long threads = Thread.getAllStackTraces().keySet().stream().filter(t -> t.getName().equals("ooa-pdf-fonts")).count();
+        assertTrue(threads <= 1, "one font-list thread at most, found " + threads);
+        Path w = Files.createTempDirectory("ooa-pdf");
+        makePdf(w.resolve("a.pdf"), "Warm fonts");
+        @SuppressWarnings("unchecked") Map<String, Object> flow = (Map<String, Object>) JsonLite.parse("""
+            {"kind":"TaskBot","id":"x","name":"x","variables":[{"name":"t","type":"String","direction":"output"}],
+             "steps":[{"id":"t","action":"ooa.pdf/extract_text","args":{"path":"a.pdf"},"out":{"text":"t"}}]}""");
+        RunResult r = Runner.builder(FirstPartyPackages.registry()).workDir(w).build().run(flow, Map.of());
+        assertTrue(String.valueOf(r.outputs().get("t")).contains("Warm fonts"), String.valueOf(r.error()));
+    }
 }

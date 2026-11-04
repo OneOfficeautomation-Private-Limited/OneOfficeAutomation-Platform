@@ -1,7 +1,7 @@
 ONEOFFICEAUTOMATION
 
 Install (setup package, ooa-setup-<version>.zip: Java included)
-  Unzip the package and double-click Install.cmd. It asks whether this computer is the Command Center or a runner,
+  Unzip the package and double-click Install.cmd. It asks whether this computer is One CommandCenter or a runner,
   copies the product to your Programs folder (or Program Files with -AllUsers) and adds it to the Start menu.
   Silent install, for SCCM, Intune or Group Policy (run as administrator for -AllUsers or -Service):
     Install.cmd -Silent -Role CommandCenter -AllUsers -Service -Port 8720
@@ -21,8 +21,8 @@ MSI (ooa-<version>.msi: Java included, all users, for SCCM, Intune or Group Poli
   msiexec /x ooa-<version>.msi /qn removes it and its services; data folders are kept.
 
 Problems
-  bin\ooa.bat check            is this computer ready for a Command Center
-  bin\ooa.bat agent diagnose   why a runner cannot reach its Command Center (network, proxy, certificate, sign-in, clock)
+  bin\ooa.bat check            is this computer ready for One CommandCenter
+  bin\ooa.bat agent diagnose   why a runner cannot reach its One CommandCenter (network, proxy, certificate, sign-in, clock)
 
 Start (zip without the installer, ooa-customer-<version>.zip)
   Double-click START-OOA.cmd. Your browser opens http://localhost:8720.
@@ -34,7 +34,7 @@ Evaluation and license
   2 attended runners and 2 unattended runners. A banner shows the days left.
   A licensed installation runs on Microsoft SQL Server: set it up first (see Database below), then sign in as an
   administrator and open Administration > Licenses. Send the install id shown there with your license request: the
-  license you receive works on this Command Center only. Install the license file on the same page, then give people
+  license you receive works on this One CommandCenter only. Install the license file on the same page, then give people
   and runners their seats.
   To check a license file before installing it, run: bin\ooa.bat license show yourfile.lic
 

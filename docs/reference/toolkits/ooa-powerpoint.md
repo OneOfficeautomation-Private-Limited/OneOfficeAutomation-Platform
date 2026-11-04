@@ -118,7 +118,7 @@ Close the presentation session, saving the changes first when asked.
 
 `ooa.powerpoint/create_presentation` (action)
 
-Create a new .pptx file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.
+Create a new .pptx (or .ppt or .odp) file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.
 
 **Settings**
 
@@ -137,7 +137,7 @@ Create a new .pptx file on disk, empty or as a copy of a template presentation, 
 
 `ooa.powerpoint/open` (action)
 
-Open a .pptx presentation, or create a new empty one, as a named session; can open password-protected files and open read-only.
+Open a .pptx, .ppt or .odp presentation, or create a new empty one, as a named session; can open password-protected .pptx files and open read-only. .ppt and .odp files are converted with PowerPoint or LibreOffice on the runner and saved back in their own format.
 
 **Settings**
 
@@ -171,7 +171,7 @@ Save the presentation to the file it was opened from, or to another path; passwo
 
 `ooa.powerpoint/save_as` (action)
 
-Save the presentation to a new .pptx file, optionally password-protected, and continue the session on that file; PDF and image export are not available.
+Save the presentation to a new .pptx, .ppt or .odp file (.pptx optionally password-protected) and continue the session on that file, or export it as PDF.
 
 **Settings**
 
@@ -179,7 +179,7 @@ Save the presentation to a new .pptx file, optionally password-protected, and co
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Target file path. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that already exists at the target path; false stops with PPT.EXISTS. |
-| Format | `format` | Text | No | `pptx` | More options | File format; only pptx is supported. One of: `pptx` |
+| Format | `format` | Text | No | `pptx` | More options | pptx keeps the presentation; ppt (PowerPoint 97-2003) and odp are written with Microsoft PowerPoint (or LibreOffice) on the runner; pdf exports it the same way and the session stays on the previous file. One of: `pptx`, `ppt`, `odp`, `pdf` |
 | Password | `password` | Credential (vault) | No |  | More options | Encrypt the new file with this password; later saves keep it. |
 | Session | `session` | Text | No | `powerpoint` | More options | Presentation session. |
 

@@ -56,9 +56,18 @@ public final class SoapPackage {
         if (user != null && password instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
         HttpResponse<String> resp;
-        try { resp = opts.client(ctx, CLIENT).send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + url + ": " + e.getMessage(), "Check the URL and network access.", true); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        HttpRequest request = b.build();
+        for (int attempt = 0; ; attempt++) {
+            try { resp = opts.client(ctx, CLIENT).send(request, HttpResponse.BodyHandlers.ofString()); }
+            catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + url + ": " + NetErrors.reason(e, null), "Check the URL and network access.", true); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            long wait = resp.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(resp.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
+            if (wait < 0) break;
+            ctx.warn(HttpJson.host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");
+            HttpJson.pause(ctx, wait);
+        }
+        if (resp.statusCode() >= 400 && failOnError && !resp.body().stripLeading().startsWith("<"))
+            throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode() + (resp.body().isBlank() ? "" : ": " + HttpJson.snippet(resp.body())), null, resp.statusCode() >= 500 || resp.statusCode() == 429);
         Object bodyValue = null;
         List<Object> values = new ArrayList<>();
         if (outputFile != null && !outputFile.isBlank()) {
@@ -69,7 +78,16 @@ public final class SoapPackage {
             } catch (IOException e) { throw new ActionException("SOAP.FILE_ERROR", "Cannot save the response to " + out + ": " + e.getMessage(), "Check the folder is writable.", true); }
         }
         if (!resp.body().isBlank()) {
-            Document doc = XmlSupport.parse(resp.body(), true);
+            Document doc;
+            try { doc = XmlSupport.parse(resp.body(), true); }
+            catch (ActionException e) {
+                if (resp.statusCode() >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode() + ": " + HttpJson.snippet(resp.body()), null, resp.statusCode() >= 500 || resp.statusCode() == 429);
+                throw e;
+            }
+            // a SOAP answer is an Envelope; an HTML proxy or sign-in page used to "succeed" with an empty body
+            if (!"Envelope".equals(doc.getDocumentElement().getLocalName()) && failOnError)
+                throw new ActionException("SOAP.BAD_RESPONSE", "The answer is not a SOAP envelope (a <" + doc.getDocumentElement().getNodeName() + "> document, often a proxy or sign-in page): " + HttpJson.snippet(resp.body()),
+                        "Check the endpoint URL and the proxy between the runner and the service.", false, Map.of("status", BigDecimal.valueOf(resp.statusCode())));
             if (xpath != null && !xpath.isBlank()) values.addAll(xpathTexts(doc, xpath));
             Element bodyEl = firstChild(doc.getDocumentElement(), "Body");
             Element first = bodyEl == null ? null : firstElement(bodyEl);

@@ -8,4 +8,6 @@ public @interface LoopIterator {
     String id();
     String name();
     String description();
+    /** What the loop type needs from the runner (desktop, network, filesystem, browser), as for actions; filesystem is added for File inputs. */
+    String[] capabilities() default {};
 }

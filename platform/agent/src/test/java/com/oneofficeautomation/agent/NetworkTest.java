@@ -16,7 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The runner through a proxy: a fake Command Center at a host name only the proxy knows, behind a proxy that asks for a
+ * The runner through a proxy: a fake One CommandCenter at a host name only the proxy knows, behind a proxy that asks for a
  * user name and password; local addresses skip the proxy; settings survive the config file.
  */
 class NetworkTest {
@@ -30,7 +30,7 @@ class NetworkTest {
             ex.sendResponseHeaders(200, b.length); ex.getResponseBody().write(b); ex.close();
         });
         cc.start();
-        // forwards http://cc.test:<port>/... to the fake Command Center once the client signs in as proxyuser
+        // forwards http://cc.test:<port>/... to the fake One CommandCenter once the client signs in as proxyuser
         proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         proxy.createContext("/", ex -> {
             String auth = ex.getRequestHeaders().getFirst("Proxy-Authorization");

@@ -357,7 +357,9 @@ jobs:
           code() { curl -s -o /dev/null -w '%{http_code}' -H "Host: $1" "${@:3}" "http://localhost:8730$2"; }
           login() { curl -s -H "Host: $1" -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"$2\"}" http://localhost:8730/api/auth/login; }
           test "$(code acme.in.ooa.test /api/auth/me)" = 401
-          test "$(code acme.in.ooa.test /)" = 200
+          # the bare address opens the new console since 31 Oct 2026 (27fba56): / redirects to /next/, which serves it
+          test "$(code acme.in.ooa.test /)" = 302
+          test "$(code acme.in.ooa.test /next/)" = 200
           test "$(code nobody.in.ooa.test /api/auth/me)" = 404
           # each administrator signs in to their own tenant only; a session of one is nothing in the other
           TOKEN=$(login acme.in.ooa.test "$APW" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)

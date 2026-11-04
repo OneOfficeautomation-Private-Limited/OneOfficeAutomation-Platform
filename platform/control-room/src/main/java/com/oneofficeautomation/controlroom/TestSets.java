@@ -39,7 +39,7 @@ public final class TestSets {
                 : db.query("SELECT * FROM test_sets WHERE bot_path = ? ORDER BY name", botPath)) {
             if (!cr.folders.mayView(by, (String) s.get("bot_path"))) continue;
             Map<String, Object> m = view(s);
-            Map<String, Object> last = db.one("SELECT id, started, finished, total, passed, status FROM test_runs WHERE set_id = ? ORDER BY started DESC LIMIT 1", s.get("id"));
+            Map<String, Object> last = db.one("SELECT id, version, started, finished, total, passed, status FROM test_runs WHERE set_id = ? ORDER BY started DESC LIMIT 1", s.get("id"));
             m.put("last_run", last);
             out.add(m);
         }

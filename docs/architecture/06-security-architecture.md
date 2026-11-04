@@ -33,9 +33,9 @@ Scope, set-up, test cases and known gaps for a formal review are in section 14.
 
 ```mermaid
 flowchart LR
-    B[Browser] -- cookie ooa_cr + X-OOA-Request --> CC[Command Center]
+    B[Browser] -- cookie ooa_cr + X-OOA-Request --> CC[One CommandCenter]
     API[API client / MCP] -- Bearer session, ooak_ key or OAuth JWT --> CC
-    R[One Runner] -- X-OOA-Device + X-OOA-Device-Secret --> CC
+    R[OneRunner] -- X-OOA-Device + X-OOA-Device-Secret --> CC
     R -- stdin/stdout pipe --> W[RunWorker]
     CC -- OIDC / SAML --> IDP[Identity provider]
     CC -- vault sign-in secret --> XV[External vaults]
@@ -45,10 +45,10 @@ flowchart LR
 
 | Boundary | Credential | Stored as |
 | --- | --- | --- |
-| Browser to Command Center | Session token in cookie `ooa_cr` (`HttpOnly; SameSite=Strict`, `Secure` over HTTPS) | SHA-256 in `sessions` |
-| Program to Command Center | `Authorization: Bearer` with a session token or an `ooak_` API key | SHA-256 in `api_keys` |
+| Browser to One CommandCenter | Session token in cookie `ooa_cr` (`HttpOnly; SameSite=Strict`, `Secure` over HTTPS) | SHA-256 in `sessions` |
+| Program to One CommandCenter | `Authorization: Bearer` with a session token or an `ooak_` API key | SHA-256 in `api_keys` |
 | MCP client | API key, session, or an OAuth access token (JWT) from the identity provider | Not stored |
-| Runner to Command Center | Device id and secret from registration | SHA-256 in `devices`; clear text in the runner's own config file |
+| Runner to One CommandCenter | Device id and secret from registration | SHA-256 in `devices`; clear text in the runner's own config file |
 | Runner to run worker | Pipe; secrets sent only on request | Memory only |
 | API task caller | `X-OOA-Task-Token` | SHA-256 in `api_tasks` |
 | Webhook caller | `X-OOA-Secret` | SHA-256 in `triggers` |
@@ -85,9 +85,12 @@ flowchart LR
 | Protocol | Class | Checks |
 | --- | --- | --- |
 | OpenID Connect | `Sso` | Authorization code flow with PKCE; ID token signature (RS256/384/512, ES256) against the provider's JWKS; issuer, audience, expiry, nonce |
-| SAML 2.0 | `Saml` | HTTP-Redirect out, HTTP-POST back; DTDs and external entities off; exactly one assertion, a direct child of the response; a valid signature by the configured certificate whose single reference points at that element (enveloped and exclusive canonicalisation only, JDK secure validation on); status Success; issuer, audience, recipient, destination; validity window with 2 minutes of skew; `InResponseTo` must match a sign-in this Command Center started; each assertion used once |
+| SAML 2.0 | `Saml` | HTTP-Redirect out, HTTP-POST back; DTDs and external entities off; exactly one assertion, a direct child of the response; a valid signature by the configured certificate whose single reference points at that element (enveloped and exclusive canonicalisation only, JDK secure validation on); status Success; issuer, audience, recipient, destination; validity window with 2 minutes of skew; `InResponseTo` must match a sign-in this One CommandCenter started; each assertion used once |
 
-New SSO users get `sso_default_role`; when it is empty only existing users may sign in. Encrypted SAML assertions and
+New SSO users get `sso_default_role`; when it is empty only existing users may sign in. `sso_group_roles` maps
+identity-provider groups to roles (first match wins), applied at every SSO sign-in and audited. The return path carried
+through a sign-in (OIDC `state`, SAML request id) is checked by `ControlRoom.safeReturn`: a single leading `/`, no
+scheme, no backslash, a fixed character set; anything else becomes `/`. Encrypted SAML assertions and
 sign-ins started at the identity provider are refused. Sign-in state is kept in `auth_pending`, so any cluster node can
 complete it.
 
@@ -157,7 +160,7 @@ master key (32 bytes, AES-256)
 - **Rotation** (`VaultAdmin`): every stored value is decrypted with the current key and encrypted with a new one in one
   transaction; the new key is written as `master.key.next` first, then replaces the old one, which is kept as
   `master.key.old-<time>`. Encrypted values in configuration files are re-encrypted too. Not possible from the
-  console with `OOA_MASTER_KEY` or a key store; there `ooa vault rekey --new-key-env VAR` (Command Center stopped)
+  console with `OOA_MASTER_KEY` or a key store; there `ooa vault rekey --new-key-env VAR` (One CommandCenter stopped)
   re-encrypts everything with the new key, and the operator then replaces the key in the variable or store.
 - The key fingerprint (first 12 hex digits of its SHA-256) identifies a key without showing it; backup restore checks
   it.
@@ -183,7 +186,7 @@ encrypted value copied to another credential fails to decrypt.
 
 1. A job carries **vault references**, never values.
 2. When a step needs one, the worker asks its runner, the runner calls `POST /api/agent/credential` with the run id,
-   and the Command Center checks that the run is `running` on that runner and that its user (the run-as user when set)
+   and One CommandCenter checks that the run is `running` on that runner and that its user (the run-as user when set)
    consumes the folder. **Every read is audited** as `credential.read` with result ok, denied, not_found or failed.
 3. The value becomes a `SecureString`: `toString()` is always `****`, `reveal()` is called only when handing it to the
    target system, and `wipe()` clears the memory at the end of the run.
@@ -241,8 +244,8 @@ finishes, licence events, production approvals and settings changes.
   call `agent/rotate`; it receives a new secret, and the previous one keeps working for 10 minutes for requests already
   on their way.
 - **Temporary runners** that stay offline longer than `temporary_runner_hours` (default 8) are removed.
-- **Version rule**: a runner newer than its Command Center gets no work.
-- **Certificates**: runners verify the Command Center's certificate using the JDK store, the Windows certificate store
+- **Version rule**: a runner newer than its One CommandCenter gets no work.
+- **Certificates**: runners verify One CommandCenter's certificate using the JDK store, the Windows certificate store
   and an optional CA file (`--ca`); proxy passwords are kept with Windows DPAPI (`dpapi:`), on Linux and macOS in a
   file `proxy-password` next to the runner's config readable by its owner only (`file:PATH`), or read from an
   environment variable (`env:NAME`) (`Network`).
@@ -254,7 +257,7 @@ finishes, licence events, production approvals and settings changes.
 ## 9. Studio and local components
 
 - Studio binds to **127.0.0.1 only**, refuses non-loopback callers, checks the `Host` header and rejects cross-site
-  `Origin` values. Inside `ooa server` it reuses the browser's Command Center sign-in; its Command Center session token
+  `Origin` values. Inside `ooa server` it reuses the browser's One CommandCenter sign-in; its One CommandCenter session token
   stays in the Studio process (`ControlRoomLink`), never in the browser.
 - Every workspace path goes through `Workspace.resolve`, so nothing outside My Workspace and nothing hidden (such as
   `.trash`) is reachable.
@@ -324,9 +327,9 @@ the repository root.
 
 | Component | What it is | Network exposure |
 | --- | --- | --- |
-| One Command Center | Java server: web console, REST API, runner API, webhooks, API tasks, MCP endpoint | TCP 8720 (configurable), HTTP or HTTPS; with HTTPS also a plain-HTTP listener on 127.0.0.1 for this machine's own runner and Studio |
-| One Agent Studio | Web designer at `/studio/` | Same port; this computer only (loopback) |
-| One Runner | Java process (sign-in task or Windows service) that polls the Command Center and runs agents | Outbound only, to the Command Center |
+| One CommandCenter | Java server: web console, REST API, runner API, webhooks, Agent APIs, MCP endpoint | TCP 8720 (configurable), HTTP or HTTPS; with HTTPS also a plain-HTTP listener on 127.0.0.1 for this machine's own runner and Studio |
+| One AgentStudio | Web designer at `/studio/` | Same port; this computer only (loopback) |
+| OneRunner | Java process (sign-in task or Windows service) that polls One CommandCenter and runs agents | Outbound only, to One CommandCenter |
 | Run workers | One Java process per run, started by the runner | None (stdin and stdout pipe to the runner) |
 | Browser connector | Edge, Chrome or Firefox extension plus a native messaging host | 127.0.0.1 with a random token |
 | Installers | Setup package (`Install.cmd`) and the MSI | Local |
@@ -338,7 +341,7 @@ third-party systems agents automate.
 
 ### 14.2 Test installation
 
-1. A Command Center on a Windows Server VM, installed as a service with the setup package or the MSI
+1. One CommandCenter on a Windows Server VM, installed as a service with the setup package or the MSI
    ([../infrastructure/02-installation-windows.md](../infrastructure/02-installation-windows.md)), moved to SQL Server
    or PostgreSQL with `ooa db configure` ([../infrastructure/05-databases.md](../infrastructure/05-databases.md)).
 2. HTTPS with `ooa tls configure --pfx server.pfx` and `ooa tls set-password`, then a restart; for a quick test

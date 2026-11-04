@@ -194,4 +194,90 @@ public final class ListPackage {
         if (other != null) out.addAll(other);
         return Out.of("list", out);
     }
+
+    // ---------- shuffle, intersect, subtract, filter and select (gap G06, 3 Nov 2026) ----------
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+    @Action(id = "shuffle", name = "Shuffle", category = "List", description = "Return the items in a random order, e.g. to pick a random sample.",
+            panel = "list")
+    @Output(name = "list", type = OoaType.LIST, description = "The same items in random order.")
+    public Map<String, Object> shuffle(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list) {
+        List<Object> out = new ArrayList<>(list);
+        Collections.shuffle(out, RANDOM);
+        return Out.of("list", out);
+    }
+
+    @Action(id = "intersect", name = "Items in both lists", category = "List", idempotent = true,
+            description = "Return the items of the first list that are also in the second, in the first list's order, each once.",
+            panel = "list, other")
+    @Output(name = "list", type = OoaType.LIST, description = "Items in both lists.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
+    public Map<String, Object> intersect(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "First list.") List<Object> list,
+            @Input(name = "other", type = OoaType.LIST, description = "Second list.") List<Object> other) {
+        List<Object> out = new ArrayList<>();
+        List<Object> b = other == null ? List.of() : other;
+        for (Object x : list)
+            if (b.stream().anyMatch(y -> Values.looseEquals(x, y)) && out.stream().noneMatch(y -> Values.looseEquals(x, y))) out.add(x);
+        return Out.of("list", out, "count", BigDecimal.valueOf(out.size()));
+    }
+
+    @Action(id = "subtract", name = "Items not in other list", category = "List", idempotent = true,
+            description = "Return the items of the first list that are not in the second, e.g. invoices not yet processed.",
+            panel = "list, other")
+    @Output(name = "list", type = OoaType.LIST, description = "Items only in the first list.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
+    public Map<String, Object> subtract(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "First list.") List<Object> list,
+            @Input(name = "other", type = OoaType.LIST, description = "Items to leave out.") List<Object> other) {
+        List<Object> b = other == null ? List.of() : other;
+        List<Object> out = new ArrayList<>();
+        for (Object x : list) if (b.stream().noneMatch(y -> Values.looseEquals(x, y))) out.add(x);
+        return Out.of("list", out, "count", BigDecimal.valueOf(out.size()));
+    }
+
+    @Action(id = "filter", name = "Filter", category = "List", idempotent = true,
+            description = "Keep the items that pass a test, such as greater than 100 or contains Acme; for a list of records, test one field.",
+            panel = "list, field, operator, value, match_case")
+    @Output(name = "list", type = OoaType.LIST, description = "Items kept.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of items kept.")
+    public Map<String, Object> filter(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
+            @Input(name = "operator", type = OoaType.STRING, enumValues = {"eq", "ne", "gt", "ge", "lt", "le", "contains", "not_contains", "starts_with", "ends_with", "matches", "empty", "not_empty"},
+                    description = "Test; matches takes a regular expression.") String op,
+            @Input(name = "value", required = false, visibleWhen = "operator!=empty|not_empty", description = "Value to compare with (not needed for empty/not_empty).") Object value,
+            @Input(name = "field", type = OoaType.STRING, required = false, description = "For a list of records (dictionaries): the field to test; the item itself when empty.") String field,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    visibleWhen = "operator=eq|ne|contains|not_contains|starts_with|ends_with|matches", description = "Compare text with upper/lower case taken into account.") boolean matchCase) {
+        List<Object> out = new ArrayList<>();
+        for (Object x : list) {
+            Object v = field == null || field.isBlank() ? x : x instanceof Map<?, ?> m ? m.get(field) : null;
+            if (DataTablePackage.matches(v, op, value, matchCase)) out.add(x);
+        }
+        return Out.of("list", out, "count", BigDecimal.valueOf(out.size()));
+    }
+
+    @Action(id = "select", name = "Select field", category = "List", idempotent = true,
+            description = "Turn a list of records (dictionaries) into a list of one field's values, e.g. the e-mail of every customer.",
+            panel = "list, field | skip_missing")
+    @Output(name = "list", type = OoaType.LIST, description = "The field's values, in the same order.")
+    public Map<String, Object> select(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "List of records.") List<Object> list,
+            @Input(name = "field", type = OoaType.STRING, example = "email", description = "Field name; a.b reads a field inside a field.") String field,
+            @Input(name = "skip_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Leave out records without the field; when off they give an empty value, so the positions still match.") boolean skipMissing) {
+        if (field == null || field.isBlank()) throw new ActionException("LIST.NO_FIELD", "No field given", "Fill in the field name, e.g. email.");
+        List<Object> out = new ArrayList<>();
+        for (Object x : list) {
+            Object v = x;
+            boolean found = true;
+            for (String part : field.split("\\.")) {
+                if (v instanceof Map<?, ?> m && m.containsKey(part)) v = m.get(part);
+                else { v = null; found = false; break; }
+            }
+            if (!found && skipMissing) continue;
+            out.add(v);
+        }
+        return Out.of("list", out);
+    }
 }

@@ -1178,6 +1178,171 @@
   ]
  },
  {
+  "command": "ooa.genai/detect_pii",
+  "name": "patterns without a model, partial mask",
+  "vars": {
+   "t": "Mail john@acme.com, card 4111 1111 1111 1111, call +1 555-123-4567."
+  },
+  "steps": [
+   {
+    "action": "ooa.genai/detect_pii",
+    "args": {
+     "text": "$t"
+    },
+    "out": {
+     "found": "f",
+     "count": "n",
+     "masked_text": "m",
+     "kinds_found": "k"
+    }
+   }
+  ],
+  "expect": {
+   "f": true,
+   "n": 3,
+   "m": "Mail j***@acme.com, card **** **** **** 1111, call +* ***-***-4567.",
+   "k": [
+    "email",
+    "phone",
+    "credit_card"
+   ]
+  }
+ },
+ {
+  "command": "ooa.genai/detect_pii",
+  "name": "checksums reject near misses",
+  "steps": [
+   {
+    "action": "ooa.genai/detect_pii",
+    "args": {
+     "text": "Ref 4111 1111 1111 1112, Aadhaar 2341 2341 2345, IBAN DE89 3704 0044 0532 0130 01, due 2026-11-03"
+    },
+    "out": {
+     "found": "f",
+     "count": "n",
+     "items": "i"
+    }
+   }
+  ],
+  "expect": {
+   "f": false,
+   "n": 0,
+   "i": []
+  }
+ },
+ {
+  "command": "ooa.genai/detect_pii",
+  "name": "chosen kinds, full mask with own character",
+  "steps": [
+   {
+    "action": "ooa.genai/detect_pii",
+    "args": {
+     "text": "PAN ABCPE1234F, Aadhaar 2341 2341 2346, IP 10.0.0.7",
+     "kinds": [
+      "in_pan",
+      "in_aadhaar"
+     ],
+     "mask_style": "full",
+     "mask_char": "#"
+    },
+    "out": {
+     "masked_text": "m",
+     "items": "i"
+    }
+   }
+  ],
+  "expect": {
+   "m": "PAN ##########, Aadhaar ##############, IP 10.0.0.7",
+   "i": [
+    {
+     "kind": "in_pan",
+     "text": "ABCPE1234F",
+     "start": 4,
+     "end": 14
+    },
+    {
+     "kind": "in_aadhaar",
+     "text": "2341 2341 2346",
+     "start": 24,
+     "end": 38
+    }
+   ]
+  }
+ },
+ {
+  "command": "ooa.genai/detect_pii",
+  "name": "names need use_ai",
+  "steps": [
+   {
+    "action": "ooa.genai/detect_pii",
+    "args": {
+     "text": "Jane Doe",
+     "kinds": [
+      "person_name"
+     ]
+    }
+   }
+  ],
+  "error": "AI.BAD_OPTION"
+ },
+ {
+  "command": "ooa.genai/detect_pii",
+  "name": "use_ai adds names from the model",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"items\": [{\"kind\": \"person_name\", \"text\": \"Jane Doe\"}]}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 1
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/detect_pii",
+    "args": {
+     "text": "Jane Doe, jane@acme.com",
+     "use_ai": true,
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model"
+    },
+    "out": {
+     "masked_text": "m",
+     "kinds_found": "k"
+    }
+   }
+  ],
+  "expect": {
+   "m": "J*** **e, j***@acme.com",
+   "k": [
+    "email",
+    "person_name"
+   ]
+  },
+  "expectRequests": [
+   "POST /chat/completions person_name"
+  ]
+ },
+ {
   "command": "ooa.asana/duplicate_task",
   "name": "copy with subtasks (new)",
   "credentials": {
@@ -1804,5 +1969,68 @@
    }
   ],
   "error": "CONNECTION.WRONG_TOOLKIT"
+ },
+ {
+  "command": "ooa.google/docs_read_text",
+  "name": "a document id with spaces is refused before any request (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.google/docs_read_text", "args": {"endpoint_override": "{mock}", "access_token": "$tok", "document_id": "not a doc id"}}],
+  "error": "GOOGLE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.google/docs_replace_text",
+  "name": "nothing to replace (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.google/docs_replace_text", "args": {"endpoint_override": "{mock}", "access_token": "$tok", "document_id": "1AbC_def-123", "replacements": {}}}],
+  "error": "GOOGLE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.google/docs_append_text",
+  "name": "a link to a spreadsheet is not a document (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.google/docs_append_text", "args": {"endpoint_override": "{mock}", "access_token": "$tok", "document_id": "https://docs.google.com/spreadsheets/d/S1/edit", "text": "x"}}],
+  "error": "GOOGLE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/update_task",
+  "name": "progress above 100 is refused before any request (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/update_task", "args": {"base_url": "{mock}", "access_token": "$tok", "task_id": "K1", "percent_complete": 150}}],
+  "error": "M365.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/create_task",
+  "name": "assigning by email address instead of user id (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/create_task", "args": {"base_url": "{mock}", "access_token": "$tok", "plan_id": "P1", "title": "Bank rec", "assigned_to": ["ann@acme.test"]}}],
+  "error": "M365.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/create_channel",
+  "name": "channel name with a slash (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/create_channel", "args": {"base_url": "{mock}", "access_token": "$tok", "team_id": "T1", "name": "Q4/2026"}}],
+  "error": "M365.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/get_channel_messages",
+  "name": "channel_id missing (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/get_channel_messages", "args": {"base_url": "{mock}", "access_token": "$tok", "team_id": "T1"}}],
+  "error": "FLOW.INVALID"
  }
 ]

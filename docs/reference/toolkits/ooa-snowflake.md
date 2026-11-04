@@ -97,7 +97,7 @@ Run one SQL statement and write all of its rows to a file (CSV, tab-separated or
 | `row_count` | Number | Rows written (not counting the header). |
 | `statement_handle` | Text | Id of the statement. |
 
-*Time limit 3600 s; needs: network,filesystem.*
+*Time limit 3600 s; needs: network,filesystem, filesystem.*
 
 ### Get statement results
 

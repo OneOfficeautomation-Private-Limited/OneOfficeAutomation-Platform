@@ -3,7 +3,7 @@
 ## What this covers / audience
 
 What to back up, the built-in scheduled backups, the `ooa backup` commands, how the vault key must be handled, how to
-restore and move a Command Center, and how to build, fail over to and fail back from a disaster recovery site. For
+restore and move One CommandCenter, and how to build, fail over to and fail back from a disaster recovery site. For
 backup administrators, DBAs and business continuity planners.
 
 ## Contents
@@ -14,7 +14,7 @@ backup administrators, DBAs and business continuity planners.
 4. The vault key and backups
 5. Database-native backups
 6. Restore scenarios
-7. Moving a Command Center to new servers or a cloud
+7. Moving One CommandCenter to new servers or a cloud
 8. Disaster recovery site
 9. Failover
 10. Failback
@@ -60,7 +60,7 @@ share, a mounted bucket) and give the service account write access.
 | --- | --- |
 | `ooa backup now [--data DIR]` | Make a backup into the backup folder; prints the file, rows and size, and a reminder about the key |
 | `ooa backup list [--data DIR]` | Backups in the folder, newest first, with time and size |
-| `ooa backup restore FILE [--replace] [--data DIR]` | Put a backup back. Stop the Command Center first. |
+| `ooa backup restore FILE [--replace] [--data DIR]` | Put a backup back. Stop One CommandCenter first. |
 
 All three accept `--db-url URL --db-user NAME --db-password-env VAR` (and `--db-config FILE`), which the container
 uses. Restore with a settings file signs in with the setup account when one is configured.
@@ -96,23 +96,23 @@ encrypted; the same vault key is still required.
 
 | Scenario | Steps |
 | --- | --- |
-| Lost Command Center server, database intact | Install the same version on a new server, same `ooa-db.properties`, same vault key, restore the repository folder (or point to the share), `ooa check`, start |
+| Lost One CommandCenter server, database intact | Install the same version on a new server, same `ooa-db.properties`, same vault key, restore the repository folder (or point to the share), `ooa check`, start |
 | Corrupted or lost database | Stop all nodes; restore the database natively to a point in time, or create an empty database and `ooa backup restore FILE`; `ooa check`; start |
 | Accidental data change | Restore a database copy side by side and recover the rows, or restore a built-in backup into a separate test install to inspect |
 | Container lost | Start a new container with the same volume (or restore into a new one with `backup restore`) and the same key |
 
-After any restore: sign in, check Runners shows them online, run a test agent, and run One Audit Trail > Verify
+After any restore: sign in, check Runners shows them online, run a test agent, and run Audit Trail > Verify
 integrity.
 
-## 7. Moving a Command Center to new servers or a cloud
+## 7. Moving One CommandCenter to new servers or a cloud
 
 1. Plan the address. If the DNS name moves with the service, runners need nothing.
-2. Stop the old Command Center and run `ooa backup now`. Note where the vault key is.
+2. Stop the old One CommandCenter and run `ooa backup now`. Note where the vault key is.
 3. Install the new one with the **same vault key** on an empty database.
 4. `ooa backup restore FILE` (in a container, see [03](03-installation-linux-and-containers.md)). Or use the
    database's own backup and restore between servers of the same engine, or `ooa db copy` from an evaluation.
 5. On each runner whose address changed: `ooa agent move --url https://new-address [--ca FILE]`, then restart the
-   runner. The move is refused, and nothing changes, if the new Command Center does not know the runner (data not
+   runner. The move is refused, and nothing changes, if the new One CommandCenter does not know the runner (data not
    restored yet). The runner keeps its registration, schedules and seat.
 6. `ooa check`, sign in, confirm runners are online, run an agent, retire the old install.
 

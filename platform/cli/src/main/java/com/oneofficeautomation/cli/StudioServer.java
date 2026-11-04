@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 /**
  * OOA Studio preview: a local developer workbench for building, validating and running bots against the
  * real Runner and packages. Binds to 127.0.0.1 only, rejects cross-site requests, and reads/writes bot files
- * only inside {workspace}/bots. The production Studio is the React app served by Control Center.
+ * only inside {workspace}/bots. The production Studio is the React app served by One CommandCenter.
  */
 public final class StudioServer {
     private static final int MAX_BODY = 5 * 1024 * 1024;
@@ -68,14 +68,14 @@ public final class StudioServer {
         HttpServer server;
         try { server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0); }
         catch (java.net.BindException e) {
-            throw new OoaException("STUDIO.PORT_IN_USE", "Port " + port + " is already in use; another Agent Studio may still be running",
-                    "Stop the other Agent Studio (Ctrl+C in its window), or start this one with --port " + (port + 1) + ".");
+            throw new OoaException("STUDIO.PORT_IN_USE", "Port " + port + " is already in use; another One AgentStudio may still be running",
+                    "Stop the other One AgentStudio (Ctrl+C in its window), or start this one with --port " + (port + 1) + ".");
         }
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/", this::handle);
         server.start();
         startServices();
-        System.out.println("ONEOFFICEAUTOMATION One Agent Studio (preview) is running.");
+        System.out.println("ONEOFFICEAUTOMATION One AgentStudio (preview) is running.");
         System.out.println("  Open:      http://localhost:" + port);
         System.out.println("  Workspace: " + workspace);
         System.out.println("  Press Ctrl+C to stop.");
@@ -95,6 +95,7 @@ public final class StudioServer {
     Path workspaceRoot() { return workspace; }
 
     private void startServices() {
+        FirstPartyPackages.warmUp();   // e.g. PDF's font list, so the first PDF step run here does not wait for it
         cr = new ControlRoomLink(ws);
         triggers = new TriggerService(ws, (botPath, inputs) -> runFile(botPath, inputs));
         triggers.start();
@@ -102,7 +103,7 @@ public final class StudioServer {
 
     private void handle(HttpExchange ex) throws IOException {
         try {
-            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "Agent Studio is only available on this computer"); return; }
+            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "One AgentStudio is only available on this computer"); return; }
             String host = Optional.ofNullable(ex.getRequestHeaders().getFirst("Host")).orElse("");
             if (!host.startsWith("localhost:") && !host.startsWith("127.0.0.1:")) { send(ex, 403, "text/plain", "Forbidden host"); return; }
             String origin = ex.getRequestHeaders().getFirst("Origin");
@@ -141,7 +142,7 @@ public final class StudioServer {
     private void asset(HttpExchange ex, String path) throws IOException {
         if (path.equals("/next") || path.startsWith("/next/")) { ex.getResponseHeaders().set("Location", base + "/"); send(ex, 302, "text/plain", "Moved"); return; }
         if ((path.equals("/") || path.equals("/index.html")) && StudioServer.class.getResource("/studio-next/index.html") == null) {
-            send(ex, 503, "text/plain; charset=utf-8", "Agent Studio's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist");
+            send(ex, 503, "text/plain; charset=utf-8", "One AgentStudio's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist");
             return;
         }
         nextAsset(ex, path.substring(1));
@@ -178,7 +179,7 @@ public final class StudioServer {
     private void api(HttpExchange ex, String method, String route) throws IOException {
         if (method.equals("GET") && route.equals("info")) {
             Map<String, Object> info = new LinkedHashMap<>();
-            info.put("product", "ONEOFFICEAUTOMATION One Agent Studio");
+            info.put("product", "ONEOFFICEAUTOMATION One AgentStudio");
             info.put("edition", "preview");
             info.put("workspace", workspace.toString());
             info.put("controlRoom", sameServerControlRoom == null ? null : "/");
@@ -207,8 +208,8 @@ public final class StudioServer {
                         a.put("variables", f.getOrDefault("variables", List.of()));
                         // the agents it runs (Run agent steps), for the "Run by" note in Studio
                         Set<Object> runs = new LinkedHashSet<>();
-                        if (f.get("steps") instanceof List<?> steps)
-                            for (Map<String, Object> st : Steps.walk((List<Object>) steps))
+                        if (f.get("steps") instanceof List<?>)
+                            for (Map<String, Object> st : Steps.walkFlow(f))
                                 if ("core/run_bot".equals(st.get("action")) && st.get("args") instanceof Map<?, ?> args && args.get("automation") instanceof String id && !id.isBlank()) runs.add(id);
                         a.put("runs", new ArrayList<>(runs));
                         agents.add(a);
@@ -243,8 +244,8 @@ public final class StudioServer {
             Map<String, Object> b = (Map<String, Object>) body(ex);
             String path = String.valueOf(b.getOrDefault("path", ""));
             String result = switch (route.substring(6)) {
-                case "copy" -> ws.copy(path, String.valueOf(b.getOrDefault("to", "")));
-                case "duplicate" -> renameDuplicatedAgent(ws.duplicate(path));
+                case "copy" -> giveCopyItsOwnId(ws.copy(path, String.valueOf(b.getOrDefault("to", ""))));
+                case "duplicate" -> giveCopyItsOwnId(ws.duplicate(path));
                 case "reveal" -> reveal(path);
                 case "folder" -> ws.createFolder(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")));
                 case "bot" -> ws.createBot(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")),
@@ -267,7 +268,7 @@ public final class StudioServer {
                 sendJson(ex, 200, Map.of("saved", ws.writeItem(rel, text, json::parse)));
             } else send(ex, 405, "text/plain", "Method not allowed");
         } else if (route.equals("model-connections") && method.equals("GET")) {
-            // One Model Connections (model-connections.json); "connections" are the saved connector connections below
+            // Model Connections (model-connections.json); "connections" are the saved connector connections below
             Path f = ws.root.resolve("model-connections.json");
             sendJson(ex, 200, Files.isRegularFile(f) ? json.parse(Files.readString(f)) : Map.of("default", "", "connections", List.of()));
         } else if (route.equals("model-connections") && method.equals("PUT")) {
@@ -302,12 +303,14 @@ public final class StudioServer {
                 st.put("sameServer", sameServerControlRoom != null);
                 sendJson(ex, 200, st);
             }
-            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"), (String) b.get("code"))); }
+            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"), (String) b.get("code"), Boolean.TRUE.equals(b.get("accepted")))); }
             else if (method.equals("POST") && r.equals("disconnect")) { cr.disconnect(); sendJson(ex, 200, cr.status()); }
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
-            else if (method.equals("POST") && r.equals("checkout")) sendJson(ex, 200, cr.checkout((String) ((Map<String, Object>) body(ex)).get("path"), json));
+            else if (method.equals("POST") && r.equals("checkout")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkout((String) b.get("path"), b.get("version"), json)); }
             else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), json)); }
+            else if (method.equals("GET") && r.equals("states")) sendJson(ex, 200, cr.states(json));
+            else if (method.equals("POST") && r.equals("revert")) sendJson(ex, 200, cr.revert((String) ((Map<String, Object>) body(ex)).get("local"), json));
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");
         } else if (method.equals("POST") && route.equals("runs")) {
@@ -417,7 +420,7 @@ public final class StudioServer {
             if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "Agent Studio capture");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "One AgentStudio capture");
             flow.put("variables", List.of(Map.of("name", "selector", "type", "String", "direction", "output"), Map.of("name", "element", "type", "Dictionary", "direction", "output"),
                     Map.of("name", "object", "type", "Dictionary", "direction", "output"), Map.of("name", "alternatives", "type", "Dictionary", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
@@ -437,7 +440,7 @@ public final class StudioServer {
             if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_test"); flow.put("name", "Agent Studio capture test");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_test"); flow.put("name", "One AgentStudio capture test");
             flow.put("variables", List.of(Map.of("name", "count", "type", "Number", "direction", "output"), Map.of("name", "first", "type", "Dictionary", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
@@ -467,7 +470,7 @@ public final class StudioServer {
             savedConnections(ex, method, route.equals("connections") ? null : route.substring("connections/".length()));
         } else if (method.equals("GET") && route.equals("builtins")) {
             Runner probe = runner(new EventSink.ListSink());
-            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "Agent Studio", "variables",
+            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "One AgentStudio", "variables",
                     List.of(Map.of("name", "s", "type", "Any", "direction", "output"), Map.of("name", "g", "type", "Any", "direction", "output")),
                     "steps", List.of(Map.of("id", "a", "action", "core/set", "args", Map.of("variable", "s", "value", "$sys")),
                             Map.of("id", "b", "action", "core/set", "args", Map.of("variable", "g", "value", "$global"))));
@@ -482,7 +485,7 @@ public final class StudioServer {
                 throw desktop ? new OoaException("STUDIO.NO_DESKTOP_MODULE", "The Windows desktop module is not installed", "Add packages-windows to ooa.optionalModules in gradle.properties.")
                         : new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "Agent Studio recorder");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "One AgentStudio recorder");
             flow.put("variables", List.of(Map.of("name", "steps", "type", "List", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             if (!desktop) {
@@ -545,7 +548,7 @@ public final class StudioServer {
         Map<String, Object> args = new LinkedHashMap<>();
         for (String k : List.of("timeout_seconds", "screenshot", "highlight")) if (req.get(k) != null) args.put(k, req.get(k));
         Map<String, Object> flow = new LinkedHashMap<>();
-        flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_desktop"); flow.put("name", "Agent Studio desktop capture");
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_desktop"); flow.put("name", "One AgentStudio desktop capture");
         flow.put("variables", List.of(Map.of("name", "object", "type", "Dictionary", "direction", "output")));
         flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.desktop_ui/pick_object", "args", args, "out", Map.of("object", "object"))));
         RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
@@ -567,7 +570,7 @@ public final class StudioServer {
         if (!eps.isBlank()) args.put("endpoints", Arrays.stream(eps.split(",")).map(String::trim).filter(e -> !e.isEmpty()).toList());
         args.put("include_desktop", !"false".equalsIgnoreCase(q.getOrDefault("desktop", "true")));
         Map<String, Object> flow = new LinkedHashMap<>();
-        flow.put("kind", "TaskBot"); flow.put("id", "studio_list_windows"); flow.put("name", "Agent Studio window list");
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_list_windows"); flow.put("name", "One AgentStudio window list");
         flow.put("variables", List.of(Map.of("name", "windows", "type", "List", "direction", "output")));
         flow.put("steps", List.of(Map.of("id", "list", "action", "ooa.browser/list_windows", "args", args, "out", Map.of("windows", "windows"))));
         RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(60));
@@ -584,16 +587,20 @@ public final class StudioServer {
     private static final int MAX_UPLOAD = 50 * 1024 * 1024;
     private static final long MAX_DOWNLOAD = 200L * 1024 * 1024;
 
-    /** A duplicated agent gets its own agent id (from its new name), so it does not clash with the original at check-in. */
+    /**
+     * A copied or duplicated agent gets its own agent id (from its new name; with "_copy" when the name, and so the id,
+     * stayed the same in another folder), so it does not clash with the original at check-in.
+     */
     @SuppressWarnings("unchecked")
-    private String renameDuplicatedAgent(String rel) throws IOException {
+    private String giveCopyItsOwnId(String rel) throws IOException {
         if (!rel.endsWith(Workspace.BOT_SUFFIX)) return rel;
         Path p = ws.resolve(rel);
         try {
             Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
             String name = p.getFileName().toString();
             name = name.substring(0, name.length() - Workspace.BOT_SUFFIX.length());
-            flow.put("id", name.trim().replaceAll("[^A-Za-z0-9_.-]+", "_"));
+            String id = name.trim().replaceAll("[^A-Za-z0-9_.-]+", "_");
+            flow.put("id", id.equals(String.valueOf(flow.get("id"))) ? id + "_copy" : id);
             flow.put("name", name);
             Files.writeString(p, json.write(flow, true));
         } catch (RuntimeException unreadable) { /* not a valid agent file: keep the plain copy */ }
@@ -705,9 +712,9 @@ public final class StudioServer {
     }
 
     /**
-     * The AI assistant: turns a description into agent steps using a One Model Connection. The model gets the action
+     * The AI assistant: turns a description into agent steps using a Model Connection. The model gets the action
      * catalog (ids, names, required inputs) and the agent's variables, answers with JSON, and the result is validated
-     * before Agent Studio shows it for review.
+     * before One AgentStudio shows it for review.
      */
     @SuppressWarnings("unchecked")
     Map<String, Object> assistantBuild(Map<String, Object> req) {
@@ -730,14 +737,21 @@ public final class StudioServer {
                 + "{\"variables\": [{\"name\", \"type\", \"direction\"?: \"input\"|\"output\", \"default\"?}], \"steps\": [step...], \"notes\": \"short explanation\"}. "
                 + "A step is {\"id\": \"a1\", \"action\": \"package/action\", \"args\": {input: value}, \"out\": {output: variableName}}. "
                 + "Containers: core/if has \"args\": {\"condition\": {\"op\": \"eq|ne|gt|ge|lt|le|contains|empty|notEmpty\", \"left\", \"right\"}}, \"children\" and \"else\"; "
+                + "core/switch has \"args\": {\"value\": \"$status\", \"match\"?: \"equals|contains|starts_with|ends_with|regex|expression\"}, "
+                + "\"cases\": [{\"values\": [v1, v2], \"children\": []}] (only the first matching case runs) and \"default\": []; "
                 + "core/loop has \"args\": {\"iterator\": \"list|times|table_rows|dictionary|while\", \"over\" or \"count\", \"as\"} and \"children\"; "
                 + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
+                + "To set several variables at once use core/set_many with \"args\": {\"assignments\": [{\"variable\": \"name\", \"value\": ...}]}, run in order. "
+                + "Errors no Try catches end the agent; its On error steps (flow \"onError\", edited apart from these steps) then run once, so answer with steps for the request only. "
+                + "core/run_subflow {\"subflow\": name} runs one of the agent's subflows (named step lists sharing its variables"
+                + (Steps.subflows(flow).isEmpty() ? "; this agent has none" : "; this agent's: " + String.join(", ", Steps.subflows(flow).keySet())) + "). "
+                + "core/label {\"name\"} marks a place; core/goto {\"label\"} carries on from a label in the same step list or a list around it (prefer core/loop). "
                 + "Reference variables as $name, or inside text as ${name}. Declare every variable you use. Types: String, Number, Boolean, DateTime, List, "
-                + "Dictionary, Table, Record, File, Credential, Any. Secrets are Credential inputs. Use only actions from this catalog "
+                + "Dictionary, Table, Record, File, Credential, Any, Time, TimeSpan, Image, Binary. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
         String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
         Map<String, Object> run = new LinkedHashMap<>();
-        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "Agent Studio assistant");
+        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "One AgentStudio assistant");
         // The texts go in as inputs, so their $name and ${...} examples are never read as variable references.
         run.put("variables", List.of(Map.of("name", "answer", "type", "String", "direction", "output"),
                 Map.of("name", "request", "type", "String", "direction", "input"), Map.of("name", "instructions", "type", "String", "direction", "input")));
@@ -761,6 +775,9 @@ public final class StudioServer {
         check.putIfAbsent("kind", "TaskBot"); check.putIfAbsent("id", "check"); check.putIfAbsent("name", "check");
         check.put("variables", vars);
         check.put("steps", answer.getOrDefault("steps", List.of()));
+        // the agent's subflows by name only, so Run subflow steps check but their steps' ids do not clash with new ones
+        if (flow.containsKey("subflows"))
+            check.put("subflows", Steps.subflows(flow).keySet().stream().map(n -> (Object) Map.of("name", n, "steps", List.of())).toList());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("variables", answer.getOrDefault("variables", List.of()));
         out.put("steps", answer.getOrDefault("steps", List.of()));
@@ -784,13 +801,13 @@ public final class StudioServer {
                 try {
                     Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
                     botsById.putIfAbsent(String.valueOf(f.get("id")), r);
-                    stepsByBot.put(r, com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of())));
+                    stepsByBot.put(r, com.oneofficeautomation.runner.Steps.walkFlow(f));
                 } catch (RuntimeException ignored) { /* unreadable bot */ }
             }
         }
         List<Map<String, Object>> bots = new ArrayList<>(), scripts = new ArrayList<>(), skills = new ArrayList<>(), files = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             String action = String.valueOf(step.get("action"));
             Map<String, Object> args = step.get("args") instanceof Map ? (Map<String, Object>) step.get("args") : Map.of();
             List<String> botIds = new ArrayList<>();
@@ -852,7 +869,7 @@ public final class StudioServer {
                     Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
                     if (String.valueOf(f.getOrDefault("description", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("description");
                     if (String.valueOf(f.getOrDefault("id", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("agent id");
-                    for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+                    for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walkFlow(f)) {
                         String a = String.valueOf(step.get("action"));
                         String name = names.getOrDefault(a, "");
                         if ((a + " " + name + " " + step.getOrDefault("description", "")).toLowerCase(Locale.ROOT).contains(needle)) { why.add("uses " + a); break; }

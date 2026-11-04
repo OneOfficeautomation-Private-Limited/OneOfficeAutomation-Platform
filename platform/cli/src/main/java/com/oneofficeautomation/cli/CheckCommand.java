@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.*;
 
 /**
- * {@code ooa check}: whether this computer is ready for a Command Center (I10), before installing or when something is
+ * {@code ooa check}: whether this computer is ready for One CommandCenter (I10), before installing or when something is
  * wrong. Each line is PASS, WARN or FAIL with what to do; the exit code is the number of FAILs. Read-only: it changes
  * nothing. Options: [--data DIR] [--port N].
  */
@@ -62,7 +62,7 @@ final class CheckCommand {
         List<Result> r = new ArrayList<>();
         String os = System.getProperty("os.name") + " " + System.getProperty("os.version");
         boolean windows = os.toLowerCase(Locale.ROOT).contains("win");
-        r.add(new Result(windows ? "PASS" : "WARN", "Operating system", os + (windows ? "" : ": supported for the Command Center, but runners that use the screen need Windows")));
+        r.add(new Result(windows ? "PASS" : "WARN", "Operating system", os + (windows ? "" : ": supported for One CommandCenter, but runners that use the screen need Windows")));
         r.add(new Result(System.getProperty("os.arch").contains("64") ? "PASS" : "FAIL", "64-bit", System.getProperty("os.arch")));
         r.add(new Result("PASS", "Java", System.getProperty("java.version") + " in " + System.getProperty("java.home")));
         long mb = 0;
@@ -79,7 +79,7 @@ final class CheckCommand {
             r.add(new Result(writable ? "PASS" : "FAIL", "Data folder", data + (writable ? "" : ": no write access for " + System.getProperty("user.name"))));
             r.add(new Result(free >= 2048 ? "PASS" : free >= 200 ? "WARN" : "FAIL", "Free disk space", free / 1024 + " GB free" + (free < 2048 ? " (2 GB or more recommended)" : "")));
         }
-        // the port: free, or already used by a Command Center
+        // the port: free, or already used by One CommandCenter
         try (ServerSocket s = new ServerSocket()) {
             s.bind(new InetSocketAddress(port));
             r.add(new Result("PASS", "Port " + port, "free"));
@@ -90,7 +90,7 @@ final class CheckCommand {
                 c.setConnectTimeout(2000); c.setReadTimeout(2000);
                 ours = c.getResponseCode() == 200;
             } catch (Exception ignored) { }
-            r.add(new Result(ours ? "PASS" : "FAIL", "Port " + port, ours ? "a Command Center already answers on it" : "used by another program: stop it or choose another port (--port)"));
+            r.add(new Result(ours ? "PASS" : "FAIL", "Port " + port, ours ? "One CommandCenter already answers on it" : "used by another program: stop it or choose another port (--port)"));
         }
         // the database configuration, when there is one
         Path cfgFile = DbConfig.defaultFile(data);

@@ -73,7 +73,10 @@ fun libraryPath(bat: File) = bat.writeText(bat.readText().replace(Regex("(?m)^se
 tasks.named<CreateStartScripts>("startScripts") { doLast { libraryPath(outputDir!!.resolve("ooa.bat")) } }
 
 // the sample tasks run whole agents (browser, OCR on screen images, mail and directory servers) in the test JVM
-tasks.named<Test>("test") { maxHeapSize = "2g" }
+// 3g since the gap branches were merged (665 samples): the cases with child agents or credentials each build their
+// own registry, and about 100 of them stay reachable until the test class ends (a registry and a runner on their own
+// are freed, so it is something these cases' toolkits keep; see MERGE-1 in the gap tracker)
+tasks.named<Test>("test") { maxHeapSize = "3g" }
 
 // Load and soak (Q5): gradlew :cli:loadTest [-Pooa.load.runners=100 -Pooa.load.items=2000 -Pooa.load.audit=100000]
 tasks.register<Test>("loadTest") {

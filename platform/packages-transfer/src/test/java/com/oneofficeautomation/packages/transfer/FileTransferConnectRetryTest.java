@@ -58,6 +58,9 @@ class FileTransferConnectRetryTest {
                             case "CWD" -> arg.equals("/in") || arg.equals(".") ? "250 Folder changed" : "550 No such folder";
                             case "PWD" -> "257 \"" + cwd + "\" is the current folder";
                             case "QUIT" -> "221 Bye";
+                            case "FEAT" -> "211-Features:\r\n MDTM\r\n SIZE\r\n UTF8\r\n211 End";
+                            case "SYST" -> "215 UNIX Type: L8";
+                            case "SITE" -> arg.toUpperCase(Locale.ROOT).startsWith("CHMOD ") ? "200 SITE CHMOD command successful" : "504 SITE command not supported";
                             default -> "502 Not implemented";
                         };
                         if (cmd.equals("CWD") && arg.equals("/in")) cwd = "/in";

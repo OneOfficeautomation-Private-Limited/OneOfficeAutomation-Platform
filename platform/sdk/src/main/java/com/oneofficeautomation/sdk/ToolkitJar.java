@@ -94,7 +94,7 @@ public final class ToolkitJar {
         } finally { Files.deleteIfExists(tmp); }
     }
 
-    /** A publisher's public key as Base64 (X.509), the form the Command Center's trusted publishers take. */
+    /** A publisher's public key as Base64 (X.509), the form One CommandCenter's trusted publishers take. */
     public static String encode(PublicKey key) { return Base64.getEncoder().encodeToString(key.getEncoded()); }
 
     public static PublicKey publicKey(String b64) {
@@ -104,7 +104,7 @@ public final class ToolkitJar {
         }
     }
 
-    /** Writes a new publisher key pair: name.key (private, keep it safe) and name.pub (give it to Command Center admins). */
+    /** Writes a new publisher key pair: name.key (private, keep it safe) and name.pub (give it to One CommandCenter admins). */
     public static PackageSigning.PublisherKey keygen(String publisher, Path dir) throws IOException {
         PackageSigning.PublisherKey k = PackageSigning.PublisherKey.generate(publisher);
         Files.createDirectories(dir);

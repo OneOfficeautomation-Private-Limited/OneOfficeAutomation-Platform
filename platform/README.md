@@ -56,7 +56,7 @@ one counts. `source <(ooa completion)` adds Tab completion to bash and zsh. The 
 `.\gradlew.bat :cli:nativeExecutable` builds `cli\build\native\ooa.exe` (or `ooa` on Linux and macOS) with GraalVM
 for JDK 21 (`GRAALVM_HOME`, or `JAVA_HOME` pointing at GraalVM; on Windows run it from a Visual Studio developer
 prompt). It starts at once and needs no Java runtime, for build pipelines and quick checks, and has the commands that
-need no Command Center: `validate`, `run`, `manifest`, `conformance`, `license show` and `release verify`. It knows
+need no One CommandCenter: `validate`, `run`, `manifest`, `conformance`, `license show` and `release verify`. It knows
 every toolkit's commands, so `validate` checks any automation, but `run` runs only the built-in toolkits: an Office,
 email, PDF, browser or Windows desktop step stops with `ACTION.NOT_IN_THIS_PROGRAM`; run those with the full install
 (`bin\ooa.bat`) or on a runner. CI builds it on Linux and Windows, checks that it gives the Java program's answers,
@@ -99,7 +99,7 @@ run console with outputs, errors and run log; JSON view.
 
 Studio (Part 3): an **Automation** home lists everything in the workspace with type filters, search and sorting, and a
 **+ Create** menu makes Task Bots, API Tasks, bots from templates, **Forms** (`*.form.json`, form designer with preview),
-**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; they run on One Command Center,
+**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; they run on One CommandCenter,
 with human tasks in its Task inbox), **Document automations** (`*.doc.json`, fields to extract; generates an AI extraction bot), **AI Skills**
 (`ai-skills/*.json`, prompt editor) and **scripts** (Python, PowerShell, VBScript, JavaScript; code editor with Run).
 Commands, canvas steps and If/Loop/Try blocks are colour-coded by category. The **Variables** pane groups inputs, outputs
@@ -116,7 +116,7 @@ starting (e.g. `test/api/token` reads `OOA_SECRET_TEST_API_TOKEN`).
 In IntelliJ IDEA: File > Open, select the `platform` folder, and trust the Gradle project.
 
 The Studio preview is a developer workbench: it binds to 127.0.0.1 only, refuses cross-site requests and only
-touches files in its workspace. `ooa server` serves the same Studio from One Command Center, at `/studio/`.
+touches files in its workspace. `ooa server` serves the same Studio from One CommandCenter, at `/studio/`.
 
 ## Writing a package
 
@@ -138,16 +138,16 @@ agents read them.
 
 ## What is in the platform now
 
-- **One Agent Studio**: agents, headless API agents, forms, workflows, document intelligence, Prompt Skills and scripts;
-  debugger with breakpoints, Quick add, flow view, AI assistant, One Model Connections and custom connectors.
+- **One AgentStudio**: agents, headless API agents, forms, workflows, document intelligence, Prompt Skills and scripts;
+  debugger with breakpoints, Quick add, flow view, AI assistant, Model Connections and custom connectors.
 - **Toolkits**: core logic and data, files, Office (Excel, Word, PowerPoint), Microsoft 365, Google Workspace, email,
   PDF, browser, Windows, databases, REST/SOAP and custom connectors (OpenAPI, Swagger, Postman), and enterprise apps
   (Salesforce, ServiceNow, Jira, Slack, Workday, SAP GUI, Active Directory, terminal, GitHub, Azure DevOps, Asana,
   Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka), plus generative AI, AI agents and Prompt Skills.
   See `../docs/COMMAND_CATALOG.md`.
-- **One Command Center**: agent repository, Agent Runs, runners and runner pools, schedules with holiday calendars,
-  triggers, work queues, One Workflow with a Task inbox, One Agent Vault with external vaults, shared values, users,
-  custom roles, API keys, single sign-on, AI governance, an MCP server for AI assistants, and the One Audit Trail.
+- **One CommandCenter**: agent repository, Agent Activity, runners and runner pools, schedules with holiday calendars,
+  triggers, work queues, Workflow with a Task inbox, Credential vault with external vaults, shared values, users,
+  custom roles, API keys, single sign-on, AI governance, an MCP server for AI assistants, and the Audit Trail.
 
 ## Next slices
 
@@ -155,5 +155,5 @@ Production hardening: PF4J classloader isolation and a compile-time manifest pro
 introspection, a push channel instead of polling for live views, signed custom toolkit uploads, Git sync for the agent
 repository, SAP BAPI (needs the customer's SAP JCo), and macOS and Linux runners.
 
-One Command Center and One Runner setup: see `../docs/user-guide/00-README.md`. The multi-tenant service in
+One CommandCenter and OneRunner setup: see `../docs/user-guide/00-README.md`. The multi-tenant service in
 regions (`ooa region start`, `ooa directory start`): see `../docs/infrastructure/09-saas-and-multi-region-operations.md`.

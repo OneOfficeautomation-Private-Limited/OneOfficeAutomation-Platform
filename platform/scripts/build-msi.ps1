@@ -57,7 +57,7 @@ $unconfigure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[
 $wxs = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="ONEOFFICEAUTOMATION" Manufacturer="ONEOFFICEAUTOMATION" Version="$version" UpgradeCode="5D636A94-CAEF-4BB5-A14E-8DD07D1EC2F8" Scope="perMachine">
-    <SummaryInformation Description="ONEOFFICEAUTOMATION $version (Command Center, Agent Studio and runner, with Java)" />
+    <SummaryInformation Description="ONEOFFICEAUTOMATION $version (One CommandCenter, One AgentStudio and runner, with Java)" />
     <MajorUpgrade DowngradeErrorMessage="A newer ONEOFFICEAUTOMATION is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Property Id="ARPNOMODIFY" Value="1" />
@@ -82,7 +82,7 @@ $($tree.ToString())      </Directory>
     <ComponentGroup Id="ProductFiles">
 $($components.ToString())    </ComponentGroup>
     <Component Id="MenuShortcut" Directory="MenuFolder" Bitness="always64">
-      <Shortcut Id="StartShortcut" Name="ONEOFFICEAUTOMATION" Description="Start the Command Center and Agent Studio" Target="[INSTALLFOLDER]START-OOA.cmd" WorkingDirectory="INSTALLFOLDER" />
+      <Shortcut Id="StartShortcut" Name="ONEOFFICEAUTOMATION" Description="Start One CommandCenter and One AgentStudio" Target="[INSTALLFOLDER]START-OOA.cmd" WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveMenuFolder" On="uninstall" />
       <RegistryValue Root="HKLM" Key="Software\ONEOFFICEAUTOMATION" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
     </Component>

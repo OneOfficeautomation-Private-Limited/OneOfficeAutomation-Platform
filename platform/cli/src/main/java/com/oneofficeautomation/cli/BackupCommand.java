@@ -7,7 +7,7 @@ import java.nio.file.*;
 import java.util.*;
 
 /**
- * {@code ooa backup}: backups of the Command Center (see Backups). Stop the server for restore.
+ * {@code ooa backup}: backups of One CommandCenter (see Backups). Stop the server for restore.
  * <pre>
  * ooa backup now [--data DIR]                 make a backup into the backup folder (Settings, or data\backups)
  * ooa backup list [--data DIR]                the backups there, newest first
@@ -47,7 +47,7 @@ final class BackupCommand {
                     @SuppressWarnings("unchecked") Map<String, Object> t = (Map<String, Object>) r.get("tables");
                     long rows = t.values().stream().mapToLong(v -> ((Number) v).longValue()).sum();
                     System.out.println("Restored the backup of " + r.get("created") + ": " + rows + " rows in " + t.size() + " tables, and the repository and configuration files.");
-                    System.out.println("Start the Command Center again.");
+                    System.out.println("Start One CommandCenter again.");
                 }
                 return 0;
             }

@@ -21,6 +21,7 @@ describe("steps view", () => {
     expect(describeAction("core/if", packages)).toMatchObject({ name: "If", toolkit: "Flow" });
     expect(describeAction("ooa.unknown/do_thing", packages).name).toBe("do thing");
     expect(toolkitMark("ooa.outlook").icon).toBe("mail");
+    expect(toolkitMark("ooa.exchange").icon).toBe("mail");
     expect(toolkitMark("ooa.genai").icon).toBe("spark");
     expect(toolkitMark("ooa.datatable")).toEqual({ color: "#1e40af", icon: "code" });
     expect(toolkitMark("ooa.something_new").color).toBe("#334155");
@@ -29,6 +30,8 @@ describe("steps view", () => {
   it("summarises a step's settings and outputs", () => {
     expect(summarize({ id: "x", action: "ooa.excel/open", args: { path: "$workbook", sheet: "" }, out: { table: "invoices" } })).toBe("path: $workbook · → $invoices");
     expect(summarize({ id: "x", action: "core/log", note: "Say hello" })).toBe("Say hello");
+    expect(summarize({ id: "x", action: "core/set_many", args: { assignments: [{ variable: "n", value: 0 }, { variable: "t", value: { expr: "$n + 1" } }] } }))
+      .toBe("$n = 0 · $t = $n + 1");
   });
 
   it("writes conditions and values in plain words, as Classic Studio does", () => {
@@ -38,6 +41,8 @@ describe("steps view", () => {
     expect(conditionText({ op: "eq", left: "$ok", right: true })).toBe("$ok is true");
     expect(plainValue({ expr: "toString(round($total, 2))" })).toBe("round($total, 2)");
     expect(plainValue({ source: "credential", name: "sap/password" })).toBe("credential sap/password");
+    expect(plainValue({ $binary: "iVBO".repeat(500), mime: "image/png", width: 3, height: 2 })).toBe("Image 3x2");
+    expect(plainValue({ $binary: "aGk=", mime: "application/octet-stream" })).toBe("Binary 2 bytes");
     expect(summarize({ id: "i", action: "core/if", args: { condition: { op: "gt", left: "$days", right: "$policy.window_days" } } }))
       .toBe("$days is greater than $policy.window_days");
   });

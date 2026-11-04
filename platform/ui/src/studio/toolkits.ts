@@ -1,6 +1,7 @@
 import type { IconName } from "../components";
-import type { FlowStep, PackageManifest } from "../api/client";
+import type { Flow, FlowStep, PackageManifest } from "../api/client";
 import { innerLists, type Part } from "./flowEdit";
+import { binarySummary } from "./variables";
 
 /** Colour and icon of a toolkit, so steps and the action library share one mark per toolkit (approved look). */
 export type Mark = { color: string; icon: IconName };
@@ -9,7 +10,7 @@ export type Mark = { color: string; icon: IconName };
 // icons at 3:1 or more. The first match wins, so the specific families come before the broad ones.
 const BY_TOOLKIT: [RegExp, Mark][] = [
   [/excel|csv/, { color: "#1d7a46", icon: "grid" }],
-  [/outlook|email|microsoft365|slack/, { color: "#0f6cbd", icon: "mail" }],
+  [/outlook|email|microsoft365|exchange|slack/, { color: "#0f6cbd", icon: "mail" }],
   [/ai_agent|ai_skills|genai|knowledge|web_agent|insights/, { color: "#7c3aed", icon: "spark" }],
   [/pdf|ocr|word|powerpoint|docusign|image/, { color: "#6d28d9", icon: "doc" }],
   [/browser|rest|soap|connector|network|kafka/, { color: "#c2410c", icon: "globe" }],
@@ -17,19 +18,21 @@ const BY_TOOLKIT: [RegExp, Mark][] = [
   [/database|snowflake|databricks/, { color: "#334155", icon: "db" }],
   [/sap|terminal|java_apps|desktop|window|application|dll|services|printer|sound|system|credential_manager/, { color: "#475569", icon: "desk" }],
   [/forms|interrupts/, { color: "#0f766e", icon: "person" }],
-  [/asana|jira|zendesk|servicenow|salesforce|workday|github|azure_devops|google|okta|active_directory|aws_ec2/, { color: "#0e7490", icon: "process" }],
+  [/asana|jira|zendesk|servicenow|salesforce|workday|github|azure_devops|google|okta|active_directory|aws_ec2|azure_vm|aws_ai|azure_ai|google_ai/, { color: "#0e7490", icon: "process" }],
   [/file|folder|box|file_transfer|log|pgp|crypto/, { color: "#a16207", icon: "folder" }],
   [/datatable|dictionary|list|json|xml|string|number|boolean|datetime|currency|fuzzy|global_values|run_context/, { color: "#1e40af", icon: "code" }],
 ];
 
 const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/if": { name: "If", mark: { color: "#b45309", icon: "branch" } },
+  "core/switch": { name: "Switch", mark: { color: "#b45309", icon: "branch" } },
   "core/loop": { name: "Loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/try": { name: "Try", mark: { color: "#b91c1c", icon: "bug" } },
   "core/parallel": { name: "Run at the same time", mark: { color: "#0e7490", icon: "process" } },
   "core/step": { name: "Step group", mark: { color: "#334155", icon: "folder" } },
   "core/run_bot": { name: "Run agent", mark: { color: "#2f6fde", icon: "play" } },
   "core/set": { name: "Set value", mark: { color: "#334155", icon: "code" } },
+  "core/set_many": { name: "Set several values", mark: { color: "#334155", icon: "code" } },
   "core/log": { name: "Write to log", mark: { color: "#334155", icon: "doc" } },
   "core/comment": { name: "Comment", mark: { color: "#475569", icon: "doc" } },
   "core/delay": { name: "Wait", mark: { color: "#475569", icon: "pulse" } },
@@ -37,6 +40,10 @@ const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/throw": { name: "Raise an error", mark: { color: "#b91c1c", icon: "bug" } },
   "core/break": { name: "Leave the loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/continue": { name: "Next round of the loop", mark: { color: "#0e7490", icon: "loop" } },
+  "core/run_subflow": { name: "Run subflow", mark: { color: "#2f6fde", icon: "play" } },
+  "core/exit_subflow": { name: "Exit subflow", mark: { color: "#2f6fde", icon: "up" } },
+  "core/label": { name: "Label", mark: { color: "#b45309", icon: "star" } },
+  "core/goto": { name: "Go to", mark: { color: "#b45309", icon: "branch" } },
 };
 
 const OTHER: Mark = { color: "#334155", icon: "code" };
@@ -61,8 +68,8 @@ export function describeAction(action: string, packages: PackageManifest[]): { n
 export function actionsUsed(steps: FlowStep[] | undefined, out = new Set<string>()): Set<string> {
   for (const s of steps ?? []) {
     out.add(s.action);
-    actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out);
-    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? [])]) actionsUsed(b.children, out);
+    actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out); actionsUsed(s.default, out);
+    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? []), ...(s.cases ?? [])]) actionsUsed(b.children, out);
   }
   return out;
 }
@@ -82,9 +89,9 @@ export type StepRow = { kind: "step"; n: number; depth: number; step: FlowStep; 
 const countSteps = (s: FlowStep): number => innerLists(s).reduce((n, l) => n + l.reduce((m, x) => m + 1 + countSteps(x), 0), 0);
 
 /** Flattens the steps for the numbered view, in the order they run. Line numbers count the steps of folded blocks too. */
-export function stepRows(steps: FlowStep[], folded: Set<string> = new Set()): StepRow[] {
+export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), first = 0): StepRow[] {
   const rows: StepRow[] = [];
-  let n = 0;
+  let n = first;
   const walk = (list: FlowStep[] | undefined, depth: number) => {
     for (const s of list ?? []) {
       const fold = folded.has(s.id) && innerLists(s).length > 0;
@@ -97,10 +104,23 @@ export function stepRows(steps: FlowStep[], folded: Set<string> = new Set()): St
       if (s.else) sec("Else", "else", s.else);
       (s.catch ?? []).forEach((c, k) => sec(c.codes?.length ? "Catch " + c.codes.join(", ") : "Catch (any error)", `catch:${k}`, c.children));
       if (s.finally) sec("Finally (always)", "finally", s.finally);
+      (s.cases ?? []).forEach((c, k) => sec(caseText(c.values, s.args?.match), `cases:${k}`, c.children));
+      if (s.default) sec("Default (no case matched)", "default", s.default);
     }
   };
   walk(steps, 0);
   return rows;
+}
+
+/**
+ * The rows of the whole agent: its steps, then its error handler's (On error), numbered on from the last line as the
+ * runner numbers them; handlerFrom is where the handler's rows start.
+ */
+export function agentRows(flow: Flow, folded: Set<string> = new Set()): { rows: StepRow[]; handlerFrom: number } {
+  const main = stepRows(flow.steps, folded);
+  if (!flow.onError) return { rows: main, handlerFrom: main.length };
+  const lines = flow.steps.reduce((n, s) => n + 1 + countSteps(s), 0);
+  return { rows: [...main, ...stepRows(flow.onError.steps ?? [], folded, lines)], handlerFrom: main.length };
 }
 
 // Comparisons in words, as Classic Studio wrote them, so a step reads the same as before.
@@ -124,6 +144,7 @@ export function plainValue(v: unknown, max = 60): string {
   else if (isObj(v) && typeof v.expr === "string") t = v.expr.replace(/^toString\((.*)\)$/s, "$1");
   else if (isObj(v) && (v.source === "credential" || v.credential)) t = "credential " + String(v.name ?? v.credential ?? "");
   else if (isObj(v) && v.source === "variable" && typeof v.variable === "string") t = v.variable;
+  else if (binarySummary(v)) t = binarySummary(v)!;   // an Image or Binary value: its size, never its bytes
   else { const keys = Object.keys(v as Obj); t = keys.length ? "{" + keys.slice(0, 3).join(", ") + (keys.length > 3 ? ", …" : "") + "}" : "{}"; }
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
 }
@@ -152,9 +173,22 @@ export function conditionText(c: unknown, packages: PackageManifest[] = []): str
   return plainValue(c);
 }
 
-/** A short, readable summary of a step's settings: conditions as sentences, then the first values, then the outputs. */
+// How a Switch compares, in words for its case headings.
+const MATCH_WORDS: Record<string, string> = { contains: "contains", starts_with: "starts with", ends_with: "ends with", regex: "matches" };
+
+/** A Switch case's heading: "Case “a”, “b”", "Case contains “x”", "Case when $n > 5"; "Case (no values)" until it has one. */
+export function caseText(values: unknown[] | undefined, match: unknown, packages: PackageManifest[] = []): string {
+  if (!values?.length) return "Case (no values)";
+  if (match === "expression") return "Case when " + values.map((v) => conditionText(v, packages)).join(" or ");
+  const words = typeof match === "string" ? MATCH_WORDS[match] : undefined;
+  return "Case " + (words ? words + " " : "") + values.map(quoteIfText).join(", ");
+}
+
+/** A short, readable summary of a step's settings:conditions as sentences, then the first values, then the outputs. */
 export function summarize(step: FlowStep, packages: PackageManifest[] = []): string {
   if (step.note) return step.note;
+  if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))
+    return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => "$" + (r.variable ?? "?") + " = " + plainValue(r.value)).join(" · ");
   const parts = Object.entries(step.args ?? {}).filter(([, v]) => v !== "" && v != null).slice(0, 3)
     .map(([k, v]) => k === "condition" ? conditionText(v, packages) : `${k.replace(/_/g, " ")}: ${plainValue(v)}`);
   const out = Object.values(step.out ?? {});

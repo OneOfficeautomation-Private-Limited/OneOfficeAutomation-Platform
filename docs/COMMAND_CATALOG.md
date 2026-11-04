@@ -80,7 +80,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | Hash / Cryptography | ooa.crypto | Built | Hashes, HMAC, AES-256-GCM, RSA encrypt/sign |
 | Integration & system | PGP | ooa.pgp | Built | Needs GnuPG installed; tested with real GnuPG |
 | Integration & system | Credential / Vault | Credential type + Control Room lockers | Built | AES-256-GCM, owners and consumers, just-in-time delivery, audited |
-| Integration & system | Triggers (event) | Studio triggers + Command Center triggers on agents | Built | File, schedule and webhook in both; email (IMAP, Microsoft 365), window, process, hotkey and service triggers on runners |
+| Integration & system | Triggers (event) | Studio triggers + One CommandCenter triggers on agents | Built | File, schedule and webhook in both; email (IMAP, Microsoft 365), window, process, hotkey and service triggers on runners |
 | Integration & system | Salesforce / ServiceNow / Workday / Jira | ooa.salesforce, ooa.servicenow, ooa.workday, ooa.jira | Built | Workday: workers + generic REST/RaaS |
 | Integration & system | GitHub / Azure DevOps / Asana / Zendesk | ooa.github, ooa.azure_devops, ooa.asana, ooa.zendesk | Built | REST toolkits; base URL input for GitHub Enterprise, Azure DevOps Server and Zendesk subdomains |
 | Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |
@@ -89,11 +89,11 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | AI, workload & process | Document Automation / IQ Bot | ooa.documents/send (Send document to process); AI > Document Automation with the DocFlow service | Built | See DOCUMENT_AUTOMATION.md; reading is done by DocFlow (oneoffice-docauto) |
 | AI, workload & process | Knowledge Q&A | ooa.knowledge | Built | Index text, Markdown, HTML, CSV, JSON, XML, .docx and PDF files into one index file (embeddings optional: OpenAI, Azure OpenAI, OpenAI-compatible such as Ollama, Vertex AI, Bedrock Titan/Cohere); search by words (BM25) and meaning; answers that cite their passages and say when the documents do not say |
 | AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock (Converse, SigV4), Google Vertex AI (Gemini; service-account key or token), Hugging Face, Amazon SageMaker endpoints (SigV4), self-hosted; prompts and chats with pictures; picture generation (OpenAI, Azure OpenAI, Vertex AI Imagen, Bedrock); detect language, key phrases, named entities; PII masking; governance log |
-| AI, workload & process | AI Skills / AI Agent | ooa.ai_skills, ooa.ai_agent | Built | Agents call bots as tools; sensitive bots need approval; step and token limits. Prompt Skills kept in the Command Center (shared, versioned, templates) reach runs with the job |
+| AI, workload & process | AI Skills / AI Agent | ooa.ai_skills, ooa.ai_agent | Built | Agents call bots as tools; sensitive bots need approval; step and token limits. Prompt Skills kept in One CommandCenter (shared, versioned, templates) reach runs with the job |
 | AI, workload & process | Web goal agent | ooa.web_agent | Built | Start session, Reach a goal (an AI model works the page: click, type, select, scroll, go to, finish), End session; allowed sites; vault secrets typed through placeholders the model never sees; password-only check |
 | AI, workload & process | Analyze | ooa.insights | Built | Tagged business values; dashboards in the Insights phase |
 | AI, workload & process | Workload | ooa.workload | Built | Local queues with retries and deferral; central queues and SLAs with Control Room |
-| AI, workload & process | Process / Co-Pilot | One Workflow (Studio designer, Command Center runtime, Task inbox) | Built | Agent tasks, human tasks with forms, approvals, decisions and notifications; timeline, cancel, due times |
+| AI, workload & process | Process / Co-Pilot | Workflow (Studio designer, One CommandCenter runtime, Task inbox) | Built | Agent tasks, human tasks with forms, approvals, decisions and notifications; timeline, cancel, due times |
 | AI, workload & process | Bot Store packages | - | Planned | Needs the Hub marketplace; not a command |
 | AI, workload & process | Run context | ooa.run_context | Built |  |
 
@@ -115,10 +115,10 @@ packages (read only, nothing changed). In our own words. Most are in the table a
 - **Same toolkit, other name**: Logging (Log to file), Text file (CSV/TXT), Wait and Delay (Delay / Wait), Datetime
   (DateTime), Credential and Credential Manager (Credential / Vault, Windows Credential Manager), Interactive forms
   (ooa.forms), Process Composer, Process Any/Event/Form/Swimlane/Table/Tasks/UserGroup, Conditional and Process trigger
-  (One Workflow), Gmail and G-Suite Apps (ooa.google), Microsoft 365 Calendar/Excel/OneDrive/Outlook (ooa.microsoft365),
+  (Workflow), Gmail and G-Suite Apps (ooa.google), Microsoft 365 Calendar/Excel/OneDrive/Outlook (ooa.microsoft365),
   JSON utilities, JSON Object Manager and JSONParser (ooa.json), Word and MSWordPackage (ooa.word), Ping and SNMP
   (ooa.network), Service (ooa.services), Image Recognition (ooa.image), OpenAI (ooa.genai model connection), API Task
-  and Python script for API Task (Command Center API tasks), SAP BAPI (ooa.sap, BAPI needs the customer's SAP JCo).
+  and Python script for API Task (One CommandCenter Agent APIs), SAP BAPI (ooa.sap, BAPI needs the customer's SAP JCo).
 - **Built but missing from the table above**: PowerPoint (ooa.powerpoint) and Interrupt handler (ooa.interrupts: a
   block that answers unexpected pop-ups during UI steps). Both added below.
 - **Triggers** (Email, File Folder, Hot key, Interface, Service, Universal web, Window, Microsoft 365 Outlook, and the
@@ -141,7 +141,7 @@ The rest:
 | Aisera | Sends content to Aisera and asks questions of it (2 actions) | ooa.knowledge does the same with our own store | Covered in purpose; a direct Aisera action only if a customer asks |
 | AI (4 actions) | Calls machine-learning and generative models | ooa.genai (Hugging Face, AWS Bedrock and other connections) | Covered |
 | AI Agent (Local) | Runs an AI agent on a chosen runner (1 action) | ooa.ai_agent on any runner | Covered |
-| EnterpriseClaw | Autonomous agents next to the data; on this Control Room only as an outside vendor's package, switched off | ooa.ai_agent and API tasks | Covered in purpose |
+| EnterpriseClaw | Autonomous agents next to the data; on this Control Room only as an outside vendor's package, switched off | ooa.ai_agent and Agent APIs | Covered in purpose |
 | UI Agent - Web | Web automation from a plain-language goal (3 actions) | ooa.web_agent | Covered; a desktop version (Windows UI Automation) could follow |
 | AISense, Legacy AISense | Recording on remote and virtual desktops by screen analysis | ooa.image, ooa.ocr (Citrix / remote desktop row) | Partial, as in that row |
 | Process Discovery | Starts AA's process recorder and window capture for its discovery product | Nothing | **Not needed**: tied to AA's own discovery product |

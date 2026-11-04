@@ -22,7 +22,7 @@ Read the value for a key, or a default when the key is missing.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Dictionary | `dictionary` | Dictionary | Yes |  | Main | Source dictionary. |
-| Key | `key` | Text | Yes |  | Main | Key. |
+| Key | `key` | Text | Yes |  | Main | Key whose value to read (case-sensitive). |
 | Default | `default` | Any | No |  | More options | Value to return when the key is missing. Shown when: `{"fail_if_missing": ["false"]}` |
 | Ignore case | `ignore_case` | Yes/No | No | No | More options | Find the key without regard to upper/lower case. |
 | Fail if missing | `fail_if_missing` | Yes/No | No | No | More options | Fail with DICT.KEY_NOT_FOUND instead of returning the default. |
@@ -40,7 +40,7 @@ Read the value for a key, or a default when the key is missing.
 
 `ooa.dictionary/keys` (action)
 
-List all keys.
+List all keys of a dictionary, in the order they were added.
 
 **Settings**
 
@@ -89,7 +89,7 @@ Add or replace the value for a key.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Dictionary | `dictionary` | Dictionary | Yes |  | Main | Source dictionary. |
-| Key | `key` | Text | Yes |  | Main | Key. |
+| Key | `key` | Text | Yes |  | Main | Key to set; added when the dictionary does not have it yet, its value replaced when it does (keys are case-sensitive). |
 | Value | `value` | Any | No |  | Main | Value. |
 | Only if missing | `only_if_missing` | Yes/No | No | No | More options | Keep the existing value when the key is already there. |
 
@@ -107,7 +107,7 @@ Add or replace the value for a key.
 
 `ooa.dictionary/remove` (action)
 
-Remove a key.
+Remove a key and its value from a dictionary; returns the dictionary without it.
 
 **Settings**
 
@@ -182,7 +182,7 @@ True when the dictionary has the key.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Dictionary | `dictionary` | Dictionary | Yes |  | Main | Dictionary. |
-| Key | `key` | Text | Yes |  | Main | Key. |
+| Key | `key` | Text | Yes |  | Main | Key to look for (case-sensitive). |
 
 ### Contains value
 
@@ -220,5 +220,5 @@ True when the key exists and holds this value.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Dictionary | `dictionary` | Dictionary | Yes |  | Main | Dictionary. |
-| Key | `key` | Text | Yes |  | Main | Key. |
+| Key | `key` | Text | Yes |  | Main | Key whose value to compare (case-sensitive). |
 | Value | `value` | Any | No |  | Main | Expected value. |

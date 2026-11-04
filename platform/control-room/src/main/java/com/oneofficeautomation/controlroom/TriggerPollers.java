@@ -13,7 +13,7 @@ import java.util.concurrent.*;
 import java.util.function.Function;
 
 /**
- * Server-side triggers: the Command Center polls mailboxes (IMAP, Microsoft 365 Outlook), ServiceNow tables and any
+ * Server-side triggers: One CommandCenter polls mailboxes (IMAP, Microsoft 365 Outlook), ServiceNow tables and any
  * HTTP endpoint on each trigger's interval, and starts the trigger's agent once per new message, record or item.
  * Progress is kept in the trigger row: last_hash is the cursor (last UID, received time or update time), and the
  * universal poller keeps short hashes of the item ids it has seen in its config under "_seen".
@@ -79,7 +79,7 @@ public final class TriggerPollers {
                 case "email", "outlook" -> pollMail(mailSources.apply(withSecrets(c)), cfg, cursor, fireExisting);
                 case "servicenow" -> pollServiceNow(cfg, cursor, fireExisting, ref -> secret(c, ref));
                 case "http_poll" -> pollHttp(cfg, cursor, (List<String>) cfg.getOrDefault("_seen", List.of()), fireExisting, ref -> secret(c, ref));
-                default -> throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " is not polled by the Command Center");
+                default -> throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " is not polled by One CommandCenter");
             };
         } catch (IOException | RuntimeException e) {
             String msg = e instanceof IOException ? e.getMessage() : e instanceof OoaException ? e.getMessage() : e.toString();

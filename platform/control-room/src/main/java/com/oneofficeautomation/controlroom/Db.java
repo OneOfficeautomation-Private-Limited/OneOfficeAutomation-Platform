@@ -363,7 +363,7 @@ public final class Db implements AutoCloseable {
 
     /**
      * Version 6: run-as users for schedules and triggers, workflow run references, the code analysis policy and stored
-     * reports, and API tasks (an agent behind its own URL and token).
+     * reports, and Agent APIs (an agent behind its own URL and token).
      */
     private static final String[] SCHEMA_V6 = {
         "ALTER TABLE schedules ADD COLUMN run_as VARCHAR(80)",
@@ -379,7 +379,7 @@ public final class Db implements AutoCloseable {
     /**
      * Version 7: repository files, credential attribute details (description, masked, password fields only), several
      * roles per user and name details, shared values people may change for themselves, runner log level and type,
-     * roles allowed to use a model connection, and Prompt Skills kept in the Command Center.
+     * roles allowed to use a model connection, and Prompt Skills kept in One CommandCenter.
      */
     private static final String[] SCHEMA_V7 = {
         "CREATE TABLE repo_files (path VARCHAR(400) PRIMARY KEY, size BIGINT NOT NULL, sha256 VARCHAR(64) NOT NULL, content_type VARCHAR(120), created TIMESTAMP NOT NULL, " +
@@ -529,14 +529,119 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE schedules ADD COLUMN overlap VARCHAR(10)",
     };
 
-    /** Version 25: where each Document Automation process's email inbox was read up to, and how the last check went. */
+    /**
+     * Version 25: looking after runners (Runners page): a nickname and description; maintenance (drain: let runs
+     * finish, stop: stop them) during which a runner takes no new work; the CPU and memory use it reports and its own
+     * limits above which it takes no new work; when logs or a screen picture were asked for, and the latest of each
+     * (runner_files); the owners and users (roles) of a runner pool.
+     */
     private static final String[] SCHEMA_V25 = {
+        "ALTER TABLE devices ADD COLUMN nickname VARCHAR(120)",
+        "ALTER TABLE devices ADD COLUMN description VARCHAR(1000)",
+        "ALTER TABLE devices ADD COLUMN maintenance VARCHAR(10)",
+        "ALTER TABLE devices ADD COLUMN maintenance_since TIMESTAMP",
+        "ALTER TABLE devices ADD COLUMN maintenance_by VARCHAR(80)",
+        "ALTER TABLE devices ADD COLUMN cpu_pct INT",
+        "ALTER TABLE devices ADD COLUMN mem_pct INT",
+        "ALTER TABLE devices ADD COLUMN cpu_max INT",
+        "ALTER TABLE devices ADD COLUMN mem_max INT",
+        "ALTER TABLE devices ADD COLUMN logs_requested TIMESTAMP",
+        "ALTER TABLE devices ADD COLUMN screen_requested TIMESTAMP",
+        "CREATE TABLE runner_files (device_id VARCHAR(40) NOT NULL, kind VARCHAR(10) NOT NULL, taken TIMESTAMP NOT NULL, requested_by VARCHAR(80), "
+            + "error VARCHAR(1000), content VARCHAR(1000000), PRIMARY KEY (device_id, kind))",
+        "ALTER TABLE device_pools ADD COLUMN owners VARCHAR(2000)",
+        "ALTER TABLE device_pools ADD COLUMN consumers VARCHAR(2000)",
+    };
+
+    /** Version 26: alert rules and the alerts they raised (Alerts). */
+    private static final String[] SCHEMA_V26 = {
+        "CREATE TABLE alert_rules (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, kind VARCHAR(30) NOT NULL, scope VARCHAR(400), threshold DECIMAL(24,6), "
+            + "window_minutes INT, notify_to VARCHAR(2000), webhook_url VARCHAR(1000), severity VARCHAR(10) NOT NULL, enabled BOOLEAN NOT NULL, created_by VARCHAR(80), "
+            + "created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), last_checked TIMESTAMP)",
+        "CREATE TABLE alerts (id VARCHAR(40) PRIMARY KEY, rule_id VARCHAR(40) NOT NULL, rule_name VARCHAR(120), kind VARCHAR(30) NOT NULL, subject VARCHAR(400) NOT NULL, "
+            + "subject_label VARCHAR(400), message VARCHAR(2000) NOT NULL, severity VARCHAR(10) NOT NULL, status VARCHAR(20) NOT NULL, raised TIMESTAMP NOT NULL, "
+            + "cleared TIMESTAMP, acknowledged TIMESTAMP, acknowledged_by VARCHAR(80), link VARCHAR(400), bot_path VARCHAR(400), delivery VARCHAR(4000))",
+        "CREATE INDEX alerts_status ON alerts (status, raised)",
+        "CREATE INDEX alerts_rule_subject ON alerts (rule_id, subject)",
+    };
+
+    /**
+     * Version 27: named policies given to folders (Administration > Policies, 1 Nov 2026): code analysis rules and AI
+     * guardrails. The default code analysis policy stays in code_policy.
+     */
+    private static final String[] SCHEMA_V27 = {
+        "CREATE TABLE policies (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, kind VARCHAR(20) NOT NULL, description VARCHAR(500), "
+            + "rules VARCHAR(20000) NOT NULL, folders VARCHAR(4000) NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80), updated TIMESTAMP NOT NULL, "
+            + "updated_by VARCHAR(80))",
+    };
+
+    /**
+     * Version 28: savings for Business (Operational Insights step 2, 1 Nov 2026): an agent's own cost of an hour and the
+     * runs a month expected when it was approved (estimated against actual), and a work queue's minutes saved and cost of
+     * an hour per item, so queue work is counted by its items.
+     */
+    private static final String[] SCHEMA_V28 = {
+        "ALTER TABLE bots ADD COLUMN hourly_cost INT",
+        "ALTER TABLE bots ADD COLUMN estimated_runs_month INT",
+        "ALTER TABLE queues ADD COLUMN minutes_saved INT",
+        "ALTER TABLE queues ADD COLUMN hourly_cost INT",
+    };
+
+    /**
+     * Version 29: dashboards e-mailed on a schedule (Operational Insights step 3, 1 Nov 2026): to whom, how often (each
+     * day, week or month) and when, in a time zone; the figures are worked out as the person who set it up sees them.
+     */
+    private static final String[] SCHEMA_V29 = {
+        "CREATE TABLE dashboard_mail (id VARCHAR(40) PRIMARY KEY, dashboard_id VARCHAR(40) NOT NULL, recipients VARCHAR(2000) NOT NULL, every VARCHAR(10) NOT NULL, "
+            + "at_time VARCHAR(5) NOT NULL, weekday VARCHAR(3), time_zone VARCHAR(60) NOT NULL, created_by VARCHAR(80) NOT NULL, created TIMESTAMP NOT NULL, "
+            + "next_send TIMESTAMP NOT NULL, last_sent TIMESTAMP, last_error VARCHAR(1000))",
+    };
+
+    /**
+     * Version 30: accounts from a directory (Settings item 4f, 1 Nov 2026): where the account comes from (ldap, or scim)
+     * and its id there (the LDAP entry, or the SCIM id), so the person is found again after a rename.
+     */
+    private static final String[] SCHEMA_V30 = {
+        "ALTER TABLE users ADD COLUMN directory VARCHAR(10)",
+        "ALTER TABLE users ADD COLUMN external_id VARCHAR(400)",
+    };
+
+    /**
+     * Version 31: SCIM provisioning (Settings item 4f, 1 Nov 2026): the identity providers' tokens (kept as hashes),
+     * the groups they push and their members, and each SCIM account's own active flag (the account is on only when
+     * active and given a role).
+     */
+    private static final String[] SCHEMA_V31 = {
+        "CREATE TABLE scim_tokens (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, token_hash VARCHAR(64) NOT NULL UNIQUE, created TIMESTAMP NOT NULL, "
+            + "created_by VARCHAR(80) NOT NULL, last_used TIMESTAMP)",
+        "CREATE TABLE scim_groups (id VARCHAR(40) PRIMARY KEY, display_name VARCHAR(256) NOT NULL, external_id VARCHAR(400), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL)",
+        "CREATE TABLE scim_members (group_id VARCHAR(40) NOT NULL, user_id VARCHAR(40) NOT NULL, PRIMARY KEY (group_id, user_id))",
+        "ALTER TABLE users ADD COLUMN directory_active BOOLEAN",
+    };
+
+    /**
+     * Version 32 (gap round 2, 2 Nov 2026): shared global values get a type the server checks (text, number, boolean,
+     * date, list, record or any), and values per team (user group) that runs of the team's members use, unless the
+     * person set their own.
+     */
+    private static final String[] SCHEMA_V32 = {
+        "ALTER TABLE global_values ADD COLUMN value_type VARCHAR(20)",
+        "CREATE TABLE team_global_values (name VARCHAR(80) NOT NULL, team_id VARCHAR(40) NOT NULL, json_value VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL, "
+            + "updated_by VARCHAR(80), PRIMARY KEY (name, team_id))",
+    };
+
+    /**
+     * Version 33: where each Document Automation process's email inbox was read up to, and how the last check went.
+     * Made on master as version 25, the number this branch had already used: a database upgraded by that release is
+     * put right in migrate().
+     */
+    private static final String[] SCHEMA_V33 = {
         "CREATE TABLE docflow_mail (process_id VARCHAR(120) PRIMARY KEY, mail_cursor VARCHAR(200), last_check TIMESTAMP, last_error VARCHAR(1000), documents INT)",
     };
 
     /** The schema version this release needs. */
-    public static final int LATEST = 25;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25 };
+    public static final int LATEST = 33;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {
@@ -556,12 +661,16 @@ public final class Db implements AutoCloseable {
         if (current > LATEST) throw new OoaException("CR.DB_NEWER", "The database holds schema version " + current + ", made by a newer release; this release knows version " + LATEST,
             "Start the release that upgraded the database, or restore a backup taken before the upgrade");
         if (current == LATEST) return;
+        // the Document Automation release numbered its docflow_mail table version 25, which here is the runners' version
+        // (its table is version 33 here): a database it upgraded gets the runners' version 25 now, and keeps its table
+        boolean docflowAt25 = current == 25 && hasTable("docflow_mail");
         try {
             tx(() -> {
+                if (docflowAt25) for (String ddl : SCHEMA_V25) execute(ddl(ddl, sqlServer));
                 if (current == 0) execute(sqlServer ? "IF OBJECT_ID('schema_version', 'U') IS NULL CREATE TABLE schema_version (version INT NOT NULL)"
                     : "CREATE TABLE IF NOT EXISTS schema_version (version INT NOT NULL)");
                 for (int v = current + 1; v <= LATEST; v++) {
-                    for (String ddl : SCHEMA[v - 1]) execute(ddl(ddl, sqlServer));
+                    if (!(v == 33 && docflowAt25)) for (String ddl : SCHEMA[v - 1]) execute(ddl(ddl, sqlServer));
                     update("INSERT INTO schema_version (version) VALUES (" + v + ")");
                 }
                 return null;
@@ -572,6 +681,12 @@ public final class Db implements AutoCloseable {
                     + "; the account " + user + " may not change tables", "Run: ooa db migrate (it signs in with the setup account)");
             throw e;
         }
+    }
+
+    /** True when the table is there (read before an upgrade, outside its transaction: a failed read would spoil it). */
+    boolean hasTable(String table) {
+        try { one("SELECT 1 AS x FROM " + table + " WHERE 1 = 0"); return true; }
+        catch (OoaException e) { return false; }
     }
 
     private void execute(String sql) { withConn(c -> { try (Statement s = c.createStatement()) { s.execute(sql); } return null; }); }

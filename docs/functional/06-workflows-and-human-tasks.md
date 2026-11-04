@@ -2,7 +2,7 @@
 
 ## What this covers
 
-One Workflow chains agents, people and decisions into one long-running process. This document specifies the
+Workflow chains agents, people and decisions into one long-running process. This document specifies the
 workflow definition and its stages, start forms and references, the workflow run and its states, how data flows
 between stages, the Task inbox (assignment, taking and giving back tasks, completing forms and approvals), due times,
 notifications by inbox and e-mail, cancellation, and the permissions involved.
@@ -26,8 +26,8 @@ notifications by inbox and e-mail, cancellation, and the permissions involved.
 
 ## 1. Workflows and forms as repository items
 
-- A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in One Agent Studio (Create >
-  Workflow, Create > Form) and published with **Publish to Command Center**, which checks them in as the live
+- A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in One AgentStudio (Create >
+  Workflow, Create > Form) and published with **Publish to One CommandCenter**, which checks them in as the live
   production version.
 - Like agents they have versions, check-out and a live production version. A workflow run uses the live version of the
   workflow at its start and keeps that version to the end; forms and agents are read at their live versions when a
@@ -69,7 +69,7 @@ A form must have a `fields` list.
 
 ## 4. Starting a workflow
 
-- From **One Workflow** (or Start in the agent repository), or `POST` to the workflow API, with optional starting data
+- From **Workflow** (or Start in the agent repository), or `POST` to the workflow API, with optional starting data
   (for example `{"amount": 1200}`).
 - **Start form**: a workflow can name a start form. Its fields are asked when the workflow starts, and data from the API
   is checked against them like a submitted form. `GET /api/workflows/form?path=` returns the start form.
@@ -176,7 +176,7 @@ the task.
 ## 12. Notifications
 
 - Recipients written as `user:` or `role:` get one inbox notice (kind notification), which they dismiss when read.
-- Plain e-mail addresses get an e-mail through the Command Center's mail server (Administration > Settings > E-mail),
+- Plain e-mail addresses get an e-mail through One CommandCenter's mail server (Administration > Settings > E-mail),
   with the subject given (or "Notification name — Workflow name"), as plain text. Texts may use `${name}` from the data.
 - When e-mail is not set up, or sending fails, the addresses are recorded as not delivered in the timeline with the
   reason; the workflow still moves on.
@@ -207,5 +207,5 @@ Audited: `workflow.start`, `workflow.completed`, `workflow.failed`, `workflow.ca
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md) (e-mail settings)
-- [14 One Agent Studio](14-studio-features.md)
-- [Command Center and runner, section 7](../user-guide/00-README.md)
+- [14 One AgentStudio](14-studio-features.md)
+- [One CommandCenter and runner, section 7](../user-guide/00-README.md)

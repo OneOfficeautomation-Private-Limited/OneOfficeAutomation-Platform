@@ -61,11 +61,16 @@ public final class Security {
      * 128 characters, no character four times in a row, not the user name, and not a common password with
      * digits or symbols added.
      */
-    public static String passwordProblem(String password, String username, int minLength) {
+    public static String passwordProblem(String password, String username, int minLength) { return passwordProblem(password, username, minLength, false, false); }
+
+    /** As above, and when asked (Settings: password_needs_mixed_case, password_needs_symbol) upper- and lower-case letters, and a symbol. */
+    public static String passwordProblem(String password, String username, int minLength, boolean mixedCase, boolean symbol) {
         int min = Math.max(12, Math.min(64, minLength));
         if (password == null || password.length() < min) return "Passwords need at least " + min + " characters.";
         if (password.length() > 128) return "Passwords have at most 128 characters.";
         if (!password.matches(".*[A-Za-z].*") || !password.matches(".*\\d.*")) return "Passwords need both letters and digits.";
+        if (mixedCase && (!password.matches(".*[a-z].*") || !password.matches(".*[A-Z].*"))) return "Passwords need both upper- and lower-case letters.";
+        if (symbol && !password.matches(".*[^A-Za-z0-9].*")) return "Passwords need a symbol, such as ! or #.";
         if (password.equalsIgnoreCase(username)) return "The password cannot be the user name.";
         if (password.matches(".*(.)\\1{3,}.*")) return "The same character cannot appear four times in a row.";
         String core = password.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z]", "");

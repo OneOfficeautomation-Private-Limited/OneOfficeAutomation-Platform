@@ -345,7 +345,7 @@ class DataOptionsTest {
         assertEquals("FILE.BAD_ENCODING", code(() -> c.read(ctx(), "in.csv", ",", true, "klingon", "none", 0, null, false, false)));
     }
 
-    // ---- Shared values and run context ----
+    // ---- Shared Global values and run context ----
 
     @Test void sharedValuesTypesConditionAndService() throws Exception {
         GlobalValuesPackage g = new GlobalValuesPackage();

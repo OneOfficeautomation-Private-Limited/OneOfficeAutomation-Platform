@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
+  ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
-import { Button, Dialog, Field, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
-import { Automation } from "./Automation";
-import { CheckInDialog, PublicRepository } from "./ControlRoom";
+import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem } from "../components";
+import { Automation, find as findNode } from "./Automation";
+import { CheckInDialog, PublicRepository, type CheckInDep } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
-import { addStep, insertAt, locate, newStep, parseLoose, type Part, type Place } from "./flowEdit";
+import { addStep, insertAt, locateAny, newStep, parseLoose, swapSubflow, type Part, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
 import { ConnectionWizard } from "./ConnectionWizard";
-import { allInstalled, stepRows } from "./toolkits";
+import { agentRows, allInstalled } from "./toolkits";
 import { oneStep, runOnce } from "./runOnce";
 
 /**
@@ -24,6 +24,8 @@ import { oneStep, runOnce } from "./runOnce";
 type AgentTab = {
   kind: "agent"; path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean;
   run: LiveRun | null; breakpoints: string[];
+  /** The subflow whose steps are shown and edited; none (the default) for the main steps. */
+  list?: string | null;
   /** Opened from a Run agent step: the way back, parent by parent (breadcrumb). */
   trail?: Trail[];
 };
@@ -40,7 +42,7 @@ const SCRIPT_LANGUAGE: Record<string, string> = { py: "Python script", ps1: "Pow
 const SCRIPT_ACTION: Record<string, { action: string; name: string }> = { py: { action: "ooa.script/run_python", name: "Run Python" },
   ps1: { action: "ooa.script/run_powershell", name: "Run PowerShell" }, vbs: { action: "ooa.script/run_vbscript", name: "Run VBScript" }, js: { action: "ooa.script/run_javascript", name: "Run JavaScript" } };
 
-/** The new Studio (docs/architecture/12-ui-redesign.md): Command Center menu, Automation page, agents in tabs. */
+/** The new Studio (docs/architecture/12-ui-redesign.md): One CommandCenter menu, Automation page, agents in tabs. */
 export function App({ api: given }: { api?: StudioApi }) {
   // one client for the life of the page: a new one on every render would reload the data in a loop
   const [api] = useState(() => given ?? new StudioApi());
@@ -63,20 +65,24 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [connections, setConnections] = useState<ModelConnections | null>(null);
   const [wizard, setWizard] = useState(false);
   const [asSteps, setAsSteps] = useState<string[]>([]);
-  const [cr, setCr] = useState<CrStatus>({ connected: false });   // the Command Center sign-in, for the Public tab and Check in
-  const [checkingIn, setCheckingIn] = useState(false);
-  // Display menu: light or dark, standard or compact; kept in this browser and set on the page root for theme.css
+  const [cr, setCr] = useState<CrStatus>({ connected: false });   // One CommandCenter sign-in, for the Public tab and Check in
+  const [checkingIn, setCheckingIn] = useState<string[] | null>(null);   // the items being checked in (the open agent, or ticked items)
+  const [repoStates, setRepoStates] = useState<Record<string, RepoState>>({});   // each private copy's state against the repository
+  const [undoing, setUndoing] = useState<{ local: string; repoPath: string } | null>(null);
+  const [reverting, setReverting] = useState<string | null>(null);
+  const [checkInDeps, setCheckInDeps] = useState<CheckInDep[]>([]);   // the agents one checked-in agent runs, for the review
+  // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
-  const [density, setDensity] = usePersistent<"standard" | "compact">("display.density", "standard");
-  useEffect(() => { document.documentElement.dataset.theme = theme; document.documentElement.dataset.density = density; }, [theme, density]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
     ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
   const displayItems = [
     choice("light", "Light theme", theme === "light", () => setTheme("light"), "White panels in a dark frame"),
     choice("dark", "Dark theme", theme === "dark", () => setTheme("dark"), "Dark panels, easier on the eyes in a dim room"),
-    choice("standard", "Standard density", density === "standard", () => setDensity("standard"), "The usual line height", true),
-    choice("compact", "Compact density", density === "compact", () => setDensity("compact"), "Shorter lines: more steps on screen"),
-  ];   // AI agents shown as plain steps instead of in the AI agent editor
+    { key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), separatorBefore: true, onSelect: () => setShowKeys(true) },
+  ];
+  const [showKeys, setShowKeys] = useState(false);
+  const [askTrigger, setAskTrigger] = useState<{ kind: string; n: number } | null>(null);   // a workspace trigger picked in the command list   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => {
@@ -93,6 +99,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   }, [api, reloadTree]);
 
   const current = tabs.find((t) => t.path === active) ?? null;
+  useEffect(() => { document.title = current ? current.name + " · One AgentStudio" : "One CommandCenter"; }, [current?.name]);   // eslint-disable-line react-hooks/exhaustive-deps
   const agent = current?.kind === "agent" ? current : null;
   const item = current?.kind === "item" ? current : null;
   // a file or folder was renamed or moved: open tabs in it follow (an item's tab takes the new name)
@@ -128,16 +135,20 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (agent?.future.length) patch(agent.path, (t) => ({ ...t, flow: t.future[0], future: t.future.slice(1), past: [...t.past, t.flow] }));
     if (item?.future.length) patchItem(item.path, (t) => ({ ...t, text: t.future[0], future: t.future.slice(1), past: [...t.past, t.text] }));
   };
+  // a new step goes into the list shown: the main steps, or a subflow (edited as a view with its steps in front, swapped back)
   const add = (action: string) => {
     if (!agent) return;
-    const step = newStep(action, agent.flow, packages);
-    edit(addStep(agent.flow, agent.selected, step), [step.id]);
+    const list = agent.list ?? null, view = swapSubflow(agent.flow, list);
+    const step = newStep(action, view, packages);
+    edit(swapSubflow(addStep(view, agent.selected, step), list), [step.id]);
   };
   // an action dragged from the library onto a place in the steps
   const insert = (action: string, targetId: string | null, where: Place, part?: Part) => {
     if (!agent) return;
-    const step = newStep(action, agent.flow, packages);
-    edit(insertAt(agent.flow, step, targetId, where, part), [step.id]);
+    const list = agent.list ?? null, view = swapSubflow(agent.flow, list);
+    const step = newStep(action, view, packages);
+    const next = insertAt(view, step, targetId, where, part);
+    if (next !== view) edit(swapSubflow(next, list), [step.id]);
   };
   const save = async (path: string) => {
     // a field still being typed in (Ctrl+S without leaving it) commits first, then the latest flow is saved
@@ -161,18 +172,38 @@ export function App({ api: given }: { api?: StudioApi }) {
     } catch (e) { fail(e); return false; }
   };
 
-  // Ctrl+S saves, Ctrl+Z and Ctrl+Y undo and redo (outside text fields, which keep their own undo)
-  const keys = useRef({ save, undo, redo, current });
-  keys.current = { save, undo, redo, current };
+  // Ctrl+K goes to the workspace search, as the console's search
+  const searchBox = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (is(e, "app.search")) { e.preventDefault(); searchBox.current?.focus(); searchBox.current?.select(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  // the keys of the shortcut list (components/shortcuts.ts): save, undo and redo (outside text fields, which keep their
+  // own undo); run and debug as UiPath's (F5 debug or continue, Ctrl+F5 run, Shift+F5 stop, F10 step over, F11 step into,
+  // Shift+F11 step out), with AA's F6 as step over too; ? shows the Keyboard shortcuts
+  const keys = useRef({ save, undo, redo, current, runKey: (_e: KeyboardEvent): boolean => false, shortcuts: () => {} });
+  keys.current = { save, undo, redo, current, shortcuts: () => setShowKeys(true), runKey: (e: KeyboardEvent) => {
+    const k = !agent ? null : is(e, "run.stop") ? "run.stop" : is(e, "run.run") ? "run.run" : is(e, "run.debug") ? "run.debug"
+      : is(e, "run.stepOut") ? "run.stepOut" : is(e, "run.stepInto") ? "run.stepInto" : is(e, "run.stepOver") ? "run.stepOver" : null;
+    if (!agent || !k) return false;
+    const run = agent.run && !isFinished(agent.run) ? agent.run : null;
+    if (k === "run.stop") { if (run) stopRun(); }
+    else if (k === "run.debug" || k === "run.run") { if (run?.stopped) debugCommand("continue"); else if (!run) startRun(k === "run.debug"); }
+    else if (!run?.stopped) return true;   // the step keys work while the run waits at a step
+    else debugCommand(k === "run.stepInto" ? "stepInto" : k === "run.stepOut" ? "stepOut" : "stepOver");
+    return true;
+  } };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { current: tab } = keys.current;
-      if (!tab || !(e.ctrlKey || e.metaKey)) return;
-      const k = e.key.toLowerCase();
-      const inField = (e.target as HTMLElement | null)?.closest?.("input, textarea, select");
-      if (k === "s") { e.preventDefault(); keys.current.save(tab.path); }
-      else if (!inField && k === "z" && !e.shiftKey) { e.preventDefault(); keys.current.undo(); }
-      else if (!inField && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); keys.current.redo(); }
+      const inField = inTextField(e);
+      if (!inField && is(e, "app.shortcuts")) { e.preventDefault(); keys.current.shortcuts(); return; }
+      if (tab && keys.current.runKey(e)) { e.preventDefault(); return; }
+      if (!tab) return;
+      if (is(e, "app.save")) { e.preventDefault(); keys.current.save(tab.path); }
+      else if (!inField && is(e, "app.undo")) { e.preventDefault(); keys.current.undo(); }
+      else if (!inField && is(e, "app.redo")) { e.preventDefault(); keys.current.redo(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -214,11 +245,11 @@ export function App({ api: given }: { api?: StudioApi }) {
   /** Run agent step: opens the agent it runs, remembering the way back to this step. */
   const openChild = (stepId: string) => {
     if (!agent) return;
-    const step = locate(agent.flow.steps, stepId)?.step;
+    const step = locateAny(agent.flow, stepId)?.step;   // main steps or a subflow
     const id = String(step?.args?.automation ?? "");
     const child = agents.find((a) => a.id === id);
     if (!child) { setError(id ? "Agent " + id + " is not in this workspace." : "Choose the agent to run first."); return; }
-    const line = stepRows(agent.flow.steps).find((r) => r.kind === "step" && r.step.id === stepId);
+    const line = agentRows(agent.flow).rows.find((r) => r.kind === "step" && r.step.id === stepId);
     const here: Trail = { path: agent.path, name: agent.flow.name || agent.name, stepId, line: line?.kind === "step" ? line.n : 0 };
     open({ name: child.path.split("/").pop()!, path: child.path, type: "bot" }, { trail: [...(agent.trail ?? []), here] });
   };
@@ -233,8 +264,9 @@ export function App({ api: given }: { api?: StudioApi }) {
     const childId = agent?.flow.id;
     const flow = tabsRef.current.find((t) => t.path === path && t.kind === "agent")?.kind === "agent" ? (tabsRef.current.find((t) => t.path === path) as AgentTab).flow : await api.bot(path).catch(() => null);
     const walk = (list: FlowStep[]): FlowStep | undefined => { for (const s of list) { if (s.action === "core/run_bot" && s.args?.automation === childId) return s;
-      const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? [])]); if (inner) return inner; } return undefined; };
-    const step = flow ? walk(flow.steps) : undefined;
+      const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? []),
+        ...(s.cases ?? []).flatMap((c) => c.children ?? []), ...(s.default ?? [])]); if (inner) return inner; } return undefined; };
+    const step = flow ? walk([...flow.steps, ...(flow.onError?.steps ?? []), ...(flow.subflows ?? []).flatMap((s) => s.steps ?? [])]) : undefined;
     open({ name: path.split("/").pop()!, path, type: "bot" }, step ? { select: step.id } : undefined);
   };
   /** A document type's extraction agent: read the document (PDF text when it can), then extract its fields with AI. */
@@ -271,13 +303,18 @@ export function App({ api: given }: { api?: StudioApi }) {
     setTabs(rest);
     if (active === path) setActive(rest.length ? rest[rest.length - 1].path : null);
   };
-  // ---- the Command Center agent repository ----
+  // ---- One CommandCenter agent repository ----
   const crHome = info?.controlRoom ?? "../";
-  /** Check out (or open my copy): the repository's version becomes the private copy in the workspace, and opens. */
-  const checkOut = async (repoPath: string, local?: string) => {
+  /**
+   * Check out: the repository's version becomes the private copy at the same folder path, and opens. Open my copy (an
+   * agent already checked out to me, with its copy here) opens that copy as it is, so changes not checked in stay.
+   */
+  const checkOut = async (repoPath: string, local?: string, mine = false, version?: number) => {
+    const node = local && tree ? findNode(tree, local) : null;
+    if (mine && node && !version) { await open(node); return; }
     const open1 = local ? tabsRef.current.find((t) => t.path === local) : undefined;
     if (open1 && isDirty(open1)) { setError(open1.name + " has unsaved changes. Save or close it before checking out again."); return; }
-    const r = await api.crCheckout(repoPath);
+    const r = await api.crCheckout(repoPath, version);
     await reloadTree();
     const flow = await api.bot(r.local);
     if (tabsRef.current.some((t) => t.path === r.local))
@@ -288,18 +325,51 @@ export function App({ api: given }: { api?: StudioApi }) {
         selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
     }
     setActive(r.local);
-    setNotice(`Checked out v${r.version} into your workspace: ${r.local}.`);
+    const also = r.cloned?.length ? ` Also copied ${r.cloned.length === 1 ? "the agent" : r.cloned.length + " agents"} it runs (not checked out): ${r.cloned.join(", ")}.` : "";
+    setNotice((r.kept ? `Checked out to you. Your private copy ${r.local} has changes that were not checked in, so it was kept as it is.`
+      : `Checked out v${r.version} into your workspace: ${r.local}.`) + also);
   };
   /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
-  const checkIn = async (comment: string, live: boolean) => {
-    if (!agent) return;
-    if (isDirty(agent) && !(await save(agent.path))) { setCheckingIn(false); return; }
+  const loadStates = useCallback(() => { api.crStates().then((r) => setRepoStates(r.states), () => setRepoStates({})); }, [api]);
+  useEffect(() => { loadStates(); }, [loadStates, cr.connected, tree]);
+  // one agent checked in: the agents it runs, with their states, for the review in the dialog
+  useEffect(() => {
+    setCheckInDeps([]);
+    const one = checkingIn?.length === 1 ? checkingIn[0] : null;
+    if (!one?.endsWith(".flow.json")) return;
+    api.deps(one).then((d) => setCheckInDeps(d.bots.filter((b) => b.path).map((b) => ({ path: b.path!,
+      name: displayName({ name: b.path!.split("/").pop()!, path: b.path!, type: "bot" }), status: repoStates[b.path!]?.status ?? "new" }))), () => {});
+  }, [api, checkingIn]);   // eslint-disable-line react-hooks/exhaustive-deps
+  /** Check in one item or several (up to 10, from the Private list), the agents ticked in the review first; each is saved first when it has unsaved changes. */
+  const checkIn = async (comment: string, live: boolean, withDeps: string[] = []) => {
+    const paths = [...withDeps.filter((p) => !(checkingIn ?? []).includes(p)), ...(checkingIn ?? [])];
+    const done: string[] = [], failed: string[] = [];
+    let last: Awaited<ReturnType<StudioApi["crCheckin"]>> | null = null;
+    for (const path of paths) {
+      const tab = tabsRef.current.find((t) => t.path === path);
+      if (tab && isDirty(tab) && !(await save(path))) { failed.push(path.split("/").pop() + ": not saved"); continue; }
+      try { last = await api.crCheckin(path, comment, live); done.push(last.path.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "") + " v" + last.version); }
+      catch (e) { failed.push(path.split("/").pop() + ": " + (e instanceof ApiFailure ? e.error.message : String(e))); }
+    }
+    if (paths.length === 1 && last) setNotice(`Checked in ${last.path} as version ${last.version}` + (last.production_request ? "; it waits for approval before it goes live."
+      : last.production ? "; it is now the live version." : "; the live version is unchanged."));
+    else if (done.length) setNotice("Checked in " + done.join(", ") + ".");
+    if (failed.length) setError("Not checked in: " + failed.join("; "));
+    setCheckingIn(null);
+    loadStates();
+  };
+  /** Revert edits: the private copy goes back to the checked-out version, and an open tab shows it. */
+  const revert = async (local: string) => {
+    setReverting(null);
     try {
-      const r = await api.crCheckin(agent.path, comment, live);
-      setNotice(`Checked in ${r.path} as version ${r.version}` + (r.production_request ? "; it waits for approval before it goes live."
-        : r.production ? "; it is now the live version." : "; the live version is unchanged."));
+      const r = await api.crRevert(local);
+      if (tabsRef.current.some((t) => t.path === local)) {
+        const flow = await api.bot(local);
+        patch(local, (t) => t.kind === "agent" ? { ...t, flow, saved: JSON.stringify(flow), past: [], future: [], problems: [], checked: false } : t);
+      }
+      setNotice(`Reverted ${local} to the checked-out version ${r.version}.`);
+      await reloadTree();
     } catch (e) { fail(e); }
-    setCheckingIn(false);
   };
 
   const close = (path: string) => {
@@ -376,7 +446,8 @@ export function App({ api: given }: { api?: StudioApi }) {
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo" />One Agent Studio</div>
+        {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is One AgentStudio */}
+        <div className="st-brand"><span className="st-logo"><BrandMark /></span>{current ? "One AgentStudio" : "One CommandCenter"}</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}
@@ -390,21 +461,21 @@ export function App({ api: given }: { api?: StudioApi }) {
           })()}
           {current && dirty && <span className="st-unsaved">Unsaved</span>}
         </nav>
-        <label className="st-search"><Icon name="search" size={14} /><input aria-label="Search items" placeholder="Search items in the workspace" value={search}
-          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /></label>
+        <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
+          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
         <Menu label="Display" title="Display" items={displayItems}
-          trigger={<button type="button" className="st-top-icon" aria-label="Display: theme and density" title="Display: theme and density"><Icon name="sliders" size={16} /></button>} />
+          trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
           {current && <>
-                <Button kind="primary" icon="save" onClick={() => save(current.path)} title="Save (Ctrl+S)">Save</Button>
+                <Button kind="primary" icon="save" onClick={() => save(current.path)} title={withKey("Save", "app.save")}>Save</Button>
                 {!agent ? null : running
-                  ? <Button kind="light" onClick={stopRun}>Stop run</Button>
+                  ? <Button kind="light" onClick={stopRun} title={withKey("Stop the run", "run.stop")}>Stop run</Button>
                   : <>
-                      <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer">Run</Button>
-                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints (or at the first step)">Debug</Button>
+                      <Button kind="run" icon="play" onClick={() => startRun(false)} title={withKey("Run the agent as it is in the editor, on this computer", "run.run")}>Run</Button>
+                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title={withKey("Run and stop at breakpoints, or at the first step", "run.debug")}>Debug</Button>
                     </>}
-                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn(true)} title="Check the agent in to the Command Center agent repository as a new version">Check in</Button>}
+                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>}
         </div>
@@ -413,9 +484,15 @@ export function App({ api: given }: { api?: StudioApi }) {
       {error && <div className="st-alert" role="alert"><span>{error}</span><Button kind="secondary" onClick={() => setError(null)}>Dismiss</Button></div>}
       {notice && !error && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
 
-      <div className="st-body">
+      <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
-        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} />}
+        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} onTrigger={(kind, where) => {
+          if (where === "studio") { setAskTrigger({ kind, n: Date.now() }); return; }
+          // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
+          const cr = info?.controlRoom;
+          if (!cr) { setNotice("Connect One AgentStudio to One CommandCenter to add this trigger."); return; }
+          window.open(cr + "next/#/triggers?" + new URLSearchParams({ new: kind, bot: agent.path }).toString(), "_blank", "noopener");
+        }} />}
         <main className="st-main">
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
@@ -436,7 +513,8 @@ export function App({ api: given }: { api?: StudioApi }) {
             : agent
             ? <>{isAiAgent(agent.flow) && <div className="st-ai-note"><span>This is an AI agent, shown as its steps.</span>
                 <Button kind="secondary" icon="spark" onClick={() => setAsSteps(asSteps.filter((p) => p !== agent.path))}>Open in the AI agent editor</Button></div>}
-              <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected}
+              <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected} askTrigger={askTrigger}
+                list={agent.list ?? null} onList={(l) => patch(agent.path, (t) => ({ ...t, list: l }))}
                 onSelect={(ids) => patch(agent.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
@@ -451,12 +529,27 @@ export function App({ api: given }: { api?: StudioApi }) {
             : tree
               ? <Automation view={view} tree={tree}
                   publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
-                  api={api} onMoved={moved} onChanged={reloadTree} onNotice={setNotice} onError={fail} />
+                  repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
+                  api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
-      </div>
+        <HelpPanel page={active ?? view} />
+        {showKeys && <ShortcutsDialog app="studio" onClose={() => setShowKeys(false)} />}
+      </div></HelpProvider>
 
-      {checkingIn && agent && <CheckInDialog api={api} name={agent.name} status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(false)} onCheckIn={checkIn} />}
+      {checkingIn && <CheckInDialog api={api} name={checkingIn.length === 1 ? displayName({ name: checkingIn[0].split("/").pop()!, path: checkingIn[0], type: "bot" }) : checkingIn.length + " items"}
+        deps={checkInDeps}
+        status={cr} home={crHome} onStatus={setCr} onClose={() => setCheckingIn(null)} onCheckIn={checkIn} />}
+      {undoing && <Dialog open onClose={() => setUndoing(null)} title={"Undo check-out of " + undoing.local + "?"} width={480}
+        footer={<><Button kind="secondary" onClick={() => setUndoing(null)}>Cancel</Button>
+          <Button kind="primary" onClick={async () => { const u = undoing; setUndoing(null);
+            try { await api.crUndoCheckout(u.repoPath); setNotice("Check-out undone. Your private copy stays in the workspace."); loadStates(); } catch (e) { fail(e); } }}>Undo check-out</Button></>}>
+        <p>Others can check the agent out again. Your private copy stays in the workspace; changes in it are not checked in.</p>
+      </Dialog>}
+      {reverting && <Dialog open onClose={() => setReverting(null)} title={"Revert edits to " + reverting + "?"} width={480}
+        footer={<><Button kind="secondary" onClick={() => setReverting(null)}>Cancel</Button><Button kind="danger" onClick={() => revert(reverting)}>Revert edits</Button></>}>
+        <p>Your changes since you checked it out are thrown away, and the private copy goes back to the checked-out version. This cannot be undone.</p>
+      </Dialog>}
       <NewFolderDialog parent={newFolderIn} onClose={() => setNewFolderIn(null)}
         onCreate={async (name) => { await api.createFolder(newFolderIn ?? "", name); await reloadTree(); setNewFolderIn(null); }} />
 
@@ -580,8 +673,8 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
   return (
     <div className="st-item-wrap">
       <div role="toolbar" aria-label="Edit" className="st-edit-bar st-item-bar">
-        <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
-        <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
+        <button type="button" className="st-tool" aria-label="Undo" title={withKey("Undo", "app.undo")} disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
+        <button type="button" className="st-tool" aria-label="Redo" title={withKey("Redo", "app.redo")} disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
         {cmd && <>
           <span className="st-bar-gap" />
           {runnable && <Button kind="run" icon="play" onClick={runScript} disabled={scriptRun?.busy}>{scriptRun?.busy ? "Running…" : "Run script"}</Button>}

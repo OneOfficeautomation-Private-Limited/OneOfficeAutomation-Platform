@@ -189,7 +189,7 @@ Post a message to a channel (or a user's DM), optionally as a thread reply.
 | --- | --- | --- |
 | `ts` | Text | Message timestamp id (use it to reply in a thread). |
 
-*Time limit 60 s; needs: network.*
+*Time limit 60 s; needs: network, filesystem.*
 
 ### Send direct message
 
@@ -219,7 +219,7 @@ Open a direct conversation with a person (by member id or email) and post a mess
 | `ts` | Text | Message timestamp id. |
 | `channel` | Text | Direct conversation id. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 60 s; needs: network, filesystem.*
 
 ### Update message
 

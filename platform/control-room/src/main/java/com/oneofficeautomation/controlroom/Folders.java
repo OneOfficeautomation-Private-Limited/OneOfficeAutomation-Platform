@@ -125,6 +125,23 @@ final class Folders {
         return Map.of("path", p);
     }
 
+    /**
+     * A check-in into a folder the repository does not have yet makes it, and every missing folder above it, as AA's
+     * check-in does with the Create folder permission: here that is edit access, as for New folder, which check-in has
+     * already required. Each made folder is recorded in the Audit Trail as made by that check-in.
+     */
+    void makeForCheckIn(User by, String agentPath, String ip) {
+        for (String f = folderOf(agentPath); !f.isEmpty(); f = parentOf(f)) {
+            String under = f + "/";
+            boolean exists = db.one("SELECT path FROM repo_folders WHERE path = ?", f) != null
+                    || db.query("SELECT path FROM bots").stream().anyMatch(b -> ((String) b.get("path")).startsWith(under))
+                    || db.query("SELECT path FROM repo_files").stream().anyMatch(b -> ((String) b.get("path")).startsWith(under));
+            if (exists) return;   // the folders above it exist too
+            db.update("INSERT INTO repo_folders (path, description, created, created_by) VALUES (?,?,?,?)", f, "", now(), by.username());
+            cr.audit.record(by.username(), "repo.folder_create", "folder", f, Map.of("by", "check-in of " + agentPath), "ok", ip);
+        }
+    }
+
     /** Removes an empty folder (no agents in it or below, deleted ones included) and its permissions. */
     void delete(User by, String path, String ip) {
         cr.require(by, "repo.delete", "delete folders");
@@ -143,7 +160,7 @@ final class Folders {
 
     /**
      * Renames or moves a folder with everything in it: agents (every version, label and analysis report), the
-     * schedules, triggers, queues and API tasks that run them, their run history, sub-folders and folder permissions.
+     * schedules, triggers, queues and Agent APIs that run them, their run history, sub-folders and folder permissions.
      * Refused when an agent in it is checked out by someone else, or when a workflow names an agent or form in it by path
      * (change the workflow first, so it never points at a missing path).
      */

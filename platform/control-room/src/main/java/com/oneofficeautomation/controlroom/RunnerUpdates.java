@@ -9,7 +9,7 @@ import java.security.MessageDigest;
 import java.util.*;
 
 /**
- * Runner updates from the Command Center (R6). The Command Center offers the program files of its own installation
+ * Runner updates from One CommandCenter (R6). One CommandCenter offers the program files of its own installation
  * ({@code lib}, without the vendor's licence tools) with their SHA-256 hashes; a build id names that set. A runner
  * reports the build id of its own files with each heartbeat. When they differ and either the setting
  * {@code runner_auto_update} is on or an administrator asked for that runner (Runners > Update), an idle runner is told
@@ -88,7 +88,7 @@ public final class RunnerUpdates {
     /** One program file for a runner, by its name in the manifest only. */
     public byte[] file(String name) throws java.io.IOException {
         Map<String, Object> m = manifest();
-        if (m == null) throw new OoaException("CR.NOT_FOUND", "This Command Center offers no runner updates");
+        if (m == null) throw new OoaException("CR.NOT_FOUND", "This One CommandCenter offers no runner updates");
         for (Object o : (List<?>) m.get("files")) {
             if (((Map<?, ?>) o).get("name").equals(name)) return Files.readAllBytes(lib().resolve(name));
         }
@@ -98,7 +98,7 @@ public final class RunnerUpdates {
     /** An administrator asks runners to update at their next heartbeat (when idle). */
     public Map<String, Object> request(User by, List<String> deviceIds, String ip) {
         cr.require(by, "devices.manage", "update runners");
-        if (manifest() == null) throw new OoaException("CR.BAD_INPUT", "This Command Center is not an installation, so it has no runner update to offer");
+        if (manifest() == null) throw new OoaException("CR.BAD_INPUT", "This One CommandCenter is not an installation, so it has no runner update to offer");
         int n = 0;
         for (String id : deviceIds) n += db.update("UPDATE devices SET update_requested = TRUE WHERE id = ?", id);
         cr.audit.record(by.username(), "device.update_requested", "device", String.join(",", deviceIds), Map.of("build", manifest().get("build")), "ok", ip);

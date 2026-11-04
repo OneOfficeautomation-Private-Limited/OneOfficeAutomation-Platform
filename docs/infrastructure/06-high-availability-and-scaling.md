@@ -2,7 +2,7 @@
 
 ## What this covers / audience
 
-How to run several Command Center nodes on one database, how the leader lease works and how long failover takes,
+How to run several One CommandCenter nodes on one database, how the leader lease works and how long failover takes,
 the shared repository folder, load balancer settings, and how to scale runners and runner pools. For architects and
 platform engineers designing a production installation.
 
@@ -16,21 +16,21 @@ platform engineers designing a production installation.
 6. Load balancer settings
 7. Database high availability
 8. Scaling runners and runner pools
-9. Scaling serverless API tasks
+9. Scaling serverless Agent APIs
 10. Planned maintenance on a cluster
 11. Limits
 
 ## 1. The model: many nodes, one leader
 
-Two or more Command Centers can share one SQL Server or PostgreSQL database.
+Two or more One CommandCenter installations can share one SQL Server or PostgreSQL database.
 
 | Work | Done by |
 | --- | --- |
-| Console, REST API, runner API (heartbeats, long polls, results), webhooks, API tasks, MCP | Every node |
+| Console, REST API, runner API (heartbeats, long polls, results), webhooks, Agent APIs, MCP | Every node |
 | Sign-ins in progress (two-step codes, SAML, OpenID Connect state) | Kept in the database, so any node can finish them |
 | Schedules, run dispatch, work queues, workflows, server triggers, housekeeping (lost runs, temporary runners, inactive users, retention), audit checkpoints, scheduled backups, licence e-mails | The **leader** only |
 | Outgoing proxy setting | Each node re-reads it every minute |
-| Serverless API tasks | Each node, up to 4 at once |
+| Serverless Agent APIs | Each node, up to 4 at once |
 
 No sticky sessions are needed.
 
@@ -124,16 +124,16 @@ Size the database for `pool.max` x number of nodes connections.
 | Priority | Urgent runs start first on a busy runner. |
 | Run-as users | A run for a person goes to that person's default runner. |
 | Temporary runners | Removed after `temporary_runner_hours` offline (1 to 720, default 8), freeing the licence seat. Suits VDI pools and autoscaled machines. |
-| Licences | Each runner taking Command Center work needs an Unattended Runner seat while a licence is installed. |
+| Licences | Each runner taking One CommandCenter work needs an Unattended Runner seat while a licence is installed. |
 | Placement | Screen agents need Windows sessions that are signed in and unlocked; headless agents can run on services, Linux or macOS. |
 | Measured overhead | About 93 queue items a second through 50 runners on one node in the load test (see [01](01-system-requirements-and-sizing.md)): the server is rarely the limit. |
 
 Plan runner capacity as: items per day x average minutes per item / (60 x working hours per day), plus headroom for
 retries and peaks.
 
-## 9. Scaling serverless API tasks
+## 9. Scaling serverless Agent APIs
 
-Serverless API tasks run on the virtual runner "Command Center (serverless)", at most 4 at once on each node, 5
+Serverless Agent APIs run on the virtual runner "One CommandCenter (serverless)", at most 4 at once on each node, 5
 minutes each. More nodes give more serverless capacity. A run cut off by a stopped node is failed once it is past the
 longest time a run may take.
 
@@ -161,4 +161,4 @@ longest time a run may take.
 - [04. Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md)
 - [05. Databases](05-databases.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
-- [Command Center and runner setup](../user-guide/00-README.md)
+- [One CommandCenter and runner setup](../user-guide/00-README.md)

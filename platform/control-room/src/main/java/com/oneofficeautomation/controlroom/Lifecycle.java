@@ -14,13 +14,13 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * Agent lifecycle: moving agents between Command Centers (development, test, production).
+ * Agent lifecycle: moving agents between One CommandCenter installations (development, test, production).
  *
  * <p>Export makes a bundle: the chosen agents at a version (latest, production, a number or a label) and, when asked,
  * every agent they call (at its production version, else its latest), with each version's exact content and SHA-256
  * and a checksum over the whole list. Import checks the bundle (format, checksums), validates every agent as check-in
  * does, and then stores them all in one transaction or none: an agent that exists is skipped or gets a new version
- * (overwrite); history is never replaced. Promote exports here and imports into another Command Center over its API,
+ * (overwrite); history is never replaced. Promote exports here and imports into another One CommandCenter over its API,
  * signing in with an API key read from the vault (never typed in).
  */
 public final class Lifecycle {
@@ -69,7 +69,7 @@ public final class Lifecycle {
             if (!Workflows.isWorkflow(path) && !Workflows.isForm(path)) toolkits.addAll(ControlRoom.toolkitsOf(flow));
             if (withDependencies) for (String id : ControlRoom.childBotIds(flow)) {
                 Map<String, Object> b = db.one("SELECT path FROM bots WHERE bot_id = ? AND deleted_at IS NULL", id);
-                if (b == null) throw new OoaException("CR.NOT_FOUND", "Agent " + path + " calls agent id '" + id + "', which is not in this Command Center",
+                if (b == null) throw new OoaException("CR.NOT_FOUND", "Agent " + path + " calls agent id '" + id + "', which is not in this One CommandCenter",
                         "Check that agent in, or export without dependencies.");
                 todo.add(new String[]{(String) b.get("path"), "production", "dependency"});
             }
@@ -104,9 +104,9 @@ public final class Lifecycle {
         String mode = conflict == null || conflict.isBlank() ? "skip" : conflict;
         if (!Set.of("skip", "overwrite").contains(mode)) throw new OoaException("CR.BAD_INPUT", "conflict is skip or overwrite");
         if (bundle == null || !FORMAT.equals(bundle.get("format")) || !(bundle.get("agents") instanceof List<?> list))
-            throw new OoaException("CR.BAD_BUNDLE", "This is not an agent bundle", "Export one with Lifecycle > Export in a Command Center.");
+            throw new OoaException("CR.BAD_BUNDLE", "This is not an agent bundle", "Export one with Lifecycle > Export in One CommandCenter.");
         if (!(bundle.get("format_version") instanceof Number fv) || fv.intValue() > FORMAT_VERSION)
-            throw new OoaException("CR.BAD_BUNDLE", "The bundle was made by a newer Command Center", "Update this Command Center first.");
+            throw new OoaException("CR.BAD_BUNDLE", "The bundle was made by a newer One CommandCenter", "Update this One CommandCenter first.");
         if (!checksum(list).equals(bundle.get("checksum"))) throw new OoaException("CR.BAD_BUNDLE", "The bundle's checksum does not match: it was changed or damaged");
         String prefix = targetFolder == null || targetFolder.isBlank() ? "" : Folders.normalize(targetFolder) + "/";
         List<Map<String, Object>> results = new ArrayList<>();
@@ -144,7 +144,7 @@ public final class Lifecycle {
             cr.audit.record(by.username(), "lifecycle.import", "bundle", null, Map.of("agents", results.size(), "from", String.valueOf(bundle.get("source"))), "failed", ip);
             return Map.of("ok", false, "imported", 0, "results", results);
         }
-        String from = String.valueOf(bundle.getOrDefault("source", "")).isBlank() ? "another Command Center" : String.valueOf(bundle.get("source"));
+        String from = String.valueOf(bundle.getOrDefault("source", "")).isBlank() ? "another One CommandCenter" : String.valueOf(bundle.get("source"));
         db.tx(() -> {
             for (Object[] s : toStore) {
                 Map<String, Object> a = (Map<String, Object>) s[2], r = (Map<String, Object>) s[3];
@@ -159,17 +159,23 @@ public final class Lifecycle {
     }
 
     /**
-     * Exports the agents here and imports them into another Command Center. The API key for the other Command Center is
-     * read from a vault folder the caller may use, and is sent only to that Command Center.
+     * Exports the agents here and imports them into another One CommandCenter. The API key for the other One CommandCenter is
+     * read from a vault folder the caller may use, and is sent only to that One CommandCenter.
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> promote(User by, Map<String, Object> req, String ip) {
         cr.require(by, "lifecycle.export", "promote agents");
         String target = String.valueOf(req.getOrDefault("target_url", "")).trim().replaceAll("/+$", "");
-        if (!target.matches("^https?://[^\\s/]+(:\\d+)?(/\\S*)?$")) throw new OoaException("CR.BAD_INPUT", "target_url is the other Command Center's address, e.g. https://cc-prod.example.com");
+        if (!target.matches("^https?://[^\\s/]+(:\\d+)?(/\\S*)?$")) throw new OoaException("CR.BAD_INPUT", "target_url is the other One CommandCenter's address, e.g. https://cc-prod.example.com");
+        // Settings: agents go only to the One CommandCenters listed there (AA's and UiPath's promotion targets)
+        List<String> allowed = cr.platform.promotionTargets();
+        if (!allowed.isEmpty() && !allowed.contains(target.toLowerCase(Locale.ROOT))) {
+            cr.audit.record(by.username(), "lifecycle.promote", "bundle", target, "not one of the promotion targets in Settings", "failed", ip);
+            throw new OoaException("CR.TARGET_NOT_ALLOWED", "Agents may be promoted only to the One CommandCenters listed in Settings", "Allowed: " + String.join(", ", allowed));
+        }
         String ref = String.valueOf(req.getOrDefault("api_key_ref", ""));
         String[] p = ref.split("/");
-        if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "api_key_ref is a vault reference: vault folder/credential/attribute", "Store the other Command Center's API key in a vault folder first.");
+        if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "api_key_ref is a vault reference: vault folder/credential/attribute", "Store the other One CommandCenter's API key in a vault folder first.");
         Map<String, Object> locker = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         if (locker == null) throw notFound("Vault folder " + p[0]);
         if (!cr.ownsLocker(by, locker) && !cr.consumes(by.username(), by.role(), locker)) throw new OoaException("VAULT.DENIED", "You may not use vault folder '" + p[0] + "'");
@@ -181,14 +187,14 @@ public final class Lifecycle {
         body.put("production", Boolean.TRUE.equals(req.get("production")));
         if (req.get("target_folder") instanceof String tf && !tf.isBlank()) body.put("target_folder", tf);
         HttpResponse<String> res;
-        NetGuard.check(cr, target, "The other Command Center");
+        NetGuard.check(cr, target, "The other One CommandCenter");
         try {
             res = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build().send(HttpRequest.newBuilder(URI.create(target + "/api/lifecycle/import"))
                     .timeout(Duration.ofSeconds(120)).header("Content-Type", "application/json").header("Authorization", "Bearer " + key)
                     .POST(HttpRequest.BodyPublishers.ofString(JsonLite.write(body))).build(), HttpResponse.BodyHandlers.ofString());
         } catch (java.io.IOException e) {
             cr.audit.record(by.username(), "lifecycle.promote", "bundle", target, Map.of("error", String.valueOf(e.getMessage())), "failed", ip);
-            throw new OoaException("CR.PROMOTE_FAILED", "Cannot reach " + target + ": " + e.getMessage(), "Check the address and that the other Command Center is running.", true, null);
+            throw new OoaException("CR.PROMOTE_FAILED", "Cannot reach " + target + ": " + e.getMessage(), "Check the address and that the other One CommandCenter is running.", true, null);
         } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
         Object parsed;
         try { parsed = JsonLite.parse(res.body()); } catch (IllegalArgumentException e) { parsed = Map.of("raw", res.body().length() > 300 ? res.body().substring(0, 300) : res.body()); }

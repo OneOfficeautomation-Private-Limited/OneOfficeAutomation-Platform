@@ -49,7 +49,7 @@ for (const p of manifest) for (const kind of ["actions", "conditions", "iterator
 const actions = rows.filter((r) => r.kind === "actions");
 const checked = actions.filter((r) => r.status === "checked");
 const out = [];
-out.push("# Command comparison: One Agent Studio and Automation 360", "",
+out.push("# Command comparison: One One AgentStudio and Automation 360", "",
   "One row per command (action) of ours, compared with the matching AA action. Built by `tools/command-table.js` from the",
   "action manifests, `command-comparison.data.json` (the findings) and the sample-task results of `CommandSamplesTest`",
   "(`platform/packages/src/test/resources/command-samples/`). AA behaviour is summarised in our own words.", "",

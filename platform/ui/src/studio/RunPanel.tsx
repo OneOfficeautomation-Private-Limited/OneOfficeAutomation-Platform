@@ -1,6 +1,6 @@
 import type { DebugCommand, DebugState, RunEvent, RunResult } from "../api/client";
-import { Button } from "../components";
-import { showValue } from "./flowEdit";
+import { Button, withKey } from "../components";
+import { logFields, showValue } from "./flowEdit";
 
 /** A run of the open agent from this Studio: what it reported so far and, when it is being debugged, where it stopped. */
 export type LiveRun = { id: string; debug: boolean; state: string; events: RunEvent[]; result?: RunResult; stopped?: DebugState; elapsed: number };
@@ -34,10 +34,12 @@ function line(e: RunEvent, stepName: (id: string) => string): { text: string; to
     case "step.finished": return { text: at + "done" + (typeof d.durationMs === "number" ? ` in ${d.durationMs} ms` : "") };
     case "step.failed": return { text: at + "failed: " + String(d.message ?? d.code ?? ""), tone: "bad" };
     case "step.retry": return { text: at + "trying again" };
-    case "log": return { text: at + String(d.message ?? ""), tone: d.level === "error" ? "bad" : undefined };
+    case "log": return { text: at + String(d.message ?? "") + logFields(d.fields), tone: d.level === "error" ? "bad" : undefined };
     case "variable.set": return { text: at + "$" + String(d.name) + " = " + showValue(d.value) };
     case "run.paused": return { text: "Paused" };
     case "run.resumed": return { text: "Resumed" };
+    case "error_handler.started": return { text: "On error started for " + String(d.code ?? "the error"), tone: "bad" };
+    case "error_handler.finished": return { text: d.status === "failed" ? "On error failed; the run fails with the original error" : "On error finished", tone: d.status === "failed" ? "bad" : undefined };
     case "run.finished": return { text: "Run " + (d.status === "success" ? "finished" : String(d.status)), tone: d.status === "success" ? "good" : "bad" };
     default: return null;   // step.started and other detail stay out of the way
   }
@@ -56,12 +58,12 @@ export function RunOutput({ run, stepName, onStop, onDebug }:
         {run.stopped && <span>at {stepName(run.stopped.stepId)}{run.stopped.reason ? ` (${run.stopped.reason})` : ""}</span>}
         <span className="st-bar-fill" />
         {run.stopped && <>
-          <Button kind="run" icon="play" onClick={() => onDebug("continue")} title="Continue to the next breakpoint (F5)">Continue</Button>
-          <Button kind="secondary" onClick={() => onDebug("stepOver")} title="Run this step and stop at the next (F10)">Step over</Button>
-          <Button kind="secondary" onClick={() => onDebug("stepInto")} title="Go into a block or child agent (F11)">Step into</Button>
-          <Button kind="secondary" onClick={() => onDebug("stepOut")} title="Finish the block and stop after it (Shift+F11)">Step out</Button>
+          <Button kind="run" icon="play" onClick={() => onDebug("continue")} title={withKey("Continue to the next breakpoint", "run.debug")}>Continue</Button>
+          <Button kind="secondary" onClick={() => onDebug("stepOver")} title={withKey("Run this step and stop at the next", "run.stepOver")}>Step over</Button>
+          <Button kind="secondary" onClick={() => onDebug("stepInto")} title={withKey("Go into a block or child agent", "run.stepInto")}>Step into</Button>
+          <Button kind="secondary" onClick={() => onDebug("stepOut")} title={withKey("Finish the block and stop after it", "run.stepOut")}>Step out</Button>
         </>}
-        {!done && <Button kind="secondary" onClick={onStop}>Stop</Button>}
+        {!done && <Button kind="secondary" onClick={onStop} title={withKey("Stop the run", "run.stop")}>Stop</Button>}
       </div>
       <ol className="st-run-lines" aria-live="polite">
         {lines.map(({ e, l }) => <li key={e.seq} className={l!.tone ? "is-" + l!.tone : undefined}>{l!.text}</li>)}

@@ -5,7 +5,7 @@ import java.util.*;
 /**
  * Operating-system desktop access that needs native code: visible window titles, closing and activating windows,
  * and global hotkeys. An optional module (packages-windows) provides it through java.util.ServiceLoader, so the
- * built-in packages and the One Runner keep working, with these features reported as unavailable, without it.
+ * built-in packages and the OneRunner keep working, with these features reported as unavailable, without it.
  */
 public interface DesktopEvents {
     /** Titles of the visible top-level windows. */

@@ -6,7 +6,7 @@ Toolkit `ooa.terminal`, version 1.2.0. Connect to IBM mainframe 3270 screens, IB
 
 ## Contents
 
-- **Terminal**: Clear screen, Connect, Disconnect, Get cursor position, Get screen text, Get text at position, Hide terminal, Press key, Type text, Set cursor, Set key mapping, Show terminal, Wait for screen, Wait for text
+- **Terminal**: Clear screen, Connect, Disconnect, Get cursor position, Get screen text, Get text at position, Hide terminal, Press key, Type text, Set cursor, Set key mapping, Show terminal, Wait for screen, Wait for prompt, Wait for text
 - **Fields**: Get all fields, Get field, Find text on screen, Set field
 
 ## Terminal
@@ -56,7 +56,7 @@ Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, an
 | Screen rows | `screen_rows` | Number | No | `24` | More options | Screen height in rows for SSH hosts. Range: 5 to 255; Shown when: `{"terminal_type": ["vt-ssh"]}` |
 | Screen columns | `screen_columns` | Number | No | `80` | More options | Screen width in columns for SSH hosts. Range: 20 to 255; Shown when: `{"terminal_type": ["vt-ssh"]}` |
 
-*Time limit 120 s; needs: network.*
+*Time limit 120 s; needs: network, filesystem.*
 
 ### Disconnect
 
@@ -270,6 +270,31 @@ Wait until the host unlocks the keyboard, shows an input field, changes the scre
 | Name | Type | Description |
 | --- | --- | --- |
 | `met` | Yes/No | True when the condition was met in time (false only when fail_on_timeout is off). |
+
+*Time limit 600 s.*
+
+### Wait for prompt
+
+`ooa.terminal/wait_for_prompt` (action)
+
+On VT (SSH) hosts: wait until the host has finished writing and the cursor sits after a prompt such as $, # or >, e.g. after a command.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `terminal` | Main | Session name. |
+| Prompt | `prompt` | Text | No | `[$#>%]\s*$` | Main | Regular expression the text before the cursor must end with; a shell prompt ($, #, >, %) when empty. Example: `[$#>]\s*$` |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `30` | Main | Maximum wait. Range: 1 to 3600 |
+| Quiet (milliseconds) | `quiet_ms` | Number | No | `300` | More options | The screen must stay unchanged this long, so a prompt-like character in the middle of output does not count. Range: 0 to 10000 |
+| Fail on timeout | `fail_on_timeout` | Yes/No | No | Yes | More options | Stop with an error on timeout; when off, found is false instead. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `found` | Yes/No | True when the prompt appeared in time (false only when fail_on_timeout is off). |
+| `prompt_line` | Text | The line with the prompt, as shown. |
 
 *Time limit 600 s.*
 

@@ -133,7 +133,9 @@ public record ActionSpec(String kind, String id, String name, String description
             Map<String, Object> s = new LinkedHashMap<>(SchemaTypes.forType(type));
             s.put("description", description);
             if (!pattern.isEmpty()) s.put("pattern", pattern);
-            if (!enumValues.isEmpty()) s.put("enum", enumValues);
+            // choices of a Number input are numbers, so they match its default and the values the validator accepts
+            if (!enumValues.isEmpty()) s.put("enum", type == OoaType.NUMBER && enumValues.stream().allMatch(v -> v.matches("-?\\d+(\\.\\d+)?"))
+                    ? enumValues.stream().map(java.math.BigDecimal::new).toList() : enumValues);
             if (defaultValue != null) s.put("default", defaultValue);
             if (!example.isEmpty()) s.put("examples", List.of(example));
             if (!Double.isNaN(min)) s.put("minimum", java.math.BigDecimal.valueOf(min).stripTrailingZeros());
@@ -171,6 +173,9 @@ public record ActionSpec(String kind, String id, String name, String description
             m.put("capabilities", capabilities);
             Map<String, Object> layout = panelLayout();
             if (layout != null) m.put("x-ooa-panel", layout);
+        } else if (!capabilities.isEmpty()) {
+            // conditions and loop types reach files and the network too: governance reads this from the manifest
+            m.put("capabilities", capabilities);
         }
         return m;
     }

@@ -1,4 +1,4 @@
-# Command Center screens compared with AA's Control Room (Q11)
+# One CommandCenter screens compared with AA's Control Room (Q11)
 
 Checked on 2026-10-28 in a signed-in AA Community Edition Control Room, read only (pages opened, nothing created or
 saved). Community Edition shows a smaller menu than AA's enterprise product: Home, Automation, AI (Skills, Model
@@ -10,7 +10,7 @@ and documentation. Written in our own words.
 | AA screen | What it shows | Our page | Result |
 | --- | --- | --- | --- |
 | Home | Your automations changed in the last 7 days, quick links to AA products, pages you visited lately, learning links | Home: your recent agents and runs, recent failures, run and runner counts | Covered. We have no "pages visited lately" list; the menu search finds any page |
-| Automation | Folder tree (private Bots folder, shared app store folder), files table with type, path, status, platform, size, last change; search in subfolders; Create and Manage menus | Agent repository (folders, versions, check-out state, live production version), Templates, One Agent Studio | Covered; ours adds versions and production labels in the table |
+| Automation | Folder tree (private Bots folder, shared app store folder), files table with type, path, status, platform, size, last change; search in subfolders; Create and Manage menus | Agent repository (folders, versions, check-out state, live production version), Templates, One One AgentStudio | Covered; ours adds versions and production labels in the table |
 | AI > Skills | Prompt skills, public and private workspaces | Prompt Skills (shared or private, versions, templates) | Covered |
 | AI > Model connections | Connections to language models, with a create button | One Model Connections (provider, model, fine-tuned flag, monthly token budget) and AI governance | Covered, with budgets and governance on top |
 | AI > Document Automation | Learning instances for document extraction | Nothing | **Excluded for now** (your decision on document automation) |

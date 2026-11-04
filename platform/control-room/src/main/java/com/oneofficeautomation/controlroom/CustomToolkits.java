@@ -124,7 +124,7 @@ public final class CustomToolkits {
         return l;
     }
 
-    /** Loads every stored toolkit when the Command Center starts; one that no longer checks out is reported and left out. */
+    /** Loads every stored toolkit when One CommandCenter starts; one that no longer checks out is reported and left out. */
     void loadAll() {
         if (cr.tenant != null) return;
         for (Map<String, Object> r : db.query("SELECT toolkit_id, version, publisher, sha256 FROM custom_toolkits")) {
@@ -167,7 +167,7 @@ public final class CustomToolkits {
         Set<String> wanted = new LinkedHashSet<>();
         for (Map<String, Object> f : flows) {
             Map<String, Object> req = f.get("requires") instanceof Map<?, ?> r && r.get("packages") instanceof Map<?, ?> pk ? (Map<String, Object>) pk : Map.of();
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(f)) {
                 String a = String.valueOf(s.get("action"));
                 if (!a.contains("/")) continue;
                 String pid = a.substring(0, a.indexOf('/'));
@@ -183,7 +183,7 @@ public final class CustomToolkits {
             try {
                 out.add(Map.of("id", pid, "version", ver, "publisher", r.get("publisher"), "public_key", r.get("public_key"), "sha256", r.get("sha256"),
                     "jar", Base64.getEncoder().encodeToString(Files.readAllBytes(file((String) r.get("sha256"))))));
-            } catch (IOException e) { throw new OoaException("RUN.TOOLKIT_MISSING", "The jar of " + w + " cannot be read on the Command Center: " + e.getMessage()); }
+            } catch (IOException e) { throw new OoaException("RUN.TOOLKIT_MISSING", "The jar of " + w + " cannot be read on One CommandCenter: " + e.getMessage()); }
         }
         return out;
     }

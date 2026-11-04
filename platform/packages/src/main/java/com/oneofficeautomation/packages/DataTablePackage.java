@@ -217,16 +217,43 @@ public final class DataTablePackage {
 
     public Map<String, Object> rowCount(ActionContext ctx, Map<String, Object> table) { return rowCount(ctx, table, false); }
 
-    @Action(id = "sum_column", name = "Sum column", category = "Table", idempotent = true, description = "Add up the numeric values in a column; empty cells are ignored.",
-            panel = "table, column")
+    public Map<String, Object> sumColumn(ActionContext ctx, Map<String, Object> table, String column) { return sumColumn(ctx, table, column, "error", null); }
+
+    @Action(id = "sum_column", name = "Sum column", category = "Table", idempotent = true,
+            description = "Add up the numeric values in a column; empty cells are ignored, and text such as 1,000.50 or $ 12 is read as a number.",
+            panel = "table, column | if_not_number, locale")
     @Output(name = "total", type = OoaType.NUMBER, description = "Sum.")
+    @Output(name = "skipped", type = OoaType.NUMBER, description = "Cells that were not numbers and were left out (if_not_number = skip).")
     public Map<String, Object> sumColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "column", type = OoaType.STRING, description = "Column name.") String column) {
+            @Input(name = "column", type = OoaType.STRING, description = "Column name.") String column,
+            @Input(name = "if_not_number", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "skip"},
+                    description = "A cell that is not a number: error stops and names its row; skip leaves it out and counts it in skipped.") String ifNotNumber,
+            @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en-US\"",
+                    description = "How numbers written as text use separators, e.g. en-US (1,000.50) or de-DE (1.000,50).") String locale) {
         int c = col(table, column);
+        boolean skip = "skip".equalsIgnoreCase(ifNotNumber);
+        StringPackage text = new StringPackage();
         BigDecimal t = BigDecimal.ZERO;
-        for (List<Object> r : rows(table)) { Object v = cell(r, c); if (v != null && !"".equals(v)) t = t.add(Values.toNumber(v)); }
-        return Out.of("total", t);
+        int row = 0, skipped = 0;
+        for (List<Object> r : rows(table)) {
+            row++;
+            Object v = cell(r, c);
+            if (v == null || (v instanceof String s && s.isBlank())) continue;
+            BigDecimal n;
+            if (v instanceof Number num) n = Values.toNumber(num);
+            else {
+                // text written with grouping separators or a currency sign ("1,000.50", "$ 12") counts too
+                try { n = (BigDecimal) text.toNumber(ctx, Values.text(v), locale, null, null, true).get("result"); }
+                catch (ActionException e) {
+                    if (skip) { skipped++; continue; }
+                    throw new ActionException("DATATABLE.NOT_A_NUMBER", "Row " + row + " of column '" + column + "' is '" + Values.text(v) + "', not a number",
+                            "Fix the value, or set if_not_number to skip to leave such cells out.", false, Map.of("row", BigDecimal.valueOf(row)));
+                }
+            }
+            t = t.add(n);
+        }
+        return Out.of("total", t, "skipped", BigDecimal.valueOf(skipped));
     }
 
     @Action(id = "aggregate", name = "Group and summarise", category = "Table", idempotent = true,
@@ -790,6 +817,166 @@ public final class DataTablePackage {
     public Map<String, Object> writeToFile(ActionContext ctx, Map<String, Object> table, String path, String format, String delimiter, boolean header,
             String encoding, boolean append, String lineEnding, String rowDelimiter) {
         return writeToFile(ctx, table, path, format, delimiter, header, encoding, append, lineEnding, rowDelimiter, true);
+    }
+
+    // ---------- text forms, replace, empty rows and column to list (gap G06, 3 Nov 2026) ----------
+
+    private static char oneDelimiter(String delimiter) {
+        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equals("\\t") || delimiter.equalsIgnoreCase("tab") ? "\t" : delimiter;
+        if (d.length() != 1) throw new ActionException("TABLE.BAD_DELIMITER", "Delimiter must be one character, got '" + d + "'", "Use , ; | or tab.");
+        return d.charAt(0);
+    }
+
+    @Action(id = "from_csv_text", name = "Create from CSV text", category = "Table", idempotent = true,
+            description = "Build a table from CSV text held in a variable (for example an e-mail body or an API answer), with quoted fields understood.",
+            panel = "text, delimiter, header | convert_numbers")
+    @Output(name = "table", type = OoaType.TABLE, description = "New table.")
+    @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
+    public Map<String, Object> fromCsvText(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "CSV text, one row per line.") String text,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "One character between fields: , ; | or tab.") String delimiter,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first line holds the column names; Column1, Column2 … when off.") boolean header,
+            @Input(name = "convert_numbers", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Store fields that are plain numbers, such as 12.5, as numbers; codes with a leading 0 stay text.") boolean convertNumbers) {
+        List<List<String>> lines = CsvPackage.parse(text == null ? "" : text, oneDelimiter(delimiter));
+        int width = lines.stream().mapToInt(List::size).max().orElse(0);
+        List<String> columns = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < width; i++) {
+            String n = header && !lines.isEmpty() && i < lines.get(0).size() && !lines.get(0).get(i).isBlank() ? lines.get(0).get(i).strip() : "Column" + (i + 1);
+            String u = n;
+            for (int k = 2; !seen.add(u.toLowerCase(Locale.ROOT)); k++) u = n + k;
+            columns.add(u);
+        }
+        List<Object> rs = new ArrayList<>();
+        for (List<String> line : header && !lines.isEmpty() ? lines.subList(1, lines.size()) : lines) {
+            List<Object> r = new ArrayList<>();
+            for (int i = 0; i < width; i++) {
+                String v = i < line.size() ? line.get(i) : "";
+                r.add(convertNumbers && v.matches("[+-]?(\\d+\\.?\\d*|\\.\\d+)") && !(v.length() > 1 && v.startsWith("0") && !v.startsWith("0.")) ? new BigDecimal(v) : v);
+            }
+            rs.add(r);
+        }
+        return Out.of("table", Values.table(columns, rs), "row_count", BigDecimal.valueOf(rs.size()));
+    }
+
+    @Action(id = "to_csv_text", name = "Convert to CSV text", category = "Table", idempotent = true,
+            description = "Turn a table into CSV text in a variable, for an e-mail, an API call or a message, without writing a file.",
+            panel = "table, delimiter, header | line_ending")
+    @Output(name = "text", type = OoaType.STRING, description = "The CSV text.")
+    public Map<String, Object> toCsvText(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "One character between fields: , ; | or tab.") String delimiter,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Put the column names on the first line.") boolean header,
+            @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, description = "Line ending after each row.") String lineEnding) {
+        char d = oneDelimiter(delimiter);
+        String eol = "lf".equals(lineEnding) ? "\n" : "\r\n";
+        StringBuilder sb = new StringBuilder();
+        if (header) sb.append(csvLine(new ArrayList<>(cols(table)), d, eol));
+        for (List<Object> r : rows(table)) {
+            List<Object> vals = new ArrayList<>();
+            for (int i = 0; i < cols(table).size(); i++) vals.add(cell(r, i));
+            sb.append(csvLine(vals, d, eol));
+        }
+        return Out.of("text", sb.toString());
+    }
+
+    private static String html(Object v) {
+        String t = v == null ? "" : Values.text(Values.toJsonable(v));
+        return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    @Action(id = "to_html", name = "Convert to HTML table", category = "Table", idempotent = true,
+            description = "Turn a table into an HTML <table> for an e-mail body or a report; cell text is escaped so it shows as written.",
+            panel = "table, header, borders")
+    @Output(name = "html", type = OoaType.STRING, description = "The HTML table.")
+    public Map<String, Object> toHtml(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Put the column names in a header row.") boolean header,
+            @Input(name = "borders", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Draw thin grey lines around the cells (inline styles, so e-mail programs keep them).") boolean borders) {
+        String cellStyle = borders ? " style=\"border:1px solid #999;padding:4px 8px\"" : "";
+        StringBuilder sb = new StringBuilder("<table").append(borders ? " style=\"border-collapse:collapse\"" : "").append(">\n");
+        if (header) {
+            sb.append("<thead><tr>");
+            for (String c : cols(table)) sb.append("<th").append(cellStyle).append(">").append(html(c)).append("</th>");
+            sb.append("</tr></thead>\n");
+        }
+        sb.append("<tbody>\n");
+        for (List<Object> r : rows(table)) {
+            sb.append("<tr>");
+            for (int i = 0; i < cols(table).size(); i++) sb.append("<td").append(cellStyle).append(">").append(html(cell(r, i))).append("</td>");
+            sb.append("</tr>\n");
+        }
+        return Out.of("html", sb.append("</tbody>\n</table>").toString());
+    }
+
+    @Action(id = "replace_values", name = "Replace values", category = "Table", idempotent = true,
+            description = "Replace text in the cells of one column or of every column: inside the cell text, or whole cells only.",
+            panel = "table, find, replace_with, column | whole_cell, match_case")
+    @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells changed.")
+    public Map<String, Object> replaceValues(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
+            @Input(name = "find", type = OoaType.STRING, description = "Text to replace.") String find,
+            @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "New text; empty removes the text found.") String replaceWith,
+            @Input(name = "column", type = OoaType.STRING, required = false, description = "Only this column; every column when empty.") String column,
+            @Input(name = "whole_cell", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace only cells whose whole value is the text, e.g. N/A.") boolean wholeCell,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Match upper and lower case exactly.") boolean matchCase) {
+        if (find == null || find.isEmpty()) throw new ActionException("TABLE.EMPTY_FIND", "Nothing to replace", "Fill in the text to find.");
+        int only = column == null || column.isBlank() ? -1 : col(table, column);
+        String with = replaceWith == null ? "" : replaceWith;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(find), matchCase ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE);
+        List<List<Object>> out = new ArrayList<>();
+        int changed = 0;
+        for (List<Object> r : rows(table)) {
+            List<Object> nr = new ArrayList<>(r);
+            for (int i = 0; i < cols(table).size(); i++) {
+                if (only >= 0 && i != only) continue;
+                Object v = cell(nr, i);
+                if (v == null || v instanceof Map || v instanceof List) continue;
+                String t = Values.text(v);
+                String n = wholeCell ? (matchCase ? t.equals(find) : t.equalsIgnoreCase(find)) ? with : t
+                        : p.matcher(t).replaceAll(java.util.regex.Matcher.quoteReplacement(with));
+                if (!n.equals(t)) {
+                    while (nr.size() <= i) nr.add(null);
+                    nr.set(i, n);
+                    changed++;
+                }
+            }
+            out.add(nr);
+        }
+        return Out.of("table", copy(table, out), "count", BigDecimal.valueOf(changed));
+    }
+
+    @Action(id = "remove_empty_rows", name = "Remove empty rows", category = "Table", idempotent = true,
+            description = "Drop the rows in which every cell is empty (or only spaces).",
+            panel = "table")
+    @Output(name = "table", type = OoaType.TABLE, description = "Table without empty rows.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows removed.")
+    public Map<String, Object> removeEmptyRows(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table) {
+        List<List<Object>> kept = new ArrayList<>();
+        for (List<Object> r : rows(table))
+            if (r.stream().anyMatch(v -> v != null && !(v instanceof CharSequence cs && cs.toString().isBlank()))) kept.add(r);
+        return Out.of("table", copy(table, kept), "count", BigDecimal.valueOf(rows(table).size() - kept.size()));
+    }
+
+    @Action(id = "column_to_list", name = "Column to list", category = "Table", idempotent = true,
+            description = "Return the values of one column as a list, e.g. every invoice number.",
+            panel = "table, column | column_index, skip_empty")
+    @Output(name = "list", type = OoaType.LIST, description = "The column's values, top to bottom.")
+    public Map<String, Object> columnToList(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
+            @Input(name = "column", type = OoaType.STRING, required = false, description = "Column name.") String column,
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex,
+            @Input(name = "skip_empty", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out empty cells.") boolean skipEmpty) {
+        int c = col(table, column, columnIndex);
+        List<Object> out = new ArrayList<>();
+        for (List<Object> r : rows(table)) {
+            Object v = cell(r, c);
+            if (skipEmpty && (v == null || "".equals(v))) continue;
+            out.add(v);
+        }
+        return Out.of("list", out);
     }
 
     private static String csvLine(List<Object> values, char d, String eol) {

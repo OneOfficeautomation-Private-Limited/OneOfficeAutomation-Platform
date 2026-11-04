@@ -23,7 +23,7 @@ Call an exported function, e.g. user32.dll MessageBeep, with typed arguments; re
 | Library | `library` | Text | No |  | Main; choice Library = By name or path | Library name or full path of the DLL (or use session). Example: `user32` |
 | Session | `session` | Text | No |  | Main; choice Library = An open session | Session from Open DLL; used instead of library. |
 | Function | `function` | Text | Yes |  | Main | Exported function name. Example: `MessageBeep` |
-| Arguments | `arguments` | List | No |  | Main | Arguments in order, each {"type": "int\|long\|double\|bool\|string\|wstring", "value": ...}. |
+| Arguments | `arguments` | List | No |  | Main | Arguments in order: plain values (whole numbers are int, other numbers double, text a Unicode string, true/false bool) or {"type": "int\|long\|double\|bool\|string\|wstring", "value": ...} to choose the type. |
 | Return type | `return_type` | Text | No | `int` | Main | Type of the return value. One of: `void`, `int`, `long`, `double`, `string`, `wstring` |
 | Calling convention | `calling_convention` | Text | No | `c` | More options | How the function expects its arguments; matters only for 32-bit DLLs (Win32 API functions use stdcall). One of: `c`, `stdcall` |
 

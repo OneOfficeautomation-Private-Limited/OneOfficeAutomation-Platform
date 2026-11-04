@@ -76,7 +76,7 @@ public final class WebAgentPackage {
     private static Map<String, Object> num(String d) { return Map.of("type", "integer", "description", d); }
     private static Map<String, Object> str(String d) { return Map.of("type", "string", "description", d); }
 
-    @Action(id = "start_session", name = "Start web agent session", category = "Web goal agent", timeoutSeconds = 300, capabilities = "browser",
+    @Action(id = "start_session", name = "Start web agent session", category = "Web goal agent", timeoutSeconds = 300, capabilities = {"browser", "network"},
             description = "Open a browser for the web goal agent (the same session works with every Browser action).",
             panel = "url, browser, headless | [Go through a proxy server: proxy_server, proxy_username, proxy_password], browser_path, session")
     public Map<String, Object> startSession(ActionContext ctx,

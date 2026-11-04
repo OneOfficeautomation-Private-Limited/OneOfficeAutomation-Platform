@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Checks a model connection with one very small request ("Answer with OK"), for the Command Center's Test connection
+ * Checks a model connection with one very small request ("Answer with OK"), for One CommandCenter's Test connection
  * button and Studio. The key is used for this request only and never written anywhere.
  */
 public final class ModelProbe {

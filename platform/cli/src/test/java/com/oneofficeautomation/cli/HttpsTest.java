@@ -18,7 +18,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Built-in HTTPS: "ooa tls self-signed" makes a certificate, the Command Center serves HTTPS with it, the certificate
+ * Built-in HTTPS: "ooa tls self-signed" makes a certificate, One CommandCenter serves HTTPS with it, the certificate
  * exported by "ooa tls export-cert" lets a runner register ("--ca"), a runner without it is refused, and this
  * machine's own runner and Studio use the plain loopback listener.
  */
@@ -62,7 +62,7 @@ class HttpsTest {
             HttpResponse<String> h = trusting.send(HttpRequest.newBuilder(URI.create(base + "/api/health")).build(), HttpResponse.BodyHandlers.ofString());
             assertEquals(200, h.statusCode(), h.body());
             assertTrue(h.headers().firstValue("Strict-Transport-Security").isPresent(), "HSTS over HTTPS");
-            HttpResponse<String> page = trusting.send(HttpRequest.newBuilder(URI.create(base + "/")).build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> page = trusting.send(HttpRequest.newBuilder(URI.create(base + "/next/")).build(), HttpResponse.BodyHandlers.ofString());   // the console (the bare address sends here)
             assertEquals(200, page.statusCode());
 
             // plain HTTP on the HTTPS port does not work

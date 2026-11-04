@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Flow, FlowStep, FlowVariable } from "../api/client";
-import { Button, Select, TextInput } from "../components";
+import { Button, is, Select, TextInput, withKey } from "../components";
 import { parseLoose, setArg, setOut, showValue } from "./flowEdit";
 import { useVars, VarPicker } from "./VariablesPanel";
 import { holdsType, isInput, isOutput } from "./variables";
@@ -26,13 +26,13 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
     onBlur={(e) => { if (!picking) commit(e.currentTarget); }}
     onKeyDown={(e) => {
       if (e.key === "Enter") { e.preventDefault(); commit(e.currentTarget); }
-      else if (want && vars && (e.ctrlKey || e.metaKey) && e.key === " ") { e.preventDefault(); setPicking(e.currentTarget.getBoundingClientRect()); }
+      else if (want && vars && is(e.nativeEvent, "fields.variable")) { e.preventDefault(); setPicking(e.currentTarget.getBoundingClientRect()); }
     }} />;
   if (!want || !vars) return input;
   return (
     <div className="st-var-field">
       {input}
-      <button type="button" className="st-x-btn" aria-label="Insert a variable" title="Insert a variable (Ctrl+Space)" aria-expanded={!!picking}
+      <button type="button" className="st-x-btn" aria-label="Insert a variable" title={withKey("Insert a variable", "fields.variable")} aria-expanded={!!picking}
         onMouseDown={(e) => e.preventDefault()} onClick={() => setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null)}>{"{x}"}</button>
       {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking}
         onClose={() => { setPicking(null); ref.current?.focus(); }}
@@ -145,6 +145,66 @@ export function AssignValue({ step }: { step: FlowStep }) {
           apply={(t, f) => setArg(f, step.id, "value", parseLoose(t))} />}
       <p className="ui-field-hint">{calc ? "Worked out when the step runs: + - * / %, comparisons, && and ||, and functions such as round($x, 2) or upper($name)."
         : "Saved as typed. $name copies a variable (keeping its type); ${name} puts a value inside text: Invoice ${number}."}</p>
+    </div>
+  );
+}
+
+type Assignment = { variable?: string; value?: unknown };
+
+/** A row's value as typed: a calculation shows as =expr, anything else as for Assign. */
+export const assignmentText = (v: unknown) => isCalc(v) ? "=" + v.expr : showValue(v);
+/** Typed text back to a value: =expr is a calculation worked out when the step runs. */
+export const assignmentValue = (t: string): unknown => {
+  const s = t.trim();
+  if (s.startsWith("=") && s.length > 1) return { expr: s.slice(1).trim() };
+  return t === "" ? undefined : parseLoose(t);
+};
+
+/**
+ * Assign several variables: one row per variable, set in order from the top, so a row can use a variable set above
+ * it. A value starting with = is a calculation; a Credential variable takes another Credential variable.
+ */
+export function AssignmentsEditor({ step }: { step: FlowStep }) {
+  const vars = useVars();
+  if (!vars) return null;
+  const rows: Assignment[] = Array.isArray(step.args?.assignments) ? step.args!.assignments as Assignment[] : [];
+  const all = vars.flow.variables ?? [];
+  const put = (next: Assignment[], f: Flow) => setArg(f, step.id, "assignments", next);
+  const change = (i: number, row: Assignment) => applyNow(vars, (f) => put(rows.map((r, k) => k === i ? row : r), f));
+  const move = (i: number, by: number) => {
+    const next = [...rows]; const [r] = next.splice(i, 1); next.splice(i + by, 0, r);
+    applyNow(vars, (f) => put(next, f));
+  };
+  return (
+    <div className="st-assignments">
+      {rows.map((r, i) => {
+        const target = all.find((v) => v.name === r.variable);
+        const known = !r.variable || !!target;
+        return <div key={i} className="st-assignment" role="group" aria-label={"Assignment " + (i + 1)}>
+          <Select aria-label={"Variable " + (i + 1)} value={r.variable ?? ""} onChange={(e) => change(i, { ...r, variable: e.target.value || undefined })}
+            options={[{ value: "", label: "Variable…" }, ...all.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + ")" })),
+              ...(known ? [] : [{ value: r.variable!, label: "$" + r.variable + " (not a variable of this agent)" }])]} />
+          {target?.type === "Credential"
+            ? <Select aria-label={"Value " + (i + 1)} value={typeof r.value === "string" ? r.value.replace(/^\$/, "") : ""}
+                onChange={(e) => change(i, { ...r, value: e.target.value ? "$" + e.target.value : undefined })}
+                options={[{ value: "", label: "Credential variable…" }, ...all.filter((v) => v.type === "Credential" && v.name !== r.variable)
+                  .map((v) => ({ value: v.name, label: "$" + v.name }))]} />
+            : <CommitInput key={i + ":" + assignmentText(r.value)} label={"Value " + (i + 1)} want={target?.type ?? "Any"} initial={assignmentText(r.value)}
+                placeholder={target?.type === "Number" ? "42, $other or =$count + 1" : "text, $variable or =calculation"}
+                onCommit={(t) => change(i, { ...r, value: assignmentValue(t) })}
+                apply={(t, f) => put(rows.map((x, k) => k === i ? { ...r, value: assignmentValue(t) } : x), f)} />}
+          <div className="st-assignment-tools">
+            <button type="button" className="st-x-btn" aria-label={"Move assignment " + (i + 1) + " up"} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+            <button type="button" className="st-x-btn" aria-label={"Move assignment " + (i + 1) + " down"} disabled={i === rows.length - 1} onClick={() => move(i, 1)}>↓</button>
+            <button type="button" className="st-x-btn" aria-label={"Remove assignment " + (i + 1)} onClick={() => applyNow(vars, (f) => put(rows.filter((_, k) => k !== i), f))}>×</button>
+          </div>
+        </div>;
+      })}
+      <div className="st-row-tight">
+        <Button kind="secondary" icon="plus" onClick={() => applyNow(vars, (f) => put([...rows, {}], f))}>Add assignment</Button>
+      </div>
+      <p className="ui-field-hint">Set in order from the top, so a row can use a variable set above it. Values are saved as typed ($name copies a variable);
+        start with = for a calculation: =$price * $qty.</p>
     </div>
   );
 }

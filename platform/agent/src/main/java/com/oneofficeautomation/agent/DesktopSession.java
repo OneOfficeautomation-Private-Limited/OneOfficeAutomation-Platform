@@ -13,7 +13,7 @@ import java.util.*;
 /**
  * The runner's screen: unlocked (someone is signed in and the desktop takes input), locked, or no_desktop (a Windows
  * service in session 0, or a machine without a display). After an unattended run the runner can lock the screen or sign
- * the user out (Command Center: Runners > Update runners > After unattended runs).
+ * the user out (One CommandCenter: Runners > Update runners > After unattended runs).
  */
 final class DesktopSession {
     private DesktopSession() { }

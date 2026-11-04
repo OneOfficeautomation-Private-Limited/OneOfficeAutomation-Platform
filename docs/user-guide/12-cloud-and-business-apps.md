@@ -2,7 +2,7 @@
 
 **Audience:** agent builders who connect agents to cloud services and business systems: Microsoft 365, Google
 Workspace, Salesforce, ServiceNow, Jira, Slack, Teams and others, web services (REST and SOAP), APIs you import yourself,
-and AWS EC2 virtual machines.
+and AWS EC2 and Azure virtual machines.
 
 ## Contents
 
@@ -30,7 +30,7 @@ and AWS EC2 virtual machines.
 Every cloud toolkit needs some form of sign-in: an access token, an API token, a user name and password, or a key pair.
 In ONEOFFICEAUTOMATION:
 
-- the **secret** is a **Credential**: a reference to One Agent Vault, never the value itself;
+- the **secret** is a **Credential**: a reference to Credential vault, never the value itself;
 - the **address** of the system (instance URL, site URL, region) is ordinary text;
 - the toolkit's sign-in fields are usually the first fields of each action, so you see at once what it needs.
 
@@ -39,7 +39,7 @@ steps use. Others take a token directly on every step.
 
 ## 2. Keeping secrets in the vault
 
-1. In One Command Center, an administrator or folder owner creates a vault folder and a credential in **One Agent
+1. In One CommandCenter, an administrator or folder owner creates a vault folder and a credential in **One Agent
    Vault**, for example folder `crm`, credential `salesforce`, attributes `client_id` and `client_secret`. The agent's
    runs must be allowed to use the folder (they are **consumers**).
 2. In Studio, create a **Credential** variable for each secret, usually as an input: `sf_client_secret`.
@@ -60,12 +60,12 @@ it by name. When a connection is chosen, the fields it supplies are hidden; **Se
 shows them again.
 
 - Local runs read saved connections from `connections.json` in your workspace.
-- Runs from One Command Center use its **Connections** page (Manage > Connections).
+- Runs from One CommandCenter use its **Connections** page (Manage > Connections).
 
 **Manage connections…** opens the list of the workspace's saved connections, where you can add, change and delete
 them; the **Connection** list on a step shows the same connections.
 
-**One Model Connections** (for AI) are a different thing: see [AI in agents](13-ai-in-agents.md).
+**Model Connections** (for AI) are a different thing: see [AI in agents](13-ai-in-agents.md).
 
 ## 4. Microsoft 365
 
@@ -78,7 +78,8 @@ a Graph access token with the permissions the action needs).
 | Calendar | Create calendar event, Get calendar events, Update/Cancel/Delete calendar event, Respond to meeting invitation, Add/Remove event attendees, Find free meeting times |
 | OneDrive / SharePoint files | Upload file, Download file, List files, Find files, Copy/Move/Rename/Delete, Create folder, Share file or folder, Create sharing link, Export file to PDF, Restore file version |
 | Excel online | Get/Set range values, Get/Set cell, Set formula, worksheets, tables (Create table, Add table rows, Get table rows), Write Data Table, Create workbook |
-| Teams | Post Teams message, Send chat message (Teams), Create one-on-one chat (Teams), List teams, List channels, Get channel by name |
+| Teams | Post Teams message, Send chat message (Teams), Create one-on-one chat (Teams), List teams, List channels, Get channel by name, Create channel, Get channel messages, Reply to channel message |
+| Planner | List plans, List tasks, Create task, Update task (reads the task's current version first, as Planner requires, and tries once more if someone else changed it meanwhile) |
 | SharePoint lists | List SharePoint lists, Get SharePoint list items, Create/Update/Delete SharePoint list item |
 | Users | Get user (Microsoft 365) |
 
@@ -95,9 +96,11 @@ The **Google Workspace** group takes a Google OAuth **Access token** from the va
   item, Find Drive items, Share Drive item, permissions, Export Google file.
 - **Sheets**: Read sheet range, Write to sheet, Append rows to sheet, Create spreadsheet, sheets, cells, formulas,
   formatting, Write data table.
+- **Docs**: Create Google Doc (optionally with starting text, in a Drive folder), Read Google Doc text, Replace text in
+  Google Doc (fill a template's placeholders from a dictionary), Add text to Google Doc.
 - **Calendar**: Create, List, Update and Delete Google Calendar events.
 
-Spreadsheets and files are named by their id (the long code in their web address).
+Spreadsheets, documents and files are named by their id (the long code in their web address).
 
 ## 6. Salesforce
 
@@ -119,7 +122,7 @@ Record fields go in **Fields** as a Dictionary, for example `{"LastName": "Jones
   **Update record**, **Delete record**, **Add comment or work note**, **Attach file**, **List attachments**,
   **Download attachment**, **Delete attachment**, **List changed records** (since a time).
 
-One Command Center can also start agents when ServiceNow records change (a server trigger).
+One CommandCenter can also start agents when ServiceNow records change (a server trigger).
 
 ## 8. Jira
 
@@ -156,7 +159,7 @@ All of them follow the same pattern (address + token from the vault):
 | **Zendesk** | Tickets and users (your Zendesk subdomain) |
 | **Snowflake**, **Databricks**, **Kafka** | Data platforms over their REST interfaces (no drivers needed) |
 | **Database** | Any database with a JDBC driver: Connect, Read from (query), Insert/update/delete, Bulk insert, stored procedures, transactions |
-| **FTP / SFTP** | File transfer with FTP, FTPS and SFTP |
+| **FTP / SFTP** | File transfer with FTP, FTPS and SFTP; **Synchronise folders** keeps a local and a remote folder in step (upload, download or both ways, by time or size, with a dry run), and **Send FTP command** sends a raw command such as `SITE CHMOD 644 file.txt` on FTP/FTPS |
 
 Toolkits that are not in the standard groups (for example new or custom toolkits) appear in the Actions panel under
 **More toolkits**, named after the toolkit.
@@ -166,12 +169,20 @@ Toolkits that are not in the standard groups (for example new or custom toolkits
 **Send request** (group **REST web service**) calls any web API:
 
 1. **Address (URL)** and **Method** (GET, POST, PUT, PATCH, DELETE …).
-2. **Sign in**: *No sign-in*, *User name and password*, or *Bearer token* (a Credential).
+2. **Sign in**: *No sign-in*, *User name and password*, *Bearer token* (a Credential), *OAuth 2.0*, *OAuth 1.0a* or
+   *Windows user name and password, NTLM*. OAuth 2.0 takes the token address, client id and client secret (client
+   credentials), or a refresh token instead of the secret; the token is fetched once, kept for the run, renewed shortly
+   before it expires and once more if the API answers 401. When the server issues a new refresh token, the **refresh
+   token** output returns it so you can save it in the vault. OAuth 1.0a signs each request with the consumer key and
+   secret and, when given, the token and token secret (HMAC-SHA1 or HMAC-SHA256). NTLM signs in with a Windows user,
+   domain and password for intranet sites, IIS, SharePoint on premises and Exchange. Every secret comes from the vault
+   and never appears in logs or errors.
 3. **Headers** as a Dictionary, for example `{"Accept": "application/json"}`.
 4. **Body**: *None*, *JSON* (a Dictionary or List), *Form fields*, *Multipart form*, *Text* or *A file*.
 5. Optional: **Use a specific proxy**, **Send a client certificate**, **Timeout seconds**; More options **Query**,
    **Fail on error**, **Allow untrusted certificates** (tests only), cookies and redirects.
-6. Outputs: **status** (the HTTP code), **body** (text), **json** (the parsed answer) and **headers**.
+6. Outputs: **status** (the HTTP code), **body** (text), **json** (the parsed answer), **headers** and, with an OAuth
+   2.0 refresh token, **refresh token**.
 
 Read values from the answer with `$response.items[0].id`. **Download file** and **Upload file** handle files.
 
@@ -216,7 +227,7 @@ for `EC2` to find it quickly) has: **Connect**,
 ### 14.1 Prepare
 
 1. In AWS, create an access key for a user or role that may describe, start and stop the instance.
-2. In One Agent Vault, store it as credential `aws/test-server` with attributes `access_key_id` and
+2. In Credential vault, store it as credential `aws/test-server` with attributes `access_key_id` and
    `secret_access_key`.
 3. Note the instance id, for example `i-0abc1234def567890`, and its region, for example `eu-west-1`.
 
@@ -273,10 +284,25 @@ Steps:
 `tags`; its **instance_ids** output is a List you can pass straight to Start or Stop. **Get instance status** adds AWS's
 system and instance health checks.
 
+**Disks.** The same toolkit also backs up and moves EBS volumes: **Create snapshot** (of a volume, with a description
+and tags), **List snapshots** (this account's, optionally only one volume's or those with certain tags; every page is
+read), **Delete snapshot**, **Create volume** (in an availability zone, empty or from a snapshot; type `gp3` by
+default), **Attach volume** (to an instance, as a device such as `/dev/sdf`) and **Detach volume** (with **Force** only
+for a volume that will not let go). A nightly agent can, for example, run **Create snapshot** for each volume of the
+test server and **Delete snapshot** for those older than a week.
+
+**Azure.** For virtual machines on Azure use the **Azure VMs** toolkit (`ooa.azure_vm`). **Connect** signs in with an
+app registration (service principal): the tenant id, the application (client) id, the client secret from the vault
+and the subscription id; give the app a role such as *Virtual Machine Contributor*. Then **List VMs** (whole
+subscription or one resource group), **Get VM status** (power state such as `running` or `deallocated`), **Start VM**,
+**Stop VM** (**Deallocate**, the default, stops compute billing; **Power off** keeps the hardware reserved),
+**Restart VM** and **Create disk snapshot** (of a VM's OS disk or a named disk). Starting, stopping and snapshots wait
+until Azure reports the work done, up to **Timeout seconds**; switch **Wait** off to carry on as soon as Azure accepts.
+
 ### 14.4 Schedule it
 
-1. Check the agent in (see [Publishing to Command Center](15-publishing-to-command-center.md)).
-2. In One Command Center > **Schedules**, create two **Weekly** schedules for the agent on a runner (or runner pool), in
+1. Check the agent in (see [Publishing to One CommandCenter](15-publishing-to-command-center.md)).
+2. In One CommandCenter > **Schedules**, create two **Weekly** schedules for the agent on a runner (or runner pool), in
    your time zone, with Monday to Friday ticked:
    - at 07:30 with `action` = `start`;
    - at 19:00 with `action` = `stop`;
@@ -303,12 +329,12 @@ system and instance health checks.
 | `EC2.INSTANCE_NOT_FOUND` / a bad instance id | The id is wrong, or the instance is in another region. |
 | REST answers with a 4xx/5xx status and the step fails | Read **body** in the Run log; turn off **Fail on error** to handle the status yourself. Add **Retries on temporary errors** for 429 and 5xx answers. |
 | An imported connector has no server | Give **Server** when importing, or set the **Base url** on the step. |
-| A toolkit is missing from the Actions panel | It is switched off in One Command Center (Toolkits) or not installed. Ask your administrator. |
+| A toolkit is missing from the Actions panel | It is switched off in One CommandCenter (Toolkits) or not installed. Ask your administrator. |
 
 ## Related guides
 
 - [Building agents](03-studio-building-agents.md)
 - [Office files, email and documents](11-working-with-office-files-email-and-documents.md)
 - [AI in agents](13-ai-in-agents.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)
 - [Running and debugging](04-studio-running-and-debugging.md)

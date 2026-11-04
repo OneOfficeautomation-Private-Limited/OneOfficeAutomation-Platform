@@ -2,7 +2,7 @@
 
 ## What this covers / audience
 
-Every network connection the product makes or accepts, how runners reach the Command Center, how proxies are
+Every network connection the product makes or accepts, how runners reach One CommandCenter, how proxies are
 handled on both sides, how to turn on HTTPS with a company certificate or a test certificate, how runners trust it,
 and firewall rules. For network, firewall, PKI and security teams.
 
@@ -11,8 +11,8 @@ and firewall rules. For network, firewall, PKI and security teams.
 1. Ports and directions
 2. The runner connection: outbound only, long poll
 3. Runner proxies: Windows proxy, PAC and WPAD, fixed proxy, proxy sign-in
-4. The Command Center's outgoing proxy
-5. HTTPS on the Command Center
+4. One CommandCenter's outgoing proxy
+5. HTTPS on One CommandCenter
 6. Company certificates
 7. Self-signed certificates for tests
 8. Certificate trust on runners
@@ -24,38 +24,38 @@ and firewall rules. For network, firewall, PKI and security teams.
 
 | From | To | Port / protocol | Purpose | Configurable |
 | --- | --- | --- | --- | --- |
-| Browsers, API clients, AI assistants (MCP) | Command Center | TCP 8720, HTTP or HTTPS | Console, REST API, `/api/mcp`, webhooks (`/api/hooks/...`), API tasks | `--port`, `-Port`, `PORT`, `OOA_PORT` |
-| Runners | Command Center | TCP 8720 (or 443 through a load balancer), HTTPS recommended | Registration, heartbeats, work (long poll), events, results, credentials, update files | The runner's URL |
-| Load balancer | Command Center nodes | TCP 8720 | Traffic and health probes (`/api/health`, `/api/health/ready`) | - |
-| Command Center | SQL Server | TCP 1433 (or the instance's port) | Database | `ooa db configure --port`, `--instance` |
-| Command Center | PostgreSQL | TCP 5432 | Database | `--port` |
-| Command Center | Mail server | TCP 587 by default (STARTTLS), or SSL/TLS, or none | Licence reminders, workflow notifications | `mail_smtp_host`, `mail_smtp_port`, `mail_smtp_security` |
-| Command Center | SIEM | UDP or TCP, the port you set (often 514) | Audit records as syslog RFC 5424 | `syslog_target`, `syslog_protocol` |
-| Command Center | Identity provider | HTTPS 443 | OpenID Connect discovery, tokens and keys; SAML metadata is served by the Command Center | `sso_issuer` |
-| Command Center | External vaults, Git remote, AI model providers, IMAP, Microsoft Graph, ServiceNow, polled URLs, callback URLs, promotion targets | Their own ports, usually HTTPS 443 (IMAP 993) | Features configured by administrators | Each feature's settings; outgoing proxy |
-| Command Center | Key store at start | HTTPS 443 and metadata endpoints | Vault key from Azure Key Vault (`login.microsoftonline.com`, `*.vault.azure.net`, `169.254.169.254`), AWS Secrets Manager (`secretsmanager.REGION.amazonaws.com`, `169.254.169.254`, `169.254.170.2`), Google (`metadata.google.internal`, `secretmanager.googleapis.com`) | `OOA_MASTER_KEY_SOURCE` |
-| Command Center | Template catalogue | HTTPS 443 | None by default while no catalogue is published (the setting is empty, meaning off); set it to a catalogue address to use one | `template_catalog_url` (or `off`) |
+| Browsers, API clients, AI assistants (MCP) | One CommandCenter | TCP 8720, HTTP or HTTPS | Console, REST API, `/api/mcp`, webhooks (`/api/hooks/...`), Agent APIs | `--port`, `-Port`, `PORT`, `OOA_PORT` |
+| Runners | One CommandCenter | TCP 8720 (or 443 through a load balancer), HTTPS recommended | Registration, heartbeats, work (long poll), events, results, credentials, update files | The runner's URL |
+| Load balancer | One CommandCenter nodes | TCP 8720 | Traffic and health probes (`/api/health`, `/api/health/ready`) | - |
+| One CommandCenter | SQL Server | TCP 1433 (or the instance's port) | Database | `ooa db configure --port`, `--instance` |
+| One CommandCenter | PostgreSQL | TCP 5432 | Database | `--port` |
+| One CommandCenter | Mail server | TCP 587 by default (STARTTLS), or SSL/TLS, or none | Licence reminders, workflow notifications | `mail_smtp_host`, `mail_smtp_port`, `mail_smtp_security` |
+| One CommandCenter | SIEM | UDP or TCP, the port you set (often 514) | Audit records as syslog RFC 5424 | `syslog_target`, `syslog_protocol` |
+| One CommandCenter | Identity provider | HTTPS 443 | OpenID Connect discovery, tokens and keys; SAML metadata is served by One CommandCenter | `sso_issuer` |
+| One CommandCenter | External vaults, Git remote, AI model providers, IMAP, Microsoft Graph, ServiceNow, polled URLs, callback URLs, promotion targets | Their own ports, usually HTTPS 443 (IMAP 993) | Features configured by administrators | Each feature's settings; outgoing proxy |
+| One CommandCenter | Key store at start | HTTPS 443 and metadata endpoints | Vault key from Azure Key Vault (`login.microsoftonline.com`, `*.vault.azure.net`, `169.254.169.254`), AWS Secrets Manager (`secretsmanager.REGION.amazonaws.com`, `169.254.169.254`, `169.254.170.2`), Google (`metadata.google.internal`, `secretmanager.googleapis.com`) | `OOA_MASTER_KEY_SOURCE` |
+| One CommandCenter | Template catalogue | HTTPS 443 | None by default while no catalogue is published (the setting is empty, meaning off); set it to a catalogue address to use one | `template_catalog_url` (or `off`) |
 | Runner (agents) | Applications they automate | Any | Whatever the agents do | Agent design |
-| Studio, local runner | Command Center on the same computer | Loopback | See section 11 | - |
+| Studio, local runner | One CommandCenter on the same computer | Loopback | See section 11 | - |
 
-No connection is ever made from the Command Center to a runner.
+No connection is ever made from One CommandCenter to a runner.
 
 ## 2. The runner connection: outbound only, long poll
 
 - A runner registers once with a one-time key (`ooa agent register --url ... --key ooareg_...`) and receives a device
-  id and a secret, saved in `%USERPROFILE%\.ooa-agent\agent.json` (the Command Center keeps only a hash).
+  id and a secret, saved in `%USERPROFILE%\.ooa-agent\agent.json` (One CommandCenter keeps only a hash).
 - Every request carries the headers `X-OOA-Device` and `X-OOA-Device-Secret` and goes to `/api/agent/...`.
 - **Heartbeat** every 10 seconds: version, build, screen state, running run, toolkits. The answer carries stop,
   pause and resume requests, local triggers, the log level, the after-run action, secret rotation and update offers.
   A runner is shown **online** while its last heartbeat is under 60 seconds old.
-- **Work**: an idle runner posts `jobs/next?wait=25`. The Command Center holds the request for up to 25 seconds and
+- **Work**: an idle runner posts `jobs/next?wait=25`. One CommandCenter holds the request for up to 25 seconds and
   answers the moment a run is queued for it, so runs start without polling delay. Proxies and load balancers must
   allow idle requests of at least **30 seconds** (60 recommended).
 - Requests time out after 60 seconds; update file downloads after 5 minutes. A result that cannot be delivered is
   retried 6 times over about a minute.
-- If a runner stops reporting for 2 minutes while running an agent, the Command Center fails that run with
+- If a runner stops reporting for 2 minutes while running an agent, One CommandCenter fails that run with
   `AGENT.LOST`.
-- Runners can sit in any network that can reach the Command Center's address; no inbound port is opened on runners.
+- Runners can sit in any network that can reach One CommandCenter's address; no inbound port is opened on runners.
 
 ## 3. Runner proxies
 
@@ -79,21 +79,21 @@ ooa agent network                      (shows the current settings)
 
 Notes:
 
-- A Command Center on `localhost`, `127.*` or `[::1]` is always reached directly.
-- Proxies that accept only Windows integrated sign-in (NTLM, Kerberos) are not supported: allow the Command Center's
+- One CommandCenter on `localhost`, `127.*` or `[::1]` is always reached directly.
+- Proxies that accept only Windows integrated sign-in (NTLM, Kerberos) are not supported: allow One CommandCenter's
   address without sign-in, or use Basic.
 - A runner service runs as Local System (or the `--account` given), whose Windows proxy settings can differ from the
   user's. Use a fixed proxy for services.
 - Setup package: `-Proxy system|none|URL`; MSI: `PROXY=`.
-- `ooa agent diagnose` shows which proxy is used for the Command Center's address.
+- `ooa agent diagnose` shows which proxy is used for One CommandCenter's address.
 
-## 4. The Command Center's outgoing proxy
+## 4. One CommandCenter's outgoing proxy
 
 Administration > Settings > Outgoing connections:
 
 | Setting | Format | Effect |
 | --- | --- | --- |
-| `outbound_proxy` | `http://host:port` | The Command Center's own outgoing HTTP and HTTPS connections (single sign-on, Git sync, AI model connections, external vaults, polled triggers, callbacks) go through this proxy |
+| `outbound_proxy` | `http://host:port` | One CommandCenter's own outgoing HTTP and HTTPS connections (single sign-on, Git sync, AI model connections, external vaults, polled triggers, callbacks) go through this proxy |
 | `outbound_proxy_bypass` | Host names, wildcards allowed, for example `*.example.com, 10.*` | Reached directly. `localhost`, `127.*` and `[::1]` are always direct. |
 
 - Every node checks the setting every minute, so a change reaches all nodes within a minute.
@@ -103,9 +103,9 @@ Administration > Settings > Outgoing connections:
   the standard Java proxy properties in `JAVA_OPTS`.
 - In a SaaS region the setting does nothing; the region's own network decides.
 
-## 5. HTTPS on the Command Center
+## 5. HTTPS on One CommandCenter
 
-The Command Center serves HTTPS itself on its port once it has a certificate. Only TLS 1.2 and 1.3 are offered.
+One CommandCenter serves HTTPS itself on its port once it has a certificate. Only TLS 1.2 and 1.3 are offered.
 Stop the server, run the `ooa tls` commands from `bin`, then start it again.
 
 | Command | Effect |
@@ -189,12 +189,12 @@ name against the URL, so register with an address that is in the certificate.
 
 | Rule | Where | Notes |
 | --- | --- | --- |
-| Allow inbound TCP 8720 (or 443 on the balancer) from user networks and runner networks | Command Center or load balancer | Restrict further with `ip_allow_list` (up to 200 addresses or CIDR ranges) |
-| Allow inbound TCP 8720 only from the load balancer subnet | Command Center nodes | When a balancer is used |
-| Allow outbound TCP 1433 / 5432 to the database | Command Center | |
-| Allow outbound HTTPS to the services you configure (identity provider, vaults, model providers, Git) | Command Center, or through `outbound_proxy` | |
-| Allow outbound to SMTP and syslog targets | Command Center | |
-| Allow outbound TCP to the Command Center address | Runners | Directly or through the proxy |
+| Allow inbound TCP 8720 (or 443 on the balancer) from user networks and runner networks | One CommandCenter or load balancer | Restrict further with `ip_allow_list` (up to 200 addresses or CIDR ranges) |
+| Allow inbound TCP 8720 only from the load balancer subnet | One CommandCenter nodes | When a balancer is used |
+| Allow outbound TCP 1433 / 5432 to the database | One CommandCenter | |
+| Allow outbound HTTPS to the services you configure (identity provider, vaults, model providers, Git) | One CommandCenter, or through `outbound_proxy` | |
+| Allow outbound to SMTP and syslog targets | One CommandCenter | |
+| Allow outbound TCP to One CommandCenter address | Runners | Directly or through the proxy |
 | No inbound rules | Runners | |
 | Block outbound to private and metadata ranges | SaaS region nodes | Required; see [09](09-saas-and-multi-region-operations.md) |
 
@@ -203,8 +203,8 @@ name against the URL, so register with an address that is in the certificate.
 | Listener | Address | Who uses it |
 | --- | --- | --- |
 | Internal plain-HTTP listener | `127.0.0.1`, a random port, only when HTTPS is on | The runner and Studio built into `ooa server`, so they need no certificate trust |
-| Agent Studio standalone (`ooa studio`) | `127.0.0.1:8710` | The builder's browser on that computer; other host names are refused |
-| Studio inside `ooa server` | `/studio/` on the Command Center port, offered only to browsers on the same computer | The builder |
+| One AgentStudio standalone (`ooa studio`) | `127.0.0.1:8710` | The builder's browser on that computer; other host names are refused |
+| Studio inside `ooa server` | `/studio/` on One CommandCenter port, offered only to browsers on the same computer | The builder |
 | Browser connector native host | `127.0.0.1`, random port, with a random token | Agents and Studio on the same computer |
 | Java application bridge | `127.0.0.1`, with a token | The runner, for Swing/AWT automation |
 

@@ -2,8 +2,8 @@ import { useEffect, useState, type DragEvent, type ReactNode } from "react";
 import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, PackageManifest, Proposal, StudioApi } from "../api/client";
 import { ApiFailure } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
-import { type Place } from "./flowEdit";
-import { conditionText, describeAction, plainValue, summarize } from "./toolkits";
+import { ON_ERROR, type Place } from "./flowEdit";
+import { caseText, conditionText, describeAction, plainValue, summarize } from "./toolkits";
 import { isInput, isOutput } from "./variables";
 
 /** The agent in plain words: what it needs and returns, then its steps, blocks indented (Classic's Explain this agent). */
@@ -15,10 +15,13 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
     const a = s.args ?? {};
     let text: string;
     if (s.action === "core/if") text = "If " + conditionText(a.condition, packages) + ":";
+    else if (s.action === "core/switch") text = a.match === "expression" ? "Choose the first case that holds:" : "Depending on " + plainValue(a.value) + ":";
     else if (s.action === "core/loop") text = "Repeat " + (a.iterator === "times" ? plainValue(a.count) + " times" : a.iterator === "while" ? "while " + conditionText(a.condition, packages)
       : "for each item of " + plainValue(a.over) + (a.as ? " (as $" + a.as + ")" : "")) + ":";
     else if (s.action === "core/try") text = "Try the following, and handle errors:";
     else if (s.action === "core/set") text = "Set $" + a.variable + " to " + plainValue(a.value);
+    else if (s.action === "core/set_many") text = "Set " + (Array.isArray(a.assignments) ? a.assignments : [])
+      .map((r: { variable?: string; value?: unknown }) => "$" + r.variable + " to " + plainValue(r.value)).join(", then ");
     else if (s.action === "core/comment") text = "Note: " + plainValue(a.text);
     else text = describeAction(s.action, packages).name + (s.note ? " (" + s.note + ")" : "")
       + (Object.keys(a).length ? " with " + Object.entries(a).slice(0, 3).map(([k, v]) => k.replace(/_/g, " ") + " " + plainValue(v, 40)).join(", ") : "")
@@ -29,9 +32,16 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
     if (s.action === "core/if" && s.else?.length) { lines.push("  ".repeat(depth + 1) + "Otherwise:"); walk(s.else, depth + 2); }
     for (const c of s.catch ?? []) if (c.children?.length) { lines.push("  ".repeat(depth + 1) + "If an error happens" + (c.as ? " (kept in $" + c.as + ")" : "") + ":"); walk(c.children, depth + 2); }
     if (s.finally?.length) { lines.push("  ".repeat(depth + 1) + "Always, at the end:"); walk(s.finally, depth + 2); }
+    for (const c of s.cases ?? []) { lines.push("  ".repeat(depth + 1) + caseText(c.values, a.match, packages) + ":"); walk(c.children, depth + 2); }
+    if (s.default?.length) { lines.push("  ".repeat(depth + 1) + "When no case matches:"); walk(s.default, depth + 2); }
   });
   const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
   walk(flow.steps, 0);
+  if (flow.onError) {
+    lines.push("If an error ends the agent" + (flow.onError.as ? " (kept in $" + flow.onError.as + ")" : "") + ", then the run "
+      + (flow.onError.then === "succeed" ? "succeeds" : "fails") + ":");
+    walk(flow.onError.steps, 1);
+  }
   return [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
     ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
     outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:",
@@ -61,7 +71,7 @@ export function DependenciesPanel({ api, path, dirty, onOpen, onStep }:
   return (
     <div className="st-deps">
       {dirty && <p className="st-alert" role="note">Save the agent to include your latest changes.</p>}
-      <p className="st-muted st-pad">What this agent needs to run, and which agents use it. Check child agents in too before running this agent from Command Center.</p>
+      <p className="st-muted st-pad">What this agent needs to run, and which agents use it. Check child agents in too before running this agent from One CommandCenter.</p>
       {error ? <p className="st-error st-pad" role="alert">{error}</p> : !deps ? <p className="st-muted st-pad">Looking through the workspace…</p> : <>
         {group("Child agents and agent tools", deps.bots, "This agent does not call other agents.", { icon: "bolt", color: "#6d28d9" })}
         {group("Scripts", deps.scripts, "No script files.", { icon: "code", color: "#0f766e" })}
@@ -129,6 +139,13 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
           {s.else && branch("Else", s.else, s.id + ":else")}
         </div></div>
     );
+    if (s.action === "core/switch") return (
+      <div key={s.id} className="st-fblock">{box}
+        <div className="st-fbranches">
+          {(s.cases ?? []).map((c, k) => branch(caseText(c.values, s.args?.match, packages), c.children, s.id + ":case" + k))}
+          {s.default && branch("Default", s.default, s.id + ":default")}
+        </div></div>
+    );
     if (s.children || s.catch || s.finally) return (
       <div key={s.id} className="st-fblock">{box}
         <div className="st-fframe">
@@ -144,13 +161,18 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
       <div className="st-fterm is-start">Start</div>
       <div className="st-fseq">{flow.steps.length ? seq(flow.steps, "top") : line("top:empty", null, "after")}</div>
       <div className="st-fterm is-end">End</div>
+      {flow.onError && <>
+        {/* the agent's error handler: runs only when an error ends the agent */}
+        <div className="st-fterm is-onerror">On error</div>
+        <div className="st-fseq">{flow.onError.steps?.length ? seq(flow.onError.steps, "onerror") : line("onerror:empty", ON_ERROR, "inside")}</div>
+      </>}
     </div>
   );
 }
 
 /**
  * The agent assistant: Build from a description (a language model proposes steps, checked, to insert) or Explain this
- * agent in plain words. Building needs a One Model Connection.
+ * agent in plain words. Building needs a Model Connection.
  */
 export function AssistantDialog({ api, flow, packages, initial = "build", onInsert, onNewConnection, onClose }:
   { api: StudioApi; flow: Flow; packages: PackageManifest[]; initial?: "build" | "explain"; onInsert: (p: Proposal) => void; onNewConnection: () => void; onClose: () => void }) {
@@ -170,7 +192,8 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
     catch (e) { setError(e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e)); }
     finally { setBusy(false); }
   };
-  const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else)]);
+  const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else),
+    ...(s.cases ?? []).flatMap((c) => flat(c.children)), ...flat(s.default)]);
   return (
     <Dialog open onClose={onClose} title="Agent assistant" width={720}
       footer={<><Button kind="secondary" onClick={onClose}>Close</Button><span className="st-bar-fill" />
@@ -185,9 +208,9 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
         <Field label="What should the agent do?">{(id) => <TextArea id={id} rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder="Read invoices.csv, and for every row with an amount above 1000 send an email to approvals@company.com with the invoice number." />}</Field>
         {conns === null ? <p className="st-muted">Reading the model connections…</p>
-          : conns.connections.length ? <Field label="One Model Connection">{(id) => <Select id={id} value={connection} onChange={(e) => setConnection(e.target.value)}
+          : conns.connections.length ? <Field label="Model Connection">{(id) => <Select id={id} value={connection} onChange={(e) => setConnection(e.target.value)}
               options={conns.connections.map((c) => ({ value: c.name, label: c.name + " (" + c.provider + (c.model ? ", " + c.model : "") + ")" }))} />}</Field>
-          : <div className="st-alert" role="note">The assistant needs a language model. <Button kind="secondary" onClick={onNewConnection}>Set up a One Model Connection</Button> first.</div>}
+          : <div className="st-alert" role="note">The assistant needs a language model. <Button kind="secondary" onClick={onNewConnection}>Set up a Model Connection</Button> first.</div>}
         {busy && <p className="st-muted" role="status">Thinking… this can take up to a minute.</p>}
         {error && <p className="st-error" role="alert">{error}</p>}
         {proposal && <>

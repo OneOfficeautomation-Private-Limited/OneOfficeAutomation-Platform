@@ -166,6 +166,142 @@ class Ec2PackageTest {
         }
     }
 
+    static final String VOL = "vol-0aaaaaaaaaaaaaaa1", SNAP = "snap-0aaaaaaaaaaaaaaa1", SNAP2 = "snap-0bbbbbbbbbbbbbbb2";
+
+    static String snapshot(String id, String state) {
+        return "<item><snapshotId>" + id + "</snapshotId><volumeId>" + VOL + "</volumeId><status>" + state + "</status><startTime>2026-11-01T08:00:00.000Z</startTime>"
+                + "<progress>100%</progress><ownerId>123456789012</ownerId><volumeSize>30</volumeSize><description>Nightly</description><encrypted>true</encrypted>"
+                + "<tagSet><item><key>Team</key><value>Finance</value></item></tagSet></item>";
+    }
+
+    @Test void snapshotsCreateListPageAndDelete() throws Exception {
+        try (Fake f = new Fake()) {
+            AtomicInteger page = new AtomicInteger();
+            f.on("POST /", c -> switch (form(c).get("Action")) {
+                case "DescribeRegions" -> xml("<DescribeRegionsResponse" + NS + "/>");
+                case "CreateSnapshot" -> xml("<CreateSnapshotResponse" + NS + "><snapshotId>" + SNAP + "</snapshotId><volumeId>" + VOL + "</volumeId>"
+                        + "<status>pending</status><startTime>2026-11-03T09:00:00.000Z</startTime><progress/><volumeSize>30</volumeSize></CreateSnapshotResponse>");
+                case "DescribeSnapshots" -> page.incrementAndGet() == 1
+                        ? xml("<DescribeSnapshotsResponse" + NS + "><snapshotSet>" + snapshot(SNAP, "completed") + "</snapshotSet><nextToken>t2</nextToken></DescribeSnapshotsResponse>")
+                        : xml("<DescribeSnapshotsResponse" + NS + "><snapshotSet>" + snapshot(SNAP2, "pending") + "</snapshotSet></DescribeSnapshotsResponse>");
+                case "DeleteSnapshot" -> form(c).get("SnapshotId").equals(SNAP)
+                        ? xml("<DeleteSnapshotResponse" + NS + "><return>true</return></DeleteSnapshotResponse>")
+                        : new Object[]{400, "<Response><Errors><Error><Code>InvalidSnapshot.NotFound</Code><Message>The snapshot does not exist.</Message></Error></Errors></Response>"};
+                default -> new Object[]{400, "<Response><Errors><Error><Code>InvalidAction</Code><Message>no</Message></Error></Errors></Response>"};
+            });
+            ActionContext ctx = connected(f, null);
+            Map<String, Object> made = pkg.createSnapshot(ctx, "ec2", VOL, "Before patching", new LinkedHashMap<>(Map.of("Name", "pre-patch")));
+            assertEquals(SNAP, made.get("snapshot_id"));
+            assertEquals("pending", made.get("state"));
+            Map<String, String> cs = form(f.last("POST", "/"));
+            assertEquals(VOL, cs.get("VolumeId"));
+            assertEquals("Before patching", cs.get("Description"));
+            assertEquals("snapshot", cs.get("TagSpecification.1.ResourceType"));
+            assertEquals("pre-patch", cs.get("TagSpecification.1.Tag.1.Value"));
+
+            Map<String, Object> listed = pkg.listSnapshots(ctx, "ec2", VOL, Map.of("Team", "Finance"), "self", Map.of("status", List.of("completed", "pending")), 1000);
+            assertEquals(List.of(SNAP, SNAP2), listed.get("snapshot_ids"));
+            assertEquals(new java.math.BigDecimal("2"), listed.get("count"));
+            int n = f.calls.size();
+            Map<String, String> p1 = form(f.calls.get(n - 2)), p2 = form(f.calls.get(n - 1));
+            assertEquals("self", p1.get("Owner.1"));
+            assertEquals("volume-id", p1.get("Filter.1.Name"));
+            assertEquals(VOL, p1.get("Filter.1.Value.1"));
+            assertEquals("tag:Team", p1.get("Filter.2.Name"));
+            assertEquals("Finance", p1.get("Filter.2.Value.1"));
+            assertEquals("status", p1.get("Filter.3.Name"));
+            assertEquals("pending", p1.get("Filter.3.Value.2"));
+            assertNull(p1.get("NextToken"));
+            assertEquals("t2", p2.get("NextToken"), "the second page is asked for with the token");
+            List<List<Object>> rows = rows(listed.get("snapshots"));
+            assertEquals(new java.math.BigDecimal("30"), rows.get(0).get(5));
+            assertEquals(true, rows.get(0).get(7));
+            assertEquals(Map.of("Team", "Finance"), rows.get(0).get(9));
+            assertEquals(1, rows(pkg.listSnapshots(ctx, "ec2", null, null, null, null, 1).get("snapshots")).size(), "max_results stops early");
+
+            pkg.deleteSnapshot(ctx, "ec2", SNAP);
+            assertEquals(SNAP, form(f.last("POST", "/")).get("SnapshotId"));
+            fails("EC2.SNAPSHOT_NOT_FOUND", () -> pkg.deleteSnapshot(ctx, "ec2", SNAP2));
+            fails("EC2.BAD_SNAPSHOT_ID", () -> pkg.deleteSnapshot(ctx, "ec2", "ami-0123"));
+            fails("EC2.BAD_VOLUME_ID", () -> pkg.createSnapshot(ctx, "ec2", "disk-1", null, null));
+            fails("EC2.BAD_OWNER", () -> pkg.listSnapshots(ctx, "ec2", null, null, "everyone", null, 10));
+        }
+    }
+
+    @Test void volumesCreateAttachDetach() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("POST /", c -> switch (form(c).get("Action")) {
+                case "DescribeRegions" -> xml("<DescribeRegionsResponse" + NS + "/>");
+                case "CreateVolume" -> xml("<CreateVolumeResponse" + NS + "><volumeId>" + VOL + "</volumeId><size>" + form(c).getOrDefault("Size", "30") + "</size>"
+                        + "<availabilityZone>eu-west-1a</availabilityZone><status>creating</status><volumeType>gp3</volumeType></CreateVolumeResponse>");
+                case "AttachVolume" -> xml("<AttachVolumeResponse" + NS + "><volumeId>" + VOL + "</volumeId><instanceId>" + A + "</instanceId><device>/dev/sdf</device>"
+                        + "<status>attaching</status></AttachVolumeResponse>");
+                case "DetachVolume" -> "true".equals(form(c).get("Force"))
+                        ? new Object[]{400, "<Response><Errors><Error><Code>IncorrectState</Code><Message>Volume is not attached</Message></Error></Errors></Response>"}
+                        : xml("<DetachVolumeResponse" + NS + "><volumeId>" + VOL + "</volumeId><status>detaching</status></DetachVolumeResponse>");
+                default -> new Object[]{400, "<Response><Errors><Error><Code>InvalidVolume.NotFound</Code><Message>The volume does not exist</Message></Error></Errors></Response>"};
+            });
+            ActionContext ctx = connected(f, null);
+            Map<String, Object> v = pkg.createVolume(ctx, "ec2", "eu-west-1a", 50, "gp3", null, Map.of("Name", "Invoice data"));
+            assertEquals(VOL, v.get("volume_id"));
+            assertEquals("creating", v.get("state"));
+            assertEquals(new java.math.BigDecimal("50"), v.get("size_gib"));
+            Map<String, String> cv = form(f.last("POST", "/"));
+            assertEquals("eu-west-1a", cv.get("AvailabilityZone"));
+            assertEquals("50", cv.get("Size"));
+            assertEquals("gp3", cv.get("VolumeType"));
+            assertNull(cv.get("SnapshotId"));
+            assertEquals("volume", cv.get("TagSpecification.1.ResourceType"));
+
+            pkg.createVolume(ctx, "ec2", "eu-west-1a", 0, "io2", SNAP, null);
+            Map<String, String> fromSnap = form(f.last("POST", "/"));
+            assertEquals(SNAP, fromSnap.get("SnapshotId"));
+            assertNull(fromSnap.get("Size"), "size 0 takes the snapshot's size");
+            assertEquals("io2", fromSnap.get("VolumeType"));
+
+            assertEquals("attaching", pkg.attachVolume(ctx, "ec2", VOL, A, "/dev/sdf").get("state"));
+            Map<String, String> at = form(f.last("POST", "/"));
+            assertEquals(VOL, at.get("VolumeId"));
+            assertEquals(A, at.get("InstanceId"));
+            assertEquals("/dev/sdf", at.get("Device"));
+
+            assertEquals("detaching", pkg.detachVolume(ctx, "ec2", VOL, false).get("state"));
+            assertNull(form(f.last("POST", "/")).get("Force"));
+            fails("EC2.VOLUME_WRONG_STATE", () -> pkg.detachVolume(ctx, "ec2", VOL, true));
+            assertEquals("true", form(f.last("POST", "/")).get("Force"));
+
+            fails("EC2.BAD_SIZE", () -> pkg.createVolume(ctx, "ec2", "eu-west-1a", 0, "gp3", null, null));
+            fails("EC2.BAD_SIZE", () -> pkg.createVolume(ctx, "ec2", "eu-west-1a", 70000, "gp3", null, null));
+            fails("EC2.BAD_ZONE", () -> pkg.createVolume(ctx, "ec2", "Ireland A", 10, "gp3", null, null));
+            fails("EC2.BAD_VOLUME_TYPE", () -> pkg.createVolume(ctx, "ec2", "eu-west-1a", 10, "ssd", null, null));
+            fails("EC2.NO_DEVICE", () -> pkg.attachVolume(ctx, "ec2", VOL, A, " "));
+            fails("EC2.BAD_INSTANCE_ID", () -> pkg.attachVolume(ctx, "ec2", VOL, "web-1", "/dev/sdf"));
+        }
+    }
+
+    @Test void volumeErrorsNotFoundForbiddenAndThrottling() throws Exception {
+        try (Fake f = new Fake()) {
+            AtomicInteger throttled = new AtomicInteger();
+            f.on("POST /", c -> switch (form(c).get("Action")) {
+                case "DescribeRegions" -> xml("<DescribeRegionsResponse" + NS + "/>");
+                case "AttachVolume" -> new Object[]{400, "<Response><Errors><Error><Code>InvalidVolume.NotFound</Code><Message>The volume 'vol-0aaaaaaaaaaaaaaa1' does not exist.</Message></Error></Errors></Response>"};
+                case "CreateVolume" -> new Object[]{403, "<Response><Errors><Error><Code>UnauthorizedOperation</Code><Message>You are not authorized to perform this operation.</Message></Error></Errors></Response>"};
+                case "DescribeSnapshots" -> throttled.incrementAndGet() == 1
+                        ? new Object[]{429, "", Map.of("Retry-After", "0")}
+                        : xml("<DescribeSnapshotsResponse" + NS + "><snapshotSet/></DescribeSnapshotsResponse>");
+                default -> new Object[]{503, "<Response><Errors><Error><Code>RequestLimitExceeded</Code><Message>Request limit exceeded.</Message></Error></Errors></Response>"};
+            });
+            ActionContext ctx = connected(f, null);
+            ActionException nf = fails("EC2.VOLUME_NOT_FOUND", () -> pkg.attachVolume(ctx, "ec2", VOL, A, "/dev/sdf"));
+            assertEquals("InvalidVolume.NotFound", nf.details().get("aws_code"));
+            fails("EC2.FORBIDDEN", () -> pkg.createVolume(ctx, "ec2", "eu-west-1a", 10, "gp3", null, null));
+            assertEquals(new java.math.BigDecimal("0"), pkg.listSnapshots(ctx, "ec2", null, null, "self", null, 10).get("count"));
+            assertEquals(2, throttled.get(), "an HTTP 429 is sent again after Retry-After");
+            ActionException busy = fails("EC2.SERVER_BUSY", () -> pkg.createSnapshot(ctx, "ec2", VOL, null, null));
+            assertTrue(busy.retryable(), "RequestLimitExceeded can be retried");
+        }
+    }
+
     @Test void awsErrorsBecomeClearErrors() throws Exception {
         try (Fake f = new Fake()) {
             f.on("POST /", c -> switch (form(c).get("Action")) {

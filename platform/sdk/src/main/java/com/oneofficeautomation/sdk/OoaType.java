@@ -4,7 +4,15 @@ package com.oneofficeautomation.sdk;
 public enum OoaType {
     STRING("String"), NUMBER("Number"), BOOLEAN("Boolean"), DATETIME("DateTime"), LIST("List"),
     DICTIONARY("Dictionary"), TABLE("Table"), RECORD("Record"), FILE("File"), WINDOW("Window"),
-    UIELEMENT("UIElement"), CREDENTIAL("Credential"), ANY("Any");
+    UIELEMENT("UIElement"), CREDENTIAL("Credential"), ANY("Any"),
+    /** A time of day without a date or zone, e.g. 14:30:05 (java.time.LocalTime at run time). */
+    TIME("Time"),
+    /** A length of time, possibly negative, e.g. PT2H15M (java.time.Duration at run time). */
+    TIMESPAN("TimeSpan"),
+    /** A picture held in memory as PNG bytes with its width and height ({@link ImageValue}). */
+    IMAGE("Image"),
+    /** Bytes held in memory, e.g. a file's contents ({@link BinaryValue}). */
+    BINARY("Binary");
 
     private final String flowName;
 

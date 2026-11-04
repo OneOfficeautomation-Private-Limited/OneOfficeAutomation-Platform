@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * K7: the template catalogue published with each release, made from the repository's templates folder by
- * "ooa release templates". Every template must import into a fresh Command Center (checksums and validation pass).
+ * "ooa release templates". Every template must import into a fresh One CommandCenter (checksums and validation pass).
  */
 class TemplateCatalogueTest {
 

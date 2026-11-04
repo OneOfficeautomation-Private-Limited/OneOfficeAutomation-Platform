@@ -11,7 +11,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * Code analysis: checks agents against the Command Center's policy, a set of rules each switched on with a severity
+ * Code analysis: checks agents against One CommandCenter's policy, a set of rules each switched on with a severity
  * (error or warning) and its own settings. Analysis runs on demand, and at every check-in; when the policy says so, a
  * check-in with errors is refused. Each analysed version's report is stored, and a report of the whole repository can
  * be downloaded. Workflows and forms are not analysed (they have no steps).
@@ -45,12 +45,27 @@ public final class CodeAnalysis {
 
     CodeAnalysis(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
-    /** The policy in force: the defaults with the saved changes, plus enforce_at_checkin. */
+    /** The default policy (for folders without their own, Administration > Policies): the defaults with the saved changes, plus enforce_at_checkin. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> policy() {
         Map<String, Object> saved = Map.of();
         Map<String, Object> row = db.one("SELECT json_value FROM code_policy WHERE id = 1");
         if (row != null) saved = (Map<String, Object>) JsonLite.parse((String) row.get("json_value"));
+        return effective(saved);
+    }
+
+    /** The policy for an agent: its folder's code analysis policy (or the nearest folder's above it), else the default, with its name. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> policyFor(String path) {
+        Map<String, Object> own = cr.policies.find("code", Folders.folderOf(path == null ? "" : path));
+        Map<String, Object> p = new LinkedHashMap<>(own == null ? policy() : effective((Map<String, Object>) own.get("rules")));
+        p.put("name", own == null ? Policies.DEFAULT_NAME : own.get("name"));
+        return p;
+    }
+
+    /** A saved policy (only what differs from the rules' defaults) as the full set of rules in force. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> effective(Map<String, Object> saved) {
         Map<String, Object> rules = new LinkedHashMap<>();
         Map<String, Object> changed = saved.get("rules") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         for (var e : RULES.entrySet()) {
@@ -68,6 +83,17 @@ public final class CodeAnalysis {
     @SuppressWarnings("unchecked")
     public Map<String, Object> savePolicy(User by, Map<String, Object> p, String ip) {
         cr.require(by, "settings.manage", "change the code analysis policy");
+        Map<String, Object> clean = clean(p);
+        String json = JsonLite.write(clean);
+        if (db.update("UPDATE code_policy SET json_value = ?, updated = ?, updated_by = ? WHERE id = 1", json, now(), by.username()) == 0)
+            db.update("INSERT INTO code_policy (id, json_value, updated, updated_by) VALUES (1,?,?,?)", json, now(), by.username());
+        cr.audit.record(by.username(), "analysis.policy", "policy", null, clean, "ok", ip);
+        return policy();
+    }
+
+    /** A policy as it is saved: enforce_at_checkin and each rule's changes, checked (known rules, error or warning, a valid pattern). */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> clean(Map<String, Object> p) {
         Map<String, Object> clean = new LinkedHashMap<>();
         clean.put("enforce_at_checkin", Boolean.TRUE.equals(p.get("enforce_at_checkin")));
         Map<String, Object> rules = new LinkedHashMap<>();
@@ -88,11 +114,7 @@ public final class CodeAnalysis {
             rules.put(e.getKey(), c);
         }
         clean.put("rules", rules);
-        String json = JsonLite.write(clean);
-        if (db.update("UPDATE code_policy SET json_value = ?, updated = ?, updated_by = ? WHERE id = 1", json, now(), by.username()) == 0)
-            db.update("INSERT INTO code_policy (id, json_value, updated, updated_by) VALUES (1,?,?,?)", json, now(), by.username());
-        cr.audit.record(by.username(), "analysis.policy", "policy", null, clean, "ok", ip);
-        return policy();
+        return clean;
     }
 
     record Violation(String rule, String severity, String stepId, String message) {
@@ -103,14 +125,18 @@ public final class CodeAnalysis {
         }
     }
 
-    /** Checks a flow against the policy. */
+    /** Checks a flow against the default policy. */
+    public List<Map<String, Object>> check(Map<String, Object> flow) { return check(flow, policy()); }
+
+    /** Checks a flow against a policy (the agent's folder's, from policyFor). */
     @SuppressWarnings("unchecked")
-    public List<Map<String, Object>> check(Map<String, Object> flow) {
-        Map<String, Object> rules = (Map<String, Object>) policy().get("rules");
+    public List<Map<String, Object>> check(Map<String, Object> flow, Map<String, Object> policy) {
+        Map<String, Object> rules = (Map<String, Object>) policy.get("rules");
         List<Violation> out = new ArrayList<>();
         List<Object> top = (List<Object>) flow.getOrDefault("steps", List.of());
-        List<Map<String, Object>> all = Steps.walk(top);
-        String json = JsonLite.write(flow.getOrDefault("steps", List.of()));
+        List<Map<String, Object>> all = Steps.walkFlow(flow);   // the subflows' and the error handler's steps too
+        String json = JsonLite.write(flow.getOrDefault("steps", List.of())) + (flow.containsKey("subflows") ? JsonLite.write(flow.get("subflows")) : "")
+                + (flow.containsKey("onError") ? JsonLite.write(flow.get("onError")) : "");
         for (var e : rules.entrySet()) {
             Map<String, Object> r = (Map<String, Object>) e.getValue();
             if (!Boolean.TRUE.equals(r.get("enabled"))) continue;
@@ -133,7 +159,7 @@ public final class CodeAnalysis {
                 }
                 case "require_error_handling" -> {
                     int min = num(p.get("min_steps"), 5);
-                    if (all.size() > min && all.stream().noneMatch(s -> "core/try".equals(s.get("action"))))
+                    if (all.size() > min && Steps.onError(flow) == null && all.stream().noneMatch(s -> "core/try".equals(s.get("action"))))
                         out.add(new Violation("require_error_handling", sev, null, "The agent has " + all.size() + " steps and no Try/Catch"));
                 }
                 case "empty_catch" -> {
@@ -179,7 +205,8 @@ public final class CodeAnalysis {
                 }
                 case "max_nesting" -> {
                     int limit = num(p.get("limit"), 6);
-                    int depth = depth(top, 0);
+                    int depth = Math.max(depth(top, 0), depth(Steps.onErrorSteps(flow), 0));
+                    for (List<Object> sub : Steps.subflows(flow).values()) depth = Math.max(depth, depth(sub, 0));
                     if (depth > limit) out.add(new Violation("max_nesting", sev, null, "Blocks are nested " + depth + " deep (limit " + limit + ")"));
                 }
                 default -> { }
@@ -210,8 +237,8 @@ public final class CodeAnalysis {
             if (!(o instanceof Map<?, ?> m)) continue;
             Map<String, Object> s = (Map<String, Object>) m;
             List<List<Object>> inner = new ArrayList<>();
-            for (String k : List.of("children", "else", "finally")) if (s.get(k) instanceof List<?> l) inner.add((List<Object>) l);
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) inner.add((List<Object>) c);
+            for (String k : List.of("children", "else", "finally", "default")) if (s.get(k) instanceof List<?> l) inner.add((List<Object>) l);
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) inner.add((List<Object>) c);
             for (List<Object> l : inner) if (!l.isEmpty()) max = Math.max(max, depth(l, d + 1));
         }
         return max;
@@ -224,7 +251,7 @@ public final class CodeAnalysis {
     public Map<String, Object> analyze(User by, String path, Object version) {
         Map<String, Object> c = cr.getBot(by, path, version == null ? "latest" : version);
         if (!analysable(path)) throw new OoaException("CR.BAD_INPUT", "Only agents are analysed (not workflows or forms)");
-        return store(path, ((Number) c.get("version")).intValue(), check((Map<String, Object>) c.get("flow")), by.username());
+        return store(path, ((Number) c.get("version")).intValue(), check((Map<String, Object>) c.get("flow"), policyFor(path)), by.username());
     }
 
     /** Analyses a flow that is not stored (for example from Studio before check-in). */
@@ -285,10 +312,11 @@ public final class CodeAnalysis {
     /** At check-in: the violations, and whether the policy refuses the check-in for them. */
     void atCheckin(String path, Map<String, Object> flow) {
         if (!analysable(path)) return;
-        if (!Boolean.TRUE.equals(policy().get("enforce_at_checkin"))) return;
-        List<Map<String, Object>> v = check(flow);
+        Map<String, Object> policy = policyFor(path);
+        if (!Boolean.TRUE.equals(policy.get("enforce_at_checkin"))) return;
+        List<Map<String, Object>> v = check(flow, policy);
         List<Map<String, Object>> errors = v.stream().filter(x -> "error".equals(x.get("severity"))).toList();
         if (!errors.isEmpty()) throw new OoaException("CR.POLICY_VIOLATION", errors.size() + " code analysis error(s): " + errors.get(0).get("message"),
-                "Fix them, or ask an administrator about the code analysis policy.", false, Map.of("violations", v));
+                "Fix them, or ask an administrator about the code analysis policy '" + policy.get("name") + "'.", false, Map.of("violations", v));
     }
 }

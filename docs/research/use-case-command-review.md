@@ -10,7 +10,7 @@ for example the `[object Object]` display of calculations and calculations havin
 All descriptions are in our own words.
 
 
-## Review A: One Agent Studio against AA, command by command (P1-P6, W1-W3)
+## Review A: One One AgentStudio against AA, command by command (P1-P6, W1-W3)
 
 Sources: our agents in `examples/use-cases/<id>-*.flow.json`, our action catalogue (`/studio/api/packages`), Studio's
 property panel (`studio.js`: `renderProps`, `inputControl`, `conditionEditor`, `textSourceEditor`, `summary`), and the AA
@@ -325,7 +325,7 @@ In the tables below, "AA: Capture TextBox > Set text" means one Capture action c
 | F7 | **Wait for element** - State; **Set text** - Press enter | The generic "optional field with a default after the first 3 goes to More options" rule hides the one choice that matters: *State* (visible/hidden) and *Timeout*, and *Press enter* | P4 s19/s26 (hidden), W1 s5 / W3 s3 / P6 s6 (timeout), W3 s2 (press enter) | Mark key fields per action as always shown (e.g. `x-ooa-primary`), instead of counting fields | P2 |
 | F8 | **Click element** vs **Capture: element action** | The javascript click (needed when adverts or overlays cover a button) exists only in *Capture: element action*, so the developer must replace the step; that action is also used with a plain selector although its name says "Capture" | P4 s6/s10/s18/s22/s25 | Add *Click method* (and Force) under More options of *Click element*; rename *Capture: element action* to "Element action" | P2 |
 | F9 | Web actions - Selector and Captured object | Both a *Captured object* editor and a *Selector* box are shown for every web step; which one wins is only in the description | All web steps (P1-P6, W1-W3) | Show one "Element" field with Capture as the main path and "Use a selector instead" as a toggle | P2 |
-| F10 | **Open browser** - defaults | Every unattended agent changes two More-options fields (Engine `playwright`, Keep open `false`) | P1-P6, W1-W3 s1 | Default Keep open to false when Headless is on or when run from Command Center; pick the engine automatically for headless runs | P2 |
+| F10 | **Open browser** - defaults | Every unattended agent changes two More-options fields (Engine `playwright`, Keep open `false`) | P1-P6, W1-W3 s1 | Default Keep open to false when Headless is on or when run from One CommandCenter; pick the engine automatically for headless runs | P2 |
 | F11 | **Row count** | No "only non-empty rows"; P4 used *Filter rows* (Email not empty) just to count | P4 s30 | Add *Skip empty rows* to Row count and to Extract table | P2 |
 | F12 | **Click** - wait after | After clicking Next on a page that keeps the same elements, *Wait for element* passes at once, so fixed Delays are added | P5 s13, W2 s5, P4 s8 | Add *Wait for: page load / element to change / element to appear* after the click | P2 |
 | F13 | Data table steps with JSON | *Merge tables* (JSON list), *Add row* (JSON list in column order, even with inline `{expr}`), *Group and summarise* (JSON with `avg:Price`) | P3 s6/s15/s22, P5 s11/s18/s25, P6 s13 | Row editors: Merge = "Add rows of `$t` to `$all`" (2 table pickers); Add row = one labelled box per column of the target table; Summaries = rows of [new column][function][column] | P2 |
@@ -352,7 +352,7 @@ In the tables below, "AA: Capture TextBox > Set text" means one Capture action c
 - **Columns by name** in loops (`$e.FirstName`) instead of AA's index (`$rE[0]$`), which breaks when columns move.
 - Opening a **local HTML file** directly (W1-W3) without a web server.
 
-## Command-by-command review B: W4 to W10 (One Agent Studio vs AA Community Edition)
+## Command-by-command review B: W4 to W10 (One One AgentStudio vs AA Community Edition)
 
 Sources: our agents in `examples/use-cases/W4..W10-*.flow.json`, the action catalogue (`packages.json`), Studio UI (`studio.js`: `inputControl`, `renderProps`, `conditionEditor`, `summary`/`loopText`), the AA bots W4..W10 and the AA command catalogue read from the Control Room tab.
 

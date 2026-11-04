@@ -2,7 +2,7 @@
 
 ## What this covers / audience
 
-How to install the Command Center and runners on Windows with the setup package (guided or silent) or the MSI, how
+How to install One CommandCenter and runners on Windows with the setup package (guided or silent) or the MSI, how
 the Windows services and the runner sign-in task work, the first sign-in, uninstalling, and the logs and exit codes.
 For Windows administrators and software-distribution teams (SCCM, Intune, Group Policy).
 
@@ -26,8 +26,8 @@ For Windows administrators and software-distribution teams (SCCM, Intune, Group 
 
 | File | Contains | Use |
 | --- | --- | --- |
-| `ooa-setup-<version>.zip` | The product, its own Java runtime, `Install.cmd`, `Install-OOA.ps1`, `Uninstall-OOA.ps1` | Guided or silent installs of Command Centers and runners, per user or for all users |
-| `ooa-<version>.msi` | The same product and Java, for all users, in `Program Files\ONEOFFICEAUTOMATION` | Software distribution; Command Center service, or a runner service |
+| `ooa-setup-<version>.zip` | The product, its own Java runtime, `Install.cmd`, `Install-OOA.ps1`, `Uninstall-OOA.ps1` | Guided or silent installs of One CommandCenter installations and runners, per user or for all users |
+| `ooa-<version>.msi` | The same product and Java, for all users, in `Program Files\ONEOFFICEAUTOMATION` | Software distribution; One CommandCenter service, or a runner service |
 | `ooa-customer-<version>.zip` | The product without Java and without an installer | Unzip and double-click `START-OOA.cmd` (needs Java 21 installed) |
 
 Every package carries `sbom.cdx.json` (CycloneDX software bill of materials). Check a download first with
@@ -35,25 +35,25 @@ Every package carries `sbom.cdx.json` (CycloneDX software bill of materials). Ch
 
 ## 2. Before you start
 
-- Decide the role of the computer: **Command Center** (the server people sign in to; includes Agent Studio) or
-  **Runner** (runs agents for a Command Center elsewhere).
-- For a Command Center that will be licensed, prepare SQL Server (or PostgreSQL) and two accounts: see
+- Decide the role of the computer: **One CommandCenter** (the server people sign in to; includes One AgentStudio) or
+  **Runner** (runs agents for One CommandCenter elsewhere).
+- For One CommandCenter that will be licensed, prepare SQL Server (or PostgreSQL) and two accounts: see
   [05. Databases](05-databases.md).
 - Set the vault key for production before the first start: `setx OOA_MASTER_KEY "<32 random bytes, Base64>" /M`, or
   `OOA_MASTER_KEY_SOURCE` (see [08. Security hardening](08-security-hardening.md)). Without either, a key file
   `master.key` is created in the data folder at the first start.
-- For a runner: create a registration key in the Command Center (Runners > Register a runner). It works once, for at
+- For a runner: create a registration key in One CommandCenter (Runners > Register a runner). It works once, for at
   most 24 hours. Tick **Temporary runner** for pooled virtual desktops.
   Running setup again on a registered runner (an update or a repair) keeps its registration, so no new key is
-  needed then; leave the key empty. A new key is needed only when the Command Center no longer accepts the runner
-  (deleted or disabled) or it should join another Command Center.
+  needed then; leave the key empty. A new key is needed only when One CommandCenter no longer accepts the runner
+  (deleted or disabled) or it should join another One CommandCenter.
 - Administrator rights are needed for `-AllUsers`, `-Service` and the MSI.
 
 ## 3. Setup package: guided install
 
 1. Unzip the whole package.
 2. Double-click `Install.cmd`.
-3. Answer the questions: Command Center (1) or Runner (2); the install folder; for a Command Center, the SQL Server
+3. Answer the questions: One CommandCenter (1) or Runner (2); the install folder; for One CommandCenter, the SQL Server
    (empty for the built-in evaluation database) and the two passwords (typed hidden); for a runner, the Command
    Center address and the registration key.
 4. The window stays open if something fails; read the message and `%TEMP%\ooa-install.log`.
@@ -81,26 +81,26 @@ Install.cmd -Silent -Role Runner -AllUsers -Service -Url https://ooa.example.com
 | `-Silent` | Both | Off | Ask nothing; fail with an exit code when something is missing |
 | `-NoShortcuts` | Both | Off | No Start menu entries |
 | `-NoStart` | Both | Off | Do not start the service or runner after installing |
-| `-Service` | Command Center | Off | Run as the Windows service "OOA Command Center", starting with Windows |
-| `-Port N` | Command Center | 8720 | The port |
-| `-ListenAddress ADDR` | Command Center | `0.0.0.0` (every network card) | The address the service listens on. The default lets runners on other machines reach it; set up HTTPS (`ooa tls`) before they do. `127.0.0.1` keeps it on this computer only. |
-| `-DataDir DIR` | Command Center | `%USERPROFILE%\OOA Command Center` of the installing account (the MSI: `%ProgramData%\OneOfficeAutomation\Command Center`) | The data folder. Always give it for a service. |
-| `-DbServer NAME` | Command Center | None (built-in evaluation database) | SQL Server host or `host\instance` |
-| `-DbName NAME` | Command Center | `ooa_command_center` | The database |
-| `-DbUser NAME` | Command Center | `ooa_app` | The runtime account (data rights only) |
-| `-DbSetupUser NAME` | Command Center | `ooa_setup` | The account that creates and upgrades the schema |
-| `-DbPasswordEnv VAR` | Command Center | Asked when not silent | Environment variable holding the runtime password |
-| `-DbSetupPasswordEnv VAR` | Command Center | Asked when not silent | Environment variable holding the setup password |
-| `-DbTrustCertificate` | Command Center | Off | Accept a test SQL Server's self-signed certificate |
-| `-SkipCheck` | Command Center | Off | Install even if `ooa check` finds a FAIL |
-| `-Url URL` | Runner | Required | Command Center address, `https://...` or `http://...` |
+| `-Service` | One CommandCenter | Off | Run as the Windows service "OOA Command Center", starting with Windows |
+| `-Port N` | One CommandCenter | 8720 | The port |
+| `-ListenAddress ADDR` | One CommandCenter | `0.0.0.0` (every network card) | The address the service listens on. The default lets runners on other machines reach it; set up HTTPS (`ooa tls`) before they do. `127.0.0.1` keeps it on this computer only. |
+| `-DataDir DIR` | One CommandCenter | `%USERPROFILE%\OOA Command Center` of the installing account (the MSI: `%ProgramData%\OneOfficeAutomation\One CommandCenter`) | The data folder. Always give it for a service. |
+| `-DbServer NAME` | One CommandCenter | None (built-in evaluation database) | SQL Server host or `host\instance` |
+| `-DbName NAME` | One CommandCenter | `ooa_command_center` | The database |
+| `-DbUser NAME` | One CommandCenter | `ooa_app` | The runtime account (data rights only) |
+| `-DbSetupUser NAME` | One CommandCenter | `ooa_setup` | The account that creates and upgrades the schema |
+| `-DbPasswordEnv VAR` | One CommandCenter | Asked when not silent | Environment variable holding the runtime password |
+| `-DbSetupPasswordEnv VAR` | One CommandCenter | Asked when not silent | Environment variable holding the setup password |
+| `-DbTrustCertificate` | One CommandCenter | Off | Accept a test SQL Server's self-signed certificate |
+| `-SkipCheck` | One CommandCenter | Off | Install even if `ooa check` finds a FAIL |
+| `-Url URL` | Runner | Required | One CommandCenter address, `https://...` or `http://...` |
 | `-RegistrationKey KEY` | Runner | Required | One-time key `ooareg_...` |
-| `-RunnerName NAME` | Runner | Computer name | Name shown in the Command Center |
-| `-CaFile FILE` | Runner | None | Certificate to trust (for a self-signed Command Center certificate) |
-| `-Proxy system\|none\|URL` | Runner | `system` | How the runner reaches the Command Center |
+| `-RunnerName NAME` | Runner | Computer name | Name shown in One CommandCenter |
+| `-CaFile FILE` | Runner | None | Certificate to trust (for a self-signed One CommandCenter certificate) |
+| `-Proxy system\|none\|URL` | Runner | `system` | How the runner reaches One CommandCenter |
 | `-Service` | Runner | Off | Runner as the Windows service "OOA Runner" (agents without a screen only). Without it the runner starts at the user's sign-in (scheduled task "OOA Runner"). |
 
-What the script does, in order, for a Command Center: checks the package is complete, checks administrator rights,
+What the script does, in order, for One CommandCenter: checks the package is complete, checks administrator rights,
 copies files, creates the Apps and Features entry and Start menu shortcuts, runs `ooa check --port N`, with
 `-DbServer` runs `ooa db configure`, `db set-password`, `db set-password --setup` and `db init`, and with `-Service`
 runs `ooa service install --mode server --port N --host ADDR [--data DIR]`. When the service listens beyond this
@@ -124,11 +124,11 @@ msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 RE
 | Property | Default | Meaning |
 | --- | --- | --- |
 | `ROLE` | Empty: files only | `CommandCenter` or `Runner`. Without it only the files are installed. |
-| `SERVICE` | Empty | `1` (or `yes`, `true`): install the Command Center as a service. A runner installed by the MSI is always a service. |
-| `PORT` | 8720 | Command Center port |
-| `LISTEN_ADDRESS` | `0.0.0.0` (every network card) | The address the Command Center service listens on. `127.0.0.1` keeps it on this computer only. Set up HTTPS before runners on other machines use it. |
-| `DATA_DIR` | `%ProgramData%\OneOfficeAutomation\Command Center` | Command Center data folder. The MSI configures as the Local System account, so without `DATA_DIR` the data goes to ProgramData, not to that account's profile. |
-| `URL` | - | Runner: the Command Center address |
+| `SERVICE` | Empty | `1` (or `yes`, `true`): install One CommandCenter as a service. A runner installed by the MSI is always a service. |
+| `PORT` | 8720 | One CommandCenter port |
+| `LISTEN_ADDRESS` | `0.0.0.0` (every network card) | The address One CommandCenter service listens on. `127.0.0.1` keeps it on this computer only. Set up HTTPS before runners on other machines use it. |
+| `DATA_DIR` | `%ProgramData%\OneOfficeAutomation\One CommandCenter` | One CommandCenter data folder. The MSI configures as the Local System account, so without `DATA_DIR` the data goes to ProgramData, not to that account's profile. |
+| `URL` | - | Runner: One CommandCenter address |
 | `REGISTRATION_KEY` | - | Runner: the one-time key (a hidden property, kept out of the MSI log) |
 | `RUNNER_NAME` | Computer name | Runner name |
 | `CA_FILE` | - | Certificate to trust |
@@ -162,9 +162,9 @@ ooa service uninstall [--name NAME]
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--mode server\|control-room\|agent` | `server` | `server`: Command Center with Studio (no built-in runner, browser not opened). `control-room`: Command Center only. `agent`: a runner. |
+| `--mode server\|control-room\|agent` | `server` | `server`: One CommandCenter with Studio (no built-in runner, browser not opened). `control-room`: One CommandCenter only. `agent`: a runner. |
 | `--name NAME` | `OOA Command Center`, or `OOA Runner` for `agent` | Service name |
-| `--port N` | 8720 | Command Center port |
+| `--port N` | 8720 | One CommandCenter port |
 | `--host HOST` | Not passed, so the server's default `127.0.0.1` (the installers pass `0.0.0.0`, see section 4) | Address to listen on. Use `0.0.0.0` (with HTTPS) so other machines can connect. |
 | `--data DIR` | The installing account's `OOA Command Center` | Data folder, written out in full |
 | `--workspace DIR` | `OOA Workspace` / `OOA Agent Workspace` of the installing account | Studio or runner workspace |
@@ -185,7 +185,7 @@ Service behaviour:
 - `platform\scripts\test-windows-service.ps1` (source checkout, as administrator) installs a throw-away service
   with a self-signed HTTPS certificate, checks it and removes it.
 
-`Install.cmd -Service` and the MSI with `SERVICE=1` install the Command Center service listening on every network
+`Install.cmd -Service` and the MSI with `SERVICE=1` install One CommandCenter service listening on every network
 card (`0.0.0.0`), so runners on other machines can reach it. Pass `-ListenAddress 127.0.0.1` (MSI:
 `LISTEN_ADDRESS=127.0.0.1`) to keep it on this computer only, for example behind a reverse proxy on the same machine.
 To change the address of a service that exists already, remove it and install it again:
@@ -247,7 +247,7 @@ the upgrade order in [10. Upgrades](10-upgrades-releases-and-patching.md).
 | MSI | `msiexec /x ooa-<version>.msi /qn` |
 
 Uninstall removes the services (`ooa service uninstall`), the sign-in task, ends Java processes running from the
-install folder, removes the Start menu entries, the Apps entry and the program folder. It keeps: the Command Center
+install folder, removes the Start menu entries, the Apps entry and the program folder. It keeps: One CommandCenter
 data folder, the runner registration (`%USERPROFILE%\.ooa-agent`), workspaces, and the vault key. Delete those by
 hand if the machine is retired, after taking a backup.
 
@@ -257,7 +257,7 @@ hand if the machine is retired, after taking a backup.
 | --- | --- |
 | Setup and uninstall | `%TEMP%\ooa-install.log` (of the account that ran it; for the MSI, Local System's temp folder) |
 | MSI | The file given with `/l*v` |
-| Command Center service | `DATA\logs\service-<mode>.log` |
+| One CommandCenter service | `DATA\logs\service-<mode>.log` |
 | Runner service | `<runner workspace>\logs\service-agent.log` |
 | Each run on a runner | `<runner workspace>\logs\<run id>.log` |
 
@@ -279,8 +279,8 @@ when the user answered no.
 
 - The default data folder belongs to the account that runs the command. Pass `-DataDir`/`--data`/`DATA_DIR` on
   servers so the service, the `ooa` commands and backups all use the same folder.
-- An MSI-installed Command Center without `DATA_DIR` keeps its data in
-  `%ProgramData%\OneOfficeAutomation\Command Center`. Pass the same folder with `--data` to the `ooa` commands.
+- An MSI-installed One CommandCenter without `DATA_DIR` keeps its data in
+  `%ProgramData%\OneOfficeAutomation\One CommandCenter`. Pass the same folder with `--data` to the `ooa` commands.
 - Services installed by the installers listen on every network card (`0.0.0.0`) unless you give
   `-ListenAddress`/`LISTEN_ADDRESS` (section 6). Turn on HTTPS before runners on other machines connect.
 - Installing again keeps an existing service and its settings; to change them, `ooa service uninstall` first.
@@ -289,7 +289,7 @@ when the user answered no.
 
 ## 13. In a cloud (AWS, Azure, Google Cloud)
 
-A Command Center in your own cloud account is an on-premises install on rented machines: the same product, your
+One CommandCenter in your own cloud account is an on-premises install on rented machines: the same product, your
 network, your data. Use a Windows virtual machine (below) or the Linux package or container image
 ([03](03-installation-linux-and-containers.md)). Runners for agents that use the screen stay on Windows machines,
 virtual or physical. To run the multi-tenant service for many customers, see
@@ -330,12 +330,12 @@ apart from the backups: a backup holds encrypted vault values, never the key.
    ([04](04-network-ports-proxies-and-certificates.md)).
 7. Run `bin\ooa.bat check --data D:\OOA\cc`: there must be no FAIL lines, and the vault key line must name your key
    source, not a key file.
-8. Register runners from Runners > Register a runner. They connect outbound only, to the Command Center's HTTPS
+8. Register runners from Runners > Register a runner. They connect outbound only, to One CommandCenter's HTTPS
    address, so they can sit in another network (or on premises) as long as they reach that address. Tick
    **Temporary runner** for pooled virtual desktops.
 
 For several nodes behind the load balancer on one database, see [06](06-high-availability-and-scaling.md). To move an
-existing on-premises Command Center into the cloud, see [07](07-backup-restore-and-disaster-recovery.md), section 7.
+existing on-premises One CommandCenter into the cloud, see [07](07-backup-restore-and-disaster-recovery.md), section 7.
 
 ## Related documents
 

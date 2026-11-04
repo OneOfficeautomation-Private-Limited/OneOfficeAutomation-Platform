@@ -175,7 +175,7 @@ If/Function blocks.
 
 | Our action | AA options (paraphrased) | Had | Added | Skipped and why |
 | --- | --- | --- | --- | --- |
-| add_item / add_items | Insert work item: queue, fields from the queue template | queue, data | — | Queue templates (typed columns) belong to central queues in Command Center. |
+| add_item / add_items | Insert work item: queue, fields from the queue template | queue, data | — | Queue templates (typed columns) belong to central queues in One CommandCenter. |
 | **update_item** (new) | Update work item: queue, item id, values, status re-process or on-hold (until a time or indefinitely) | — | data, replace_data, status (unchanged/reprocess/on_hold), on_hold_until, result | — |
 | **get_item** (new) | (supporting read) | — | item dictionary | — |
 | get_next / complete / fail / defer / counts / list_items | (not in AA's agent-side package) | yes | — | — |

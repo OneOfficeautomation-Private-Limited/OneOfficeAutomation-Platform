@@ -7,7 +7,7 @@ $shell = New-Object -ComObject WScript.Shell
 $s = $shell.CreateShortcut($link)
 $s.TargetPath = $bat
 $s.WorkingDirectory = Split-Path $PSScriptRoot -Parent
-$s.Description = "Start Control Room, Studio and the Bot Agent"
+$s.Description = "Start One CommandCenter, One AgentStudio and OneRunner"
 $icon = Join-Path (Split-Path $PSScriptRoot -Parent) "cli\src\main\resources\studio\favicon.ico"
 if (Test-Path $icon) { $s.IconLocation = $icon }
 $s.Save()

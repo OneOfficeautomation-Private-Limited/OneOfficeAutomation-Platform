@@ -6,7 +6,7 @@ Toolkit `ooa.file`, version 1.0.0. Read, write, copy, move and delete files.
 
 ## Contents
 
-- **Files**: Copy, Create shortcut, Create symbolic link, Delete, Get file info, Move or rename, Print files, Read text, Read variables from file, Wait for file, Write text
+- **Files**: Copy, Create shortcut, Create symbolic link, Create temporary file, Delete, Base64 to file, Get file info, Move or rename, Print files, Read text, Read variables from file, File to Base64, Wait for file, Write text
 - **Paths**: Get file name, Get parent folder
 - **Folders**: List files
 - **Archives**: Unzip, Zip
@@ -32,8 +32,8 @@ Copy a file, or every file of a folder that matches a pattern and optional size 
 | Include subfolders | `include_subfolders` | Yes/No | No | No | Main; tick Copy several files by name pattern | With a pattern, also take matching files in sub-folders, keeping their folders under the target. |
 | Minimum size (bytes) | `min_size_bytes` | Number | No |  | Main; tick Filter by size | With a pattern, only files at least this large. Range: 0 to  |
 | Maximum size (bytes) | `max_size_bytes` | Number | No |  | Main; tick Filter by size | With a pattern, only files at most this large. Range: 0 to  |
-| Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | With a pattern, only files last changed after this date and time (local time). |
-| Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | With a pattern, only files last changed before this date and time (local time). |
+| Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
 | Keep both | `keep_both` | Yes/No | No | No | More options | When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping. Shown when: `{"overwrite": ["false"]}` |
 
 **Results**
@@ -93,6 +93,29 @@ Create a symbolic link that points to a file; on Windows this needs Developer Mo
 
 *Time limit 60 s; needs: filesystem.*
 
+### Create temporary file
+
+`ooa.file/create_temp_file` (action)
+
+Create an empty file with a unique name in the temporary folder (or another folder), for working data an agent needs only for a while.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Extension | `extension` | Text | No | `.tmp` | Main | File extension, e.g. .csv or .xlsx. Example: `.csv` |
+| Delete at end | `delete_at_end` | Yes/No | No | Yes | Main | Delete the file when the run ends (also when it fails); turn off to keep it. |
+| Folder | `folder` | File path | No |  | More options | Folder to create it in; the system's temporary folder when empty. |
+| Prefix | `prefix` | Text | No | `ooa-` | More options | Start of the file name. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Full path of the new file. |
+
+*Time limit 60 s; needs: filesystem.*
+
 ### Delete
 
 `ooa.file/delete` (action)
@@ -109,8 +132,8 @@ Delete a file if it exists, or every file in a folder that matches a pattern and
 | Minimum size (bytes) | `min_size_bytes` | Number | No |  | Main; tick Filter by size | With pattern, only files at least this large. Range: 0 to  |
 | Maximum size (bytes) | `max_size_bytes` | Number | No |  | Main; tick Filter by size | With pattern, only files at most this large. Range: 0 to  |
 | Older than (days) | `older_than_days` | Number | No |  | Main; tick Filter by date | With pattern, only files last changed more than this many days ago. Range: 0 to  |
-| Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | With pattern, only files last changed after this date and time (local time). Shown when: `{"pattern": ["!", ""]}` |
-| Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | With pattern, only files last changed before this date and time (local time). Shown when: `{"pattern": ["!", ""]}` |
+| Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | With pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). Shown when: `{"pattern": ["!", ""]}` |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | With pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). Shown when: `{"pattern": ["!", ""]}` |
 
 **Results**
 
@@ -119,6 +142,29 @@ Delete a file if it exists, or every file in a folder that matches a pattern and
 | `deleted` | Number | Number of files deleted. |
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
+
+### Base64 to file
+
+`ooa.file/from_base64` (action)
+
+Write Base64 text (for example a PDF or image returned by a web service) to a file.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Base64 | `base64` | Text | Yes |  | Main | Base64 text; a data: prefix such as data:application/pdf;base64, is allowed. |
+| Path | `path` | File path | Yes |  | Main | File to write; its folder is created when missing. |
+| Overwrite | `overwrite` | Yes/No | No | No | Main | Replace the file when it exists; when off, stop with FILE.EXISTS. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Full path of the written file. |
+| `size_bytes` | Number | Size of the written file. |
+
+*Time limit 60 s; needs: filesystem.*
 
 ### Get file info
 
@@ -158,8 +204,8 @@ Move or rename a file, or move every file of a folder that matches a pattern and
 | Include subfolders | `include_subfolders` | Yes/No | No | No | More options; tick Move several files by name pattern | With a pattern, also take matching files in sub-folders, keeping their folders under the target. |
 | Minimum size (bytes) | `min_size_bytes` | Number | No |  | More options; tick Filter by size | With a pattern, only files at least this large. Range: 0 to  |
 | Maximum size (bytes) | `max_size_bytes` | Number | No |  | More options; tick Filter by size | With a pattern, only files at most this large. Range: 0 to  |
-| Modified after | `modified_after` | DateTime | No |  | More options; tick Filter by date | With a pattern, only files last changed after this date and time (local time). |
-| Modified before | `modified_before` | DateTime | No |  | More options; tick Filter by date | With a pattern, only files last changed before this date and time (local time). |
+| Modified after | `modified_after` | DateTime | No |  | More options; tick Filter by date | With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). |
+| Modified before | `modified_before` | DateTime | No |  | More options; tick Filter by date | With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
 
 **Results**
 
@@ -245,6 +291,27 @@ Read name=value lines (a settings or .properties-style file) into a Dictionary; 
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
 
+### File to Base64
+
+`ooa.file/to_base64` (action)
+
+Read a file (a PDF, an image, any file) as Base64 text, for web services that take attachments as text.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | File to read; up to 50 MB. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `base64` | Text | The file's contents as Base64 text. |
+| `size_bytes` | Number | Size of the file. |
+
+*Time limit 60 s; safe to repeat; needs: filesystem.*
+
 ### Wait for file
 
 `ooa.file/wait_for_file` (action)
@@ -310,7 +377,7 @@ Return the last part of a path, with and without its extension; the file does no
 | `name_without_extension` | Text | Name without the last extension, e.g. report. |
 | `extension` | Text | Extension without the dot, e.g. pdf; empty when there is none. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Get parent folder
 
@@ -330,7 +397,7 @@ Return the folder that contains a file or folder, as a full path.
 | --- | --- | --- |
 | `folder` | File path | Parent folder, or empty for a drive or root. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ## Folders
 
@@ -438,6 +505,8 @@ Compare when a file was last changed or created with a date, or check its age in
 | Date | `date` | DateTime | No |  | Main | Date to compare with (UTC). Shown when: `{"operator": ["before", "after", "on"]}` |
 | Days | `days` | Number | No |  | Main | Age in days. Range: 0 to ; Shown when: `{"operator": ["older_than_days", "newer_than_days"]}` |
 
+*Needs: filesystem.*
+
 ### File exists
 
 `ooa.file/exists` (condition)
@@ -449,6 +518,8 @@ True when the file exists.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | File path. |
+
+*Needs: filesystem.*
 
 ### File has extension
 
@@ -462,6 +533,8 @@ True when the file name ends with one of the extensions, e.g. pdf, xlsx (case is
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | File path or name. |
 | Extensions | `extensions` | Text | Yes |  | Main | One or more extensions separated by commas, with or without the dot. Example: `pdf, xlsx` |
+
+*Needs: filesystem.*
 
 ### File size is
 
@@ -477,6 +550,8 @@ Compare the size of a file with a number of bytes, KB or MB, e.g. larger than 0 
 | Operator | `operator` | Text | No | `gt` | Main | How to compare. One of: `eq`, `ne`, `gt`, `ge`, `lt`, `le` |
 | Size | `size` | Number | Yes |  | Main | Size to compare with. Range: 0 to  |
 | Unit | `unit` | Text | No | `bytes` | Main | Unit of the size (1 KB = 1024 bytes). One of: `bytes`, `KB`, `MB`, `GB` |
+
+*Needs: filesystem.*
 
 ## Loop types
 
@@ -494,3 +569,5 @@ Yield each file path in a folder.
 | --- | --- | --- | --- | --- | --- | --- |
 | Folder | `folder` | File path | Yes |  | Main | Folder path. |
 | Pattern | `pattern` | Text | No | `*` | Main | Glob pattern. |
+
+*Needs: filesystem.*

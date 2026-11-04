@@ -32,7 +32,7 @@ class DiagnosticsTest {
             Path conf = root.resolve("agent").resolve("agent.json");
             Map<String, Object> r = Agent.register("http://127.0.0.1:" + server.port(), (String) cr.createRegistrationKey(admin, 1, null).get("key"), "R-diag", conf);
             List<Diagnose.Line> ok = Diagnose.run(conf, root);
-            assertEquals("PASS", level(ok, "Command Center"), ok.toString());
+            assertEquals("PASS", level(ok, "One CommandCenter"), ok.toString());
             assertEquals("PASS", level(ok, "Runner sign-in"), ok.toString());
             assertEquals("PASS", level(ok, "Clock"), ok.toString());
 

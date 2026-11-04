@@ -22,7 +22,7 @@ The other collections cover different ground:
 | 1 | [01-system-overview.md](01-system-overview.md) | The system in context: people, parts, external services and deployment shapes |
 | 2 | [02-components-and-modules.md](02-components-and-modules.md) | Every Gradle module, what it holds, how modules depend on each other, the technology stack |
 | 3 | [03-agent-model-and-runner.md](03-agent-model-and-runner.md) | The agent (Flow JSON) format and how the Runner engine executes it |
-| 4 | [04-command-center-internals.md](04-command-center-internals.md) | The Command Center server: requests, APIs, scheduling, dispatch, queues, workflows, clustering |
+| 4 | [04-command-center-internals.md](04-command-center-internals.md) | One CommandCenter server: requests, APIs, scheduling, dispatch, queues, workflows, clustering |
 | 5 | [05-data-model.md](05-data-model.md) | Every database table by area, supported databases and schema-per-tenant |
 | 6 | [06-security-architecture.md](06-security-architecture.md) | Authentication, permissions, vault, masking, audit chain, TLS, runner trust, signing |
 | 7 | [07-toolkit-architecture.md](07-toolkit-architecture.md) | How toolkits are built, signed, versioned and shown in Studio |
@@ -30,13 +30,13 @@ The other collections cover different ground:
 | 9 | [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md) | Tenants, regions, routing, the operator API and the directory |
 | 10 | [10-extensibility-and-integration.md](10-extensibility-and-integration.md) | REST API, MCP, webhooks, custom toolkits, connectors, Git mirror, templates |
 | 11 | [11-developer-guide.md](11-developer-guide.md) | Building from source, tests and CI, adding toolkits and features, Studio internals, known limits |
-| 12 | [12-ui-redesign.md](12-ui-redesign.md) | Design (approved): Studio and Command Center screens in TypeScript and React |
+| 12 | [12-ui-redesign.md](12-ui-redesign.md) | Design (approved): Studio and One CommandCenter screens in TypeScript and React |
 
 ## Reading order
 
 1. Start with **01 System overview** for the big picture and the names used everywhere else.
 2. Read **02 Components and modules** to map those names onto code.
-3. Then read **03 Agent model and runner** and **04 Command Center internals**: together they explain what happens
+3. Then read **03 Agent model and runner** and **04 One CommandCenter internals**: together they explain what happens
    between "someone builds an agent" and "the agent ran on a runner".
 4. **05 Data model** and **06 Security architecture** are reference material for database administrators and security
    reviewers.
@@ -49,9 +49,9 @@ The other collections cover different ground:
 
 | Name in the product | Name in the code | Meaning |
 | --- | --- | --- |
-| One Command Center | `control-room` module, `ControlRoom`, `ControlRoomServer` | The shared server: repository, runs, users, vault, schedules, audit |
-| One Agent Studio | `cli` module, `StudioServer`, `studio.js` | The browser-based designer, served on this computer only |
-| One Runner | `agent` module, `Agent`, `RunWorker` | The worker that runs agents on a machine |
+| One CommandCenter | `control-room` module, `ControlRoom`, `ControlRoomServer` | The shared server: repository, runs, users, vault, schedules, audit |
+| One AgentStudio | `cli` module, `StudioServer`, `studio.js` | The browser-based designer, served on this computer only |
+| OneRunner | `agent` module, `Agent`, `RunWorker` | The worker that runs agents on a machine |
 | Runner engine | `runner` module, `Runner` | The interpreter for an agent definition |
 | Agent | a Flow JSON file (`*.flow.json`); "bot" in older code | One automation |
 | Toolkit | a package class annotated `@OoaPackage` | A set of actions, conditions and loop iterators |
@@ -59,7 +59,7 @@ The other collections cover different ground:
 | Vault folder | `lockers` table | A named group of credentials with owners and consumers |
 
 Older code and some table names still say "bot", "device", "locker" and "Control Room". These are internal names.
-The user-facing names are agent, runner, vault folder and Command Center.
+The user-facing names are agent, runner, vault folder and One CommandCenter.
 
 ## Conventions
 

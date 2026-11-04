@@ -59,6 +59,7 @@ Validation failures raise `FLOW.INVALID` with the number of problems and the fir
   },
   "variables": [ ... ],
   "steps": [ ... ],
+  "subflows": [ {"name": "Login", "steps": [ ... ]} ],
   "errorHandling": {"default": "stop", "retry": {"max": 2, "backoff": "exponential", "delayMs": 500}},
   "ui": { ... }
 }
@@ -74,6 +75,7 @@ Validation failures raise `FLOW.INVALID` with the number of problems and the fir
 | `requires.files` | Repository files the runner receives with the job, placed at the same path in its workspace |
 | `errorHandling.default` | `stop` (default) or `continue` for failures outside any Try block (top level only) |
 | `errorHandling.retry` | Default retry policy for every step that has none |
+| `onError` | The agent's error handler: `as`, `steps`, `then` (`fail` or `succeed`), `screenshot` (section 9) |
 | `agent` | For `kind: Agent`: `instructions`, `goalTemplate`, `modelConnection`, `tools`, `maxSteps`, `maxCostUsd`, `temperature`, `outputSchema` |
 | `ui` | Designer layout only; ignored by the engine and left out of the plan hash |
 
@@ -95,7 +97,7 @@ Other workspace item types sit beside agents: forms `*.form.json`, workflows `*.
 
 | Property | Values |
 | --- | --- |
-| `type` | `String`, `Number`, `Boolean`, `DateTime`, `List`, `Dictionary`, `Table`, `Record`, `File`, `Window`, `UIElement`, `Credential`, `Any` (`OoaType`) |
+| `type` | `String`, `Number`, `Boolean`, `DateTime`, `List`, `Dictionary`, `Table`, `Record`, `File`, `Window`, `UIElement`, `Credential`, `Any`, `Time`, `TimeSpan`, `Image`, `Binary` (`OoaType`) |
 | `direction` | `input` (supplied by the caller), `output` (returned), `in_out` (both), `local` (default) |
 | `required` | For inputs: missing gives `RUN.INPUT_MISSING` |
 | `default` | Starting value (deep-copied for each run) |
@@ -108,13 +110,30 @@ Rules enforced by the engine (`Runner.Scope`):
 - Values are converted to the declared type on every assignment (`Values.coerce`). Numbers are always `BigDecimal`
   (expressions use `MathContext.DECIMAL128`), so money arithmetic is exact.
 - A Table is `{"columns": [...], "rows": [[...], ...]}`.
+- **Time** (`LocalTime`) is a time of day without a date or zone. It is read from `14:30`, `14:30:05`, `9:05`, `2:30 PM`
+  or a DateTime (its time of day); its text and JSON form is `14:30:00`.
+- **TimeSpan** (`Duration`) is a length of time and may be negative. It is read from ISO 8601 (`PT2H15M`, `P1DT3H`,
+  `-PT30M`), a clock (`01:30:00`, `1.02:03:04` with days), units (`2h 15m`, `1d 3h`, `90s`, `1.5 hours`) or a number of
+  seconds; its text and JSON form is ISO 8601 (`PT2H15M`, `-PT30M`, `PT0S`).
+- **Binary** (`sdk.BinaryValue`) is bytes held in memory with a media type. It is read from a file path (relative paths
+  from the run's working folder; at most 256 MB), Base64 text, a `data:` URI, a list of byte values (0 to 255), an Image,
+  or its JSON form `{"$binary": "<Base64>", "mime": "text/plain"}`.
+- **Image** (`sdk.ImageValue`) is a picture held in memory as PNG bytes with its width and height. It is read from a
+  picture file (PNG, JPEG, BMP or GIF; other formats are converted to PNG once), a Binary holding a picture, Base64 text
+  or `{"$binary": ...}`; its JSON form adds `"mime": "image/png", "width": w, "height": h`. An Image can be given
+  directly to the `image` and `template` file fields of the Image commands (and the `image` field of the Word and PowerPoint picture commands): the runner writes it to
+  a temporary PNG that is deleted when the run ends. Any other file field refuses it with `VAR.TYPE_MISMATCH`.
+- Image and Binary values are never written out in full in events, logs or the debugger: `Values.safeRepr` and
+  `Values.toDisplay` show `Image 640x480` or `Binary 1.2 KB`. Run outputs (`RunResult.toMap`) carry the JSON form, which
+  a variable of the same type reads back unchanged. The text of an Image or Binary (`${pic}`, a String variable) is
+  the same summary; use `toBase64()` for the bytes.
 - Supplying an input that is not declared as `input` or `in_out` fails with `RUN.INPUT_UNKNOWN`.
 - An input given as `{"$credential": "folder/credential/attribute"}` is resolved from the vault before the run starts
   and becomes a `SecureString`.
 - `sys` and `global` are reserved names. `$sys.*` is computed at the moment of use (date, time, now, today, year …
   timestamp, os, os_version, machine, user, user_domain, home_folder, temp_folder, workspace, processors, CPU and RAM
   use, run_id, bot_id, bot_name, principal, newline, tab, empty). `$global.*` comes from the `global_values` service
-  (Command Center shared values, with a person's own value where the value is changeable) or `global-values.json` in
+  (One CommandCenter shared values, with a person's own value where the value is changeable) or `global-values.json` in
   the workspace. Both are read-only (`VAR.READ_ONLY`).
 
 ## 4. Steps
@@ -137,7 +156,7 @@ Rules enforced by the engine (`Runner.Scope`):
 | `action` | `<toolkit id>/<action id>`, for example `ooa.excel/open`, or `core/<action>` |
 | `args` | Inputs (see section 6 for value forms) |
 | `out` | Map from the action's output name to a variable name |
-| `children`, `else`, `elseIf`, `catch`, `finally` | Nested step lists for blocks |
+| `children`, `else`, `elseIf`, `catch`, `finally`, `cases`, `default` | Nested step lists for blocks |
 | `retry` | Step retry policy (overrides `errorHandling.retry`) |
 | `timeoutSeconds` | Overrides the action's own timeout (`@Action(timeoutSeconds)`, default 60) |
 | `connection` | Name of a saved connection that fills empty inputs (section 8) |
@@ -156,12 +175,14 @@ All control flow is expressed with `core/*` actions:
 | Action | Behaviour |
 | --- | --- |
 | `core/if` | `args.condition`; `children` when true, then each `elseIf` entry `{condition, children}`, then `else` |
+| `core/switch` | `args.value` is compared with each `cases` entry `{values, children}` in order; the first case with a matching value runs (no fall-through), otherwise `default`. `args.match`: `equals` (the `==` rules, so `5` matches `"5"`), `contains`, `starts_with`, `ends_with`, `regex`, or `expression` (each case value is a condition and `value` is unused); `ignore_case` for text. The log says which case ran. Break and Continue inside a case reach the enclosing loop. The validator wants at least one case, each with values, a `value` unless `match` is `expression`, and literal regex patterns that compile (`SWITCH.BAD_REGEX` at run time otherwise) |
 | `core/loop` | `args.iterator`: `times` (`count`, start and step), `while` (`condition`), `list`, `dictionary`, `dictionary_keys`, `dictionary_values`, `table_rows` (`over`), or a toolkit iterator `pkg/iterator` with `iterator_args`. Options: `from_index`, `to_index`, `step`, `reverse`, `label`, `max_iterations` (default 100,000) |
 | `core/break`, `core/continue` | Leave or skip the current (or labelled) loop; outside a loop the run fails with `FLOW.BAD_BREAK` |
 | `core/try` | `children`, then `catch` entries `{codes, as, message_to, line_to, screenshot, continueOnError, rethrow, children}`, then `finally` (always runs) |
 | `core/parallel` | Each child is a branch run on a virtual thread; `max_concurrency` default 4; the first error is raised after all branches end |
 | `core/step` | A named group of steps (for structure and folding) |
 | `core/set` | Assign a value to a variable |
+| `core/set_many` | Assign several variables in one step, in order (`assignments`: records with `variable` and `value`); each row follows the rules of `core/set` |
 | `core/log` | Log a message at a level |
 | `core/delay` | Wait `seconds` (optionally random up to `random_max`; unit seconds, milliseconds or minutes) |
 | `core/wait_until` | Poll a condition (`timeout_seconds` default 30, `poll_seconds` default 1, `fail_on_timeout`); output `met` |
@@ -170,6 +191,25 @@ All control flow is expressed with `core/*` actions:
 | `core/pause` | Pause the run from inside, as the Pause button does |
 | `core/comment` | Nothing at run time |
 | `core/run_bot` | Run a child agent (section 10) |
+| `core/run_subflow`, `core/exit_subflow` | Run one of the agent's subflows by name; leave the subflow being run (see below) |
+| `core/label`, `core/goto` | A named place; carry on from a label (see below) |
+
+**Subflows.** Next to `steps`, an agent may have `"subflows": [{"name": "Login", "steps": [...]}]`: named step lists
+kept inside the same agent. `core/run_subflow` (`args.subflow`) runs one in the same run, with the agent's own
+variables, sessions and events (no inputs or outputs of its own; for that use a child agent, section 10). A subflow
+may run other subflows and itself, up to `Runner.MAX_SUBFLOW_DEPTH` (100) deep, `SUBFLOW.DEPTH` beyond. Its errors
+reach the Try around the Run subflow step. `core/exit_subflow` ends the subflow (Finally blocks run on the way out) and
+the caller carries on. Exit loop, Continue loop and Go to cannot leave a subflow: the check refuses them, and at run
+time they fail with `FLOW.BAD_BREAK` / `FLOW.BAD_GOTO`. The check also refuses unknown subflow names, duplicate and empty
+names, and Exit subflow in the main steps. Step ids are unique across the main steps and every subflow; a Catch's `line`
+for a subflow step is its line within the subflow, with `subflow` naming it.
+
+**Labels and Go to.** `core/goto` (`args.label`) carries on from the `core/label` with that `name` in the same step list
+or a list around it; Finally blocks of the blocks it leaves run, and Loops it leaves end. It cannot jump into a block,
+out of a Parallel branch or out of a subflow, and a label name may be used only once among the labels a Go to can see;
+the check refuses all of these. It is a signal caught by the step list that holds the label, which continues from the
+label's place. A run allows `RunOptions.maxJumps` jumps (default 10,000; child agents get the same allowance), then
+fails with `GOTO.LIMIT`.
 
 Toolkit iterators can be endless (for example the trigger loop), so range options are applied while reading.
 
@@ -192,9 +232,31 @@ and no method call on objects. The functions (`Functions`) are:
 
 `upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean
 round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch
-regexExtract jsonParse jsonStringify if`
+regexExtract jsonParse jsonStringify if guid first last union intersection base64Encode base64Decode uriEncode uriDecode`
+regexExtract jsonParse jsonStringify if time timeSpan timeBetween totalSeconds totalMinutes totalHours totalDays
+imageWidth imageHeight binaryLength toBase64 fromBase64`
 
-Date units are seconds, minutes, hours, days and weeks. Bad syntax raises `EXPR.INVALID`.
+`first`/`last` take a list, a Data Table (its rows) or a text (its characters); `union`/`intersection` keep the first
+list's order without repeats; `uriEncode` encodes as JavaScript's `encodeURIComponent` (a space is `%20`) and
+`uriDecode` leaves `+` as it is. Date units are seconds, minutes, hours, days and weeks. Bad syntax raises `EXPR.INVALID`.
+
+Time and TimeSpan in expressions (the operators on the older types are unchanged):
+
+| Expression | Result |
+| --- | --- |
+| `$date + $span`, `$date - $span`, `dateAdd($date, $span)` | DateTime |
+| `$time + $span`, `$time - $span` | Time (wraps round midnight) |
+| `$span + $span`, `$span - $span`, `$span * 2`, `$span / 4`, `-$span` | TimeSpan |
+| `$span / $otherSpan` | Number |
+| `$time > '12:00'`, `$span < '3h'` | Boolean (text on one side is read as a Time or TimeSpan) |
+| `time('2:30 PM')`, `time(9, 5)`, `time($date)` | Time |
+| `timeSpan('2h 15m')`, `timeSpan(90, 'minutes')` | TimeSpan |
+| `timeBetween($start, $end)` | TimeSpan between two DateTimes or two Times (`$date - $date` stays an error) |
+| `totalSeconds($span)`, `totalMinutes`, `totalHours`, `totalDays` | Number |
+| `imageWidth($pic)`, `imageHeight($pic)`, `binaryLength($bytes)`, `len($bytes)` | Number |
+| `toBase64($bytes)` (also an Image, or text as UTF-8), `fromBase64('aGk=', 'text/plain')` | Text, Binary |
+
+A zero TimeSpan and an empty Binary count as false in conditions.
 
 ## 7. Conditions
 
@@ -216,7 +278,7 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
   that implement `AutoCloseable` are closed when the run ends, unless a child agent borrowed its parent's sessions.
 - **Saved connections** hold a toolkit's address and other values plus vault references for its credentials. A step
   names one with `connection`; empty inputs are filled from it, and credentials are fetched from the vault at that
-  moment. Connections come from the `connections` service (Command Center table `connections`, sent with each job) or
+  moment. Connections come from the `connections` service (One CommandCenter table `connections`, sent with each job) or
   `connections.json` in the workspace. A connection for another toolkit gives `CONNECTION.WRONG_TOOLKIT`.
 
 ## 9. Error handling and retries
@@ -236,6 +298,33 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
   `RUN.TIMEOUT`. Run workers set 24 hours.
 - **Stopping**: the cancel flag makes the next check raise `RUN.CANCELLED`, which ends the run as `stopped` and is never
   caught by a Catch block.
+- **The agent's error handler** (`onError`, "On error" in One AgentStudio): steps that run once when an error escapes
+  every Try block of the main steps (`Runner.Run.handleError`).
+
+  ```json
+  "onError": {"as": "err", "then": "fail", "screenshot": false, "steps": [ ... ]}
+  ```
+
+  - It runs before sessions are closed, so its steps can still use the open browser, workbook or window (take a
+    screenshot, close an application, send a mail). Sessions close after it.
+  - `as` (a declared Dictionary or Any variable) receives the error as a Catch does (`code`, `message`,
+    `suggestedFix`, `stepId`, `details`, `line`, `action`) plus `stack`: the agents and steps it happened in, from the
+    outermost run (`[{automation, stepId}]`). `screenshot` takes a picture first (as a Catch does) into
+    `screenshot`.
+  - `then: fail` (the default) ends the run `failed` with the **original** error, so One CommandCenter, retries and
+    parent agents see the real cause. `then: succeed` ends it `success`; a warning is logged and `run.finished`
+    carries the handled error as `handledError`.
+  - An error inside the handler is logged (level `error`) and the run fails with the original error; the handler never
+    handles its own errors. A Stop agent step inside it ends the handler; `then` still applies.
+  - It is not started by: errors a Catch handles, steps with `continueOnError` (or `errorHandling.default:
+    continue`), a Stop agent step (`AGENT.STOPPED` is a deliberate end), stopping the run (`RUN.CANCELLED`), errors
+    before the first step (validation, inputs) or `break`/`continue` outside a loop.
+  - When the run went over its time limit (`RUN.TIMEOUT`), the handler gets 60 extra seconds.
+  - A child agent has its own handler. The parent's handler sees a child's failure only when it escapes the child
+    (the child had no handler, or its handler ended with `fail`), as the error of the parent's Run agent step
+    (`details.childStepId`).
+  - Its steps follow the main steps in line numbers (`Steps.walkFlow`), and every walker (validator, plan hash,
+    toolkit and child-agent lists, code analysis) includes them; step ids are unique across both.
 
 ## 10. Child agents
 
@@ -257,7 +346,7 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
 - The parent's secrets are added to the child's mask list, and pause, cancel and the debugger pass down.
 - Nesting is limited to `Runner.MAX_CHILD_DEPTH` = 10 (`CHILD.DEPTH`).
 - Child definitions come from the `repository` service (`AutomationRepository.get(id, version)`). On a runner, the
-  Command Center sends the production versions of all child agents with the job (collected transitively, at most 10
+  One CommandCenter sends the production versions of all child agents with the job (collected transitively, at most 10
   levels and 100 agents).
 - Toolkit actions can also start a child agent through `ChildAgents` (session key `ooa.child_agents`), for example the
   interrupt handlers that run a recovery agent when an unexpected window appears.
@@ -276,10 +365,12 @@ Each event is a `RunEvent(runId, seq, type, ts, stepId, data)`; `seq` increases 
 | `variable.set` | `name`, `value` (safe text form; `edited` or `carried` when set by the debugger or carry-over) |
 | `log` | `level`, `message` (secrets replaced by `****`) |
 | `run.paused`, `run.resumed` | Optional `message` and `byAgent` for `core/pause` |
-| `run.finished` | `status`, `durationMs`, `error`, `outputs` |
+| `error_handler.started` | `code`, `message`, `then` (the agent's error handler starts; step id = the failed step) |
+| `error_handler.finished` | `status` (`done`, `failed` or `stopped`), `durationMs` |
+| `run.finished` | `status`, `durationMs`, `error`, `outputs`; `handledError` when the error handler ended the run as succeeded |
 
 `EventSink` implementations: an in-memory list (tests, Studio), a console printer (`ooa run`), and the run worker's
-JSON-line stream to the runner, which posts batches to the Command Center (`run_events`).
+JSON-line stream to the runner, which posts batches to One CommandCenter (`run_events`).
 
 The `RunResult` holds `runId`, `automationId`, `status` (`success`, `failed`, `stopped`), `outputs` (all `output` and
 `in_out` variables), `error`, `durationMs`, `planHash` and `stepsExecuted`. At the end of a top-level run every
@@ -301,7 +392,8 @@ same hash, which lets operators compare runs, replay with confidence and tie a r
 | `stepId()`, `action()`, `automation()` | Where the run is |
 | `depth()` | 0 for the agent being run, 1 for its children, … |
 | `level()` | Step nesting across agents, for step over and step out |
-| `stack()` | `{automation, stepId}` for each running agent, outermost first |
+| `stack()` | `{automation, stepId}` for each running agent and each Run subflow call, outermost first; entries inside a subflow also have `subflow` |
+| `subflow()` | The subflow the step is in, or null for the main steps |
 | `variables()` | Declared variables, credentials masked |
 | `setVariable(name, value)` | Change a value while stopped (converted to its type; emits `variable.set` with `edited`) |
 
@@ -314,9 +406,11 @@ by blocking in `beforeStep`. The runner itself has no Studio code; only this int
 
 - `startAt(stepId)` – **Run from here**. Steps before the start step (in document order) are skipped and emit no
   events. Blocks that contain the start step are entered without being evaluated: an If does not check its condition,
-  a Loop runs one pass without setting its item or index, a Parallel runs only the branch with the start step, and a
+  a Switch goes into the case (or default) holding the start step without comparing values, a Loop runs one pass
+  without setting its item or index, a Parallel runs only the branch with the start step, and a
   Try keeps its Catch and Finally when the start step is in the Try part. After those blocks the run continues
-  normally. An unknown step gives `RUN.START_NOT_FOUND`.
+  normally. An unknown step gives `RUN.START_NOT_FOUND`. A start step inside a subflow runs that subflow from the step
+  to its end, as if called; the main steps do not run and the run ends with the subflow.
 - `onlyStep(stepId)` – **Run this step only**. As above, then the run ends successfully after that step (for a block,
   after everything in it).
 - `trail(ValueTrail)` – records the agent's variables (plain JSON copies, never credentials or secret values) when each
@@ -345,9 +439,9 @@ Runner.builder(registry)
 
 | Host | How it builds the Runner |
 | --- | --- |
-| Studio (`StudioServer`) | In the Studio process; vault from environment variables (`EnvVault`) or the linked Command Center; debugger and value trail |
+| Studio (`StudioServer`) | In the Studio process; vault from environment variables (`EnvVault`) or the linked One CommandCenter; debugger and value trail |
 | Run worker (`RunWorker`) | One JVM per job. Line protocol with the runner: stdin carries the job, then `credential` answers and `cancel`/`pause`/`resume`; stdout carries `event` lines, `credential` requests (`{id, ref}`) and the final `result`. Secrets arrive only on request and live only in memory |
-| Command Center (`ServerlessRuns`) | Serverless API tasks on the virtual runner `dev_serverless`, with a limited toolkit list, paths confined to the run's temporary workspace (`confine_paths`), 4 at once, 5 minutes each |
+| One CommandCenter (`ServerlessRuns`) | Serverless Agent APIs on the virtual runner `dev_serverless`, with a limited toolkit list, paths confined to the run's temporary workspace (`confine_paths`), 4 at once, 5 minutes each |
 | Command line | `ooa run FILE` with a console sink; `ooa validate`; `ooa conformance DIR` |
 
 ## 16. Python reference runner and conformance

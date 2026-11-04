@@ -11,12 +11,12 @@ import java.security.cert.CertificateFactory;
 import java.util.*;
 
 /**
- * The database connection of the Command Center, read from {@code <data>/config/ooa-db.properties}:
+ * The database connection of One CommandCenter, read from {@code <data>/config/ooa-db.properties}:
  * <pre>
  * engine=sqlserver            h2 | sqlserver | postgresql
  * host=dbserver01             port=1433    instance=SQLEXPRESS (optional)    database=ooa_command_center
  * user=ooa_app                password=enc:...  (or env:VARIABLE)        the account the server runs with
- * auth=windows                SQL Server only: sign in as the Windows account the Command Center runs as (a service
+ * auth=windows                SQL Server only: sign in as the Windows account One CommandCenter runs as (a service
  *                             account or gMSA); no user or password then. The setup account may still be a SQL login.
  * windows.login=CORP\ooa-svc$ the Windows account (or gMSA) ooa db init gives a login and data rights to
  * setup.user=ooa_setup        setup.password=enc:...                     creates and upgrades the schema (ooa db)

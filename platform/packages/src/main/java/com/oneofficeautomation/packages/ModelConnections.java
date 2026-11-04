@@ -9,8 +9,8 @@ import java.util.*;
 import java.util.function.Supplier;
 
 /**
- * One Model Connections: named language-model settings (provider, model, endpoint, API key reference) that AI actions,
- * Prompt Skills and AI agents use by name. They come from the "model_connections" service (One Command Center hands
+ * Model Connections: named language-model settings (provider, model, endpoint, API key reference) that AI actions,
+ * Prompt Skills and AI agents use by name. They come from the "model_connections" service (One CommandCenter hands
  * them to its runners) or from model-connections.json in the workspace:
  * {"default": "gpt", "connections": [{"name": "gpt", "provider": "openai", "model": "gpt-4o-mini",
  *   "api_key_env": "OPENAI_API_KEY"} or {"api_key": {"$credential": "ai/openai/key"}}]}. Keys themselves are never stored here.
@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 final class ModelConnections {
     private ModelConnections() {}
 
-    static final String D_CONNECTION = "Name of a One Model Connection (provider, model and key managed in one place). Leave empty to set them on this action.";
+    static final String D_CONNECTION = "Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action.";
 
     @SuppressWarnings("unchecked")
     static Map<String, Object> all(ActionContext ctx) {
@@ -29,7 +29,35 @@ final class ModelConnections {
         Path p = ctx.workDir().resolve("model-connections.json");
         if (!Files.isRegularFile(p)) return Map.of();
         try { Object v = JsonLite.parse(Files.readString(p)); return v instanceof Map ? (Map<String, Object>) v : Map.of(); }
-        catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in One Agent Studio."); }
+        catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in One AgentStudio."); }
+    }
+
+    /**
+     * The AI guardrails for this run (Administration > Policies, 1 Nov 2026), sent by One CommandCenter with the job for
+     * the agent's folder: mask (personal data always masked), models (the model connections allowed; empty: any) and
+     * content (off, log or block). Empty when the folder has none, or outside One CommandCenter.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> guardrails(ActionContext ctx) {
+        try {
+            Supplier<Object> svc = ctx.service("ai_guardrails", Supplier.class);
+            if (svc != null && svc.get() instanceof Map<?, ?> m) return (Map<String, Object>) m;
+        } catch (RuntimeException ignored) { /* no service: no guardrails */ }
+        return Map.of();
+    }
+
+    /** The kinds of personal data the guardrails mask (names, contacts, payment, government, network); null: every kind. */
+    static Set<String> maskKinds(ActionContext ctx) {
+        if (guardrails(ctx).get("mask_kinds") instanceof List<?> l && !l.isEmpty()) { Set<String> s = new LinkedHashSet<>(); for (Object o : l) s.add(String.valueOf(o)); return s; }
+        return null;
+    }
+
+    /** How a model's answer is checked for harmful content: "block", "log", or null (not checked); the guardrails win over the connection. */
+    static String contentCheck(ActionContext ctx, LlmClient.Config cfg) {
+        Object g = guardrails(ctx).get("content");
+        if ("block".equals(g) || "log".equals(g)) return (String) g;
+        if ("off".equals(g)) return null;
+        return "moderation".equals(option(cfg, "content_check")) ? "block" : null;
     }
 
     /** The named connection, or the default one when the name is "default"; null when name is empty. */
@@ -40,7 +68,7 @@ final class ModelConnections {
         String wanted = "default".equals(name) && all.get("default") instanceof String d ? d : name;
         for (Object o : (List<Object>) all.getOrDefault("connections", List.of()))
             if (o instanceof Map<?, ?> c && wanted.equals(c.get("name"))) return (Map<String, Object>) c;
-        throw new ActionException("AI.NO_CONNECTION", "There is no model connection named '" + name + "'", "Create it under One Model Connections, or pick another name.");
+        throw new ActionException("AI.NO_CONNECTION", "There is no model connection named '" + name + "'", "Create it under Model Connections, or pick another name.");
     }
 
     /** Settings for one call: the connection supplies provider, model, endpoint and key; values set on the action win. */
@@ -55,8 +83,17 @@ final class ModelConnections {
     static LlmClient.Config config(ActionContext ctx, String connection, String provider, String model, Object key, String base, double temp, int max, boolean mask,
                                    Object accessKeyId, String region) {
         Map<String, Object> c = find(ctx, connection);
+        // the folder's AI guardrails: only the models allowed, and personal data always masked
+        Map<String, Object> g = guardrails(ctx);
+        if (g.get("models") instanceof List<?> allowed && !allowed.isEmpty()) {
+            String name = c == null ? null : String.valueOf(c.get("name"));
+            if (name == null || !allowed.contains(name))
+                throw new ActionException("AI.MODEL_NOT_ALLOWED", (name == null ? "A model set on the action" : "The model connection '" + name + "'")
+                        + " is not allowed by the AI guardrails '" + g.get("name") + "'", "Use one of these model connections: " + allowed.stream().map(String::valueOf).reduce((a, b) -> a + ", " + b).orElse("") + ".");
+        }
+        if (Boolean.TRUE.equals(g.get("mask"))) mask = true;
         if (c != null && c.get("blocked") instanceof String why)
-            throw new ActionException("AI.BUDGET_REACHED", why, "An administrator raises the budget in One Model Connections, or the budget starts again next month.");
+            throw new ActionException("AI.BUDGET_REACHED", why, "An administrator raises the budget in Model Connections, or the budget starts again next month.");
         if (c != null) {
             provider = String.valueOf(c.getOrDefault("provider", provider));
             if (model == null || model.isBlank()) model = (String) c.get("model");
@@ -65,7 +102,7 @@ final class ModelConnections {
             if (accessKeyId == null) accessKeyId = key(ctx, c, "aws_access_key_id");
             if ((region == null || region.isBlank()) && c.get("region") instanceof String r) region = r;
         }
-        if (model == null || model.isBlank()) throw new ActionException("AI.NO_MODEL", "No model chosen", "Pick a One Model Connection, or set provider and model on this action.");
+        if (model == null || model.isBlank()) throw new ActionException("AI.NO_MODEL", "No model chosen", "Pick a Model Connection, or set provider and model on this action.");
         LlmClient.Config cfg = GenAiPackage.cfg(provider, model, key, base, temp, max, mask, accessKeyId, region);
         if (c != null) USED.put(cfg, c);
         return cfg;
@@ -103,7 +140,7 @@ final class ModelConnections {
             int made = PER_RUN.merge(ctx.runId() + "|" + name, 1, Integer::sum);
             if (made > n.intValue())
                 throw new ActionException("AI.CALL_LIMIT", "This run reached the limit of " + n.intValue() + " calls through the model connection '" + name + "'",
-                    "An administrator raises Calls a run in One Model Connections.");
+                    "An administrator raises Calls a run in Model Connections.");
         }
         if (c.get("calls_per_minute") instanceof Number n && n.intValue() > 0) {
             Deque<Long> times = RECENT.computeIfAbsent(ctx.runId() + "|" + name, k -> new ArrayDeque<>());

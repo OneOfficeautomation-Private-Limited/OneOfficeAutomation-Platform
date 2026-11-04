@@ -88,12 +88,12 @@ class DataGapsTest {
     @Test
     void stringNumbersAndLocales() {
         StringPackage s = new StringPackage();
-        assertEquals(0, new BigDecimal("1234.56").compareTo(n(s.toNumber(ctx(), "1,234.56", "en-US", null, null).get("result"))));
-        assertEquals(0, new BigDecimal("1234.56").compareTo(n(s.toNumber(ctx(), "1.234,56", "de-DE", null, null).get("result"))));
-        assertEquals(0, new BigDecimal("-1234.5").compareTo(n(s.toNumber(ctx(), "-1'234.5", null, ".", "'").get("result"))));
-        assertEquals(0, new BigDecimal("1234.5").compareTo(n(s.toNumber(ctx(), "1 234,5", "fr-FR", null, null).get("result"))));
-        assertEquals("STRING.NOT_A_NUMBER", code(() -> s.toNumber(ctx(), "12abc", "en-US", null, null)));
-        assertEquals("STRING.BAD_SEPARATORS", code(() -> s.toNumber(ctx(), "1", "en-US", ",", ",")));
+        assertEquals(0, new BigDecimal("1234.56").compareTo(n(s.toNumber(ctx(), "1,234.56", "en-US", null, null, true).get("result"))));
+        assertEquals(0, new BigDecimal("1234.56").compareTo(n(s.toNumber(ctx(), "1.234,56", "de-DE", null, null, true).get("result"))));
+        assertEquals(0, new BigDecimal("-1234.5").compareTo(n(s.toNumber(ctx(), "-1'234.5", null, ".", "'", true).get("result"))));
+        assertEquals(0, new BigDecimal("1234.5").compareTo(n(s.toNumber(ctx(), "1 234,5", "fr-FR", null, null, true).get("result"))));
+        assertEquals("STRING.NOT_A_NUMBER", code(() -> s.toNumber(ctx(), "12abc", "en-US", null, null, true)));
+        assertEquals("STRING.BAD_SEPARATORS", code(() -> s.toNumber(ctx(), "1", "en-US", ",", ",", true)));
         assertEquals("1.234,5", s.toLocaleNumber(ctx(), new BigDecimal("1234.5"), "de-DE", null, true).get("result"));
         assertEquals("1,234.50", s.toLocaleNumber(ctx(), new BigDecimal("1234.5"), "en-US", 2, true).get("result"));
         assertEquals("1234", s.toLocaleNumber(ctx(), new BigDecimal("1234"), "en-US", null, false).get("result"));

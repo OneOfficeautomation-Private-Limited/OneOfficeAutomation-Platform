@@ -5,10 +5,12 @@
 /* Top bar */
 .st-top { background: var(--ui-frame); color: var(--ui-frame-text); display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 0 12px; min-height: 48px; }
 .st-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; }
-.st-logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #2f6fde, #7c3aed); }
+/* the product mark (BrandMark) on a white tile: its dark blue ring needs a light ground on the dark top bar */
+.st-logo { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 4px; border-radius: 6px; background: #ffffff; flex: none; }
+.st-logo svg { display: block; height: 20px; width: auto; }
 .st-crumbs { color: var(--ui-frame-text-2); display: flex; align-items: center; gap: 4px; }
 .st-crumb-current { color: var(--ui-frame-text); font-weight: 600; }
-.st-search { flex: 1 1 240px; max-width: 460px; display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 10px; border-radius: var(--ui-radius);
+.st-search { flex: 0 1 420px; margin: 0 auto; position: relative; display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 10px; border-radius: var(--ui-radius);
   background: var(--ui-bg); color: var(--ui-text-2); }
 .st-search input { flex: 1; border: 0; outline: none; background: transparent; color: var(--ui-text); }
 .st-top-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
@@ -18,7 +20,7 @@
 
 .st-body { flex: 1; display: flex; min-height: 0; }
 
-/* Command Center menu */
+/* One CommandCenter menu */
 .st-menu { background: var(--ui-frame-2); width: 200px; flex: none; padding: 8px 6px; overflow-y: auto; display: flex; flex-direction: column; }
 .st-menu-home { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--ui-radius); color: var(--ui-frame-text); font-weight: 700; text-decoration: none; }
 .st-menu-home:hover { background: rgba(255, 255, 255, .08); }
@@ -93,6 +95,10 @@
 .st-marker { margin: 4px 0 6px 46px; display: inline-block; padding: 2px 9px; border-radius: 4px; color: #ffffff; font-weight: 700; font-size: 11px; }
 .st-start { background: var(--ui-success); }
 .st-end { background: #353e4c; }
+/* the agent's error handler (On error) after END: white on #b91c1c is 6.4:1 */
+.st-onerror { background: #b91c1c; }
+.st-onerror-row { margin-top: 8px; border-top: 1px dashed var(--ui-border); }
+.st-onerror-sum { margin-left: 8px; font-size: 12px; color: var(--ui-text-2); }
 .st-step-list { list-style: none; margin: 0; padding: 0; }
 .st-step { width: 100%; display: flex; align-items: center; gap: 8px; height: var(--ui-step); padding: 0 12px 0 4px; border: 0; border-bottom: 1px solid var(--ui-divider);
   border-top: 1px solid transparent; background: var(--ui-bg); text-align: left; cursor: pointer; }
@@ -114,6 +120,16 @@ button.st-marker-row { cursor: pointer; }
 .st-step-row .st-step { padding-right: 68px; }
 .st-step-tools { position: absolute; top: 4px; right: 6px; display: flex; gap: 2px; }
 .st-pill { flex: none; padding: 1px 8px; border-radius: 10px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 11px; font-weight: 700; white-space: nowrap; }
+/* the agents a checked-in agent runs, reviewed in the Check in dialog */
+.st-deps { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 4px 10px 8px; margin: 12px 0 0; }
+.st-deps legend { font-weight: 600; padding: 0 4px; }
+/* a private item's state against the repository (Status column, 1 Nov 2026): the console's pill colours */
+.st-status.is-checked_out { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
+.st-status.is-checked_out_edited, .st-status.is-edited { background: var(--ui-running-bg); color: var(--ui-warning-text); }
+.st-status.is-error { background: var(--ui-error-bg); color: var(--ui-error-text); }
+/* the Columns dialog of Automation's lists */
+.st-cols { display: flex; flex-direction: column; gap: 6px; }
+.st-status.is-checked_in, .st-status.is-linked { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
 .st-badge { margin-left: auto; padding: 1px 7px; border-radius: 4px; background: #353e4c; color: #ffffff; font-size: 11px; font-weight: 700; }
 
 .st-right { width: 340px; flex: none; border-left: 1px solid var(--ui-border); display: flex; flex-direction: column; min-height: 0; }
@@ -133,6 +149,9 @@ button.st-marker-row { cursor: pointer; }
 .st-edit-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 40px; padding: 0 8px;
   margin-bottom: 8px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
 .st-edit-bar .st-steps-meta { margin-left: auto; padding: 0 6px; }
+/* G27: the step lists of an agent with subflows (Main, then each subflow), under the edit bar */
+.st-subflow-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 12px 8px; }
+.st-subflow-bar .st-seg-btn { height: 26px; }
 .st-bar-gap { width: 1px; height: 20px; margin: 0 6px; background: var(--ui-border); }
 .st-panel-hint { margin: 0; padding: 6px 10px; color: var(--ui-text-2); font-size: 12px; border-bottom: 1px solid var(--ui-divider); }
 .st-action { width: 100%; border: 0; background: transparent; padding: 5px 10px 5px 50px; text-align: left; cursor: pointer; color: var(--ui-text); }
@@ -207,6 +226,8 @@ button.st-marker-row { cursor: pointer; }
 .st-run { display: flex; flex-direction: column; min-height: 0; }
 .st-run-head { position: sticky; top: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
 .st-bar-fill { flex: 1; }
+.st-case-values { display: flex; flex-direction: column; gap: 6px; }
+.st-case-values .st-bar-fill { min-width: 0; }
 .st-run-state { padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 12px; color: #ffffff; background: #2f6fde; }
 .st-run-state.is-success { background: var(--ui-run); }
 .st-run-state.is-failed, .st-run-state.is-timeout { background: #b91c1c; }
@@ -246,7 +267,7 @@ button.st-marker-row { cursor: pointer; }
 .st-chips legend { font-weight: 600; margin-bottom: 6px; }
 .st-doc-fields td { padding: 4px 8px; height: auto; }
 .st-center { text-align: center; }
-.st-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.st-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }   /* at the corner: never widens the page */
 .st-code { flex: 1; }
 .st-code-area { flex: 1; min-height: 360px; line-height: 1.5; white-space: pre; tab-size: 4; }
 .st-item-wrap .st-alert { margin: 8px 16px 0; }
@@ -324,12 +345,19 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-fieldset legend { font-weight: 600; padding: 0 4px; }
 .st-label { font-weight: 600; color: var(--ui-text); }
 .st-source { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.st-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); overflow: hidden; align-self: flex-start; }
+.st-seg { display: inline-flex; flex-wrap: wrap; flex-shrink: 0; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); overflow: hidden; align-self: flex-start; }
 .st-seg-btn { height: 28px; padding: 0 10px; border: 0; border-right: 1px solid var(--ui-accent); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .st-seg-btn:last-child { border-right: 0; }
 .st-seg-btn[aria-checked="true"], .st-seg-btn[aria-selected="true"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
 .st-row-tight { display: flex; gap: 6px; align-items: center; }
 .st-run-agent { display: flex; flex-direction: column; gap: 6px; }
+.st-assignments { display: flex; flex-direction: column; gap: 8px; }
+/* the variable and the row's buttons on one line, the value under them: readable in the narrow details pane */
+.st-assignment { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "var tools" "value value"; gap: 4px 6px; align-items: center;
+  padding-bottom: 8px; border-bottom: 1px solid var(--ui-divider); }
+.st-assignment > :nth-child(1) { grid-area: var; }
+.st-assignment > :nth-child(2) { grid-area: value; }
+.st-assignment > .st-assignment-tools { grid-area: tools; display: flex; gap: 2px; }
 .st-sub { margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; color: var(--ui-text-2); }
 
 /* E3 settings by kind: the time-out box, the window editor, links in hints */
@@ -419,6 +447,7 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-fterm { padding: 3px 14px; border-radius: 12px; color: #ffffff; font-weight: 700; font-size: 11px; }
 .st-fterm.is-start { background: var(--ui-success); }
 .st-fterm.is-end { background: #353e4c; }
+.st-fterm.is-onerror { background: #b91c1c; margin-top: 18px; }
 .st-fline { width: 40px; height: 22px; position: relative; flex: none; }
 .st-fline::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--ui-guide); }
 .st-fline.is-drop::before { border-left: 3px dashed var(--ui-accent); }
@@ -444,7 +473,7 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-right .ui-tab-list { flex-wrap: nowrap; overflow-x: auto; }
 .st-right .ui-tab { flex: 1 1 auto; padding: 0 8px; white-space: nowrap; }
 
-/* Automation page: Private (the workspace) and Public (the Command Center agent repository) */
+/* Automation page: Private (the workspace) and Public (One CommandCenter agent repository) */
 .st-page-tabs { display: flex; gap: 0; padding: 0 16px; border-bottom: 1px solid var(--ui-border); background: var(--ui-bg); }
 .st-page-tab { height: 34px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ui-text); font: inherit; font-weight: 600; cursor: pointer; }
 .st-page-tab[aria-selected="true"] { border-bottom-color: var(--ui-accent); color: var(--ui-accent); }
@@ -481,7 +510,7 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
   .is-out-right > .ui-splitter { display: none; }
 }
 
-/* Display menu (theme and density) in the top bar */
+/* Theme menu (light or dark) in the top bar */
 .st-top-icon { width: var(--ui-h); height: var(--ui-h); flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #6b7890;
   border-radius: var(--ui-radius); background: transparent; color: var(--ui-frame-text); cursor: pointer; }
 .st-top-icon:hover, .st-top-icon[data-state="open"] { background: var(--ui-frame-line); }
@@ -494,3 +523,93 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-where-help { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ui-debug); border-radius: 8px; background: var(--ui-offer-bg); }
 .st-where-help p { margin: 0 0 8px; }
 .st-where-new { display: grid; grid-template-columns: 1fr 200px; gap: 10px; margin-top: 10px; }
+
+/* Full screen canvas: the browser's own full screen, or the whole page area when it is not offered */
+.st-agent-wrap.is-full { position: fixed; inset: 0; z-index: 50; background: var(--ui-bg); }
+.st-agent-wrap.is-full:fullscreen { position: static; }
+.st-edit-bar { padding-right: 44px; }
+.st-edit-bar .st-full-btn { position: absolute; top: 4px; right: 6px; }   /* always the top right corner of the canvas */
+/* Column lines in every table of the product (31 Oct 2026), so cells line up by eye as in AA's and UiPath's grids */
+.st-table th + th, .st-table td + td, .st-cap-table th + th, .st-cap-table td + td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
+
+/* The menu's console look (find a page, favourites, one section open, Collapse and width at the foot), used by the console and, since 1 Nov 2026, by Studio. */
+.st-menu-home.is-current { background: var(--ui-accent); color: #fff; }
+button.st-menu-home { border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; }
+.st-menu.is-console .st-menu-find { margin: 0 2px 8px; box-sizing: border-box; height: 30px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: #ffffff; color: #17202b; padding: 0 10px; font: inherit; }
+.st-menu.is-console .st-menu-fold { margin: 8px 0 0; }
+.st-menu-fill { flex: 1; min-height: 8px; }
+.st-menu-hint { margin: 0 0 4px; padding: 0 10px 0 36px; font-size: 12px; color: var(--ui-frame-text-2); }
+.st-menu-where { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-frame-text-2); }
+.st-menu-found { margin-top: 2px; }
+.st-menu-foot { display: flex; align-items: center; gap: 6px; }
+.st-menu-foot .st-menu-fold { flex: 1; }
+.st-menu-size { display: inline-flex; gap: 4px; margin-top: 8px; }
+.st-menu-size button { width: 28px; height: 30px; border-radius: var(--ui-radius); border: 1px solid #6b7890; background: transparent; color: var(--ui-frame-text); font: 700 15px/1 var(--ui-font); cursor: pointer; }
+.st-menu-size button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+.st-menu-size button:disabled { opacity: .45; cursor: default; }
+.st-menu.is-console .st-menu-heading { white-space: nowrap; }
+.st-search-kbd { font: 11px/18px var(--ui-font); padding: 0 6px; border: 1px solid #7d8797; border-radius: 4px; color: #353e4c; background: #ffffff; pointer-events: none; }
+.st-top-actions:empty { display: none; }
+/* Automation, review round 2: the console's title row, list tools, one line per item with its kind's mark, and a bar only while items are ticked */
+.st-page-head .st-head-row { display: flex; align-items: center; gap: 10px; }
+.st-head-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 11px; display: inline-flex; align-items: center; justify-content: center; cursor: help; flex: none; }
+.st-head-count { color: var(--ui-text-2); }
+.st-items-tools { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px; border-bottom: 1px solid var(--ui-border); }
+.st-items-tools .ui-select { height: 30px; }
+.st-items-fill { flex: 1; }
+.st-items-bar.is-chosen { background: var(--ui-selected); }
+.st-items .st-tick { width: 28px; }
+.st-items-tools .ui-select, .st-items-tools select { width: auto; flex: none; }
+.st-menu.is-console { overflow-x: hidden; }
+.st-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-name { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.st-name .st-link, .st-name > span { color: var(--ui-text); font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-name .st-link:hover { text-decoration: underline; }
+/* The steps toolbar on one line (review round 2): icon tools, the step count at the list's foot */
+.st-edit-bar { flex-wrap: nowrap; gap: 2px; }
+.st-tool { width: 30px; height: 30px; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); cursor: pointer; }
+.st-tool:hover:not(:disabled), .st-tool[data-state="open"] { background: var(--ui-selected); }
+.st-tool:disabled { color: var(--ui-text-2); cursor: default; }
+.st-tool .st-rec-dot { margin: 0; }
+.st-tool-busy { display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; color: var(--ui-text-2); white-space: nowrap; }
+.st-steps-foot { position: sticky; bottom: -16px; margin: 0; padding: 6px 14px; background: var(--ui-bg); border-top: 1px solid var(--ui-border); font-size: 12px; }
+.st-edit-bar .st-view-seg { flex: none; }
+.st-view-seg .st-seg-btn { white-space: nowrap; }
+/* Asked first, inside a panel (review round 2) */
+.st-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 8px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-selected); color: var(--ui-text); }
+.st-ask > span { flex: 1 1 200px; }
+.st-var-row .st-tool, .st-trigger-list .st-tool { flex: none; }
+
+/* narrow lists (item 2, 1 Nov 2026): the ⋮ column stays at the list's right edge, and Changed, then Type, give way */
+.st-items { container-type: inline-size; }
+.st-items .st-row-actions, .st-items .st-cr-row-acts, .st-items thead th:last-child { position: sticky; right: 0; background: var(--ui-bg); box-shadow: -1px 0 0 var(--ui-divider); }
+.st-items tbody tr:hover .st-row-actions, .st-items tbody tr:hover .st-cr-row-acts { background: var(--ui-row-hover); }
+.st-items tbody tr.is-selected .st-row-actions, .st-items tbody tr.is-selected:hover .st-row-actions { background: var(--ui-selected); }
+@container (max-width: 560px) { .st-col-changed { display: none; } }
+@container (max-width: 420px) { .st-col-type { display: none; } }
+/* the Triggers group of the command list: where each set of triggers listens */
+.st-trigger-where { display: block; padding: 6px 10px 2px 36px; font-size: 11px; font-weight: 700; color: var(--ui-text-2); text-transform: none; }
+/* Find in this agent (Ctrl+Shift+F): a small box in the steps toolbar; the steps found are selected */
+.st-find { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
+.st-find input { height: 26px; width: 190px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--ui-field); border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; }
+.st-find-n { font-size: 12px; color: var(--ui-text-2); white-space: nowrap; }
+/* Pickers beside step fields (gap round 2): WSDL operations, directory browser, PDF area, formatted email body */
+.st-field-with-picker { display: contents; }
+.st-picker-row { grid-column: 1 / -1; display: flex; justify-content: flex-end; margin: -2px 0 4px; }
+.st-picker-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: 12.5px; }
+.st-picker-facts dt { color: var(--ui-text-2); font-weight: 600; }
+.st-picker-facts dd { margin: 0; overflow-wrap: anywhere; }
+.st-picker-pre { margin: 0; max-height: 220px; overflow: auto; padding: 6px 8px; border: 1px solid var(--ui-field); border-radius: 6px; font-size: 12px; white-space: pre-wrap; }
+.st-picker-list { list-style: none; margin: 6px 0; padding: 0; max-height: 320px; overflow: auto; border: 1px solid var(--ui-field); border-radius: 6px; }
+.st-picker-list li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--ui-field); font-size: 12.5px; }
+.st-picker-list li:last-child { border-bottom: 0; }
+.st-picker-list .is-chosen { text-decoration: underline; }
+.st-pdf-page { position: relative; width: 100%; max-height: 64vh; overflow: hidden; border: 1px solid var(--ui-field); cursor: crosshair; touch-action: none; user-select: none; }
+.st-pdf-page img { display: block; width: 100%; height: 100%; pointer-events: none; }
+.st-pdf-area { position: absolute; border: 2px solid var(--ui-accent); background: rgba(0, 120, 212, 0.15); pointer-events: none; }
+.st-html-tools { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 4px; margin: 8px 0 6px; }
+.st-html-tools .st-seg-btn { border: 1px solid var(--ui-field); border-radius: 4px; }
+.st-html-colour { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.st-html-area { flex-shrink: 0; min-height: 240px; max-height: 52vh; overflow: auto; padding: 8px 10px; border: 1px solid var(--ui-field); border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); }
+.st-html-area:focus { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+.st-html-source { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; border: 1px solid var(--ui-field); border-radius: 6px; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--ui-bg); color: var(--ui-text); }

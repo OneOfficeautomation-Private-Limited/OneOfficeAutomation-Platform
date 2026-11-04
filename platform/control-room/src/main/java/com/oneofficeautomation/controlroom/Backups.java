@@ -198,7 +198,7 @@ public final class Backups {
             if (!FORMAT.equals(manifest.get("format"))) throw new OoaException("CR.BACKUP", "Unknown backup format " + manifest.get("format"));
             if (((Number) manifest.get("schema")).intValue() > Db.LATEST) throw new OoaException("CR.BACKUP", "The backup comes from a newer release (schema " + manifest.get("schema") + ")", "Restore it with that release.");
             if (manifest.get("vault_key_fingerprint") != null && !manifest.get("vault_key_fingerprint").equals(vault.fingerprint()))
-                throw new OoaException("CR.BACKUP", "This backup was made with another vault key", "Put the master.key of the backed-up Command Center in " + data + " (or set OOA_MASTER_KEY), then restore again.");
+                throw new OoaException("CR.BACKUP", "This backup was made with another vault key", "Put the master.key of the backed-up One CommandCenter in " + data + " (or set OOA_MASTER_KEY), then restore again.");
             target.migrate();
             List<String> tables = Db.tables();
             long existing = 0;

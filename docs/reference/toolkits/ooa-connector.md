@@ -41,7 +41,7 @@ Call an operation of a custom connector. Checks required parameters, encodes pat
 | `body` | Any | Response body: parsed JSON, or text; empty when saved to a file. |
 | `file` | Text | Path of the saved response when output_file is set. |
 
-*Time limit 300 s; needs: network.*
+*Time limit 300 s; needs: network, filesystem.*
 
 ### Describe operation
 
@@ -90,7 +90,7 @@ Create or replace a custom connector from an OpenAPI 3.x or Swagger 2.0 document
 | `operations` | Number | Number of operations imported. |
 | `path` | Text | Workspace path of the connector definition. |
 
-*Time limit 60 s; needs: filesystem.*
+*Time limit 60 s; needs: filesystem, network.*
 
 ### List connectors
 

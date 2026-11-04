@@ -77,7 +77,7 @@ things differently each time. An unknown operator is refused when the set is sav
   requested by the person who started the test.
 - Every run passes the usual checks ([document 03](03-runs-runners-and-devices.md)). A case whose run cannot start fails at
   once with "Did not start: …".
-- The runs are ordinary runs: they appear in Agent Runs, use credentials as the person who started the test, and count
+- The runs are ordinary runs: they appear in Agent Activity, use credentials as the person who started the test, and count
   for licences.
 
 ## 6. Judging and scoring
@@ -131,4 +131,4 @@ Audited: set changes and deletes (`testset.delete`), `testset.run` (cases and ho
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [09 AI features](09-ai-features.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
-- [Command Center and runner, section 5a](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 5a](../user-guide/00-README.md)

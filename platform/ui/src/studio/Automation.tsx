@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { Blueprint, NewItemKind, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import type { Blueprint, NewItemKind, RepoState, StudioApi, WorkspaceNode } from "../api/client";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
+import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
@@ -16,7 +18,7 @@ const OPENS: WorkspaceNode["type"][] = ["bot", "form", "process", "document", "s
 
 const everything = (n: WorkspaceNode): WorkspaceNode[] => (n.children ?? []).flatMap((c) => [c, ...everything(c)]);
 
-function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
+export function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
   if (n.path === path) return n;
   for (const c of n.children ?? []) { const f = find(c, path); if (f) return f; }
   return null;
@@ -33,17 +35,45 @@ const foundBy = (m: string[]) => m.map((x) => x.replace(/^uses [^/]+\/(.+)$/, (_
  * folder's sub-folders and items; they can be selected (Ctrl+click, Shift+click), opened, renamed, copied, cut and
  * pasted, duplicated, dragged onto a folder to move them, and moved to the trash, from the ⋮ menu, a right-click or
  * the keyboard. A search finds items by name, and agents by their description, id, actions and variables too.
- * As in AA, Private is the workspace and Public is the Command Center agent repository (publicView).
+ * As in AA, Private is the workspace and Public is One CommandCenter agent repository (publicView).
+ * Review round 2 (1 Nov 2026), in the console's look: the title with what the page is for on hover and a count, a Type
+ * filter, one line per item with its kind's mark, a tick box per item, and Copy, Cut, Duplicate, Rename, Delete and
+ * Paste in a bar only while items are ticked or copied (no greyed-out buttons).
  */
-export function Automation({ api, view, tree, search = "", blueprints = [], publicView, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
-  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; onOpen: (n: WorkspaceNode) => void;
+/** Each kind's mark, as on Create. */
+const markOf = (n: WorkspaceNode) => ITEM_TYPES.find((t) => n.type === "bot" ? t.kind === (n.kind ?? "TaskBot") : t.kind === (n.type === "script" ? (/\.ps1$/i.test(n.name) ? "script-powershell" : "script-python") : n.type));
+/** Check-in and check-out from the Private list (1 Nov 2026, as AA's Private workspace): each item's status and its actions. */
+export type RepoHooks = { states: Record<string, RepoState>; onCheckIn: (paths: string[]) => void; onUndo: (local: string, repoPath: string) => void;
+  onRevert: (local: string) => void };
+/** What can be checked in: agents, workflows and forms. */
+const CHECKS_IN = ["bot", "process", "form"];
+const STATUS: Record<RepoState["status"], [string, string]> = {
+  new: ["New", "Not in the repository yet: Check in puts it there, in the same folder."],
+  linked: ["In the repository", "A copy of an agent in the repository. Sign in to One CommandCenter to see whether it is checked out."],
+  checked_out: ["Checked out", "Checked out to you, unchanged since."],
+  checked_out_edited: ["Checked out · edited", "Checked out to you, with changes not checked in yet."],
+  checked_in: ["Checked in", "The same as in the repository; not checked out. Check it out on the Public tab to change it."],
+  edited: ["Edited, not checked out", "Changed, but not checked out: check it out on the Public tab (your changes are kept), then check it in."],
+};
+/** The Private list's columns after the name, as AA's; the repository's ones show while signed in to One CommandCenter. */
+const COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "status", label: "Status" }, { key: "platform", label: "Platform" }, { key: "version", label: "Version" },
+  { key: "label", label: "Label" }, { key: "analysis", label: "Code analysis" }, { key: "size", label: "Size" }, { key: "changed", label: "Last modified" },
+  { key: "by", label: "Modified by" }];
+const FROM_REPO = ["status", "version", "label", "analysis", "by"];
+const CLASS: Record<string, string> = { type: "st-col-type", changed: "st-col-changed" };
+const KINDS: [string, string][] = [["", "Type: Any"], ["folder", "Folders"], ["bot", "Agents"], ["process", "Workflows"], ["form", "Forms"], ["document", "Document types"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Other files"]];
+export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
+  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void; onMoved: (from: string, to: string) => void; onChanged: () => Promise<unknown>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
   const [folder, setFolder] = useState("");
   const [expanded, setExpanded] = useState(() => new Set([""]));
   const [creating, setCreating] = useState<ItemType | null>(null);
+  const [createIn, setCreateIn] = useState("");   // the folder a new item goes in: the open folder, or one chosen in the dialog
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
+  const [hiddenCols, setHiddenCols] = usePersistent<string[]>("automation.private.columns.hidden", ["platform", "label", "analysis", "size", "by"]);
+  const [choosingCols, setChoosingCols] = useState(false);
   const [foldersWidth, setFoldersWidth] = usePanelSize("folders");
   const foldersPanel = useRef<HTMLElement | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -55,7 +85,16 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const uploadTo = useRef("");
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
+  const [kind, setKind] = useState("");   // Type filter
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
+  // the console's Automation page opens this page on its Private tab (../studio/#private; #private/new: Create > Agent), as AA's one Automation page
+  useEffect(() => {
+    const [h, act] = location.hash.replace("#", "").split("/");
+    if (h !== "private" && h !== "public") return;
+    setPlace(h);
+    if (h === "private" && act === "new") { setCreateIn(folder); setCreating(ITEM_TYPES.find((t) => t.kind === "TaskBot") ?? null); }
+    history.replaceState(null, "", location.pathname);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
   const folderNode = find(tree, folder) ?? tree;
@@ -73,10 +112,11 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     ? [...everything(tree).filter((n) => keep(n) && n.name.toLowerCase().includes(q) && !found.some((f) => f.path === n.path)).map((node) => ({ node, why: "name" })),
        ...found.flatMap((f) => { const node = find(tree, f.path); return node ? [{ node, why: foundBy(f.matches) }] : []; })]
     : [...(folderNode.children ?? []).filter((c) => c.type === "folder"), ...(folderNode.children ?? []).filter(keep)].map((node) => ({ node }));
-  const paths = rows.map((r) => r.node.path);
+  const listed = kind ? rows.filter((r) => r.node.type === kind) : rows;
+  const paths = listed.map((r) => r.node.path);
   const chosen = paths.filter((p) => selected.includes(p));
   const chosenNodes = chosen.map((p) => find(tree, p)!).filter(Boolean);
-  useEffect(() => { setSelected([]); setAnchor(null); }, [folder, q]);
+  useEffect(() => { setSelected([]); setAnchor(null); }, [folder, q, kind]);
   const toggle = (id: string) => setExpanded((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const openFolder = (path: string) => { setFolder(path); setExpanded((s) => { const n = new Set(s); let p = path; while (p) { n.add(p); p = parentOf(p); } n.add(""); return n; }); };
   const open = (n: WorkspaceNode) => { if (n.type === "folder") openFolder(n.path); else if (OPENS.includes(n.type)) onOpen(n); };
@@ -129,14 +169,14 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   };
   const keys = (e: KeyboardEvent) => {
     if (isPublic || (e.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;   // the workspace keys do nothing on Public
-    const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
-    if (ctrl && k === "c") act.copy();
-    else if (ctrl && k === "x") act.cut();
-    else if (ctrl && k === "v") act.paste();
-    else if (ctrl && k === "a") setSelected(paths);
-    else if (e.key === "Delete") act.remove();
-    else if (e.key === "F2" && chosenNodes.length === 1) setRenaming(chosenNodes[0]);
-    else if (e.key === "Escape") setSelected([]);
+    const ev = e.nativeEvent;
+    if (is(ev, "files.copy")) act.copy();
+    else if (is(ev, "files.cut")) act.cut();
+    else if (is(ev, "files.paste")) act.paste();
+    else if (is(ev, "files.all")) setSelected(paths);
+    else if (is(ev, "files.delete")) act.remove();
+    else if (is(ev, "files.rename") && chosenNodes.length === 1) setRenaming(chosenNodes[0]);
+    else if (is(ev, "files.clear")) setSelected([]);
     else return;
     e.preventDefault();
   };
@@ -145,16 +185,41 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     const raw = e.dataTransfer.getData(PATHS_DRAG);
     if (raw) act.move(JSON.parse(raw) as string[], to);
   };
+  const statusOf = (n: WorkspaceNode) => repo?.states[n.path]?.status ?? (CHECKS_IN.includes(n.type) ? "new" : null);
+  const cols = COLUMNS.filter((c) => !hiddenCols.includes(c.key) && (!!repo || !FROM_REPO.includes(c.key)));
+  /** A column's value for an item; the repository's facts come from its linked copy (empty for new items). */
+  const cell = (key: string, n: WorkspaceNode, why?: string): ReactNode => {
+    const st = repo?.states[n.path], s = statusOf(n);
+    switch (key) {
+      case "type": return n.type === "folder" ? "Folder" : typeLabel(n);
+      case "status": return s && <span className={"st-pill st-status is-" + s} title={STATUS[s][1]}>{STATUS[s][0]}</span>;
+      case "platform": return n.platform ?? "";
+      case "version": return st?.latest_version ? "v" + st.latest_version + (st.production_version === st.latest_version ? " · live" : "") : "";
+      case "label": return labelText(st?.labels);
+      case "analysis": return <Analysis found={st?.analysis} />;
+      case "size": return n.type === "folder" ? "" : sizeText(n.size);
+      case "changed": return q ? why : n.modified ? new Date(n.modified).toLocaleString() : "";
+      case "by": return s === "new" || s === "edited" || s === "checked_out_edited" ? "You" : st?.updated_by ?? "";
+      default: return "";
+    }
+  };
+  const canCheckIn = (n: WorkspaceNode | null) => !!n && !!repo && CHECKS_IN.includes(n.type) && ["new", "checked_out", "checked_out_edited"].includes(statusOf(n) ?? "");
   const rowMenu = (n: WorkspaceNode): MenuItem[] => {
     const many = selected.includes(n.path) && chosen.length > 1;
     const list = many ? chosen : [n.path];
     const items: MenuItem[] = [];
     if (!many && (n.type === "folder" || OPENS.includes(n.type))) items.push({ key: "open", label: "Open", onSelect: () => open(n) });
-    if (!many) items.push({ key: "rename", label: "Rename…", shortcut: "F2", onSelect: () => setRenaming(n) });
+    if (!many) items.push({ key: "rename", label: "Rename…", shortcut: keyOf("files.rename"), onSelect: () => setRenaming(n) });
+    // the repository: Check in (several at once, up to 10), Undo check-out and Revert edits, as AA's Private workspace
+    const st = repo?.states[n.path];
+    if (repo && list.length <= 10 && list.every((p) => canCheckIn(find(tree, p))))
+      items.push({ key: "checkin", label: many ? "Check in " + list.length + " items…" : "Check in…", separatorBefore: true, onSelect: () => repo.onCheckIn(list) });
+    if (repo && !many && st?.status.startsWith("checked_out")) items.push({ key: "undo", label: "Undo check-out…", onSelect: () => repo.onUndo(n.path, st.path) });
+    if (repo && !many && st?.status === "checked_out_edited") items.push({ key: "revert", label: "Revert edits…", onSelect: () => repo.onRevert(n.path) });
     items.push(
       { key: "dup", label: "Duplicate", onSelect: () => act.duplicate(list) },
-      { key: "copy", label: "Copy", shortcut: "Ctrl+C", separatorBefore: true, onSelect: () => act.copy(list) },
-      { key: "cut", label: "Cut", shortcut: "Ctrl+X", onSelect: () => act.cut(list) },
+      { key: "copy", label: "Copy", shortcut: keyOf("files.copy"), separatorBefore: true, onSelect: () => act.copy(list) },
+      { key: "cut", label: "Cut", shortcut: keyOf("files.cut"), onSelect: () => act.cut(list) },
     );
     if (!many && n.type === "folder") {
       if (clip) items.push({ key: "paste", label: "Paste into this folder", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => act.paste(n.path) });
@@ -164,43 +229,51 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     if (!many) items.push(
       { key: "download", label: n.type === "folder" ? "Download as zip" : "Download", separatorBefore: n.type !== "folder", onSelect: () => act.download(n.path) },
       { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(n.path) });
-    items.push({ key: "delete", label: many ? "Delete " + list.length + " items" : "Delete", shortcut: "Del", separatorBefore: true,
+    items.push({ key: "delete", label: many ? "Delete " + list.length + " items" : "Delete", shortcut: keyOf("files.delete"), separatorBefore: true,
       onSelect: () => act.remove(list.map((p) => find(tree, p)!).filter(Boolean)) });
     return items;
   };
-  const folderItems: MenuItem[] = [
-    { key: "new", label: "New folder in it", onSelect: () => onNewFolder(folder) },
-    { key: "upload", label: "Upload files…", description: "From this computer into this folder", onSelect: () => act.upload(folder) },
-    { key: "download", label: "Download as zip", onSelect: () => act.download(folder) },
-    { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(folder) },
-    ...(clip ? [{ key: "paste", label: "Paste here", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => { act.paste(folder); } }] : []),
-    ...(folder ? [
-      { key: "rename", label: "Rename…", onSelect: () => setRenaming(folderNode) },
-      { key: "copy", label: "Copy", separatorBefore: true, onSelect: () => act.copy([folder]) },
-      { key: "cut", label: "Cut", onSelect: () => act.cut([folder]) },
-      { key: "dup", label: "Duplicate", onSelect: () => act.duplicate([folder]) },
-      { key: "delete", label: "Delete", separatorBefore: true, onSelect: () => onDelete([folderNode]) },
-    ] : []),
-  ];
+  /** A folder's menu: in the pane's header (the chosen folder), and on each folder in the tree (that folder). */
+  const folderItemsFor = (path: string): MenuItem[] => {
+    const node = find(tree, path) ?? tree;
+    return [
+      { key: "new", label: "New folder in it", onSelect: () => onNewFolder(path) },
+      { key: "upload", label: "Upload files…", description: "From this computer into this folder", onSelect: () => act.upload(path) },
+      { key: "download", label: "Download as zip", onSelect: () => act.download(path) },
+      { key: "reveal", label: "Show in File Explorer", onSelect: () => act.reveal(path) },
+      ...(clip ? [{ key: "paste", label: "Paste here", description: count(clip.paths.length) + (clip.cut ? " cut" : " copied"), onSelect: () => { act.paste(path); } }] : []),
+      ...(path ? [
+        { key: "rename", label: "Rename…", shortcut: keyOf("files.rename"), onSelect: () => setRenaming(node) },
+        { key: "copy", label: "Copy", separatorBefore: true, onSelect: () => act.copy([path]) },
+        { key: "cut", label: "Cut", onSelect: () => act.cut([path]) },
+        { key: "dup", label: "Duplicate", onSelect: () => act.duplicate([path]) },
+        { key: "delete", label: "Delete", separatorBefore: true, onSelect: () => onDelete([node]) },
+      ] : []),
+    ];
+  };
+  const folderItems = folderItemsFor(folder);
+  const [treeMenu, setTreeMenu] = useState<string | null>(null);   // the folder whose ⋮ in the tree is open
 
   return (
     <section className="st-page" aria-labelledby="st-page-title" onKeyDown={keys}>
       <input ref={uploadInput} type="file" multiple hidden aria-label="Files to upload" onChange={(e) => uploaded(e.target.files)} />
       <header className="st-page-head">
-        <div>
+        <div className="st-head-row">
           <h1 id="st-page-title">{title}</h1>
-          <p>{isPublic ? "Agents shared through Command Center. Check one out to work on it here." : q ? `Items matching “${search.trim()}” in the whole workspace` : "Pick a folder, then press Create."}</p>
+          <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} />
+          {!isPublic && <span className="st-head-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
+            : count(everything(tree).filter((n) => n.type !== "folder").length) + " · " + everything(tree).filter((n) => n.type === "bot").length + " agents"}</span>}
         </div>
         {!isPublic && <div className="st-page-actions">
           <Button kind="secondary" icon="plus" onClick={() => onNewFolder(folder)}>New folder</Button>
           <Menu label="Create" title={"Create in " + folderName}
             trigger={<Button kind="primary">Create ▾</Button>}
             items={ITEM_TYPES.map((t) => ({ key: t.kind, label: t.name, description: t.description, icon: <IconTile name={t.icon} color={t.color} size={28} />,
-              onSelect: () => setCreating(t) }))} />
+              onSelect: () => { setCreateIn(folder); setCreating(t); } }))} />
         </div>}
       </header>
       {publicView && <div className="st-page-tabs" role="tablist" aria-label="Where">
-        {([["private", "Private", "Your workspace on this computer"], ["public", "Public", "The Command Center agent repository"]] as const).map(([k, t, tip]) =>
+        {([["public", "Public", "One CommandCenter agent repository: agents checked in, to run"], ["private", "Private", "Your workspace on this computer: build and test"]] as const).map(([k, t, tip]) =>
           <button key={k} type="button" role="tab" className="st-page-tab" aria-selected={(k === "public") === isPublic} title={tip} onClick={() => setPlace(k)}>{t}</button>)}
       </div>}
       {isPublic ? publicView : <div className="st-page-body">
@@ -214,7 +287,11 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                 <Icon name="more" size={14} stroke={3} /></button>} />
           </>}>
           <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
-            onMenu={(id) => { setFolder(id); setFolderMenu(true); }}
+            onMenu={(id) => setTreeMenu(id)}
+            renderActions={(n) => <Menu label={"Folder " + (n.id ? n.label : "Workspace") + " menu"} title={n.id ? n.label : "Workspace"} items={folderItemsFor(n.id)}
+              open={treeMenu === n.id} onOpenChange={(o) => setTreeMenu(o ? n.id : null)}
+              trigger={<button type="button" className="ui-tree-more" aria-label={"Actions for folder " + (n.id ? n.label : "Workspace")} title="Folder actions (right-click)">
+                <Icon name="more" size={14} stroke={3} /></button>} />}
             canDrag={(id) => id !== ""} onDragStart={(id, e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify([id])); e.dataTransfer.effectAllowed = "move"; }}
             onDrop={dropOn}
             renderIcon={(_, sel) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
@@ -223,34 +300,50 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
         {!foldersHidden && <Splitter label="Resize the folders panel" axis="x" grow={1} value={foldersWidth} min={180} max={520}
           measure={() => foldersPanel.current?.getBoundingClientRect().width ?? 260} onChange={setFoldersWidth} />}
         <div className="st-items">
-          <div role="toolbar" aria-label="Selected items" className="st-items-bar">
-            <span className="st-items-count" aria-live="polite">{chosen.length ? chosen.length + " selected" : count(rows.length)}</span>
-            <Button kind="plain" onClick={() => act.copy()} disabled={!chosen.length} title="Ctrl+C">Copy</Button>
-            <Button kind="plain" onClick={() => act.cut()} disabled={!chosen.length} title="Ctrl+X">Cut</Button>
-            <Button kind="plain" onClick={() => act.paste()} disabled={!clip || !!q} title="Ctrl+V">{clip ? "Paste " + count(clip.paths.length) : "Paste"}</Button>
-            <Button kind="plain" onClick={() => act.duplicate()} disabled={!chosen.length}>Duplicate</Button>
-            <Button kind="plain" onClick={() => chosenNodes.length === 1 && setRenaming(chosenNodes[0])} disabled={chosenNodes.length !== 1} title="F2">Rename</Button>
-            <Button kind="plain" icon="trash" onClick={() => act.remove()} disabled={!chosen.length} title="Delete">Delete</Button>
+          <div className="st-items-tools" role="group" aria-label="List tools">
+            <span className="st-items-count" aria-live="polite">{listed.length === rows.length ? count(rows.length) : listed.length + " of " + count(rows.length)}</span>
+            <Select aria-label="Type" value={kind} onChange={(e) => setKind(e.target.value)} options={KINDS.map(([value, label]) => ({ value, label }))} />
+            <span className="st-items-fill" />
+            <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
+            <button type="button" className="ui-icon-btn" aria-label="Refresh" title="Refresh" onClick={() => { onChanged(); }}><Icon name="loop" size={15} /></button>
           </div>
+          {(chosen.length > 0 || (clip && !q)) && <div role="toolbar" aria-label="Selected items" className="st-items-bar is-chosen">
+            <strong className="st-items-count">{chosen.length ? chosen.length + " selected" : count(clip!.paths.length) + (clip!.cut ? " cut" : " copied")}</strong>
+            {chosen.length > 0 && <>
+              <Button kind="plain" onClick={() => act.copy()} title={keyOf("files.copy")}>Copy</Button>
+              <Button kind="plain" onClick={() => act.cut()} title={keyOf("files.cut")}>Cut</Button>
+              <Button kind="plain" onClick={() => act.duplicate()}>Duplicate</Button>
+              {repo && chosenNodes.length <= 10 && chosenNodes.every(canCheckIn) && <Button kind="plain" onClick={() => repo.onCheckIn(chosen)}>Check in…</Button>}
+              {chosenNodes.length === 1 && <Button kind="plain" onClick={() => setRenaming(chosenNodes[0])} title="F2">Rename</Button>}
+              <Button kind="plain" icon="trash" onClick={() => act.remove()} title="Delete">Delete…</Button>
+            </>}
+            {clip && !q && <Button kind="plain" onClick={() => act.paste()} title={keyOf("files.paste")}>{"Paste " + count(clip.paths.length) + " here"}</Button>}
+            <span className="st-items-fill" />
+            {chosen.length > 0 ? <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button> : <Button kind="plain" onClick={() => setClip(null)}>Cancel</Button>}
+          </div>}
           <table className="st-table">
-            <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">{q ? "Found by" : "Changed"}</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col" className="st-tick"><input type="checkbox" aria-label="Select all" checked={paths.length > 0 && paths.every((p) => selected.includes(p))}
+              onChange={(e) => setSelected(e.target.checked ? paths : [])} /></th><th scope="col">Name</th>{cols.map((c) => <th key={c.key} scope="col" className={CLASS[c.key]}>{c.key === "changed" && q ? "Found by" : c.label}</th>)}<th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
-              {rows.map(({ node: n, why }) => {
+              {listed.map(({ node: n, why }) => {
                 const isSel = selected.includes(n.path);
                 return (
                   <tr key={n.path} className={isSel ? "is-selected" : ""} aria-selected={isSel} onClick={(e) => click(e, n.path)} onDoubleClick={() => open(n)}
                     onContextMenu={(e) => { e.preventDefault(); if (!isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(n.path); }}
                     draggable onDragStart={(e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify(dragPaths(n.path))); e.dataTransfer.effectAllowed = "move"; }}
                     onDragOver={n.type === "folder" ? (e) => e.preventDefault() : undefined} onDrop={n.type === "folder" ? (e) => { e.preventDefault(); dropOn(n.path, e); } : undefined}>
-                    <td>{n.type === "folder"
-                      ? <button type="button" className="st-link st-folder-link" onClick={(e) => { e.stopPropagation(); openFolder(n.path); }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="#f5c451" stroke="#a16207" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg>{n.name}</button>
+                    <td className="st-tick" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={"Select " + displayName(n)} checked={isSel}
+                      onChange={(e) => { setSelected(e.target.checked ? [...selected, n.path] : selected.filter((x) => x !== n.path)); setAnchor(n.path); }} /></td>
+                    <td><span className="st-name">{n.type === "folder"
+                      ? <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="#f5c451" stroke="#a16207" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg>
+                      : markOf(n) ? <IconTile name={markOf(n)!.icon} color={markOf(n)!.color} size={18} /> : <Icon name="doc" size={16} />}
+                      {n.type === "folder"
+                      ? <button type="button" className="st-link st-folder-link" onClick={(e) => { e.stopPropagation(); openFolder(n.path); }}>{n.name}</button>
                       : OPENS.includes(n.type)
                       ? <button type="button" className="st-link" onClick={(e) => { if (!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.stopPropagation(); onOpen(n); } }}>{displayName(n)}</button>
-                      : <span>{displayName(n)}</span>}
+                      : <span>{displayName(n)}</span>}</span>
                       {q && <div className="st-item-path">{parentOf(n.path) || "Workspace"}</div>}</td>
-                    <td>{n.type === "folder" ? "Folder" : typeLabel(n)}</td>
-                    <td>{q ? why : n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
+                    {cols.map((c) => <td key={c.key} className={CLASS[c.key]}>{cell(c.key, n, why)}</td>)}
                     <td className="st-row-actions" onClick={(e) => e.stopPropagation()}>
                       <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path}
                         onOpenChange={(o) => { if (o && !isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(o ? n.path : null); }}
@@ -259,13 +352,16 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                   </tr>
                 );
               })}
-              {!rows.length && <tr><td colSpan={4} className="st-empty">{q ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
+              {!listed.length && <tr><td colSpan={cols.length + 3} className="st-empty">{q || kind ? "Nothing matches." : "Nothing here yet. Press Create to make the first one in this folder."}</td></tr>}
             </tbody>
           </table>
         </div>
       </div>}
-      <CreateDialog type={creating} folderPath={folder} blueprints={blueprints} onClose={() => setCreating(null)} onChangeFolder={() => setCreating(null)}
-        onCreate={async (kind, name, from) => { await onCreated(kind, folder, name, from); setCreating(null); }} />
+      {choosingCols && <ColumnsDialog columns={COLUMNS.filter((c) => !!repo || !FROM_REPO.includes(c.key))} hidden={hiddenCols} onChange={setHiddenCols}
+        onClose={() => setChoosingCols(false)} />}
+      <CreateDialog type={creating} folderPath={createIn} folders={everything(tree).filter((n) => n.type === "folder").map((n) => n.path)} blueprints={blueprints}
+        onClose={() => setCreating(null)} onChangeFolder={setCreateIn}
+        onCreate={async (kind, name, from) => { await onCreated(kind, createIn, name, from); setCreating(null); }} />
       {renaming && <RenameDialog node={renaming} onClose={() => setRenaming(null)} onRename={async (name) => {
         try {
           const to = await api.rename(renaming.path, name);

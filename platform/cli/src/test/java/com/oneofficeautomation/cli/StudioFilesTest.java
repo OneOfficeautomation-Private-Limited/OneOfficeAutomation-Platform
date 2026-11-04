@@ -55,6 +55,8 @@ class StudioFilesTest {
         assertEquals("one_-_Copy", ((Map<String, Object>) Ooa.codec().parse(Files.readString(root.resolve("Agents/one - Copy.flow.json")))).get("id"),
                 "a duplicated agent gets its own id");
         assertEquals("one.flow.json", call(base, "POST", "/api/files/copy", Map.of("path", "Agents/one.flow.json", "to", "")).get("path"));
+        assertEquals("one_copy", ((Map<String, Object>) Ooa.codec().parse(Files.readString(root.resolve("one.flow.json")))).get("id"),
+                "a copy with the same name in another folder gets its own id too, so both can be checked in");
         assertEquals(400, ((Number) call(base, "POST", "/api/files/copy", Map.of("path", "Agents/one.flow.json", "to", "../outside")).get("_status")).intValue());
 
         HttpClient http = HttpClient.newHttpClient();

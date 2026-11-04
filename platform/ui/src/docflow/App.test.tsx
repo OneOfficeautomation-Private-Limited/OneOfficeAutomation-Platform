@@ -13,7 +13,7 @@ const table = (name: string) => screen.findByRole("region", { name });
 describe("Document Automation", () => {
   it("sits under AI in the Command Center menu, with seven tabs and Overview first", async () => {
     start();
-    const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("href")).toBe("/documents/");
     const tabs = screen.getByRole("navigation", { name: "Document Automation" });
@@ -100,7 +100,7 @@ describe("Document Automation", () => {
     fireEvent.click(within(fields).getByRole("button", { name: /Approve and next/ }));
     await waitFor(() => expect(api.reviews).toHaveLength(1));
     expect(api.reviews[0]).toMatchObject({ documentId: "scan_0457", decision: "approve", fields: { vat_amount: "6,257.13" } });
-    const menu = screen.queryByRole("navigation", { name: "Command Center" });
+    const menu = screen.queryByRole("navigation", { name: "One CommandCenter" });
     expect(menu).toBeTruthy();
   });
 

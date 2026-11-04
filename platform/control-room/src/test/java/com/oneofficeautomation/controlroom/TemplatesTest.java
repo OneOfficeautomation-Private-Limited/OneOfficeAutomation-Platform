@@ -43,6 +43,20 @@ class TemplatesTest {
             assertEquals(List.of("Finance/Invoice summary.flow.json"), shown.get(0).get("agents"));
             assertFalse(String.valueOf(shown).contains("\"content\""), "the list carries no agent content");
             assertEquals(false, l.get("can_share"), "sharing is for SaaS regions");
+            assertEquals("Finance", shown.get(0).get("folder"), "a template starts in its category's folder");
+            assertEquals(Templates.CATEGORIES, l.get("categories"));
+
+            // administrators arrange the templates in their own folders, nested with /
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> t.arrange(admin, List.of("Money/Invoices"), Map.of(), null)).code(), "a folder needs its parent");
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> t.arrange(admin, List.of("Money"), Map.of("vendor:invoice-summary", "Elsewhere"), null)).code());
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> t.arrange(admin, List.of("Bad:name"), Map.of(), null)).code());
+            t.arrange(admin, List.of("Money", "Money/Invoices", "IT"), Map.of("vendor:invoice-summary", "Money/Invoices"), null);
+            l = t.list(admin);
+            assertEquals(List.of("Money", "Money/Invoices", "IT"), l.get("categories"));
+            assertEquals("Money/Invoices", ((List<Map<String, Object>>) l.get("templates")).get(0).get("folder"));
+            t.arrange(admin, List.of("IT"), Map.of(), null);
+            assertEquals("", ((List<Map<String, Object>>) t.list(admin).get("templates")).get(0).get("folder"), "with its folder gone it sits at the top");
+            assertNotNull(db.one("SELECT seq FROM audit WHERE action = 'template.folders'"));
 
             Map<String, Object> r = t.install(admin, "vendor", "invoice-summary", "Ready-made", null);
             assertEquals(true, r.get("ok"), String.valueOf(r));

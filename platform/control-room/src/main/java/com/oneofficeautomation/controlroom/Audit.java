@@ -38,7 +38,7 @@ public final class Audit {
 
     void onRecord(java.util.function.Consumer<Map<String, Object>> l) { this.listener = l; }
 
-    /** Turns on the keyed chain and the files beside the database (the Command Center does this at start). */
+    /** Turns on the keyed chain and the files beside the database (One CommandCenter does this at start). */
     void protect(Supplier<byte[]> key, Path dataDir) { this.key = key; this.dataDir = dataDir; }
 
     static final String ZERO = "0".repeat(64);

@@ -1,0 +1,71 @@
+{
+  "name": "020_set_many",
+  "description": "Assign several variables sets them in order: a later value sees the variables assigned above it.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c20",
+    "name": "c20",
+    "variables": [
+      {
+        "name": "price",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "qty",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "total",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/set_many",
+        "args": {
+          "assignments": [
+            {
+              "variable": "price",
+              "value": 2.5
+            },
+            {
+              "variable": "qty",
+              "value": {
+                "expr": "3"
+              }
+            },
+            {
+              "variable": "total",
+              "value": {
+                "expr": "$price * $qty"
+              }
+            },
+            {
+              "variable": "label",
+              "value": "Total ${total}"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "price": 2.5,
+      "qty": 3,
+      "total": 7.5,
+      "label": "Total 7.5"
+    }
+  }
+}

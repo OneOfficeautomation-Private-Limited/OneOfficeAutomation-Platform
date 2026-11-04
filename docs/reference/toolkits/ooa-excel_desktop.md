@@ -28,7 +28,7 @@ Save a workbook in another format, e.g. .xls to .xlsx or .csv to .xlsx, optional
 | Password | `password` | Credential (vault) | No |  | Main; tick The workbook has a password | Password needed to open the workbook; passed to Excel through the environment, not the command line. |
 | New password | `new_password` | Credential (vault) | No |  | Main; tick Protect the new file with a password | Password needed to open the converted file; none when empty. |
 
-*Time limit 600 s; needs: desktop.*
+*Time limit 600 s; needs: desktop, filesystem.*
 
 ### Export to PDF
 
@@ -51,7 +51,7 @@ Export the whole workbook, or one sheet, to PDF, choosing quality, page range, p
 | To page | `to_page` | Number | No |  | More options | Last printed page to export; to the last page when empty. |
 | Password | `password` | Credential (vault) | No |  | More options | Password needed to open the workbook; passed to Excel through the environment, not the command line. |
 
-*Time limit 600 s; needs: desktop.*
+*Time limit 600 s; needs: desktop, filesystem.*
 
 ## Data
 
@@ -70,7 +70,7 @@ Refresh every query, connection and pivot table in the workbook, wait for comple
 | Timeout (seconds) | `timeout_seconds` | Number | No | `900` | More options | Maximum time. |
 | Password | `password` | Credential (vault) | No |  | More options | Password needed to open the workbook; passed to Excel through the environment, not the command line. |
 
-*Time limit 3600 s; needs: desktop.*
+*Time limit 3600 s; needs: desktop, filesystem.*
 
 ### Update workbook links
 
@@ -93,7 +93,7 @@ Open the workbook in Excel, refresh the values taken from every linked workbook 
 | --- | --- | --- |
 | `count` | Number | Number of linked workbooks updated. |
 
-*Time limit 3600 s; needs: desktop.*
+*Time limit 3600 s; needs: desktop, filesystem.*
 
 ## Macros
 
@@ -121,4 +121,4 @@ Open a macro-enabled workbook, optionally password-protected, run a VBA macro wi
 | --- | --- | --- |
 | `result` | Text | Value returned by the macro (for Functions), as text. |
 
-*Time limit 3600 s; needs: desktop.*
+*Time limit 3600 s; needs: desktop, filesystem.*

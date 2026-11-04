@@ -50,7 +50,7 @@ public final class Vault {
         byte[] raw;
         if (env != null && !env.isBlank()) { raw = Base64.getDecoder().decode(env.trim()); keySource = "environment variable OOA_MASTER_KEY"; keyFile = null; }
         else if (external != null && !external.isBlank()) {
-            // kept in a key store outside the Command Center (Azure Key Vault, AWS, Google) or typed in at start (S7)
+            // kept in a key store outside One CommandCenter (Azure Key Vault, AWS, Google) or typed in at start (S7)
             raw = KeySources.fetch(external);
             keySource = KeySources.describe(external);
             keyFile = null;

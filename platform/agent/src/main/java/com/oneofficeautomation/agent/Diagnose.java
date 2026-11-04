@@ -10,7 +10,7 @@ import java.time.*;
 import java.util.*;
 
 /**
- * {@code ooa agent diagnose} (R15): checks, step by step, why a runner cannot reach or work with its Command Center:
+ * {@code ooa agent diagnose} (R15): checks, step by step, why a runner cannot reach or work with its One CommandCenter:
  * config file, name lookup, the proxy, a TCP connection, the TLS certificate, the health address, the runner's own
  * credentials (a heartbeat), the clock, the screen, disk space and toolkits. Each line is PASS, WARN or FAIL with what to
  * do. Changes nothing.
@@ -42,7 +42,7 @@ public final class Diagnose {
         int port = u.getPort() > 0 ? u.getPort() : url.startsWith("https") ? 443 : 80;
         if (proxies.isEmpty() || proxies.get(0).type() == Proxy.Type.DIRECT) {
             try (Socket s = new Socket()) { s.connect(new InetSocketAddress(u.getHost(), port), 5000); out.add(new Line("PASS", "Network", "port " + port + " on " + u.getHost() + " answers")); }
-            catch (Exception e) { out.add(new Line("FAIL", "Network", "cannot connect to " + u.getHost() + ":" + port + " (" + e.getMessage() + "): check the firewall and that the Command Center runs")); return out; }
+            catch (Exception e) { out.add(new Line("FAIL", "Network", "cannot connect to " + u.getHost() + ":" + port + " (" + e.getMessage() + "): check the firewall and that One CommandCenter runs")); return out; }
         }
         // TLS and health through the runner's own client settings
         HttpClient.Builder b = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10));
@@ -52,25 +52,25 @@ public final class Diagnose {
         try {
             HttpResponse<String> h = http.send(HttpRequest.newBuilder(URI.create(url.replaceAll("/+$", "") + "/api/health")).timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
             if (url.startsWith("https")) out.add(new Line("PASS", "Certificate", "trusted"));
-            out.add(new Line(h.statusCode() == 200 ? "PASS" : "FAIL", "Command Center", "health answered HTTP " + h.statusCode()));
+            out.add(new Line(h.statusCode() == 200 ? "PASS" : "FAIL", "One CommandCenter", "health answered HTTP " + h.statusCode()));
             // clock: the Date header against this computer
             Optional<String> date = h.headers().firstValue("Date");
             if (date.isPresent()) {
                 Instant theirs = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.parse(date.get(), Instant::from);
                 long skew = Math.abs(Duration.between(before, theirs).toSeconds());
-                out.add(new Line(skew <= 60 ? "PASS" : "WARN", "Clock", skew <= 60 ? "within a minute of the Command Center" : skew + " seconds apart: set both clocks from the same time server"));
+                out.add(new Line(skew <= 60 ? "PASS" : "WARN", "Clock", skew <= 60 ? "within a minute of One CommandCenter" : skew + " seconds apart: set both clocks from the same time server"));
             }
         } catch (javax.net.ssl.SSLHandshakeException e) {
             out.add(new Line("FAIL", "Certificate", "not trusted (" + e.getMessage() + "): register with --ca FILE, or install the company CA in Windows"));
             return out;
         } catch (Exception e) {
-            out.add(new Line("FAIL", "Command Center", "no answer from " + url + " (" + e.getMessage() + ")" + (net.proxyUser() == null && !net.proxy().equals("none") ? "; if a proxy asks for a sign-in, set it with ooa agent network" : "")));
+            out.add(new Line("FAIL", "One CommandCenter", "no answer from " + url + " (" + e.getMessage() + ")" + (net.proxyUser() == null && !net.proxy().equals("none") ? "; if a proxy asks for a sign-in, set it with ooa agent network" : "")));
             return out;
         }
         // the runner's own credentials
         try {
             new AgentClient(url, (String) cfg.get("device_id"), (String) cfg.get("secret"), net).post("heartbeat", Map.of("agent_version", Agent.VERSION, "diagnose", true));
-            out.add(new Line("PASS", "Runner sign-in", "the Command Center accepts this runner (" + cfg.get("device_id") + ")"));
+            out.add(new Line("PASS", "Runner sign-in", "One CommandCenter accepts this runner (" + cfg.get("device_id") + ")"));
         } catch (Exception e) {
             out.add(new Line("FAIL", "Runner sign-in", e.getMessage() + ": the runner may be deleted or disabled; register it again"));
         }

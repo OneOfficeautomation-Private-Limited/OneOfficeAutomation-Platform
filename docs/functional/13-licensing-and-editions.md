@@ -39,7 +39,7 @@ Center shows "EDITION (licensed to CUSTOMER)", "Evaluation (60 days, until DATE)
 
 | Rule | Detail |
 | --- | --- |
-| Length | 60 days from the first start of the Command Center |
+| Length | 60 days from the first start of One CommandCenter |
 | Seats | 2 Developer, 0 Citizen Developer, 2 Attended Runner, 2 Unattended Runner |
 | Assignment | Free seats are given automatically the first time someone checks in or a runner takes work |
 | Banner | Administrators see a countdown, red in the last 7 days |
@@ -51,13 +51,13 @@ Installing a licence ends the evaluation; from then on seats are assigned by han
 
 ## 3. Licence files
 
-A licence is a signed file (`.lic`) installed per Command Center in Administration > Licenses (paste or choose the
+A licence is a signed file (`.lic`) installed per One CommandCenter in Administration > Licenses (paste or choose the
 file, then **Install license**). It works fully offline and holds no secret.
 
 To install a licence:
 
 1. Find the **install id** on Administration > Licenses (`OOA-XXXX-XXXX-XXXX-XXXX`) and send it to
-   ONEOFFICEAUTOMATION with the agreed terms. A licence issued for it works only on that Command Center.
+   ONEOFFICEAUTOMATION with the agreed terms. A licence issued for it works only on that One CommandCenter.
 2. On a customer build, move to SQL Server or PostgreSQL first (see `LICENSE.DB_REQUIRED` below).
 3. When the `.lic` file arrives, check it if you like: `ooa license show FILE` prints its terms and says whether this
    release accepts its signature.
@@ -78,7 +78,7 @@ holds:
 | `issued`, `expires` | Dates; `expires` is the last fully valid day |
 | `grace_days` | Days after expiry during which everything keeps working (default 14, at most 90) |
 | `seats` | Counts of `developer`, `citizen_developer`, `attended_runner`, `unattended_runner` |
-| `install_id` | The Command Center it is for (`OOA-XXXX-XXXX-XXXX-XXXX`, shown on the Licenses page); missing means any installation |
+| `install_id` | One CommandCenter it is for (`OOA-XXXX-XXXX-XXXX-XXXX`, shown on the Licenses page); missing means any installation |
 | `notes` | Optional free text from the vendor |
 
 Installation is refused when:
@@ -92,12 +92,12 @@ Installation is refused when:
 | `LICENSE.TOO_FEW_SEATS` | It has fewer seats of a type than are assigned |
 
 A new licence replaces the one in force; seats already given stay assigned. The install id is stored encrypted with
-the vault key, so copying the database elsewhere does not move a licence. A Command Center moved or restored with
+the vault key, so copying the database elsewhere does not move a licence. One CommandCenter moved or restored with
 the same vault key keeps its install id, so its licence keeps working
 ([infrastructure/07](../infrastructure/07-backup-restore-and-disaster-recovery.md)); only a new install set up
 from scratch needs a new licence.
 
-Moving off the built-in database (for `LICENSE.DB_REQUIRED`), with the Command Center stopped: `ooa db configure`,
+Moving off the built-in database (for `LICENSE.DB_REQUIRED`), with One CommandCenter stopped: `ooa db configure`,
 `ooa db set-password`, `ooa db set-password --setup`, `ooa db init`, then `ooa db copy --from` the evaluation's data
 folder, which keeps its data. Restart and install the licence. The full steps are in
 [infrastructure/05](../infrastructure/05-databases.md), section 10. The vendor build is never held to this rule.
@@ -123,7 +123,7 @@ folder, which keeps its data. Restart and install the licence. The full steps ar
 | Developer | A person | Checking agents in (Studio, API); running agents by hand on their own default runner |
 | Citizen Developer | A person | The same as Developer |
 | Attended Runner | A person | Running agents by hand on their own default runner |
-| Unattended Runner | A runner | Taking any Command Center work: manual, scheduled, triggered, API, work queues, workflows, tests |
+| Unattended Runner | A runner | Taking any One CommandCenter work: manual, scheduled, triggered, API, work queues, workflows, tests |
 
 ## 6. What is enforced
 
@@ -252,7 +252,7 @@ ooa license issue --key "%USERPROFILE%\OOA License Keys\private.key" --customer 
 | `--customer NAME` | Required | Who the licence is for |
 | `--expires YYYY-MM-DD` | Required | Last fully valid day; a date in the past is refused |
 | `--out FILE` | Required | The `.lic` file to write |
-| `--install-id ID` or `--any-install` | One is required | The customer's Command Center, or any installation |
+| `--install-id ID` or `--any-install` | One is required | The customer's One CommandCenter, or any installation |
 | `--developer N`, `--citizen-developer N`, `--attended N`, `--unattended N` | 0 | Seats |
 | `--grace-days N` | 14 | Grace days (the product caps them at 90) |
 | `--edition NAME` | Enterprise | Edition name |

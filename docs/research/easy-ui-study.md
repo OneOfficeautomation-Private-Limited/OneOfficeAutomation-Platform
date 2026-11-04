@@ -5,7 +5,7 @@ Written on 2026-10-29 for pending item V6 ("Easy UI"). OOA's screens were read i
 three products were read from their public documentation, forums and reviews only. Nothing was signed into, and every
 description is in our own words. Points the sources did not confirm are marked *not confirmed*.
 
-The result feeds the Studio and Command Center redesign decided on 2026-10-29 (V1: TypeScript with React, Studio
+The result feeds the Studio and One CommandCenter redesign decided on 2026-10-29 (V1: TypeScript with React, Studio
 first). The gap list at the end is ordered by priority and copied into the pending log.
 
 ## Summary

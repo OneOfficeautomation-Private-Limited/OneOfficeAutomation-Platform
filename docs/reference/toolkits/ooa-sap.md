@@ -376,7 +376,7 @@ Open a system from SAP Logon by its description and log on with client, user, pa
 | --- | --- | --- |
 | `connection` | Number | Connection number for later actions. |
 
-*Time limit 180 s; needs: desktop.*
+*Time limit 180 s; needs: desktop, filesystem.*
 
 ### Open system (single sign-on)
 
@@ -399,7 +399,7 @@ Open a system from SAP Logon that signs on by itself (SSO or SNC), with no user 
 | --- | --- | --- |
 | `connection` | Number | Connection number for later actions. |
 
-*Time limit 180 s; needs: desktop.*
+*Time limit 180 s; needs: desktop, filesystem.*
 
 ### Run transaction
 
@@ -470,7 +470,7 @@ Read an ALV grid or a classic table control into a table, scrolling through all 
 | `count` | Number | Number of rows read. |
 | `path` | File path | The CSV file written, when csv_path was given. |
 
-*Time limit 600 s; safe to repeat; needs: desktop.*
+*Time limit 600 s; safe to repeat; needs: desktop, filesystem.*
 
 ### Get table cell
 

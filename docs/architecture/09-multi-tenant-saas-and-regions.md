@@ -59,9 +59,9 @@ flowchart TB
     t2 --> f2[(DATA/tenants/globex)]
 ```
 
-Each tenant runs **the same Command Center code** as an on-premises install (`ControlRoom` and
+Each tenant runs **the same One CommandCenter code** as an on-premises install (`ControlRoom` and
 `ControlRoomServer.forTenant`), with its own users, agents, runners, vault, schedules, audit trail, backups and
-background clock (thread `ooa-cr-clock-<tenant>`). The region process holds one such Command Center per active tenant.
+background clock (thread `ooa-cr-clock-<tenant>`). The region process holds one such One CommandCenter per active tenant.
 
 ## 3. Isolation model
 
@@ -84,7 +84,7 @@ credential names.
 
 1. It reads the `Host` header. `acme.<domain>` is tenant `acme`; the region's own address (and an IP address or
    `localhost`, used by internal load balancers) is the region itself; any other host is not of this region.
-2. A request for an active tenant is handed to that tenant's `ControlRoomServer`, opening its Command Center on first
+2. A request for an active tenant is handed to that tenant's `ControlRoomServer`, opening its One CommandCenter on first
    use if it is not open yet.
 3. The region's own address answers only `/healthz` (and `/api/health`) and, when the operator token is configured, the
    operator API.
@@ -103,7 +103,7 @@ settings; without it the API is off). It never answers on a tenant's address.
 | Request | Command | Effect |
 | --- | --- | --- |
 | `GET /api/operator/tenants` | `ooa region tenant list` | The tenants |
-| `POST /api/operator/tenants` `{slug, name, admin_email, seats}` | `ooa region tenant create --slug acme --name "Acme Ltd" --admin-email ... --seats developer=2,unattended_runner=5` | Reserves the name in the directory (if any), creates the schema with all Command Center tables, the folder, the key and the first administrator; returns the tenant address and the administrator's one-time password (shown once) |
+| `POST /api/operator/tenants` `{slug, name, admin_email, seats}` | `ooa region tenant create --slug acme --name "Acme Ltd" --admin-email ... --seats developer=2,unattended_runner=5` | Reserves the name in the directory (if any), creates the schema with all One CommandCenter tables, the folder, the key and the first administrator; returns the tenant address and the administrator's one-time password (shown once) |
 | `POST /api/operator/tenants/NAME/seats` | `ooa region tenant seats NAME --seats ...` | Changes the seats |
 | `POST /api/operator/tenants/NAME/suspend` | `ooa region tenant suspend NAME` | Refuses the tenant's people and runners (404), stops its schedules and triggers; data stays |
 | `POST /api/operator/tenants/NAME/resume` | `ooa region tenant resume NAME` | Starts it again |
@@ -161,7 +161,7 @@ not move between regions; to move one, export it, create it in the other region 
   (`DATA/tenants`) must be on shared storage (NFS, Azure Files, EFS, Filestore).
 - Each tenant's background work runs on one node at a time through that tenant's own leader lease (`Cluster`, table
   `cluster_lease` in the tenant's schema).
-- A node opens every active tenant's Command Center at start so schedules and triggers run, and keeps up to 3 database
+- A node opens every active tenant's One CommandCenter at start so schedules and triggers run, and keeps up to 3 database
   connections per tenant (the catalog uses 4). With more than a few hundred tenants per region, put PgBouncer in session
   mode in front of PostgreSQL.
 - `/healthz` answers `{"status":"ok"}` for load balancers and container checks, also without a host name.
@@ -172,7 +172,7 @@ not move between regions; to move one, export it, create it in the other region 
 | --- | --- | --- |
 | Outgoing connections from the server (mail, syslog, external vaults, identity provider, trigger sources, run callbacks, promotion targets, Git remote) | Any address | Public addresses only; loopback, private, link-local (cloud metadata), carrier-grade NAT, unique-local and multicast are refused with `SAAS.ADDRESS_BLOCKED`; the Git remote must be `https://` or SSH |
 | Custom toolkit upload | Allowed | Refused (`SAAS.NOT_AVAILABLE`); custom code runs only on customers' runners |
-| Serverless API tasks | Allowed | Only when the region sets `serverless=true` |
+| Serverless Agent APIs | Allowed | Only when the region sets `serverless=true` |
 | Backup folder and repository-file folder | Configurable | Fixed to the tenant's folder |
 | Outbound proxy setting | Applied (process-wide) | Ignored; the region's network decides |
 | Licence | Signed licence file | Seats from the operator; licence files refused |

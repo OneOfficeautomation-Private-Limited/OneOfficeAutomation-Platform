@@ -172,7 +172,7 @@ export const loopIsMore = (name: string) => LOOP_MORE.has(name);
  * supplies. Toolkits whose shared inputs are a file or a request (Excel, PDF, REST, Generative AI) have none.
  */
 export function connectionInputs(pkg: PackageManifest | undefined): Set<string> {
-  if (!pkg || pkg.actions.length < 3 || ["ooa.excel_desktop", "ooa.pdf", "ooa.rest", "ooa.genai"].includes(pkg.id)) return new Set();
+  if (!pkg || pkg.actions.length < 3 || ["ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.rest", "ooa.genai"].includes(pkg.id)) return new Set();
   const count = new Map<string, number>(), types = new Map<string, string | undefined>();
   for (const a of pkg.actions) for (const [k, v] of Object.entries(a.inputs?.properties ?? {})) { count.set(k, (count.get(k) ?? 0) + 1); types.set(k, v["x-ooa-type"]); }
   const common = [...count].filter(([, n]) => n >= 0.8 * pkg.actions.length).map(([k]) => k);

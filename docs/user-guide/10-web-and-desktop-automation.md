@@ -74,7 +74,7 @@ Add **Open browser** (group **Browser**). Its settings start with **Run mode**:
 | Run mode | Use it |
 | --- | --- |
 | **Watch while building** | Edge or Chrome on the desktop; it stays open after the run so you can look at the page. |
-| **Unattended** | The built-in browser without a window, closed when the agent ends. For Command Center and scheduled runs. |
+| **Unattended** | The built-in browser without a window, closed when the agent ends. For One CommandCenter and scheduled runs. |
 | **Custom** | Set **Engine**, **Headless** and **Keep open** yourself under More options. |
 
 Then:
@@ -242,8 +242,10 @@ click type and method; Set text offers **Clear first**, the typing method and th
 window is behind others.
 
 Other actions in **Capture / Desktop objects**: **Find desktop objects**, **Get desktop object properties**,
-**Wait for desktop object**, **Get desktop table**, and for older programs **Find legacy (MSAA) objects** and
-**Legacy (MSAA) object action**. Java programs (Swing/AWT) have their own group, **Java applications**.
+**Wait for desktop object**, **Get desktop table**, **Get parent object** (the control that contains a captured one,
+one or more levels up or the nearest of a type such as Pane or Group; its result is an object the other actions take,
+for example to list the children of the panel around a label), and for older programs **Find legacy (MSAA) objects**
+and **Legacy (MSAA) object action**. Java programs (Swing/AWT) have their own group, **Java applications**.
 
 **Older Windows programs (MSAA).** Some older programs (owner-drawn Win32, VB6, Delphi, and many ERP or terminal front
 ends) describe their controls better through MSAA than through UI Automation. Try these when Capture finds nothing
@@ -277,12 +279,21 @@ SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) 
 
 | Group | Typical actions |
 | --- | --- |
+| **Window** | Activate, Maximise, Minimise, Restore, Move and resize, **Hide window** and **Show window** (hidden windows leave the taskbar too; **Show again when the run ends**, on by default, brings back any the run left hidden), Close, Wait for window, Capture window, Get active window title; conditions **Window exists**, **Window is active** |
+| **Mouse and keyboard** | Mouse click, Mouse move, Mouse scroll, Type text, Press keys, Capture screen, clipboard actions, Message box, **Show callout** (a short note pointing at a spot for a few seconds, without taking the focus), Prompt for value / yes/no / password / file / folder |
 | **Window** | Activate, Maximise, Minimise, Restore, Move and resize, Close, Wait for window, Capture window, Get active window title; conditions **Window exists**, **Window is active** |
-| **Application** | Start program, Run program and wait, Open file, Stop program; condition **Program is running** |
+| **Application** | Start program, Run program and wait, Open file, Stop program, Open / Write to / Read / Close command session; condition **Program is running** |
 | **Mouse and keyboard** | Mouse click, Mouse move, Mouse scroll, Type text, Press keys, Capture screen, clipboard actions, Message box, Prompt for value / yes/no / password / file / folder |
 
 **Press keys** has a **+ key** list with ENTER, TAB, ESC, CTRL+A, ALT+F4 and other keys. **Type text** can type a
 credential from the vault.
+
+**Run program and wait** runs a program to the end. To work with a console program step by step, use a **command
+session**: **Open command session** starts cmd.exe, powershell.exe or another console program and keeps it open;
+**Write to command session** sends a line (or a password from the vault, which never appears in logs or output);
+**Read command session** returns what the program printed and can wait for a prompt or a question; **Close command
+session** ends it and any program it started. Sessions left open are stopped when the run ends. Command sessions need no
+desktop.
 
 Desktop steps need a signed-in Windows desktop. Message boxes and prompts wait for a person; in unattended runs they fail
 at once unless they have a timeout.
@@ -292,7 +303,8 @@ at once unless they have a timeout.
 When an application cannot be read through its controls (remote desktops, Citrix, games, pictures):
 
 - **Image recognition**: **Find image on screen**, **Click image**, **Wait for image** (or until it is gone),
-  **Wait for screen change**, **Find image in image**; condition **Image is on screen**. Keep the template images in your
+  **Wait for screen change**, **Find image in image**, **Compare images** (same or not, how much and where it differs,
+  and optionally a copy with the changes in red); condition **Image is on screen**. Keep the template images in your
   workspace; set **Tolerance** and, to speed things up, **Search only an area**.
 - **OCR (read text in images)**: **Read text from image**, **Read text from image URL**, **Read text from screen**
   (whole screen or one window, optionally an area), **Find text in image**, **Click text on screen**; condition
@@ -340,7 +352,7 @@ them.
 | "The Browser module is not installed" / "The Desktop objects toolkit is not installed" | The optional module is missing. Ask your administrator. |
 | Capture desktop does nothing | Hover the control and press **Ctrl+Shift+C** within a minute; Studio must run on Windows. |
 | Recorded typing goes into the wrong field | Check the window and object of the step; recapture if the page layout changed. |
-| `RUN.NEEDS_PERSON` in One Command Center | A message box or prompt has no timeout in an unattended run. Give it a timeout or run attended. |
+| `RUN.NEEDS_PERSON` in One CommandCenter | A message box or prompt has no timeout in an unattended run. Give it a timeout or run attended. |
 
 ## Related guides
 

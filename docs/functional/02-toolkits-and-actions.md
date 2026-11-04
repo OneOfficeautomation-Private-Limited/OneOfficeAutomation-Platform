@@ -20,7 +20,7 @@ actions with their inputs and outputs is generated from the toolkits themselves 
 7. Conditions
 8. Error handling per step
 9. Error codes and error kinds
-10. Managing toolkits in the Command Center
+10. Managing toolkits in One CommandCenter
 11. Your own toolkits
 
 ## 1. Toolkits, actions, conditions and iterators
@@ -196,7 +196,7 @@ toolkits:
 | `RATE_LIMITED` | A service asked to slow down |
 | `SAP.ERROR` | Any SAP GUI scripting error (older name kept so existing Catch blocks still work) |
 
-## 10. Managing toolkits in the Command Center
+## 10. Managing toolkits in One CommandCenter
 
 Administration (Manage) > **Toolkits** lists every installed toolkit with its version, publisher, number of actions and
 conditions, the number of agents that use it (with the list), whether it is on, and its installed versions.
@@ -225,7 +225,7 @@ Signed toolkits written with the SDK can be added by people with `toolkits.manag
 
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
-- [14 One Agent Studio](14-studio-features.md)
+- [14 One AgentStudio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
 - [Toolkit reference](../reference/toolkits/)
-- [Command Center and runner, sections 9a and 9b](../user-guide/00-README.md)
+- [One CommandCenter and runner, sections 9a and 9b](../user-guide/00-README.md)

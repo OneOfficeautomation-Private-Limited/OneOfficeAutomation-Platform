@@ -2,15 +2,16 @@ import { useState } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
-import { fieldOrder, findAction, parseLoose, setArg, showValue } from "./flowEdit";
+import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
   connectionInputs, EACH_KINDS, elementFields, helpText, isElementAction, LOOP_LABELS, loopIsMore, loopMode, outcomeOf, shownWhen, TIMEOUT_FIELDS,
   TIMEOUT_LABELS, valueLabel, type LoopMode,
 } from "./stepKinds";
-import { AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
+import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
+import { pickerFor } from "./Pickers";
 
 export { CommitInput };
 
@@ -81,7 +82,19 @@ export function StepForm({ step, packages, onArg, onNote }:
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
       <AssignValue step={step} />}</Field>;
+    if (step.action === "core/set_many" && name === "assignments") return <Field key={step.id + ":assignments"} label={"Assignments" + (req(name) ? " *" : "")}
+      info={props[name]?.description}>{() => <AssignmentsEditor step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
+    // Run subflow: one of this agent's subflows; Go to: a label it can reach (its own list or one around it)
+    if ((step.action === "core/run_subflow" && name === "subflow") || (step.action === "core/goto" && name === "label")) {
+      const choices = step.action === "core/goto" ? labelsInScope(vars?.flow.steps ?? [], step.id) : (vars?.flow.subflows ?? []).map((s) => s.name);
+      const value = typeof step.args?.[name] === "string" ? String(step.args[name]) : "";
+      const none = step.action === "core/goto" ? "No label it can reach: add a Label step first" : "No subflows: add one from More (⋯)";
+      return <Field key={step.id + ":" + name} label={labelOf(name) + " *"} layout="beside" info={props[name]?.description}>{(id) =>
+        <Select id={id} value={value} onChange={(e) => onArg(name, e.target.value || undefined)}
+          options={[{ value: "", label: choices.length ? "Choose…" : none }, ...choices.map((c) => ({ value: c, label: c })),
+            ...(value && !choices.includes(value) ? [{ value, label: value + " (not found)" }] : [])]} />}</Field>;
+    }
     if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map")) return null;   // with the agent to run
     if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"
       label="Action" info="The actions that suit the captured control come first; the rest are under Other actions.">{(id) =>
@@ -97,8 +110,11 @@ export function StepForm({ step, packages, onArg, onNote }:
       label="Window" info="The browser tab or application window the action works in.">{() => <WindowEditor step={step} />}</Field>;
     if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")}
       info="A credential from the vault for passwords (never shown or logged), a variable, plain text or a calculation.">{() => <TextSource step={step} name={name} />}</Field>;
-    return <InputField key={step.id + ":" + name} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
+    const input = <InputField key={step.id + ":" + name} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
       value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
+    // a picker beside the field: SOAP operation from the WSDL, directory browser, PDF area, formatted email body
+    const picker = pickerFor(step, name, props as Record<string, unknown>);
+    return picker ? <div key={step.id + ":" + name + ":with-picker"} className="st-field-with-picker">{input}{picker}</div> : input;
   };
   // inputs the agent sets that the catalogue does not list (an older toolkit, a hand-edited file) stay editable
   const extra = Object.keys(step.args ?? {}).filter((n) => !(n in props));
@@ -178,7 +194,8 @@ function InputField({ name, label, spec, required, value, onCommit, apply }:
   return (
     <Field label={label + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
       if (spec.enum?.length) {
-        return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : e.target.value)}
+        // a Number field with choices (e.g. key length 128/256) keeps the number type when a choice is picked
+        return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : isNumber(spec) ? Number(e.target.value) : e.target.value)}
           options={[{ value: "", label: fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: String(v).replace(/_/g, " ") }))]} />;
       }
       if (spec.type === "boolean") {

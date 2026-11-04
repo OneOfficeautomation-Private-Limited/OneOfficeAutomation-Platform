@@ -186,6 +186,16 @@ class CoreOptionsTest {
                "catch":[{"as":"err","screenshot":"shots/fail.png","children":[]}]}]}""");
         ok(r2);
         assertNull(((Map<String, Object>) r2.outputs().get("err")).get("screenshot"));
+        // One CommandCenter's Settings switched error screenshots off: the Catch gets none, and the capture is never asked
+        List<Path> none = new ArrayList<>();
+        Runner off = Runner.builder(registry()).workDir(w).service("error_screenshots", false).service("screen_capture", (Runner.ScreenCapture) none::add).build();
+        RunResult r3 = run(off, """
+            {"kind":"TaskBot","id":"t","name":"t","variables":[{"name":"err","type":"Dictionary","direction":"output"}],
+             "steps":[{"id":"try","action":"core/try","children":[{"id":"boom","action":"core/throw","args":{"code":"X","message":"m"}}],
+               "catch":[{"as":"err","screenshot":true,"children":[]}]}]}""");
+        ok(r3);
+        assertNull(((Map<String, Object>) r3.outputs().get("err")).get("screenshot"));
+        assertTrue(none.isEmpty());
     }
 
     @Test void catchCanRethrowAndIgnoreItsOwnErrors() {
@@ -257,7 +267,8 @@ class CoreOptionsTest {
         Thread t = new Thread(() -> out[0] = Runner.builder(registry()).build().run(flow("""
             {"kind":"TaskBot","id":"p","name":"p","steps":[{"id":"1","action":"core/pause"}]}"""), Map.of(), new Runner.RunOptions().pause(pause)));
         t.start();
-        Thread.sleep(300);
+        // wait for the run to reach its pause step (a fixed 300 ms was too short on a busy runner)
+        for (long end = System.currentTimeMillis() + 10_000; !pause.get() && System.currentTimeMillis() < end; ) Thread.sleep(20);
         assertTrue(pause.get(), "the run paused itself");
         assertNull(out[0]);
         pause.set(false);

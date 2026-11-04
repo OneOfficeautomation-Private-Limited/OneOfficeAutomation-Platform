@@ -73,8 +73,11 @@ class ArchitectureTest {
     }
 
     @Test void controlRoomUsesOnlyParameterisedSql() throws IOException {
-        // every statement is a constant string with ? placeholders; values are never concatenated into SQL
-        Pattern concat = Pattern.compile("db\\.(query|one|update)\\(\"[^\"]*\"\\s*\\+\\s*(?!\"|where|Math\\.|$)");
+        // every statement is a constant string with ? placeholders; values are never concatenated into SQL. Allowed after
+        // the first piece: another constant, a where clause made of placeholders, Math.min/max of numbers, a CONSTANT, and a
+        // choice between two constants (x == null ? "" : " AND y = ?"). The space after + is taken whole (*+), so "where"
+        // is checked where it starts.
+        Pattern concat = Pattern.compile("db\\.(query|one|update)\\(\"[^\"]*\"\\s*\\+\\s*+(?!\"|where\\b|Math\\.|[A-Z][A-Z0-9_]*\\b|\\(\\w+ == null \\? \"|$)");
         assertEquals(List.of(), violations("control-room", concat), "SQL is built only from constants and placeholders");
     }
 

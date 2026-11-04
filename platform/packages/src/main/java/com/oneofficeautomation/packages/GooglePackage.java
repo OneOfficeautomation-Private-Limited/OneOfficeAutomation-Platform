@@ -10,7 +10,7 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/** Google Workspace through Google's REST APIs: Sheets, Drive, Calendar and Gmail. OAuth 2.0 access token from the vault. */
+/** Google Workspace through Google's REST APIs: Sheets, Docs, Drive, Calendar and Gmail. OAuth 2.0 access token from the vault. */
 @OoaPackage(id = "ooa.google", name = "Google Workspace", version = "1.0.0",
         description = "Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail.")
 public final class GooglePackage {
@@ -191,15 +191,15 @@ public final class GooglePackage {
     }
 
     @Action(id = "calendar_create_event", name = "Create Google Calendar event", category = "Calendar", capabilities = "network", description = "Create an event, optionally inviting attendees.",
-            panel = "access_token, subject, location, attendees, start, end, all_day, time_zone, [Repeat the event: recurrence], visibility, description | optional_attendees, calendar_id, notify, add_meet_link, reminder_minutes, show_as, endpoint_override")
+            panel = "access_token, subject, location, attendees, start, end, all_day, time_zone, [Repeat the event: recurrence], visibility, description | end_time_zone, optional_attendees, calendar_id, notify, add_meet_link, reminder_minutes, show_as, endpoint_override")
     @Output(name = "event_id", type = OoaType.STRING, description = "Event id.")
     @Output(name = "link", type = OoaType.STRING, description = "Link to the event.")
     @Output(name = "meet_link", type = OoaType.STRING, description = "Google Meet link, when add_meet_link is true.")
     public Map<String, Object> createEvent(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "subject", type = OoaType.STRING, description = "Title.") String subject,
-            @Input(name = "start", type = OoaType.DATETIME, description = "Start.") LocalDateTime start,
-            @Input(name = "end", type = OoaType.DATETIME, description = "End.") LocalDateTime end,
+            @Input(name = "subject", type = OoaType.STRING, description = "Title of the event.") String subject,
+            @Input(name = "start", type = OoaType.DATETIME, description = "When the event starts (UTC, or in time_zone when given).") LocalDateTime start,
+            @Input(name = "end", type = OoaType.DATETIME, description = "When the event ends; must be after start.") LocalDateTime end,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "IANA time zone of start and end.") String tz,
             @Input(name = "attendees", required = false, description = "Attendee address(es).") Object attendees,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description.") String description,
@@ -213,7 +213,9 @@ public final class GooglePackage {
             @Input(name = "visibility", type = OoaType.STRING, required = false, defaultValue = "\"default\"", enumValues = {"default", "public", "private"}, description = "Who can see the event's details.") String visibility,
             @Input(name = "show_as", type = OoaType.STRING, required = false, defaultValue = "\"busy\"", enumValues = {"busy", "free"}, description = "Whether the time shows as busy.") String showAs,
             @Input(name = "recurrence", type = OoaType.STRING, required = false, example = "RRULE:FREQ=WEEKLY;COUNT=10", description = "Repeat rule (RFC 5545), or simply daily, weekly, monthly or yearly.") String recurrence,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "end_time_zone", type = OoaType.STRING, required = false, example = "America/New_York",
+                    description = "IANA time zone of end when it differs from start's, for example a flight that lands in another zone; time_zone when empty.") String endTz) {
         Map<String, Object> ev = new LinkedHashMap<>();
         ev.put("summary", subject);
         if (allDay) {
@@ -221,8 +223,11 @@ public final class GooglePackage {
             ev.put("start", Map.of("date", d1.toString()));
             ev.put("end", Map.of("date", (d2.isAfter(d1) ? d2 : d1.plusDays(1)).toString()));
         } else {
-            ev.put("start", Map.of("dateTime", start.toString(), "timeZone", tz));
-            ev.put("end", Map.of("dateTime", end.toString(), "timeZone", tz));
+            java.time.ZoneId z1 = zone(tz), z2 = blank(endTz) ? z1 : zone(endTz);
+            if (!end.atZone(z2).toInstant().isAfter(start.atZone(z1).toInstant()))
+                throw bad("end must be after start", z1.equals(z2) ? null : "start is in " + z1.getId() + " and end in " + z2.getId() + "; compare them in the same zone.");
+            ev.put("start", Map.of("dateTime", rfc3339(start), "timeZone", z1.getId()));
+            ev.put("end", Map.of("dateTime", rfc3339(end), "timeZone", z2.getId()));
         }
         if (description != null) ev.put("description", description);
         if (!blank(location)) ev.put("location", location);
@@ -243,6 +248,11 @@ public final class GooglePackage {
         String q = "?sendUpdates=" + (notify ? "all" : "none") + (meet ? "&conferenceDataVersion=1" : "");
         Map<String, Object> r = HttpJson.req(P, "POST", url("https://www.googleapis.com/calendar/v3/calendars/" + HttpJson.enc(cal) + "/events" + q, ep)).bearer(token).json(ev).send(ctx).map();
         return Out.of("event_id", r.get("id"), "link", r.get("htmlLink"), "meet_link", r.get("hangoutLink"));
+    }
+
+    public Map<String, Object> createEvent(ActionContext ctx, Object token, String subject, LocalDateTime start, LocalDateTime end, String tz, Object attendees, String description,
+            String cal, String location, boolean allDay, Object optional, boolean notify, boolean meet, Integer reminder, String visibility, String showAs, String recurrence, String ep) {
+        return createEvent(ctx, token, subject, start, end, tz, attendees, description, cal, location, allDay, optional, notify, meet, reminder, visibility, showAs, recurrence, ep, null);
     }
 
     /** RFC 5545 rule from a full RRULE or a simple word. Null for none. */
@@ -2238,6 +2248,9 @@ public final class GooglePackage {
         catch (java.time.DateTimeException e) { throw bad("Unknown time zone '" + tz + "'", "Use an IANA name such as Europe/Berlin or UTC."); }
     }
 
+    /** Local date-time with seconds, as RFC 3339 requires (LocalDateTime.toString drops ":00"). */
+    static String rfc3339(LocalDateTime t) { return t.truncatedTo(java.time.temporal.ChronoUnit.SECONDS).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME); }
+
     private static LocalDateTime eventTime(Map<String, Object> t, java.time.ZoneId z) {
         if (t.get("dateTime") != null) return java.time.OffsetDateTime.parse(str(t.get("dateTime"))).atZoneSameInstant(z).toLocalDateTime();
         if (t.get("date") != null) return java.time.LocalDate.parse(str(t.get("date"))).atStartOfDay();
@@ -2288,7 +2301,7 @@ public final class GooglePackage {
 
     @Action(id = "calendar_update_event", name = "Update Google Calendar event", category = "Calendar", idempotent = true, capabilities = "network",
             description = "Change the title, time, description, location or attendees of an event; empty inputs stay as they are.",
-            panel = "access_token, event_id, subject, location, attendees, start, end, time_zone, description | notify, calendar_id, visibility, reminder_minutes, endpoint_override")
+            panel = "access_token, event_id, subject, location, attendees, start, end, time_zone, description | end_time_zone, notify, calendar_id, visibility, reminder_minutes, endpoint_override")
     @Output(name = "link", type = OoaType.STRING, description = "Link to the event.")
     public Map<String, Object> updateEvent(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -2304,14 +2317,18 @@ public final class GooglePackage {
             @Input(name = "calendar_id", type = OoaType.STRING, required = false, defaultValue = "\"primary\"", description = "Calendar id.") String cal,
             @Input(name = "visibility", type = OoaType.STRING, required = false, enumValues = {"default", "public", "private"}, description = "Who can see the event's details; unchanged when empty.") String visibility,
             @Input(name = "reminder_minutes", type = OoaType.NUMBER, required = false, description = "Popup reminder this many minutes before; unchanged when empty.") Integer reminder,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        String z = zone(tz).getId();
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "end_time_zone", type = OoaType.STRING, required = false, example = "America/New_York",
+                    description = "IANA time zone of end when it differs from start's; time_zone when empty.") String endTz) {
+        String z = zone(tz).getId(), ze = blank(endTz) ? z : zone(endTz).getId();
+        if (start != null && end != null && !end.atZone(java.time.ZoneId.of(ze)).toInstant().isAfter(start.atZone(java.time.ZoneId.of(z)).toInstant()))
+            throw bad("end must be after start", null);
         Map<String, Object> ev = new LinkedHashMap<>();
         if (!blank(visibility)) ev.put("visibility", visibility.trim().toLowerCase(Locale.ROOT));
         if (reminder != null) ev.put("reminders", Map.of("useDefault", false, "overrides", List.of(Map.of("method", "popup", "minutes", Math.max(0, reminder)))));
         if (!blank(subject)) ev.put("summary", subject);
-        if (start != null) ev.put("start", Map.of("dateTime", start.toString(), "timeZone", z));
-        if (end != null) ev.put("end", Map.of("dateTime", end.toString(), "timeZone", z));
+        if (start != null) ev.put("start", Map.of("dateTime", rfc3339(start), "timeZone", z));
+        if (end != null) ev.put("end", Map.of("dateTime", rfc3339(end), "timeZone", ze));
         if (description != null) ev.put("description", description);
         if (location != null) ev.put("location", location);
         if (attendees != null) { List<Object> at = new ArrayList<>(); for (String a : HttpJson.addressList(attendees)) at.add(Map.of("email", a)); ev.put("attendees", at); }
@@ -2331,6 +2348,134 @@ public final class GooglePackage {
             @Input(name = "calendar_id", type = OoaType.STRING, required = false, defaultValue = "\"primary\"", description = "Calendar id.") String cal,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         call(ctx, token, "DELETE", CAL + HttpJson.enc(blank(cal) ? "primary" : cal) + "/events/" + HttpJson.enc(id) + "?sendUpdates=" + (notify ? "all" : "none"), ep, null);
+        return Map.of();
+    }
+
+    // ------------------------------------------------------------------ Docs
+
+    private static final String DOCS = "https://docs.googleapis.com/v1/documents";
+    private static final String D_DOC = "The document: its id, or its full link (https://docs.google.com/document/d/...).";
+    private static final java.util.regex.Pattern DOC_LINK = java.util.regex.Pattern.compile("^https?://docs\\.google\\.com/document/(?:u/\\d+/)?d/([A-Za-z0-9_-]+)");
+
+    /** The id in a Google Docs link, or the input itself when it is made only of id characters (letters, digits, - and _). */
+    static String documentIdOf(String v) {
+        String t = v == null ? "" : v.trim();
+        if (t.isEmpty()) throw bad("Give the document id or link", null);
+        java.util.regex.Matcher m = DOC_LINK.matcher(t);
+        if (m.find()) return m.group(1);
+        if (t.matches("(?i)^https?://.*")) throw bad("Not a Google Docs link: " + t, "Copy the link from the browser while the document is open, or give its id.");
+        if (!SHEET_ID.matcher(t).matches()) throw bad("Invalid document id '" + t + "'", "A document id has only letters, digits, - and _; or give the document's link.");
+        return t;
+    }
+
+    private static String docUrl(String id) { return "https://docs.google.com/document/d/" + id + "/edit"; }
+
+    private static Map<String, Object> docsBatch(ActionContext ctx, Object token, String id, String ep, List<Map<String, Object>> requests) {
+        return call(ctx, token, "POST", DOCS + "/" + HttpJson.enc(id) + ":batchUpdate", ep, Map.of("requests", requests));
+    }
+
+    /** insertText at the end of the document body (before its final line break). */
+    private static Map<String, Object> insertAtEnd(String text) {
+        return Map.of("insertText", Map.of("text", text, "endOfSegmentLocation", Map.of("segmentId", "")));
+    }
+
+    /** Plain text of a list of structural elements: paragraphs, tables (cell by cell) and tables of contents. */
+    static void docText(Object content, StringBuilder out) {
+        for (Object o : list(content)) {
+            Map<String, Object> e = obj(o);
+            if (e.get("paragraph") instanceof Map<?, ?> p)
+                for (Object pe : list(p.get("elements"))) {
+                    Map<String, Object> run = obj(obj(pe).get("textRun"));
+                    if (run.get("content") != null) out.append(run.get("content"));
+                }
+            else if (e.get("table") instanceof Map<?, ?> t)
+                for (Object row : list(t.get("tableRows"))) for (Object cell : list(obj(row).get("tableCells"))) docText(obj(cell).get("content"), out);
+            else if (e.get("tableOfContents") instanceof Map<?, ?> toc) docText(toc.get("content"), out);
+        }
+    }
+
+    @Action(id = "docs_create_document", name = "Create Google Doc", category = "Docs", capabilities = "network",
+            description = "Create a new Google Docs document, optionally with starting text and in a Drive folder.",
+            panel = "access_token, title, text, folder_id | endpoint_override")
+    @Output(name = "document_id", type = OoaType.STRING, description = "Id of the new document.")
+    @Output(name = "url", type = OoaType.STRING, description = "Link to open the document.")
+    public Map<String, Object> docsCreate(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "title", type = OoaType.STRING, description = "Document title.") String title,
+            @Input(name = "text", type = OoaType.STRING, required = false, description = "Text to put in the new document; empty when not given.") String text,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Drive folder to put the document in; My Drive when empty.") String folder,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        if (blank(title)) throw bad("Give the document a title", null);
+        Map<String, Object> r = call(ctx, token, "POST", DOCS, ep, Map.of("title", title));
+        String id = str(r.get("documentId"));
+        if (blank(id)) throw new ActionException(P + ".BAD_RESPONSE", "Google Docs did not return the new document's id", null);
+        if (text != null && !text.isEmpty()) docsBatch(ctx, token, id, ep, List.of(insertAtEnd(text)));
+        if (!blank(folder)) driveMove(ctx, token, id, folder, ep);
+        return Out.of("document_id", id, "url", docUrl(id));
+    }
+
+    @Action(id = "docs_read_text", name = "Read Google Doc text", category = "Docs", idempotent = true, capabilities = "network",
+            description = "Read all the text of a Google Docs document as plain text, table cells included.",
+            panel = "access_token, document_id | endpoint_override")
+    @Output(name = "text", type = OoaType.STRING, description = "The document's text; paragraphs end with a line break.")
+    @Output(name = "title", type = OoaType.STRING, description = "Document title.")
+    public Map<String, Object> docsReadText(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC) String doc,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String id = documentIdOf(doc);
+        Map<String, Object> d = call(ctx, token, "GET", DOCS + "/" + HttpJson.enc(id), ep, null);
+        StringBuilder out = new StringBuilder();
+        docText(obj(d.get("body")).get("content"), out);
+        return Out.of("text", out.toString(), "title", d.get("title"));
+    }
+
+    @Action(id = "docs_replace_text", name = "Replace text in Google Doc", category = "Docs", capabilities = "network",
+            description = "Replace every occurrence of one or more texts in a Google Docs document, such as placeholders in a template.",
+            panel = "access_token, document_id, replacements, match_case | endpoint_override")
+    @Output(name = "occurrences_changed", type = OoaType.NUMBER, description = "Total number of places changed.")
+    public Map<String, Object> docsReplaceText(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC) String doc,
+            @Input(name = "replacements", type = OoaType.DICTIONARY, example = "{\"{{name}}\": \"Ann\", \"{{date}}\": \"3 Nov 2026\"}",
+                    description = "Text to find as each key, and the text to put in its place as the value.") Map<String, Object> replacements,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only replace text with the same upper and lower case.") boolean matchCase,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String id = documentIdOf(doc);
+        if (replacements == null || replacements.isEmpty()) throw bad("Give at least one text to replace", "replacements is a dictionary such as {\"{{name}}\": \"Ann\"}.");
+        List<Map<String, Object>> requests = new ArrayList<>();
+        for (var e : replacements.entrySet()) {
+            if (e.getKey() == null || e.getKey().isEmpty()) throw bad("A text to find cannot be empty", null);
+            requests.add(Map.of("replaceAllText", Map.of("containsText", Map.of("text", e.getKey(), "matchCase", matchCase),
+                    "replaceText", e.getValue() == null ? "" : Values.text(e.getValue()))));
+        }
+        long changed = 0;
+        for (Object reply : list(docsBatch(ctx, token, id, ep, requests).get("replies")))
+            if (obj(obj(reply).get("replaceAllText")).get("occurrencesChanged") instanceof Number n) changed += n.longValue();
+        return Out.of("occurrences_changed", num(changed));
+    }
+
+    @Action(id = "docs_append_text", name = "Add text to Google Doc", category = "Docs", capabilities = "network",
+            description = "Add text at the end of a Google Docs document.",
+            panel = "access_token, document_id, text, new_paragraph | endpoint_override")
+    public Map<String, Object> docsAppendText(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC) String doc,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to add.") String text,
+            @Input(name = "new_paragraph", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Start the text on a new line when the document already has text; when false it continues the last paragraph.") boolean newParagraph,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String id = documentIdOf(doc);
+        if (text == null || text.isEmpty()) throw bad("Give the text to add", null);
+        String t = text;
+        if (newParagraph) {
+            StringBuilder now = new StringBuilder();
+            docText(obj(call(ctx, token, "GET", DOCS + "/" + HttpJson.enc(id), ep, null).get("body")).get("content"), now);
+            String body = now.toString().endsWith("\n") ? now.substring(0, now.length() - 1) : now.toString();
+            // a new line only after text; not when the document is empty or already ends with an empty paragraph
+            if (!body.isEmpty() && !body.endsWith("\n") && !t.startsWith("\n")) t = "\n" + t;
+        }
+        docsBatch(ctx, token, id, ep, List.of(insertAtEnd(t)));
         return Map.of();
     }
 

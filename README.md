@@ -63,6 +63,6 @@ hash-chained audit trail; permission scopes enforced for people, agents and MCP 
 ## Not in this slice
 
 This Python slice is the reference implementation. The product itself is the Java platform under `platform/`
-(One Agent Studio, One Command Center, One Runner, the recorder and UI automation, SQL Server and PostgreSQL, single
+(One AgentStudio, One CommandCenter, OneRunner, the recorder and UI automation, SQL Server and PostgreSQL, single
 sign-on, external vaults, the task inbox). Still open there: voice, business KPI dashboards and the agent marketplace.
 See `docs/TRACEABILITY.md` (the Java table) for status by requirement ID.
