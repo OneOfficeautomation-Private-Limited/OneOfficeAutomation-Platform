@@ -1,5 +1,5 @@
 {
-  "name": "019_error_handler_fail",
+  "name": "022_error_handler_fail",
   "description": "An error no Try block catches runs the agent's error handler (onError) once with the error; then the run fails with the original error. Caught errors do not start it.",
   "flow": {
     "kind": "TaskBot",

@@ -1,5 +1,5 @@
 {
-  "name": "020_error_handler_succeed",
+  "name": "023_error_handler_succeed",
   "description": "With then = succeed the run ends as succeeded after the agent's error handler has run.",
   "flow": {
     "kind": "TaskBot",
