@@ -21,26 +21,73 @@ export interface DocumentRow {
 export interface ReviewField { id: string; label: string; value: string; confidence: number; flagged?: { reason: string; suggestion?: string } }
 export interface ReviewCheck { text: string; passed: boolean; detail: string }
 export interface ReviewTask {
-  documentId: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; position: number; of: number;
+  documentId: string; processId?: string; status: DocStatus; reviewedBy?: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; targetHours: number; position: number; of: number;
   engineTrail: string; pageLines: { text: string; mark?: "flag" | "ok"; bold?: boolean }[]; fields: ReviewField[]; checks: ReviewCheck[];
 }
 
 export type EngineStatus = "ready" | "optin" | "setup";
 export interface Engine { id: string; name: string; does: string; status: EngineStatus; runs: "server" | "cloud"; price: string; free: boolean; key: string }
 export interface EngineOption { id: "onecore" | "oneconnect" | "onemind"; name: string; description: string; color: string; engines: Engine[] }
+/** One setting of an engine (its address, key, model…), as DocFlow's settings describe it. Secrets come back masked. */
+export interface EngineField { key: string; label: string; type: string; value: string; help?: string; options?: string[]; placeholder?: string }
 export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string }
 
-export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn" }
+/** DocFlow's kinds of check (rules); `params` are DocFlow's own settings for that kind. */
+export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "threshold" | "required" | "expression";
+export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn"; type: RuleType; params: Record<string, unknown> }
+export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
+/** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
+export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[] }
+export interface ProcessSettings {
+  inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
+  fieldConfidence: number; slaHours: number;
+}
 export interface ProcessDesign {
   id: string; name: string; state: "live" | "draft"; version: number; folder: string; docType: string; checks: Check[];
   stages: { name: string; summary: string; done: boolean }[];
+  settings: ProcessSettings; deliveries: Delivery[];
+  /** The fields its document types read, for checks to test. */
+  fields: { name: string; label: string }[];
+}
+
+export const RULE_KIND: Record<RuleType, string> = {
+  duplicate: "Duplicate", lookup: "Reference data lookup", ksa_vat: "KSA VAT (ZATCA)", threshold: "Amount threshold", required: "Required fields", expression: "Arithmetic",
+};
+
+/** What a check tests, in words, from its kind and settings. */
+export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
+  const t = (v: unknown) => (v === undefined || v === null || v === "" ? "—" : String(v));
+  const list = (v: unknown) => (Array.isArray(v) && v.length ? (v as string[]).join(", ") : "—");
+  switch (type) {
+    case "expression": return t(p.expression);
+    case "lookup": return `${t(p.field)} is in "${t(p.table)}" (${t(p.column)})`;
+    case "threshold": return `${t(p.field)} ${t(p.op ?? ">")} ${t(p.value)}`;
+    case "duplicate": return `Same ${list(p.fields)} seen before`;
+    case "ksa_vat": return "15-digit VAT number starting and ending with 3; VAT is 15%; totals add up";
+    case "required": return list(p.fields);
+  }
+}
+
+/** The stage summaries of a process, from its settings (the builder and both clients share them). */
+export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "checks" | "docType">, engineName: (id: string) => string) {
+  const s = d.settings;
+  const on = d.checks.filter((c) => c.on).length;
+  return [
+    { name: "Intake", summary: ["Upload", s.inputFolder ? `${s.inputFolder} every ${s.pollSeconds} s` : ""].filter(Boolean).join(", "), done: true },
+    { name: "Classify & split", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Every file is read as ${d.docType || "the process's type"}`, done: true },
+    { name: "Extract", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
+    { name: "Checks & lookups", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
+    { name: "Review", summary: `Fields under ${Math.round(s.fieldConfidence * 100)}% go to the Task inbox; ${s.slaHours} h target`, done: true },
+    { name: "Deliver", summary: d.deliveries.length ? d.deliveries.map((x) => x.name || x.type).join(", ") : "Choose: Excel register, folder, webhook or start a bot", done: d.deliveries.length > 0 },
+  ];
 }
 
 export interface DocTypeField { name: string; labels: string; type: "Text" | "Date" | "Amount" | "Table"; required: boolean; check: string; learned: string }
 export interface DocType { id: string; name: string; origin: "built-in" | "made-here"; meta: string; keywords: string; languages: string; usedBy: string[]; fields: DocTypeField[] }
 
-export interface RefRow { code: string; name: string; vat: string; country: string; active: boolean; matched: number }
-export interface RefTable { id: string; name: string; rows: number; meta: string; file?: string; updated?: string; matchOn?: string; usedBy?: string[]; sample?: RefRow[] }
+/** A reference table: any columns, as uploaded. Its rows are loaded on demand (refTableRows). */
+export interface RefTable { id: string; name: string; rows: number; meta: string; columns: string[]; updated?: string; usedBy?: string[] }
+export type RefRow = Record<string, string | number | boolean | null>;
 
 export interface DayCount { label: string; straight: number; reviewed: number }
 export interface Overview {
@@ -61,12 +108,30 @@ export interface DocFlowApi {
   addDocuments(files: File[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
   createProcess(p: NewProcess): Promise<{ id: string }>;
   reviewTask(documentId: string): Promise<ReviewTask>;
-  completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<void>;
+  /** Saves the review; `next` is the next document waiting in the same process, if any. */
+  completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<{ next?: string }>;
+  /** Reads the document again as another type; it may then need review again. */
+  changeDocType(documentId: string, docTypeId: string): Promise<{ documentId: string; needsReview: boolean }>;
+  /** Where Export downloads a process's results (done and approved documents). */
+  exportUrl(processId: string, format: "xlsx" | "csv"): string;
   engines(): Promise<{ routing: Routing; options: EngineOption[] }>;
   saveRouting(r: Routing): Promise<void>;
+  /** Runs a tiny real request through one engine. */
+  testEngine(id: string): Promise<{ ok: boolean; message: string }>;
+  engineSettings(id: string): Promise<EngineField[]>;
+  /** Server-wide engine settings (keys, addresses); only for the server's administrators. */
+  saveEngineSettings(values: Record<string, string>): Promise<void>;
   processDesign(id: string): Promise<ProcessDesign>;
+  /** Saves stages, checks and deliveries; DocFlow counts a new version when anything changed. */
+  saveProcess(d: ProcessDesign): Promise<ProcessDesign>;
+  setLive(id: string, live: boolean): Promise<void>;
   docTypes(): Promise<DocType[]>;
   refTables(): Promise<RefTable[]>;
+  /** A table's rows (up to `limit`), for the preview and for downloading it. */
+  refTableRows(id: string, limit?: number): Promise<RefRow[]>;
+  /** Adds a table from a CSV or Excel file; a table with the same name is replaced. */
+  uploadRefTable(file: File, name: string): Promise<{ id: string }>;
+  deleteRefTable(id: string): Promise<void>;
   runTest(sample: string, engineA: string, engineB: string | null): Promise<TestResult[]>;
 }
 
@@ -120,8 +185,8 @@ const DOCUMENTS: DocumentRow[] = [
 ];
 
 const REVIEW: ReviewTask = {
-  documentId: "scan_0457", name: "scan_0457.jpg", processName: "AP invoices", docType: "Supplier invoice", cameIn: "10:40 from \\\\scan01\\invoices",
-  dueIn: "3 h", position: 1, of: 9, engineTrail: "read by Tesseract, re-read by PaddleOCR (78%)",
+  documentId: "scan_0457", processId: "ap-invoices", status: "review", name: "scan_0457.jpg", processName: "AP invoices", docType: "Supplier invoice", cameIn: "10:40 from \\\\scan01\\invoices",
+  dueIn: "3 h", targetHours: 24, position: 1, of: 9, engineTrail: "read by Tesseract, re-read by PaddleOCR (78%)",
   pageLines: [
     { text: "Red Sea Print House", bold: true }, { text: "Tax Invoice", bold: true }, { text: "Invoice Number: INV-2026-3944" },
     { text: "Invoice Date: 05/02/2026" }, { text: "Supplier VAT No: 318609139099603" }, { text: "Customer: Al Noor Holdings" },
@@ -161,23 +226,24 @@ const ENGINES: EngineOption[] = [
     { id: "llm-local", name: "Self-hosted model", does: "Your own server, nothing leaves", status: "setup", runs: "server", price: "Free", free: true, key: "—" }] },
 ];
 
-const DESIGN: ProcessDesign = {
-  id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft", version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
-  stages: [
-    { name: "Intake", summary: "Upload, \\\\scan01\\invoices\\ksa every 30 s, invoices@acme-trading.com", done: true },
-    { name: "Classify & split", summary: "Every file is a supplier invoice; batches are not split", done: true },
-    { name: "Extract", summary: "Invoice no., date, supplier, VAT no., subtotal, VAT, total; local rules", done: true },
-    { name: "Checks & lookups", summary: "5 of 6 checks on", done: false },
-    { name: "Review", summary: "Fields under 85% go to the Task inbox; 24 h target", done: false },
-    { name: "Deliver", summary: "Choose: Excel register, folder, webhook or start a bot", done: false }],
-  checks: [
-    { id: "totals", on: true, name: "Totals add up", kind: "Arithmetic", test: "Subtotal + VAT = total, within 0.05", ifFails: "review" },
-    { id: "vat15", on: true, name: "VAT is 15%", kind: "Arithmetic", test: "VAT = 15% of subtotal, within 0.05", ifFails: "review" },
-    { id: "ksa-vat", on: true, name: "Valid VAT number", kind: "KSA VAT (ZATCA)", test: "15 digits, starts and ends with 3", ifFails: "review" },
-    { id: "duplicate", on: true, name: "Not a duplicate", kind: "Duplicate", test: "Same supplier VAT no. and invoice number seen before", ifFails: "reject" },
-    { id: "supplier", on: true, name: "Known supplier", kind: "Reference data lookup", test: 'Supplier VAT no. is in "Suppliers"; adds supplier code', ifFails: "review" },
-    { id: "large", on: false, name: "Large invoice", kind: "Amount threshold", test: "Total over 50,000 SAR needs a second person", ifFails: "review" }],
+const DESIGN_CHECKS: Check[] = [
+  { id: "totals", on: true, name: "Totals add up", kind: "Arithmetic", test: "Subtotal + VAT = total, within 0.05", ifFails: "review", type: "expression", params: { expression: "abs(subtotal + vat_amount - total) <= 0.05" } },
+  { id: "vat15", on: true, name: "VAT is 15%", kind: "Arithmetic", test: "VAT = 15% of subtotal, within 0.05", ifFails: "review", type: "expression", params: { expression: "abs(subtotal * 0.15 - vat_amount) <= 0.05" } },
+  { id: "ksa-vat", on: true, name: "Valid VAT number", kind: "KSA VAT (ZATCA)", test: "15 digits, starts and ends with 3", ifFails: "review", type: "ksa_vat", params: {} },
+  { id: "duplicate", on: true, name: "Not a duplicate", kind: "Duplicate", test: "Same supplier VAT no. and invoice number seen before", ifFails: "reject", type: "duplicate", params: { fields: ["supplier_vat", "invoice_number"] } },
+  { id: "supplier", on: true, name: "Known supplier", kind: "Reference data lookup", test: 'Supplier VAT no. is in "Suppliers"; adds supplier code', ifFails: "review", type: "lookup", params: { field: "supplier_vat", table: "suppliers", column: "vat" } },
+  { id: "large", on: false, name: "Large invoice", kind: "Amount threshold", test: "Total over 50,000 SAR needs a second person", ifFails: "review", type: "threshold", params: { field: "total", op: ">", value: 50000 } },
+];
+
+const DESIGN_BASE = {
+  id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft" as const, version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
+  checks: DESIGN_CHECKS,
+  settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24 },
+  deliveries: [] as Delivery[],
+  fields: [["invoice_number", "Invoice number"], ["invoice_date", "Invoice date"], ["supplier_name", "Supplier"], ["supplier_vat", "Supplier VAT no."],
+    ["subtotal", "Subtotal"], ["vat_amount", "VAT amount"], ["total", "Total"]].map(([name, label]) => ({ name, label })),
 };
+const DESIGN: ProcessDesign = { ...DESIGN_BASE, stages: stagesOf(DESIGN_BASE, (id) => id) };
 
 const DOC_TYPES: DocType[] = [
   { id: "supplier-invoice", name: "Supplier invoice", origin: "built-in", meta: "Built in · 2 processes", keywords: '"Tax invoice", "فاتورة ضريبية", "VAT No"',
@@ -197,20 +263,19 @@ const DOC_TYPES: DocType[] = [
   { id: "bank-statement", name: "Bank statement", origin: "made-here", meta: "Made here · draft", keywords: '"Statement", "IBAN"', languages: "English", usedBy: [], fields: [] },
 ];
 
+const SUPPLIER_ROWS: RefRow[] = [
+  ["SUP-0012", "ACME Trading Co. LLC", "300123456700003", "Saudi Arabia", "Active"], ["SUP-0044", "Red Sea Print House", "318609139099603", "Saudi Arabia", "Active"],
+  ["SUP-0057", "Gulf Office Supplies", "310482766100003", "Saudi Arabia", "Active"], ["SUP-0081", "Falcon IT Services", "302117745900003", "Saudi Arabia", "Active"],
+  ["SUP-0093", "Delta Industrial Parts", "311290874400003", "Saudi Arabia", "Active"], ["SUP-0102", "Oasis Catering Co.", "305561239800003", "Saudi Arabia", "Active"],
+  ["SUP-0120", "Emirates Facility Mgmt", "100245678900003", "UAE", "Active"], ["SUP-0133", "Summit Facilities LLC", "309912345600003", "Saudi Arabia", "Blocked"],
+].map(([code, name, vat, country, status]) => ({ code, name, vat, country, status }));
+
 const REF_TABLES: RefTable[] = [
-  { id: "suppliers", name: "Suppliers", rows: 412, meta: "Used by 2 checks · 1 Nov", file: "suppliers_2026-11.xlsx", updated: "1 Nov 2026 by Omar Haddad",
-    matchOn: "VAT number", usedBy: ["AP invoices", "Supplier invoices KSA"], sample: [
-      { code: "SUP-0012", name: "ACME Trading Co. LLC", vat: "300123456700003", country: "Saudi Arabia", active: true, matched: 31 },
-      { code: "SUP-0044", name: "Red Sea Print House", vat: "318609139099603", country: "Saudi Arabia", active: true, matched: 12 },
-      { code: "SUP-0057", name: "Gulf Office Supplies", vat: "310482766100003", country: "Saudi Arabia", active: true, matched: 9 },
-      { code: "SUP-0081", name: "Falcon IT Services", vat: "302117745900003", country: "Saudi Arabia", active: true, matched: 6 },
-      { code: "SUP-0093", name: "Delta Industrial Parts", vat: "311290874400003", country: "Saudi Arabia", active: true, matched: 4 },
-      { code: "SUP-0102", name: "Oasis Catering Co.", vat: "305561239800003", country: "Saudi Arabia", active: true, matched: 3 },
-      { code: "SUP-0120", name: "Emirates Facility Mgmt", vat: "100245678900003", country: "UAE", active: true, matched: 0 },
-      { code: "SUP-0133", name: "Summit Facilities LLC", vat: "309912345600003", country: "Saudi Arabia", active: false, matched: 0 }] },
-  { id: "purchase-orders", name: "Purchase orders", rows: 1208, meta: "Used by 1 check · today 06:00" },
-  { id: "cost-centres", name: "Cost centres", rows: 36, meta: "Adds cost centre to fields" },
-  { id: "customers", name: "Customers", rows: 95, meta: "Not used by any check" },
+  { id: "suppliers", name: "Suppliers", rows: 412, meta: "Used by 2 processes · 1 Nov", columns: ["code", "name", "vat", "country", "status"], updated: "1 Nov 2026",
+    usedBy: ["AP invoices", "Supplier invoices KSA"] },
+  { id: "purchase-orders", name: "Purchase orders", rows: 1208, meta: "Used by 1 process · today 06:00", columns: ["po_number", "supplier", "amount"], usedBy: ["AP invoices"] },
+  { id: "cost-centres", name: "Cost centres", rows: 36, meta: "Not used by any check", columns: ["code", "name"] },
+  { id: "customers", name: "Customers", rows: 95, meta: "Not used by any check", columns: ["code", "name", "country"] },
 ];
 
 const OVERVIEW: Overview = {
@@ -270,16 +335,53 @@ export class SampleApi implements DocFlowApi {
     this.reviews.push({ documentId, fields, decision });
     const d = this.documentsData.find((x) => x.id === documentId);
     if (d) { d.status = decision === "approve" ? "done" : "failed"; d.note = decision === "approve" ? "Approved by you" : "Rejected by you"; }
+    return { next: this.documentsData.find((x) => x.status === "review" && x.processId === d?.processId && x.id !== documentId)?.id };
   }
+  async changeDocType(documentId: string) { return { documentId, needsReview: true }; }
+  exportUrl(processId: string) {
+    const rows = this.documentsData.filter((d) => d.processId === processId && d.status === "done");
+    return "data:text/csv;charset=utf-8," + encodeURIComponent(["Document,Supplier,Invoice,Total", ...rows.map((d) => [d.name, d.supplier, d.invoice, d.total].join(","))].join("\r\n"));
+  }
+  async testEngine(id: string) { return { ok: true, message: `${id}: the engine read the test page` }; }
+  async engineSettings(id: string): Promise<EngineField[]> {
+    return id === "azure-di" ? [{ key: "AZURE_DI_ENDPOINT", label: "Endpoint", type: "text", value: "" }, { key: "AZURE_DI_KEY", label: "Key", type: "secret", value: "" },
+      { key: "AZURE_DI_REGION", label: "Region", type: "text", value: "westeurope", help: "Used by the residency policy, e.g. uaenorth." }] : [];
+  }
+  async saveEngineSettings() { /* sample: nothing to save */ }
   async engines() {
     const options = copy(ENGINES);
     if (this.routing.cloudOptIn) options.forEach((o) => o.engines.forEach((e) => { if (e.status === "optin") e.status = "setup"; }));
     return { routing: { ...this.routing }, options };
   }
   async saveRouting(r: Routing) { this.routing = { ...r }; }
-  async processDesign() { return copy(DESIGN); }
+  private designs: Record<string, ProcessDesign> = {};
+  async processDesign(id: string) {
+    const p = this.processesData.find((x) => x.id === id);
+    return copy(this.designs[id] ?? (p ? { ...DESIGN, id: p.id, name: p.name, folder: p.folder, docType: p.docType, state: p.state, version: p.version } : DESIGN));
+  }
+  async saveProcess(d: ProcessDesign) {
+    const before = this.designs[d.id] ?? await this.processDesign(d.id);
+    const changed = JSON.stringify({ ...before, stages: [] }) !== JSON.stringify({ ...d, stages: [] });
+    this.designs[d.id] = { ...copy(d), version: changed ? d.version + 1 : d.version, stages: stagesOf(d, (id) => id) };
+    return copy(this.designs[d.id]);
+  }
+  async setLive(id: string, live: boolean) {
+    const d = await this.processDesign(id);
+    this.designs[id] = { ...d, state: live ? "live" : "draft" };
+    const p = this.processesData.find((x) => x.id === id);
+    if (p) p.state = live ? "live" : "draft";
+  }
   async docTypes() { return copy(DOC_TYPES); }
-  async refTables() { return copy(REF_TABLES); }
+  private tables = copy(REF_TABLES);
+  async refTables() { return copy(this.tables); }
+  async refTableRows(id: string) { return id === "suppliers" ? copy(SUPPLIER_ROWS) : []; }
+  async uploadRefTable(file: File, name: string) {
+    const title = name.trim() || file.name.replace(/\.[^.]+$/, "");
+    const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "table";
+    this.tables = [...this.tables.filter((t) => t.id !== id), { id, name: title, rows: 0, meta: "Not used by any check", columns: [], updated: "now" }];
+    return { id };
+  }
+  async deleteRefTable(id: string) { this.tables = this.tables.filter((t) => t.id !== id); }
   async runTest(_sample: string, _a: string, b: string | null) {
     return copy(TEST).map((r) => (b ? r : { ...r, b: "", bConf: "", differs: false }));
   }

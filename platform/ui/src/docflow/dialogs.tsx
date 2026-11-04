@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
 import type { DocFlowApi, DocType, ProcessSummary } from "./api";
+import { HINTS } from "./help";
+import { Hint } from "./ui";
 
 const FOLDERS = ["Finance / Accounts payable", "Finance / Expenses", "Operations / Goods received", "Shared / Unsorted"];
 
@@ -8,11 +10,11 @@ const FOLDERS = ["Finance / Accounts payable", "Finance / Expenses", "Operations
  * Add documents: the files, then which process reads them (or recognise automatically, or a new process), then which
  * folder they are filed in (the process's own by default).
  */
-export function AddDocumentsDialog({ api, open, onClose, processes, initialProcess, onAdded, onNewProcess }:
-  { api: DocFlowApi; open: boolean; onClose: () => void; processes: ProcessSummary[]; initialProcess?: string;
+export function AddDocumentsDialog({ api, open, onClose, processes, initialProcess, initialFiles = [], onAdded, onNewProcess }:
+  { api: DocFlowApi; open: boolean; onClose: () => void; processes: ProcessSummary[]; initialProcess?: string; initialFiles?: File[];
     onAdded: (processId: string) => void; onNewProcess: () => void }) {
   const picker = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>(initialFiles);
   const [mode, setMode] = useState<"auto" | "process">(initialProcess ? "process" : "auto");
   const real = processes.filter((p) => p.id !== "smart-inbox");
   const [processId, setProcessId] = useState(initialProcess ?? real[0]?.id ?? "");
@@ -59,7 +61,7 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <label className={`df-radio-card${mode === "auto" ? " is-on" : ""}`}>
             <input type="radio" name="df-proc" checked={mode === "auto"} onChange={() => setMode("auto")} />
-            <span><b>Recognise automatically</b><span className="df-muted" style={{ display: "block" }}>
+            <span><b>Recognise automatically</b><Hint about="Recognise automatically" text={HINTS.recognise} /><span className="df-muted" style={{ display: "block" }}>
               DocFlow identifies each document and sends it to the matching process. Anything it cannot recognise waits in Smart inbox.</span></span>
           </label>
           <label className={`df-radio-card${mode === "process" ? " is-on" : ""}`}>
@@ -125,7 +127,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
         <Button kind="primary" disabled={!valid} onClick={create}>Create process</Button>
       </>}>
       <div className="df-grid df-g2">
-        <Field label="Process name">{(id) => <TextInput id={id} value={name} placeholder="e.g. Supplier invoices KSA" onChange={(e) => setName(e.target.value)} />}</Field>
+        <Field label="Process name" info={HINTS.processName}>{(id) => <TextInput id={id} value={name} placeholder="e.g. Supplier invoices KSA" onChange={(e) => setName(e.target.value)} />}</Field>
         <Field label="Document type" hint="The fields to read and the checks to run.">
           {(id) => <Select id={id} value={docType} onChange={(e) => setDocType(e.target.value)} options={types.map((d) => ({ value: d.id, label: d.name }))} />}
         </Field>
@@ -141,7 +143,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
             <span className="df-small" style={{ display: "block" }}>Add documents button and drag and drop. Always on.</span></span></label>
         </div>
         <div className={`df-way${watch ? " is-on" : ""}`}>
-          <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={watch} onChange={(e) => setWatch(e.target.checked)} /><span><b>Watched folder</b>
+          <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={watch} onChange={(e) => setWatch(e.target.checked)} /><span><b>Watched folder</b><Hint about="Watched folder" text={HINTS.watchedFolder} />
             <span className="df-small" style={{ display: "block" }}>A scanner or shared drive saves files here</span></span></label>
           {watch && (
             <div className="df-grid" style={{ gridTemplateColumns: "3fr 1fr", gap: 12, margin: "10px 0 0 24px" }}>

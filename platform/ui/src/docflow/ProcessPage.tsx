@@ -36,7 +36,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
         <h2 style={{ fontSize: 20 }}>{p.name}</h2>
         <Chip tone={p.state === "live" ? "ok" : "mute"}>{p.state === "live" ? `Live · version ${p.version}` : "Draft"}</Chip>
         <span className="df-grow" />
-        <a className="ui-btn ui-btn-secondary" href="#/processes">Process settings</a>
+        <a className="ui-btn ui-btn-secondary" href={"#/processes/" + encodeURIComponent(p.id)}>Process settings</a>
         <Button kind="primary" onClick={() => setAdding(true)}>Add documents</Button>
       </div>
 
@@ -55,7 +55,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
       </div>
 
       <section className="df-card" aria-label={"Documents in " + p.name} style={{ overflow: "hidden" }}>
-        <FilterBar onClear={clear} count={`${rows.length} of ${docs.length} documents`} actions={<Button>Export</Button>}>
+        <FilterBar onClear={clear} count={`${rows.length} of ${docs.length} documents`} actions={<a className="ui-btn ui-btn-secondary" href={api.exportUrl(p.id, "xlsx")} download={p.name + ".xlsx"} title="Done and approved documents, one row each">Export to Excel</a>}>
           <SearchBox value={q} onChange={setQ} placeholder="File, supplier or invoice number" />
           <FilterSelect label="Status" value={status} onChange={setStatus} options={[{ value: "all", label: `All statuses (${docs.length})` },
             { value: "review", label: `Needs review (${count("review")})` }, { value: "processing", label: `Processing (${count("processing")})` },
@@ -94,7 +94,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
 
       {adding && <AddDocumentsDialog api={api} open onClose={() => setAdding(false)} processes={processes} initialProcess={p.id}
         onNewProcess={() => { setAdding(false); setCreating(true); }} onAdded={() => { setAdding(false); reload(); }} />}
-      <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); location.hash = "#/processes"; }} />
+      <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); location.hash = "#/processes/" + encodeURIComponent(id); }} />
     </div>
   );
 }
