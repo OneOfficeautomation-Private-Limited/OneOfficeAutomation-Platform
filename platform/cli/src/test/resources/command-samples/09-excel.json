@@ -223,5 +223,11 @@
   {"command": "ooa.excel/unprotect_workbook", "name": "structure password still checked", "steps": [
      {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/po3.xlsx"}},
      {"action": "ooa.excel/protect_workbook", "args": {"password": "right"}},
-     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"}
+     {"action": "ooa.excel/unprotect_workbook", "args": {"password": "wrong"}}], "error": "EXCEL.WRONG_PASSWORD"},
+  {"command": "ooa.excel/sort_range", "name": "formulas move with their rows (XL-1)", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/sf.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Vendor", "Amount", "VAT"], "rows": [["Zeta", 250, null], ["Acme", 100, null]]}}},
+     {"action": "ooa.excel/set_formula", "args": {"cell": "C2", "formula": "B2*0.2"}}, {"action": "ooa.excel/set_formula", "args": {"cell": "C3", "formula": "B3*0.2"}},
+     {"action": "ooa.excel/sort_range", "args": {"column": "Vendor"}},
+     {"action": "ooa.excel/get_cell", "args": {"cell": "C2"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"v": 20}}
 ]

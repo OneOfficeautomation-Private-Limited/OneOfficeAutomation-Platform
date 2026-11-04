@@ -2,6 +2,14 @@ package com.oneofficeautomation.packages.office;
 
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
+import org.apache.poi.ss.formula.FormulaParser;
+import org.apache.poi.ss.formula.FormulaParsingWorkbook;
+import org.apache.poi.ss.formula.FormulaRenderer;
+import org.apache.poi.ss.formula.FormulaRenderingWorkbook;
+import org.apache.poi.ss.formula.FormulaType;
+import org.apache.poi.ss.formula.ptg.AreaPtgBase;
+import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.formula.ptg.RefPtgBase;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.AreaReference;
 import org.apache.poi.ss.util.CellReference;
@@ -1849,7 +1857,7 @@ public final class ExcelPackage {
             Row row = sh.getRow(r);
             Snap[] cells = new Snap[c1 - c0 + 1];
             for (int c = c0; c <= c1; c++) cells[c - c0] = row == null ? null : snap(row.getCell(c));
-            rows.add(new Object[]{row == null ? null : read(row.getCell(key), ev), cells, row == null || !second ? null : read(row.getCell(key2), ev)});
+            rows.add(new Object[]{row == null ? null : read(row.getCell(key), ev), cells, row == null || !second ? null : read(row.getCell(key2), ev), r});
         }
         Comparator<Object[]> cmp = (x, y) -> {
             int v = compareKeys(x[0], y[0], descending);
@@ -1858,10 +1866,31 @@ public final class ExcelPackage {
         rows.sort(cmp);
         for (int i = 0; i < rows.size(); i++) {
             Snap[] cells = (Snap[]) rows.get(i)[1];
+            int moved = r0 + i - (Integer) rows.get(i)[3];
             Row row = row(sh, r0 + i);
-            for (int c = c0; c <= c1; c++) restore(cells[c - c0], row, c);
+            // a formula moves with its row, as in Excel: =B3*0.2 sorted up to row 2 becomes =B2*0.2 ($ references stay)
+            for (int c = c0; c <= c1; c++) restore(movedFormula(s, sh, cells[c - c0], moved), row, c);
         }
         return Map.of();
+    }
+
+    /** The snapshot with its formula's relative row references moved by dr rows; unchanged when it holds no formula. */
+    private static Snap movedFormula(WorkbookSession s, Sheet sh, Snap x, int dr) {
+        if (x == null || x.type() != CellType.FORMULA || dr == 0) return x;
+        FormulaParsingWorkbook fpw = s.wb instanceof XSSFWorkbook w ? XSSFEvaluationWorkbook.create(w)
+                : org.apache.poi.hssf.usermodel.HSSFEvaluationWorkbook.create((org.apache.poi.hssf.usermodel.HSSFWorkbook) s.wb);
+        Ptg[] ptgs;
+        try { ptgs = FormulaParser.parse((String) x.value(), fpw, FormulaType.CELL, s.wb.getSheetIndex(sh)); }
+        catch (RuntimeException e) { return x; }
+        int last = s.wb.getSpreadsheetVersion().getLastRowIndex();
+        for (Ptg p : ptgs) {
+            if (p instanceof RefPtgBase r && r.isRowRelative()) r.setRow(Math.max(0, Math.min(last, r.getRow() + dr)));
+            else if (p instanceof AreaPtgBase a) {
+                if (a.isFirstRowRelative()) a.setFirstRow(Math.max(0, Math.min(last, a.getFirstRow() + dr)));
+                if (a.isLastRowRelative()) a.setLastRow(Math.max(0, Math.min(last, a.getLastRow() + dr)));
+            }
+        }
+        return new Snap(CellType.FORMULA, FormulaRenderer.toFormulaString((FormulaRenderingWorkbook) fpw, ptgs), x.style());
     }
 
     /** Compares sort keys; empty keys always sort last. */
