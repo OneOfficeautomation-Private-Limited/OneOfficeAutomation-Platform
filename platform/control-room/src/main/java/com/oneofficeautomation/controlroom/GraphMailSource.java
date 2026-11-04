@@ -78,6 +78,21 @@ final class GraphMailSource implements MailSource {
     }
 
     @SuppressWarnings("unchecked")
+    @Override public List<Attachment> attachments(Map<String, Object> message) throws IOException {
+        if (!Boolean.TRUE.equals(message.get("has_attachments"))) return List.of();
+        String url = base + (mailbox == null || mailbox.isBlank() ? "/me" : "/users/" + PollHttp.enc(mailbox)) + "/messages/" + PollHttp.enc(String.valueOf(message.get("id"))) + "/attachments";
+        Object r = PollHttp.getJson(url, Map.of("Authorization", "Bearer " + token));
+        List<Attachment> out = new ArrayList<>();
+        if (r instanceof Map<?, ?> m && m.get("value") instanceof List<?> l)
+            for (Object o : l) {
+                Map<String, Object> a = (Map<String, Object>) o;
+                if (!"#microsoft.graph.fileAttachment".equals(a.get("@odata.type")) || !(a.get("contentBytes") instanceof String b64)) continue;   // not items or links
+                out.add(new Attachment(String.valueOf(a.get("name")), String.valueOf(a.getOrDefault("contentType", "application/octet-stream")), Base64.getDecoder().decode(b64)));
+            }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
     Map<String, Object> message(Map<String, Object> g) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", g.get("id"));

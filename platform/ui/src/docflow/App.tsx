@@ -20,13 +20,13 @@ import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
  */
 const TAB_IDS = ["overview", "inbox", "processes", "types", "refdata", "engines", "testlab"] as const;
 /** process: a process page; design: a process open in the builder (#/processes/<id>); document: a review. */
-export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; document?: string };
+export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; stage?: string; document?: string };
 
 export function parseRoute(hash: string): Route {
-  const [first, second] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  const [first, second, third] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
   if (first === "process" && second) return { tab: "inbox", process: second };
   if (first === "review" && second) return { tab: "review", document: second };
-  if (first === "processes" && second) return { tab: "processes", design: second };
+  if (first === "processes" && second) return { tab: "processes", design: second, ...(third ? { stage: third } : {}) };
   return { tab: (TAB_IDS as readonly string[]).includes(first) ? first as typeof TAB_IDS[number] : "overview" };
 }
 
@@ -122,7 +122,7 @@ function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptI
   switch (route.tab) {
     case "review": return <Review api={api} documentId={route.document!} />;
     case "inbox": return <Inbox api={api} />;
-    case "processes": return <Builder key={route.design ?? ""} api={api} processId={route.design} />;
+    case "processes": return <Builder key={route.design ?? ""} api={api} processId={route.design} stage={route.stage} />;
     case "types": return <DocTypes api={api} />;
     case "refdata": return <RefData api={api} />;
     case "engines": return <Engines api={api} onOptIn={onOptIn} />;

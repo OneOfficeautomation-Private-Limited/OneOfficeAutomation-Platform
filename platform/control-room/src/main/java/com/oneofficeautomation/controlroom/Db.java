@@ -529,9 +529,14 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE schedules ADD COLUMN overlap VARCHAR(10)",
     };
 
+    /** Version 25: where each Document Automation process's email inbox was read up to, and how the last check went. */
+    private static final String[] SCHEMA_V25 = {
+        "CREATE TABLE docflow_mail (process_id VARCHAR(120) PRIMARY KEY, mail_cursor VARCHAR(200), last_check TIMESTAMP, last_error VARCHAR(1000), documents INT)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 24;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24 };
+    public static final int LATEST = 25;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

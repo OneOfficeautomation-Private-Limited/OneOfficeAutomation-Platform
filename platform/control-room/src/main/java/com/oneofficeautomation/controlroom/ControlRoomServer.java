@@ -142,6 +142,10 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
+        // documents waiting for review in Document Automation become Task inbox tasks
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.syncReviews(); } catch (RuntimeException ignored) { } }, 10, 20, TimeUnit.SECONDS);
+        // and their email inboxes
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.pollMail(); } catch (RuntimeException ignored) { } }, 15, 30, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -329,6 +333,8 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/token")) { sendJson(ex, 200, cr.verifyToken(token(ex))); return; }
+        // Document Automation's "Start a bot" delivery: DocFlow calls back with the service token (DocFlowProxy.startBot)
+        if (m.equals("POST") && route.equals("docflow-callback/start-bot")) { sendJson(ex, 200, docflow.startBot(ex, ip)); return; }
         if (seg[0].equals("apitasks") && seg.length >= 3 && (seg[2].equals("run") || seg[2].equals("runs"))) {
             String t = ex.getRequestHeaders().getFirst("X-OOA-Task-Token");
             if (t == null) t = token(ex);
@@ -435,6 +441,7 @@ public final class ControlRoomServer {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
+            else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;

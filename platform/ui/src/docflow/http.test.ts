@@ -108,4 +108,35 @@ describe("HttpDocFlowApi", () => {
     expect(JSON.parse(String(calls[1].body))).toEqual({ docType: "receipt" });
     expect(api.exportUrl("ap", "xlsx")).toBe("/api/docflow/df/flows/ap/export?format=xlsx");
   });
+
+  it("saves a document type, keeping what DocFlow knows that the screens do not edit", async () => {
+    const stored = { id: "invoice", name: "Invoice", description: "d", category: "invoice", languages: ["en", "ar"], keywords: ["Invoice"], checks: ["subtotal + vat == total"], version: 3, createdAt: "",
+      learning: { enabled: true, aliases: { total: ["Amount due"] } },
+      fields: [{ name: "total", type: "currency", label: "Total / الإجمالي", required: true, aliases: ["Grand Total"], columns: [], format: "0.00" },
+        { name: "line_items", type: "table", label: "Line items", required: false, aliases: [], columns: [{ name: "qty", type: "number", required: false, aliases: [], columns: [] }] }] };
+    const { api, calls } = fake({ "PUT /df/doctypes/invoice": stored, "/df/doctypes/invoice": stored, "/df/flows": [] });
+    const shown = { id: "invoice", name: "Invoice", origin: "built-in" as const, meta: "", keywords: ["Invoice", "Tax invoice"], languages: ["en", "ar"], usedBy: [],
+      fields: [{ key: "total", label: "Total", aliases: ["الإجمالي", "Grand Total"], type: "Amount" as const, required: true, regex: "", learned: [] },
+        { key: "line_items", label: "Line items", aliases: [], type: "Table" as const, required: false, regex: "", learned: [] }] };
+    await api.saveDocType(shown);
+    const put = JSON.parse(String(calls.find((c) => c.method === "PUT")!.body));
+    expect(put.keywords).toEqual(["Invoice", "Tax invoice"]);
+    expect(put.fields[0]).toMatchObject({ name: "total", type: "currency", label: "Total", aliases: ["الإجمالي", "Grand Total"], format: "0.00" });
+    expect(put.fields[1].columns).toHaveLength(1);
+    expect(put.learning).toEqual({ enabled: true, aliases: { total: [], line_items: [] } });   // "Amount due" was forgotten on the screen
+  });
+
+  it("maps a Test lab run: values, confidence, what fails, and engines that could not run", async () => {
+    const { api, calls } = fake({ "POST /df/test": {
+      fields: [{ name: "invoice_number", label: "Invoice number", required: true }, { name: "total", label: "Total", required: true }],
+      runs: [{ engine: "tesseract", ms: 600, confidence: 0.78, review: true, readBy: ["tesseract"], fields: {
+        invoice_number: { value: "INV-1", confidence: 0.93, passed: true, errors: [] }, total: { value: null, confidence: null, passed: true, errors: [] } } },
+        { engine: "azure-di", error: "policy: cloud opt-in is off" }] } });
+    const r = await api.runTest(new File(["x"], "a.png"), "invoice", "tesseract", "azure-di");
+    expect((calls[0].body as FormData).get("engines")).toBe("tesseract,azure-di");
+    expect(r.rows[0]).toMatchObject({ field: "Invoice number", a: "INV-1", aConf: "93%", b: "—", differs: true });
+    expect(r.rows[1].check).toBe("Required: missing in A");
+    expect(r.runs[0]).toMatchObject({ seconds: 0.6, confidence: 78, review: true, readBy: "Tesseract" });
+    expect(r.runs[1].error).toContain("opt-in");
+  });
 });

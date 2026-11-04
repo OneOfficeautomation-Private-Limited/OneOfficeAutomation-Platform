@@ -94,7 +94,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
 
       {adding && <AddDocumentsDialog api={api} open onClose={() => setAdding(false)} processes={processes} initialProcess={p.id}
         onNewProcess={() => { setAdding(false); setCreating(true); }} onAdded={() => { setAdding(false); reload(); }} />}
-      <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); location.hash = "#/processes/" + encodeURIComponent(id); }} />
+      <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
     </div>
   );
 }

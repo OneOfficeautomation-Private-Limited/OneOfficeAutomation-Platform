@@ -37,11 +37,22 @@ export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "threshold" | "requi
 export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn"; type: RuleType; params: Record<string, unknown> }
 export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
-export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[] }
+export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string }
+/**
+ * A process's email inbox, read by the Command Center: IMAP (kind "email") or Microsoft 365 (kind "outlook"), as email
+ * triggers. Secrets are vault references (folder/credential/attribute). Keys are DocFlow's, as stored.
+ */
+export interface EmailInbox {
+  enabled: boolean; kind: "email" | "outlook"; host?: string; port?: number; ssl?: boolean; username?: string; password_ref?: string;
+  mailbox?: string; tenant_id?: string; client_id?: string; client_secret_ref?: string; mail_folder?: string;
+  from_contains?: string; subject_contains?: string; interval_seconds?: number;
+}
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
-  fieldConfidence: number; slaHours: number;
+  fieldConfidence: number; slaHours: number; email: EmailInbox | null;
 }
+/** How an email inbox's last check went (the Command Center reads the mail). */
+export interface InboxStatus { lastCheck: string | null; error: string | null; documents: number }
 export interface ProcessDesign {
   id: string; name: string; state: "live" | "draft"; version: number; folder: string; docType: string; checks: Check[];
   stages: { name: string; summary: string; done: boolean }[];
@@ -82,8 +93,13 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   ];
 }
 
-export interface DocTypeField { name: string; labels: string; type: "Text" | "Date" | "Amount" | "Table"; required: boolean; check: string; learned: string }
-export interface DocType { id: string; name: string; origin: "built-in" | "made-here"; meta: string; keywords: string; languages: string; usedBy: string[]; fields: DocTypeField[] }
+export type FieldType = "Text" | "Date" | "Amount" | "Number" | "Table" | "Choice";
+/** A field a document type reads. key: its name in results and checks; aliases: other labels it has on pages; learned: labels picked up from reviews. */
+export interface DocTypeField { key: string; label: string; aliases: string[]; type: FieldType; required: boolean; regex: string; learned: string[] }
+/** id is "" for a type not saved yet (a new one, or one proposed from samples). */
+export interface DocType {
+  id: string; name: string; origin: "built-in" | "made-here"; meta: string; keywords: string[]; languages: string[]; usedBy: string[]; fields: DocTypeField[];
+}
 
 /** A reference table: any columns, as uploaded. Its rows are loaded on demand (refTableRows). */
 export interface RefTable { id: string; name: string; rows: number; meta: string; columns: string[]; updated?: string; usedBy?: string[] }
@@ -97,9 +113,12 @@ export interface Overview {
 }
 
 export interface TestResult { field: string; a: string; aConf: string; b: string; bConf: string; check: string; differs: boolean }
+/** A Test lab run: the field rows, and per engine its time, page confidence, whether it would go to review (or why it could not run). */
+export interface TestRun { rows: TestResult[]; runs: { engine: string; seconds: number; confidence: number | null; review: boolean; readBy: string; error?: string }[] }
 
 /** docType is a document type id (DocType.id). */
-export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; mailbox?: string; fromBot: boolean }
+/** email: the person will set up the inbox next (in the builder's Intake stage). */
+export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
   overview(): Promise<Overview>;
@@ -125,6 +144,7 @@ export interface DocFlowApi {
   /** Saves stages, checks and deliveries; DocFlow counts a new version when anything changed. */
   saveProcess(d: ProcessDesign): Promise<ProcessDesign>;
   setLive(id: string, live: boolean): Promise<void>;
+  inboxStatus(processId: string): Promise<InboxStatus | null>;
   docTypes(): Promise<DocType[]>;
   refTables(): Promise<RefTable[]>;
   /** A table's rows (up to `limit`), for the preview and for downloading it. */
@@ -132,7 +152,12 @@ export interface DocFlowApi {
   /** Adds a table from a CSV or Excel file; a table with the same name is replaced. */
   uploadRefTable(file: File, name: string): Promise<{ id: string }>;
   deleteRefTable(id: string): Promise<void>;
-  runTest(sample: string, engineA: string, engineB: string | null): Promise<TestResult[]>;
+  /** Reads the file as the document type with engine A (and B), side by side. Nothing is kept. */
+  runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun>;
+  saveDocType(t: DocType): Promise<DocType>;
+  deleteDocType(id: string): Promise<void>;
+  /** Proposes a document type (not saved) from 1 to 3 sample files. */
+  suggestDocType(files: File[]): Promise<DocType>;
 }
 
 /* ------------------------------------------------------------------ sample data (from the approved designs) */
@@ -238,29 +263,37 @@ const DESIGN_CHECKS: Check[] = [
 const DESIGN_BASE = {
   id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft" as const, version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
   checks: DESIGN_CHECKS,
-  settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24 },
+  settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24,
+    email: null as EmailInbox | null },
   deliveries: [] as Delivery[],
   fields: [["invoice_number", "Invoice number"], ["invoice_date", "Invoice date"], ["supplier_name", "Supplier"], ["supplier_vat", "Supplier VAT no."],
     ["subtotal", "Subtotal"], ["vat_amount", "VAT amount"], ["total", "Total"]].map(([name, label]) => ({ name, label })),
 };
 const DESIGN: ProcessDesign = { ...DESIGN_BASE, stages: stagesOf(DESIGN_BASE, (id) => id) };
 
+const f = (key: string, label: string, aliases: string[], type: FieldType, required: boolean, regex = "", learned: string[] = []): DocTypeField =>
+  ({ key, label, aliases, type, required, regex, learned });
 const DOC_TYPES: DocType[] = [
-  { id: "supplier-invoice", name: "Supplier invoice", origin: "built-in", meta: "Built in · 2 processes", keywords: '"Tax invoice", "فاتورة ضريبية", "VAT No"',
-    languages: "English, Arabic", usedBy: ["AP invoices", "Supplier invoices KSA"], fields: [
-      { name: "Invoice number", labels: "Invoice No, Invoice Number, رقم الفاتورة", type: "Text", required: true, check: "INV-\\d{4}-\\d+", learned: '"Inv #" (3 reviews)' },
-      { name: "Invoice date", labels: "Invoice Date, Date, تاريخ الفاتورة", type: "Date", required: true, check: "DD/MM/YYYY", learned: "—" },
-      { name: "Supplier", labels: "Supplier, Vendor, From", type: "Text", required: true, check: "—", learned: '"Billed by" (1 review)' },
-      { name: "Supplier VAT no.", labels: "VAT No, VAT Number, الرقم الضريبي", type: "Text", required: true, check: "3\\d{13}3", learned: "—" },
-      { name: "Subtotal", labels: "Subtotal, Net amount", type: "Amount", required: true, check: "—", learned: "—" },
-      { name: "VAT amount", labels: "VAT 15%, VAT, ضريبة القيمة المضافة", type: "Amount", required: false, check: "—", learned: "—" },
-      { name: "Total", labels: "Total, Grand Total, الإجمالي", type: "Amount", required: true, check: "—", learned: '"Amount due" (5 reviews)' },
-      { name: "Line items", labels: "Description, Qty, Amount", type: "Table", required: false, check: "3 columns", learned: "—" }] },
-  { id: "receipt", name: "Receipt", origin: "built-in", meta: "Built in · Expense claims", keywords: '"Receipt", "Total"', languages: "English", usedBy: ["Expense claims"], fields: [] },
-  { id: "delivery-note", name: "Delivery note", origin: "built-in", meta: "Built in · Deliveries", keywords: '"Delivery note", "GRN"', languages: "English", usedBy: ["Deliveries"], fields: [] },
-  { id: "credit-note", name: "Credit note", origin: "built-in", meta: "Built in · not used", keywords: '"Credit note"', languages: "English", usedBy: [], fields: [] },
-  { id: "customs", name: "Customs declaration", origin: "made-here", meta: "Made here · taught from 3 samples", keywords: '"Declaration", "HS code"', languages: "English, Arabic", usedBy: [], fields: [] },
-  { id: "bank-statement", name: "Bank statement", origin: "made-here", meta: "Made here · draft", keywords: '"Statement", "IBAN"', languages: "English", usedBy: [], fields: [] },
+  { id: "supplier-invoice", name: "Supplier invoice", origin: "built-in", meta: "Built in · 2 processes", keywords: ["Tax invoice", "فاتورة ضريبية", "VAT No"],
+    languages: ["en", "ar"], usedBy: ["AP invoices", "Supplier invoices KSA"], fields: [
+      f("invoice_number", "Invoice number", ["Invoice No", "رقم الفاتورة"], "Text", true, "INV-\\d{4}-\\d+", ["Inv #"]),
+      f("invoice_date", "Invoice date", ["Date", "تاريخ الفاتورة"], "Date", true),
+      f("supplier_name", "Supplier", ["Vendor", "From"], "Text", true, "", ["Billed by"]),
+      f("supplier_vat", "Supplier VAT no.", ["VAT No", "VAT Number", "الرقم الضريبي"], "Text", true, "3\\d{13}3"),
+      f("subtotal", "Subtotal", ["Net amount"], "Amount", true),
+      f("vat_amount", "VAT amount", ["VAT 15%", "VAT", "ضريبة القيمة المضافة"], "Amount", false),
+      f("total", "Total", ["Grand Total", "الإجمالي"], "Amount", true, "", ["Amount due"]),
+      f("line_items", "Line items", ["Description", "Qty", "Amount"], "Table", false)] },
+  { id: "receipt", name: "Receipt", origin: "built-in", meta: "Built in · Expense claims", keywords: ["Receipt", "Total"], languages: ["en"], usedBy: ["Expense claims"],
+    fields: [f("merchant_name", "Merchant", [], "Text", true), f("total", "Total", [], "Amount", true)] },
+  { id: "delivery-note", name: "Delivery note", origin: "built-in", meta: "Built in · Deliveries", keywords: ["Delivery note", "GRN"], languages: ["en"], usedBy: ["Deliveries"],
+    fields: [f("note_number", "Delivery note number", [], "Text", true)] },
+  { id: "credit-note", name: "Credit note", origin: "built-in", meta: "Built in · not used", keywords: ["Credit note"], languages: ["en"], usedBy: [],
+    fields: [f("credit_note_number", "Credit note number", [], "Text", true)] },
+  { id: "customs", name: "Customs declaration", origin: "made-here", meta: "Made here · not used", keywords: ["Declaration", "HS code"], languages: ["en", "ar"], usedBy: [],
+    fields: [f("declaration_number", "Declaration number", [], "Text", true), f("hs_code", "HS code", [], "Text", false)] },
+  { id: "bank-statement", name: "Bank statement", origin: "made-here", meta: "Made here · not used", keywords: ["Statement", "IBAN"], languages: ["en"], usedBy: [],
+    fields: [f("iban", "IBAN", [], "Text", true)] },
 ];
 
 const SUPPLIER_ROWS: RefRow[] = [
@@ -299,6 +332,8 @@ const TEST: TestResult[] = [
   { field: "Total", a: "9,087.42", aConf: "83%", b: "9,067.42", bConf: "98%", check: "Totals add up: fails in A", differs: true },
   { field: "Supplier", a: "Falcon IT Services", aConf: "92%", b: "Falcon IT Services", bConf: "99%", check: "Known supplier ✓", differs: false },
 ];
+const TEST_RUN = (engine: string, seconds: number, confidence: number, review: boolean): TestRun["runs"][number] =>
+  ({ engine, seconds, confidence, review, readBy: engine });
 
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -324,7 +359,7 @@ export class SampleApi implements DocFlowApi {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,
       failed: 0, done: 0, straightThrough: 0, lastDocument: "—", lastTime: "", deliversTo: [],
-      sources: ["upload", ...(n.watchedFolder ? ["folder" as const] : []), ...(n.mailbox ? ["email" as const] : []), ...(n.fromBot ? ["bot" as const] : [])] });
+      sources: ["upload", ...(n.watchedFolder ? ["folder" as const] : []), ...(n.email ? ["email" as const] : []), ...(n.fromBot ? ["bot" as const] : [])] });
     return { id };
   }
   async reviewTask(documentId: string) {
@@ -365,13 +400,26 @@ export class SampleApi implements DocFlowApi {
     this.designs[d.id] = { ...copy(d), version: changed ? d.version + 1 : d.version, stages: stagesOf(d, (id) => id) };
     return copy(this.designs[d.id]);
   }
+  async inboxStatus(): Promise<InboxStatus | null> { return null; }
   async setLive(id: string, live: boolean) {
     const d = await this.processDesign(id);
     this.designs[id] = { ...d, state: live ? "live" : "draft" };
     const p = this.processesData.find((x) => x.id === id);
     if (p) p.state = live ? "live" : "draft";
   }
-  async docTypes() { return copy(DOC_TYPES); }
+  private types = copy(DOC_TYPES);
+  async docTypes() { return copy(this.types); }
+  async saveDocType(t: DocType) {
+    const id = t.id || t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "type";
+    const saved = { ...copy(t), id, meta: t.id ? t.meta : "Made here · not used" };
+    this.types = this.types.some((x) => x.id === id) ? this.types.map((x) => x.id === id ? saved : x) : [...this.types, saved];
+    return copy(saved);
+  }
+  async deleteDocType(id: string) { this.types = this.types.filter((t) => t.id !== id); }
+  async suggestDocType(files: File[]): Promise<DocType> {
+    return { id: "", name: "New document type", origin: "made-here", meta: `From ${files.length} sample${files.length > 1 ? "s" : ""}`, keywords: ["Invoice"], languages: ["en"], usedBy: [],
+      fields: [f("invoice_number", "Invoice number", [], "Text", true), f("invoice_date", "Invoice date", [], "Date", true), f("total", "Total", [], "Amount", true)] };
+  }
   private tables = copy(REF_TABLES);
   async refTables() { return copy(this.tables); }
   async refTableRows(id: string) { return id === "suppliers" ? copy(SUPPLIER_ROWS) : []; }
@@ -382,8 +430,9 @@ export class SampleApi implements DocFlowApi {
     return { id };
   }
   async deleteRefTable(id: string) { this.tables = this.tables.filter((t) => t.id !== id); }
-  async runTest(_sample: string, _a: string, b: string | null) {
-    return copy(TEST).map((r) => (b ? r : { ...r, b: "", bConf: "", differs: false }));
+  async runTest(_file: File, _type: string, a: string, b: string | null): Promise<TestRun> {
+    return { rows: copy(TEST).map((r) => (b ? r : { ...r, b: "", bConf: "", differs: false })),
+      runs: [TEST_RUN(a, 0.6, 78, true), ...(b ? [TEST_RUN(b, 7.3, 98, false)] : [])] };
   }
 }
 

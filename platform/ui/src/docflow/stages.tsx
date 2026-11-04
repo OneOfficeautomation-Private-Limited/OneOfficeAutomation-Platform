@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
-import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -26,8 +26,15 @@ const SEND_ON: [string, string][] = [
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
 
-export function IntakeStage({ s, set }: { s: ProcessSettings; set: SetSettings }) {
+export function IntakeStage({ s, set, inbox, live }: { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean }) {
+  const email = s.email;
+  const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
+  const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
+    <Field label={label} hint={hint}>{(id) => <TextInput id={id} value={String(email?.[key] ?? "")} placeholder={placeholder}
+      onChange={(e) => setEmail({ [key]: key === "port" ? Number(e.target.value) || undefined : e.target.value } as Partial<EmailInbox>)} />}</Field>
+  );
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <div className="df-grid df-g2">
       <Field label="Watched folder" hint="DocFlow reads every new file put here. Empty: upload only.">
         {(id) => <TextInput id={id} value={s.inputFolder} placeholder="\\scan01\invoices" onChange={(e) => set({ inputFolder: e.target.value })} />}
@@ -36,7 +43,43 @@ export function IntakeStage({ s, set }: { s: ProcessSettings; set: SetSettings }
         {(id) => <Select id={id} value={String(s.pollSeconds)} onChange={(e) => set({ pollSeconds: Number(e.target.value) })}
           options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }, { value: "900", label: "15 minutes" }]} />}
       </Field>
-      <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Upload is always on. Email and bots come in through their own settings.</p>
+      <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Upload is always on. Agents send documents with the "Send document to process" action.</p>
+    </div>
+    <div className={`df-way${email?.enabled ? " is-on" : ""}`}>
+      <label style={{ display: "flex", gap: 10 }}>
+        <input type="checkbox" checked={!!email?.enabled} onChange={(e) => setEmail({ enabled: e.target.checked })} />
+        <span><b>Email inbox</b><span className="df-small" style={{ display: "block" }}>The Command Center reads new emails and sends their PDF and image attachments here{live ? "" : " once the process is live"}.</span></span>
+      </label>
+      {email?.enabled && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "10px 0 0 24px" }}>
+          <Field label="Mailbox kind">{(id) => <Select id={id} value={email.kind} onChange={(e) => setEmail({ kind: e.target.value as EmailInbox["kind"] })}
+            options={[{ value: "outlook", label: "Microsoft 365 (Outlook)" }, { value: "email", label: "IMAP (any other mail server)" }]} />}</Field>
+          {email.kind === "outlook" ? (
+            <div className="df-grid df-g2">
+              {text("mailbox", "Mailbox", "invoices@example.com")}
+              {text("mail_folder", "Folder", "inbox")}
+              {text("tenant_id", "Directory (tenant) id")}
+              {text("client_id", "Application (client) id")}
+              {text("client_secret_ref", "Client secret (vault reference)", "m365/app/secret", "folder/credential/attribute; you must be allowed to use it")}
+            </div>
+          ) : (
+            <div className="df-grid df-g2">
+              {text("host", "Mail server", "imap.example.com")}
+              {text("port", "Port", "993")}
+              {text("username", "User name", "invoices@example.com")}
+              {text("password_ref", "Password (vault reference)", "mail/invoices/password", "folder/credential/attribute; you must be allowed to use it")}
+              {text("mail_folder", "Folder", "INBOX")}
+            </div>
+          )}
+          <div className="df-grid df-g2">
+            {text("from_contains", "Only from (optional)", "@supplier.com")}
+            {text("subject_contains", "Subject contains (optional)", "invoice")}
+          </div>
+          {inbox && <p className={`df-small ${inbox.error ? "df-text-bad" : ""}`} role="status" style={{ margin: 0 }}>
+            {inbox.lastCheck ? `Last checked ${new Date(inbox.lastCheck).toLocaleString()}` : "Not checked yet"}{inbox.error ? `: ${inbox.error}` : ` · ${inbox.documents} document${inbox.documents === 1 ? "" : "s"} read so far`}</p>}
+        </div>
+      )}
+    </div>
     </div>
   );
 }
@@ -112,9 +155,14 @@ export function DeliveryDialog({ open, value, onClose, onSave }: { open: boolean
           options={(Object.keys(DELIVERY_KIND) as DeliveryType[]).map((k) => ({ value: k, label: DELIVERY_KIND[k].label }))} />}</Field>
         <Field label="Name (optional)">{(id) => <TextInput id={id} value={d.name} placeholder={kind.label} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
       </div>
-      <Field label={kind.target} hint={d.type === "start_bot" ? "The bot's path in the agent repository. It gets the document's fields as input." : undefined}>
+      <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
         {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
       </Field>
+      {d.type === "start_bot" && (
+        <Field label="Runner pool (optional)" hint="Empty: your default runner.">
+          {(id) => <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}
+        </Field>
+      )}
       <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
         <legend style={{ fontWeight: 600, padding: 0, marginBottom: 6 }}>Send when a document is</legend>
         <div className="df-grid df-g2" style={{ gap: 6 }}>

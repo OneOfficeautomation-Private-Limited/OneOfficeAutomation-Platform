@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Icon } from "../components";
-import { stagesOf, type Check, type Delivery, type DocFlowApi, type ProcessDesign, type ProcessSettings, type ProcessSummary, type RefTable } from "./api";
+import { stagesOf, type Check, type Delivery, type DocFlowApi, type InboxStatus, type ProcessDesign, type ProcessSettings, type ProcessSummary, type RefTable } from "./api";
 import { HINTS } from "./help";
 import { CheckDialog, ClassifyStage, DeliverStage, DeliveryDialog, ExtractStage, IF_FAILS, IntakeStage, ReviewStage } from "./stages";
 import { Chip, Empty, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError } from "./ui";
@@ -10,12 +10,15 @@ import { Chip, Empty, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches
  * when it fails. Changes stay on this page until saved. A draft only reads uploads; Go live also starts its watched folder.
  * DocFlow keeps one version of a process, so saving a live process applies to new documents straight away.
  */
-export function Builder({ api, processId }: { api: DocFlowApi; processId?: string }) {
+const STAGE_IDS = ["intake", "classify", "extract", "checks", "review", "deliver"];
+
+export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi; processId?: string; stage?: string }) {
   const [processes, setProcesses] = useState<ProcessSummary[] | null>(null);
   const [design, setDesign] = useState<ProcessDesign | null>(null);
   const [saved, setSaved] = useState<ProcessDesign | null>(null);
   const [tables, setTables] = useState<RefTable[]>([]);
-  const [stage, setStage] = useState(3);
+  const [stage, setStage] = useState(STAGE_IDS.includes(firstStage ?? "") ? STAGE_IDS.indexOf(firstStage!) : 3);
+  const [inbox, setInbox] = useState<InboxStatus | null>(null);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("all");
   const [onOff, setOnOff] = useState<"all" | "on" | "off">("all");
@@ -32,6 +35,7 @@ export function Builder({ api, processId }: { api: DocFlowApi; processId?: strin
       setProcesses(ps);
       const id = processId ?? ps.filter((x) => x.id !== "smart-inbox").at(-1)?.id;
       if (!id) return;
+      api.inboxStatus(id).then((s) => { if (live) setInbox(s); }, () => undefined);
       return api.processDesign(id).then((d) => { if (live) { setDesign(d); setSaved(d); } });
     }).catch(reportError);
     api.refTables().then((t) => { if (live) setTables(t); }, () => undefined);
@@ -141,7 +145,7 @@ export function Builder({ api, processId }: { api: DocFlowApi; processId?: strin
         ) : (
           <section className="df-card df-pad df-span2" aria-label={current.name} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
-            {stage === 0 && <IntakeStage s={design.settings} set={setSettings} />}
+            {stage === 0 && <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} />}
             {stage === 1 && <ClassifyStage s={design.settings} set={setSettings} />}
             {stage === 2 && <ExtractStage s={design.settings} set={setSettings} />}
             {stage === 4 && <ReviewStage s={design.settings} set={setSettings} />}

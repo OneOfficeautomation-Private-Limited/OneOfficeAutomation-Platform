@@ -43,6 +43,35 @@ final class AgentClient {
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
     }
 
+    /** A file to the runner API as multipart form data (field "files"), with a JSON answer; up to 15 minutes. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> postFile(String path, String fileName, byte[] data) {
+        String boundary = "ooa" + java.util.UUID.randomUUID().toString().replace("-", "");
+        byte[] head = ("--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + fileName.replaceAll("[\\r\\n\"]", "_")
+                + "\"\r\nContent-Type: application/octet-stream\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] body = new byte[head.length + data.length + tail.length];
+        System.arraycopy(head, 0, body, 0, head.length);
+        System.arraycopy(data, 0, body, head.length, data.length);
+        System.arraycopy(tail, 0, body, head.length + data.length, tail.length);
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + "/api/agent/" + path)).timeout(Duration.ofMinutes(15))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary).POST(HttpRequest.BodyPublishers.ofByteArray(body));
+        if (deviceId != null) b.header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", secret);
+        HttpResponse<String> r;
+        try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
+        catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach Command Center at " + baseUrl + ": " + e.getMessage(), null, true, null); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
+        Object parsed;
+        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "Command Center returned HTTP " + r.statusCode()); }
+        Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
+        if (r.statusCode() >= 400) {
+            Map<String, Object> e = m.get("error") instanceof Map ? (Map<String, Object>) m.get("error") : Map.of();
+            throw new OoaException(String.valueOf(e.getOrDefault("code", "AGENT.HTTP_" + r.statusCode())), String.valueOf(e.getOrDefault("message", "HTTP " + r.statusCode())),
+                    (String) e.get("suggestedFix"));
+        }
+        return m;
+    }
+
     @SuppressWarnings("unchecked")
     Map<String, Object> post(String path, Object body) {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + "/api/agent/" + path)).timeout(Duration.ofSeconds(60))

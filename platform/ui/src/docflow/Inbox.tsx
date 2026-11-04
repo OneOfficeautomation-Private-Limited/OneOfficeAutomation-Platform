@@ -95,7 +95,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
           onAdded={(id) => { setAdding(null); setDropped([]); location.hash = "#/process/" + id; }} />
       )}
       <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
-        onCreated={(id) => { setCreating(false); reload(); location.hash = "#/processes/" + encodeURIComponent(id); }} />
+        onCreated={(id) => { setCreating(false); reload(); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
     </div>
   );
 }
