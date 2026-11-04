@@ -116,6 +116,12 @@ class VariableTypesTest {
         assertEquals(3, img.width()); assertEquals(2, img.height());
         assertArrayEquals(png, img.bytes(), "PNG bytes are kept as they are");
         assertEquals(img, Values.coerce(new BinaryValue(png, null), "Image", "i"));
+        // a PNG's size comes from its header (no decoding, as in the native executable), the same as the decoded picture's
+        java.io.ByteArrayOutputStream wide = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(1300, 70, java.awt.image.BufferedImage.TYPE_INT_ARGB), "png", wide);
+        ImageValue big = ImageValue.read(wide.toByteArray());
+        assertEquals(1300, big.width()); assertEquals(70, big.height());
+        assertEquals(1300, big.toBufferedImage().getWidth());
         // a JPEG is read and stored as PNG
         java.awt.image.BufferedImage bi = new java.awt.image.BufferedImage(5, 4, java.awt.image.BufferedImage.TYPE_INT_RGB);
         java.io.ByteArrayOutputStream jpg = new java.io.ByteArrayOutputStream();

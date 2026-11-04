@@ -31,6 +31,11 @@ public final class ImageValue {
     /** Reads a picture from bytes in any format the JDK reads (PNG, JPEG, BMP, GIF); PNG bytes are kept as they are. */
     public static ImageValue read(byte[] bytes) {
         if (bytes == null || bytes.length == 0) throw new IllegalArgumentException("no bytes");
+        // a PNG's size is in its header, so it needs no decoding (and no java.awt, which the native executable leaves out)
+        if (isPng(bytes) && bytes.length >= 24 && bytes[12] == 'I' && bytes[13] == 'H' && bytes[14] == 'D' && bytes[15] == 'R') {
+            int w = readInt(bytes, 16), h = readInt(bytes, 20);
+            if (w > 0 && h > 0) return new ImageValue(bytes.clone(), w, h);
+        }
         BufferedImage img;
         try { img = ImageIO.read(new ByteArrayInputStream(bytes)); }
         catch (IOException e) { throw new IllegalArgumentException("not a picture: " + e.getMessage()); }
@@ -45,6 +50,10 @@ public final class ImageValue {
         try { ImageIO.write(img, "png", out); }
         catch (IOException e) { throw new IllegalArgumentException("cannot store the picture as PNG: " + e.getMessage()); }
         return new ImageValue(out.toByteArray(), img.getWidth(), img.getHeight());
+    }
+
+    private static int readInt(byte[] b, int at) {
+        return ((b[at] & 0xff) << 24) | ((b[at + 1] & 0xff) << 16) | ((b[at + 2] & 0xff) << 8) | (b[at + 3] & 0xff);
     }
 
     static boolean isPng(byte[] b) {
