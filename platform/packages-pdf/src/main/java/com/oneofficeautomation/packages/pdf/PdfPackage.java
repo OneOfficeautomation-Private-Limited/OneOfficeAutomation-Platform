@@ -777,4 +777,288 @@ public final class PdfPackage {
     private static java.time.LocalDateTime date(Calendar c) {
         return c == null ? null : java.time.LocalDateTime.ofInstant(c.toInstant(), java.time.ZoneOffset.UTC);
     }
+
+    // ---------- tables from text PDFs, and XPS text (gap G12, 3 Nov 2026) ----------
+
+    /** A word with its box on the page (points from the top-left). */
+    record Word(String text, double x0, double x1, double y, double height, double charWidth) { }
+
+    /** The words of one page, as PDFTextStripper finds them. */
+    static List<Word> words(PDDocument d, int page) throws IOException {
+        List<Word> out = new ArrayList<>();
+        PDFTextStripper s = new PDFTextStripper() {
+            @Override protected void writeString(String text, List<org.apache.pdfbox.text.TextPosition> pos) {
+                if (text.isBlank() || pos.isEmpty()) return;
+                org.apache.pdfbox.text.TextPosition a = pos.get(0), b = pos.get(pos.size() - 1);
+                double w = 0;
+                for (org.apache.pdfbox.text.TextPosition t : pos) w += t.getWidthDirAdj();
+                out.add(new Word(text.strip(), a.getXDirAdj(), b.getXDirAdj() + b.getWidthDirAdj(), a.getYDirAdj(),
+                        Math.max(1, a.getHeightDir()), Math.max(1, w / pos.size())));
+            }
+        };
+        s.setSortByPosition(true);
+        s.setStartPage(page);
+        s.setEndPage(page);
+        s.getText(d);
+        return out;
+    }
+
+    /** A cell: neighbouring words on one line that belong together. */
+    record Cell(String text, double x0, double x1) { }
+
+    /** Lines of cells, top to bottom: words on the same baseline; separate pieces of text stay separate cells. */
+    static List<List<Cell>> lines(List<Word> words, List<Double> lineY) {
+        List<Word> sorted = new ArrayList<>(words);
+        sorted.sort(Comparator.comparingDouble(Word::y).thenComparingDouble(Word::x0));
+        List<List<Word>> rows = new ArrayList<>();
+        for (Word w : sorted) {
+            List<Word> last = rows.isEmpty() ? null : rows.get(rows.size() - 1);
+            if (last != null && Math.abs(last.get(0).y() - w.y()) <= Math.max(2, last.get(0).height() * 0.5)) last.add(w);
+            else rows.add(new ArrayList<>(List.of(w)));
+        }
+        List<List<Cell>> out = new ArrayList<>();
+        for (List<Word> r : rows) {
+            r.sort(Comparator.comparingDouble(Word::x0));
+            List<Cell> cells = new ArrayList<>();
+            StringBuilder t = new StringBuilder(r.get(0).text());
+            double x0 = r.get(0).x0(), x1 = r.get(0).x1();
+            for (int i = 1; i < r.size(); i++) {
+                Word w = r.get(i);
+                // PDF text already comes in phrases (Blue pens, box of 10); only pieces that nearly touch are joined
+                if (w.x0() - x1 > Math.min(w.charWidth(), r.get(i - 1).charWidth()) * 0.6) { cells.add(new Cell(t.toString(), x0, x1)); t = new StringBuilder(w.text()); x0 = w.x0(); }
+                else t.append(' ').append(w.text());
+                x1 = Math.max(x1, w.x1());
+            }
+            cells.add(new Cell(t.toString(), x0, x1));
+            out.add(cells);
+            lineY.add(r.get(0).y());
+        }
+        return out;
+    }
+
+    /** Runs of lines with at least minColumns cells and no big vertical gap, turned into rows of equal width. */
+    static List<List<List<String>>> tablesOn(List<List<Cell>> lines, List<Double> ys, int minColumns) {
+        List<List<List<String>>> tables = new ArrayList<>();
+        int i = 0;
+        while (i < lines.size()) {
+            if (lines.get(i).size() < minColumns) { i++; continue; }
+            int j = i + 1;
+            double step = j < lines.size() ? ys.get(j) - ys.get(i) : 0;
+            while (j < lines.size() && lines.get(j).size() >= Math.min(2, minColumns)
+                    && ys.get(j) - ys.get(j - 1) <= Math.max(step, 1) * 2.5 + 1) j++;
+            if (j - i >= 2) tables.add(grid(lines.subList(i, j)));
+            i = j;
+        }
+        return tables;
+    }
+
+    /**
+     * Columns from the blank strips that (nearly) every row leaves free, so a heading spilling into the next column in
+     * one row does not join two columns; each cell goes to the column it overlaps most. A column with only a heading
+     * next to one with data but no heading (a left-aligned heading over right-aligned numbers) becomes one column.
+     */
+    static List<List<String>> grid(List<List<Cell>> rows) {
+        double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+        for (List<Cell> r : rows) for (Cell c : r) { min = Math.min(min, c.x0()); max = Math.max(max, c.x1()); }
+        int bins = (int) Math.ceil(max - min) + 2;
+        int[] cover = new int[bins];
+        for (List<Cell> r : rows) {
+            boolean[] row = new boolean[bins];
+            for (Cell c : r) for (int b = (int) Math.floor(c.x0() - min); b <= (int) Math.ceil(c.x1() - min) && b < bins; b++) row[Math.max(0, b)] = true;
+            for (int b = 0; b < bins; b++) if (row[b]) cover[b]++;
+        }
+        int blank = rows.size() >= 4 ? rows.size() / 4 : 0;   // a strip covered by this few rows still separates columns
+        List<double[]> cols = new ArrayList<>();
+        for (int b = 0; b < bins; b++) {
+            if (cover[b] <= blank) continue;
+            int e = b;
+            while (e + 1 < bins && cover[e + 1] > blank) e++;
+            cols.add(new double[]{min + b, min + e});
+            b = e;
+        }
+        if (cols.isEmpty()) cols.add(new double[]{min, max});
+        List<List<String>> out = new ArrayList<>();
+        for (List<Cell> r : rows) {
+            String[] row = new String[cols.size()];
+            Arrays.fill(row, "");
+            for (Cell c : r) {
+                int best = 0;
+                double bestOverlap = -Double.MAX_VALUE;   // no overlap at all: the nearest column
+                for (int k = 0; k < cols.size(); k++) {
+                    double ov = Math.min(c.x1(), cols.get(k)[1]) - Math.max(c.x0(), cols.get(k)[0]);
+                    if (ov > bestOverlap) { bestOverlap = ov; best = k; }
+                }
+                row[best] = row[best].isEmpty() ? c.text() : row[best] + " " + c.text();
+            }
+            out.add(new ArrayList<>(Arrays.asList(row)));
+        }
+        // join a heading-only column with a neighbouring data column that has no heading
+        for (int k = 0; k + 1 < (out.isEmpty() ? 0 : out.get(0).size()); k++) {
+            boolean leftHeadOnly = headingOnly(out, k), rightHeadOnly = headingOnly(out, k + 1);
+            boolean leftDataOnly = dataOnly(out, k), rightDataOnly = dataOnly(out, k + 1);
+            if ((leftHeadOnly && rightDataOnly) || (leftDataOnly && rightHeadOnly)) {
+                for (List<String> r : out) {
+                    String a = r.get(k), b = r.get(k + 1);
+                    r.set(k, a.isEmpty() ? b : b.isEmpty() ? a : a + " " + b);
+                    r.remove(k + 1);
+                }
+                k--;
+            }
+        }
+        return out;
+    }
+
+    private static boolean headingOnly(List<List<String>> rows, int col) {
+        if (rows.get(0).get(col).isEmpty()) return false;
+        for (int i = 1; i < rows.size(); i++) if (!rows.get(i).get(col).isEmpty()) return false;
+        return true;
+    }
+
+    private static boolean dataOnly(List<List<String>> rows, int col) {
+        if (!rows.get(0).get(col).isEmpty()) return false;
+        for (int i = 1; i < rows.size(); i++) if (!rows.get(i).get(col).isEmpty()) return true;
+        return false;
+    }
+
+    private static Map<String, Object> dataTable(List<List<String>> rows, boolean header) {
+        int width = rows.stream().mapToInt(List::size).max().orElse(0);
+        List<String> columns = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (int c = 0; c < width; c++) {
+            String n = header && c < rows.get(0).size() && !rows.get(0).get(c).isBlank() ? rows.get(0).get(c).strip() : "Column" + (c + 1);
+            String u = n;
+            for (int k = 2; !seen.add(u.toLowerCase(Locale.ROOT)); k++) u = n + "_" + k;
+            columns.add(u);
+        }
+        List<Object> data = new ArrayList<>();
+        for (List<String> r : header ? rows.subList(1, rows.size()) : rows) {
+            List<Object> row = new ArrayList<>(r);
+            while (row.size() < width) row.add("");
+            data.add(row);
+        }
+        return Values.table(columns, data);
+    }
+
+    @Action(id = "extract_tables", name = "Extract tables", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Find tables in a PDF that holds text (invoices, statements, reports) by how the text lines up in columns, and return each as a Data Table. Scanned PDFs need OCR first.",
+            panel = "path, [The file has a password: password], pages, header, merge_across_pages | min_columns")
+    @Output(name = "tables", type = OoaType.LIST, description = "Every table found, as Data Tables, top to bottom and page by page.")
+    @Output(name = "table", type = OoaType.TABLE, description = "The first (or only) table; an empty table when none was found.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of tables found.")
+    public Map<String, Object> extractTables(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3-4", description = "Pages to read, e.g. 1,3-4; every page when empty.") String pages,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first row of each table holds the column names; Column1, Column2 … when off.") boolean header,
+            @Input(name = "merge_across_pages", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Join a table that continues at the top of the next page (same number of columns) into one, leaving out a repeated header row.") boolean merge,
+            @Input(name = "min_columns", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 2, max = 50, description = "Lines need at least this many separate columns to count as a table.") int minColumns,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        if (minColumns < 2) throw new ActionException("PDF.BAD_OPTION", "min_columns must be at least 2", "A table needs two columns or more.");
+        List<List<List<String>>> all = new ArrayList<>();
+        int lastPage = -1;
+        try (PDDocument d = load(ctx, path, password)) {
+            for (int pg : pages(pages, d.getNumberOfPages())) {
+                List<Double> ys = new ArrayList<>();
+                List<List<List<String>>> found = tablesOn(lines(words(d, pg), ys), ys, minColumns);
+                for (int k = 0; k < found.size(); k++) {
+                    List<List<String>> t = found.get(k);
+                    List<List<String>> prev = all.isEmpty() ? null : all.get(all.size() - 1);
+                    if (merge && k == 0 && prev != null && lastPage == pg - 1 && prev.get(0).size() == t.get(0).size()) {
+                        boolean repeatedHeader = header && t.get(0).equals(prev.get(0));
+                        prev.addAll(repeatedHeader ? t.subList(1, t.size()) : t);
+                    } else all.add(new ArrayList<>(t));
+                }
+                if (!found.isEmpty()) lastPage = pg;
+            }
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+        List<Object> tables = new ArrayList<>();
+        for (List<List<String>> t : all) tables.add(dataTable(t, header));
+        Object first = tables.isEmpty() ? Values.table(new ArrayList<>(), new ArrayList<>()) : tables.get(0);
+        return Map.of("tables", tables, "table", first, "count", BigDecimal.valueOf(tables.size()));
+    }
+
+    @Action(id = "read_xps_text", name = "Read XPS text", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Read the text of an XPS or OpenXPS document (.xps, .oxps), page by page, in reading order.",
+            panel = "path")
+    @Output(name = "text", type = OoaType.STRING, description = "The text of every page, pages separated by a blank line.")
+    @Output(name = "pages", type = OoaType.LIST, description = "The text of each page.")
+    @Output(name = "page_count", type = OoaType.NUMBER, description = "Number of pages.")
+    public Map<String, Object> readXpsText(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "XPS file.") String path) {
+        Path p = ctx.resolvePath(path);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "XPS file not found: " + p, "Check the path.");
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(p.toFile())) {
+            List<String> pageNames = new ArrayList<>();
+            // page order: the fixed documents' PageContent entries; else every .fpage in name order
+            List<String> docs = new ArrayList<>();
+            zip.stream().map(java.util.zip.ZipEntry::getName).filter(n -> n.toLowerCase(Locale.ROOT).endsWith(".fdoc")).sorted(xpsOrder()).forEach(docs::add);
+            for (String doc : docs) {
+                String base = doc.contains("/") ? doc.substring(0, doc.lastIndexOf('/') + 1) : "";
+                org.w3c.dom.Document x = xml(zip, doc);
+                org.w3c.dom.NodeList pcs = x.getElementsByTagNameNS("*", "PageContent");
+                for (int i = 0; i < pcs.getLength(); i++) {
+                    String src = ((org.w3c.dom.Element) pcs.item(i)).getAttribute("Source");
+                    String name = src.startsWith("/") ? src.substring(1) : java.net.URI.create(base).resolve(src).toString();
+                    if (zip.getEntry(name) != null) pageNames.add(name);
+                }
+            }
+            if (pageNames.isEmpty())
+                zip.stream().map(java.util.zip.ZipEntry::getName).filter(n -> n.toLowerCase(Locale.ROOT).endsWith(".fpage")).sorted(xpsOrder()).forEach(pageNames::add);
+            if (pageNames.isEmpty()) throw new ActionException("PDF.INVALID", p + " has no XPS pages", "Check it is an .xps or .oxps file.");
+            List<Object> texts = new ArrayList<>();
+            for (String name : pageNames) texts.add(xpsPageText(xml(zip, name)));
+            return Map.of("text", String.join("\n\n", texts.stream().map(String::valueOf).toList()), "pages", texts, "page_count", BigDecimal.valueOf(texts.size()));
+        } catch (java.util.zip.ZipException e) {
+            throw new ActionException("PDF.INVALID", "Cannot read " + p + ": it is not an XPS file", "Check it is an .xps or .oxps file.");
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+    }
+
+    /** Names in natural order, so 2.fpage comes before 10.fpage. */
+    private static Comparator<String> xpsOrder() {
+        return Comparator.comparing((String n) -> n.replaceAll("\\d+", "")).thenComparingLong(n -> {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)(?!.*\\d)").matcher(n);
+            return m.find() ? Long.parseLong(m.group(1)) : 0;
+        });
+    }
+
+    private static org.w3c.dom.Document xml(java.util.zip.ZipFile zip, String name) throws IOException {
+        try (java.io.InputStream in = zip.getInputStream(zip.getEntry(name))) {
+            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            f.setNamespaceAware(true);
+            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);   // no external entities
+            f.setXIncludeAware(false);
+            f.setExpandEntityReferences(false);
+            return f.newDocumentBuilder().parse(in);
+        } catch (javax.xml.parsers.ParserConfigurationException | org.xml.sax.SAXException e) {
+            throw new ActionException("PDF.INVALID", "A page of the XPS file cannot be read: " + e.getMessage(), "Check the file is not damaged.");
+        }
+    }
+
+    /** The page's Glyphs, as lines by OriginY (top to bottom) and left to right by OriginX within a line. */
+    static String xpsPageText(org.w3c.dom.Document page) {
+        org.w3c.dom.NodeList gs = page.getElementsByTagNameNS("*", "Glyphs");
+        List<double[]> pos = new ArrayList<>();
+        List<String> text = new ArrayList<>();
+        for (int i = 0; i < gs.getLength(); i++) {
+            org.w3c.dom.Element g = (org.w3c.dom.Element) gs.item(i);
+            String t = g.getAttribute("UnicodeString");
+            if (t.startsWith("{}")) t = t.substring(2);   // XPS escape for text starting with {
+            if (t.isBlank()) continue;
+            double x = num(g.getAttribute("OriginX")), y = num(g.getAttribute("OriginY")), size = num(g.getAttribute("FontRenderingEmSize"));
+            pos.add(new double[]{x, y, Math.max(1, size), text.size()});
+            text.add(t);
+        }
+        pos.sort(Comparator.comparingDouble((double[] a) -> a[1]).thenComparingDouble(a -> a[0]));
+        StringBuilder sb = new StringBuilder();
+        double lineY = Double.NaN, size = 0;
+        for (double[] a : pos) {
+            if (!Double.isNaN(lineY) && Math.abs(a[1] - lineY) <= size * 0.5) sb.append(' ');
+            else { if (sb.length() > 0) sb.append('\n'); lineY = a[1]; size = a[2]; }
+            sb.append(text.get((int) a[3]));
+        }
+        return sb.toString();
+    }
+
+    private static double num(String s) {
+        try { return s == null || s.isBlank() ? 0 : Double.parseDouble(s.strip()); } catch (NumberFormatException e) { return 0; }
+    }
 }

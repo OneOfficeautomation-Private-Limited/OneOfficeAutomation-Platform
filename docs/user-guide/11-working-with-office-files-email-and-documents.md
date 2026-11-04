@@ -155,6 +155,8 @@ this month's chart picture and table, and **Save as** a new file.
 | --- | --- |
 | **Extract text** | All pages, a page range or listed pages; optionally save the text to a file |
 | **Extract text from area** | Text inside a rectangle of one page (fixed layouts such as forms) |
+| **Extract tables** | Tables of a PDF that holds text (invoices, statements, reports) as Data Tables, found by how the text lines up in columns; a table that continues on the next page is joined into one, and a repeated heading row is left out |
+| **Read XPS text** | The text of an XPS or OpenXPS file, page by page |
 | **Get page count**, **Get document properties** | Information about the file |
 | **Merge PDFs** | Listed files, or every PDF in a folder |
 | **Split PDF** | By pages per file, page lists or bookmarks |
