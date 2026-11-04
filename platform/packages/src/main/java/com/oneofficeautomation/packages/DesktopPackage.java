@@ -788,4 +788,188 @@ public final class DesktopPackage {
     public Map<String, Object> promptFolder(ActionContext ctx, String title, String start, int timeout, boolean onTop) {
         return promptFolder(ctx, title, start, timeout, onTop, null);
     }
+
+    // ---------- mouse position, waiting for input, lock keys, blocking input (gap G09, 3 Nov 2026) ----------
+
+    /** PowerShell for Windows-only steps, passed with -EncodedCommand so its double quotes survive the command line. */
+    private static List<String> encodedPowershell(String script) {
+        String encoded = Base64.getEncoder().encodeToString((ScriptPackage.UTF8_PREAMBLE + "; " + script).getBytes(java.nio.charset.StandardCharsets.UTF_16LE));
+        return List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded);
+    }
+
+    @Action(id = "get_mouse_position", name = "Get mouse position", category = "Mouse", idempotent = true, capabilities = "desktop",
+            description = "Return where the mouse pointer is, in the same screen pixels Mouse click and Mouse move use.")
+    @Output(name = "x", type = OoaType.NUMBER, description = "Pixels from the left of the main screen.")
+    @Output(name = "y", type = OoaType.NUMBER, description = "Pixels from the top of the main screen.")
+    public Map<String, Object> getMousePosition(ActionContext ctx) {
+        if (GraphicsEnvironment.isHeadless()) throw new ActionException("DESKTOP.NO_DISPLAY", "This runner has no screen", "Run the agent on a runner with a signed-in desktop.");
+        PointerInfo pi = MouseInfo.getPointerInfo();
+        if (pi == null) throw new ActionException("DESKTOP.NO_POINTER", "The mouse position cannot be read", "The desktop may be locked; unlock it and try again.", true);
+        Point p = pi.getLocation();
+        return Out.of("x", BigDecimal.valueOf(p.x), "y", BigDecimal.valueOf(p.y));
+    }
+
+    @Action(id = "set_key_state", name = "Set Caps Lock, Num Lock or Scroll Lock", category = "Keyboard", capabilities = "desktop",
+            description = "Turn Caps Lock, Num Lock or Scroll Lock on or off, so text typed later comes out as expected.",
+            panel = "key, state")
+    @Output(name = "was_on", type = OoaType.BOOLEAN, description = "Whether the key was on before.")
+    public Map<String, Object> setKeyState(ActionContext ctx,
+            @Input(name = "key", type = OoaType.STRING, enumValues = {"caps_lock", "num_lock", "scroll_lock"}, description = "Which lock key.") String key,
+            @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"off\"", enumValues = {"on", "off"}, description = "Turn it on or off.") String state) {
+        String k = choice("key", key, "caps_lock", "caps_lock", "num_lock", "scroll_lock");
+        boolean on = "on".equals(choice("state", state, "off", "on", "off"));
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Lock keys can be set on Windows only", "Run this agent on a Windows runner.");
+        // Java's Toolkit.getLockingKeyState keeps an old value after a key press, so Windows is asked directly, before and after
+        Map<String, String> env = Map.of("OOA_VK", switch (k) { case "num_lock" -> "144"; case "scroll_lock" -> "145"; default -> "20"; },
+                "OOA_SCAN", switch (k) { case "num_lock" -> "69"; case "scroll_lock" -> "70"; default -> "58"; }, "OOA_ON", on ? "1" : "0");
+        ProcessRunner.Result r = ProcessRunner.run(ctx, encodedPowershell(LOCK_KEY_SCRIPT), null, null, 30, env, java.nio.charset.StandardCharsets.UTF_8);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("was=([01]);now=([01])").matcher(r.stdout());
+        if (!m.find()) throw new ActionException("DESKTOP.FAILED", "Cannot set " + k.replace('_', ' ') + ": " + ApplicationPackage.tail(r.stderr() + r.stdout()), null, true);
+        if (m.group(2).equals("1") != on)
+            throw new ActionException("DESKTOP.KEY_STATE_UNCHANGED", "Windows did not turn " + k.replace('_', ' ') + (on ? " on" : " off"),
+                    "The desktop may be locked, or another program holds the keyboard; try again with the desktop unlocked.", true);
+        return Out.of("was_on", m.group(1).equals("1"));
+    }
+
+    /** Reads a lock key's state with GetKeyState, presses it with keybd_event when it differs, and reads it again. */
+    static final String LOCK_KEY_SCRIPT = String.join("\n",
+            "Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public static class OoaLock { [DllImport(\"user32.dll\")] public static extern short GetKeyState(int k); [DllImport(\"user32.dll\")] public static extern void keybd_event(byte vk, byte scan, int flags, System.IntPtr extra); }'",
+            "$vk = [int]$env:OOA_VK; $want = $env:OOA_ON -eq '1'",
+            "$was = ([OoaLock]::GetKeyState($vk) -band 1) -eq 1",
+            "if ($was -ne $want) { [OoaLock]::keybd_event([byte]$vk, [byte]$env:OOA_SCAN, 1, [IntPtr]::Zero); Start-Sleep -Milliseconds 60; [OoaLock]::keybd_event([byte]$vk, [byte]$env:OOA_SCAN, 3, [IntPtr]::Zero) }",
+            "$now = $was; for ($i = 0; $i -lt 20 -and $now -ne $want; $i++) { Start-Sleep -Milliseconds 50; $now = ([OoaLock]::GetKeyState($vk) -band 1) -eq 1 }",
+            "\"was=$([int]$was);now=$([int]$now)\"");
+
+    /** Windows virtual-key codes by the key names Press keys uses (several differ from Java's codes). */
+    private static Integer windowsKey(String name) {
+        String n = name.strip().toUpperCase(Locale.ROOT);
+        Map<String, Integer> special = Map.ofEntries(Map.entry("ENTER", 0x0D), Map.entry("TAB", 0x09), Map.entry("ESC", 0x1B), Map.entry("ESCAPE", 0x1B),
+                Map.entry("BACKSPACE", 0x08), Map.entry("DELETE", 0x2E), Map.entry("INSERT", 0x2D), Map.entry("UP", 0x26), Map.entry("DOWN", 0x28),
+                Map.entry("LEFT", 0x25), Map.entry("RIGHT", 0x27), Map.entry("HOME", 0x24), Map.entry("END", 0x23), Map.entry("PAGE_UP", 0x21),
+                Map.entry("PAGE_DOWN", 0x22), Map.entry("SPACE", 0x20), Map.entry("CTRL", 0x11), Map.entry("ALT", 0x12), Map.entry("SHIFT", 0x10),
+                Map.entry("WIN", 0x5B), Map.entry("PRINTSCREEN", 0x2C), Map.entry("CAPS_LOCK", 0x14), Map.entry("NUM_LOCK", 0x90),
+                Map.entry("SCROLL_LOCK", 0x91), Map.entry("PAUSE", 0x13), Map.entry("MENU", 0x5D));
+        if (special.containsKey(n)) return special.get(n);
+        if (n.matches("F([1-9]|1[0-9]|2[0-4])")) return 0x70 + Integer.parseInt(n.substring(1)) - 1;
+        if (n.matches("[A-Z0-9]")) return (int) n.charAt(0);
+        if (n.matches("NUMPAD[0-9]")) return 0x60 + (n.charAt(6) - '0');
+        return null;
+    }
+
+    /** Polls GetAsyncKeyState; reports the first key or button that goes down after the wait starts (one already held does not count). */
+    static final String WAIT_INPUT_SCRIPT = String.join("\n",
+            "Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public static class OoaKeys { [DllImport(\"user32.dll\")] public static extern short GetAsyncKeyState(int k); [StructLayout(LayoutKind.Sequential)] public struct P { public int X, Y; } [DllImport(\"user32.dll\")] public static extern bool GetCursorPos(out P p); }'",
+            "$want = @($env:OOA_CODES -split ',' | Where-Object { $_ } | ForEach-Object { [int]$_ })",
+            "$end = (Get-Date).AddSeconds([double]$env:OOA_TIMEOUT)",
+            "$was = @{}; foreach ($k in $want) { $was[$k] = ([OoaKeys]::GetAsyncKeyState($k) -band 0x8000) -ne 0 }",
+            "while ((Get-Date) -lt $end) {",
+            "  foreach ($k in $want) { $down = ([OoaKeys]::GetAsyncKeyState($k) -band 0x8000) -ne 0",
+            "    if ($down -and -not $was[$k]) { $p = New-Object OoaKeys+P; [void][OoaKeys]::GetCursorPos([ref]$p); \"hit=$k;x=$($p.X);y=$($p.Y)\"; exit 0 }",
+            "    $was[$k] = $down }",
+            "  Start-Sleep -Milliseconds 25 }",
+            "'timeout'");
+
+    @Action(id = "wait_for_input", name = "Wait for mouse or key", category = "Keyboard", capabilities = "desktop", timeoutSeconds = 3700,
+            description = "Pause until the person at the runner presses a chosen key, any key, or clicks the mouse, e.g. 'press F9 when the form is ready' in an attended agent.",
+            panel = "wait_for, key, timeout_seconds | fail_on_timeout")
+    @Output(name = "timed_out", type = OoaType.BOOLEAN, description = "True when nothing happened in time.")
+    @Output(name = "input", type = OoaType.STRING, description = "What happened: the key name, LEFT_CLICK, RIGHT_CLICK or MIDDLE_CLICK; empty on time-out.")
+    @Output(name = "x", type = OoaType.NUMBER, description = "Pointer position (physical screen pixels) when it happened.")
+    @Output(name = "y", type = OoaType.NUMBER, description = "Pointer position (physical screen pixels) when it happened.")
+    public Map<String, Object> waitForInput(ActionContext ctx,
+            @Input(name = "wait_for", type = OoaType.STRING, required = false, defaultValue = "\"key\"", enumValues = {"key", "any_key", "click", "key_or_click"},
+                    description = "key: the key below; any_key: any key; click: any mouse button; key_or_click: the key below or a click.") String waitFor,
+            @Input(name = "key", type = OoaType.STRING, required = false, example = "F9", visibleWhen = "wait_for=key|key_or_click",
+                    description = "Key name, e.g. F9, ENTER, ESC or A.") String key,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, max = 3600, description = "Give up after this many seconds.") int timeout,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Fail with DESKTOP.INPUT_TIMEOUT when nothing happens in time; when off, timed_out is true and the agent carries on.") boolean failOnTimeout) {
+        String mode = choice("wait_for", waitFor, "key", "key", "any_key", "click", "key_or_click");
+        if (timeout < 1 || timeout > 3600) throw new ActionException("DESKTOP.BAD_OPTION", "timeout_seconds must be 1 to 3600", "Give a time limit in seconds.");
+        Map<Integer, String> names = new LinkedHashMap<>();
+        if (mode.equals("key") || mode.equals("key_or_click")) {
+            if (key == null || key.isBlank()) throw new ActionException("DESKTOP.BAD_KEY", "No key given", "Fill in the key, e.g. F9.");
+            Integer code = windowsKey(key);
+            if (code == null) throw new ActionException("DESKTOP.BAD_KEY", "Unknown key '" + key + "'", "Use a name like F9, ENTER, ESC, SPACE or a letter.");
+            names.put(code, key.strip().toUpperCase(Locale.ROOT));
+        }
+        if (mode.equals("any_key"))
+            for (String n : List.of("ENTER", "TAB", "ESC", "BACKSPACE", "DELETE", "INSERT", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PAGE_UP", "PAGE_DOWN",
+                    "SPACE", "CTRL", "ALT", "SHIFT", "WIN", "PAUSE"))
+                names.put(windowsKey(n), n);
+        if (mode.equals("any_key")) {
+            for (int i = 1; i <= 24; i++) names.put(0x70 + i - 1, "F" + i);
+            for (char c = 'A'; c <= 'Z'; c++) names.put((int) c, String.valueOf(c));
+            for (char c = '0'; c <= '9'; c++) names.put((int) c, String.valueOf(c));
+        }
+        if (mode.equals("click") || mode.equals("key_or_click")) { names.put(0x01, "LEFT_CLICK"); names.put(0x02, "RIGHT_CLICK"); names.put(0x04, "MIDDLE_CLICK"); }
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Waiting for input is supported on Windows only", "Run this agent on a Windows runner.");
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("OOA_CODES", String.join(",", names.keySet().stream().map(String::valueOf).toList()));
+        env.put("OOA_TIMEOUT", String.valueOf(timeout));
+        ProcessRunner.Result r = ProcessRunner.run(ctx, encodedPowershell(WAIT_INPUT_SCRIPT), null, null, timeout + 60, env, java.nio.charset.StandardCharsets.UTF_8);
+        String out = r.stdout().strip();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("hit=(\\d+);x=(-?\\d+);y=(-?\\d+)").matcher(out);
+        if (m.find())
+            return Out.of("timed_out", false, "input", names.getOrDefault(Integer.parseInt(m.group(1)), m.group(1)),
+                    "x", new BigDecimal(m.group(2)), "y", new BigDecimal(m.group(3)));
+        if (r.exitCode() != 0) throw new ActionException("DESKTOP.FAILED", "Waiting for input failed: " + ApplicationPackage.tail(r.stderr() + out), null, true);
+        if (failOnTimeout) throw new ActionException("DESKTOP.INPUT_TIMEOUT", "Nothing was pressed or clicked within " + timeout + " s", "Raise timeout_seconds, or turn off fail_on_timeout.", true);
+        return Out.of("timed_out", true, "input", "", "x", null, "y", null);
+    }
+
+    private static final String BLOCK_SESSION = "ooa.desktop.block_input";
+
+    /**
+     * BlockInput holds only while the thread that called it lives, so a helper PowerShell keeps it for up to the limit;
+     * stopping that process (Unblock input, the end of the run, a crash) gives the mouse and keyboard back at once.
+     */
+    static final String BLOCK_SCRIPT = String.join("\n",
+            "Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public static class OoaBlock { [DllImport(\"user32.dll\")] public static extern bool BlockInput(bool b); }'",
+            "if (-not [OoaBlock]::BlockInput($true)) { 'denied'; exit 3 }",
+            "'blocked'; [Console]::Out.Flush()",
+            "Start-Sleep -Seconds ([int]$env:OOA_SECONDS)",
+            "[void][OoaBlock]::BlockInput($false)");
+
+    /** The helper that keeps input blocked; closed (and input given back) when the run ends. */
+    static final class InputBlock implements AutoCloseable {
+        final Process process;
+        InputBlock(Process p) { this.process = p; }
+        @Override public void close() { process.destroyForcibly(); }
+    }
+
+    @Action(id = "block_input", name = "Block input", category = "Keyboard", capabilities = "desktop",
+            description = "Stop the person's mouse and keyboard from interfering while the next steps run. Windows allows it only to agents running as administrator; input comes back after the time limit, with Unblock input, or when the run ends, and Ctrl+Alt+Del always works.",
+            panel = "seconds")
+    public Map<String, Object> blockInput(ActionContext ctx,
+            @Input(name = "seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 1, max = 300, description = "Longest time to block, 1 to 300 seconds.") int seconds) {
+        if (seconds < 1 || seconds > 300) throw new ActionException("DESKTOP.BAD_OPTION", "seconds must be 1 to 300", "Block for a short time only.");
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Blocking input is supported on Windows only", "Run this agent on a Windows runner.");
+        unblock(ctx);
+        try {
+            ProcessBuilder pb = new ProcessBuilder(encodedPowershell(BLOCK_SCRIPT)).redirectErrorStream(true);
+            pb.environment().put("OOA_SECONDS", String.valueOf(seconds));
+            Process p = pb.start();
+            java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream(), java.nio.charset.StandardCharsets.UTF_8));
+            String line;
+            long until = System.nanoTime() + 30_000_000_000L;
+            while ((line = in.readLine()) != null && System.nanoTime() < until) {
+                if (line.contains("blocked")) { ctx.sessions().put(BLOCK_SESSION, new InputBlock(p)); ctx.warn("Mouse and keyboard blocked for up to " + seconds + " s"); return Map.of(); }
+                if (line.contains("denied")) break;
+            }
+            p.destroyForcibly();
+            throw new ActionException("DESKTOP.NEEDS_ADMIN", "Windows did not allow blocking the mouse and keyboard", "Run the agent as administrator, or leave this step out.", false);
+        } catch (IOException e) { throw new ActionException("DESKTOP.FAILED", "Cannot start the input block: " + e.getMessage(), null, true); }
+    }
+
+    private static boolean unblock(ActionContext ctx) {
+        Object o = ctx.sessions().remove(BLOCK_SESSION);
+        if (o instanceof InputBlock b) { b.close(); return true; }
+        return false;
+    }
+
+    @Action(id = "unblock_input", name = "Unblock input", category = "Keyboard", capabilities = "desktop",
+            description = "Give the mouse and keyboard back after Block input, before its time limit.")
+    @Output(name = "was_blocked", type = OoaType.BOOLEAN, description = "True when input was blocked by this run.")
+    public Map<String, Object> unblockInput(ActionContext ctx) { return Out.of("was_blocked", unblock(ctx)); }
 }

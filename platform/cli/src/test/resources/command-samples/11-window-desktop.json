@@ -624,5 +624,18 @@
  {"command": "ooa.window/show", "name": "no window named", "steps": [
    {"action": "ooa.window/show", "args": {}}], "error": "WINDOW.NO_TARGET"},
  {"command": "ooa.window/show", "name": "nothing hidden or visible by that title", "steps": [
-   {"action": "ooa.window/show", "args": {"title": "no such window 7f3a"}}], "error": "WINDOW.NOT_FOUND"}
+   {"action": "ooa.window/show", "args": {"title": "no such window 7f3a"}}], "error": "WINDOW.NOT_FOUND"},
+ {"command": "ooa.desktop/get_mouse_position", "name": "after a move (G09)", "requires": "desktop", "steps": [
+   {"action": "ooa.desktop/mouse_move", "args": {"x": 300, "y": 200}},
+   {"action": "ooa.desktop/get_mouse_position", "out": {"x": "x", "y": "y"}}], "expect": {"x": 300, "y": 200}},
+ {"command": "ooa.desktop/set_key_state", "name": "Num Lock on (G09)", "requires": "desktop", "steps": [
+   {"action": "ooa.desktop/set_key_state", "args": {"key": "num_lock", "state": "on"}, "out": {"was_on": "before"}},
+   {"action": "ooa.desktop/set_key_state", "args": {"key": "num_lock", "state": "on"}, "out": {"was_on": "now"}}], "expect": {"now": true}},
+ {"command": "ooa.desktop/wait_for_input", "name": "unknown key", "steps": [
+   {"action": "ooa.desktop/wait_for_input", "args": {"wait_for": "key", "key": "F99"}}], "error": "DESKTOP.BAD_KEY"},
+ {"command": "ooa.desktop/wait_for_input", "name": "nothing pressed, carry on", "requires": "desktop", "steps": [
+   {"action": "ooa.desktop/wait_for_input", "args": {"wait_for": "key", "key": "F24", "timeout_seconds": 1}, "out": {"timed_out": "t", "input": "i"}}],
+  "expect": {"t": true, "i": ""}},
+ {"command": "ooa.desktop/unblock_input", "name": "nothing blocked", "steps": [
+   {"action": "ooa.desktop/unblock_input", "out": {"was_blocked": "b"}}], "expect": {"b": false}}
 ]
