@@ -115,4 +115,13 @@ describe("variables", () => {
       { seq: 3, type: "variable.set", data: { name: "total", value: 2 } }]);
     expect([...last]).toEqual([["total", 2]]);
   });
+
+  it("counts and renames the error handler's variable and the variables its steps use", () => {
+    const f: Flow = { kind: "TaskBot", id: "a", name: "A", variables: [{ name: "err", type: "Dictionary" }], steps: [],
+      onError: { as: "err", steps: [{ id: "h", action: "core/log", args: { message: "${err.message}" } }] } };
+    expect(usageCount(f, "err")).toBe(2);
+    const r = renameRefs(f, "err", "problem");
+    expect(r.onError!.as).toBe("problem");
+    expect(r.onError!.steps[0].args).toEqual({ message: "${problem.message}" });
+  });
 });

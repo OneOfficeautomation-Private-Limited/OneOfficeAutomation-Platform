@@ -134,8 +134,8 @@ public final class CodeAnalysis {
         Map<String, Object> rules = (Map<String, Object>) policy.get("rules");
         List<Violation> out = new ArrayList<>();
         List<Object> top = (List<Object>) flow.getOrDefault("steps", List.of());
-        List<Map<String, Object>> all = Steps.walk(top);
-        String json = JsonLite.write(flow.getOrDefault("steps", List.of()));
+        List<Map<String, Object>> all = Steps.walkFlow(flow);   // the error handler's steps (onError) too
+        String json = JsonLite.write(flow.getOrDefault("steps", List.of())) + (flow.containsKey("onError") ? JsonLite.write(flow.get("onError")) : "");
         for (var e : rules.entrySet()) {
             Map<String, Object> r = (Map<String, Object>) e.getValue();
             if (!Boolean.TRUE.equals(r.get("enabled"))) continue;
@@ -158,7 +158,7 @@ public final class CodeAnalysis {
                 }
                 case "require_error_handling" -> {
                     int min = num(p.get("min_steps"), 5);
-                    if (all.size() > min && all.stream().noneMatch(s -> "core/try".equals(s.get("action"))))
+                    if (all.size() > min && Steps.onError(flow) == null && all.stream().noneMatch(s -> "core/try".equals(s.get("action"))))
                         out.add(new Violation("require_error_handling", sev, null, "The agent has " + all.size() + " steps and no Try/Catch"));
                 }
                 case "empty_catch" -> {
@@ -204,7 +204,7 @@ public final class CodeAnalysis {
                 }
                 case "max_nesting" -> {
                     int limit = num(p.get("limit"), 6);
-                    int depth = depth(top, 0);
+                    int depth = Math.max(depth(top, 0), depth(Steps.onErrorSteps(flow), 0));
                     if (depth > limit) out.add(new Violation("max_nesting", sev, null, "Blocks are nested " + depth + " deep (limit " + limit + ")"));
                 }
                 default -> { }

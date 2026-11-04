@@ -82,7 +82,7 @@ public final class ServerlessRuns {
         for (Object b : bundle.values()) if (b instanceof Map<?, ?> m) flows.add((Map<String, Object>) m);
         Set<String> bad = new TreeSet<>();
         for (Map<String, Object> f : flows)
-            for (Map<String, Object> s : Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+            for (Map<String, Object> s : Steps.walkFlow(f)) {
                 String a = String.valueOf(s.get("action"));
                 String pid = a.contains("/") ? a.substring(0, a.indexOf('/')) : "core";
                 if (!TOOLKITS.contains(pid)) bad.add(pid);

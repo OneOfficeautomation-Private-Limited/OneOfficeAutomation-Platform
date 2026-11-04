@@ -6,6 +6,8 @@ import type { ActionManifest, Flow, FlowStep, FlowVariable, PackageManifest } fr
  */
 
 type Lists = { list: FlowStep[]; index: number; step: FlowStep };
+/** An agent, or anything holding steps as one does. */
+type StepHolder = Pick<Flow, "steps" | "onError">;
 
 /** The lists of steps inside a step: Then/Repeat/Try (children), Else if, Else, Catch, Finally, a Switch's cases, Default. */
 export function innerLists(s: FlowStep): FlowStep[][] {
@@ -33,10 +35,27 @@ function* every(steps: FlowStep[]): Generator<FlowStep> {
   for (const s of steps) { yield s; for (const inner of innerLists(s)) yield* every(inner); }
 }
 
+/** The agent's top lists of steps: its steps, then its error handler's (On error) when it has one. */
+export function rootLists(flow: StepHolder): FlowStep[][] {
+  return flow.onError ? [flow.steps, flow.onError.steps ?? []] : [flow.steps];
+}
+
+/** Where a step is, in the agent's steps or in its error handler's. */
+export function findStep(flow: StepHolder, id: string): Lists | null {
+  for (const list of rootLists(flow)) { const r = locate(list, id); if (r) return r; }
+  return null;
+}
+
+/** Every step of the agent, the error handler's included, in the order the editor numbers them. */
+export function allSteps(flow: Flow): FlowStep[] { return rootLists(flow).flatMap((l) => [...every(l)]); }
+
+/** True when the step is one of the error handler's steps (or inside one). */
+export const inHandler = (flow: Flow, id: string) => !!flow.onError && !!locate(flow.onError.steps ?? [], id);
+
 /** The next free step id (s1, s2 ...), as Classic Studio numbers them. */
 export function nextId(flow: Flow, taken = new Set<string>()): string {
   let n = 0;
-  for (const s of every(flow.steps)) { const m = /^s(\d+)$/.exec(s.id); if (m) n = Math.max(n, +m[1]); }
+  for (const s of allSteps(flow)) { const m = /^s(\d+)$/.exec(s.id); if (m) n = Math.max(n, +m[1]); }
   for (const t of taken) { const m = /^s(\d+)$/.exec(t); if (m) n = Math.max(n, +m[1]); }
   return "s" + (n + 1);
 }
@@ -114,7 +133,8 @@ export type Spot = { id: string | null; where: Place; part?: Part };
 /** Puts steps at a spot; false when the spot is not there (any more). */
 function put(f: Flow, steps: FlowStep[], spot: Spot): boolean {
   if (!spot.id) { if (spot.where === "before") f.steps.unshift(...steps); else f.steps.push(...steps); return true; }
-  const at = locate(f.steps, spot.id);
+  if (spot.id === ON_ERROR) { const h = (f.onError ??= { steps: [] }); (h.steps ??= []).push(...steps); return true; }   // at the end of On error
+  const at = findStep(f, spot.id);
   if (!at) return false;
   if (spot.where === "inside") {
     const list = partList(at.step, spot.part ?? firstPart(at.step));
@@ -144,7 +164,7 @@ export function moveManyTo(flow: Flow, ids: string[], targetId: string | null, w
   if (!chosen.length || (targetId && chosen.some((s) => holds(s, targetId)))) return flow;
   const f = copy(flow);
   const moving: FlowStep[] = [];
-  for (const s of chosen) { const at = locate(f.steps, s.id)!; at.list.splice(at.index, 1); moving.push(at.step); }
+  for (const s of chosen) { const at = findStep(f, s.id)!; at.list.splice(at.index, 1); moving.push(at.step); }
   return put(f, moving, { id: targetId, where, part }) ? f : flow;
 }
 
@@ -153,12 +173,14 @@ export function topSteps(flow: Flow, ids: string[]): FlowStep[] {
   const want = new Set(ids);
   const out: FlowStep[] = [];
   const walk = (list: FlowStep[]) => { for (const s of list) { if (want.has(s.id)) out.push(s); else innerLists(s).forEach(walk); } };
-  walk(flow.steps);
+  rootLists(flow).forEach(walk);
   return out;
 }
 
 /** Selection keys that are not steps: the Start row, and a block part's heading (its steps go to the end of it). */
 export const START = "@start";
+/** The heading of the agent's error handler (On error): steps clicked or dropped there go at its end. */
+export const ON_ERROR = "@onerror";
 export const sectionKey = (id: string, part: Part) => `@part:${id}:${part}`;
 export function parseSection(key: string): { id: string; part: Part } | null {
   const m = /^@part:([^:]+):(.+)$/.exec(key);
@@ -173,6 +195,7 @@ export function parseSection(key: string): { id: string; part: Part } | null {
 export function spotFor(flow: Flow, selected: string[], intoBlock = true): Spot {
   const last = selected[selected.length - 1];
   if (last === START) return { id: null, where: "before" };
+  if (last === ON_ERROR) return { id: ON_ERROR, where: "inside" };
   const sec = last ? parseSection(last) : null;
   if (sec) return { id: sec.id, where: "inside", part: sec.part };
   const real = topSteps(flow, selected.filter((x) => !x.startsWith("@")));
@@ -191,7 +214,7 @@ export function removeSteps(flow: Flow, ids: string[]): Flow {
 /** Switches several steps off, or on again when every one of them is off already. */
 export function toggleDisabledMany(flow: Flow, ids: string[]): Flow {
   const f = copy(flow);
-  const steps = ids.map((id) => locate(f.steps, id)?.step).filter((s): s is FlowStep => !!s);
+  const steps = ids.map((id) => findStep(f, id)?.step).filter((s): s is FlowStep => !!s);
   const allOff = steps.every((s) => s.disabled);
   for (const s of steps) { if (allOff) delete s.disabled; else s.disabled = true; }
   return f;
@@ -207,7 +230,7 @@ export function duplicateSteps(flow: Flow, ids: string[]): { flow: Flow; ids: st
 
 export function removeStep(flow: Flow, id: string): Flow {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (at) at.list.splice(at.index, 1);
   return f;
 }
@@ -215,7 +238,7 @@ export function removeStep(flow: Flow, id: string): Flow {
 /** Moves a step one place up (-1) or down (+1) within its own list; at either end nothing changes. */
 export function moveStep(flow: Flow, id: string, by: -1 | 1): Flow {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (!at) return flow;
   const to = at.index + by;
   if (to < 0 || to >= at.list.length) return flow;
@@ -227,7 +250,7 @@ export function moveStep(flow: Flow, id: string, by: -1 | 1): Flow {
 /** A copy of a step (and the steps inside it, with new ids) right after it. Returns the copy's id with the flow. */
 export function duplicateStep(flow: Flow, id: string): { flow: Flow; id: string | null } {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (!at) return { flow, id: null };
   const dup = structuredClone(at.step);
   const taken = new Set<string>();
@@ -238,7 +261,7 @@ export function duplicateStep(flow: Flow, id: string): { flow: Flow; id: string 
 
 export function toggleDisabled(flow: Flow, id: string): Flow {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (at) { if (at.step.disabled) delete at.step.disabled; else at.step.disabled = true; }
   return f;
 }
@@ -246,7 +269,7 @@ export function toggleDisabled(flow: Flow, id: string): Flow {
 /** Sets one input of a step; undefined clears it (the toolkit's default applies). */
 export function setArg(flow: Flow, id: string, name: string, value: unknown): Flow {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (!at) return flow;
   const args = { ...(at.step.args ?? {}) };
   if (value === undefined) delete args[name]; else args[name] = value;
@@ -257,7 +280,7 @@ export function setArg(flow: Flow, id: string, name: string, value: unknown): Fl
 /** Saves one output of a step in a variable (name without $); empty stops saving it. */
 export function setOut(flow: Flow, id: string, output: string, variable: string): Flow {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (!at) return flow;
   const out = { ...(at.step.out ?? {}) };
   const v = variable.trim().replace(/^\$/, "");
@@ -268,7 +291,7 @@ export function setOut(flow: Flow, id: string, output: string, variable: string)
 
 export function setNote(flow: Flow, id: string, note: string): Flow {
   const f = copy(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (at) { if (note.trim()) at.step.note = note; else delete at.step.note; }
   return f;
 }
@@ -333,7 +356,7 @@ export function moveSelection(flow: Flow, ids: string[], by: -1 | 1): Flow {
   const f = copy(flow);
   const chosen = topSteps(f, ids);
   const lists = new Map<FlowStep[], number[]>();
-  for (const s of chosen) { const at = locate(f.steps, s.id)!; lists.set(at.list, [...(lists.get(at.list) ?? []), at.index]); }
+  for (const s of chosen) { const at = findStep(f, s.id)!; lists.set(at.list, [...(lists.get(at.list) ?? []), at.index]); }
   let moved = 0;
   for (const [list, idx] of lists) {
     const set = new Set(idx.map((i) => list[i]));
@@ -389,7 +412,7 @@ export function pasteSteps(flow: Flow, clip: Clip, spot: Spot): { flow: Flow; id
 /** Adds a part to an If (Else if, Else), a Try (Catch, Finally) or a Switch (Case, Default); returns the part, so the editor can select it. */
 export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default"): { flow: Flow; part: Part | null } {
   const f = copy(flow);
-  const s = locate(f.steps, id)?.step;
+  const s = findStep(f, id)?.step;
   if (!s) return { flow, part: null };
   if (kind === "elseIf") { (s.elseIf ??= []).push({ condition: undefined, children: [] }); return { flow: f, part: `elseIf:${s.elseIf.length - 1}` }; }
   if (kind === "catch") { (s.catch ??= []).push({ codes: [], children: [] }); return { flow: f, part: `catch:${s.catch.length - 1}` }; }
@@ -405,7 +428,7 @@ export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "cat
  */
 export function removeBranch(flow: Flow, id: string, part: Part): Flow {
   const f = copy(flow);
-  const s = locate(f.steps, id)?.step;
+  const s = findStep(f, id)?.step;
   if (!s || part === "children") return flow;
   if (part === "else" || part === "finally" || part === "default") delete s[part];
   else {
@@ -422,7 +445,7 @@ export function removeBranch(flow: Flow, id: string, part: Part): Flow {
 /** Moves a Switch case one place up (-1) or down (+1), with its steps; returns the case's new part, or null at either end. */
 export function moveCase(flow: Flow, id: string, k: number, by: -1 | 1): { flow: Flow; part: Part | null } {
   const f = copy(flow);
-  const cases = locate(f.steps, id)?.step.cases;
+  const cases = findStep(f, id)?.step.cases;
   const to = k + by;
   if (!cases || k < 0 || k >= cases.length || to < 0 || to >= cases.length) return { flow, part: null };
   [cases[k], cases[to]] = [cases[to], cases[k]];
@@ -432,7 +455,7 @@ export function moveCase(flow: Flow, id: string, k: number, by: -1 | 1): { flow:
 /** Sets the values that select a Switch case (empty entries are left out). */
 export function setCaseValues(flow: Flow, id: string, k: number, values: unknown[]): Flow {
   const f = copy(flow);
-  const c = locate(f.steps, id)?.step.cases?.[k];
+  const c = findStep(f, id)?.step.cases?.[k];
   if (!c) return flow;
   c.values = values.filter((v) => v !== undefined && v !== "");
   return f;
@@ -441,7 +464,7 @@ export function setCaseValues(flow: Flow, id: string, k: number, values: unknown
 /** Sets the error codes a Catch takes (none = every error). */
 export function setCatchCodes(flow: Flow, id: string, k: number, codes: string[]): Flow {
   const f = copy(flow);
-  const c = locate(f.steps, id)?.step.catch?.[k];
+  const c = findStep(f, id)?.step.catch?.[k];
   if (!c) return flow;
   c.codes = codes;
   return f;
@@ -450,7 +473,7 @@ export function setCatchCodes(flow: Flow, id: string, k: number, codes: string[]
 /** Sets the condition of an Else if. */
 export function setElseIfCondition(flow: Flow, id: string, k: number, condition: unknown): Flow {
   const f = copy(flow);
-  const b = locate(f.steps, id)?.step.elseIf?.[k];
+  const b = findStep(f, id)?.step.elseIf?.[k];
   if (!b) return flow;
   b.condition = condition;
   return f;
@@ -470,7 +493,7 @@ export function setFolded(flow: Flow, ids: string[], folded: boolean): Flow {
 }
 
 /** Every block in the agent (for Fold all). */
-export function blockIds(flow: Flow): string[] { return [...every(flow.steps)].filter((s) => isBlock(s.action)).map((s) => s.id); }
+export function blockIds(flow: Flow): string[] { return allSteps(flow).filter((s) => isBlock(s.action)).map((s) => s.id); }
 
 /** The keys of a step that are not its settings: never changed by find and replace. */
 const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "cases", "default", "disabled", "connection"]);
@@ -502,5 +525,33 @@ export function replaceInSteps(flow: Flow, find: string, replace: string, matchC
     return out;
   };
   const steps = flow.steps.map((st) => step(st, ids.length === 0));
-  return { flow: count ? { ...flow, steps } : flow, count };
+  const onError = flow.onError && { ...flow.onError, steps: (flow.onError.steps ?? []).map((st) => step(st, ids.length === 0)) };
+  return { flow: count ? { ...flow, steps, ...(onError ? { onError } : {}) } : flow, count };
+}
+
+/** Gives the agent an error handler (On error), empty: the run still fails with the error after it, until changed. */
+export function addOnError(flow: Flow): Flow {
+  if (flow.onError) return flow;
+  const f = copy(flow);
+  f.onError = { steps: [] };
+  return f;
+}
+
+/** Changes the error handler's settings: its variable, what happens after it (fail or succeed), the screenshot. */
+export function setOnError(flow: Flow, patch: { as?: string; then?: "fail" | "succeed"; screenshot?: boolean }): Flow {
+  if (!flow.onError) return flow;
+  const f = copy(flow);
+  const h = f.onError!;
+  if ("as" in patch) { const v = (patch.as ?? "").trim().replace(/^\$/, ""); if (v) h.as = v; else delete h.as; }
+  if ("then" in patch) { if (patch.then === "succeed") h.then = "succeed"; else delete h.then; }   // fail is the default
+  if ("screenshot" in patch) { if (patch.screenshot) h.screenshot = true; else delete h.screenshot; }
+  return f;
+}
+
+/** Removes the error handler with its steps. */
+export function removeOnError(flow: Flow): Flow {
+  if (!flow.onError) return flow;
+  const f = copy(flow);
+  delete f.onError;
+  return f;
 }

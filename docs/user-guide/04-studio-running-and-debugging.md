@@ -110,6 +110,10 @@ When the run ends:
   *Log message* steps, and run finished. Click a step id to jump to it.
 - **Variables** tab: a table of each variable's **Last value**, plus **Outputs**. Credentials always show as `****`.
 - The step that failed stays marked on the canvas.
+- When the agent has **On error** steps (guide 03, section 9.4), the output shows **On error started** after the
+  failed step, the On error steps as they run, then **On error finished**. With **Fail the run** the result still shows
+  the original error; with **Succeed with a warning** the run finishes and the log names the error that was handled.
+  Breakpoints on On error steps stop there as on any step.
 
 > **Tip:** Use **Log message** steps (with `${…}` text) to write what the agent is doing; they appear in the Run log here
 > and in One CommandCenter's run details. **Add log fields** (Log toolkit) attaches values such as the invoice number or

@@ -29,9 +29,10 @@ from .core_package import CONTAINERS, SWITCH_MATCHES, SWITCH_OPS
 from .error_codes import any_matches
 from .events import EventSink, ListSink, RunEvent
 from .expressions import binary, evaluate, resolve, truthy
-from .validate import validate_flow
+from .validate import validate_flow, walk_steps
 
 MAX_CHILD_DEPTH = 10
+HANDLER_GRACE_SECONDS = 60   # extra time the error handler gets when the run went over its time limit
 
 
 class _Break(Exception):
@@ -149,7 +150,7 @@ class _Run:
     def execute(self, inputs: dict, validate: bool) -> RunResult:
         t0 = time.monotonic()
         aid = self.flow.get("id", "?")
-        status, error = "success", None
+        status, error, handled = "success", None, None
         plan_hash = ""
         try:
             if self.flow.get("kind") == "Agent":
@@ -161,7 +162,14 @@ class _Run:
             plan_hash = self._plan_hash(inputs)
             self.emit("run.started", automation=aid, kind=self.flow["kind"], planHash=plan_hash,
                       depth=self.depth, inputs=self._masked_inputs())
-            self._exec_steps(self.flow.get("steps", []), top_level=True)
+            try:
+                self._exec_steps(self.flow.get("steps", []), top_level=True)
+            except RunCancelled:
+                raise
+            except OoaError as e:
+                if not self._handle_error(e):
+                    raise
+                handled = e
         except RunCancelled as e:
             status, error = "stopped", e.to_dict()
         except (_Break, _Continue):
@@ -175,7 +183,8 @@ class _Run:
         outputs = {v["name"]: self.scope.values.get(v["name"]) for v in self.flow.get("variables", [])
                    if v.get("direction") == "output"}
         dur = int((time.monotonic() - t0) * 1000)
-        self.emit("run.finished", status=status, durationMs=dur, error=error, outputs=outputs)
+        extra = {"handledError": handled.to_dict()} if handled is not None else {}   # ended as succeeded by the error handler
+        self.emit("run.finished", status=status, durationMs=dur, error=error, outputs=outputs, **extra)
         self.secrets.clear()
         return RunResult(self.run_id, aid, status, outputs if status == "success" else outputs, error, dur,
                          plan_hash, self.steps_executed)
@@ -215,7 +224,7 @@ class _Run:
         """Same Flow + inputs + package versions -> same plan (determinism, replay, audit)."""
         logic = {k: v for k, v in self.flow.items() if k != "ui"}
         versions = {}
-        for pid in sorted({s.split("/")[0] for s in _all_actions(self.flow.get("steps", []))}):
+        for pid in sorted({s.split("/")[0] for s in _all_actions((self.flow.get("steps") or []) + ((self.flow.get("onError") or {}).get("steps") or []))}):
             try:
                 versions[pid] = self.r.registry.resolve(pid, self.requires.get(pid)).version
             except OoaError:
@@ -232,6 +241,42 @@ class _Run:
                 except Exception:
                     pass
         self.sessions.clear()
+
+    def _handle_error(self, e: OoaError) -> bool:
+        """The agent's error handler (flow "onError"): runs once for an error no Try block caught, while sessions are
+        still open. True ends the run as succeeded ("then": "succeed"); False fails it with the original error. An
+        error inside the handler is logged and the run fails with the original error."""
+        h = self.flow.get("onError")
+        if not isinstance(h, dict) or isinstance(e, RunCancelled):
+            return False
+        sid = e.step_id
+        succeed = h.get("then") == "succeed"
+        if e.code == "RUN.TIMEOUT" or (self.deadline and time.monotonic() > self.deadline):
+            self.deadline = time.monotonic() + HANDLER_GRACE_SECONDS   # a little extra time for the handler
+        self.emit("error_handler.started", sid, code=e.code, message=e.message, then="succeed" if succeed else "fail")
+        self._log("info", f"Running the agent's error handler for {e.code}", sid)
+        t0, outcome = time.monotonic(), "done"
+        try:
+            err = e.to_dict()
+            walked = [s for s, _ in walk_steps(self.flow.get("steps"))] + [s for s, _ in walk_steps(h.get("steps"))]
+            at = next((i for i, s in enumerate(walked) if s.get("id") == sid), None)
+            err["line"] = Decimal(at + 1) if at is not None else None
+            err["action"] = walked[at]["action"] if at is not None else None
+            err["stack"] = [{"automation": str(self.flow.get("id", "?")), "stepId": sid or ""}]
+            if h.get("as"):
+                self.scope.set(h["as"], err)
+            self._exec_steps(h.get("steps"))
+        except RunCancelled:
+            self.emit("error_handler.finished", sid, status="stopped", durationMs=_ms(t0))
+            raise
+        except (OoaError, _Break, _Continue) as x:
+            what = f"{x.code}: {x.message}" if isinstance(x, OoaError) else "break/continue outside a loop"
+            self._log("error", f"The error handler failed with {what}; the run fails with the original error {e.code}", sid)
+            outcome, succeed = "failed", False
+        self.emit("error_handler.finished", sid, status=outcome, durationMs=_ms(t0))
+        if succeed:
+            self._log("warning", f"The error handler handled {e.code} ({e.message}); the run ends as succeeded", sid)
+        return succeed
 
     # ---------- execution ----------
     def lookup(self, name: str) -> Any:

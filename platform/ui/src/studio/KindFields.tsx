@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FlowStep, OpenWindow, PackageManifest, SavedConnection } from "../api/client";
 import { Button, Field, Select } from "../components";
-import { locate } from "./flowEdit";
+import { findStep } from "./flowEdit";
 import { CommitInput } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
 import { SavedConnectionsDialog } from "./WorkspaceTools";
@@ -87,7 +87,7 @@ export function WindowEditor({ step }: { step: FlowStep }) {
 /** A step's settings as they would be with one input changed (undefined clears it). */
 function withArg<T extends { steps: FlowStep[] }>(flow: T, id: string, name: string, value: unknown): T {
   const f = structuredClone(flow);
-  const at = locate(f.steps, id);
+  const at = findStep(f, id);
   if (!at) return flow;
   const args = { ...(at.step.args ?? {}) };
   if (value === undefined) delete args[name]; else args[name] = value;
@@ -115,7 +115,7 @@ export function ElementActionSelect({ step, all, id }: { step: FlowStep; all: st
         if (o && !step.out?.result) {
           const n = uniqueName(f, o.name);
           f = { ...f, variables: [...(f.variables ?? []), { name: n, type: o.type }] };
-          const at = locate(f.steps, step.id);
+          const at = findStep(f, step.id);
           if (at) at.step.out = { ...(at.step.out ?? {}), result: n };
         }
         vars.edit(f);
@@ -143,7 +143,7 @@ export function ConnectionField({ step, pkgName, pkgId, names, showing, onShow, 
   const mine = (list ?? []).filter((c) => c.package === pkgId);
   const set = (name: string) => {
     const f = structuredClone(vars.flow);
-    const at = locate(f.steps, step.id);
+    const at = findStep(f, step.id);
     if (!at) return;
     if (name) at.step.connection = name; else delete at.step.connection;
     vars.edit(f);

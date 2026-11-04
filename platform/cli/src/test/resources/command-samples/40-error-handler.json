@@ -1,0 +1,106 @@
+[
+ {
+  "command": "agent/onError",
+  "name": "then fail: the handler sees the error, the run fails with it",
+  "vars": {"note": ""},
+  "steps": [
+   {"action": "core/set", "args": {"variable": "note", "value": "started"}},
+   {"id": "read", "action": "core/throw", "args": {"code": "BUSINESS.NO_DATA", "message": "The sheet is empty", "suggested_fix": "Fill the sheet"}},
+   {"action": "core/set", "args": {"variable": "note", "value": "never"}}
+  ],
+  "onError": {
+   "as": "err",
+   "steps": [
+    {"action": "core/set", "args": {"variable": "note", "value": "${note}; ${err.code} at ${err.stepId} (${err.action}, line ${err.line}): ${err.suggestedFix}"}}
+   ]
+  },
+  "error": "BUSINESS.NO_DATA",
+  "expect": {"note": "started; BUSINESS.NO_DATA at read (core/throw, line 2): Fill the sheet"}
+ },
+ {
+  "command": "agent/onError",
+  "name": "then succeed: the run ends as succeeded after the handler",
+  "vars": {"note": ""},
+  "steps": [
+   {"action": "core/throw", "args": {"code": "UI.NOT_FOUND", "message": "No Submit button"}}
+  ],
+  "onError": {
+   "as": "err",
+   "then": "succeed",
+   "steps": [
+    {"action": "core/log", "args": {"level": "warning", "message": "Skipped: ${err.message}"}},
+    {"action": "core/set", "args": {"variable": "note", "value": "handled ${err.code}"}}
+   ]
+  },
+  "expect": {"note": "handled UI.NOT_FOUND"}
+ },
+ {
+  "command": "agent/onError",
+  "name": "an error a Try block catches does not start the handler",
+  "vars": {"note": ""},
+  "steps": [
+   {"action": "core/try", "children": [
+     {"action": "core/throw", "args": {"code": "BUSINESS.SKIP", "message": "caught"}}
+    ], "catch": [{"children": [{"action": "core/set", "args": {"variable": "note", "value": "caught"}}]}]}
+  ],
+  "onError": {
+   "then": "succeed",
+   "steps": [{"action": "core/set", "args": {"variable": "note", "value": "handler"}}]
+  },
+  "expect": {"note": "caught"}
+ },
+ {
+  "command": "agent/onError",
+  "name": "an error inside the handler fails the run with the original error",
+  "vars": {"note": ""},
+  "steps": [
+   {"action": "core/throw", "args": {"code": "BUSINESS.FIRST", "message": "the real cause"}}
+  ],
+  "onError": {
+   "then": "succeed",
+   "steps": [
+    {"action": "core/set", "args": {"variable": "note", "value": "handler ran"}},
+    {"action": "core/throw", "args": {"code": "MAIL.DOWN", "message": "no mail server"}},
+    {"action": "core/set", "args": {"variable": "note", "value": "never"}}
+   ]
+  },
+  "error": "BUSINESS.FIRST",
+  "expect": {"note": "handler ran"}
+ },
+ {
+  "command": "agent/onError",
+  "name": "a Stop agent step does not start the handler",
+  "vars": {"note": ""},
+  "steps": [
+   {"action": "core/stop", "args": {"status": "failed", "message": "Nothing to do"}}
+  ],
+  "onError": {
+   "then": "succeed",
+   "steps": [{"action": "core/set", "args": {"variable": "note", "value": "handler"}}]
+  },
+  "error": "AGENT.STOPPED",
+  "expect": {"note": ""}
+ },
+ {
+  "command": "agent/onError",
+  "name": "a child agent's failure reaches the parent's handler; the child's own handler runs first",
+  "vars": {"note": ""},
+  "agents": {
+   "child": {"kind": "TaskBot", "id": "child", "name": "child",
+    "variables": [{"name": "seen", "type": "String", "direction": "output", "default": ""}],
+    "steps": [{"id": "c1", "action": "core/throw", "args": {"code": "CHILD.BAD_ROW", "message": "row 7 is broken"}}],
+    "onError": {"steps": [{"id": "h1", "action": "core/log", "args": {"message": "child handler"}}]}}
+  },
+  "steps": [
+   {"id": "run", "action": "core/run_bot", "args": {"automation": "child"}}
+  ],
+  "onError": {
+   "as": "err",
+   "steps": [
+    {"action": "core/set", "args": {"variable": "note", "value": "${err.code} at ${err.stepId}, child step ${err.details.childStepId}"}}
+   ]
+  },
+  "error": "CHILD.BAD_ROW",
+  "expect": {"note": "CHILD.BAD_ROW at run, child step c1"}
+ }
+]

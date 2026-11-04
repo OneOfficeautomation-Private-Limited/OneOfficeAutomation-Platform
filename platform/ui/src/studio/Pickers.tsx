@@ -119,7 +119,7 @@ function connectArgs(flow: Flow): Args | null {
     for (const c of s.cases ?? []) walk(c.children);
     walk(s.default);
   } };
-  walk(flow.steps);
+  walk(flow.steps); walk(flow.onError?.steps ?? []);
   return found;
 }
 

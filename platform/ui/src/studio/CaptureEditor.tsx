@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FlowStep, OpenWindow } from "../api/client";
 import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
-import { locate } from "./flowEdit";
+import { findStep } from "./flowEdit";
 import {
   DESKTOP_LABELS, desktopWindowVariable, fillWindowFromCapture, MATCHES, shareDesktopWindow, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
 } from "./capture";
@@ -61,10 +61,10 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
       // the captured window also goes into a numbered window variable (the step's window on the web, the object's on
       // the desktop), as one change
       let f = structuredClone(vars.flow);
-      let at = locate(f.steps, step.id);
+      let at = findStep(f, step.id);
       if (!at) return;
       const shared = desktop ? shareDesktopWindow(f, next) : null;
-      if (shared) { f = shared.flow; at = locate(f.steps, step.id)!; }
+      if (shared) { f = shared.flow; at = findStep(f, step.id)!; }
       at.step.args = { ...(at.step.args ?? {}), object: shared ? shared.obj : next };
       vars.edit(desktop ? f : fillWindowFromCapture(f, at.step, next, "window" in (at.step.args ?? {}) || step.action.startsWith("ooa.browser/")));
       vars.notice?.("Captured " + (next.properties ?? []).length + " properties" + (shared?.name ? "; the window is in $" + shared.name : "") + ".");
@@ -253,7 +253,7 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
       for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children),
         ...(s.cases ?? []).map((c) => c.children), s.default]) if (l) walk(l);
     } };
-    walk(f.steps);
+    walk(f.steps); walk(f.onError?.steps ?? []);
     vars.edit(f);
     vars.notice?.("The steps in this window now use $" + name + ".");
   };

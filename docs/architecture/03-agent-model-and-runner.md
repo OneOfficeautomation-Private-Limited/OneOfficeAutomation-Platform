@@ -74,6 +74,7 @@ Validation failures raise `FLOW.INVALID` with the number of problems and the fir
 | `requires.files` | Repository files the runner receives with the job, placed at the same path in its workspace |
 | `errorHandling.default` | `stop` (default) or `continue` for failures outside any Try block (top level only) |
 | `errorHandling.retry` | Default retry policy for every step that has none |
+| `onError` | The agent's error handler: `as`, `steps`, `then` (`fail` or `succeed`), `screenshot` (section 9) |
 | `agent` | For `kind: Agent`: `instructions`, `goalTemplate`, `modelConnection`, `tools`, `maxSteps`, `maxCostUsd`, `temperature`, `outputSchema` |
 | `ui` | Designer layout only; ignored by the engine and left out of the plan hash |
 
@@ -277,6 +278,33 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
   `RUN.TIMEOUT`. Run workers set 24 hours.
 - **Stopping**: the cancel flag makes the next check raise `RUN.CANCELLED`, which ends the run as `stopped` and is never
   caught by a Catch block.
+- **The agent's error handler** (`onError`, "On error" in One AgentStudio): steps that run once when an error escapes
+  every Try block of the main steps (`Runner.Run.handleError`).
+
+  ```json
+  "onError": {"as": "err", "then": "fail", "screenshot": false, "steps": [ ... ]}
+  ```
+
+  - It runs before sessions are closed, so its steps can still use the open browser, workbook or window (take a
+    screenshot, close an application, send a mail). Sessions close after it.
+  - `as` (a declared Dictionary or Any variable) receives the error as a Catch does (`code`, `message`,
+    `suggestedFix`, `stepId`, `details`, `line`, `action`) plus `stack`: the agents and steps it happened in, from the
+    outermost run (`[{automation, stepId}]`). `screenshot` takes a picture first (as a Catch does) into
+    `screenshot`.
+  - `then: fail` (the default) ends the run `failed` with the **original** error, so One CommandCenter, retries and
+    parent agents see the real cause. `then: succeed` ends it `success`; a warning is logged and `run.finished`
+    carries the handled error as `handledError`.
+  - An error inside the handler is logged (level `error`) and the run fails with the original error; the handler never
+    handles its own errors. A Stop agent step inside it ends the handler; `then` still applies.
+  - It is not started by: errors a Catch handles, steps with `continueOnError` (or `errorHandling.default:
+    continue`), a Stop agent step (`AGENT.STOPPED` is a deliberate end), stopping the run (`RUN.CANCELLED`), errors
+    before the first step (validation, inputs) or `break`/`continue` outside a loop.
+  - When the run went over its time limit (`RUN.TIMEOUT`), the handler gets 60 extra seconds.
+  - A child agent has its own handler. The parent's handler sees a child's failure only when it escapes the child
+    (the child had no handler, or its handler ended with `fail`), as the error of the parent's Run agent step
+    (`details.childStepId`).
+  - Its steps follow the main steps in line numbers (`Steps.walkFlow`), and every walker (validator, plan hash,
+    toolkit and child-agent lists, code analysis) includes them; step ids are unique across both.
 
 ## 10. Child agents
 
@@ -317,7 +345,9 @@ Each event is a `RunEvent(runId, seq, type, ts, stepId, data)`; `seq` increases 
 | `variable.set` | `name`, `value` (safe text form; `edited` or `carried` when set by the debugger or carry-over) |
 | `log` | `level`, `message` (secrets replaced by `****`) |
 | `run.paused`, `run.resumed` | Optional `message` and `byAgent` for `core/pause` |
-| `run.finished` | `status`, `durationMs`, `error`, `outputs` |
+| `error_handler.started` | `code`, `message`, `then` (the agent's error handler starts; step id = the failed step) |
+| `error_handler.finished` | `status` (`done`, `failed` or `stopped`), `durationMs` |
+| `run.finished` | `status`, `durationMs`, `error`, `outputs`; `handledError` when the error handler ended the run as succeeded |
 
 `EventSink` implementations: an in-memory list (tests, Studio), a console printer (`ooa run`), and the run worker's
 JSON-line stream to the runner, which posts batches to One CommandCenter (`run_events`).

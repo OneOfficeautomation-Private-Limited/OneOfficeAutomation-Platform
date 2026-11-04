@@ -137,14 +137,14 @@ const assignments = (s: FlowStep) => s.action === "core/set_many" && Array.isArr
 export function usageCount(flow: Flow, name: string): number {
   const re = refRegex(name);
   let n = 0;
-  for (const s of every(flow.steps)) {
+  for (const s of every([...flow.steps, ...(flow.onError?.steps ?? [])])) {
     n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition), (s.cases ?? []).map((c) => c.values)]).match(re) ?? []).length;
     n += Object.values(s.out ?? {}).filter((v) => v === name).length;
     n += NAME_ARGS.filter((k) => s.args?.[k] === name).length;
     n += assignments(s).filter((r) => r.variable === name).length;
     n += (s.catch ?? []).filter((c) => c.as === name).length;
   }
-  return n;
+  return n + (flow.onError?.as === name ? 1 : 0);   // the error handler's variable
 }
 
 /** After a rename, every $old, ${old}, output and loop or catch name in the agent points to the new name. */
@@ -153,7 +153,7 @@ export function renameRefs(flow: Flow, oldName: string, newName: string): Flow {
   const re = refRegex(oldName);
   const map = (v: unknown): unknown => typeof v === "string" ? v.replace(re, (_m, brace) => "$" + (brace ?? "") + newName)
     : Array.isArray(v) ? v.map(map) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, map(x)])) : v;
-  for (const s of every(f.steps)) {
+  for (const s of every([...f.steps, ...(f.onError?.steps ?? [])])) {
     if (s.args) { s.args = map(s.args) as Record<string, unknown>; for (const k of NAME_ARGS) if (s.args[k] === oldName) s.args[k] = newName; }
     for (const r of assignments(s)) if (r.variable === oldName) r.variable = newName;
     for (const b of s.elseIf ?? []) b.condition = map(b.condition);
@@ -161,6 +161,7 @@ export function renameRefs(flow: Flow, oldName: string, newName: string): Flow {
     for (const [k, v] of Object.entries(s.out ?? {})) if (v === oldName) s.out![k] = newName;
     for (const c of s.catch ?? []) if (c.as === oldName) c.as = newName;
   }
+  if (f.onError?.as === oldName) f.onError.as = newName;
   return f;
 }
 

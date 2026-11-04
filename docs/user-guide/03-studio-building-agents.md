@@ -350,6 +350,35 @@ In a step's **Error handling** section:
   rate limit).
 - **Timeout (seconds)**: how long the step may take; the placeholder shows the action's default.
 
+### 9.4 On error: steps for any error that ends the agent
+
+A Try covers the steps inside it. **On error** covers the whole agent: its steps run once when an error that no Try
+caught is about to end the agent, while the browser, workbook and windows the agent opened are still open. Use it to
+take a screenshot, close applications, write the error to a file or send a mail.
+
+1. With no step selected, the **Properties** tab has **If an error ends the agent**. Click **Add error steps (On
+   error)**. (Or **More step actions** > **Add error steps (On error)**.)
+2. A red **ON ERROR** heading appears under **END**. While it is selected, actions you click in the library go into it;
+   you can also drag steps and actions onto it. Its steps are numbered on from the agent's last line.
+3. Click **ON ERROR** to set:
+   - **Keep the error in**: a Dictionary variable that gets the error: `code`, `message`, `suggestedFix`, `stepId`,
+     `line`, `action`, and `stack` (the agents and steps it happened in). For example `${err.message}` in a mail.
+   - **Then**: **Fail the run** (the default) ends the run failed with the original error, so One CommandCenter, retries
+     and the agents that called this one see the real cause. **Succeed with a warning** ends it as succeeded; the run
+     log says which error was handled.
+   - **Take a screenshot first**: saved under `screenshots/` in the workspace.
+   - **Remove On error** removes it with its steps.
+
+Good to know:
+
+- On error does not run for an error a Catch handles, for a step set to continue on error, for a **Stop agent** step, or
+  when someone stops the run.
+- If a step inside On error fails, the run log shows that error and the run fails with the original one. On error never
+  runs again for its own errors.
+- A child agent has its own On error. The parent's On error sees the child's failure only when the child still fails.
+- When the run went over its time limit, On error gets one extra minute.
+- **Run from here** is not offered on On error steps: they run only after an error.
+
 ## 10. Step groups, notes and comments
 
 - **Step** (in Logic and flow) is a named group of steps. Give it a **Title**; it changes nothing when the agent runs

@@ -1,0 +1,81 @@
+{
+  "name": "022_error_handler_fail",
+  "description": "An error no Try block catches runs the agent's error handler (onError) once with the error; then the run fails with the original error. Caught errors do not start it.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c19",
+    "name": "c19",
+    "variables": [
+      {
+        "name": "err",
+        "type": "Dictionary"
+      },
+      {
+        "name": "log",
+        "type": "String",
+        "direction": "output",
+        "default": ""
+      }
+    ],
+    "steps": [
+      {
+        "id": "t",
+        "action": "core/try",
+        "children": [
+          {
+            "id": "inner",
+            "action": "core/throw",
+            "args": {
+              "code": "BUSINESS.SKIP",
+              "message": "caught here"
+            }
+          }
+        ],
+        "catch": [
+          {
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "x",
+        "action": "core/throw",
+        "args": {
+          "code": "BUSINESS.NO_INVOICE",
+          "message": "no invoice",
+          "suggested_fix": "check the folder"
+        }
+      },
+      {
+        "id": "never",
+        "action": "core/set",
+        "args": {
+          "variable": "log",
+          "value": "bad"
+        }
+      }
+    ],
+    "onError": {
+      "as": "err",
+      "steps": [
+        {
+          "id": "h",
+          "action": "core/set",
+          "args": {
+            "variable": "log",
+            "value": "${log}handled ${err.code} at ${err.stepId}: ${err.suggestedFix}"
+          }
+        }
+      ]
+    }
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "BUSINESS.NO_INVOICE",
+    "errorStepId": "x",
+    "outputs": {
+      "log": "handled BUSINESS.NO_INVOICE at x: check the folder"
+    }
+  }
+}

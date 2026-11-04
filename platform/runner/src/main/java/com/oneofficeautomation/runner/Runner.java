@@ -25,6 +25,8 @@ public final class Runner {
     public static final int MAX_CHILD_DEPTH = 10;
     /** Session key of the run's log fields: name to value, added to every log event (ooa.log Add log fields). */
     public static final String LOG_FIELDS_SESSION = "ooa.log.fields";
+    /** Extra time the agent's error handler gets when the run went over its time limit. */
+    static final long HANDLER_GRACE_NANOS = 60L * 1_000_000_000L;
 
     private final PackageRegistry registry;
     private final Map<String, Object> services;
@@ -388,6 +390,7 @@ public final class Runner {
             String aid = String.valueOf(flow.getOrDefault("id", "?"));
             String status = "success";
             Map<String, Object> error = null;
+            OoaException handled = null;
             String planHash = "";
             try {
                 if ("Agent".equals(flow.get("kind")))
@@ -409,7 +412,8 @@ public final class Runner {
                     log("info", "Values from the last run: " + String.join(", ", carried), null);
                     for (String n : carried) emit("variable.set", null, data("name", n, "value", Values.safeRepr(scope.values.get(n)), "carried", true));
                 }
-                execSteps((List<Object>) flow.get("steps"), true);
+                try { execSteps((List<Object>) flow.get("steps"), true); }
+                catch (OoaException e) { if (!handleError(e)) throw e; handled = e; }
             } catch (OoaException e) {
                 status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : "failed";
                 error = e.toMap();
@@ -437,7 +441,9 @@ public final class Runner {
             }
             long dur = (System.nanoTime() - t0) / 1_000_000;
             if (trail != null && depth == 0) { trail.endedEarly = !"success".equals(status); trail.atEnd = snapshot(); }
-            emit("run.finished", null, data("status", status, "durationMs", dur, "error", error, "outputs", outputs));
+            Map<String, Object> finished = data("status", status, "durationMs", dur, "error", error, "outputs", outputs);
+            if (handled != null) finished.put("handledError", handled.toMap());   // ended as succeeded by the error handler
+            emit("run.finished", null, finished);
             if (depth == 0) { secureValues.forEach(SecureString::wipe); secrets.clear(); }
             return new RunResult(runId, aid, status, outputs, error, dur, planHash, stepsExecuted.get());
         }
@@ -508,7 +514,7 @@ public final class Runner {
             Map<String, Object> logic = new LinkedHashMap<>(flow);
             logic.remove("ui");
             Map<String, Object> versions = new TreeMap<>();
-            for (Map<String, Object> s : Steps.walk((List<Object>) flow.get("steps"))) {
+            for (Map<String, Object> s : Steps.walkFlow(flow)) {
                 String pid = String.valueOf(s.get("action")).split("/")[0];
                 try { versions.put(pid, registry.resolve(pid, (String) requires.get(pid)).version()); }
                 catch (OoaException e) { versions.put(pid, "?"); }
@@ -1047,7 +1053,7 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         Map<String, Object> errorInfo(OoaException e) {
             Map<String, Object> m = new LinkedHashMap<>(e.toMap());
-            if (walked == null) walked = Steps.walk((List<Object>) flow.get("steps"));
+            if (walked == null) walked = Steps.walkFlow(flow);
             Object line = null, action = null;
             for (int i = 0; i < walked.size(); i++)
                 if (String.valueOf(walked.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = walked.get(i).get("action"); break; }
@@ -1075,6 +1081,48 @@ public final class Runner {
                 log("warning", "Could not take the error screenshot: " + ex.getMessage(), stepId);
                 return null;
             }
+        }
+
+        /**
+         * The agent's error handler (flow "onError"): runs once when an error escapes every Try block of the main steps,
+         * while browsers, files and windows are still open. Returns true when the run is to end as succeeded ("then":
+         * "succeed"); false ends it failed with the original error. Stop and cancel never reach it; an error inside the
+         * handler is logged and the run fails with the original error (the handler never handles its own errors).
+         */
+        boolean handleError(OoaException e) {
+            Map<String, Object> h = Steps.onError(flow);
+            if (h == null || "RUN.CANCELLED".equals(e.code())) return false;
+            String sid = e.stepId();
+            boolean succeed = "succeed".equals(h.get("then"));
+            // a run that went over its time limit gets a short extra time for its handler
+            if ("RUN.TIMEOUT".equals(e.code()) || System.nanoTime() > deadlineNanos) deadlineNanos = System.nanoTime() + HANDLER_GRACE_NANOS;
+            emit("error_handler.started", sid, data("code", e.code(), "message", e.getMessage(), "then", succeed ? "succeed" : "fail"));
+            log("info", "Running the agent's error handler for " + e.code(), sid);
+            long t0 = System.nanoTime();
+            String outcome = "done";
+            try {
+                Map<String, Object> err = errorInfo(e);
+                err.put("stack", frame(Map.of("id", sid == null ? "" : sid)).stack());
+                if (h.get("screenshot") != null && !Boolean.FALSE.equals(h.get("screenshot"))) err.put("screenshot", screenshot(h.get("screenshot"), sid == null ? "run" : sid));
+                if (h.get("as") instanceof String as && !as.isBlank()) scope.set(as, err);
+                execSteps(Steps.onErrorSteps(flow), false);
+            } catch (StopSignal stop) {
+                log("info", "A Stop step ended the error handler", sid);
+            } catch (OoaException x) {
+                if ("RUN.CANCELLED".equals(x.code())) { emitHandlerFinished(sid, "stopped", t0); throw x; }
+                log("error", "The error handler failed with " + x.code() + ": " + x.getMessage() + "; the run fails with the original error " + e.code(), x.stepId());
+                outcome = "failed"; succeed = false;
+            } catch (BreakSignal | ContinueSignal x) {
+                log("error", "The error handler used break/continue outside a loop; the run fails with the original error " + e.code(), sid);
+                outcome = "failed"; succeed = false;
+            }
+            emitHandlerFinished(sid, outcome, t0);
+            if (succeed) log("warning", "The error handler handled " + e.code() + " (" + e.getMessage() + "); the run ends as succeeded", sid);
+            return succeed;
+        }
+
+        void emitHandlerFinished(String sid, String outcome, long t0) {
+            emit("error_handler.finished", sid, data("status", outcome, "durationMs", (System.nanoTime() - t0) / 1_000_000));
         }
 
         @SuppressWarnings("unchecked")

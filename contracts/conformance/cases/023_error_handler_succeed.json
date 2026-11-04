@@ -1,0 +1,52 @@
+{
+  "name": "023_error_handler_succeed",
+  "description": "With then = succeed the run ends as succeeded after the agent's error handler has run.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c20",
+    "name": "c20",
+    "variables": [
+      {
+        "name": "e",
+        "type": "Dictionary"
+      },
+      {
+        "name": "log",
+        "type": "String",
+        "direction": "output",
+        "default": "start"
+      }
+    ],
+    "steps": [
+      {
+        "id": "x",
+        "action": "core/throw",
+        "args": {
+          "code": "UI.NOT_FOUND",
+          "message": "no button"
+        }
+      }
+    ],
+    "onError": {
+      "as": "e",
+      "then": "succeed",
+      "steps": [
+        {
+          "id": "h",
+          "action": "core/set",
+          "args": {
+            "variable": "log",
+            "value": "${log}; ${e.message}"
+          }
+        }
+      ]
+    }
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "log": "start; no button"
+    }
+  }
+}

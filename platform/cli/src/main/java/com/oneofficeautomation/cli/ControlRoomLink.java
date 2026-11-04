@@ -229,7 +229,7 @@ final class ControlRoomLink {
     @SuppressWarnings("unchecked")
     static List<String> idsUsedBy(Map<String, Object> flow) {
         List<String> ids = new ArrayList<>();
-        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             Map<String, Object> args = step.get("args") instanceof Map ? (Map<String, Object>) step.get("args") : Map.of();
             if ("core/run_bot".equals(step.get("action")) && args.get("automation") instanceof String a) ids.add(a);
             if ("ooa.ai_agent/run".equals(step.get("action")))

@@ -9,12 +9,12 @@ import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } f
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
-import { addStep, insertAt, locate, newStep, parseLoose, type Part, type Place } from "./flowEdit";
+import { addStep, findStep, insertAt, newStep, parseLoose, type Part, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
 import { ConnectionWizard } from "./ConnectionWizard";
-import { allInstalled, stepRows } from "./toolkits";
+import { agentRows, allInstalled } from "./toolkits";
 import { oneStep, runOnce } from "./runOnce";
 
 /**
@@ -239,11 +239,11 @@ export function App({ api: given }: { api?: StudioApi }) {
   /** Run agent step: opens the agent it runs, remembering the way back to this step. */
   const openChild = (stepId: string) => {
     if (!agent) return;
-    const step = locate(agent.flow.steps, stepId)?.step;
+    const step = findStep(agent.flow, stepId)?.step;
     const id = String(step?.args?.automation ?? "");
     const child = agents.find((a) => a.id === id);
     if (!child) { setError(id ? "Agent " + id + " is not in this workspace." : "Choose the agent to run first."); return; }
-    const line = stepRows(agent.flow.steps).find((r) => r.kind === "step" && r.step.id === stepId);
+    const line = agentRows(agent.flow).rows.find((r) => r.kind === "step" && r.step.id === stepId);
     const here: Trail = { path: agent.path, name: agent.flow.name || agent.name, stepId, line: line?.kind === "step" ? line.n : 0 };
     open({ name: child.path.split("/").pop()!, path: child.path, type: "bot" }, { trail: [...(agent.trail ?? []), here] });
   };
@@ -260,7 +260,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     const walk = (list: FlowStep[]): FlowStep | undefined => { for (const s of list) { if (s.action === "core/run_bot" && s.args?.automation === childId) return s;
       const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? []),
         ...(s.cases ?? []).flatMap((c) => c.children ?? []), ...(s.default ?? [])]); if (inner) return inner; } return undefined; };
-    const step = flow ? walk(flow.steps) : undefined;
+    const step = flow ? walk([...flow.steps, ...(flow.onError?.steps ?? [])]) : undefined;
     open({ name: path.split("/").pop()!, path, type: "bot" }, step ? { select: step.id } : undefined);
   };
   /** A document type's extraction agent: read the document (PDF text when it can), then extract its fields with AI. */

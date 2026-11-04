@@ -51,6 +51,17 @@
         "retry": {"$ref": "#/$defs/retry"}
       }
     },
+    "onError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The agent's error handler: steps that run once when an error escapes every Try block of the main steps, before browsers, files and windows are closed. Stop steps and stopping the run do not start it; errors inside it are logged and the run fails with the original error.",
+      "properties": {
+        "as": {"type": "string", "description": "Dictionary variable that receives the error: code, message, suggestedFix, stepId, line, action, details, stack (the agents and steps it happened in) and, with screenshot, the picture's path."},
+        "steps": {"$ref": "#/$defs/stepList", "description": "What to do with the error, for example take a screenshot, close applications or send a mail."},
+        "then": {"enum": ["fail", "succeed"], "default": "fail", "description": "After the handler: fail ends the run failed with the original error (so One CommandCenter, retries and parent agents see the real cause); succeed ends it as succeeded with a warning."},
+        "screenshot": {"type": ["boolean", "string"], "description": "Take a screenshot before the handler runs: true saves it under screenshots/ in the workspace, a text value is the file path to use. Never fails the handler."}
+      }
+    },
     "agent": {"$ref": "#/$defs/agent"},
     "ui": {
       "type": "object",

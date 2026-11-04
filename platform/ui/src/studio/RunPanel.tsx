@@ -38,6 +38,8 @@ function line(e: RunEvent, stepName: (id: string) => string): { text: string; to
     case "variable.set": return { text: at + "$" + String(d.name) + " = " + showValue(d.value) };
     case "run.paused": return { text: "Paused" };
     case "run.resumed": return { text: "Resumed" };
+    case "error_handler.started": return { text: "On error started for " + String(d.code ?? "the error"), tone: "bad" };
+    case "error_handler.finished": return { text: d.status === "failed" ? "On error failed; the run fails with the original error" : "On error finished", tone: d.status === "failed" ? "bad" : undefined };
     case "run.finished": return { text: "Run " + (d.status === "success" ? "finished" : String(d.status)), tone: d.status === "success" ? "good" : "bad" };
     default: return null;   // step.started and other detail stay out of the way
   }
