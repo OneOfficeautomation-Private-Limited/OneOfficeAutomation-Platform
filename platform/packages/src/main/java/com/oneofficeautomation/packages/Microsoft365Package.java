@@ -3216,4 +3216,222 @@ public final class Microsoft365Package {
         HttpJson.req(P, "DELETE", spList(base, site, list) + "/items/" + HttpJson.enc(id)).bearer(token).send(ctx);
         return Map.of();
     }
+
+    // ------------------------------------------ Teams channels -----------------------------------
+
+    private static String need(String v, String input) {
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_INPUT", input + " is required", "Fill in " + input + ".");
+        return v.trim();
+    }
+
+    private static String channelUrl(String base, String team, String channel) {
+        return g(base) + "/teams/" + HttpJson.enc(need(team, "team_id")) + "/channels/" + HttpJson.enc(need(channel, "channel_id"));
+    }
+
+    /** Text of a Teams message body: HTML tags removed and the common entities turned back into characters. */
+    static String messageText(Map<String, Object> body) {
+        String c = s(body.get("content"));
+        if (!"html".equalsIgnoreCase(s(body.get("contentType")))) return c;
+        String t = c.replaceAll("(?i)<br\\s*/?>|</p>|</div>", "\n").replaceAll("<[^>]+>", "").replace("&nbsp;", " ");
+        return unescapeHtml(t).replace("&#39;", "'").strip();
+    }
+
+    @Action(id = "create_channel", name = "Create channel (Teams)", category = "Teams", capabilities = "network",
+            description = "Add a standard channel, visible to every member, to a team.",
+            panel = "access_token, team_id, name, description | base_url")
+    @Output(name = "channel_id", type = OoaType.STRING, description = "Id of the new channel.")
+    @Output(name = "web_url", type = OoaType.STRING, description = "Link to open the channel in Teams.")
+    public Map<String, Object> createChannel(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "name", type = OoaType.STRING, description = "Channel name, up to 50 characters, unique in the team.") String name,
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "What the channel is for.") String description,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String t = need(team, "team_id"), n = need(name, "name");
+        if (n.length() > 50) throw new ActionException(P + ".BAD_INPUT", "A channel name can have at most 50 characters", "Shorten the name.");
+        if (n.matches(".*[~#%&*{}+/\\\\:<>?|'\"].*") || n.startsWith("_") || n.startsWith("."))
+            throw new ActionException(P + ".BAD_INPUT", "The channel name '" + n + "' has characters Teams does not allow", "Leave out ~ # % & * { } + / \\ : < > ? | ' \" and a leading _ or .");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("displayName", n);
+        if (description != null && !description.isBlank()) body.put("description", description);
+        body.put("membershipType", "standard");
+        Map<String, Object> r = HttpJson.req(P, "POST", g(base) + "/teams/" + HttpJson.enc(t) + "/channels").bearer(token).json(body).send(ctx).map();
+        return Out.of("channel_id", r.get("id"), "web_url", r.get("webUrl"));
+    }
+
+    @Action(id = "get_channel_messages", name = "Get channel messages (Teams)", category = "Teams", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "Read the posts of a Teams channel, newest first, optionally only those since a date.",
+            panel = "access_token, team_id, channel_id, since | max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, created, from, subject, text, body, content_type, reply_to_id, web_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages.")
+    public Map<String, Object> channelMessages(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Only posts created at or after this time (UTC); all posts when empty.") LocalDateTime since,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Most posts to return.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        if (max < 1) throw new ActionException(P + ".BAD_INPUT", "max_results must be at least 1", null);
+        String first = channelUrl(base, team, channel) + "/messages?$top=" + Math.min(50, max);
+        String cutoff = since == null ? null : UTC.format(since);
+        List<Object> rows = new ArrayList<>();
+        String url = first;
+        while (url != null && rows.size() < max) {
+            Map<String, Object> page = HttpJson.req(P, "GET", url).bearer(token).send(ctx).map();
+            for (Object o : list(page.get("value"))) {
+                Map<String, Object> m = map(o);
+                String created = s(m.get("createdDateTime"));
+                // Graph cannot filter channel posts by date here, so older posts are left out after reading
+                if (cutoff != null && created.compareTo(cutoff) < 0) continue;
+                Object from = at(m, "from", "user", "displayName");
+                if (from == null) from = at(m, "from", "application", "displayName");
+                Map<String, Object> body = map(m.get("body"));
+                rows.add(new ArrayList<>(Arrays.asList(m.get("id"), m.get("createdDateTime"), from, m.get("subject"), messageText(body), body.get("content"),
+                        body.get("contentType"), m.get("replyToId"), m.get("webUrl"))));
+                if (rows.size() >= max) break;
+            }
+            String next = (String) page.get("@odata.nextLink");
+            if (next != null && !HttpJson.sameOrigin(first, next))
+                throw new ActionException(P + ".BAD_RESPONSE", "The next page is on another server (" + HttpJson.host(next) + ")", "Check base_url.");
+            url = next;
+        }
+        return Map.of("table", Values.table(List.of("id", "created", "from", "subject", "text", "body", "content_type", "reply_to_id", "web_url"), rows),
+                "count", num(rows.size()));
+    }
+
+    @Action(id = "reply_to_message", name = "Reply to channel message (Teams)", category = "Teams", capabilities = "network",
+            description = "Post a reply in the thread of a Teams channel message.",
+            panel = "access_token, team_id, channel_id, message_id, message | html, base_url")
+    @Output(name = "reply_id", type = OoaType.STRING, description = "Id of the reply.")
+    public Map<String, Object> replyToMessage(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
+            @Input(name = "message_id", type = OoaType.STRING, description = "Id of the post to reply to, e.g. from Get channel messages.") String messageId,
+            @Input(name = "message", type = OoaType.STRING, description = "Reply text (HTML allowed when html is true).") String message,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Reply is HTML.") boolean html,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String url = channelUrl(base, team, channel) + "/messages/" + HttpJson.enc(need(messageId, "message_id")) + "/replies";
+        if (message == null || message.isBlank()) throw new ActionException(P + ".BAD_INPUT", "The reply has no text", "Fill in message.");
+        Map<String, Object> r = HttpJson.req(P, "POST", url).bearer(token).json(chatBody(message, html, "normal")).send(ctx).map();
+        return Out.of("reply_id", r.get("id"));
+    }
+
+    // ------------------------------------------------ Planner ------------------------------------
+
+    private static final java.util.regex.Pattern GUID = java.util.regex.Pattern.compile("^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$");
+
+    /** Planner assigns tasks to user ids (GUIDs) only. */
+    static List<String> userIds(Object v) {
+        List<String> ids = HttpJson.addressList(v);
+        for (String id : ids)
+            if (!GUID.matcher(id).matches())
+                throw new ActionException(P + ".BAD_INPUT", "'" + id + "' is not a user id", "Planner needs user ids such as 0b1c2d3e-...; Get user gives a person's id from their email address.");
+        return ids;
+    }
+
+    /** ETag of a Planner object: the ETag header, or @odata.etag in the body. */
+    static String etag(HttpJson.Response r) {
+        String e = r.header("ETag");
+        return e != null && !e.isBlank() ? e : s(r.map().get("@odata.etag"));
+    }
+
+    @Action(id = "list_plans", name = "List plans (Planner)", category = "Planner", idempotent = true, capabilities = "network",
+            description = "List the Planner plans of a Microsoft 365 group (the group behind a team).",
+            panel = "access_token, group_id | base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, created, group_id.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of plans.")
+    public Map<String, Object> listPlans(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "group_id", type = OoaType.STRING, description = "Microsoft 365 group id; a team's id is its group id.") String group,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> p : pages(ctx, token, g(base) + "/groups/" + HttpJson.enc(need(group, "group_id")) + "/planner/plans", 0, null)) {
+            Object owner = at(p, "container", "containerId");
+            rows.add(new ArrayList<>(Arrays.asList(p.get("id"), p.get("title"), p.get("createdDateTime"), owner != null ? owner : p.get("owner"))));
+        }
+        return Map.of("table", Values.table(List.of("id", "title", "created", "group_id"), rows), "count", num(rows.size()));
+    }
+
+    @Action(id = "list_tasks", name = "List tasks (Planner)", category = "Planner", idempotent = true, capabilities = "network",
+            description = "List the tasks of a Planner plan, optionally only those in one bucket or assigned to one person.",
+            panel = "access_token, plan_id, bucket_id, assigned_to | base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, bucket_id, percent_complete, due, start, created, completed, assigned_to, priority.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks.")
+    public Map<String, Object> listTasks(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "plan_id", type = OoaType.STRING, description = "Plan id, e.g. from List plans.") String plan,
+            @Input(name = "bucket_id", type = OoaType.STRING, required = false, description = "Only tasks in this bucket; all buckets when empty.") String bucket,
+            @Input(name = "assigned_to", type = OoaType.STRING, required = false, description = "Only tasks assigned to this user id; everyone's when empty.") String assignee,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String p = need(plan, "plan_id");
+        String who = assignee == null || assignee.isBlank() ? null : userIds(assignee.trim()).get(0);
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> t : pages(ctx, token, g(base) + "/planner/plans/" + HttpJson.enc(p) + "/tasks", 0, null)) {
+            if (bucket != null && !bucket.isBlank() && !bucket.trim().equals(s(t.get("bucketId")))) continue;
+            Map<String, Object> asg = map(t.get("assignments"));
+            if (who != null && asg.keySet().stream().noneMatch(k -> k.equalsIgnoreCase(who))) continue;
+            rows.add(new ArrayList<>(Arrays.asList(t.get("id"), t.get("title"), t.get("bucketId"), t.get("percentComplete"), t.get("dueDateTime"), t.get("startDateTime"),
+                    t.get("createdDateTime"), t.get("completedDateTime"), String.join(", ", asg.keySet()), t.get("priority"))));
+        }
+        return Map.of("table", Values.table(List.of("id", "title", "bucket_id", "percent_complete", "due", "start", "created", "completed", "assigned_to", "priority"), rows),
+                "count", num(rows.size()));
+    }
+
+    @Action(id = "create_task", name = "Create task (Planner)", category = "Planner", capabilities = "network",
+            description = "Add a task to a Planner plan, optionally in a bucket, with a due date and people assigned.",
+            panel = "access_token, plan_id, bucket_id, title, due_date, assigned_to | base_url")
+    @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task.")
+    public Map<String, Object> createTask(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "plan_id", type = OoaType.STRING, description = "Plan id, e.g. from List plans.") String plan,
+            @Input(name = "bucket_id", type = OoaType.STRING, required = false, description = "Bucket (column) to put the task in; leave empty for none.") String bucket,
+            @Input(name = "title", type = OoaType.STRING, description = "Task title.") String title,
+            @Input(name = "due_date", type = OoaType.DATETIME, required = false, description = "When the task is due (UTC).") LocalDateTime due,
+            @Input(name = "assigned_to", type = OoaType.LIST, required = false, example = "[\"0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0\"]",
+                    description = "User ids of the people to assign; Get user gives a person's id.") List<Object> assignees,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("planId", need(plan, "plan_id"));
+        if (bucket != null && !bucket.isBlank()) body.put("bucketId", bucket.trim());
+        body.put("title", need(title, "title"));
+        if (due != null) body.put("dueDateTime", UTC.format(due));
+        Map<String, Object> asg = new LinkedHashMap<>();
+        for (String u : userIds(assignees)) asg.put(u, Map.of("@odata.type", "#microsoft.graph.plannerAssignment", "orderHint", " !"));
+        if (!asg.isEmpty()) body.put("assignments", asg);
+        Map<String, Object> r = HttpJson.req(P, "POST", g(base) + "/planner/tasks").bearer(token).json(body).send(ctx).map();
+        return Out.of("task_id", r.get("id"));
+    }
+
+    @Action(id = "update_task", name = "Update task (Planner)", category = "Planner", idempotent = true, capabilities = "network",
+            description = "Change a Planner task's title, progress or due date; fields left empty keep their values.",
+            panel = "access_token, task_id, title, percent_complete, due_date | base_url")
+    public Map<String, Object> updateTask(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = "Task id, e.g. from List tasks.") String task,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = "New title.") String title,
+            @Input(name = "percent_complete", type = OoaType.NUMBER, required = false, description = "Progress from 0 to 100; Planner shows 0 as not started, 1 to 99 as in progress and 100 as completed.") Integer percent,
+            @Input(name = "due_date", type = OoaType.DATETIME, required = false, description = "New due date (UTC).") LocalDateTime due,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String url = g(base) + "/planner/tasks/" + HttpJson.enc(need(task, "task_id"));
+        if (percent != null && (percent < 0 || percent > 100)) throw new ActionException(P + ".BAD_INPUT", "percent_complete must be from 0 to 100", null);
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (title != null && !title.isBlank()) body.put("title", title.trim());
+        if (percent != null) body.put("percentComplete", percent);
+        if (due != null) body.put("dueDateTime", UTC.format(due));
+        if (body.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Nothing to change", "Fill in at least one of title, percent_complete or due_date.");
+        // Planner only accepts a change that names the task's current version (its ETag); when someone changed the task in between, read it again once
+        for (int attempt = 0; ; attempt++) {
+            String tag = etag(HttpJson.req(P, "GET", url).bearer(token).send(ctx));
+            if (tag.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Planner did not return the task's version (ETag)", null);
+            try {
+                HttpJson.req(P, "PATCH", url).bearer(token).header("If-Match", tag).json(body).send(ctx);
+                return Map.of();
+            } catch (ActionException e) {
+                boolean changed = e.details() != null && e.details().get("status") instanceof Number n && (n.intValue() == 412 || n.intValue() == 409);
+                if (!changed) throw e;
+                if (attempt >= 1) throw new ActionException(P + ".CONFLICT", "The task kept changing while it was being updated", "Try again.", true, e.details());
+            }
+        }
+    }
 }

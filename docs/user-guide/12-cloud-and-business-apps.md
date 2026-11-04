@@ -78,7 +78,8 @@ a Graph access token with the permissions the action needs).
 | Calendar | Create calendar event, Get calendar events, Update/Cancel/Delete calendar event, Respond to meeting invitation, Add/Remove event attendees, Find free meeting times |
 | OneDrive / SharePoint files | Upload file, Download file, List files, Find files, Copy/Move/Rename/Delete, Create folder, Share file or folder, Create sharing link, Export file to PDF, Restore file version |
 | Excel online | Get/Set range values, Get/Set cell, Set formula, worksheets, tables (Create table, Add table rows, Get table rows), Write Data Table, Create workbook |
-| Teams | Post Teams message, Send chat message (Teams), Create one-on-one chat (Teams), List teams, List channels, Get channel by name |
+| Teams | Post Teams message, Send chat message (Teams), Create one-on-one chat (Teams), List teams, List channels, Get channel by name, Create channel, Get channel messages, Reply to channel message |
+| Planner | List plans, List tasks, Create task, Update task (reads the task's current version first, as Planner requires, and tries once more if someone else changed it meanwhile) |
 | SharePoint lists | List SharePoint lists, Get SharePoint list items, Create/Update/Delete SharePoint list item |
 | Users | Get user (Microsoft 365) |
 
@@ -95,9 +96,11 @@ The **Google Workspace** group takes a Google OAuth **Access token** from the va
   item, Find Drive items, Share Drive item, permissions, Export Google file.
 - **Sheets**: Read sheet range, Write to sheet, Append rows to sheet, Create spreadsheet, sheets, cells, formulas,
   formatting, Write data table.
+- **Docs**: Create Google Doc (optionally with starting text, in a Drive folder), Read Google Doc text, Replace text in
+  Google Doc (fill a template's placeholders from a dictionary), Add text to Google Doc.
 - **Calendar**: Create, List, Update and Delete Google Calendar events.
 
-Spreadsheets and files are named by their id (the long code in their web address).
+Spreadsheets, documents and files are named by their id (the long code in their web address).
 
 ## 6. Salesforce
 

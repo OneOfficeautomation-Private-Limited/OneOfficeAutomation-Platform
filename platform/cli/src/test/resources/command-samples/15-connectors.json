@@ -1804,5 +1804,68 @@
    }
   ],
   "error": "CONNECTION.WRONG_TOOLKIT"
+ },
+ {
+  "command": "ooa.google/docs_read_text",
+  "name": "a document id with spaces is refused before any request (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.google/docs_read_text", "args": {"endpoint_override": "{mock}", "access_token": "$tok", "document_id": "not a doc id"}}],
+  "error": "GOOGLE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.google/docs_replace_text",
+  "name": "nothing to replace (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.google/docs_replace_text", "args": {"endpoint_override": "{mock}", "access_token": "$tok", "document_id": "1AbC_def-123", "replacements": {}}}],
+  "error": "GOOGLE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.google/docs_append_text",
+  "name": "a link to a spreadsheet is not a document (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.google/docs_append_text", "args": {"endpoint_override": "{mock}", "access_token": "$tok", "document_id": "https://docs.google.com/spreadsheets/d/S1/edit", "text": "x"}}],
+  "error": "GOOGLE.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/update_task",
+  "name": "progress above 100 is refused before any request (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/update_task", "args": {"base_url": "{mock}", "access_token": "$tok", "task_id": "K1", "percent_complete": 150}}],
+  "error": "M365.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/create_task",
+  "name": "assigning by email address instead of user id (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/create_task", "args": {"base_url": "{mock}", "access_token": "$tok", "plan_id": "P1", "title": "Bank rec", "assigned_to": ["ann@acme.test"]}}],
+  "error": "M365.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/create_channel",
+  "name": "channel name with a slash (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/create_channel", "args": {"base_url": "{mock}", "access_token": "$tok", "team_id": "T1", "name": "Q4/2026"}}],
+  "error": "M365.BAD_INPUT"
+ },
+ {
+  "command": "ooa.microsoft365/get_channel_messages",
+  "name": "channel_id missing (new)",
+  "credentials": {"tok": "test/api/token"},
+  "secrets": {"test/api/token": "t0k"},
+  "mock": [],
+  "steps": [{"action": "ooa.microsoft365/get_channel_messages", "args": {"base_url": "{mock}", "access_token": "$tok", "team_id": "T1"}}],
+  "error": "FLOW.INVALID"
  }
 ]

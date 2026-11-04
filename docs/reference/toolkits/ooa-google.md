@@ -7,6 +7,7 @@ Toolkit `ooa.google`, version 1.0.0. Read and write Google Sheets, upload and do
 ## Contents
 
 - **Calendar**: Create Google Calendar event, Delete Google Calendar event, List Google Calendar events, Update Google Calendar event
+- **Docs**: Add text to Google Doc, Create Google Doc, Read Google Doc text, Replace text in Google Doc
 - **Drive**: Check Drive permission, Copy Drive file, Copy Drive folder, Create Drive folder, Share Drive item, Delete Drive item, Remove Drive permission, Download from Drive, Export Google file, Find Drive items, Get Drive item info, List Drive files, List Drive permissions, Move Drive item, Rename Drive item, Change Drive permission, Upload to Drive
 - **Gmail**: Delete all matching Gmail messages, Delete Gmail message, Forward Gmail message, Read Gmail message, Check Gmail label exists, List Gmail messages, Change Gmail message status, Move all matching Gmail messages, Move Gmail message, Reply all to Gmail message, Reply to Gmail message, Save attachments of all matching Gmail messages, Save Gmail attachments, Save Gmail message as .eml, Send Gmail
 - **Sheets**: Add sheet, Append rows to sheet, Autofit columns, Autofit rows, Clear range, Copy range, Create spreadsheet, Delete columns, Delete range, Delete rows, Delete sheet, Find cells, Format cells, Get cell value, Get cell colour, Get range values, Hide sheet, Insert columns, Insert range, Insert rows, List sheets, Read sheet range, Read column, Read formula, Read row, Rename sheet, Get used row count, Set cell value, Set formula, Show sheet, Write to sheet, Write data table
@@ -24,16 +25,17 @@ Create an event, optionally inviting attendees.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Subject | `subject` | Text | Yes |  | Main | Title. |
+| Subject | `subject` | Text | Yes |  | Main | Title of the event. |
 | Location | `location` | Text | No |  | Main | Location. |
 | Attendees | `attendees` | Any | No |  | Main | Attendee address(es). |
-| Start | `start` | DateTime | Yes |  | Main | Start. |
-| End | `end` | DateTime | Yes |  | Main | End. |
+| Start | `start` | DateTime | Yes |  | Main | When the event starts (UTC, or in time_zone when given). |
+| End | `end` | DateTime | Yes |  | Main | When the event ends; must be after start. |
 | All day | `all_day` | Yes/No | No | No | Main | All-day event: only the dates count; the end date may equal the start date. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | IANA time zone of start and end. |
 | Recurrence | `recurrence` | Text | No |  | Main; tick Repeat the event | Repeat rule (RFC 5545), or simply daily, weekly, monthly or yearly. Example: `RRULE:FREQ=WEEKLY;COUNT=10` |
 | Visibility | `visibility` | Text | No | `default` | Main | Who can see the event's details. One of: `default`, `public`, `private` |
 | Description | `description` | Text | No |  | Main | Description. |
+| End time zone | `end_time_zone` | Text | No |  | More options | IANA time zone of end when it differs from start's, for example a flight that lands in another zone; time_zone when empty. Example: `America/New_York` |
 | Optional attendees | `optional_attendees` | Any | No |  | More options | Address(es) invited as optional. |
 | Calendar ID | `calendar_id` | Text | No | `primary` | More options | Calendar id. |
 | Notify | `notify` | Yes/No | No | Yes | More options | Email the invitation to the attendees. |
@@ -117,6 +119,7 @@ Change the title, time, description, location or attendees of an event; empty in
 | End | `end` | DateTime | No |  | Main | New end. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | IANA time zone of start and end. |
 | Description | `description` | Text | No |  | Main | New description. |
+| End time zone | `end_time_zone` | Text | No |  | More options | IANA time zone of end when it differs from start's; time_zone when empty. Example: `America/New_York` |
 | Notify | `notify` | Yes/No | No | Yes | More options | Email the attendees about the change. |
 | Calendar ID | `calendar_id` | Text | No | `primary` | More options | Calendar id. |
 | Visibility | `visibility` | Text | No |  | More options | Who can see the event's details; unchanged when empty. One of: `default`, `public`, `private` |
@@ -130,6 +133,98 @@ Change the title, time, description, location or attendees of an event; empty in
 | `link` | Text | Link to the event. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+## Docs
+
+### Add text to Google Doc
+
+`ooa.google/docs_append_text` (action)
+
+Add text at the end of a Google Docs document.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Document ID | `document_id` | Text | Yes |  | Main | The document: its id, or its full link (https://docs.google.com/document/d/...). |
+| Text | `text` | Text | Yes |  | Main | Text to add. |
+| New paragraph | `new_paragraph` | Yes/No | No | Yes | Main | Start the text on a new line when the document already has text; when false it continues the last paragraph. |
+| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+
+*Time limit 60 s; needs: network.*
+
+### Create Google Doc
+
+`ooa.google/docs_create_document` (action)
+
+Create a new Google Docs document, optionally with starting text and in a Drive folder.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Title | `title` | Text | Yes |  | Main | Document title. |
+| Text | `text` | Text | No |  | Main | Text to put in the new document; empty when not given. |
+| Folder ID | `folder_id` | Text | No |  | Main | Drive folder to put the document in; My Drive when empty. |
+| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `document_id` | Text | Id of the new document. |
+| `url` | Text | Link to open the document. |
+
+*Time limit 60 s; needs: network.*
+
+### Read Google Doc text
+
+`ooa.google/docs_read_text` (action)
+
+Read all the text of a Google Docs document as plain text, table cells included.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Document ID | `document_id` | Text | Yes |  | Main | The document: its id, or its full link (https://docs.google.com/document/d/...). |
+| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | The document's text; paragraphs end with a line break. |
+| `title` | Text | Document title. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Replace text in Google Doc
+
+`ooa.google/docs_replace_text` (action)
+
+Replace every occurrence of one or more texts in a Google Docs document, such as placeholders in a template.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Document ID | `document_id` | Text | Yes |  | Main | The document: its id, or its full link (https://docs.google.com/document/d/...). |
+| Replacements | `replacements` | Dictionary | Yes |  | Main | Text to find as each key, and the text to put in its place as the value. Example: `{"{{name}}": "Ann", "{{date}}": "3 Nov 2026"}` |
+| Match case | `match_case` | Yes/No | No | No | Main | Only replace text with the same upper and lower case. |
+| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `occurrences_changed` | Number | Total number of places changed. |
+
+*Time limit 60 s; needs: network.*
 
 ## Drive
 
