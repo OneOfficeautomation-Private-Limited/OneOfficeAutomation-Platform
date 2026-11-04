@@ -11,10 +11,8 @@ Toolkit `ooa.excel`, version 1.0.0. Read and write .xlsx workbooks without Micro
 - **Rows and columns**: Autofit columns, Delete columns, Delete rows, Hide columns, Hide rows, Insert columns, Insert rows, Remove blank rows, Get number of rows, Set column width, Set row height, Unhide columns, Unhide rows
 - **Links**: Break workbook links, Change workbook link, Get workbook links
 - **Addresses**: Get cell address, Get column name, Get row and column number
-- **Cells**: Clear range, Copy range, Delete cells, Fill down or right, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Remove duplicate rows, Replace, Select range, Set cell, Set formula, Sort, Write from Data Table
+- **Cells**: Clear range, Copy range, Delete cells, Fill down or right, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Remove duplicate rows, Replace, Select range, Set cell, Set formula, Sort, Text to columns, Write from Data Table
 - **Pivot tables and charts**: Create chart, Create pivot table, Create Excel table
-- **Cells**: Delete cells, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Replace, Select range, Set cell, Set formula, Sort, Text to columns, Write from Data Table
-- **Rows and columns**: Delete columns, Delete rows, Hide columns, Hide rows, Insert columns, Insert rows, Remove blank rows, Get number of rows, Unhide columns, Unhide rows
 - **Tables**: Delete table column, Insert table column
 - **Formatting**: Format cells, Get cell colour, Set cell colour
 - **Sensitivity**: Get sensitivity label, Set sensitivity label
@@ -741,92 +739,6 @@ Split a cell address such as B7 into its row and column numbers.
 
 *Time limit 60 s; safe to repeat.*
 
-## Pivot tables and charts
-
-### Create chart
-
-`ooa.excel/create_chart` (action)
-
-Add a column, bar, line or pie chart of a range: the first column gives the categories, the header row the series names and each further column one series.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Sheet | `sheet` | Text | No |  | Main | Sheet with the data; active sheet when empty. |
-| Range | `range` | Text | Yes |  | Main | Data with a header row: categories in the first column, one series per further column. Example: `A1:C13` |
-| Chart type | `chart_type` | Text | No | `column` | Main | column (vertical bars), bar (horizontal bars), line, or pie (the first series only). One of: `column`, `bar`, `line`, `pie` |
-| Title | `title` | Text | No |  | Main | Chart title; none when empty. Example: `Sales by month` |
-| Destination sheet | `destination_sheet` | Text | No |  | Main | Sheet to put the chart on; the data sheet when empty; created when it does not exist. |
-| Position | `position` | Text | No |  | Main | Top-left cell of the chart; two columns right of the data when empty. |
-| Width | `width` | Number | No | `8` | Main | Width in columns. Range: 1 to 100 |
-| Height | `height` | Number | No | `15` | Main | Height in rows. Range: 1 to 500 |
-| Legend | `legend` | Text | No | `right` | More options | Where the legend goes. One of: `right`, `bottom`, `top`, `left`, `none` |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-**Results**
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `range` | Text | Cells the chart covers, e.g. H2:O17. |
-
-*Time limit 60 s.*
-
-### Create pivot table
-
-`ooa.excel/create_pivot_table` (action)
-
-Create a pivot table from a range with a header row: fields as rows, columns, values (Sum, Count, Average, Max or Min) and filters. Excel fills in the figures when the workbook is opened.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Sheet | `sheet` | Text | No |  | Main | Sheet with the source data; active sheet when empty. |
-| Range | `range` | Text | No |  | Main | Source range including its header row; the used area of the sheet when empty. Example: `A1:F200` |
-| Destination sheet | `destination_sheet` | Text | No |  | Main | Sheet to put the pivot table on; created when it does not exist; a new sheet named Pivot when empty. Example: `Pivot` |
-| Destination | `destination` | Text | No | `A3` | Main | Top-left cell of the pivot table. |
-| Name | `name` | Text | No |  | Main | Pivot table name; PivotTable1, PivotTable2 � when empty. Example: `SalesByRegion` |
-| Rows | `rows` | List | No |  | Main | Fields shown down the side (header names). Example: `["Region"]` |
-| Columns | `columns` | List | No |  | Main | Fields shown across the top. Example: `["Quarter"]` |
-| Values | `values` | List | Yes |  | Main | Fields to summarise, each as Field or Field:function, function sum (the default), count, average, max or min. Example: `["Amount", "Amount:count"]` |
-| Filters | `filters` | List | No |  | Main | Fields offered as report filters above the table. Example: `["Year"]` |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-**Results**
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | Text | Name of the pivot table. |
-| `sheet` | Text | Sheet the pivot table is on. |
-
-*Time limit 60 s.*
-
-### Create Excel table
-
-`ooa.excel/create_table` (action)
-
-Turn a range with a header row into a named Excel table with a table style, like Ctrl+T in Excel.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
-| Range | `range` | Text | No |  | Main | Range including its header row; the used area when empty. Example: `A1:F200` |
-| Name | `name` | Text | No |  | Main | Table name: letters, digits, _ and ., starting with a letter; Table1, Table2 � when empty. Example: `Invoices` |
-| Style | `style` | Text | No | `TableStyleMedium2` | Main | Excel table style: TableStyleLight1�21, TableStyleMedium1�28 or TableStyleDark1�11. Example: `TableStyleLight9` |
-| Banded rows | `banded_rows` | Yes/No | No | Yes | Main | Shade every other row. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-**Results**
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | Text | Name of the new table. |
-
-*Time limit 60 s.*
-
 ## Cells
 
 ### Clear range
@@ -1392,6 +1304,92 @@ Write a table (with column names) starting at a cell.
 | Start cell | `start_cell` | Text | No | `A1` | Main | Top-left cell. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | Write column names first. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+## Pivot tables and charts
+
+### Create chart
+
+`ooa.excel/create_chart` (action)
+
+Add a column, bar, line or pie chart of a range: the first column gives the categories, the header row the series names and each further column one series.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet with the data; active sheet when empty. |
+| Range | `range` | Text | Yes |  | Main | Data with a header row: categories in the first column, one series per further column. Example: `A1:C13` |
+| Chart type | `chart_type` | Text | No | `column` | Main | column (vertical bars), bar (horizontal bars), line, or pie (the first series only). One of: `column`, `bar`, `line`, `pie` |
+| Title | `title` | Text | No |  | Main | Chart title; none when empty. Example: `Sales by month` |
+| Destination sheet | `destination_sheet` | Text | No |  | Main | Sheet to put the chart on; the data sheet when empty; created when it does not exist. |
+| Position | `position` | Text | No |  | Main | Top-left cell of the chart; two columns right of the data when empty. |
+| Width | `width` | Number | No | `8` | Main | Width in columns. Range: 1 to 100 |
+| Height | `height` | Number | No | `15` | Main | Height in rows. Range: 1 to 500 |
+| Legend | `legend` | Text | No | `right` | More options | Where the legend goes. One of: `right`, `bottom`, `top`, `left`, `none` |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `range` | Text | Cells the chart covers, e.g. H2:O17. |
+
+*Time limit 60 s.*
+
+### Create pivot table
+
+`ooa.excel/create_pivot_table` (action)
+
+Create a pivot table from a range with a header row: fields as rows, columns, values (Sum, Count, Average, Max or Min) and filters. Excel fills in the figures when the workbook is opened.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet with the source data; active sheet when empty. |
+| Range | `range` | Text | No |  | Main | Source range including its header row; the used area of the sheet when empty. Example: `A1:F200` |
+| Destination sheet | `destination_sheet` | Text | No |  | Main | Sheet to put the pivot table on; created when it does not exist; a new sheet named Pivot when empty. Example: `Pivot` |
+| Destination | `destination` | Text | No | `A3` | Main | Top-left cell of the pivot table. |
+| Name | `name` | Text | No |  | Main | Pivot table name; PivotTable1, PivotTable2 … when empty. Example: `SalesByRegion` |
+| Rows | `rows` | List | No |  | Main | Fields shown down the side (header names). Example: `["Region"]` |
+| Columns | `columns` | List | No |  | Main | Fields shown across the top. Example: `["Quarter"]` |
+| Values | `values` | List | Yes |  | Main | Fields to summarise, each as Field or Field:function, function sum (the default), count, average, max or min. Example: `["Amount", "Amount:count"]` |
+| Filters | `filters` | List | No |  | Main | Fields offered as report filters above the table. Example: `["Year"]` |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `name` | Text | Name of the pivot table. |
+| `sheet` | Text | Sheet the pivot table is on. |
+
+*Time limit 60 s.*
+
+### Create Excel table
+
+`ooa.excel/create_table` (action)
+
+Turn a range with a header row into a named Excel table with a table style, like Ctrl+T in Excel.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Range | `range` | Text | No |  | Main | Range including its header row; the used area when empty. Example: `A1:F200` |
+| Name | `name` | Text | No |  | Main | Table name: letters, digits, _ and ., starting with a letter; Table1, Table2 … when empty. Example: `Invoices` |
+| Style | `style` | Text | No | `TableStyleMedium2` | Main | Excel table style: TableStyleLight1–21, TableStyleMedium1–28 or TableStyleDark1–11. Example: `TableStyleLight9` |
+| Banded rows | `banded_rows` | Yes/No | No | Yes | Main | Shade every other row. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `name` | Text | Name of the new table. |
 
 *Time limit 60 s.*
 

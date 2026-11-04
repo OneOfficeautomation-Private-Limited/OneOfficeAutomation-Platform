@@ -47,7 +47,7 @@ Embed a file (an Excel sheet, a PDF, any file) on a slide as an icon that opens 
 
 `ooa.powerpoint_desktop/insert_video` (action)
 
-Put a video (MP4, WMV, MOV �) on a slide, embedded in the presentation, at a position and size.
+Put a video (MP4, WMV, MOV …) on a slide, embedded in the presentation, at a position and size.
 
 **Settings**
 

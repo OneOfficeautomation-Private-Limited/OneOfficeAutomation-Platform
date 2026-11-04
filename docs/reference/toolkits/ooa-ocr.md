@@ -1,15 +1,35 @@
 # OCR
 
-Toolkit `ooa.ocr`, version 1.0.0. Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract).
+Toolkit `ooa.ocr`, version 1.0.0. Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed).
 
 [All toolkits](README.md)
 
 ## Contents
 
-- **OCR**: Click text on screen, Find text in image, Read text from image, Read text from screen, Read text from image URL
+- **OCR**: Add OCR language to Windows, Click text on screen, Get OCR engines, Find text in image, Read text from image, Read text from screen, Read text from image URL
 - **Conditions**: Text is on screen
 
 ## OCR
+
+### Add OCR language to Windows
+
+`ooa.ocr/add_windows_language` (action)
+
+Install the OCR language pack of the OCR built into Windows (e.g. de-DE), so OCR steps can read that language without Tesseract. Needs administrator rights.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Language | `language` | Text | Yes |  | Main | Windows language tag, e.g. de-DE, fr-FR or ja-JP. Example: `de-DE` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `status` | Text | added or already_installed. |
+
+*Time limit 1800 s.*
 
 ### Click text on screen
 
@@ -37,6 +57,25 @@ Find a word or phrase (or its n-th appearance) on the screen with OCR and click 
 | `y` | Number | Clicked y. |
 
 *Time limit 300 s; needs: desktop.*
+
+### Get OCR engines
+
+`ooa.ocr/engine_status` (action)
+
+Show which OCR engines this runner has (the OCR built into Windows, and Tesseract when installed) and their languages, e.g. to check a runner before a run.
+
+No settings.
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `engine` | Text | The engine OCR steps use here: tesseract, windows or none. |
+| `windows_languages` | List | Language tags the Windows OCR engine reads, e.g. en-US; empty when not on Windows 10 or later. |
+| `tesseract_languages` | List | Tesseract languages, e.g. eng, deu; empty when Tesseract is not installed. |
+| `tesseract_path` | Text | The Tesseract program used, when installed. |
+
+*Time limit 120 s; safe to repeat.*
 
 ### Find text in image
 

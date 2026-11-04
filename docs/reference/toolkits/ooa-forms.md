@@ -125,7 +125,7 @@ Show a form from the form designer to the person at the runner. Wait until they 
 | `name` | Text | Name of the open form, for the other form actions. |
 | `address` | Text | Local address of the form window (this computer only). |
 
-*Time limit 86400 s; needs: desktop.*
+*Time limit 86400 s; needs: desktop, filesystem.*
 
 ### Set dynamic area
 

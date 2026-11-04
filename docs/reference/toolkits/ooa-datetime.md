@@ -22,7 +22,7 @@ Add (or subtract, with a negative amount) a duration to a date.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | DateTime | Yes |  | Main | Start date. |
-| Amount | `amount` | Number | Yes |  | Main | Amount to add; negative to subtract. |
+| Amount | `amount` | Number | Yes |  | Main | Amount to add; negative to subtract. Fractions are exact for milliseconds to weeks (1.5 days = 36 hours); months, years and business days take whole numbers. |
 | Unit | `unit` | Text | No | `days` | Main | Unit of the amount; business_days skips Saturdays, Sundays and the holidays. One of: `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, `years`, `business_days` |
 | Holidays | `holidays` | List | No |  | Main | Dates that are not working days, e.g. ["2026-12-25"]. Shown when: `{"unit": ["business_days"]}` |
 
@@ -241,7 +241,7 @@ Check whether the year of a date, or a year number, is a leap year.
 
 `ooa.datetime/now` (action)
 
-Return the current date and time (UTC).
+Return the current date and time in UTC. Every DateTime in OOA is UTC; use Format date with a time zone to show local time, or the ISO_INSTANT / ISO_OFFSET_DATE_TIME standard for text with Z or an offset for other systems.
 
 No settings.
 
@@ -249,7 +249,7 @@ No settings.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `value` | DateTime | Current UTC date and time. |
+| `value` | DateTime | Current date and time in UTC. |
 
 *Time limit 60 s.*
 
@@ -309,7 +309,7 @@ Subtract an amount of time from a date.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | DateTime | Yes |  | Main | Start date. |
-| Amount | `amount` | Number | Yes |  | Main | Amount to subtract. |
+| Amount | `amount` | Number | Yes |  | Main | Amount to subtract. Fractions are exact for milliseconds to weeks; months, years and business days take whole numbers. |
 | Unit | `unit` | Text | No | `days` | Main | Unit of the amount; business_days skips Saturdays, Sundays and the holidays. One of: `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, `years`, `business_days` |
 | Holidays | `holidays` | List | No |  | Main | Dates that are not working days, e.g. ["2026-12-25"]. Shown when: `{"unit": ["business_days"]}` |
 

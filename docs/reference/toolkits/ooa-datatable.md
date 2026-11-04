@@ -319,7 +319,7 @@ Build a table from CSV text held in a variable (for example an e-mail body or an
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | CSV text, one row per line. |
 | Delimiter | `delimiter` | Text | No | `,` | Main | One character between fields: , ; \| or tab. |
-| First row is the header | `header` | Yes/No | No | Yes | Main | The first line holds the column names; Column1, Column2 � when off. |
+| First row is the header | `header` | Yes/No | No | Yes | Main | The first line holds the column names; Column1, Column2 … when off. |
 | Convert numbers | `convert_numbers` | Yes/No | No | No | More options | Store fields that are plain numbers, such as 12.5, as numbers; codes with a leading 0 stay text. |
 
 **Results**

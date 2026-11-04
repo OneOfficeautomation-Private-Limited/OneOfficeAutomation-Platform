@@ -7,7 +7,7 @@ Toolkit `ooa.active_directory`, version 1.0.0. Create, change, move and delete u
 ## Contents
 
 - **Groups**: Add users to group, Create group, Delete group, Get group members, Get group properties, Move group, Remove users from group, Rename group, Set group property
-- **Directory**: Connect, Disconnect, Run LDAP query, Search
+- **Directory**: Build distinguished name, Connect, Disconnect, Run LDAP query, Search
 - **Computers**: Create computer, Delete computer, Get computer properties, Move computer, Rename computer, Set computer property
 - **Organizational units**: Create organizational unit, Delete organizational unit, Get organizational unit properties, Move organizational unit, Rename organizational unit, Set organizational unit property
 - **Users**: Create user, Delete user, Disable user, Enable user, Get user, Move user, Rename user, Reset password, Set user property, Set password, Unlock user, Update account options, Update user details
@@ -211,6 +211,31 @@ Change one attribute of a group, e.g. description or managedBy.
 *Time limit 60 s; needs: network.*
 
 ## Directory
+
+### Build distinguished name
+
+`ooa.active_directory/build_dn` (action)
+
+Turn a readable path such as Corp/Sales/EMEA and a domain into a distinguished name (OU=EMEA,OU=Sales,OU=Corp,DC=corp,DC=example,DC=com), optionally ending with a user, group or computer name.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | Text | No |  | Main | Organizational units from the top down, separated by /; may start with the domain (corp.example.com/Corp/Sales). Example: `Corp/Sales/EMEA` |
+| Domain | `domain` | Text | No |  | Main | DNS name of the domain; taken from the start of path when empty. Example: `corp.example.com` |
+| Name | `name` | Text | No |  | Main | Name of the object at the end (its common name); the container's own name when empty. Example: `Ann Lee` |
+| Name kind | `name_kind` | Text | No | `CN` | More options | CN for users, groups and computers; OU when name is an organizational unit. One of: `CN`, `OU` |
+| Path kind | `path_kind` | Text | No | `auto` | More options | auto makes path parts organizational units, except built-in containers such as Users or Computers at the top (CN=); ou or cn forces one kind. One of: `auto`, `ou`, `cn` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `dn` | Text | The distinguished name. |
+| `parent_dn` | Text | The distinguished name of the container (without the name). |
+
+*Time limit 60 s; safe to repeat.*
 
 ### Connect
 

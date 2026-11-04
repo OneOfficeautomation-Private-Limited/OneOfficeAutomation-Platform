@@ -14,7 +14,7 @@ Toolkit `ooa.script`, version 1.0.0. Run PowerShell, Python, JavaScript and VBSc
 
 `ooa.script/run_javascript` (action)
 
-Run a JavaScript file with Node.js.
+Run JavaScript with Node.js, or with Windows' built-in JScript when Node.js is not installed.
 
 **Settings**
 
@@ -28,7 +28,7 @@ Run a JavaScript file with Node.js.
 | Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Fail the step when the exit code is not 0. |
 | Working folder | `working_folder` | File path | No |  | More options | Folder the script runs in; the workspace when empty. |
 | Environment | `environment` | Dictionary | No |  | More options | Extra environment variables for the script. |
-| Interpreter | `interpreter` | Text | No |  | More options | Node.js program to use; node on the PATH when empty. Example: `node` |
+| Interpreter | `interpreter` | Text | No |  | More options | Node.js program to use; node on the PATH when empty, and Windows' built-in JScript when Node.js is not installed. Example: `node` |
 
 **Results**
 
@@ -39,13 +39,13 @@ Run a JavaScript file with Node.js.
 | `exit_code` | Number | Exit code. |
 | `json` | Any | Output parsed as JSON, when it is JSON. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*
 
 ### Run JavaScript function
 
 `ooa.script/run_javascript_function` (action)
 
-Call one function in a JavaScript file with Node.js, passing JSON-compatible arguments, and return what it returns (promises are awaited).
+Call one function in a JavaScript file with Node.js (or Windows' built-in JScript when Node.js is not installed), passing JSON-compatible arguments, and return what it returns (promises are awaited with Node.js).
 
 **Settings**
 
@@ -67,7 +67,7 @@ Call one function in a JavaScript file with Node.js, passing JSON-compatible arg
 | `output` | Text | Text the function printed. |
 | `error` | Text | Error thrown by the function when fail_on_error is false; empty on success. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*
 
 ### Run PowerShell
 
@@ -98,7 +98,7 @@ Run a PowerShell script (PowerShell 7 if installed, otherwise Windows PowerShell
 | `exit_code` | Number | Exit code. |
 | `json` | Any | Output parsed as JSON, when it is JSON. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*
 
 ### Run Python
 
@@ -129,7 +129,7 @@ Run a Python 3 script.
 | `exit_code` | Number | Exit code. |
 | `json` | Any | Output parsed as JSON, when it is JSON. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*
 
 ### Run Python function
 
@@ -159,7 +159,7 @@ Call one function in a Python file with JSON-compatible arguments and return wha
 | `output` | Text | Text the function printed. |
 | `error` | Text | Error raised by the function when fail_on_error is false; empty on success. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*
 
 ### Run VBScript
 
@@ -189,13 +189,13 @@ Run a VBScript with Windows Script Host (Windows only).
 | `exit_code` | Number | Exit code. |
 | `json` | Any | Output parsed as JSON, when it is JSON. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*
 
 ### Run VBScript function
 
 `ooa.script/run_vbscript_function` (action)
 
-Call one function in a VBScript file with text arguments and return its result as text (Windows only).
+Call one function in a VBScript file and return its result as text (Windows only).
 
 **Settings**
 
@@ -204,7 +204,7 @@ Call one function in a VBScript file with text arguments and return its result a
 | File | `file` | File path | No |  | Main; choice Code = Use a file | VBScript file (.vbs) that defines the function. Shown when: `{"script": [""]}` |
 | Script | `script` | Text | No |  | Main; choice Code = Type it here | Code that defines the function, typed in the agent, instead of a file. Shown when: `{"file": [""]}` |
 | Function | `function` | Text | Yes |  | Main | Function name. Example: `FormatInvoice` |
-| Arguments | `arguments` | List | No |  | Main | Arguments, in order; each is passed as text. |
+| Arguments | `arguments` | List | No |  | Main | Arguments, in order: numbers and true/false are passed as VBScript numbers and booleans, empty values as Empty, everything else as text. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `300` | More options | Maximum run time. Range: 1 to  |
 | Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Fail the step when the function raises an error; when false the error is returned in error. |
 
@@ -216,4 +216,4 @@ Call one function in a VBScript file with text arguments and return its result a
 | `output` | Text | Other text the script wrote. |
 | `error` | Text | Error raised by the function when fail_on_error is false; empty on success. |
 
-*Time limit 3600 s.*
+*Time limit 3600 s; needs: filesystem.*

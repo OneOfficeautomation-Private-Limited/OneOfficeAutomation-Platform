@@ -39,6 +39,9 @@ Fill a saved prompt template with your values and run it; returns text, or a Dic
 | Skill | `skill` | Text | Yes |  | Main | Skill name (file name in ai-skills without .json). Example: `summarise_complaint` |
 | Values | `values` | Dictionary | No |  | Main | Values for the skill's ${...} placeholders. |
 | Connection | `connection` | Text | No |  | Main | Model Connection to use instead of the skill's own provider and model. |
+| Knowledge index | `knowledge_index` | File path | No |  | Main; tick Ground the answer in documents | A Knowledge Q&A index (built with Build index) whose best passages go to the model with the prompt; overrides the skill's own "knowledge". |
+| Top k | `top_k` | Number | No |  | Main; tick Ground the answer in documents | How many passages of the index the model gets; the skill's own (or 4) when empty. Range: 1 to 20 |
+| Files | `files` | List | No |  | Main; tick Ground the answer in documents | Documents given to the model with the prompt (text, Markdown, HTML, CSV, JSON, XML, Word, PowerPoint or PDF), e.g. an invoice to check. |
 | API key | `api_key` | Credential (vault) | No |  | More options | API key or access token from the vault (not needed for some self-hosted endpoints). For aws_bedrock and aws_bedrock_sagemaker: the AWS secret access key (or ACCESS_KEY_ID:SECRET). For google_vertex: a service-account JSON key or an access token. |
 | Model | `model` | Text | No |  | More options | Override the skill's model. |
 | Endpoint address | `base_url` | Text | No |  | More options | Endpoint; required for Azure OpenAI, Vertex AI (https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION) and self-hosted models (for a TGI server, e.g. http://tgi-host:8080/v1). |
@@ -59,5 +62,6 @@ Fill a saved prompt template with your values and run it; returns text, or a Dic
 | `error` | Text | What went wrong, when success is false. |
 | `input_tokens` | Number | Tokens in the request. |
 | `output_tokens` | Number | Tokens in the answer. |
+| `sources` | List | The knowledge passages given to the model (n, source, passage, score, text); empty without a knowledge index. |
 
-*Time limit 300 s; needs: network, ai.*
+*Time limit 300 s; needs: network, ai, filesystem.*

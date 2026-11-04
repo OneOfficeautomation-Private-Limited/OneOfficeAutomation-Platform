@@ -97,7 +97,7 @@ Find tables in a PDF that holds text (invoices, statements, reports) by how the 
 | Path | `path` | File path | Yes |  | Main | PDF file. |
 | Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password for protected PDFs. |
 | Pages | `pages` | Text | No |  | Main | Pages to read, e.g. 1,3-4; every page when empty. Example: `1,3-4` |
-| First row is the header | `header` | Yes/No | No | Yes | Main | The first row of each table holds the column names; Column1, Column2 � when off. |
+| First row is the header | `header` | Yes/No | No | Yes | Main | The first row of each table holds the column names; Column1, Column2 … when off. |
 | Merge across pages | `merge_across_pages` | Yes/No | No | Yes | Main | Join a table that continues at the top of the next page (same number of columns) into one, leaving out a repeated header row. |
 | Minimum columns | `min_columns` | Number | No | `2` | More options | Lines need at least this many separate columns to count as a table. Range: 2 to 50 |
 

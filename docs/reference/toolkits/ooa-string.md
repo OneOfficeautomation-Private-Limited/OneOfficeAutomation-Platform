@@ -363,7 +363,7 @@ Read a number from text written for a locale, or with the decimal and grouping s
 | Locale | `locale` | Text | No | `en-US` | More options | Locale the text is written in, e.g. en-US, de-DE, fr-FR. |
 | Decimal separator | `decimal_separator` | Text | No |  | More options | Decimal separator; overrides the locale. |
 | Grouping separator | `grouping_separator` | Text | No |  | More options | Thousands separator; overrides the locale. |
-| Ignore currency | `ignore_currency` | Yes/No | No | Yes | More options | Ignore a currency symbol or code before or after the number ($, �, ?, USD, EUR, Rs.); when off such text is not a number. |
+| Ignore currency | `ignore_currency` | Yes/No | No | Yes | More options | Ignore a currency symbol or code before or after the number ($, €, ₹, USD, EUR, Rs.); when off such text is not a number. |
 
 **Results**
 

@@ -66,7 +66,7 @@ Describe the goal in plain words; the AI model works the page in a browser sessi
 | `input_tokens` | Number | Tokens sent to the model in all steps. |
 | `output_tokens` | Number | Tokens the model answered with in all steps. |
 
-*Time limit 1800 s; needs: browser, network, ai.*
+*Time limit 1800 s; needs: browser, network, ai, filesystem.*
 
 ### Start web agent session
 
@@ -87,4 +87,4 @@ Open a browser for the web goal agent (the same session works with every Browser
 | Browser path | `browser_path` | File path | No |  | More options | Start this browser program instead of the installed one (a Chromium-based browser, or Firefox when browser is firefox). Example: `C:\Program Files\Google\Chrome Beta\Application\chrome.exe` |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 
-*Time limit 300 s; needs: browser.*
+*Time limit 300 s; needs: browser, network, filesystem.*

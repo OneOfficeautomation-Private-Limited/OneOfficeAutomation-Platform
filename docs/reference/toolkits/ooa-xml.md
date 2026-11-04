@@ -26,6 +26,7 @@ Remove every node (or one attribute of every node) matching an XPath, in a file 
 | XML | `xml` | Text | No |  | Main; choice Source = XML text | XML text to change instead of a file; the result is in the xml output. |
 | XPath | `xpath` | Text | Yes |  | Main | XPath of the nodes to remove. |
 | Attribute | `attribute` | Text | No |  | Main | Remove only this attribute from the matched elements, keeping the elements. |
+| Namespaces | `namespaces` | Dictionary | No |  | More options | Prefix to namespace URI for prefixes in the XPath, e.g. {"inv": "urn:example:invoice"}; prefixes declared in the document work without this. Map a default namespace (xmlns="...") to a prefix of your choice to address it. Example: `{"inv": "urn:example:invoice"}` |
 
 **Results**
 
@@ -51,6 +52,7 @@ Return the text of every node matching an XPath.
 | XPath | `xpath` | Text | Yes |  | Main | XPath expression. Example: `//line/sku` |
 | Return value | `return_value` | Text | No | `text` | Main | What to return for each node: its text, its XML, or its exact XPath. One of: `text`, `xml`, `xpath` |
 | Attribute | `attribute` | Text | No |  | Main | Return this attribute of each node instead of its text. |
+| Namespaces | `namespaces` | Dictionary | No |  | More options | Prefix to namespace URI for prefixes in the XPath, e.g. {"inv": "urn:example:invoice"}; prefixes declared in the document work without this. Map a default namespace (xmlns="...") to a prefix of your choice to address it. Example: `{"inv": "urn:example:invoice"}` |
 
 **Results**
 
@@ -59,7 +61,7 @@ Return the text of every node matching an XPath.
 | `values` | List | Texts of matching nodes. |
 | `count` | Number | Number of matches. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Get single node
 
@@ -76,6 +78,7 @@ Return the text of the first node matching an XPath.
 | XPath | `xpath` | Text | Yes |  | Main | XPath expression. Example: `/invoice/total` |
 | Attribute | `attribute` | Text | No |  | Main | Return this attribute of the node instead of its text. |
 | Return value | `return_value` | Text | No | `text` | More options | What to return: the node's text, its XML, or its exact XPath. One of: `text`, `xml`, `xpath` |
+| Namespaces | `namespaces` | Dictionary | No |  | More options | Prefix to namespace URI for prefixes in the XPath, e.g. {"inv": "urn:example:invoice"}; prefixes declared in the document work without this. Map a default namespace (xmlns="...") to a prefix of your choice to address it. Example: `{"inv": "urn:example:invoice"}` |
 
 **Results**
 
@@ -84,7 +87,7 @@ Return the text of the first node matching an XPath.
 | `value` | Text | Node text, empty when nothing matches. |
 | `found` | Yes/No | True when a node matched. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Insert node
 
@@ -157,6 +160,7 @@ Set the text (or an attribute) of every node matching an XPath, in a file or in 
 | Value | `value` | Text | No |  | Main | New text (or the attribute's new value). |
 | Attribute | `attribute` | Text | No |  | Main | Set this attribute (created when missing) instead of the node text. |
 | Attributes | `attributes` | Dictionary | No |  | More options | Several attributes to set at once, as name to value (created when missing). With these, the node text changes only when value is filled in. Example: `{"status": "paid", "currency": "EUR"}` |
+| Namespaces | `namespaces` | Dictionary | No |  | More options | Prefix to namespace URI for prefixes in the XPath, e.g. {"inv": "urn:example:invoice"}; prefixes declared in the document work without this. Map a default namespace (xmlns="...") to a prefix of your choice to address it. Example: `{"inv": "urn:example:invoice"}` |
 
 **Results**
 
@@ -187,7 +191,7 @@ Convert XML (or the part matched by an XPath) to a Dictionary; attributes become
 | --- | --- | --- |
 | `value` | Any | Dictionary or text. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Validate XML
 
@@ -210,7 +214,7 @@ Check that an XML document is well-formed and, when an XSD schema is given, vali
 | `valid` | Yes/No | True when the document is valid. |
 | `errors` | List | Validation errors with line numbers. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Evaluate XPath
 
@@ -226,6 +230,7 @@ Evaluate an XPath expression such as count(//line) or sum(//amount) and return t
 | Path | `path` | File path | No |  | Main; choice Source = An XML file | XML file (or use xml). |
 | XML | `xml` | Text | No |  | Main; choice Source = XML text | XML text (or use path). |
 | Result type | `result_type` | Text | No | `string` | Main | Type of the result. One of: `string`, `number`, `boolean` |
+| Namespaces | `namespaces` | Dictionary | No |  | More options | Prefix to namespace URI for prefixes in the XPath, e.g. {"inv": "urn:example:invoice"}; prefixes declared in the document work without this. Map a default namespace (xmlns="...") to a prefix of your choice to address it. Example: `{"inv": "urn:example:invoice"}` |
 
 **Results**
 
@@ -233,7 +238,7 @@ Evaluate an XPath expression such as count(//line) or sum(//amount) and return t
 | --- | --- | --- |
 | `result` | Any | Result of the expression as String, Number or Boolean. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ## Loop types
 
@@ -254,3 +259,6 @@ Yield each node matching an XPath: its text, XML, XPath or an attribute.
 | Path | `path` | File path | No |  | Main | XML file (or use xml). |
 | Attribute | `attribute` | Text | No |  | Main | Yield this attribute of each node instead of its text. |
 | Return value | `return_value` | Text | No | `text` | Main | What to yield for each node: its text, its XML, or its exact XPath. One of: `text`, `xml`, `xpath` |
+| Namespaces | `namespaces` | Dictionary | No |  | Main | Prefix to namespace URI for prefixes in the XPath, e.g. {"inv": "urn:example:invoice"}; prefixes declared in the document work without this. Map a default namespace (xmlns="...") to a prefix of your choice to address it. Example: `{"inv": "urn:example:invoice"}` |
+
+*Needs: filesystem.*

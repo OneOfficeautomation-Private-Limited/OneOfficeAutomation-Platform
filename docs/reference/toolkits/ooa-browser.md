@@ -41,7 +41,7 @@ Connect to an Edge or Chrome that is already running, through its DevTools debug
 | `tab_count` | Number | Number of open tabs in the browser. |
 | `window` | Dictionary | A window choice for this session, to pass as the window of element actions. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, network.*
 
 ### Close browser
 
@@ -112,7 +112,7 @@ Open a URL in the current tab and wait for it to load.
 | Address (URL) | `url` | Text | Yes |  | Main | Address to open. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, network.*
 
 ### Open browser
 
@@ -126,7 +126,7 @@ Start a browser, optionally open a URL, as a named session.
 | --- | --- | --- | --- | --- | --- | --- |
 | Open in | `open_in` | Text | No | `new_window` | Main | new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab. One of: `new_window`, `new_tab`, `existing_tab` |
 | Window | `window` | Dictionary | No |  | Main | For new_tab and existing_tab: the tab to use. Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. Shown when: `{"open_in": ["!", "new_window"]}` |
-| Browser | `browser` | Text | No | `edge` | Main | edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright. One of: `edge`, `chrome`, `chromium`, `firefox`; Shown when: `{"open_in": ["new_window"]}` |
+| Browser | `browser` | Text | No | `edge` | Main | edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB). One of: `edge`, `chrome`, `chromium`, `firefox`; Shown when: `{"open_in": ["new_window"]}` |
 | Address (URL) | `url` | Text | No |  | Main | Page to open. |
 | Download folder | `download_folder` | File path | No |  | More options | Where downloads are saved. Shown when: `{"open_in": ["new_window"]}` |
 | Headless | `headless` | Yes/No | No | No | More options | Run without a visible window (for unattended agents). Shown when: `{"open_in": ["new_window"]}` |
@@ -135,7 +135,7 @@ Start a browser, optionally open a URL, as a named session.
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `240000` | More options | How long to wait for the page to load. Range: 1000 to  |
 
-*Time limit 180 s; needs: browser.*
+*Time limit 180 s; needs: browser, network, filesystem.*
 
 ### Start browser for automation
 
@@ -169,7 +169,7 @@ Start Edge or Chrome with a debugging port and its own profile folder in the wor
 | `started` | Yes/No | True when a new browser was started; false when one already listened on the port. |
 | `pid` | Number | Process id of the started browser, or 0 when an existing one was reused. |
 
-*Time limit 180 s; needs: browser, filesystem.*
+*Time limit 180 s; needs: browser, filesystem, network.*
 
 ### Switch tab
 
@@ -235,7 +235,8 @@ Click a link or button that starts a download and save the file into a folder.
 | Selector | `selector` | Text | No |  | Main | Element that starts the download, used when no captured object is given. |
 | Folder | `folder` | File path | Yes |  | Main | Folder to save into. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
-| Wait up to (milliseconds) | `timeout_ms` | Number | No | `120000` | More options | How long to wait for the download. Range: 0 to  |
+| Wait up to (milliseconds) | `timeout_ms` | Number | No | `120000` | More options | How long to wait for the element and the download. Range: 0 to  |
+| Start timeout (milliseconds) | `start_timeout_ms` | Number | No | `15000` | More options | How long to wait after the click for the download to start; BROWSER.NO_DOWNLOAD when it does not (the file itself may then take up to timeout_ms). Range: 0 to  |
 
 **Results**
 
@@ -275,7 +276,7 @@ Download a file from its address and save it, signing in with Windows (NTLM/Kerb
 
 `ooa.browser/find_broken_links` (action)
 
-Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail or return an HTTP error; optionally save the list to a CSV file.
+Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail or return an HTTP error (links to files, file:, are looked up on disk); optionally save the list to a CSV file.
 
 **Settings**
 
@@ -302,7 +303,7 @@ Collect the links on the current page (or on a page or whole site given by its a
 | `broken_count` | Number | Number of links that failed. |
 | `checked_count` | Number | Number of distinct links checked. |
 
-*Time limit 3600 s; needs: browser, network.*
+*Time limit 3600 s; needs: browser, network, filesystem.*
 
 ### Get page source
 
@@ -326,7 +327,7 @@ Return the current HTML of the page (after scripts have run), and optionally sav
 | `source` | Text | HTML of the page. |
 | `path` | File path | Saved file, or empty. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, filesystem.*
 
 ### Get URL and title
 
@@ -353,14 +354,14 @@ Return the current page's URL and title.
 
 `ooa.browser/run_javascript` (action)
 
-Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).
+Run JavaScript in the page and return its result: an expression such as document.title, or statements with return.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
-| Script | `script` | Text | No |  | Main; choice Script = Type it here | JavaScript expression or function, typed here. Example: `document.querySelectorAll('.item').length`; Shown when: `{"script_file": [""]}` |
+| Script | `script` | Text | No |  | Main; choice Script = Type it here | JavaScript typed here: an expression, a function, or statements that end with return. Example: `document.querySelectorAll('.item').length`; Shown when: `{"script_file": [""]}` |
 | Script file | `script_file` | File path | No |  | Main; choice Script = Run a file | Or a .js file to run (UTF-8), used instead of the typed script. Shown when: `{"script": [""]}` |
 | Frame | `frame` | Dictionary | No |  | More options | Run the script inside this iframe instead of the main page: the captured iframe element. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
@@ -371,7 +372,7 @@ Run JavaScript in the page and return its result (use a return-value expression,
 | --- | --- | --- |
 | `result` | Any | Value returned by the script. |
 
-*Time limit 120 s; needs: browser.*
+*Time limit 120 s; needs: browser, filesystem.*
 
 ### Take screenshot
 
@@ -718,6 +719,9 @@ Open a browser, record your clicks, typing and selections as steps, and return t
 | Browser | `browser` | Text | No | `edge` | Main | Browser to record in. One of: `edge`, `chrome`, `chromium` |
 | Timeout (minutes) | `timeout_minutes` | Number | No | `30` | More options | Stop recording automatically after this long. |
 | Tab ID | `tab_id` | Number | No |  | More options | Record in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list) instead of a new browser. |
+| Endpoint | `endpoint` | Text | No |  | More options | Record in an open tab of the browser on this debugging address (the one agents keep open, from the open-windows list) instead of a new window. |
+| Tab title | `tab_title` | Text | No |  | More options | With endpoint: the tab to record in, by its exact title. |
+| Tab address (URL) | `tab_url` | Text | No |  | More options | With endpoint: the tab to record in, by its address. |
 
 **Results**
 

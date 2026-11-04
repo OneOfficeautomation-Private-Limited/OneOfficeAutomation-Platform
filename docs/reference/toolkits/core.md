@@ -6,13 +6,10 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 
 ## Contents
 
-- **Logic**: Exit loop, Comment, Continue loop, If, Loop, Parallel, Step, Switch
+- **Logic**: Exit loop, Comment, Continue loop, Go to, If, Label, Loop, Parallel, Step, Switch
 - **Runtime**: Delay, Log message, Wait for condition
-- **Agent**: Pause agent, Run Agent, Stop agent
+- **Agent**: Exit subflow, Pause agent, Run Agent, Run subflow, Stop agent
 - **Variables**: Assign variable, Assign several variables
-- **Logic**: Exit loop, Comment, Continue loop, Go to, If, Label, Loop, Parallel, Step
-- **Agent**: Pause agent, Run Agent, Run subflow, Exit subflow, Stop agent
-- **Variables**: Assign variable
 - **Error handling**: Throw error, Try
 
 ## Logic
@@ -59,6 +56,20 @@ Skip to the next pass of the innermost loop, or of the enclosing loop with the g
 
 *Time limit 60 s.*
 
+### Go to
+
+`core/goto` (action)
+
+Carry on from a Label in the same step list or a list around it (never into a block or out of a subflow); a run fails with GOTO.LIMIT after too many jumps.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Label | `label` | Text | Yes |  | Main | Name of the Label to carry on from. |
+
+*Time limit 60 s.*
+
 ### If
 
 `core/if` (action)
@@ -73,22 +84,6 @@ Run the children when the condition is true; otherwise evaluate elseIf branches,
 
 *Time limit 60 s.*
 
-### Go to
-
-`core/goto` (action)
-
-Carry on from a Label in the same step list or a list around it (never into a block or out of a subflow); a run fails with GOTO.LIMIT after too many jumps.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Label | `label` | Text | Yes |  | Main | Name of the Label to carry on from. |
-
-Finally blocks of the blocks it leaves still run. A run allows 10,000 jumps unless the run options give another number.
-
-*Time limit 60 s.*
-
 ### Label
 
 `core/label` (action)
@@ -99,7 +94,7 @@ A named place in the steps that Go to can jump to; does nothing itself.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Name | `name` | Text | Yes |  | Main | Name of the place, unique among the labels Go to steps can see. Pattern: `^[A-Za-z0-9_ -]+$` |
+| Name | `name` | Text | Yes |  | Main | Name of the place, unique among the labels Go to steps can see. |
 
 *Time limit 60 s.*
 
@@ -165,8 +160,6 @@ Named group of steps for readability; no runtime effect.
 `core/switch` (action)
 
 Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.
-
-The cases are kept on the step as `"cases": [{"values": [...], "children": [...]}]` and the steps for no match as `"default": [...]`.
 
 **Settings**
 
@@ -236,6 +229,16 @@ Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).
 
 ## Agent
 
+### Exit subflow
+
+`core/exit_subflow` (action)
+
+Leave the subflow being run at once (Finally blocks still run); the agent carries on after the Run subflow step.
+
+No settings.
+
+*Time limit 60 s.*
+
 ### Pause agent
 
 `core/pause` (action)
@@ -293,16 +296,6 @@ Run one of this agent's subflows (a named list of steps kept beside the main ste
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Subflow | `subflow` | Text | Yes |  | Main | Name of the subflow to run. |
-
-A subflow may run other subflows and itself, up to 100 deep (SUBFLOW.DEPTH). An error in it goes to the Try around the Run subflow step. Exit loop, Continue loop and Go to cannot leave a subflow.
-
-*Time limit 60 s.*
-
-### Exit subflow
-
-`core/exit_subflow` (action)
-
-Leave the subflow being run at once (Finally blocks still run); the agent carries on after the Run subflow step.
 
 *Time limit 60 s.*
 

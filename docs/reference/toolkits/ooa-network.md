@@ -250,6 +250,8 @@ True when the host answers a ping within the timeout.
 | Host | `host` | Text | Yes |  | Main | Host name or IP address. |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | Main | Timeout in milliseconds. Range: 1 to  |
 
+*Needs: network.*
+
 ### Port is open
 
 `ooa.network/port_open` (condition)
@@ -263,3 +265,5 @@ True when a TCP port accepts connections.
 | Host | `host` | Text | Yes |  | Main | Host name or IP address. |
 | Port | `port` | Number | Yes |  | Main | TCP port. Range: 1 to 65535 |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | Main | Timeout in milliseconds. Range: 1 to  |
+
+*Needs: network.*

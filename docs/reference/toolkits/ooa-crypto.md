@@ -226,7 +226,7 @@ Decrypt Base64 text encrypted with the matching public key.
 | --- | --- | --- |
 | `result` | Credential (vault) | Decrypted text, kept as a Credential. |
 
-*Time limit 60 s.*
+*Time limit 60 s; needs: filesystem.*
 
 ### RSA encrypt text
 
@@ -247,19 +247,21 @@ Encrypt a short text (up to about 300 characters) with a public key (RSA-OAEP SH
 | --- | --- | --- |
 | `result` | Text | Encrypted Base64 text. |
 
-*Time limit 60 s.*
+*Time limit 60 s; needs: filesystem.*
 
 ### Generate RSA key pair
 
 `ooa.crypto/rsa_generate_keys` (action)
 
-Create public.pem and private.pem (RSA 3072-bit) in a folder; keep the private key protected.
+Create public.pem and private.pem in a folder; keep the private key protected. Existing keys stop the step, or are replaced or kept as a backup (key rotation).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Folder | `folder` | File path | Yes |  | Main | Folder for the key files. |
+| If keys exist | `if_keys_exist` | Text | No | `error` | More options | When the folder already has keys: error stops with CRYPTO.KEY_EXISTS; rotate renames them to *.pem.<date-time>.bak first; overwrite replaces them (the old private key is lost). One of: `error`, `rotate`, `overwrite` |
+| Key size | `key_size` | Number | No | `3072` | More options | Key length in bits; 3072 or more is recommended. One of: `2048`, `3072`, `4096` |
 
 **Results**
 
@@ -267,6 +269,7 @@ Create public.pem and private.pem (RSA 3072-bit) in a folder; keep the private k
 | --- | --- | --- |
 | `public_key` | File path | Public key path. |
 | `private_key` | File path | Private key path. |
+| `backup_private_key` | File path | With if_keys_exist = rotate: where the previous private key was moved; empty otherwise. |
 
 *Time limit 60 s; needs: filesystem.*
 
@@ -289,7 +292,7 @@ Sign text with a private key (SHA256withRSA); returns a Base64 signature.
 | --- | --- | --- |
 | `signature` | Text | Base64 signature. |
 
-*Time limit 60 s.*
+*Time limit 60 s; needs: filesystem.*
 
 ### RSA verify
 
@@ -311,4 +314,4 @@ Check an RSA signature with the public key; returns the result instead of failin
 | --- | --- | --- |
 | `valid` | Yes/No | True when the signature matches. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*

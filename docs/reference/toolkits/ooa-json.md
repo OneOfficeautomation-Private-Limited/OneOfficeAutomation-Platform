@@ -36,14 +36,14 @@ Remove the node at a path.
 
 `ooa.json/get_node` (action)
 
-Read a value by dotted path, e.g. order.items[0].sku.
+Read a value by dotted path (order.items[0].sku) or JSONPath ($.order.items[0].sku, $..sku, $.items[*].sku, $.items[?(@.qty > 1)]).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary or List to query. |
-| Path | `path` | Text | Yes |  | Main | Dotted path with [n] indexes. |
+| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text to query. |
+| Path | `path` | Text | Yes |  | Main | Dotted path with [n] indexes, or JSONPath starting with $. Example: `$.order.items[0].sku` |
 | Default | `default` | Any | No |  | More options | Value returned when the path does not exist. |
 | Fail if missing | `fail_if_missing` | Yes/No | No | No | More options | Fail with JSON.PATH_NOT_FOUND when the path does not exist. |
 
@@ -51,8 +51,8 @@ Read a value by dotted path, e.g. order.items[0].sku.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `result` | Any | Value at the path, or the default when the path is missing. |
-| `found` | Yes/No | True when the path exists. |
+| `result` | Any | Value at the path (a List when the path can match several values: *, .., filters, slices), or the default when nothing matches. |
+| `found` | Yes/No | True when the path matched. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -245,8 +245,10 @@ Check that JSON is well-formed, that required paths exist and, optionally, that 
 | --- | --- | --- | --- | --- | --- | --- |
 | JSON | `json` | Any | Yes |  | Main | JSON text, Dictionary or List to check. |
 | Required keys | `required_keys` | List | No |  | Main | Paths that must exist, e.g. ["id", "customer.email"]. |
-| Schema | `schema` | Any | No |  | Main; choice Schema = Schema text | JSON Schema as a Dictionary or JSON text: type, properties, required, items, enum, const, minimum/maximum, length and pattern rules, allOf/anyOf/oneOf/not and local $ref. |
-| Schema path | `schema_path` | File path | No |  | Main; choice Schema = Schema file | JSON Schema file; used when 'schema' is empty. |
+| Schema | `schema` | Any | No |  | Main; choice Schema = Schema text | JSON Schema (draft-07 to 2020-12) as a Dictionary or JSON text; $ref may point inside it, to another file (with schema_path or an $id) or to a URL. |
+| Schema path | `schema_path` | File path | No |  | Main; choice Schema = Schema file | JSON Schema file; used when 'schema' is empty. References such as address.json#/$defs/x are read from its folder. |
+| Check formats | `check_formats` | Yes/No | No | Yes | More options | Check the format keyword: date-time, date, time, duration, email, hostname, ipv4, ipv6, uri, uuid, regex and json-pointer. |
+| Load remote refs | `load_remote_refs` | Yes/No | No | Yes | More options | Follow $ref to other schema files and http(s) URLs (30 s timeout, 5 MB limit); false allows references inside the schema only. |
 
 **Results**
 
@@ -256,7 +258,7 @@ Check that JSON is well-formed, that required paths exist and, optionally, that 
 | `errors` | List | Problems found, each with the path where it was found. |
 | `level` | Text | What was checked: syntax (the text did not parse), structure or schema. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Write JSON file
 

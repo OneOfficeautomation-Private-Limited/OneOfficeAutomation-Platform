@@ -81,3 +81,5 @@ Yield each data row of a CSV or delimited text file as a record keyed by column 
 | Encoding | `encoding` | Text | No | `utf-8` | Main | Text encoding. |
 | Trim | `trim` | Text | No | `none` | Main | Remove spaces at the start and/or end of every value. One of: `none`, `leading`, `trailing`, `both` |
 | Detect numbers and dates | `detect_types` | Yes/No | No | No | Main | Turn values that are clearly numbers, true/false or ISO dates into typed values. |
+
+*Needs: filesystem.*
