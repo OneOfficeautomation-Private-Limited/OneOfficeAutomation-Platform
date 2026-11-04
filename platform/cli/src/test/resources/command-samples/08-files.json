@@ -92,5 +92,7 @@
   {"command": "ooa.folder/special_folder", "name": "temp and documents (G07)",
    "steps": [{"action": "ooa.folder/special_folder", "args": {"folder": "temp"}, "out": {"path": "t", "exists": "te"}},
              {"action": "ooa.folder/special_folder", "args": {"folder": "documents"}, "out": {"path": "d"}}],
-   "expect": {"te": true, "d": {"$contains": "Documents"}}}
+   "expect": {"te": true, "d": {"$contains": "Documents"}}},
+  {"command": "ooa.image/compare_images", "name": "missing picture (G11)", "files": {"a.txt": "not a picture"},
+   "steps": [{"action": "ooa.image/compare_images", "args": {"image": "{tmp}/a.txt", "other": "{tmp}/none.png"}}], "error": "IMAGE.UNSUPPORTED"}
 ]

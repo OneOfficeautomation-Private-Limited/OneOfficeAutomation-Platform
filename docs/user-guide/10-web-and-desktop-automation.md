@@ -294,7 +294,8 @@ at once unless they have a timeout.
 When an application cannot be read through its controls (remote desktops, Citrix, games, pictures):
 
 - **Image recognition**: **Find image on screen**, **Click image**, **Wait for image** (or until it is gone),
-  **Wait for screen change**, **Find image in image**; condition **Image is on screen**. Keep the template images in your
+  **Wait for screen change**, **Find image in image**, **Compare images** (same or not, how much and where it differs,
+  and optionally a copy with the changes in red); condition **Image is on screen**. Keep the template images in your
   workspace; set **Tolerance** and, to speed things up, **Search only an area**.
 - **OCR (read text in images)**: **Read text from image**, **Read text from image URL**, **Read text from screen**
   (whole screen or one window, optionally an area), **Find text in image**, **Click text on screen**; condition
