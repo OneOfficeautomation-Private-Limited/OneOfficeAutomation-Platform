@@ -2,7 +2,7 @@
 
 **Audience:** agent builders who connect agents to cloud services and business systems: Microsoft 365, Google
 Workspace, Salesforce, ServiceNow, Jira, Slack, Teams and others, web services (REST and SOAP), APIs you import yourself,
-and AWS EC2 virtual machines.
+and AWS EC2 and Azure virtual machines.
 
 ## Contents
 
@@ -275,6 +275,21 @@ Steps:
 `state`, `instance_type`, `image_id`, `private_ip`, `public_ip`, `availability_zone`, `launch_time`, `monitoring` and
 `tags`; its **instance_ids** output is a List you can pass straight to Start or Stop. **Get instance status** adds AWS's
 system and instance health checks.
+
+**Disks.** The same toolkit also backs up and moves EBS volumes: **Create snapshot** (of a volume, with a description
+and tags), **List snapshots** (this account's, optionally only one volume's or those with certain tags; every page is
+read), **Delete snapshot**, **Create volume** (in an availability zone, empty or from a snapshot; type `gp3` by
+default), **Attach volume** (to an instance, as a device such as `/dev/sdf`) and **Detach volume** (with **Force** only
+for a volume that will not let go). A nightly agent can, for example, run **Create snapshot** for each volume of the
+test server and **Delete snapshot** for those older than a week.
+
+**Azure.** For virtual machines on Azure use the **Azure VMs** toolkit (`ooa.azure_vm`). **Connect** signs in with an
+app registration (service principal): the tenant id, the application (client) id, the client secret from the vault
+and the subscription id; give the app a role such as *Virtual Machine Contributor*. Then **List VMs** (whole
+subscription or one resource group), **Get VM status** (power state such as `running` or `deallocated`), **Start VM**,
+**Stop VM** (**Deallocate**, the default, stops compute billing; **Power off** keeps the hardware reserved),
+**Restart VM** and **Create disk snapshot** (of a VM's OS disk or a named disk). Starting, stopping and snapshots wait
+until Azure reports the work done, up to **Timeout seconds**; switch **Wait** off to carry on as soon as Azure accepts.
 
 ### 14.4 Schedule it
 

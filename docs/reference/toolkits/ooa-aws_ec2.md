@@ -1,14 +1,156 @@
 # AWS EC2
 
-Toolkit `ooa.aws_ec2`, version 1.0.0. Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, and switch detailed monitoring on or off.
+Toolkit `ooa.aws_ec2`, version 1.0.0. Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes.
 
 [All toolkits](README.md)
 
 ## Contents
 
+- **Snapshots and volumes**: Attach volume, Create snapshot, Create volume, Delete snapshot, Detach volume, List snapshots
 - **Connection**: Connect, Disconnect
 - **Instances**: Describe instances, Get instance status, Launch instances, Reboot instances, Set tags, Start instances, Stop instances, Terminate instances, Wait for state
 - **Monitoring**: Disable monitoring, Enable monitoring
+
+## Snapshots and volumes
+
+### Attach volume
+
+`ooa.aws_ec2/attach_volume` (action)
+
+Attach an available volume to an instance in the same availability zone, as a device name.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
+| Volume ID | `volume_id` | Text | Yes |  | Main | Id of the volume to attach. Example: `vol-0abc1234def567890` |
+| Instance ID | `instance_id` | Text | Yes |  | Main | Id of the instance to attach it to. Example: `i-0abc1234def567890` |
+| Device | `device` | Text | Yes |  | Main | Device name the instance sees, e.g. /dev/sdf (Linux) or xvdf (Windows). Example: `/dev/sdf` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `state` | Text | Attachment state, usually attaching. |
+
+*Time limit 60 s; needs: network.*
+
+### Create snapshot
+
+`ooa.aws_ec2/create_snapshot` (action)
+
+Start a point-in-time copy (snapshot) of an EBS volume; AWS finishes it in the background.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
+| Volume ID | `volume_id` | Text | Yes |  | Main | Id of the volume to copy. Example: `vol-0abc1234def567890` |
+| Description | `description` | Text | No |  | Main | Text shown with the snapshot in the AWS console. |
+| Tags | `tags` | Dictionary | No |  | More options | Tags for the snapshot, e.g. {"Name": "Before patching", "Team": "Finance"}. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `snapshot_id` | Text | Id of the new snapshot, e.g. snap-0abc1234def567890. |
+| `state` | Text | Snapshot state: pending until AWS has finished the copy, then completed. |
+| `start_time` | Text | When the snapshot was started (UTC, ISO 8601). |
+
+*Time limit 60 s; needs: network.*
+
+### Create volume
+
+`ooa.aws_ec2/create_volume` (action)
+
+Create an EBS volume in an availability zone, empty or restored from a snapshot.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
+| Availability zone | `availability_zone` | Text | Yes |  | Main | Availability zone for the volume; it can only be attached to instances in the same zone. Example: `eu-west-1a` |
+| Size gib | `size_gib` | Number | No | `0` | Main | Size in GiB (1-65536). 0 takes the snapshot's size when a snapshot is given. |
+| Volume type | `volume_type` | Text | No | `gp3` | Main | Volume type: gp3 or gp2 general purpose SSD, io1 or io2 provisioned-IOPS SSD, st1 or sc1 hard disk, standard magnetic. One of: `gp3`, `gp2`, `io1`, `io2`, `st1`, `sc1`, `standard` |
+| Snapshot ID | `snapshot_id` | Text | No |  | Main | Snapshot to restore the volume from. Leave empty for an empty volume. |
+| Tags | `tags` | Dictionary | No |  | More options | Tags for the volume, e.g. {"Name": "Invoice data"}. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `volume_id` | Text | Id of the new volume, e.g. vol-0abc1234def567890. |
+| `state` | Text | Volume state: creating, then available. |
+| `size_gib` | Number | Size of the volume in GiB. |
+
+*Time limit 60 s; needs: network.*
+
+### Delete snapshot
+
+`ooa.aws_ec2/delete_snapshot` (action)
+
+Delete a snapshot for good. AWS refuses while a machine image (AMI) still uses it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
+| Snapshot ID | `snapshot_id` | Text | Yes |  | Main | Id of the snapshot to delete. Example: `snap-0abc1234def567890` |
+
+*Time limit 60 s; needs: network.*
+
+### Detach volume
+
+`ooa.aws_ec2/detach_volume` (action)
+
+Detach a volume from its instance. Unmount it on the instance first; force only for a volume that will not detach.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
+| Volume ID | `volume_id` | Text | Yes |  | Main | Id of the volume to detach. Example: `vol-0abc1234def567890` |
+| Force | `force` | Yes/No | No | No | More options | Force the detach; data not yet written can be lost, so use it only when a normal detach hangs. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `state` | Text | Attachment state, usually detaching. |
+
+*Time limit 60 s; needs: network.*
+
+### List snapshots
+
+`ooa.aws_ec2/list_snapshots` (action)
+
+List snapshots owned by this account (or another owner), optionally only those of one volume or with certain tags.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
+| Volume ID | `volume_id` | Text | No |  | Main | Only snapshots of this volume. Leave empty for all. |
+| Tags | `tags` | Dictionary | No |  | Main | Only snapshots with these tag values, e.g. {"Team": "Finance"}. |
+| Owner | `owner` | Text | No | `self` | More options | Whose snapshots: self (this account), amazon, or an AWS account id. |
+| Filters | `filters` | Dictionary | No |  | More options | More EC2 filters, name to value or list of values, e.g. {"status": "completed"}. |
+| Maximum results | `max_results` | Number | No | `1000` | More options | Stop after this many snapshots. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `snapshots` | Table | Columns: snapshot_id, volume_id, state, progress, start_time, volume_size_gib, description, encrypted, owner_id, tags. |
+| `snapshot_ids` | List | The ids of the snapshots found. |
+| `count` | Number | How many snapshots were found. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
 
 ## Connection
 

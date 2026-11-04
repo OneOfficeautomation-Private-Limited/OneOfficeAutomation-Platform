@@ -19,10 +19,10 @@ import java.util.regex.Pattern;
 /**
  * AWS EC2 virtual machines through EC2's query API, signed with AWS Signature Version 4 (no AWS SDK). Connect keeps
  * the region and the access keys from the vault in a session; the other steps list, start, stop, reboot, end, launch,
- * tag and watch instances.
+ * tag and watch instances, and snapshot, create, attach and detach their EBS volumes.
  */
 @OoaPackage(id = "ooa.aws_ec2", name = "AWS EC2", version = "1.0.0",
-        description = "Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, and switch detailed monitoring on or off.")
+        description = "Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes.")
 public final class Ec2Package {
     static final String P = "EC2";
     static final String API_VERSION = "2016-11-15";
@@ -35,6 +35,12 @@ public final class Ec2Package {
     private static final List<String> CHANGE_COLS = List.of("instance_id", "previous_state", "current_state");
     private static final List<String> STATUS_COLS = List.of("instance_id", "state", "system_status", "instance_status", "availability_zone");
     private static final List<String> STATES = List.of("pending", "running", "stopping", "stopped", "shutting-down", "terminated");
+    private static final Pattern VOLUME_ID = Pattern.compile("^vol-[0-9a-f]{8,17}$");
+    private static final Pattern SNAPSHOT_ID = Pattern.compile("^snap-[0-9a-f]{8,17}$");
+    private static final Pattern ZONE = Pattern.compile("^[a-z]{2}(-[a-z0-9]+)+$");
+    private static final List<String> VOLUME_TYPES = List.of("gp3", "gp2", "io1", "io2", "st1", "sc1", "standard");
+    private static final List<String> SNAPSHOT_COLS = List.of("snapshot_id", "volume_id", "state", "progress", "start_time", "volume_size_gib",
+            "description", "encrypted", "owner_id", "tags");
 
     /** What Connect keeps: where to send requests and the keys to sign them with (secrets stay SecureStrings). */
     static final class Ec2Session {
@@ -298,6 +304,157 @@ public final class Ec2Package {
         }
     }
 
+    // ----- snapshots and volumes -----
+
+    @Action(id = "create_snapshot", name = "Create snapshot", category = "Snapshots and volumes", capabilities = "network",
+            description = "Start a point-in-time copy (snapshot) of an EBS volume; AWS finishes it in the background.",
+            panel = "session, volume_id, description | tags")
+    @Output(name = "snapshot_id", type = OoaType.STRING, description = "Id of the new snapshot, e.g. snap-0abc1234def567890.")
+    @Output(name = "state", type = OoaType.STRING, description = "Snapshot state: pending until AWS has finished the copy, then completed.")
+    @Output(name = "start_time", type = OoaType.STRING, description = "When the snapshot was started (UTC, ISO 8601).")
+    public Map<String, Object> createSnapshot(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
+            @Input(name = "volume_id", type = OoaType.STRING, example = "vol-0abc1234def567890", description = "Id of the volume to copy.") String volume,
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "Text shown with the snapshot in the AWS console.") String description,
+            @Input(name = "tags", type = OoaType.DICTIONARY, required = false, description = "Tags for the snapshot, e.g. {\"Name\": \"Before patching\", \"Team\": \"Finance\"}.") Map<String, Object> tags) {
+        Map<String, String> p = params("VolumeId", volumeId(volume));
+        if (description != null && !description.isBlank()) p.put("Description", description.strip());
+        if (tags != null && !tags.isEmpty()) { p.put("TagSpecification.1.ResourceType", "snapshot"); tagParams(p, "TagSpecification.1.Tag", tags); }
+        Element root = call(ctx, ctx.session(session, Ec2Session.class), "CreateSnapshot", p);
+        return Out.of("snapshot_id", text(root, "snapshotId"), "state", text(root, "status"), "start_time", text(root, "startTime"));
+    }
+
+    @Action(id = "list_snapshots", name = "List snapshots", category = "Snapshots and volumes", idempotent = true, capabilities = "network",
+            description = "List snapshots owned by this account (or another owner), optionally only those of one volume or with certain tags.",
+            panel = "session, volume_id, tags | owner, filters, max_results")
+    @Output(name = "snapshots", type = OoaType.TABLE, description = "Columns: snapshot_id, volume_id, state, progress, start_time, volume_size_gib, description, encrypted, owner_id, tags.")
+    @Output(name = "snapshot_ids", type = OoaType.LIST, description = "The ids of the snapshots found.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many snapshots were found.")
+    public Map<String, Object> listSnapshots(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
+            @Input(name = "volume_id", type = OoaType.STRING, required = false, description = "Only snapshots of this volume. Leave empty for all.") String volume,
+            @Input(name = "tags", type = OoaType.DICTIONARY, required = false, description = "Only snapshots with these tag values, e.g. {\"Team\": \"Finance\"}.") Map<String, Object> tags,
+            @Input(name = "owner", type = OoaType.STRING, required = false, defaultValue = "\"self\"",
+                    description = "Whose snapshots: self (this account), amazon, or an AWS account id.") String owner,
+            @Input(name = "filters", type = OoaType.DICTIONARY, required = false,
+                    description = "More EC2 filters, name to value or list of values, e.g. {\"status\": \"completed\"}.") Map<String, Object> filters,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Stop after this many snapshots.") int max) {
+        Ec2Session s = ctx.session(session, Ec2Session.class);
+        Map<String, String> p = new LinkedHashMap<>();
+        String o = owner == null || owner.isBlank() ? "self" : owner.strip();
+        if (!o.matches("self|amazon|aws-marketplace|\\d{12}"))
+            throw new ActionException(P + ".BAD_OWNER", "'" + o + "' is not a snapshot owner", "Use self, amazon or a 12-digit AWS account id.");
+        p.put("Owner.1", o);
+        Map<String, Object> all = new LinkedHashMap<>();
+        if (volume != null && !volume.isBlank()) all.put("volume-id", volumeId(volume));
+        if (tags != null) tags.forEach((k, v) -> all.put("tag:" + k, v));
+        if (filters != null) all.putAll(filters);
+        filters(p, all);
+        List<Object> rows = new ArrayList<>();
+        List<Object> found = new ArrayList<>();
+        String next = null;
+        do {
+            Map<String, String> page = new LinkedHashMap<>(p);
+            page.put("MaxResults", "1000");
+            if (next != null) page.put("NextToken", next);
+            Element root = call(ctx, s, "DescribeSnapshots", page);
+            for (Element it : items(child(root, "snapshotSet"))) {
+                if (rows.size() >= max) break;
+                Map<String, Object> t = new LinkedHashMap<>();
+                for (Element tag : items(child(it, "tagSet"))) t.put(text(tag, "key"), text(tag, "value"));
+                String size = text(it, "volumeSize");
+                rows.add(new ArrayList<>(Arrays.asList(text(it, "snapshotId"), text(it, "volumeId"), text(it, "status"), text(it, "progress"), text(it, "startTime"),
+                        size == null || size.isBlank() ? null : new BigDecimal(size), text(it, "description"), "true".equals(text(it, "encrypted")), text(it, "ownerId"), t)));
+                found.add(text(it, "snapshotId"));
+            }
+            next = text(root, "nextToken");
+        } while (next != null && !next.isBlank() && rows.size() < max);
+        return Out.of("snapshots", Values.table(SNAPSHOT_COLS, rows), "snapshot_ids", found, "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "delete_snapshot", name = "Delete snapshot", category = "Snapshots and volumes", capabilities = "network",
+            description = "Delete a snapshot for good. AWS refuses while a machine image (AMI) still uses it.", panel = "session, snapshot_id")
+    public Map<String, Object> deleteSnapshot(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
+            @Input(name = "snapshot_id", type = OoaType.STRING, example = "snap-0abc1234def567890", description = "Id of the snapshot to delete.") String snapshot) {
+        call(ctx, ctx.session(session, Ec2Session.class), "DeleteSnapshot", params("SnapshotId", snapshotId(snapshot)));
+        return Map.of();
+    }
+
+    @Action(id = "create_volume", name = "Create volume", category = "Snapshots and volumes", capabilities = "network",
+            description = "Create an EBS volume in an availability zone, empty or restored from a snapshot.",
+            panel = "session, availability_zone, size_gib, volume_type, snapshot_id | tags")
+    @Output(name = "volume_id", type = OoaType.STRING, description = "Id of the new volume, e.g. vol-0abc1234def567890.")
+    @Output(name = "state", type = OoaType.STRING, description = "Volume state: creating, then available.")
+    @Output(name = "size_gib", type = OoaType.NUMBER, description = "Size of the volume in GiB.")
+    public Map<String, Object> createVolume(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
+            @Input(name = "availability_zone", type = OoaType.STRING, example = "eu-west-1a",
+                    description = "Availability zone for the volume; it can only be attached to instances in the same zone.") String zone,
+            @Input(name = "size_gib", type = OoaType.NUMBER, required = false, defaultValue = "0",
+                    description = "Size in GiB (1-65536). 0 takes the snapshot's size when a snapshot is given.") int size,
+            @Input(name = "volume_type", type = OoaType.STRING, required = false, defaultValue = "\"gp3\"", enumValues = {"gp3", "gp2", "io1", "io2", "st1", "sc1", "standard"},
+                    description = "Volume type: gp3 or gp2 general purpose SSD, io1 or io2 provisioned-IOPS SSD, st1 or sc1 hard disk, standard magnetic.") String type,
+            @Input(name = "snapshot_id", type = OoaType.STRING, required = false, description = "Snapshot to restore the volume from. Leave empty for an empty volume.") String snapshot,
+            @Input(name = "tags", type = OoaType.DICTIONARY, required = false, description = "Tags for the volume, e.g. {\"Name\": \"Invoice data\"}.") Map<String, Object> tags) {
+        String z = zone == null ? "" : zone.strip();
+        if (!ZONE.matcher(z).matches()) throw new ActionException(P + ".BAD_ZONE", "'" + z + "' is not an availability zone", "Use a zone name such as eu-west-1a.");
+        String t = type == null || type.isBlank() ? "gp3" : type.strip();
+        if (!VOLUME_TYPES.contains(t)) throw new ActionException(P + ".BAD_VOLUME_TYPE", "Unknown volume type '" + t + "'", "Use one of " + String.join(", ", VOLUME_TYPES) + ".");
+        boolean fromSnapshot = snapshot != null && !snapshot.isBlank();
+        if (size < 0 || size > 65536 || size == 0 && !fromSnapshot)
+            throw new ActionException(P + ".BAD_SIZE", size == 0 ? "A size is required for an empty volume" : "The size must be 1-65536 GiB, not " + size, "Give size_gib, or a snapshot to restore.");
+        Map<String, String> p = params("AvailabilityZone", z, "VolumeType", t);
+        if (size > 0) p.put("Size", String.valueOf(size));
+        if (fromSnapshot) p.put("SnapshotId", snapshotId(snapshot));
+        if (tags != null && !tags.isEmpty()) { p.put("TagSpecification.1.ResourceType", "volume"); tagParams(p, "TagSpecification.1.Tag", tags); }
+        Element root = call(ctx, ctx.session(session, Ec2Session.class), "CreateVolume", p);
+        String got = text(root, "size");
+        return Out.of("volume_id", text(root, "volumeId"), "state", text(root, "status"), "size_gib", got == null || got.isBlank() ? null : new BigDecimal(got));
+    }
+
+    @Action(id = "attach_volume", name = "Attach volume", category = "Snapshots and volumes", capabilities = "network",
+            description = "Attach an available volume to an instance in the same availability zone, as a device name.",
+            panel = "session, volume_id, instance_id, device")
+    @Output(name = "state", type = OoaType.STRING, description = "Attachment state, usually attaching.")
+    public Map<String, Object> attachVolume(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
+            @Input(name = "volume_id", type = OoaType.STRING, example = "vol-0abc1234def567890", description = "Id of the volume to attach.") String volume,
+            @Input(name = "instance_id", type = OoaType.STRING, example = "i-0abc1234def567890", description = "Id of the instance to attach it to.") String instance,
+            @Input(name = "device", type = OoaType.STRING, example = "/dev/sdf", description = "Device name the instance sees, e.g. /dev/sdf (Linux) or xvdf (Windows).") String device) {
+        if (device == null || device.isBlank()) throw new ActionException(P + ".NO_DEVICE", "A device name is required", "For example /dev/sdf or xvdf.");
+        String id = ids(List.of(instance == null ? "" : instance), true).get(0);
+        Element root = call(ctx, ctx.session(session, Ec2Session.class), "AttachVolume", params("VolumeId", volumeId(volume), "InstanceId", id, "Device", device.strip()));
+        return Out.of("state", text(root, "status"));
+    }
+
+    @Action(id = "detach_volume", name = "Detach volume", category = "Snapshots and volumes", capabilities = "network",
+            description = "Detach a volume from its instance. Unmount it on the instance first; force only for a volume that will not detach.",
+            panel = "session, volume_id | force")
+    @Output(name = "state", type = OoaType.STRING, description = "Attachment state, usually detaching.")
+    public Map<String, Object> detachVolume(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
+            @Input(name = "volume_id", type = OoaType.STRING, example = "vol-0abc1234def567890", description = "Id of the volume to detach.") String volume,
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Force the detach; data not yet written can be lost, so use it only when a normal detach hangs.") boolean force) {
+        Map<String, String> p = params("VolumeId", volumeId(volume));
+        if (force) p.put("Force", "true");
+        Element root = call(ctx, ctx.session(session, Ec2Session.class), "DetachVolume", p);
+        return Out.of("state", text(root, "status"));
+    }
+
+    static String volumeId(String v) {
+        String id = v == null ? "" : v.strip();
+        if (!VOLUME_ID.matcher(id).matches()) throw new ActionException(P + ".BAD_VOLUME_ID", "'" + id + "' is not a volume id", "Volume ids look like vol-0abc1234def567890.");
+        return id;
+    }
+
+    static String snapshotId(String v) {
+        String id = v == null ? "" : v.strip();
+        if (!SNAPSHOT_ID.matcher(id).matches()) throw new ActionException(P + ".BAD_SNAPSHOT_ID", "'" + id + "' is not a snapshot id", "Snapshot ids look like snap-0abc1234def567890.");
+        return id;
+    }
+
     // ----- query API -----
 
     static Map<String, String> params(String... kv) {
@@ -382,17 +539,24 @@ public final class Ec2Package {
         Element err = root == null ? null : child(child(root, "Errors"), "Error");
         String code = err == null ? null : text(err, "Code"), msg = err == null ? null : text(err, "Message");
         if (msg == null) { String t = new String(raw, StandardCharsets.UTF_8); msg = t.length() > 300 ? t.substring(0, 300) : t; }
-        boolean retry = status >= 500 || "RequestLimitExceeded".equals(code) || "Unavailable".equals(code) || "InternalError".equals(code);
+        boolean retry = status >= 500 || "RequestLimitExceeded".equals(code) || "Unavailable".equals(code) || "InternalError".equals(code) || "Throttling".equals(code);
         String ours = code == null ? (status == 403 ? ".FORBIDDEN" : ".REQUEST_FAILED")
                 : code.startsWith("AuthFailure") || code.equals("InvalidClientTokenId") || code.equals("SignatureDoesNotMatch") ? ".AUTH_FAILED"
                 : code.equals("UnauthorizedOperation") ? ".FORBIDDEN"
                 : code.startsWith("InvalidInstanceID") ? ".INSTANCE_NOT_FOUND"
                 : code.equals("IncorrectInstanceState") ? ".WRONG_STATE"
+                : code.equals("InvalidVolume.NotFound") ? ".VOLUME_NOT_FOUND"
+                : code.equals("InvalidSnapshot.NotFound") ? ".SNAPSHOT_NOT_FOUND"
+                : code.equals("IncorrectState") || code.equals("VolumeInUse") || code.equals("InvalidSnapshot.InUse") || code.equals("InvalidAttachment.NotFound") ? ".VOLUME_WRONG_STATE"
                 : retry ? ".SERVER_BUSY" : ".REQUEST_FAILED";
         String fix = ours.equals(".AUTH_FAILED") ? "Check the access keys in the vault and the region."
                 : ours.equals(".FORBIDDEN") ? "The keys' IAM policy does not allow this EC2 action."
                 : ours.equals(".INSTANCE_NOT_FOUND") ? "Check the instance ids and that they are in this region."
-                : ours.equals(".WRONG_STATE") ? "The instance cannot do this in its current state; check it with Get instance status." : null;
+                : ours.equals(".WRONG_STATE") ? "The instance cannot do this in its current state; check it with Get instance status."
+                : ours.equals(".VOLUME_NOT_FOUND") ? "Check the volume id and that it is in this region."
+                : ours.equals(".SNAPSHOT_NOT_FOUND") ? "Check the snapshot id and that it is in this region; List snapshots shows them."
+                : ours.equals(".VOLUME_WRONG_STATE") ? "The volume or snapshot is in use or in the wrong state for this; check it in the AWS console."
+                : ours.equals(".SERVER_BUSY") ? "AWS is busy or limiting requests; try again shortly." : null;
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("status", BigDecimal.valueOf(status));
         if (code != null) details.put("aws_code", code);
