@@ -53,7 +53,7 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Choose files"), { target: { files: [new File(["x"], "INV-NEW-1.pdf")] } });
     fireEvent.click(within(dialog).getByRole("radio", { name: /Use a process/ }));
     fireEvent.change(within(dialog).getByLabelText("Process"), { target: { value: "expense-claims" } });
-    expect((within(dialog).getByLabelText("Folder") as HTMLSelectElement).value).toBe("Finance / Expenses");   // the process's own folder
+    expect(within(dialog).getByRole("note").textContent).toContain("Filed in Finance / Expenses");          // the process's own folder
     fireEvent.click(within(dialog).getByRole("button", { name: "Start processing" }));
     await waitFor(() => expect(location.hash).toBe("#/process/expense-claims"));
     expect((await api.documents("expense-claims")).some((d) => d.name === "INV-NEW-1.pdf")).toBe(true);

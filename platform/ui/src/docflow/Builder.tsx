@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Icon } from "../components";
 import { stagesOf, type Check, type Delivery, type DocFlowApi, type InboxStatus, type ProcessDesign, type ProcessSettings, type ProcessSummary, type RefTable } from "./api";
 import { HINTS } from "./help";
+import { folderLabel } from "./dialogs";
 import { CheckDialog, ClassifyStage, DeliverStage, DeliveryDialog, ExtractStage, IF_FAILS, IntakeStage, ReviewStage } from "./stages";
 import { Chip, Empty, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError } from "./ui";
 
@@ -83,7 +84,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
           {choices.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <Chip tone={live ? "ok" : "mute"}>{live ? "Live · version " + design.version : "Draft · version " + design.version}</Chip>
-        <span className="df-muted">{design.folder}{design.folder ? " · " : ""}{design.docType}</span>
+        <span className="df-muted">{folderLabel(design.folder)}{design.folder ? " · " : ""}{design.docType}</span>
         <span className="df-grow" />
         {dirty && <span className="df-text-warn" role="status">{live ? "Unsaved changes: new documents use them once saved" : "Unsaved changes"}</span>}
         <a className="ui-btn ui-btn-secondary" href="#/testlab">Test with a sample</a>

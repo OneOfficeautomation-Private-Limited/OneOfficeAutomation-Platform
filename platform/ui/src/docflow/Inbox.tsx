@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "../components";
 import type { DocFlowApi, Source } from "./api";
-import { AddDocumentsDialog, NewProcessDialog } from "./dialogs";
+import { AddDocumentsDialog, NewProcessDialog, folderLabel } from "./dialogs";
 import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoad } from "./ui";
 
 /** Inbox: one row per process (minimal); a row opens the process page with every document. */
@@ -67,7 +67,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id}>
-                  <td><a href={"#/process/" + p.id} style={{ fontSize: 14 }}>{p.name}</a><div className="df-small">{p.folder}</div></td>
+                  <td><a href={"#/process/" + p.id} style={{ fontSize: 14 }}>{p.name}</a><div className="df-small">{folderLabel(p.folder)}</div></td>
                   <td className="df-right df-num" style={{ fontSize: 15, fontWeight: 600 }}>{p.today}</td>
                   <td><span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {p.review > 0 && <Chip tone="warn">{p.review} need{p.review === 1 ? "s" : ""} review</Chip>}

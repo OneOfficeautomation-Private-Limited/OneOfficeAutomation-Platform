@@ -37,6 +37,11 @@ import java.util.regex.Pattern;
  * And one more way in: a live process's email inbox (intake.email, IMAP or Microsoft 365) is read here, with the
  * mailbox's vault secret as the person who set it up, and new PDF and image attachments go to the process
  * ({@link #pollMail}); /api/docflow/mail-status says how each inbox's last check went.
+ * <p>
+ * Folder access: a process's folder ("Finance / Accounts payable") is the platform folder of that path, and its folder
+ * permissions apply on top of the docs.* permissions: view to see the process, its documents and its review tasks, run
+ * to add documents (also from bots), edit to change the process. A process without a folder is open to everyone with
+ * the docs.* permissions. Lists are filtered; the overview's totals stay those of the whole tenant.
  */
 final class DocFlowProxy {
     static final String DEFAULT_URL = "http://127.0.0.1:8085";
@@ -47,6 +52,8 @@ final class DocFlowProxy {
             + "|documents/[A-Za-z0-9_-]+/(result|page/\\d{1,4}\\.png|file))$");
     private static final Pattern REVIEW = Pattern.compile("^df/documents/([A-Za-z0-9_-]+)/(review|reclassify)$");
     private static final Pattern FLOW_WRITE = Pattern.compile("^df/flows(/[A-Za-z0-9._-]+)?$");
+    private static final Pattern FLOW_ROUTE = Pattern.compile("^df/flows/([A-Za-z0-9._-]+)(/.*)?$");
+    private static final Pattern DOC_ROUTE = Pattern.compile("^(?:df/)?documents/([A-Za-z0-9_-]+)(/.*)?$");
     private static final Set<String> REQUEST_HEADERS = Set.of("Content-Type", "Accept");
     private static final List<String> RESPONSE_HEADERS = List.of("Content-Type", "Content-Disposition");
 
@@ -84,6 +91,8 @@ final class DocFlowProxy {
         byte[] in = method.equals("GET") || method.equals("DELETE") ? null : body(ex);
         String type = ex.getRequestHeaders().getFirst("Content-Type");
         if (in != null && FLOW_WRITE.matcher(route).matches() && type != null && type.startsWith("application/json")) in = stampBotDeliveries(u, in);
+        Map<String, Map<String, String>> all = cr.folders.entries();
+        Map<String, String> folders = checkFolder(u, method, route, in, all);
         Map<String, String> headers = new HashMap<>();
         for (String h : REQUEST_HEADERS) { String v = ex.getRequestHeaders().getFirst(h); if (v != null) headers.put(h, v); }
         HttpResponse<byte[]> r = send(method, route, ex.getRequestURI().getRawQuery(), in, headers, person(u));
@@ -94,10 +103,92 @@ final class DocFlowProxy {
         h.set("Cache-Control", "no-store");
         h.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
         for (String name : RESPONSE_HEADERS) r.headers().firstValue(name).ifPresent(v -> h.set(name, v));
-        byte[] b = r.body();
+        byte[] b = r.statusCode() == 200 && method.equals("GET") ? onlyVisible(u, route, r.body(), folders, all) : r.body();
         if ("HEAD".equalsIgnoreCase(ex.getRequestMethod())) { ex.sendResponseHeaders(r.statusCode(), -1); return; }
         ex.sendResponseHeaders(r.statusCode(), b.length == 0 ? -1 : b.length);
         if (b.length > 0) try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+    }
+
+    // ------------------------------------------------------------------ folder access
+
+    /** A process's folder as a platform folder path: "Finance / Accounts payable" is Finance/Accounts payable. */
+    static String folderKey(Object folder) {
+        return folder == null ? "" : String.valueOf(folder).trim().replaceAll("\\s*/\\s*", "/").replaceAll("^/+|/+$", "");
+    }
+
+    /** What the person may do with a process in this folder (none, view, run, edit, manage); without a folder: manage. */
+    String folderAccess(ControlRoom.User u, Object folder, Map<String, Map<String, String>> all) {
+        String key = folderKey(folder);
+        return key.isEmpty() ? "manage" : cr.folders.accessToFolder(u.username(), u.role(), key, all);
+    }
+
+    /** Process id -> folder, from DocFlow. */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> processFolders() {
+        Map<String, String> out = new HashMap<>();
+        HttpResponse<byte[]> r = send("GET", "df/flows", null, null, null, "Command Center");
+        if (r.statusCode() == 200)
+            for (Object o : (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8))) {
+                Map<String, Object> f = (Map<String, Object>) o;
+                out.put(String.valueOf(f.get("id")), f.get("folder") == null ? "" : String.valueOf(f.get("folder")));
+            }
+        return out;
+    }
+
+    private void need(ControlRoom.User u, Object folder, String level, Map<String, Map<String, String>> all, String what) {
+        if (!Folders.atLeast(folderAccess(u, folder, all), level))
+            throw new OoaException("CR.FORBIDDEN", "You do not have permission to " + what + " in the folder '" + folderKey(folder) + "'",
+                    "Ask someone who manages the folder's permissions for " + level + " access.");
+    }
+
+    /**
+     * Refuses a request on a process or document in a folder the person may not use at the level it needs. Returns the
+     * processes' folders when the answer will be filtered (or null when nothing was looked up).
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> checkFolder(ControlRoom.User u, String method, String route, byte[] in, Map<String, Map<String, String>> all) {
+        boolean listing = method.equals("GET") && List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview").contains(route);
+        Matcher f = FLOW_ROUTE.matcher(route), d = DOC_ROUTE.matcher(route);
+        boolean flow = f.matches() && !f.group(1).equals("all"), doc = d.matches();
+        Object newFolder = null;
+        if (in != null && FLOW_WRITE.matcher(route).matches()) {
+            try { if (JsonLite.parse(new String(in, StandardCharsets.UTF_8)) instanceof Map<?, ?> b && b.containsKey("folder")) newFolder = b.get("folder"); }
+            catch (IllegalArgumentException ignored) { }
+        }
+        if (!listing && !flow && !doc && newFolder == null) return null;
+        Map<String, String> folders = processFolders();
+        if (newFolder != null) need(u, newFolder, "edit", all, "put a process");
+        if (flow) {
+            String rest = f.group(2) == null ? "" : f.group(2);
+            String level = method.equals("GET") ? "view" : method.equals("POST") && (rest.equals("/documents") || rest.equals("/intake/scan")) ? "run" : "edit";
+            need(u, folders.getOrDefault(f.group(1), ""), level, all, level.equals("view") ? "see this process" : level.equals("run") ? "add documents" : "change this process");
+        }
+        if (doc) {
+            HttpResponse<byte[]> r = send("GET", "df/documents/" + d.group(1), null, null, null, "Command Center");
+            if (r.statusCode() == 200 && JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> m)
+                need(u, folders.getOrDefault(String.valueOf(m.get("flowId")), ""), "view", all, "see this document");
+        }
+        return folders;
+    }
+
+    /** Lists without what the person may not see: processes, documents and review queue items in other folders. */
+    @SuppressWarnings("unchecked")
+    private byte[] onlyVisible(ControlRoom.User u, String route, byte[] body, Map<String, String> folders, Map<String, Map<String, String>> all) {
+        if (folders == null || !List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview").contains(route)) return body;
+        java.util.function.Predicate<Object> visible = id -> Folders.atLeast(folderAccess(u, folders.getOrDefault(String.valueOf(id), ""), all), "view");
+        Object parsed = JsonLite.parse(new String(body, StandardCharsets.UTF_8));
+        Object out = switch (route) {
+            case "df/flows" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("id"))).toList();
+            case "df/flows/all/documents" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("instance_id"))).toList();
+            case "df/review" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("flowId"))).toList();
+            default -> {
+                Map<String, Object> o = new LinkedHashMap<>((Map<String, Object>) parsed);
+                if (o.get("flows") instanceof List<?> l) o.put("flows", l.stream().filter(x -> visible.test(((Map<String, Object>) x).get("id"))).toList());
+                if (o.get("recent") instanceof List<?> l) o.put("recent", l.stream().filter(x -> visible.test(((Map<String, Object>) x).get("instance_id"))).toList());
+                yield o;
+            }
+        };
+        return JsonLite.write(out).getBytes(StandardCharsets.UTF_8);
     }
 
     private static String person(ControlRoom.User u) { return u.displayName() == null || u.displayName().isBlank() ? u.username() : u.displayName(); }
@@ -198,6 +289,7 @@ final class DocFlowProxy {
         if (r.statusCode() != 200) return new int[] {0, 0};
         List<Object> queue = (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
         Map<String, List<Map<String, Object>>> open = openTasks();
+        syncFolders = null;
         Set<String> waiting = new HashSet<>();
         int opened = 0, closed = 0;
         for (Object o : queue) {
@@ -213,6 +305,7 @@ final class DocFlowProxy {
             data.put("document_id", doc);
             data.put("process_id", d.get("flowId"));
             data.put("process", d.get("flowName"));
+            data.put("folder", folderOfProcess(String.valueOf(d.get("flowId"))));
             data.put("document_type", d.get("doctypeName"));
             data.put("link", "/documents/#/review/" + doc);
             cr.db.update("INSERT INTO human_tasks (id, kind, title, description, data, assignee, status, created, due) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -223,6 +316,13 @@ final class DocFlowProxy {
         for (var e : open.entrySet())
             if (!waiting.contains(e.getKey())) for (Map<String, Object> t : e.getValue()) { close((String) t.get("id"), "done", "docflow"); closed++; }
         return new int[] {opened, closed};
+    }
+
+    private Map<String, String> syncFolders;   // the processes' folders during one review sync
+
+    private String folderOfProcess(String id) {
+        if (syncFolders == null) syncFolders = processFolders();
+        return syncFolders.getOrDefault(id, "");
     }
 
     @SuppressWarnings("unchecked")
@@ -360,6 +460,8 @@ final class DocFlowProxy {
         Map<String, Object> flow = flows.statusCode() != 200 ? null : ((List<Object>) JsonLite.parse(new String(flows.body(), StandardCharsets.UTF_8))).stream()
                 .map(o -> (Map<String, Object>) o).filter(f -> process.equals(f.get("id")) || process.equalsIgnoreCase(String.valueOf(f.get("name")))).findFirst().orElse(null);
         if (flow == null) throw new OoaException("CR.NOT_FOUND", "No Document Automation process '" + process + "'", "Use the process's name or id as shown in Document Automation.");
+        need(new ControlRoom.User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false), flow.get("folder"), "run",
+                cr.folders.entries(), "add documents");
         boolean wait = "true".equals(q.get("wait"));
         String id = String.valueOf(flow.get("id"));
         Map<String, String> headers = Map.of("Content-Type", String.valueOf(ex.getRequestHeaders().getFirst("Content-Type")));

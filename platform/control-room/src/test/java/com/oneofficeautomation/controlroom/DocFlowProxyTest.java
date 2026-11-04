@@ -53,7 +53,7 @@ class DocFlowProxyTest {
             String path = ex.getRequestURI().getPath();
             byte[] b = (path.endsWith("/documents") && ex.getRequestMethod().equals("POST") ? "{\"documents\":[{\"documentId\":\"d7\",\"status\":\"processing\"}]}"
                     : path.endsWith("/df/documents/d7") ? "{\"id\":\"d7\",\"status\":\"validation\",\"fields\":{\"total\":115}}"
-                    : path.endsWith("/df/review") ? reviewQueue : path.endsWith("/df/flows") && ex.getRequestMethod().equals("GET") && ex.getRequestURI().getQuery() == null ? flowsJson : path.contains("/df/flows") && in.length > 0 ? new String(in, StandardCharsets.UTF_8)
+                    : path.endsWith("/df/review") ? reviewQueue : path.endsWith("/df/flows") && ex.getRequestMethod().equals("GET") ? flowsJson : path.contains("/df/flows") && in.length > 0 ? new String(in, StandardCharsets.UTF_8)
                     : "{\"ok\":true}").getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().set("Content-Type", "application/json");
             ex.sendResponseHeaders(200, b.length);
@@ -86,8 +86,8 @@ class DocFlowProxyTest {
         seen.clear();
         HttpResponse<String> r = call("GET", "/api/docflow/df/flows?limit=5", null);
         assertEquals(200, r.statusCode());
-        assertEquals("{\"ok\":true}", r.body());
-        Map<String, String> m = seen.get(0);
+        assertEquals("[]", r.body());
+        Map<String, String> m = got("GET", "/api/docs/v1/df/flows?limit=5");
         assertEquals("/api/docs/v1/df/flows?limit=5", m.get("uri"));
         assertEquals("Bearer svc-123", m.get("auth"));
         assertEquals("default", m.get("tenant"));
@@ -97,8 +97,7 @@ class DocFlowProxyTest {
     @Test void forwardsTheBody() throws Exception {
         seen.clear();
         assertEquals(200, call("POST", "/api/docflow/df/documents/abc123/review", "{\"action\":\"submit\"}").statusCode());
-        assertEquals("POST", seen.get(0).get("method"));
-        assertEquals("{\"action\":\"submit\"}", seen.get(0).get("body"));
+        assertEquals("{\"action\":\"submit\"}", got("POST", "/api/docs/v1/df/documents/abc123/review").get("body"));
     }
 
     @Test void onlyTheScreensRoutesAreForwarded() throws Exception {
@@ -189,7 +188,7 @@ class DocFlowProxyTest {
         String flow = "{\"name\":\"AP\",\"deliveries\":[{\"id\":\"d1\",\"type\":\"start_bot\",\"name\":\"ERP\",\"params\":{\"bot\":\"Finance/Post invoice\",\"url\":\"http://evil.example\",\"requestedBy\":\"someone\"}},"
                 + "{\"id\":\"d2\",\"type\":\"webhook\",\"params\":{\"url\":\"https://erp.example/hook\"}}]}";
         assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", flow).statusCode());
-        @SuppressWarnings("unchecked") Map<String, Object> sent = (Map<String, Object>) JsonLite.parse(seen.get(0).get("body"));
+        @SuppressWarnings("unchecked") Map<String, Object> sent = (Map<String, Object>) JsonLite.parse(got("PUT", "/api/docs/v1/df/flows/ap").get("body"));
         @SuppressWarnings("unchecked") Map<String, Object> bot = (Map<String, Object>) ((Map<String, Object>) ((List<Object>) sent.get("deliveries")).get(0)).get("params");
         assertEquals(Map.of("bot", "Finance/Post invoice.flow.json", "platform", true, "requestedBy", "admin"), bot);
         @SuppressWarnings("unchecked") Map<String, Object> hook = (Map<String, Object>) ((Map<String, Object>) ((List<Object>) sent.get("deliveries")).get(1)).get("params");
@@ -266,7 +265,7 @@ class DocFlowProxyTest {
         seen.clear();
         String ok = "{\"name\":\"AP\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"email\",\"host\":\"mail.example\",\"password_ref\":\"docflow/service/token\"}}}";
         assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", ok).statusCode());
-        assertTrue(seen.get(0).get("body").contains("\"requestedBy\":\"admin\""));
+        assertTrue(got("PUT", "/api/docs/v1/df/flows/ap").get("body").contains("\"requestedBy\":\"admin\""));
         String denied = ok.replace("docflow/service/token", "others/mailbox/password");
         HttpResponse<String> r = call("PUT", "/api/docflow/df/flows/ap", denied);
         assertEquals(403, r.statusCode(), r.body());
@@ -305,5 +304,62 @@ class DocFlowProxyTest {
         assertEquals("The mail server imap.example.com is not known: check its name", DocFlowProxy.problem(new java.net.UnknownHostException("imap.example.com"), email));
         assertEquals("The mail server imap.example.com does not answer on port 993", DocFlowProxy.problem(new java.net.ConnectException("refused"), email));
         assertEquals("Sign-in to the mailbox failed: NO", DocFlowProxy.problem(new java.io.IOException("Sign-in to the mailbox failed: NO"), email));
+    }
+
+    /** A signed-in session for a new user with this role. */
+    String sessionFor(String name, String role) {
+        ControlRoom.User admin = cr.session(token);
+        String temp = String.valueOf(cr.createUser(admin, name, name, role, null).get("temporary_password"));
+        String t0 = (String) cr.login(name, temp, null).get("token");
+        cr.changePassword(cr.session(t0), temp, "Folder-Passw0rd-2026", t0, null);
+        return (String) cr.login(name, "Folder-Passw0rd-2026", null).get("token");
+    }
+
+    HttpResponse<String> as(String session, String method, String path, String body, String type) throws Exception {
+        return HTTP.send(HttpRequest.newBuilder(URI.create(base + path)).header("Authorization", "Bearer " + session).header("Content-Type", type)
+                .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test void processesFollowTheirFoldersPermissions() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String fiona = sessionFor("fiona", "bot_creator"), rob = sessionFor("rob", "bot_runner");
+        cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(Map.of("principal", "user:fiona", "access", "run")), null);
+        flowsJson = "[{\"id\":\"ap\",\"name\":\"AP\",\"folder\":\"Finance / Accounts payable\",\"status\":\"live\"},{\"id\":\"open\",\"name\":\"Open\",\"folder\":\"\",\"status\":\"live\"}]";
+        try {
+            assertEquals("[\"ap\", \"open\"]", ids(as(fiona, "GET", "/api/docflow/df/flows", null, "application/json").body()));
+            assertEquals("[\"open\"]", ids(as(rob, "GET", "/api/docflow/df/flows", null, "application/json").body()));
+            assertEquals(403, as(rob, "GET", "/api/docflow/df/flows/ap", null, "application/json").statusCode());
+            String multipart = "--b\r\nContent-Disposition: form-data; name=\"files\"; filename=\"a.pdf\"\r\n\r\n%PDF\r\n--b--\r\n";
+            assertEquals(200, as(fiona, "POST", "/api/docflow/df/flows/ap/documents", multipart, "multipart/form-data; boundary=b").statusCode());   // run: may add documents
+            assertEquals(403, as(fiona, "PUT", "/api/docflow/df/flows/ap", "{\"name\":\"AP\"}", "application/json").statusCode());                                  // but not change the process
+            assertEquals(403, as(fiona, "POST", "/api/docflow/df/flows", "{\"name\":\"New\",\"folder\":\"Finance/Accounts payable\",\"docTypes\":[\"invoice\"]}", "application/json").statusCode());
+            // review tasks of the AP process show only to reviewers who may see its folder
+            String now = java.time.Instant.now().toString().replace("Z", "+00:00");
+            reviewQueue = "[{\"id\":\"docAP\",\"file_name\":\"AP-1.pdf\",\"created_at\":\"" + now + "\",\"flowId\":\"ap\",\"flowName\":\"AP\",\"doctypeName\":\"Invoice\",\"slaHours\":8,\"flags\":[]}]";
+            new DocFlowProxy(cr).syncReviews();
+            ControlRoom.User f = cr.session(fiona), r = cr.session(rob);
+            assertTrue(cr.workflows.tasks(f, "open", false).stream().anyMatch(t -> t.get("title").toString().contains("AP-1.pdf")));
+            assertTrue(cr.workflows.tasks(r, "open", false).stream().noneMatch(t -> t.get("title").toString().contains("AP-1.pdf")));
+        } finally {
+            reviewQueue = "[]";
+            new DocFlowProxy(cr).syncReviews();
+            flowsJson = "[]";
+            cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(), null);
+        }
+    }
+
+    /** The request DocFlow got for this method and path start (folder look-ups come first). */
+    Map<String, String> got(String method, String uriStart) {
+        return seen.stream().filter(m -> m.get("method").equals(method) && m.get("uri").startsWith(uriStart)).findFirst().orElseThrow();
+    }
+
+    static String ids(String json) {
+        return ((List<?>) JsonLite.parse(json)).stream().map(o -> "\"" + ((Map<?, ?>) o).get("id") + "\"").toList().toString();
+    }
+
+    @Test void processFoldersMatchPlatformFolders() {
+        assertEquals("Finance/Accounts payable", DocFlowProxy.folderKey(" Finance / Accounts payable "));
+        assertEquals("", DocFlowProxy.folderKey(null));
+        assertEquals("Shared", DocFlowProxy.folderKey("/Shared/"));
     }
 }

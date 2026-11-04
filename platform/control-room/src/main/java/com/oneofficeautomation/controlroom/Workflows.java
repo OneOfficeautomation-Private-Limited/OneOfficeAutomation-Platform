@@ -358,9 +358,11 @@ public final class Workflows {
                 ? db.query("SELECT * FROM human_tasks WHERE status IN ('open', 'claimed') ORDER BY COALESCE(due, created), created LIMIT 500")
                 : db.query("SELECT * FROM human_tasks WHERE status = ? ORDER BY completed DESC LIMIT 300", st);
         boolean admin = cr.can(u, "users.manage");
+        Map<String, Map<String, String>> folders = cr.folders.entries();
         for (Map<String, Object> t : rows) {
             boolean mine = assignedTo((String) t.get("assignee"), u) || u.username().equals(t.get("claimed_by")) || u.username().equals(t.get("completed_by"));
             if (!mine && !(admin && all)) continue;
+            if (!reviewVisible(u, t, folders)) continue;
             Map<String, Object> m = new LinkedHashMap<>(t);
             m.put("form", t.get("form") == null ? null : JsonLite.parse((String) t.get("form")));
             m.put("data", t.get("data") == null ? Map.of() : JsonLite.parse((String) t.get("data")));
@@ -374,9 +376,19 @@ public final class Workflows {
 
     public long openTaskCount(User u) {
         long n = 0;
-        for (Map<String, Object> t : db.query("SELECT assignee, claimed_by, status FROM human_tasks WHERE status IN ('open', 'claimed')"))
-            if ("claimed".equals(t.get("status")) ? u.username().equals(t.get("claimed_by")) : assignedTo((String) t.get("assignee"), u)) n++;
+        Map<String, Map<String, String>> folders = cr.folders.entries();
+        for (Map<String, Object> t : db.query("SELECT kind, data, assignee, claimed_by, status FROM human_tasks WHERE status IN ('open', 'claimed')"))
+            if (("claimed".equals(t.get("status")) ? u.username().equals(t.get("claimed_by")) : assignedTo((String) t.get("assignee"), u)) && reviewVisible(u, t, folders)) n++;
         return n;
+    }
+
+    /** A document review task shows only to people who may see its process's folder (Document Automation). */
+    @SuppressWarnings("unchecked")
+    private boolean reviewVisible(User u, Map<String, Object> t, Map<String, Map<String, String>> folders) {
+        if (!DocFlowProxy.TASK_KIND.equals(t.get("kind")) || t.get("data") == null) return true;
+        Object data = JsonLite.parse((String) t.get("data"));
+        String folder = data instanceof Map<?, ?> m ? DocFlowProxy.folderKey(m.get("folder")) : "";
+        return folder.isEmpty() || Folders.atLeast(cr.folders.accessToFolder(u.username(), u.role(), folder, folders), "view");
     }
 
     public void claim(User u, String taskId, boolean release, String ip) {

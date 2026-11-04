@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Icon } from "../components";
 import type { DocFlowApi, DocStatus, Source } from "./api";
-import { AddDocumentsDialog, NewProcessDialog } from "./dialogs";
+import { AddDocumentsDialog, NewProcessDialog, folderLabel } from "./dialogs";
 import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad } from "./ui";
 
 const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Bot", split: "Split from a batch" };
@@ -42,7 +42,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
 
       <div className="df-card df-pad df-grid df-g4">
         <div><div className="df-small">Document type</div>{p.docType}</div>
-        <div><div className="df-small">Folder</div>{p.folder}</div>
+        <div><div className="df-small">Folder</div>{p.folder ? folderLabel(p.folder) : "None (open to all)"}</div>
         <div><div className="df-small">Documents come in from</div>{p.sources.map((s) => SOURCE_LABEL[s]).join(", ")}</div>
         <div><div className="df-small">Delivers to</div>{p.deliversTo.join(", ") || "Not set yet"}</div>
       </div>

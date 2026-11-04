@@ -4,11 +4,12 @@ import type { DocFlowApi, DocType, ProcessSummary } from "./api";
 import { HINTS } from "./help";
 import { Hint } from "./ui";
 
-const FOLDERS = ["Finance / Accounts payable", "Finance / Expenses", "Operations / Goods received", "Shared / Unsorted"];
+/** A platform folder path as people read it: Finance/Accounts payable is "Finance / Accounts payable". */
+export const folderLabel = (f: string) => f.split("/").map((x) => x.trim()).filter(Boolean).join(" / ");
 
 /**
- * Add documents: the files, then which process reads them (or recognise automatically, or a new process), then which
- * folder they are filed in (the process's own by default).
+ * Add documents: the files, then which process reads them (or recognise automatically, or a new process). They are
+ * filed in that process's folder, so they follow its folder's permissions.
  */
 export function AddDocumentsDialog({ api, open, onClose, processes, initialProcess, initialFiles = [], onAdded, onNewProcess }:
   { api: DocFlowApi; open: boolean; onClose: () => void; processes: ProcessSummary[]; initialProcess?: string; initialFiles?: File[];
@@ -18,10 +19,8 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
   const [mode, setMode] = useState<"auto" | "process">(initialProcess ? "process" : "auto");
   const real = processes.filter((p) => p.id !== "smart-inbox");
   const [processId, setProcessId] = useState(initialProcess ?? real[0]?.id ?? "");
-  const [useDefault, setUseDefault] = useState(true);
-  const chosen = processes.find((p) => p.id === processId);
-  const [folder, setFolder] = useState(FOLDERS[0]);
-  const shownFolder = mode === "process" && useDefault && chosen ? chosen.folder : folder;
+  const chosen = processes.find((p) => p.id === (mode === "auto" ? "smart-inbox" : processId));
+  const shownFolder = chosen?.folder ?? "";
   const [busy, setBusy] = useState(false);
 
   const start = async () => {
@@ -77,21 +76,8 @@ export function AddDocumentsDialog({ api, open, onClose, processes, initialProce
         </div>
       </fieldset>
 
-      <div>
-        <b style={{ display: "block", marginBottom: 8 }}>3. Which folder should they be filed in?</b>
-        <Field label="Folder" hint="The original files and the extracted data are kept here. People with access to this folder can open them.">
-          {(id) => (
-            <select id={id} className="ui-input ui-select" value={shownFolder} disabled={mode === "process" && useDefault} onChange={(e) => setFolder(e.target.value)}>
-              {[...new Set([shownFolder, ...FOLDERS])].map((f) => <option key={f}>{f}</option>)}
-            </select>
-          )}
-        </Field>
-        {mode === "process" && (
-          <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-            <input type="checkbox" checked={useDefault} onChange={(e) => setUseDefault(e.target.checked)} />Use the process's default folder
-          </label>
-        )}
-      </div>
+      <p className="df-small" style={{ margin: 0 }} role="note">
+        {shownFolder ? <>Filed in <b>{folderLabel(shownFolder)}</b>: people with access to that folder can open them.</> : "Filed with the process: everyone who can use Document Automation can open them."}</p>
     </Dialog>
   );
 }
@@ -103,7 +89,9 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   const [types, setTypes] = useState<DocType[]>([]);
   const [docType, setDocType] = useState("");
   useEffect(() => { if (open) void api.docTypes().then((t) => { setTypes(t); setDocType((cur) => cur || t[0]?.id || ""); }); }, [api, open]);
-  const [folder, setFolder] = useState(FOLDERS[0]);
+  const [folders, setFolders] = useState<string[]>([]);
+  const [folder, setFolder] = useState("");
+  useEffect(() => { if (open) api.folders().then((f) => { setFolders(f); setFolder((cur) => cur || f[0] || ""); }, () => setFolders([])); }, [api, open]);
   const [watch, setWatch] = useState(false);
   const [path, setPath] = useState("");
   const [every, setEvery] = useState("30");
@@ -131,8 +119,9 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
           {(id) => <Select id={id} value={docType} onChange={(e) => setDocType(e.target.value)} options={types.map((d) => ({ value: d.id, label: d.name }))} />}
         </Field>
       </div>
-      <Field label="Folder" hint="Its documents and results are filed here, and only people with access to this folder see them.">
-        {(id) => <Select id={id} value={folder} onChange={(e) => setFolder(e.target.value)} options={FOLDERS.map((f) => ({ value: f, label: f }))} />}
+      <Field label="Folder" hint="A platform folder: only people with access to it see this process and its documents (view to see, run to add documents, edit to change the process).">
+        {(id) => <Select id={id} value={folder} onChange={(e) => setFolder(e.target.value)}
+          options={[...folders.map((f) => ({ value: f, label: folderLabel(f) })), { value: "", label: "No folder: everyone with Document Automation access" }]} />}
       </Field>
 
       <fieldset style={{ border: 0, margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>

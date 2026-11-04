@@ -151,7 +151,7 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   async overview(): Promise<Overview> {
     const [o, costs, usage] = await Promise.all([
-      this.call<{ totals: Stats; review: number; overdue: number; deliveryFailures: number }>("GET", "/df/overview"),
+      this.call<{ totals: Stats; review: number; overdue: number; deliveryFailures: number; pagesThisMonth?: number; creditsThisMonth?: number }>("GET", "/df/overview"),
       this.call<DfCosts>("GET", "/costs"),
       this.call<{ k: string; pages: number | null; credits: number | null }[]>("GET", "/usage?groupBy=provider_id").catch(() => []),
     ]);
@@ -167,7 +167,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     if (!costs.cloudOptIn) alerts.push({ level: "info", title: "Cloud opt-in is off", text: "Weak pages are retried locally only", to: "#/engines" });
     return {
       today: today?.total ?? 0, straightThrough: pct(t.stpRate) ?? 0, waiting: o.review, overdue: o.overdue, failed: t.byStatus.failed ?? 0,
-      pagesThisMonth: t.pages, cloudCost: Math.round((t.credits ?? 0) * 100) / 100,
+      pagesThisMonth: o.pagesThisMonth ?? t.pages, cloudCost: Math.round((o.creditsThisMonth ?? t.credits ?? 0) * 100) / 100,
       days: t.daily.map((d) => ({ label: d.day.slice(8), straight: d.stp, reviewed: d.human })),
       alerts,
       readBy: ocr.map((u) => ({ label: ENGINE_NAMES[u.k] ?? u.k, share: pages ? Math.round(100 * (u.pages ?? 0) / pages) : 0 })),
@@ -218,6 +218,14 @@ export class HttpDocFlowApi implements DocFlowApi {
     files.forEach((f) => form.append("files", f, f.name));
     await this.call("POST", `/df/flows/${encodeURIComponent(target)}/documents`, form);
     return { processId: target };
+  }
+
+  async folders(): Promise<string[]> {
+    // the platform's own folders (the Agent repository's), with the person's access to each
+    const r = await this.fetcher("/api/repo/folders", { credentials: "same-origin" });
+    if (!r.ok) return [];
+    const body = await r.json() as { folders: { path: string; access: string }[] };
+    return body.folders.filter((f) => ["edit", "manage"].includes(f.access)).map((f) => f.path);
   }
 
   async createProcess(p: NewProcess): Promise<{ id: string }> {

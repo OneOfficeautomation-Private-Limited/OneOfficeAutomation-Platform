@@ -126,6 +126,8 @@ export interface DocFlowApi {
   documents(processId: string): Promise<DocumentRow[]>;
   addDocuments(files: File[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
   createProcess(p: NewProcess): Promise<{ id: string }>;
+  /** The platform folders a new process can go in (where the person may edit). */
+  folders(): Promise<string[]>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
   completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<{ next?: string }>;
@@ -355,6 +357,7 @@ export class SampleApi implements DocFlowApi {
     if (p) { p.today += files.length; p.processing += files.length; }
     return { processId: target };
   }
+  async folders() { return ["Finance/Accounts payable", "Finance/Expenses", "Operations/Goods received", "Shared/Unsorted"]; }
   async createProcess(n: NewProcess) {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,
