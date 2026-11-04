@@ -11,7 +11,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * One Command Center platform services added in Part 4: settings, custom roles, API keys, runner pools, work queues,
+ * One CommandCenter platform services added in Part 4: settings, custom roles, API keys, runner pools, work queues,
  * central model connections, holiday calendars and the toolkit manager. Every method checks a permission and writes
  * the audit trail, like ControlRoom.
  */
@@ -35,11 +35,14 @@ public final class Platform {
         DEFAULTS.put("max_upload_mb", 25);   // Excel work items and licence files travel inside JSON, as Base64
         DEFAULTS.put("queue_poll_seconds", 15);
         DEFAULTS.put("default_minutes_saved", 0);
+        DEFAULTS.put("hourly_cost", 0);   // what an hour of the manual work costs, for money saved (Value)
+        DEFAULTS.put("currency", "");     // its currency, ISO 4217 (INR, USD, EUR)
         DEFAULTS.put("public_url", "");
         DEFAULTS.put("sso_issuer", "");
         DEFAULTS.put("sso_client_id", "");
         DEFAULTS.put("sso_client_secret_ref", "");
         DEFAULTS.put("sso_default_role", "");
+        DEFAULTS.put("sso_group_roles", "");
         DEFAULTS.put("sso_label", "");
         DEFAULTS.put("mcp_agents", "");
         DEFAULTS.put("mcp_runner", "");
@@ -57,6 +60,9 @@ public final class Platform {
         DEFAULTS.put("mfa_required", 0);
         DEFAULTS.put("production_approval", 0);
         DEFAULTS.put("runner_auto_update", 0);
+        DEFAULTS.put("runner_cpu_max", 0);          // a runner above this CPU use (%) takes no new work; 0: no limit
+        DEFAULTS.put("runner_mem_max", 0);          // the same for memory use (%)
+        DEFAULTS.put("runner_screen_pictures", 0);  // administrators may ask a runner for a picture of its screen
         DEFAULTS.put("git_remote_url", "");
         DEFAULTS.put("git_branch", "main");
         DEFAULTS.put("git_username", "");
@@ -91,9 +97,50 @@ public final class Platform {
         DEFAULTS.put("mcp_oauth_scope", "");
         DEFAULTS.put("outbound_proxy", "");
         DEFAULTS.put("outbound_proxy_bypass", "");
+        // sign-in and security, as AA's, UiPath's and Blue Prism's (Settings item 4, 1 Nov 2026)
+        DEFAULTS.put("password_needs_mixed_case", 0);   // upper- and lower-case letters
+        DEFAULTS.put("password_needs_symbol", 0);       // a character that is not a letter or digit
+        DEFAULTS.put("password_min_days", 0);           // days before a new password may be changed again
+        DEFAULTS.put("password_expiry_warn_days", 0);   // warn this many days before a password must be changed
+        DEFAULTS.put("lockout_attempts", 5);            // wrong passwords before the account is locked; 0: never locked
+        DEFAULTS.put("lockout_minutes", 15);
+        DEFAULTS.put("idle_minutes", 0);                // the console signs out after this long without activity; 0: off
+        DEFAULTS.put("signin_notice", "");              // shown on the sign-in page (terms of use, a consent statement)
+        DEFAULTS.put("signin_notice_accept", 0);        // people tick it before they can sign in
+        DEFAULTS.put("api_key_max_days", 0);            // the longest an API key may last; 0: up to 730 days, or no end
+        // runners and runs (Settings item 4, batch 2)
+        DEFAULTS.put("runner_registration_open", 1);    // new runners may register with a key
+        DEFAULTS.put("runner_require_https", 0);        // runners connect only over HTTPS (this computer always may)
+        DEFAULTS.put("runs_refuse_offline_runner", 0);  // a run for a runner that is offline is refused instead of waiting
+        DEFAULTS.put("trigger_max_failures", 0);        // a trigger is switched off after this many failed runs in a row; 0: never
+        DEFAULTS.put("queue_abandon_hours", 0);         // a work item in progress longer than this is marked failed (abandoned); 0: never
+        DEFAULTS.put("runner_error_screenshots", 1);    // runners take a picture of the screen when a step fails (a Catch block asks)
+        // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
+        DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
+        DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
+        DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
+        DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
+        DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token
+        DEFAULTS.put("siem_https_auth", "bearer");      // bearer or splunk (Authorization: Splunk <token>)
+        DEFAULTS.put("promotion_targets", "");          // the only One CommandCenters agents may be promoted to; empty: any
+        DEFAULTS.put("environment_label", "");          // shown in the top bar and on the sign-in page, e.g. Development, Test, Production
+        DEFAULTS.put("environment_colour", "blue");     // blue, green, amber, red or grey
+        // Business (Operational Insights step 2): this year's savings goal; set with insights.admin on the Value tab
+        DEFAULTS.put("value_goal_hours", 0);
+        DEFAULTS.put("value_goal_money", 0);
+        // sign-in with Active Directory or LDAP (Settings item 4f): passwords stay in the directory
+        DEFAULTS.put("ldap_urls", "");                  // ldaps://dc1.example.com:636, more for failover; empty: off
+        DEFAULTS.put("ldap_base_dn", "");               // where people are found, e.g. DC=corp,DC=example,DC=com
+        DEFAULTS.put("ldap_bind_dn", "");               // the service account that finds them
+        DEFAULTS.put("ldap_bind_password_ref", "");     // its password: a vault reference
+        DEFAULTS.put("ldap_user_filter", "(|(sAMAccountName={0})(userPrincipalName={0}))");
+        DEFAULTS.put("ldap_name_attribute", "sAMAccountName");   // the user name an account gets
+        DEFAULTS.put("ldap_nested_groups", 0);          // AD: groups inside groups count too
         DEFAULTS.put("docflow_url", "");         // Document Automation: the DocFlow service (empty: http://127.0.0.1:8085)
         DEFAULTS.put("docflow_token_ref", "");   // and its service token, a vault reference folder/credential/attribute
     }
+
+    static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
 
     /** The allowed range of each number setting (the console uses the same limits). */
     static final Map<String, long[]> RANGES = Map.ofEntries(
@@ -102,6 +149,7 @@ public final class Platform {
         Map.entry("max_upload_mb", new long[] { 1, 1024 }),
         Map.entry("queue_poll_seconds", new long[] { 3, 3600 }),
         Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
+        Map.entry("hourly_cost", new long[] { 0, 100000 }),
         Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),
         Map.entry("run_retention_days", new long[] { 0, 36500 }),
         Map.entry("run_log_retention_days", new long[] { 0, 36500 }),
@@ -111,6 +159,9 @@ public final class Platform {
         Map.entry("mfa_required", new long[] { 0, 2 }),
         Map.entry("production_approval", new long[] { 0, 1 }),
         Map.entry("runner_auto_update", new long[] { 0, 1 }),
+        Map.entry("runner_cpu_max", new long[] { 0, 100 }),
+        Map.entry("runner_mem_max", new long[] { 0, 100 }),
+        Map.entry("runner_screen_pictures", new long[] { 0, 1 }),
         Map.entry("git_auto_push", new long[] { 0, 1 }),
         Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
         Map.entry("audit_retention_days", new long[] { 0, 36500 }),
@@ -121,7 +172,27 @@ public final class Platform {
         Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_keep_days", new long[] { 1, 3650 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }),
-        Map.entry("mail_smtp_port", new long[] { 1, 65535 }));
+        Map.entry("mail_smtp_port", new long[] { 1, 65535 }),
+        Map.entry("password_needs_mixed_case", new long[] { 0, 1 }),
+        Map.entry("password_needs_symbol", new long[] { 0, 1 }),
+        Map.entry("password_min_days", new long[] { 0, 365 }),
+        Map.entry("password_expiry_warn_days", new long[] { 0, 60 }),
+        Map.entry("lockout_attempts", new long[] { 0, 20 }),
+        Map.entry("lockout_minutes", new long[] { 1, 1440 }),
+        Map.entry("idle_minutes", new long[] { 0, 1440 }),
+        Map.entry("signin_notice_accept", new long[] { 0, 1 }),
+        Map.entry("api_key_max_days", new long[] { 0, 730 }),
+        Map.entry("runner_registration_open", new long[] { 0, 1 }),
+        Map.entry("runner_require_https", new long[] { 0, 1 }),
+        Map.entry("runs_refuse_offline_runner", new long[] { 0, 1 }),
+        Map.entry("trigger_max_failures", new long[] { 0, 100 }),
+        Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
+        Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
+        Map.entry("notify_run_failed", new long[] { 0, 1 }),
+        Map.entry("notify_task_assigned", new long[] { 0, 1 }),
+        Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
+        Map.entry("ldap_nested_groups", new long[] { 0, 1 }),
+        Map.entry("value_goal_money", new long[] { 0, 1_000_000_000_000L }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -147,7 +218,7 @@ public final class Platform {
     }
 
     /**
-     * The Command Center's own outgoing connections (single sign-on, SAML metadata, Git, model connections, external
+     * One CommandCenter's own outgoing connections (single sign-on, SAML metadata, Git, model connections, external
      * vaults, webhooks it calls) go through this proxy when set: http://host:port, with host names to reach directly.
      * Applied at start and when the setting changes, through Java's proxy settings.
      */
@@ -170,6 +241,20 @@ public final class Platform {
     }
 
     int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
+
+    /** The addresses agents may be promoted to (Settings), without a trailing slash and in lower case; empty: any. */
+    List<String> promotionTargets() {
+        List<String> out = new ArrayList<>();
+        for (String t : String.valueOf(setting("promotion_targets")).split("[,;\\s]+"))
+            if (!t.isBlank()) out.add(t.trim().replaceAll("/+$", "").toLowerCase(Locale.ROOT));
+        return out;
+    }
+
+    /** This environment's name and colour (Settings), for the top bar and the sign-in page; null when none is set. */
+    Map<String, Object> environment() {
+        String label = String.valueOf(setting("environment_label")).trim();
+        return label.isEmpty() ? null : Map.of("label", label, "colour", String.valueOf(setting("environment_colour")));
+    }
 
     /** Checks every change first (known name, whole number in its range, address format), then saves them all in one transaction. */
     public Map<String, Object> updateSettings(User by, Map<String, Object> changes, String ip) {
@@ -206,6 +291,7 @@ public final class Platform {
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
                 if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))
                     throw new OoaException("CR.BAD_INPUT", "The Git remote is an https:// address, for example https://github.com/acme/agents.git");
+                if (k.equals("currency") && !s.isEmpty() && !s.matches("[A-Z]{3}")) throw new OoaException("CR.BAD_INPUT", "The currency is a three-letter code, for example INR, USD or EUR");
                 if (k.equals("git_branch") && !s.isEmpty() && !s.matches("[A-Za-z0-9._/-]{1,100}") ) throw new OoaException("CR.BAD_INPUT", "Not a branch name: " + s);
                 if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))
@@ -235,6 +321,23 @@ public final class Platform {
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
                 if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
+                if (k.equals("ldap_urls") && !s.isEmpty()) for (String u : s.split("[,;\\s]+")) if (!u.isBlank()) Directory.checkUrl(u.trim());
+                if (k.equals("ldap_bind_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The service account's password is a vault reference: vault folder/credential/attribute");
+                if (k.equals("ldap_user_filter") && !s.isEmpty() && (!s.contains("{0}") || !s.startsWith("(") || !s.endsWith(")")))
+                    throw new OoaException("CR.BAD_INPUT", "The search filter is in brackets and holds {0} where the typed user name goes", "Example: (|(sAMAccountName={0})(userPrincipalName={0}))");
+                if (k.equals("ldap_name_attribute") && !s.isEmpty() && !s.matches("[A-Za-z][A-Za-z0-9-]{0,60}")) throw new OoaException("CR.BAD_INPUT", "Not an attribute name: " + s);
+                if (k.equals("default_time_zone") && !s.isEmpty())
+                    try { java.time.ZoneId.of(s); } catch (java.time.DateTimeException x) { throw new OoaException("CR.BAD_INPUT", "Unknown time zone " + s, "Example: Asia/Kolkata, Europe/London, UTC"); }
+                if (k.equals("siem_https_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
+                    throw new OoaException("CR.BAD_INPUT", "The SIEM address starts with https://, for example https://splunk.example.com:8088/services/collector/event");
+                if (k.equals("siem_https_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The SIEM token is a vault reference: vault folder/credential/attribute");
+                if (k.equals("siem_https_auth") && !s.equals("bearer") && !s.equals("splunk")) throw new OoaException("CR.BAD_INPUT", "The SIEM sign-in is bearer or splunk");
+                if (k.equals("promotion_targets") && !s.isEmpty())
+                    for (String t : s.split("[,;\\s]+"))
+                        if (!t.isEmpty() && !t.matches("(?i)^https?://[^\\s/]+(:\\d+)?(/\\S*)?$"))
+                            throw new OoaException("CR.BAD_INPUT", "Not a One CommandCenter address: " + t, "List addresses such as https://cc-prod.example.com, separated by commas");
+                if (k.equals("environment_label") && s.length() > 30) throw new OoaException("CR.BAD_INPUT", "The environment name is at most 30 characters");
+                if (k.equals("environment_colour") && !ENVIRONMENT_COLOURS.contains(s)) throw new OoaException("CR.BAD_INPUT", "The environment colour is one of " + ENVIRONMENT_COLOURS);
                 if (k.equals("trusted_proxies")) IpAllowList.parse(s);
                 if (k.equals("ip_allow_list")) {
                     IpAllowList l = IpAllowList.parse(s);
@@ -242,23 +345,17 @@ public final class Platform {
                     boolean local = ip == null || ip.startsWith("127.") || ip.equals("0:0:0:0:0:0:0:1") || ip.equals("::1");
                     if (!l.isEmpty() && !local && !l.allows(ip)) throw new OoaException("CR.BAD_INPUT", "Your own address " + ip + " is not on the list; saving it would lock you out", "Add your address or its range to the list");
                 }
+                if (k.equals("sso_group_roles") && !s.isEmpty())
+                    for (String role : ControlRoom.parseGroupRoles(s).values())
+                        if (!Rbac.ROLES.contains(role) && db.one("SELECT name FROM roles WHERE name = ?", role) == null)
+                            throw new OoaException("CR.BAD_INPUT", "The groups-to-roles list names a role that does not exist: " + role);
                 if (k.equals("sso_default_role") && !s.isEmpty() && !Rbac.ROLES.contains(s) && db.one("SELECT name FROM roles WHERE name = ?", s) == null)
                     throw new OoaException("CR.BAD_INPUT", "Setting 'sso_default_role' names a role that does not exist: " + s);
                 v = s;
             }
             clean.put(k, v);
         }
-        db.tx(() -> {
-            for (var e : clean.entrySet()) {
-                String json = JsonLite.write(e.getValue());
-                if (db.update("UPDATE settings SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), e.getKey()) == 0)
-                    db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", e.getKey(), json, now(), by.username());
-            }
-            cached = null;
-            cr.audit.record(by.username(), "settings.update", "settings", null, clean, "ok", ip);
-            return null;
-        });
-        cached = null;
+        write(by, clean, ip);
         if (clean.containsKey("outbound_proxy") || clean.containsKey("outbound_proxy_bypass")) applyOutboundProxy();
         return settings();
     }
@@ -291,12 +388,22 @@ public final class Platform {
     public List<Map<String, Object>> roles(User by) {
         cr.require(by, "users.manage", "manage roles");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (String r : Rbac.ROLES) out.add(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role", "switched_off", cr.roleSwitchedOff(r)));
+        // who holds each role, as main role or further role
+        Map<String, Set<String>> holders = new HashMap<>();
+        for (Map<String, Object> u : db.query("SELECT username, role FROM users")) holders.computeIfAbsent((String) u.get("role"), k -> new TreeSet<>()).add((String) u.get("username"));
+        for (Map<String, Object> u : db.query("SELECT username, role FROM user_roles")) holders.computeIfAbsent((String) u.get("role"), k -> new TreeSet<>()).add((String) u.get("username"));
+        for (String r : Rbac.ROLES) {
+            Map<String, Object> m = new LinkedHashMap<>(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role", "switched_off", cr.roleSwitchedOff(r)));
+            m.put("members", new ArrayList<>(holders.getOrDefault(r, Set.of())));
+            m.put("users", holders.getOrDefault(r, Set.of()).size());
+            out.add(m);
+        }
         for (Map<String, Object> r : db.query("SELECT * FROM roles ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", r.get("name")); m.put("builtin", false); m.put("permissions", csv(r.get("permissions")));
-            m.put("description", r.get("description")); m.put("created_by", r.get("created_by"));
-            m.put("users", ((Number) db.one("SELECT COUNT(*) AS n FROM users WHERE role = ?", r.get("name")).get("n")).intValue());
+            m.put("description", r.get("description")); m.put("created_by", r.get("created_by")); m.put("created", r.get("created"));
+            m.put("members", new ArrayList<>(holders.getOrDefault((String) r.get("name"), Set.of())));
+            m.put("users", holders.getOrDefault((String) r.get("name"), Set.of()).size());
             out.add(m);
         }
         return out;
@@ -317,7 +424,8 @@ public final class Platform {
 
     public void deleteRole(User by, String name, String ip) {
         cr.require(by, "users.manage", "manage roles");
-        long users = ((Number) db.one("SELECT COUNT(*) AS n FROM users WHERE role = ?", name).get("n")).longValue();
+        long users = ((Number) db.one("SELECT COUNT(*) AS n FROM users WHERE role = ?", name).get("n")).longValue()
+            + ((Number) db.one("SELECT COUNT(*) AS n FROM user_roles WHERE role = ?", name).get("n")).longValue();
         if (users > 0) throw new OoaException("CR.CONFLICT", users + " user(s) still have the role '" + name + "'", "Give them another role first.");
         if (db.update("DELETE FROM roles WHERE name = ?", name) == 0) throw notFound("Role");
         cr.loadRoles();
@@ -335,6 +443,9 @@ public final class Platform {
         if (name == null || name.isBlank() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Give the key a name of up to 120 characters");
         String key = "ooak_" + Security.token(30);
         String kid = id("key");
+        // with a longest lifetime set (Settings: api_key_max_days), a key with no end, or a longer one, gets that lifetime
+        int most = intSetting("api_key_max_days");
+        if (most > 0 && (days <= 0 || days > most)) days = most;
         Instant expires = days <= 0 ? null : now().plus(Duration.ofDays(Math.min(days, 730)));
         db.update("INSERT INTO api_keys (id, user_id, name, key_hash, created, expires) VALUES (?,?,?,?,?,?)", kid, by.id(), name.trim(), Security.sha256(key), now(), expires);
         cr.audit.record(by.username(), "apikey.create", "apikey", kid, Map.of("name", name, "days", days), "ok", ip);
@@ -368,26 +479,69 @@ public final class Platform {
         for (Map<String, Object> p : db.query("SELECT * FROM device_pools ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(p);
             m.put("devices", csv(p.get("devices")));
+            m.put("owners", csv(p.get("owners")));
+            m.put("consumers", csv(p.get("consumers")));
+            m.put("can_manage", cr.can(by, "pools.manage") || csv(p.get("owners")).contains(by.username()));
             out.add(m);
         }
         return out;
     }
 
     public Map<String, Object> savePool(User by, String poolId, String name, String description, Object devices, String ip) {
-        cr.require(by, "pools.manage", "manage runner pools");
+        return savePool(by, poolId, name, description, devices, null, null, ip);
+    }
+
+    /**
+     * Creates or changes a runner pool. Owners (people) may change and delete their pool without pools.manage; only
+     * someone with pools.manage chooses the owners. Users (roles) limit who may send runs to the pool; none: anyone
+     * who may start runs. {@code owners} or {@code consumers} null: kept as they are.
+     */
+    public Map<String, Object> savePool(User by, String poolId, String name, String description, Object devices, Object owners, Object consumers, String ip) {
+        boolean isNew = poolId == null || poolId.isBlank();
+        Map<String, Object> old = isNew ? null : db.one("SELECT owners FROM device_pools WHERE id = ?", poolId);
+        if (!isNew && old == null) throw notFound("Pool");
+        boolean manager = cr.can(by, "pools.manage");
+        if (!manager && (isNew || !csv(old.get("owners")).contains(by.username()))) throw denied("manage runner pools");
+        if (!manager && owners != null && !new HashSet<>(csv(owners)).equals(new HashSet<>(csv(old.get("owners"))))) throw denied("choose the owners of a runner pool");
         if (name == null || name.isBlank() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Pool names have 1 to 120 characters");
         List<String> ids = csv(devices);
         for (String d : ids) if (db.one("SELECT id FROM devices WHERE id = ?", d) == null) throw notFound("Runner " + d);
-        String pid = poolId == null || poolId.isBlank() ? id("pool") : poolId;
-        if (poolId == null || poolId.isBlank())
-            db.update("INSERT INTO device_pools (id, name, description, devices, created_by, created) VALUES (?,?,?,?,?,?)", pid, name.trim(), description, String.join(",", ids), by.username(), now());
-        else if (db.update("UPDATE device_pools SET name = ?, description = ?, devices = ? WHERE id = ?", name.trim(), description, String.join(",", ids), pid) == 0) throw notFound("Pool");
-        cr.audit.record(by.username(), "pool.save", "pool", pid, Map.of("name", name, "devices", ids), "ok", ip);
+        if (owners != null) for (String o : csv(owners)) if (db.one("SELECT id FROM users WHERE username = ?", o) == null) throw notFound("User " + o);
+        if (consumers != null) {
+            Set<String> known = new HashSet<>(Rbac.ROLES);
+            known.addAll(cr.customRoles.keySet());
+            for (String c : csv(consumers)) if (!known.contains(c)) throw notFound("Role " + c);
+        }
+        String pid = isNew ? id("pool") : poolId;
+        if (isNew)
+            db.update("INSERT INTO device_pools (id, name, description, devices, created_by, created, owners, consumers) VALUES (?,?,?,?,?,?,?,?)", pid, name.trim(), description,
+                String.join(",", ids), by.username(), now(), owners == null ? null : String.join(",", csv(owners)), consumers == null ? null : String.join(",", csv(consumers)));
+        else {
+            db.update("UPDATE device_pools SET name = ?, description = ?, devices = ? WHERE id = ?", name.trim(), description, String.join(",", ids), pid);
+            if (owners != null) db.update("UPDATE device_pools SET owners = ? WHERE id = ?", String.join(",", csv(owners)), pid);
+            if (consumers != null) db.update("UPDATE device_pools SET consumers = ? WHERE id = ?", String.join(",", csv(consumers)), pid);
+        }
+        Map<String, Object> details = new LinkedHashMap<>(Map.of("name", name, "devices", ids));
+        if (owners != null) details.put("owners", csv(owners));
+        if (consumers != null) details.put("users", csv(consumers));
+        cr.audit.record(by.username(), "pool.save", "pool", pid, details, "ok", ip);
         return Map.of("id", pid);
     }
 
+    /** Whether this person may send runs to the pool: it has no users set, or they hold one of its roles, own it or manage pools. */
+    public void requirePoolUse(String username, String role, String poolId) {
+        Map<String, Object> p = db.one("SELECT owners, consumers FROM device_pools WHERE id = ?", poolId);
+        if (p == null) throw notFound("Runner pool");
+        List<String> users = csv(p.get("consumers"));
+        if (users.isEmpty() || csv(p.get("owners")).contains(username)) return;
+        List<String> mine = cr.rolesOf(username, role);
+        if (mine.stream().anyMatch(users::contains) || mine.stream().anyMatch(r -> cr.allowed(r, "pools.manage"))) return;
+        throw new OoaException("CR.FORBIDDEN", "You may not send runs to this runner pool", "Ask an owner of the pool to add one of your roles to its users.");
+    }
+
     public void deletePool(User by, String poolId, String ip) {
-        cr.require(by, "pools.manage", "manage runner pools");
+        Map<String, Object> own = db.one("SELECT owners FROM device_pools WHERE id = ?", poolId);
+        if (!(own != null && csv(own.get("owners")).contains(by.username()))) cr.require(by, "pools.manage", "manage runner pools");
         if (db.one("SELECT id FROM queues WHERE pool_id = ?", poolId) != null) throw new OoaException("CR.CONFLICT", "A work queue still uses this pool", "Change the queue first.");
         if (db.update("DELETE FROM device_pools WHERE id = ?", poolId) == 0) throw notFound("Pool");
         cr.audit.record(by.username(), "pool.delete", "pool", poolId, null, "ok", ip);
@@ -411,9 +565,10 @@ public final class Platform {
         String best = null;
         long bestLoad = Long.MAX_VALUE;
         for (String d : csv(p.get("devices"))) {
-            Map<String, Object> dev = db.one("SELECT enabled, last_seen FROM devices WHERE id = ?", d);
+            Map<String, Object> dev = db.one("SELECT enabled, last_seen, maintenance, cpu_pct, mem_pct, cpu_max, mem_max FROM devices WHERE id = ?", d);
             if (dev == null || !Boolean.TRUE.equals(dev.get("enabled")) || dev.get("last_seen") == null
                     || Instant.parse(String.valueOf(dev.get("last_seen"))).isBefore(now().minus(ONLINE))) continue;
+            if (cr.runnerCare.whyNoWork(dev) != null) continue;   // in maintenance, or above its CPU or memory limit
             long load = cr.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status IN ('queued', 'running')", d);
             if (load < bestLoad) { best = d; bestLoad = load; }
         }
@@ -421,6 +576,65 @@ public final class Platform {
     }
 
     // ===================== work queues =====================
+
+    /** Saves checked settings in one transaction, with one Audit Trail entry. */
+    private void write(User by, Map<String, Object> clean, String ip) {
+        db.tx(() -> {
+            for (var e : clean.entrySet()) {
+                String json = JsonLite.write(e.getValue());
+                if (db.update("UPDATE settings SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), e.getKey()) == 0)
+                    db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", e.getKey(), json, now(), by.username());
+            }
+            cached = null;
+            cr.audit.record(by.username(), "settings.update", "settings", null, clean, "ok", ip);
+            return null;
+        });
+        cached = null;
+    }
+
+    /** A whole number from 0 to max, or null (use the default) when empty. */
+    private static Integer savingsNumber(Object v, String what, int max) {
+        if (v == null || "".equals(v)) return null;
+        if (!(v instanceof Number n) || n.doubleValue() < 0 || n.doubleValue() > max || n.doubleValue() != Math.floor(n.doubleValue()))
+            throw new OoaException("CR.BAD_INPUT", what + " is a whole number from 0 to " + max);
+        return n.intValue();
+    }
+
+    /**
+     * An agent's savings (Business > Value): minutes saved a run, its own cost of an hour, and the runs a month expected
+     * (estimated against actual). Empty values use the defaults. Needs insights.admin, or repo.production as before.
+     */
+    public void setAgentSavings(User by, Map<String, Object> b, String ip) {
+        if (!cr.can(by, "insights.admin")) cr.require(by, "repo.production", "set the value of agents");
+        String path = String.valueOf(b.get("path"));
+        Integer minutes = savingsNumber(b.get("minutes_saved"), "Minutes saved", 100000), cost = savingsNumber(b.get("hourly_cost"), "The cost of an hour", 100000),
+            runs = savingsNumber(b.get("estimated_runs_month"), "Runs a month", 10_000_000);
+        if (db.update("UPDATE bots SET minutes_saved = ?, hourly_cost = ?, estimated_runs_month = ? WHERE path = ?", minutes, cost, runs, path) == 0) throw notFound("Agent");
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("minutes_saved", minutes); d.put("hourly_cost", cost); d.put("estimated_runs_month", runs);
+        cr.audit.record(by.username(), "bot.savings", "bot", path, d, "ok", ip);
+    }
+
+    /** A work queue's savings: minutes saved and the cost of an hour for each item done; empty: its agent's values count. */
+    public void setQueueSavings(User by, String queueId, Map<String, Object> b, String ip) {
+        cr.require(by, "insights.admin", "set the value of work queues");
+        Integer minutes = savingsNumber(b.get("minutes_saved"), "Minutes saved", 100000), cost = savingsNumber(b.get("hourly_cost"), "The cost of an hour", 100000);
+        if (db.update("UPDATE queues SET minutes_saved = ?, hourly_cost = ? WHERE id = ?", minutes, cost, queueId) == 0) throw notFound("Work queue");
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("minutes_saved", minutes); d.put("hourly_cost", cost);
+        cr.audit.record(by.username(), "queue.savings", "queue", queueId, d, "ok", ip);
+    }
+
+    /** This year's savings goal in hours and money (0: none), set by insights.admin rather than in Settings. */
+    public Map<String, Object> setSavingsGoal(User by, Map<String, Object> b, String ip) {
+        cr.require(by, "insights.admin", "set the savings goal");
+        Integer hours = savingsNumber(b.get("hours"), "The goal in hours", 100_000_000), money = savingsNumber(b.get("money"), "The goal in money", 2_000_000_000);
+        Map<String, Object> clean = new LinkedHashMap<>();
+        clean.put("value_goal_hours", hours == null ? 0 : hours);
+        clean.put("value_goal_money", money == null ? 0 : money);
+        write(by, clean, ip);
+        return clean;
+    }
 
     /** Minutes of manual work one successful run of the agent saves; null falls back to the default in Settings. */
     public void setMinutesSaved(User by, String path, Object minutes, String ip) {
@@ -965,7 +1179,7 @@ public final class Platform {
     /**
      * A queue's definition as a file: its settings, work item model and members, and optionally its waiting items
      * (new, retry and deferred, which become new). The runner pool is named, not linked, since pools differ between
-     * Command Centers.
+     * One CommandCenter installations.
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> exportQueue(User by, String qid, boolean withItems) {
@@ -1065,7 +1279,7 @@ public final class Platform {
             if (!path.endsWith(".flow.json")) continue;
             Map<String, Object> flow = (Map<String, Object>) cr.content(path, "latest").get("flow");
             Map<String, Object> req = flow.get("requires") instanceof Map<?, ?> r && r.get("packages") instanceof Map<?, ?> pk ? (Map<String, Object>) pk : Map.of();
-            boolean uses = com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())).stream()
+            boolean uses = com.oneofficeautomation.runner.Steps.walkFlow(flow).stream()
                     .anyMatch(st -> String.valueOf(st.get("action")).startsWith(pid + "/"));
             Object range = req.get(pid);
             if (!uses && range == null) continue;
@@ -1153,10 +1367,10 @@ public final class Platform {
         return purge(runDays, logDays, by.username(), ip);
     }
 
-    /** What this Command Center is and holds: the edition from the license (or the evaluation) and what it has in use. */
+    /** What this One CommandCenter is and holds: the edition from the license (or the evaluation) and what it has in use. */
     public Map<String, Object> license(User by) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("product", "ONEOFFICEAUTOMATION One Command Center");
+        m.put("product", "ONEOFFICEAUTOMATION One CommandCenter");
         Map<String, Object> lic = cr.licensing.status(by);
         String state = String.valueOf(lic.get("state"));
         boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);
@@ -1490,7 +1704,7 @@ public final class Platform {
             Map<String, Object> flow;
             try { flow = (Map<String, Object>) cr.content((String) b.get("path"), "latest").get("flow"); } catch (OoaException e) { continue; }
             Set<String> pkgs = new HashSet<>();
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())))
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow))
                 pkgs.add(String.valueOf(s.get("action")).split("/")[0]);
             for (String p : pkgs) used.merge(p, 1, Integer::sum);
         }
@@ -1520,7 +1734,7 @@ public final class Platform {
         for (Map<String, Object> b : db.query("SELECT path FROM bots ORDER BY path")) {
             Map<String, Object> flow;
             try { flow = (Map<String, Object>) cr.content((String) b.get("path"), "latest").get("flow"); } catch (OoaException e) { continue; }
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())))
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow))
                 if (String.valueOf(s.get("action")).startsWith(pid + "/")) { out.add((String) b.get("path")); break; }
         }
         return out;
@@ -1541,9 +1755,9 @@ public final class Platform {
         Set<String> off = new HashSet<>();
         for (Map<String, Object> r : db.query("SELECT id FROM toolkit_settings WHERE enabled = FALSE")) off.add((String) r.get("id"));
         if (off.isEmpty()) return;
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             String pid = String.valueOf(s.get("action")).split("/")[0];
-            if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this Command Center (step " + s.get("id") + ")",
+            if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this One CommandCenter (step " + s.get("id") + ")",
                     "Ask an administrator to switch it on under Toolkits, or remove the step.");
         }
     }

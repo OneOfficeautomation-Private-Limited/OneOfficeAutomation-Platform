@@ -14,7 +14,7 @@ import java.time.Duration;
 import java.util.*;
 
 /**
- * What the attended desktop app (R13, {@code ooa assistant}) asks the Command Center, as the person signed in with
+ * What the attended desktop app (R13, {@code ooa assistant}) asks One CommandCenter, as the person signed in with
  * their API key: who they are, the agents they may run, an agent's inputs, starting a run on their own default runner,
  * their open tasks and their finished runs. {@link Watch} turns successive answers into the notices the tray shows.
  */
@@ -39,13 +39,13 @@ final class AssistantClient {
         else b.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(JsonLite.write(body)));
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)); }
-        catch (IOException e) { throw new OoaException("ASSISTANT.UNREACHABLE", "Cannot reach the Command Center at " + base + ": " + e.getMessage(), "Check the address and the network.", true, null); }
+        catch (IOException e) { throw new OoaException("ASSISTANT.UNREACHABLE", "Cannot reach One CommandCenter at " + base + ": " + e.getMessage(), "Check the address and the network.", true, null); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ASSISTANT.INTERRUPTED", "Interrupted"); }
         Object parsed = r.body() == null || r.body().isBlank() ? Map.of() : JsonLite.parse(r.body());
         Map<String, Object> m = parsed instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of("value", parsed);
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map<?, ?> em ? (Map<String, Object>) em : Map.of();
-            throw new OoaException(String.valueOf(e.getOrDefault("code", "ASSISTANT.HTTP_" + r.statusCode())), String.valueOf(e.getOrDefault("message", "The Command Center answered " + r.statusCode())));
+            throw new OoaException(String.valueOf(e.getOrDefault("code", "ASSISTANT.HTTP_" + r.statusCode())), String.valueOf(e.getOrDefault("message", "One CommandCenter answered " + r.statusCode())));
         }
         return m;
     }

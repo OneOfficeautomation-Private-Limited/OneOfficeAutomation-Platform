@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
- * The run window shown on the desktop while an agent started from Agent Studio runs: always on top of the
+ * The run window shown on the desktop while an agent started from One AgentStudio runs: always on top of the
  * applications the agent works in, without taking the keyboard focus from them. It shows the agent, the line
  * being run (its line number, as on the canvas) with its action, the elapsed time and progress, and
  * Pause/Resume and Stop. It closes a few seconds after the run ends.
@@ -46,7 +46,9 @@ final class RunWindow {
                       java.util.function.BooleanSupplier done, Function<String, String> names) {
         numbers = new LinkedHashMap<>();
         number(list(flow, "steps"), "");
+        for (var sub : com.oneofficeautomation.runner.Steps.subflows(flow).entrySet()) number(sub.getValue(), " of subflow " + sub.getKey());
         total = numbers.size();
+        number(com.oneofficeautomation.runner.Steps.onErrorSteps(flow), "");   // the error handler's lines follow; they run only after an error
         win = new JWindow();
         win.setAlwaysOnTop(true);
         win.setFocusableWindowState(false);   // the agent's own windows keep the keyboard
@@ -107,10 +109,11 @@ final class RunWindow {
         } else status.setText(pause.get() ? "Paused" : "Running");
     }
 
-    /** Line numbers as on the canvas: every step counted from the top (1, 2, 3 ...), nested steps included. */
+    /** Line numbers as on the canvas: every step counted from the top (1, 2, 3 ...), nested steps included; a subflow's steps from 1 again, with its name after. */
     @SuppressWarnings("unchecked")
-    private void number(List<Object> steps, String unused) {
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk(steps)) numbers.put(String.valueOf(s.get("id")), String.valueOf(numbers.size() + 1));
+    private void number(List<Object> steps, String suffix) {
+        int n = 0;
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk(steps)) numbers.put(String.valueOf(s.get("id")), ++n + suffix);
     }
 
     @SuppressWarnings("unchecked")

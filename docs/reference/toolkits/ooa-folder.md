@@ -6,7 +6,7 @@ Toolkit `ooa.folder`, version 1.0.0. Create, list, copy and delete folders.
 
 ## Contents
 
-- **Folders**: Copy folder, Create folder, Create folder shortcut, Create folder symbolic link, Delete folder, List subfolders, Open folder, Rename folder
+- **Folders**: Copy folder, Create folder, Create folder shortcut, Create folder symbolic link, Delete folder, List subfolders, Move folder, Open folder, Rename folder, Get special folder
 - **Conditions**: Folder exists, Folder is empty
 - **Loop types**: Each folder in folder
 
@@ -27,8 +27,8 @@ Copy a folder and its contents, optionally only some files by name, size or date
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace files that already exist in the target; when false they are kept. |
 | Larger than (KB) | `larger_than_kb` | Number | No |  | Main; tick Filter by size | Only copy files larger than this many KB (1 KB = 1024 bytes). Range: 0 to  |
 | Smaller than (KB) | `smaller_than_kb` | Number | No |  | Main; tick Filter by size | Only copy files smaller than this many KB. Range: 0 to  |
-| Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | Only copy files last changed after this date and time (local time). |
-| Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | Only copy files last changed before this date and time (local time). |
+| Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | Only copy files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | Only copy files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
 | Pattern | `pattern` | Text | No |  | More options | Only copy files whose names match this glob pattern; all files when empty. Example: `*.pdf` |
 | Only newer | `only_newer` | Yes/No | No | No | More options | Copy a file only when it is newer than the one already in the target. Shown when: `{"overwrite": ["true"]}` |
 
@@ -115,7 +115,7 @@ Delete a folder, optionally only when its total size or its last-change date mee
 | Larger than (KB) | `larger_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes). Range: 0 to  |
 | Smaller than (KB) | `smaller_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds less than this many KB in all its files, at any depth. Range: 0 to  |
 | Modified after | `modified_after` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it. |
-| Modified before | `modified_before` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed before this date and time (local time). |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
 
 **Results**
 
@@ -144,6 +144,28 @@ List the folders directly inside a folder.
 | `folders` | List | Sorted folder paths. |
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
+
+### Move folder
+
+`ooa.folder/move` (action)
+
+Move a folder with everything in it into another folder, also to another drive.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Source | `source` | File path | Yes |  | Main | Folder to move. |
+| Destination | `destination` | File path | Yes |  | Main | Folder to move it into; created when missing. |
+| Overwrite | `overwrite` | Yes/No | No | No | Main | When the destination already has a folder of the same name, merge into it and replace files of the same name; when off, stop with FOLDER.EXISTS. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | New full path of the folder. |
+
+*Time limit 60 s; needs: filesystem.*
 
 ### Open folder
 
@@ -174,7 +196,7 @@ Give a folder a new name in the same parent folder, optionally only when its tot
 | Larger than (KB) | `larger_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes). Range: 0 to  |
 | Smaller than (KB) | `smaller_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds less than this many KB in all its files, at any depth. Range: 0 to  |
 | Modified after | `modified_after` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it. |
-| Modified before | `modified_before` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed before this date and time (local time). |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
 
 **Results**
 
@@ -184,6 +206,27 @@ Give a folder a new name in the same parent folder, optionally only when its tot
 | `renamed` | Yes/No | True when the folder was renamed; false when it did not meet the limits. |
 
 *Time limit 60 s; needs: filesystem.*
+
+### Get special folder
+
+`ooa.folder/special_folder` (action)
+
+Return the path of a standard folder of the signed-in user or of Windows, such as Desktop, Documents, Downloads or Temp, also when the user moved it (for example to OneDrive).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | Yes |  | Main | Which folder; appdata is the roaming AppData folder, local_appdata is AppData\Local. One of: `desktop`, `documents`, `downloads`, `pictures`, `music`, `videos`, `temp`, `home`, `appdata`, `local_appdata`, `startup`, `program_files`, `program_files_x86`, `program_data`, `public_documents`, `windows`, `system` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Full path of the folder. |
+| `exists` | Yes/No | True when the folder exists on this computer. |
+
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ## Conditions
 
@@ -201,6 +244,8 @@ True when the folder exists.
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Folder path. |
 
+*Needs: filesystem.*
+
 ### Folder is empty
 
 `ooa.folder/is_empty` (condition)
@@ -212,6 +257,8 @@ True when the folder exists and contains nothing.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Folder path. |
+
+*Needs: filesystem.*
 
 ## Loop types
 
@@ -230,3 +277,5 @@ Yield the path of each folder inside a folder, optionally with all folders below
 | Path | `path` | File path | Yes |  | Main | Folder path. |
 | Include subfolders | `include_subfolders` | Yes/No | No | No | Main | Also yield folders inside the sub-folders, at any depth. |
 | Pattern | `pattern` | Text | No | `*` | Main | Glob pattern for the folder names, e.g. 2026-*. |
+
+*Needs: filesystem.*

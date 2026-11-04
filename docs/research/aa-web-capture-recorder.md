@@ -92,4 +92,4 @@ Looked at file names, versions and package contents only; no configuration value
    Java desktop applications.
 3. **Runner as a Windows service** with an unattended mode: run agents in a separate Windows session, sign in with a
    stored Windows credential, record the screen of a run.
-4. **Packages downloaded on demand** from Command Center, with their native helpers unpacked to a cache.
+4. **Packages downloaded on demand** from One CommandCenter, with their native helpers unpacked to a cache.

@@ -32,7 +32,7 @@ final class HttpJson {
         final String prefix, method, url;
         final Map<String, String> headers = new LinkedHashMap<>();
         HttpRequest.BodyPublisher body = HttpRequest.BodyPublishers.noBody();
-        int timeout = 60; boolean binary;
+        int timeout = 60; boolean binary, allowText;
         Req(String prefix, String method, String url) { this.prefix = prefix; this.method = method; this.url = url; }
         Req bearer(Object token) {
             if (!(token instanceof SecureString s)) throw new ActionException(prefix + ".NO_TOKEN", "An access token from the vault is required", "Map access_token to a Credential variable.");
@@ -51,6 +51,8 @@ final class HttpJson {
         Req json(Object value) { body = HttpRequest.BodyPublishers.ofString(JsonLite.write(Values.toJsonable(value))); headers.put("Content-Type", "application/json"); return this; }
         Req bytes(byte[] data, String contentType) { body = HttpRequest.BodyPublishers.ofByteArray(data); headers.put("Content-Type", contentType); return this; }
         Req binaryResponse() { binary = true; return this; }
+        /** The caller reads the answer as text and checks it itself (an HTML answer is then not an error here). */
+        Req allowText() { allowText = true; return this; }
         Req timeout(int s) { timeout = s; return this; }
 
         Response send(ActionContext ctx) {
@@ -60,18 +62,72 @@ final class HttpJson {
             headers.putIfAbsent("Accept", "application/json");
             headers.forEach(b::header);
             ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"));
+            HttpRequest request = b.build();
             HttpResponse<byte[]> r;
-            try { r = CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofByteArray()); }
-            catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
-            catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + e.getMessage(), "Check the URL, proxy and network access.", true); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            for (int attempt = 0; ; attempt++) {
+                try { r = CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray()); }
+                catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
+                catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy and network access.", true); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                // HTTP 429: the request was not processed, so it is sent again after the wait the service asks for
+                long wait = r.statusCode() == 429 && attempt < MAX_RATE_RETRIES ? retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
+                if (wait < 0) break;
+                ctx.warn(host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s (" + (attempt + 1) + " of " + MAX_RATE_RETRIES + ")");
+                pause(ctx, wait);
+            }
             String text = binary && r.statusCode() < 400 ? "" : new String(r.body(), StandardCharsets.UTF_8);
             Object parsed = null;
             if (!text.isBlank()) try { parsed = JsonLite.parse(text); } catch (IllegalArgumentException ignored) { }
             Response resp = new Response(r.statusCode(), text, parsed, r.body(), r.headers().map());
             if (r.statusCode() >= 400) throw error(prefix, resp);
+            if (!binary && !allowText && parsed == null && wantsJson(headers.get("Accept")) && looksLikePage(text, resp.header("Content-Type")))
+                // a proxy or sign-in page answered instead of the API: it used to "succeed" with empty values
+                throw new ActionException(prefix + ".BAD_RESPONSE", host(url) + " answered with a web page instead of JSON (often a proxy or sign-in page): " + snippet(text),
+                        "Check the URL points at the service's API, and the proxy, network and sign-in settings.", false, Map.of("status", java.math.BigDecimal.valueOf(r.statusCode())));
             return resp;
         }
+    }
+
+    static final int MAX_RATE_RETRIES = 3;
+    /** Longer waits than this are not done inside the step; the step fails with RATE_LIMITED (retryable) instead. */
+    static final long MAX_RATE_WAIT_MS = 60_000;
+
+    /**
+     * Milliseconds to wait for a 429 that says when to come back (Retry-After in seconds or as an HTTP date); -1 when it
+     * does not say, or asks for longer than a minute: the step then fails with RATE_LIMITED, which a retry policy can repeat.
+     */
+    static long retryAfterMillis(String retryAfter, int attempt) {
+        if (retryAfter == null || retryAfter.isBlank()) return -1;
+        String v = retryAfter.strip();
+        long ms;
+        try { ms = (long) (Double.parseDouble(v) * 1000); }
+        catch (NumberFormatException e) {
+            try { ms = java.time.Duration.between(java.time.Instant.now(), java.time.ZonedDateTime.parse(v, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()).toMillis(); }
+            catch (RuntimeException unreadable) { return -1; }
+        }
+        if (ms > MAX_RATE_WAIT_MS) return -1;
+        return Math.max(ms, 200);
+    }
+
+    /** The request asked for JSON only (the default); XML and other answers asked for explicitly are the caller's to read. */
+    static boolean wantsJson(String accept) {
+        String a = accept == null ? "application/json" : accept.toLowerCase(Locale.ROOT);
+        return a.contains("json") && !a.contains("xml") && !a.contains("*/*") && !a.contains("text/");
+    }
+
+    /** An HTML page (a proxy or sign-in page) rather than an API answer; XML answers of XML services are not pages. */
+    static boolean looksLikePage(String text, String contentType) {
+        if (text == null || text.isBlank()) return false;
+        String ct = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        if (ct.contains("text/html") || ct.contains("xhtml")) return true;
+        String head = text.stripLeading().toLowerCase(Locale.ROOT);
+        return !ct.contains("xml") && (head.startsWith("<!doctype html") || head.startsWith("<html") || head.startsWith("<head") || head.startsWith("<body"));
+    }
+
+    /** The visible start of a page, without tags, for an error message. */
+    static String snippet(String html) {
+        String t = html.replaceAll("(?is)<(script|style)[^>]*>.*?</\\1>", " ").replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").strip();
+        return t.isEmpty() ? "(empty page)" : t.length() > 160 ? t.substring(0, 160) + "..." : t;
     }
 
     static Req req(String prefix, String method, String url) { return new Req(prefix, method, url); }

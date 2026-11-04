@@ -23,15 +23,15 @@ ONEOFFICEAUTOMATION has three parts:
 
 | Part | What it is | Who uses it |
 | --- | --- | --- |
-| **One Agent Studio** | The designer. You build agents (automations), forms, workflows, Prompt Skills and document intelligence items in your own private workspace, and test them on your computer. | Builders |
-| **One Command Center** | The web console and server. It keeps the shared agent repository, runs agents on runners, holds schedules, triggers, work queues, the vault, users, licences and the audit trail. | Operators, administrators, business users, builders |
-| **One Runner** | The program on each computer that runs agents. It registers with the Command Center, takes work and reports back every step. | Runner owners (and, indirectly, everyone) |
+| **One AgentStudio** | The designer. You build agents (automations), forms, workflows, Prompt Skills and document intelligence items in your own private workspace, and test them on your computer. | Builders |
+| **One CommandCenter** | The web console and server. It keeps the shared agent repository, runs agents on runners, holds schedules, triggers, work queues, the vault, users, licences and the audit trail. | Operators, administrators, business users, builders |
+| **OneRunner** | The program on each computer that runs agents. It registers with One CommandCenter, takes work and reports back every step. | Runner owners (and, indirectly, everyone) |
 
 A typical life of an agent: a builder creates it in Studio, tests it, and presses **Agent check-in**, ticking **Make
-this the live version** when it is ready for production. The agent is now in the Command Center's **Agent
+this the live version** when it is ready for production. The agent is now in One CommandCenter's **Agent
 repository**, with a version number. An operator runs it on a runner, schedules it,
-or connects it to a trigger or a work queue. Every run is visible in **Agent Runs**, and every action anyone takes is
-recorded in the **One Audit Trail**.
+or connects it to a trigger or a work queue. Every run is visible in **Agent Activity**, and every action anyone takes is
+recorded in the **Audit Trail**.
 
 ## All guides
 
@@ -39,11 +39,11 @@ recorded in the **One Audit Trail**.
 | --- | --- | --- | --- |
 | 00 | This page | Everyone | The list of guides and where to start |
 | 01 | [Getting started](01-getting-started.md) | Everyone | First install on one computer, first sign-in, the menu, building and running a first agent end to end |
-| 02 | [Studio basics](02-studio-basics.md) | Builders | One Agent Studio's screen, workspace, explorer, actions, variables |
+| 02 | [Studio basics](02-studio-basics.md) | Builders | One AgentStudio's screen, workspace, explorer, actions, variables |
 | 03 | [Building agents in Studio](03-studio-building-agents.md) | Builders | Steps, conditions, loops, error handling, inputs and outputs, good practice |
 | 04 | [Running and debugging in Studio](04-studio-running-and-debugging.md) | Builders | Run, Debug, breakpoints, the run console, problems |
-| 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Runs, running and deploying agents, schedules, triggers, work queues, workflows, Operations, dashboards, handling failures |
-| 06 | [Administrator's guide](06-administrators-guide.md) | Administrators | Users, roles, teams, sign-in and security, API keys, the vault, shared values and connections, toolkits, templates, settings, licences, audit, AI governance |
+| 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Activity, running and deploying agents, schedules, triggers, work queues, workflows, Operational Insights (Overview, Alerts, Operations, Business: agents' dashboards, value, dashboards e-mailed on a schedule), handling failures |
+| 06 | [Administrator's guide](06-administrators-guide.md) | Administrators | Users, roles, teams, sign-in and security (password rules, lockout, Active Directory or LDAP, SCIM), API keys, the vault, shared values and connections, toolkits, policies (code analysis, AI guardrails), templates, settings, licences, audit, AI governance |
 | 07 | [Runner guide](07-runner-guide.md) | Runner owners, administrators | Installing and registering runners, attended and unattended work, screens, pools, updates, the notification-area assistant, diagnosing problems |
 | 08 | [Browser connector guide](08-browser-connector-guide.md) | Builders, runner owners | Installing the connector for Edge, Chrome and Firefox, checking it, what works where, troubleshooting |
 | 09 | [Child agents](09-child-agents.md) | Builders | Agents that call other agents, passing values, reuse |
@@ -52,7 +52,7 @@ recorded in the **One Audit Trail**.
 | 12 | [Cloud and business apps](12-cloud-and-business-apps.md) | Builders | REST, Microsoft 365, Google, Salesforce, ServiceNow and the other connectors |
 | 13 | [AI in agents](13-ai-in-agents.md) | Builders | Prompt Skills, AI agents, model connections, Knowledge Q&A |
 | 14 | [Business users](14-business-users.md) | Business users | The Task inbox, starting workflows, running agents you are allowed to run, the notification-area assistant |
-| 15 | [Publishing to the Command Center](15-publishing-to-command-center.md) | Builders | Check-in and check-out, versions, labels, approvals, folders |
+| 15 | [Publishing to One CommandCenter](15-publishing-to-command-center.md) | Builders | Check-in and check-out, versions, labels, approvals, folders |
 
 ## Start here: a reading path for each role
 
@@ -64,7 +64,7 @@ recorded in the **One Audit Trail**.
 3. The topic guides you need: [09](09-child-agents.md), [10](10-web-and-desktop-automation.md),
    [11](11-working-with-office-files-email-and-documents.md), [12](12-cloud-and-business-apps.md), [13](13-ai-in-agents.md).
    For browser work on your own Edge, Chrome or Firefox also read [08](08-browser-connector-guide.md).
-4. [15 Publishing to the Command Center](15-publishing-to-command-center.md) before you share your first agent.
+4. [15 Publishing to One CommandCenter](15-publishing-to-command-center.md) before you share your first agent.
 5. Skim [05 Operator's guide](05-operators-guide.md) so you know how your agents will be run and watched.
 
 ### Business user (you use agents and workflows in your daily work)
@@ -79,7 +79,7 @@ recorded in the **One Audit Trail**.
 2. [05 Operator's guide](05-operators-guide.md), from start to end. Keep its "Handling failures" section at hand.
 3. [07 Runner guide](07-runner-guide.md), sections on runner status, pools and `ooa agent diagnose`.
 
-### Administrator (you set the Command Center up and keep it safe)
+### Administrator (you set One CommandCenter up and keep it safe)
 
 1. [01 Getting started](01-getting-started.md) on a test computer first.
 2. [06 Administrator's guide](06-administrators-guide.md), from start to end.
@@ -98,24 +98,24 @@ recorded in the **One Audit Trail**.
 
 | Word | Meaning |
 | --- | --- |
-| Agent | An automation: a list of steps that One Runner carries out. Saved as a `.flow.json` file. |
-| Workflow | A chain of agents, people (forms, approvals) and decisions, run by the Command Center. Saved as `.process.json`. |
+| Agent | An automation: a list of steps that OneRunner carries out. Saved as a `.flow.json` file. |
+| Workflow | A chain of agents, people (forms, approvals) and decisions, run by One CommandCenter. Saved as `.process.json`. |
 | Form | A set of fields people fill in, used by workflows. Saved as `.form.json`. |
-| Agent repository | The Command Center's shared store of agents, with every version. Your Studio workspace is private; the repository is shared. |
+| Agent repository | One CommandCenter's shared store of agents, with every version: the **Public** tab of **Build > Automation**. Your own workspace (the **Private** tab) is private; the repository is shared. |
 | Live production version | The version of an agent that runs, schedules, triggers, work queues and workflows use. |
-| Runner | A computer with One Runner registered to a Command Center. |
+| Runner | A computer with OneRunner registered to One CommandCenter. |
 | Runner pool | A named group of runners; work sent to a pool goes to its least busy online runner. |
 | Run | One execution of an agent on a runner. |
 | Run-as user | The person a run acts as: their vault values and default runner are used. |
-| Vault folder | A folder in One Agent Vault holding encrypted credentials. Agents refer to values as `folder/credential/attribute`. |
+| Vault folder | A folder in Credential vault holding encrypted credentials. Agents refer to values as `folder/credential/attribute`. |
 | Toolkit | A package of actions (Excel, Browser, Email, ...). Administrators can switch toolkits on and off. |
 | Seat | A licence right given to a person (Developer, Citizen Developer, Attended Runner) or to a runner (Unattended Runner). |
 
 ## Conventions
 
-- **Bold** text is a page name, button, field or menu exactly as it appears on screen, for example **Agent Runs** or
+- **Bold** text is a page name, button, field or menu exactly as it appears on screen, for example **Agent Activity** or
   **Register a runner**.
-- A path such as **Operations > Schedules** means: open the **Operations** section of the menu on the left, then the
+- A path such as **Manage > Schedules** means: open the **Manage** section of the menu on the left, then the
   **Schedules** page.
 - `Code font` is something you type: a command, a value or a vault reference.
 - Commands are shown as `ooa ...`. On an installed computer run them from the install's `bin` folder as

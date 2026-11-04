@@ -7,8 +7,8 @@ Toolkit `ooa.pdf`, version 1.0.0. Extract text, merge, split, read and fill form
 ## Contents
 
 - **Security**: Decrypt PDF, Encrypt PDF
-- **Text**: Extract text from area, Extract text
-- **Document**: Extract images, Get document properties, Merge PDFs, Get page count, Read text with OCR, Split PDF, Convert to images
+- **Text**: Extract text from area, Extract tables, Extract text, Read XPS text
+- **Document**: Extract images, Get document properties, Merge PDFs, Get page count, Read text with OCR, Get page as picture, Split PDF, Convert to images
 - **Forms**: Fill form fields, Read form fields
 
 ## Security
@@ -84,6 +84,33 @@ Read the text inside a rectangle of one page, e.g. an invoice number box that is
 
 *Time limit 300 s; safe to repeat; needs: filesystem.*
 
+### Extract tables
+
+`ooa.pdf/extract_tables` (action)
+
+Find tables in a PDF that holds text (invoices, statements, reports) by how the text lines up in columns, and return each as a Data Table. Scanned PDFs need OCR first.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | PDF file. |
+| Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password for protected PDFs. |
+| Pages | `pages` | Text | No |  | Main | Pages to read, e.g. 1,3-4; every page when empty. Example: `1,3-4` |
+| First row is the header | `header` | Yes/No | No | Yes | Main | The first row of each table holds the column names; Column1, Column2 … when off. |
+| Merge across pages | `merge_across_pages` | Yes/No | No | Yes | Main | Join a table that continues at the top of the next page (same number of columns) into one, leaving out a repeated header row. |
+| Minimum columns | `min_columns` | Number | No | `2` | More options | Lines need at least this many separate columns to count as a table. Range: 2 to 50 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `tables` | List | Every table found, as Data Tables, top to bottom and page by page. |
+| `table` | Table | The first (or only) table; an empty table when none was found. |
+| `count` | Number | Number of tables found. |
+
+*Time limit 300 s; safe to repeat; needs: filesystem.*
+
 ### Extract text
 
 `ooa.pdf/extract_text` (action)
@@ -112,6 +139,28 @@ Extract the text of a PDF, of a page range or of chosen pages, as plain or layou
 
 *Time limit 300 s; safe to repeat; needs: filesystem.*
 
+### Read XPS text
+
+`ooa.pdf/read_xps_text` (action)
+
+Read the text of an XPS or OpenXPS document (.xps, .oxps), page by page, in reading order.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | XPS file. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | The text of every page, pages separated by a blank line. |
+| `pages` | List | The text of each page. |
+| `page_count` | Number | Number of pages. |
+
+*Time limit 300 s; safe to repeat; needs: filesystem.*
+
 ## Document
 
 ### Extract images
@@ -130,8 +179,10 @@ Save the pictures embedded in a PDF (photos, logos, scanned pages), from every p
 | Format | `format` | Text | No | `png` | Main | Image file format. One of: `png`, `jpg`, `bmp`, `gif`, `tiff` |
 | Target folder | `target_folder` | File path | Yes |  | Main | Folder for the images. |
 | File prefix | `file_prefix` | Text | No |  | Main | Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty. |
-| Color | `color` | Text | No | `color` | Main | color keeps the colours; gray saves greyscale copies. One of: `color`, `gray` |
+| Color | `color` | Text | No | `color` | Main | Colour depth: color keeps the colours (24-bit); gray saves 8-bit greyscale copies; black_white saves 1-bit images. One of: `color`, `gray`, `black_white` |
 | Resolution (DPI) | `dpi` | Number | No | `0` | Main; tick Resize to a resolution | Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size. Range: 0 to 1200 |
+| Jpeg quality | `jpeg_quality` | Number | No | `90` | More options | JPEG quality from 1 (smallest file) to 100 (best picture); also used for TIFF with jpeg compression. Range: 1 to 100; Shown when: `{"format": ["jpg", "tiff"]}` |
+| Tiff compression | `tiff_compression` | Text | No | `lzw` | More options | TIFF compression: lzw and deflate are lossless; ccitt_g4 gives the smallest black-and-white files (images are made black and white); jpeg suits photos. One of: `lzw`, `deflate`, `packbits`, `jpeg`, `ccitt_g4`, `none`; Shown when: `{"format": ["tiff"]}` |
 | Minimum size | `min_size` | Number | No | `1` | More options | Skip images narrower or lower than this many pixels (e.g. 32 to skip icons). |
 
 **Results**
@@ -243,6 +294,32 @@ Read the text of a scanned PDF (pages that are pictures, with no text layer) wit
 
 *Time limit 1800 s; safe to repeat; needs: filesystem.*
 
+### Get page as picture
+
+`ooa.pdf/render_page` (action)
+
+Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by One AgentStudio to draw an area to read, and to show a page in forms or emails.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | PDF file. |
+| Page | `page` | Number | No | `1` | Main | 1-based page number. Range: 1 to  |
+| Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password for protected PDFs. |
+| Resolution (DPI) | `dpi` | Number | No | `96` | More options | Resolution of the picture. Range: 36 to 300 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `image` | Text | The page as a data:image/png;base64 URI. |
+| `width_points` | Number | Page width in points (72 per inch), as Extract text from area measures it. |
+| `height_points` | Number | Page height in points. |
+| `page_count` | Number | Number of pages in the file. |
+
+*Time limit 120 s; safe to repeat; needs: filesystem.*
+
 ### Split PDF
 
 `ooa.pdf/split` (action)
@@ -288,6 +365,8 @@ Save each page, or chosen pages, as an image (PNG, JPEG, BMP, GIF or TIFF) in co
 | Target folder | `target_folder` | File path | Yes |  | Main | Folder for the images. |
 | Resolution (DPI) | `dpi` | Number | No | `150` | Main | Resolution; 300 for OCR. |
 | Color | `color` | Text | No | `color` | Main | color keeps the colours; gray gives greyscale; black_white gives 1-bit images, often best for OCR. One of: `color`, `gray`, `black_white` |
+| Jpeg quality | `jpeg_quality` | Number | No | `90` | More options | JPEG quality from 1 (smallest file) to 100 (best picture); also used for TIFF with jpeg compression. Range: 1 to 100; Shown when: `{"format": ["jpg", "tiff"]}` |
+| Tiff compression | `tiff_compression` | Text | No | `lzw` | More options | TIFF compression: lzw and deflate are lossless; ccitt_g4 gives the smallest black-and-white files (pages are made black and white); jpeg suits photos. One of: `lzw`, `deflate`, `packbits`, `jpeg`, `ccitt_g4`, `none`; Shown when: `{"format": ["tiff"]}` |
 | File prefix | `file_prefix` | Text | No |  | More options | Start of each image's file name, followed by _page1 and so on; the PDF's name when empty. |
 
 **Results**

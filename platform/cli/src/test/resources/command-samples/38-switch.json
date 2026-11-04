@@ -1,0 +1,174 @@
+[
+ {
+  "command": "core/switch",
+  "name": "equals: number matches text, several values in one case",
+  "vars": {"status": 3, "label": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$status"},
+    "cases": [
+     {"values": ["1", "2"], "children": [{"action": "core/set", "args": {"variable": "label", "value": "new"}}]},
+     {"values": ["3", "4"], "children": [{"action": "core/set", "args": {"variable": "label", "value": "in progress"}}]},
+     {"values": [3], "children": [{"action": "core/set", "args": {"variable": "label", "value": "never: no fall-through"}}]}
+    ],
+    "default": [{"action": "core/set", "args": {"variable": "label", "value": "unknown"}}]
+   }
+  ],
+  "expect": {"label": "in progress"}
+ },
+ {
+  "command": "core/switch",
+  "name": "default when nothing matches",
+  "vars": {"country": "Peru", "region": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$country"},
+    "cases": [
+     {"values": ["India", "Japan"], "children": [{"action": "core/set", "args": {"variable": "region", "value": "APAC"}}]},
+     {"values": ["Germany"], "children": [{"action": "core/set", "args": {"variable": "region", "value": "EMEA"}}]}
+    ],
+    "default": [{"action": "core/set", "args": {"variable": "region", "value": "Other"}}]
+   }
+  ],
+  "expect": {"region": "Other"}
+ },
+ {
+  "command": "core/switch",
+  "name": "no match and no default runs nothing",
+  "vars": {"v": "z", "hit": "none"},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$v"},
+    "cases": [{"values": ["a"], "children": [{"action": "core/set", "args": {"variable": "hit", "value": "a"}}]}]
+   }
+  ],
+  "expect": {"hit": "none"}
+ },
+ {
+  "command": "core/switch",
+  "name": "contains, ignoring case",
+  "vars": {"subject": "Re: INVOICE 4471 overdue", "queue": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$subject", "match": "contains", "ignore_case": true},
+    "cases": [
+     {"values": ["refund", "credit note"], "children": [{"action": "core/set", "args": {"variable": "queue", "value": "refunds"}}]},
+     {"values": ["invoice"], "children": [{"action": "core/set", "args": {"variable": "queue", "value": "billing"}}]}
+    ],
+    "default": [{"action": "core/set", "args": {"variable": "queue", "value": "general"}}]
+   }
+  ],
+  "expect": {"queue": "billing"}
+ },
+ {
+  "command": "core/switch",
+  "name": "starts with and ends with",
+  "vars": {"file": "report_2026.xlsx", "kind": "", "prefix": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$file", "match": "ends_with"},
+    "cases": [
+     {"values": [".csv"], "children": [{"action": "core/set", "args": {"variable": "kind", "value": "csv"}}]},
+     {"values": [".xlsx", ".xls"], "children": [{"action": "core/set", "args": {"variable": "kind", "value": "excel"}}]}
+    ]
+   },
+   {
+    "action": "core/switch",
+    "args": {"value": "$file", "match": "starts_with"},
+    "cases": [{"values": ["report_"], "children": [{"action": "core/set", "args": {"variable": "prefix", "value": "report"}}]}]
+   }
+  ],
+  "expect": {"kind": "excel", "prefix": "report"}
+ },
+ {
+  "command": "core/switch",
+  "name": "regex patterns",
+  "vars": {"ref": "PO-88213", "type": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$ref", "match": "regex"},
+    "cases": [
+     {"values": ["^INV-\\d+$"], "children": [{"action": "core/set", "args": {"variable": "type", "value": "invoice"}}]},
+     {"values": ["^PO-\\d{5}$"], "children": [{"action": "core/set", "args": {"variable": "type", "value": "order"}}]}
+    ],
+    "default": [{"action": "core/set", "args": {"variable": "type", "value": "other"}}]
+   }
+  ],
+  "expect": {"type": "order"}
+ },
+ {
+  "command": "core/switch",
+  "name": "expression cases are conditions",
+  "vars": {"amount": 2500, "approver": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"match": "expression"},
+    "cases": [
+     {"values": ["$amount > 10000"], "children": [{"action": "core/set", "args": {"variable": "approver", "value": "director"}}]},
+     {"values": [{"op": "between", "left": "$amount", "right": [1000, 10000]}], "children": [{"action": "core/set", "args": {"variable": "approver", "value": "manager"}}]}
+    ],
+    "default": [{"action": "core/set", "args": {"variable": "approver", "value": "none"}}]
+   }
+  ],
+  "expect": {"approver": "manager"}
+ },
+ {
+  "command": "core/switch",
+  "name": "case values from variables",
+  "vars": {"pick": "beta", "first": "alpha", "second": "beta", "got": ""},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$pick"},
+    "cases": [
+     {"values": ["$first"], "children": [{"action": "core/set", "args": {"variable": "got", "value": "1"}}]},
+     {"values": ["$second"], "children": [{"action": "core/set", "args": {"variable": "got", "value": "2"}}]}
+    ]
+   }
+  ],
+  "expect": {"got": "2"}
+ },
+ {
+  "command": "core/switch",
+  "name": "exit loop and continue loop inside a case",
+  "vars": {"items": ["a", "skip", "b", "stop", "c"], "seen": ""},
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {"iterator": "list", "over": "$items", "as": "item"},
+    "children": [
+     {
+      "action": "core/switch",
+      "args": {"value": "$item"},
+      "cases": [
+       {"values": ["skip"], "children": [{"action": "core/continue"}]},
+       {"values": ["stop"], "children": [{"action": "core/break"}]}
+      ]
+     },
+     {"action": "core/set", "args": {"variable": "seen", "value": "${seen}${item}"}}
+    ]
+   }
+  ],
+  "expect": {"seen": "ab"}
+ },
+ {
+  "command": "core/switch",
+  "name": "a pattern that is not valid fails the step",
+  "vars": {"p": "(unclosed", "x": "text"},
+  "steps": [
+   {
+    "action": "core/switch",
+    "args": {"value": "$x", "match": "regex"},
+    "cases": [{"values": ["$p"], "children": []}]
+   }
+  ],
+  "error": "SWITCH.BAD_REGEX"
+ }
+]

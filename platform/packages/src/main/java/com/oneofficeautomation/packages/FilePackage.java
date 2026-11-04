@@ -86,10 +86,10 @@ public final class FilePackage {
         return new Filter(min == null ? null : min.longValue(), max == null ? null : max.longValue(), within == null ? null : within.intValue(), older == null ? null : older.intValue());
     }
 
-    /** True when the file was last changed after 'after' and before 'before' (local time); an empty limit always passes. */
+    /** True when the file was last changed after 'after' and before 'before' (UTC, like every DateTime and File info's modified); an empty limit always passes. */
     static boolean modifiedBetween(Path p, LocalDateTime after, LocalDateTime before) {
         if (after == null && before == null) return true;
-        LocalDateTime t = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(p)), ZoneId.systemDefault());
+        LocalDateTime t = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(p)), ZoneOffset.UTC);
         return (after == null || t.isAfter(after)) && (before == null || t.isBefore(before));
     }
 
@@ -138,8 +138,8 @@ public final class FilePackage {
             @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files last changed more than this many days ago.") Integer older,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at least this large.") Long min,
             @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at most this large.") Long max,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed after this date and time (local time).") LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime before) {
         Path p = ctx.resolvePath(path);
         if (pattern == null || pattern.isBlank()) {
             try { return Map.of("deleted", BigDecimal.valueOf(Files.deleteIfExists(p) ? 1 : 0)); } catch (IOException e) { throw io("delete", p, e); }
@@ -382,8 +382,8 @@ public final class FilePackage {
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With a pattern, also take matching files in sub-folders, keeping their folders under the target.") boolean sub,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at least this large.") Long min,
             @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at most this large.") Long max,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (local time).") LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime before) {
         return transferMany(ctx, source, target, overwrite, false, keepBoth, pattern, sub, min, max, after, before);
     }
 
@@ -408,8 +408,8 @@ public final class FilePackage {
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With a pattern, also take matching files in sub-folders, keeping their folders under the target.") boolean sub,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at least this large.") Long min,
             @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at most this large.") Long max,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (local time).") LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") LocalDateTime before) {
         return transferMany(ctx, source, target, overwrite, true, keepBoth, pattern, sub, min, max, after, before);
     }
 
@@ -471,6 +471,90 @@ public final class FilePackage {
             if (move) Files.move(s, t, o); else Files.copy(s, t, o);
         } catch (IOException e) { throw io(move ? "move" : "copy", s, e); }
         return t;
+    }
+
+    // ---------- temporary files and Base64 (gap G07, 3 Nov 2026) ----------
+    private static final String TEMP_SESSION = "ooa.file.temporary";
+    private static final long BASE64_LIMIT = 50L * 1024 * 1024;
+
+    /** Temporary files this run made with delete_at_end; deleted when the run ends, however it ends. */
+    static final class TemporaryFiles implements AutoCloseable {
+        final List<Path> files = new ArrayList<>();
+        @Override public void close() {
+            for (Path p : files) try { Files.deleteIfExists(p); } catch (IOException ignored) { /* still in use: the OS temp clean-up takes it */ }
+            files.clear();
+        }
+    }
+
+    @Action(id = "create_temp_file", name = "Create temporary file", category = "Files", capabilities = "filesystem",
+            description = "Create an empty file with a unique name in the temporary folder (or another folder), for working data an agent needs only for a while.",
+            panel = "extension, delete_at_end | folder, prefix")
+    @Output(name = "path", type = OoaType.FILE, description = "Full path of the new file.")
+    public Map<String, Object> createTempFile(ActionContext ctx,
+            @Input(name = "extension", type = OoaType.STRING, required = false, defaultValue = "\".tmp\"", example = ".csv", description = "File extension, e.g. .csv or .xlsx.") String extension,
+            @Input(name = "delete_at_end", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Delete the file when the run ends (also when it fails); turn off to keep it.") boolean deleteAtEnd,
+            @Input(name = "folder", type = OoaType.FILE, required = false, description = "Folder to create it in; the system's temporary folder when empty.") String folder,
+            @Input(name = "prefix", type = OoaType.STRING, required = false, defaultValue = "\"ooa-\"", description = "Start of the file name.") String prefix) {
+        String ext = extension == null || extension.isBlank() ? ".tmp" : extension.strip().startsWith(".") ? extension.strip() : "." + extension.strip();
+        String pre = prefix == null ? "ooa-" : prefix;
+        if ((ext + pre).matches(".*[\\\\/:*?\"<>|\\x00-\\x1f].*"))
+            throw new ActionException("FILE.BAD_NAME", "The extension or prefix holds a character a file name cannot have", "Leave out \\ / : * ? \" < > |.");
+        try {
+            Path dir = folder == null || folder.isBlank() ? Path.of(System.getProperty("java.io.tmpdir")) : ctx.resolvePath(folder);
+            Files.createDirectories(dir);
+            Path p = Files.createTempFile(dir, pre, ext).toAbsolutePath().normalize();
+            if (deleteAtEnd) {
+                Object o = ctx.sessions().get(TEMP_SESSION);
+                TemporaryFiles t = o instanceof TemporaryFiles x ? x : new TemporaryFiles();
+                ctx.sessions().put(TEMP_SESSION, t);
+                t.files.add(p);
+            }
+            return Out.of("path", p.toString());
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create a temporary file: " + e.getMessage(), "Check the folder exists and can be written.", true); }
+    }
+
+    @Action(id = "to_base64", name = "File to Base64", category = "Files", idempotent = true, capabilities = "filesystem",
+            description = "Read a file (a PDF, an image, any file) as Base64 text, for web services that take attachments as text.",
+            panel = "path")
+    @Output(name = "base64", type = OoaType.STRING, description = "The file's contents as Base64 text.")
+    @Output(name = "size_bytes", type = OoaType.NUMBER, description = "Size of the file.")
+    public Map<String, Object> toBase64(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File to read; up to 50 MB.") String path) {
+        Path p = ctx.resolvePath(path);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the file path.");
+        try {
+            long size = Files.size(p);
+            if (size > BASE64_LIMIT) throw new ActionException("FILE.TOO_LARGE", p + " is " + size / (1024 * 1024) + " MB; Base64 text is limited to 50 MB of file",
+                    "Send large files as files (for example with a REST upload) rather than as text.");
+            return Out.of("base64", Base64.getEncoder().encodeToString(Files.readAllBytes(p)), "size_bytes", BigDecimal.valueOf(size));
+        } catch (IOException e) { throw io("read", p, e); }
+    }
+
+    @Action(id = "from_base64", name = "Base64 to file", category = "Files", capabilities = "filesystem",
+            description = "Write Base64 text (for example a PDF or image returned by a web service) to a file.",
+            panel = "base64, path, overwrite")
+    @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
+    @Output(name = "size_bytes", type = OoaType.NUMBER, description = "Size of the written file.")
+    public Map<String, Object> fromBase64(ActionContext ctx,
+            @Input(name = "base64", type = OoaType.STRING, description = "Base64 text; a data: prefix such as data:application/pdf;base64, is allowed.") String base64,
+            @Input(name = "path", type = OoaType.FILE, description = "File to write; its folder is created when missing.") String path,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file when it exists; when off, stop with FILE.EXISTS.") boolean overwrite) {
+        String text = base64 == null ? "" : base64.strip();
+        if (text.startsWith("data:") && text.contains(",")) text = text.substring(text.indexOf(',') + 1);
+        byte[] bytes;
+        try {
+            text = text.replaceAll("\\s", "");
+            bytes = text.contains("-") || text.contains("_") ? Base64.getUrlDecoder().decode(text) : Base64.getDecoder().decode(text);
+        } catch (IllegalArgumentException e) {
+            throw new ActionException("FILE.BAD_BASE64", "The text is not Base64: " + e.getMessage(), "Pass the Base64 text exactly as the web service returned it.");
+        }
+        Path p = ctx.resolvePath(path);
+        if (Files.exists(p) && !overwrite) throw new ActionException("FILE.EXISTS", "File already exists: " + p, "Turn on overwrite or choose another path.");
+        try {
+            if (p.getParent() != null) Files.createDirectories(p.getParent());
+            Files.write(p, bytes);
+        } catch (IOException e) { throw io("write", p, e); }
+        return Out.of("path", p.toAbsolutePath().toString(), "size_bytes", BigDecimal.valueOf(bytes.length));
     }
 
     @Action(id = "get_info", name = "Get file info", category = "Files", idempotent = true, capabilities = "filesystem",

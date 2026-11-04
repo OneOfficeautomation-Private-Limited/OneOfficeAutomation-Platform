@@ -81,7 +81,7 @@ class OoaCliTest {
         assertTrue(out[0].contains("complete -F") && out[0].contains("set-password"), "a bash completion script");
     }
 
-    /** ooa run reads Credential inputs from OOA_SECRET_... variables (none is set here), as Agent Studio does. */
+    /** ooa run reads Credential inputs from OOA_SECRET_... variables (none is set here), as One AgentStudio does. */
     @Test void runReadsCredentialsFromTheEnvironment() throws Exception {
         java.nio.file.Path flow = java.nio.file.Files.createTempFile("ooa-cred", ".flow.json");
         java.nio.file.Files.writeString(flow, """

@@ -159,10 +159,15 @@ class ImageOcrExcelDesktopPropertiesTest {
         assertEquals("EXCEL_DESKTOP.BAD_MACRO", code(() -> ExcelDesktopPackage.runMacroScript("x", "Go; Remove-Item", null, true, null, false)));
 
         ExcelDesktopPackage.Script pdf = ExcelDesktopPackage.exportPdfScript("C:\\b.xlsx", "C:\\b.pdf", "Summary", "minimum", false, true, 2, 3, null);
-        assertEquals(List.of("C:\\b.xlsx", "C:\\b.pdf", "1", "0", "1", "2", "3", "Summary"), pdf.args());
+        assertEquals(List.of("C:\\b.xlsx", "C:\\b.pdf", "1", "0", "1"), pdf.args());
+        assertEquals(Map.of("OOA_XL_FROM", "2", "OOA_XL_TO", "3", "OOA_XL_SHEET", "Summary"), pdf.env(), "optional values travel in the environment");
         assertTrue(pdf.body().contains("Workbooks.Open($args[0], 0, $true)"));
         assertTrue(pdf.body().contains("ExportAsFixedFormat(0, $args[1], [int]$args[2]"));
-        assertEquals(List.of("C:\\b.xlsx", "C:\\b.pdf", "0", "1", "0", "-", "-", "-"), ExcelDesktopPackage.exportPdfScript("C:\\b.xlsx", "C:\\b.pdf", null, null, true, false, null, null, null).args());
+        assertTrue(pdf.body().contains("'Microsoft Print to PDF'"), "falls back to printing to PDF when Excel cannot export");
+        // a bare "-" argument is read by powershell -File as a parameter name: empty values must not be passed as "-"
+        ExcelDesktopPackage.Script plainPdf = ExcelDesktopPackage.exportPdfScript("C:\\b.xlsx", "C:\\b.pdf", null, null, true, false, null, null, null);
+        assertEquals(List.of("C:\\b.xlsx", "C:\\b.pdf", "0", "1", "0"), plainPdf.args());
+        assertTrue(plainPdf.env().isEmpty());
         assertEquals("EXCEL_DESKTOP.BAD_QUALITY", code(() -> ExcelDesktopPackage.exportPdfScript("a", "b", null, "high", true, false, null, null, null)));
         assertEquals("EXCEL_DESKTOP.BAD_PAGES", code(() -> ExcelDesktopPackage.exportPdfScript("a", "b", null, null, true, false, 3, 2, null)));
 

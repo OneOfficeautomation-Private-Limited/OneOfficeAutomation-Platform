@@ -3,7 +3,7 @@
 ## What this covers / who it is for
 
 This document lists the ways other systems and developers can integrate with and extend ONEOFFICEAUTOMATION: the REST
-API (with authentication, starting runs, reading results and the live change feed), API tasks for calling one agent
+API (with authentication, starting runs, reading results and the live change feed), Agent APIs for calling one agent
 like a web service, the MCP endpoint for AI assistants, incoming webhooks and outgoing run callbacks, custom toolkits
 built with the SDK, custom connectors imported from API descriptions, saved connections, the Git mirror of the agent
 repository, lifecycle export, import and promotion between environments, the templates catalogue, and the command line
@@ -13,7 +13,7 @@ for automation pipelines. It is for integration developers, DevOps engineers and
 
 1. [Integration points at a glance](#1-integration-points-at-a-glance)
 2. [REST API](#2-rest-api)
-3. [API tasks](#3-api-tasks)
+3. [Agent APIs](#3-api-tasks)
 4. [MCP for AI assistants](#4-mcp-for-ai-assistants)
 5. [Webhooks in, callbacks out](#5-webhooks-in-callbacks-out)
 6. [Triggers from other systems](#6-triggers-from-other-systems)
@@ -82,7 +82,7 @@ Every call checks a permission of the caller's role and folder permissions. Erro
 
 `GET /api/catalog` returns the names of all actions; Studio's `GET /studio/api/packages` returns the full manifests.
 
-## 3. API tasks
+## 3. Agent APIs
 
 An API task (`ApiTasks`) puts one agent behind its own address and token, for systems that should not hold a user's
 API key:
@@ -99,12 +99,12 @@ X-OOA-Task-Token: <token>
 - The run uses the live version, on the task's runner or the least busy runner of its pool, as the task's creator.
 - The call waits up to the task's time limit (at most 300 seconds); with 8 calls already waiting, new calls get 202 at
   once.
-- Agents of kind `ApiTask` can run **serverless** inside the Command Center when they use only data, web-service and
+- Agents of kind `ApiTask` can run **serverless** inside One CommandCenter when they use only data, web-service and
   document toolkits (see [04-command-center-internals.md](04-command-center-internals.md#11-api-tasks-and-serverless-runs)).
 
 ## 4. MCP for AI assistants
 
-The Command Center is an MCP server at `POST /api/mcp` (JSON-RPC 2.0, protocol `2025-06-18`). An administrator lists
+One CommandCenter is an MCP server at `POST /api/mcp` (JSON-RPC 2.0, protocol `2025-06-18`). An administrator lists
 the agents to expose (`mcp_agents`), the runner or pool to use (`mcp_runner`) and the time limit
 (`mcp_timeout_seconds`). Clients authenticate with an API key, a session, or an OAuth access token from the company's
 identity provider (`mcp_oauth_audience`, `mcp_oauth_scope`; discovery at `/.well-known/oauth-protected-resource`).
@@ -114,7 +114,7 @@ one as the caller. Details: [08-ai-architecture.md](08-ai-architecture.md#11-mcp
 ## 5. Webhooks in, callbacks out
 
 **Incoming webhooks**: a trigger of kind `webhook` gets an id and a secret (shown once, stored as SHA-256). Another
-system posts JSON to `POST /api/hooks/{trigger id}` with header `X-OOA-Secret: <secret>`; the Command Center answers
+system posts JSON to `POST /api/hooks/{trigger id}` with header `X-OOA-Secret: <secret>`; One CommandCenter answers
 202 and starts the trigger's agent with the payload as input. Webhook calls share the "calls" rate limit of 1,200 per
 minute per address.
 
@@ -127,7 +127,7 @@ open (`TriggerService`).
 
 ## 6. Triggers from other systems
 
-Without changing the other system, the Command Center can poll it (`TriggerPollers`):
+Without changing the other system, One CommandCenter can poll it (`TriggerPollers`):
 
 | Kind | Source | Cursor |
 | --- | --- | --- |
@@ -177,19 +177,19 @@ uploaded in the SaaS service.
 - Each sync writes the latest version of every agent, workflow and form as indented JSON under `agents/`, plus
   `ooa-repository.json` with each item's latest and live production version and SHA-256. It commits only when something
   changed, with the change's comment and author, and pushes.
-- The Command Center stays the source of truth: changes made in Git are not read back and are overwritten by the next
+- One CommandCenter stays the source of truth: changes made in Git are not read back and are overwritten by the next
   sync. The working copy is `<data>/git-sync`.
 - Routes: `GET /api/git/status`, `POST /api/git/sync`. In SaaS the remote must be public and `https://` or SSH.
 
 ## 10. Lifecycle: export, import, promote
 
-`Lifecycle` moves agents between Command Centers (for example development, test, production):
+`Lifecycle` moves agents between One CommandCenter installations (for example development, test, production):
 
 | Operation | Route | Behaviour |
 | --- | --- | --- |
 | Export | `POST /api/lifecycle/export` | A bundle of chosen agents at a version (latest, production, a number or a label) and optionally every agent they call (production, else latest), with each version's exact content and SHA-256 and a checksum over the list |
 | Import | `POST /api/lifecycle/import` | Checks format and checksums, validates every agent as check-in does, then stores all or none in one transaction; existing agents are skipped or get a new version; history is never replaced; "as production" respects production approval |
-| Promote | `POST /api/lifecycle/promote` | Exports here and imports into another Command Center over its API, signing in with an API key read from the vault (never typed) |
+| Promote | `POST /api/lifecycle/promote` | Exports here and imports into another One CommandCenter over its API, signing in with an API key read from the vault (never typed) |
 
 Permissions `lifecycle.export` and `lifecycle.import` are administrator-only unless a custom role grants them.
 
@@ -198,7 +198,7 @@ Permissions `lifecycle.export` and `lifecycle.import` are administrator-only unl
 `Templates` lets people install ready-made agents into a folder of their repository:
 
 - **Vendor catalogue**: a feed `{format: ooa-templates-1, payload, signature}` signed with the vendor key and published
-  with each release (setting `template_catalog_url`, `off` for none). A feed file can be uploaded for Command Centers
+  with each release (setting `template_catalog_url`, `off` for none). A feed file can be uploaded for One CommandCenter installations
   without internet access. A feed with a bad signature is refused as a whole.
 - **Region catalogue** (SaaS): templates shared by tenants and approved by the region's operators (see
   [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md#10-shared-templates)).
@@ -244,7 +244,7 @@ The GraalVM native executable (`gradlew :cli:nativeExecutable`) contains `valida
 | Extension | Where | Pattern |
 | --- | --- | --- |
 | New first-party toolkit | `packages` or a new optional module | Annotated class, registration in `FirstPartyPackages`, fake-server test, catalogue row, `GROUP_LIST` row |
-| New Command Center feature | `control-room` | New `SCHEMA_Vn`, service method with `require`, `?` SQL and audit, a route in `ControlRoomServer.api`, a page in `cr.js`, an end-to-end test |
+| New One CommandCenter feature | `control-room` | New `SCHEMA_Vn`, service method with `require`, `?` SQL and audit, a route in `ControlRoomServer.api`, a page in `cr.js`, an end-to-end test |
 | New Studio capability | `cli` | A route in `StudioServer` (loopback only), UI in `studio.js`; engine hooks only through interfaces in `runner` |
 | New trigger kind | `agent` (`LocalTriggers`) or `control-room` (`TriggerPollers`) | Add to `TriggerKinds`; keep the cursor in `triggers.last_hash`; pass the event as `trigger_<kind>` and `trigger_event` |
 | New model provider | `packages` (`LlmClient`) | See [08-ai-architecture.md](08-ai-architecture.md#13-adding-a-provider) |

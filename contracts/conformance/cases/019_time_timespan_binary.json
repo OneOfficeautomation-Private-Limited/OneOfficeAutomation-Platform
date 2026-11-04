@@ -1,0 +1,50 @@
+{
+  "name": "019_time_timespan_binary",
+  "description": "Time, TimeSpan, Image and Binary variables: coercion of defaults, arithmetic, functions and the JSON forms of outputs.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c19",
+    "name": "c19",
+    "variables": [
+      {"name": "t", "type": "Time", "direction": "output", "default": "2:30 PM"},
+      {"name": "span", "type": "TimeSpan", "direction": "output", "default": "2h 15m"},
+      {"name": "later", "type": "Time", "direction": "output"},
+      {"name": "end", "type": "String", "direction": "output"},
+      {"name": "mins", "type": "Number", "direction": "output"},
+      {"name": "gap", "type": "TimeSpan", "direction": "output"},
+      {"name": "late", "type": "Boolean", "direction": "output"},
+      {"name": "bin", "type": "Binary", "direction": "output"},
+      {"name": "n", "type": "Number", "direction": "output"},
+      {"name": "img", "type": "Image", "direction": "output",
+       "default": {"$binary": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEklEQVR4nGP4z8AAQVDqPwMDAEHSBfsl0XwmAAAAAElFTkSuQmCC"}},
+      {"name": "w", "type": "Number", "direction": "output"}
+    ],
+    "steps": [
+      {"id": "a", "action": "core/set", "args": {"variable": "later", "value": {"expr": "$t + $span"}}},
+      {"id": "b", "action": "core/set", "args": {"variable": "end", "value": {"expr": "formatDate(dateAdd('2026-10-18T09:00:00', $span), '%Y-%m-%d %H:%M')"}}},
+      {"id": "c", "action": "core/set", "args": {"variable": "mins", "value": {"expr": "totalMinutes($span)"}}},
+      {"id": "d", "action": "core/set", "args": {"variable": "gap", "value": {"expr": "timeBetween('2026-10-18T09:00:00', '2026-10-17T08:30:00')"}}},
+      {"id": "e", "action": "core/set", "args": {"variable": "late", "value": {"expr": "$t > '12:00'"}}},
+      {"id": "f", "action": "core/set", "args": {"variable": "bin", "value": {"expr": "fromBase64('aGk=')"}}},
+      {"id": "g", "action": "core/set", "args": {"variable": "n", "value": {"expr": "binaryLength($bin)"}}},
+      {"id": "h", "action": "core/set", "args": {"variable": "w", "value": {"expr": "imageWidth($img) * 10 + imageHeight($img)"}}}
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "t": "14:30:00",
+      "span": "PT2H15M",
+      "later": "16:45:00",
+      "end": "2026-10-18 11:15",
+      "mins": 135,
+      "gap": "-PT24H30M",
+      "late": true,
+      "bin": {"$binary": "aGk=", "mime": "application/octet-stream"},
+      "n": 2,
+      "img": {"$binary": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEklEQVR4nGP4z8AAQVDqPwMDAEHSBfsl0XwmAAAAAElFTkSuQmCC", "mime": "image/png", "width": 3, "height": 2},
+      "w": 32
+    }
+  }
+}

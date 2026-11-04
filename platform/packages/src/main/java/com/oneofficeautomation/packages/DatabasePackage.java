@@ -18,9 +18,40 @@ public final class DatabasePackage {
 
     static final class DbSession implements AutoCloseable {
         final Connection conn;
-        DbSession(Connection c) { conn = c; }
+        /** read_only was asked for; enforced says the database itself refuses changes (otherwise OOA refuses them). */
+        final boolean readOnly, enforced;
+        DbSession(Connection c) { this(c, false, false); }
+        DbSession(Connection c, boolean readOnly, boolean enforced) { conn = c; this.readOnly = readOnly; this.enforced = enforced; }
+
+        /**
+         * A connection opened read-only refuses changing statements. Many drivers (H2, SQL Server) treat setReadOnly as a
+         * hint only, so a DELETE still ran: OOA now checks the statement itself unless the database enforces read-only.
+         */
+        void guard(String what, String sql) {
+            if (!readOnly) return;
+            // quoted text and quoted names cannot hold statements: 'please delete me' does not make a SELECT a change
+            boolean reading = sql != null && READING.matcher(sql.replaceAll("'(?:[^']|'')*'", "''").replaceAll("\"(?:[^\"]|\"\")*\"", "\"\"")).lookingAt();
+            if (what == null && (enforced || reading)) return;
+            if (what != null && what.equals("procedure") && enforced) return;
+            throw new ActionException("DB.READ_ONLY", "The session was opened read-only, so " + (what == null ? "this statement" : what.equals("procedure") ? "stored procedures (which may change data)" : what)
+                    + " cannot run" + (what == null ? ": only SELECT, WITH, VALUES, SHOW, DESCRIBE and EXPLAIN are allowed" : ""),
+                    "Connect again with read_only off to change data.");
+        }
+
         @Override public void close() throws SQLException { if (!conn.isClosed()) { if (!conn.getAutoCommit()) conn.rollback(); conn.close(); } }
     }
+
+    /** Statements that only read: SELECT, WITH ... SELECT, VALUES, SHOW, DESCRIBE/DESC, EXPLAIN, TABLE, PRAGMA (after comments). */
+    static final java.util.regex.Pattern READING = java.util.regex.Pattern.compile(
+            "(?is)\\s*(?:(?:--[^\\n]*\\n|/\\*.*?\\*/)\\s*)*\\(?\\s*(SELECT|WITH|VALUES|SHOW|DESCRIBE|DESC|EXPLAIN|TABLE|PRAGMA)\\b(?!.*\\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE)\\b\\s)");
+
+    /** Drivers whose read-only connections are enforced by the database server. */
+    static boolean enforcesReadOnly(String url) {
+        String u = url.toLowerCase(Locale.ROOT);
+        return u.startsWith("jdbc:postgresql:") || u.startsWith("jdbc:mysql:") || u.startsWith("jdbc:mariadb:") || u.startsWith("jdbc:oracle:");
+    }
+
+    static DbSession db(ActionContext ctx, String session) { return ctx.session(session, DbSession.class); }
 
     private static ActionException sql(SQLException e) {
         boolean transientErr = e instanceof SQLTransientException || e instanceof SQLRecoverableException;
@@ -32,22 +63,26 @@ public final class DatabasePackage {
             panel = "(Connect using: Connection details = database_type, server, port, database, file / A JDBC address = jdbc_url), user, password | session, [Load a specific driver class: driver_class], login_timeout_seconds, properties, read_only, auto_commit")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "jdbc_url", type = OoaType.STRING, required = false, pattern = "^(jdbc:|$)", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below.") String jdbcUrl,
-            @Input(name = "database_type", type = OoaType.STRING, required = false, enumValues = {"sqlserver", "postgresql", "mysql", "oracle", "sqlite", "h2", "access"},
-                    description = "Kind of database, used to build the URL when jdbc_url is empty.") String type,
+            @Input(name = "database_type", type = OoaType.STRING, required = false, enumValues = {"sqlserver", "postgresql", "mysql", "oracle", "sqlite", "h2", "access", "odbc", "excel"},
+                    description = "Kind of database, used to build the URL when jdbc_url is empty. odbc: any ODBC data source on a Windows runner (a DSN name or an ODBC connection string in database); excel: an Excel workbook through the Excel ODBC driver (sheets are tables, e.g. [Sheet1$]).") String type,
             @Input(name = "server", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", example = "dbserver01", description = "Database server name or address.") String server,
             @Input(name = "port", type = OoaType.NUMBER, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", min = 1, max = 65535, description = "Server port; the database's usual port when empty.") Integer port,
-            @Input(name = "database", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", description = "Database name (service name for Oracle).") String database,
-            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "database_type=sqlite|h2|access", description = "Database file for SQLite, H2 or Access.") String file,
+            @Input(name = "database", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle|odbc",
+                    description = "Database name (service name for Oracle; for odbc a DSN name, or a connection string such as Driver={SQL Server};Server=db01;Trusted_Connection=Yes).") String database,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "database_type=sqlite|h2|access|excel", description = "Database file for SQLite, H2 or Access, or the workbook for excel.") String file,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name for later steps.") String session,
             @Input(name = "driver_class", type = OoaType.STRING, required = false, example = "org.postgresql.Driver", description = "JDBC driver class to load first, for drivers that do not register themselves.") String driverClass,
             @Input(name = "login_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up connecting after this many seconds; 0 uses the driver's default.") int loginTimeout,
             @Input(name = "properties", type = OoaType.DICTIONARY, required = false, description = "Extra driver properties, e.g. {\"encrypt\": \"true\"}; Credential values are revealed only to the driver.") Map<String, Object> properties,
-            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the connection read-only, so the agent cannot change data by mistake (when the driver supports it).") boolean readOnly,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the connection read-only, so the agent cannot change data by mistake: the database enforces it where it can (PostgreSQL, MySQL/MariaDB, Oracle), and otherwise OOA refuses statements that change data.") boolean readOnly,
             @Input(name = "auto_commit", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save each statement at once; false starts in a transaction that needs Commit.") boolean autoCommit) {
         String url = jdbcUrl != null && !jdbcUrl.isBlank() ? jdbcUrl.strip()
                 : jdbcUrl(type, server, port, database, file == null || file.isBlank() ? null : ctx.resolvePath(file).toString());
+        // the runner ships the MariaDB driver (LGPL), which speaks MySQL's protocol; a jdbc:mysql: address uses it when
+        // MySQL's own Connector/J has not been added
+        if (url.startsWith("jdbc:mysql:") && !hasDriver("com.mysql.cj.jdbc.Driver") && hasDriver("org.mariadb.jdbc.Driver")) url = "jdbc:mariadb:" + url.substring("jdbc:mysql:".length());
         if (driverClass != null && !driverClass.isBlank()) {
             if (!driverClass.strip().matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+"))
                 throw new ActionException("DB.BAD_DRIVER", "Invalid driver class '" + driverClass + "'", "Give the full class name, e.g. org.postgresql.Driver.");
@@ -65,18 +100,30 @@ public final class DatabasePackage {
                 if (loginTimeout > 0) DriverManager.setLoginTimeout(loginTimeout);
                 try { conn = DriverManager.getConnection(url, p); } finally { DriverManager.setLoginTimeout(previous); }
             }
+            boolean enforced = false;
             try {
-                if (readOnly) conn.setReadOnly(true);
+                if (readOnly) {
+                    try { conn.setReadOnly(true); enforced = enforcesReadOnly(url) && conn.isReadOnly(); }
+                    catch (SQLException e) { /* some drivers cannot switch after connecting: OOA enforces it */ }
+                    if (!enforced) ctx.info("This database driver does not enforce read-only connections; OOA refuses statements that change data in session '" + session + "'");
+                }
                 if (!autoCommit) conn.setAutoCommit(false);
             } catch (SQLException e) { conn.close(); throw e; }
-            ctx.sessions().put(session, new DbSession(conn));
+            ctx.sessions().put(session, new DbSession(conn, readOnly, enforced));
             ctx.info("Connected session '" + session + "' to " + url.replaceAll("(?i)password=[^;&]+", "password=****"));
         } catch (SQLException e) {
-            if ("08001".equals(e.getSQLState()) || e.getMessage().contains("No suitable driver"))
-                throw new ActionException("DB.NO_DRIVER", "No JDBC driver found for " + url.split(":")[1], "Ask an administrator to install the database driver on the runner.");
-            throw new ActionException("DB.CONNECT_FAILED", "Cannot connect: " + e.getMessage(), "Check the URL, network access and credentials.", true);
+            if (String.valueOf(e.getMessage()).contains("No suitable driver"))
+                throw new ActionException("DB.NO_DRIVER", "No JDBC driver found for " + url.split(":")[1],
+                        "The runner includes drivers for SQL Server, PostgreSQL, MySQL/MariaDB, Oracle, SQLite, H2 and Access, and reaches any ODBC data source on Windows (database_type odbc); for another database ask an administrator to put its driver JAR in the runner's lib folder.");
+            throw new ActionException("DB.CONNECT_FAILED", "Cannot connect: " + NetErrors.clean(e.getMessage()), "Check the URL, network access and credentials.", true);
         }
         return Map.of();
+    }
+
+    static { OdbcBridge.register(); }   // jdbc:odbc: addresses (ODBC data sources on Windows runners)
+
+    static boolean hasDriver(String cls) {
+        try { Class.forName(cls, false, DatabasePackage.class.getClassLoader()); return true; } catch (ClassNotFoundException | LinkageError e) { return false; }
     }
 
     /** JDBC URL in each driver's usual form; server databases use server/port/database, file databases the file path. */
@@ -84,14 +131,21 @@ public final class DatabasePackage {
         if (type == null || type.isBlank())
             throw new ActionException("DB.BAD_INPUT", "Give a jdbc_url or a database_type", "Choose the database type and fill in its server or file, or type the full JDBC URL.");
         String t = type.strip().toLowerCase(Locale.ROOT);
-        boolean fileDb = t.equals("sqlite") || t.equals("h2") || t.equals("access");
+        boolean fileDb = t.equals("sqlite") || t.equals("h2") || t.equals("access") || t.equals("excel");
         if (fileDb) {
             if (file == null || file.isBlank()) throw new ActionException("DB.BAD_INPUT", t + " needs a database file", "Fill in file with the path of the database file.");
             return switch (t) {
                 case "sqlite" -> "jdbc:sqlite:" + file;
                 case "h2" -> "jdbc:h2:" + file.replaceFirst("(?i)\\.mv\\.db$", "");  // H2 adds .mv.db itself
+                // Office's driver (32- or 64-bit, whichever is installed; Windows' own .xls driver when Office has none)
+                case "excel" -> OdbcBridge.PREFIX + "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" + file + ";ReadOnly=0";
                 default -> "jdbc:ucanaccess://" + file;
             };
+        }
+        if (t.equals("odbc")) {
+            if (database == null || database.isBlank())
+                throw new ActionException("DB.BAD_INPUT", "odbc needs a data source", "Fill in database with a DSN name (see Windows' ODBC Data Sources) or an ODBC connection string.");
+            return OdbcBridge.PREFIX + database.strip();
         }
         if (server == null || server.isBlank()) throw new ActionException("DB.BAD_INPUT", t + " needs a server", "Fill in server with the database server name or address.");
         String host = server.strip(), db = database == null || database.isBlank() ? null : database.strip();
@@ -104,7 +158,7 @@ public final class DatabasePackage {
                 if (db == null) throw new ActionException("DB.BAD_INPUT", "oracle needs a database (service name)", "Fill in database with the Oracle service name, e.g. ORCLPDB1.");
                 yield "jdbc:oracle:thin:@//" + host + ":" + (port != null ? port : 1521) + "/" + db;
             }
-            default -> throw new ActionException("DB.BAD_INPUT", "Unknown database_type '" + type + "'", "Use sqlserver, postgresql, mysql, oracle, sqlite, h2 or access.");
+            default -> throw new ActionException("DB.BAD_INPUT", "Unknown database_type '" + type + "'", "Use sqlserver, postgresql, mysql, oracle, sqlite, h2, access, odbc or excel.");
         };
     }
 
@@ -130,7 +184,9 @@ public final class DatabasePackage {
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1, description = "Safety limit on rows returned.") int maxRows,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
             @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
-        Connection c = ctx.session(session, DbSession.class).conn;
+        DbSession dbs = db(ctx, session);
+        dbs.guard(null, sql);
+        Connection c = dbs.conn;
         try (PreparedStatement ps = prepare(c, sql, params)) {
             ps.setMaxRows(maxRows);
             if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
@@ -188,7 +244,9 @@ public final class DatabasePackage {
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
             @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
-        Connection c = ctx.session(session, DbSession.class).conn;
+        DbSession dbs = db(ctx, session);
+        dbs.guard("Insert/update/delete", sql);
+        Connection c = dbs.conn;
         try (PreparedStatement ps = prepare(c, sql, params)) {
             if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
             return Out.of("rows_affected", BigDecimal.valueOf(ps.executeUpdate()));
@@ -320,7 +378,9 @@ public final class DatabasePackage {
 
     private static Map<String, Object> insertBatches(ActionContext ctx, String t, List<String> cols, RowSource rows, int batchSize, String session) {
         String sql = "INSERT INTO " + t + " (" + String.join(", ", cols) + ") VALUES (" + String.join(", ", Collections.nCopies(cols.size(), "?")) + ")";
-        Connection c = ctx.session(session, DbSession.class).conn;
+        DbSession dbs = db(ctx, session);
+        dbs.guard("Bulk insert", sql);
+        Connection c = dbs.conn;
         int size = Math.max(1, Math.min(10_000, batchSize)), done = 0;
         try {
             boolean auto = c.getAutoCommit();
@@ -447,7 +507,9 @@ public final class DatabasePackage {
                     throw new ActionException("DB.BAD_PARAMETER", "Parameter " + (i + 1) + " has direction '" + m.get("direction") + "'", "Use in, out or inout.");
                 if (!dir.equals("in")) sqlType(m.get("type") == null ? null : String.valueOf(m.get("type")));
             }
-        Connection c = ctx.session(session, DbSession.class).conn;
+        DbSession dbs = db(ctx, session);
+        dbs.guard("procedure", call);
+        Connection c = dbs.conn;
         try (CallableStatement cs = c.prepareCall(call)) {
             // index -> output name, in the order the values are read back
             Map<Integer, String> outs = new LinkedHashMap<>();
@@ -529,7 +591,9 @@ public final class DatabasePackage {
         char d = delimiter == null || delimiter.isEmpty() ? ',' : delimiter.equalsIgnoreCase("tab") ? '\t' : delimiter.charAt(0);
         java.nio.file.Path p = ctx.resolvePath(path);
         if (!overwrite && java.nio.file.Files.exists(p)) throw new ActionException("DB.FILE_EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
-        Connection c = ctx.session(session, DbSession.class).conn;
+        DbSession dbs = db(ctx, session);
+        dbs.guard(byProc ? "procedure" : null, sql);
+        Connection c = dbs.conn;
         long count = 0;
         try (PreparedStatement ps = byProc ? c.prepareCall("{call " + proc + "(" + String.join(", ", Collections.nCopies(params == null ? 0 : params.size(), "?")) + ")}") : prepare(c, sql, params)) {
             if (byProc && params != null) for (int i = 0; i < params.size(); i++) bind(ps, i + 1, params.get(i));

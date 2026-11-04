@@ -1,0 +1,186 @@
+[
+ {
+  "command": "core/run_subflow",
+  "name": "shares the agent's variables",
+  "vars": {"total": 0, "log": ""},
+  "steps": [
+   {"action": "core/set", "args": {"variable": "total", "value": 5}},
+   {"action": "core/run_subflow", "args": {"subflow": "Double"}},
+   {"action": "core/run_subflow", "args": {"subflow": "Double"}},
+   {"action": "core/set", "args": {"variable": "log", "value": "${log}done"}}
+  ],
+  "subflows": [
+   {"name": "Double", "steps": [
+    {"action": "core/set", "args": {"variable": "total", "value": {"expr": "$total * 2"}}},
+    {"action": "core/set", "args": {"variable": "log", "value": "${log}x2;"}}
+   ]}
+  ],
+  "expect": {"total": 20, "log": "x2;x2;done"}
+ },
+ {
+  "command": "core/run_subflow",
+  "name": "a subflow runs another, and itself until a condition stops it",
+  "vars": {"n": 0, "trace": ""},
+  "steps": [
+   {"action": "core/run_subflow", "args": {"subflow": "Outer"}}
+  ],
+  "subflows": [
+   {"name": "Outer", "steps": [
+    {"action": "core/set", "args": {"variable": "trace", "value": "${trace}outer;"}},
+    {"action": "core/run_subflow", "args": {"subflow": "Count"}}
+   ]},
+   {"name": "Count", "steps": [
+    {"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}},
+    {"action": "core/if", "args": {"condition": {"op": "lt", "left": "$n", "right": 3}},
+     "children": [{"action": "core/run_subflow", "args": {"subflow": "Count"}}]}
+   ]}
+  ],
+  "expect": {"n": 3, "trace": "outer;"}
+ },
+ {
+  "command": "core/run_subflow",
+  "name": "endless recursion stops with SUBFLOW.DEPTH",
+  "vars": {"n": 0},
+  "steps": [
+   {"action": "core/run_subflow", "args": {"subflow": "Again"}}
+  ],
+  "subflows": [
+   {"name": "Again", "steps": [
+    {"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}},
+    {"action": "core/run_subflow", "args": {"subflow": "Again"}}
+   ]}
+  ],
+  "error": "SUBFLOW.DEPTH"
+ },
+ {
+  "command": "core/run_subflow",
+  "name": "an error in the subflow goes to the caller's Catch",
+  "vars": {"result": "", "err": {}},
+  "steps": [
+   {"action": "core/try",
+    "children": [{"action": "core/run_subflow", "args": {"subflow": "Post"}}],
+    "catch": [{"codes": ["BUSINESS.*"], "as": "err",
+     "children": [{"action": "core/set", "args": {"variable": "result", "value": "caught ${err.code} in ${err.subflow}"}}]}]}
+  ],
+  "subflows": [
+   {"name": "Post", "steps": [
+    {"action": "core/throw", "args": {"code": "BUSINESS.REJECTED", "message": "Invoice rejected"}},
+    {"action": "core/set", "args": {"variable": "result", "value": "never"}}
+   ]}
+  ],
+  "expect": {"result": "caught BUSINESS.REJECTED in Post"}
+ },
+ {
+  "command": "core/run_subflow",
+  "name": "an unknown subflow is refused by the check",
+  "steps": [
+   {"action": "core/run_subflow", "args": {"subflow": "Missing"}}
+  ],
+  "error": "FLOW.INVALID"
+ },
+ {
+  "command": "core/exit_subflow",
+  "name": "leaves the subflow early; Finally runs, the caller carries on",
+  "vars": {"trace": ""},
+  "steps": [
+   {"action": "core/run_subflow", "args": {"subflow": "Check"}},
+   {"action": "core/set", "args": {"variable": "trace", "value": "${trace}after"}}
+  ],
+  "subflows": [
+   {"name": "Check", "steps": [
+    {"action": "core/try",
+     "children": [
+      {"action": "core/set", "args": {"variable": "trace", "value": "${trace}check;"}},
+      {"action": "core/exit_subflow"},
+      {"action": "core/set", "args": {"variable": "trace", "value": "${trace}never;"}}
+     ],
+     "finally": [{"action": "core/set", "args": {"variable": "trace", "value": "${trace}finally;"}}]},
+    {"action": "core/set", "args": {"variable": "trace", "value": "${trace}never;"}}
+   ]}
+  ],
+  "expect": {"trace": "check;finally;after"}
+ },
+ {
+  "command": "core/exit_subflow",
+  "name": "is refused in the main steps",
+  "steps": [
+   {"action": "core/exit_subflow"}
+  ],
+  "error": "FLOW.INVALID"
+ },
+ {
+  "command": "core/label",
+  "name": "does nothing by itself",
+  "vars": {"x": 1},
+  "steps": [
+   {"action": "core/label", "args": {"name": "start"}},
+   {"action": "core/set", "args": {"variable": "x", "value": 2}}
+  ],
+  "expect": {"x": 2}
+ },
+ {
+  "command": "core/goto",
+  "name": "back to a label: a counted retry",
+  "vars": {"tries": 0},
+  "steps": [
+   {"action": "core/label", "args": {"name": "retry"}},
+   {"action": "core/set", "args": {"variable": "tries", "value": {"expr": "$tries + 1"}}},
+   {"action": "core/if", "args": {"condition": {"op": "lt", "left": "$tries", "right": 3}},
+    "children": [{"action": "core/goto", "args": {"label": "retry"}}]}
+  ],
+  "expect": {"tries": 3}
+ },
+ {
+  "command": "core/goto",
+  "name": "forward past steps",
+  "vars": {"trace": ""},
+  "steps": [
+   {"action": "core/set", "args": {"variable": "trace", "value": "${trace}a;"}},
+   {"action": "core/goto", "args": {"label": "end"}},
+   {"action": "core/set", "args": {"variable": "trace", "value": "${trace}skipped;"}},
+   {"action": "core/label", "args": {"name": "end"}},
+   {"action": "core/set", "args": {"variable": "trace", "value": "${trace}z"}}
+  ],
+  "expect": {"trace": "a;z"}
+ },
+ {
+  "command": "core/goto",
+  "name": "out of a loop and a Try to a label around them",
+  "vars": {"trace": "", "i": 0},
+  "steps": [
+   {"action": "core/loop", "args": {"iterator": "times", "count": 5, "as": "i"},
+    "children": [
+     {"action": "core/try",
+      "children": [
+       {"action": "core/if", "args": {"condition": {"op": "eq", "left": "$i", "right": 2}},
+        "children": [{"action": "core/goto", "args": {"label": "found"}}]}
+      ],
+      "finally": [{"action": "core/set", "args": {"variable": "trace", "value": "${trace}${i};"}}]}
+    ]},
+   {"action": "core/set", "args": {"variable": "trace", "value": "${trace}not found"}},
+   {"action": "core/label", "args": {"name": "found"}},
+   {"action": "core/set", "args": {"variable": "trace", "value": "${trace}found"}}
+  ],
+  "expect": {"trace": "0;1;2;found"}
+ },
+ {
+  "command": "core/goto",
+  "name": "endless jumping stops with GOTO.LIMIT",
+  "vars": {"n": 0},
+  "steps": [
+   {"action": "core/label", "args": {"name": "spin"}},
+   {"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}},
+   {"action": "core/goto", "args": {"label": "spin"}}
+  ],
+  "error": "GOTO.LIMIT"
+ },
+ {
+  "command": "core/goto",
+  "name": "into a block is refused by the check",
+  "steps": [
+   {"action": "core/goto", "args": {"label": "inside"}},
+   {"action": "core/step", "children": [{"action": "core/label", "args": {"name": "inside"}}]}
+  ],
+  "error": "FLOW.INVALID"
+ }
+]

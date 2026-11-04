@@ -1144,3 +1144,5 @@ True when the pipeline run has completed, whatever its result.
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id. |
 | Run ID | `run_id` | Number | Yes |  | Main | Run id. |
+
+*Needs: network.*

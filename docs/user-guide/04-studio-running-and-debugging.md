@@ -1,4 +1,4 @@
-# Running and debugging agents in One Agent Studio
+# Running and debugging agents in One AgentStudio
 
 **Audience:** agent builders who want to test their agents in Studio, follow a run step by step, find out why a step
 fails, and fix it quickly.
@@ -96,7 +96,7 @@ so you can watch the agent while it works in other programs. It is not shown for
 - **Stop** ends the run ("Stopping the run"). **Finally** sections still run. The result is **stopped**.
 
 An agent can also pause itself with the **Pause agent** action, for example to let you check something; resume it from
-Studio (or One Command Center) or let its timeout expire.
+Studio (or One CommandCenter) or let its timeout expire.
 
 ## 5. Read the result, the log and the variables
 
@@ -110,9 +110,15 @@ When the run ends:
   *Log message* steps, and run finished. Click a step id to jump to it.
 - **Variables** tab: a table of each variable's **Last value**, plus **Outputs**. Credentials always show as `****`.
 - The step that failed stays marked on the canvas.
+- When the agent has **On error** steps (guide 03, section 9.4), the output shows **On error started** after the
+  failed step, the On error steps as they run, then **On error finished**. With **Fail the run** the result still shows
+  the original error; with **Succeed with a warning** the run finishes and the log names the error that was handled.
+  Breakpoints on On error steps stop there as on any step.
 
 > **Tip:** Use **Log message** steps (with `${…}` text) to write what the agent is doing; they appear in the Run log here
-> and in One Command Center's run details.
+> and in One CommandCenter's run details. **Add log fields** (Log toolkit) attaches values such as the invoice number or
+> customer to every following log line, shown as `[invoice=INV-7, customer=Acme]` and searchable in Agent Activity,
+> until **Remove log fields**.
 
 ## 6. Debug with breakpoints
 
@@ -195,17 +201,33 @@ The entries are greyed out while a run is going on ("A run is already in progres
 
 ## 10. Local triggers
 
-The **Triggers** panel (lightning icon) starts agents automatically while Studio is running, for testing:
+Workspace triggers start the open agent automatically while Studio is running, for testing. They are on the
+**Triggers** tab of the **Details** panel on the right:
 
-1. Under **New trigger**, give a **Name**, choose the **Agent** and **When**:
-   - **File arrives in a folder**: **Folder** and **File pattern** (for example `*.pdf`);
-   - **Schedule**: **Every (minutes)** or **Or daily at** `HH:mm`;
-   - **Local webhook**: Studio shows the secret once ("Webhook secret (copy it now):"). Callers POST to
-     `/api/hooks/<id>` with the header `X-OOA-Secret`.
-2. Click **Add trigger**.
-3. Each trigger has an **On** tick, **Run now** (test it) and **Delete**. **Recent activity** lists what fired.
+1. Open the agent, then open **Details > Triggers**.
+2. Under **New trigger**, choose **Start it**:
+   - **On a schedule**: **Every (minutes)**, or **Or daily at** a time such as `08:30`;
+   - **When a file arrives in a folder**: **Folder** and **Files** (for example `*.pdf`);
+   - **When a web address is called (webhook)**: Studio shows the secret once. Callers POST to `/api/hooks/<id>` with
+     the secret in the header `X-OOA-Secret`.
+3. Click **Add trigger**.
+4. Each trigger's **⋯** menu has **Run now** (test it), **Switch off** / **Switch on** and **Delete…** (asks first).
 
-Triggers for production belong in One Command Center (see [Publishing to Command Center](15-publishing-to-command-center.md)).
+### Triggers in the Actions panel
+
+The triggers that can start an agent are listed beside its actions: the **Actions** panel on the left has a
+**Triggers** group (search for `trigger` to find it). It has three parts:
+
+| Part | What a click does |
+| --- | --- |
+| **In this workspace** (On a schedule, When a file arrives in a folder, When a web address is called) | Opens **Details > Triggers** with that kind already chosen, to add a workspace trigger as above |
+| **One CommandCenter: on the runner (after check-in)** (file and folder events, windows, processes, services, hotkeys) | Opens One CommandCenter's **Create trigger** in a new tab, with this agent and that event filled in |
+| **One CommandCenter: on One CommandCenter (after check-in)** (new e-mail, ServiceNow records, the universal poller, webhooks) | The same |
+
+One CommandCenter's triggers start the agent's checked-in live version on a runner, so check the agent in first (see
+[Publishing to One CommandCenter](15-publishing-to-command-center.md)). Studio must be connected to One CommandCenter;
+if it is not, the toast says so. Triggers for production belong in One CommandCenter
+([05 Operator's guide](05-operators-guide.md#6-triggers)).
 
 ## 11. If it goes wrong
 
@@ -214,7 +236,7 @@ Triggers for production belong in One Command Center (see [Publishing to Command
 | The run does not start; "FLOW.INVALID: n problem(s): fix them before running" | Open **Problems**, fix each one. |
 | "Four runs are already in progress" | Wait for a run to finish or stop one. |
 | "A run is already in progress." | Run from here and Run this step only wait until the current run ends. |
-| "VAULT.NOT_FOUND: Credential '…' not found" | For local runs set the environment variable named in the fix (`OOA_SECRET_…`) before starting ONEOFFICEAUTOMATION, or run from One Command Center. |
+| "VAULT.NOT_FOUND: Credential '…' not found" | For local runs set the environment variable named in the fix (`OOA_SECRET_…`) before starting ONEOFFICEAUTOMATION, or run from One CommandCenter. |
 | The run window shows **Failed** with a code | Read the code, message and **Fix:** line; click the step id. Check the Run log for the lines before the failure. |
 | A step waits and then fails with a timeout | The element, window or file did not appear in time. Raise **Timeout (seconds)** or the action's wait, or add a **Wait for …** step. |
 | "Unknown or expired run" | Studio forgets finished runs after ten minutes, or the server was restarted. Run again. |
@@ -227,4 +249,4 @@ Triggers for production belong in One Command Center (see [Publishing to Command
 - [Building agents](03-studio-building-agents.md)
 - [Child agents](09-child-agents.md)
 - [Web and desktop automation](10-web-and-desktop-automation.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)

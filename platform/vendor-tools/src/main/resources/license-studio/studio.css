@@ -1,4 +1,4 @@
-/* License Studio: the vendor's license page, in the dark dense look of One Agent Studio. Self-contained (no fonts or CDNs). */
+/* License Studio: the vendor's license page, in the dark dense look of One AgentStudio. Self-contained (no fonts or CDNs). */
 :root {
   color-scheme: dark;
   --bg: #11151e; --frame: #161b26; --panel: #161b26; --panel-2: #1b2130; --hover: #222a3a; --line: #262d3b; --line-2: #2c3445; --control: #4b5568;

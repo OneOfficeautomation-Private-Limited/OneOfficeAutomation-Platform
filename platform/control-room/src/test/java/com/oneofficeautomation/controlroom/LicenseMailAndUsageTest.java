@@ -16,7 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Licence expiry e-mails (L3) through the Command Center's own SMTP sender, and the licence usage report (L2). */
+/** Licence expiry e-mails (L3) through One CommandCenter's own SMTP sender, and the licence usage report (L2). */
 class LicenseMailAndUsageTest {
 
     /** A tiny SMTP server: accepts every message and keeps the envelope and the text. */

@@ -4,8 +4,11 @@ import {
   addStep, duplicateStep, fieldOrder, locate, moveStep, newStep, nextId, parseLoose, putVariable, removeStep, removeVariable,
   setArg, setOut, toggleDisabled, insertAt, moveTo, removeSteps, toggleDisabledMany, duplicateSteps,
   addBranch, copySteps, moveManyTo, moveSelection, pasteSteps, readClip, removeBranch, sectionKey, setFolded, spotFor, START, topSteps,
+  moveCase, setCaseValues,
+  addOnError, findStep, inHandler, ON_ERROR, removeOnError, setOnError,
 } from "./flowEdit";
-import { stepRows } from "./toolkits";
+import { agentRows, stepRows } from "./toolkits";
+import { replaceInSteps } from "./flowEdit";
 
 const packages: PackageManifest[] = [
   { id: "core", name: "Core", version: "1", actions: [
@@ -167,5 +170,134 @@ describe("E1 step editing", () => {
     const rows = stepRows(f.steps, new Set(["s2"]));
     expect(rows.map((r) => r.kind === "step" ? r.n + (r.folded ? "+" + r.hidden : "") : "-")).toEqual(["1", "2+1", "4"]);
     expect(setFolded(f, ["s2"], false).ui).toBeUndefined();
+  });
+});
+
+describe("find and replace (Ctrl+H)", () => {
+  const f: Flow = { kind: "TaskBot", id: "b", name: "B", steps: [
+    { id: "s1", action: "core/log", args: { message: "Invoice from Acme" }, note: "Acme log" },
+    { id: "s2", action: "core/if", args: { condition: "$vendor == 'acme'" }, children: [{ id: "s3", action: "core/log", args: { message: "ACME again", list: ["acme", 2] } }],
+      else: [{ id: "s4", action: "core/log", args: { message: "not acme" } }] }] };
+
+  it("replaces in settings, names and the steps inside blocks, never ids or actions", () => {
+    const r = replaceInSteps(f, "acme", "Globex", false);
+    expect(r.count).toBe(6);
+    expect(r.flow.steps[0]).toEqual({ id: "s1", action: "core/log", args: { message: "Invoice from Globex" }, note: "Globex log" });
+    expect(r.flow.steps[1].children![0].args).toEqual({ message: "Globex again", list: ["Globex", 2] });
+    expect(r.flow.steps[1].else![0].args!.message).toBe("not Globex");
+    expect(replaceInSteps(f, "core", "x", false).flow.steps[0].action).toBe("core/log");
+  });
+
+  it("matches case when asked, and only in the selected steps and the steps inside them", () => {
+    expect(replaceInSteps(f, "acme", "x", true).count).toBe(3);
+    const only = replaceInSteps(f, "acme", "x", false, ["s2"]);
+    expect(only.count).toBe(4);
+    expect(only.flow.steps[0].args!.message).toBe("Invoice from Acme");
+    expect(replaceInSteps(f, "a.c", "x", false).count).toBe(0);   // the words, not a pattern
+    expect(replaceInSteps(f, "nothing", "x", false).flow).toBe(f);
+  });
+});
+
+describe("Switch", () => {
+  const sw = (): Flow => ({ kind: "TaskBot", id: "w", name: "W", steps: [
+    { id: "s1", action: "core/switch", args: { value: "$status" }, cases: [
+      { values: ["new", 1], children: [{ id: "s2", action: "core/log", args: { message: "new" } }] },
+      { values: ["done"], children: [] }],
+      default: [{ id: "s3", action: "core/log", args: { message: "other" } }] },
+    { id: "s4", action: "core/log", args: { message: "end" } }] });
+
+  it("starts with one case and a default, and holds no children", () => {
+    const s = newStep("core/switch", sw(), packages);
+    expect(s.cases).toEqual([{ values: [], children: [] }]);
+    expect(s.default).toEqual([]);
+    expect(s.children).toBeUndefined();
+  });
+
+  it("finds, numbers and shows the steps in cases and default", () => {
+    const f = sw();
+    expect(locate(f.steps, "s3")?.step.args).toEqual({ message: "other" });
+    expect(stepRows(f.steps).map((r) => r.kind === "step" ? String(r.n) : r.label))
+      .toEqual(["1", "Case “new”, 1", "2", "Case “done”", "Default (no case matched)", "3", "4"]);
+    expect(nextId(f)).toBe("s5");
+  });
+
+  it("puts a step clicked on a selected Switch in its first case, and a drop inside it there too", () => {
+    const f = sw();
+    expect(spotFor(f, ["s1"])).toEqual({ id: "s1", where: "inside", part: "cases:0" });
+    expect(addStep(f, ["s1"], { id: "s9", action: "core/log" }).steps[0].cases![0].children!.map((s) => s.id)).toEqual(["s2", "s9"]);
+    expect(moveTo(f, "s4", "s1", "inside").steps[0].cases![0].children!.map((s) => s.id)).toEqual(["s2", "s4"]);
+    expect(addStep(f, [sectionKey("s1", "default")], { id: "s9", action: "core/log" }).steps[0].default!.map((s) => s.id)).toEqual(["s3", "s9"]);
+  });
+
+  it("adds, removes and reorders cases; keeps at least one; sets values", () => {
+    const f = sw();
+    const added = addBranch(f, "s1", "cases");
+    expect(added.part).toBe("cases:2");
+    expect(added.flow.steps[0].cases![2]).toEqual({ values: [], children: [] });
+    const one = removeBranch(removeBranch(f, "s1", "cases:0"), "s1", "default");
+    expect(one.steps[0].cases!.map((c) => c.values)).toEqual([["done"]]);
+    expect(one.steps[0].default).toBeUndefined();
+    expect(removeBranch(one, "s1", "cases:0")).toBe(one);   // the last case stays
+    expect(addBranch(one, "s1", "default").part).toBe("default");
+    const moved = moveCase(f, "s1", 0, 1);
+    expect(moved.part).toBe("cases:1");
+    expect(moved.flow.steps[0].cases!.map((c) => c.values)).toEqual([["done"], ["new", 1]]);
+    expect(moveCase(f, "s1", 0, -1).flow).toBe(f);
+    expect(setCaseValues(f, "s1", 1, ["done", "", "closed"]).steps[0].cases![1].values).toEqual(["done", "closed"]);
+  });
+
+  it("copies with new ids and replaces text in case values and their steps, not in the structure", () => {
+    const f = sw();
+    expect(duplicateStep(f, "s1").flow.steps[1].cases![0].children![0].id).toBe("s6");
+    const r = replaceInSteps(f, "new", "fresh", true);
+    expect(r.count).toBe(2);
+    expect(r.flow.steps[0].cases![0]).toMatchObject({ values: ["fresh", 1], children: [{ args: { message: "fresh" } }] });
+  });
+});
+
+describe("the agent's error handler (On error)", () => {
+  const withHandler = (): Flow => ({ ...flow(), variables: [{ name: "err", type: "Dictionary" }],
+    onError: { as: "err", steps: [{ id: "s5", action: "core/log", args: { message: "${err.message}" } }] } });
+
+  it("is found, numbered after the steps and given fresh ids", () => {
+    const f = withHandler();
+    expect(findStep(f, "s5")?.step.action).toBe("core/log");
+    expect(inHandler(f, "s5")).toBe(true);
+    expect(inHandler(f, "s4")).toBe(false);
+    expect(nextId(f)).toBe("s6");   // ids are unique across the steps and the handler
+    const { rows, handlerFrom } = agentRows(f);
+    expect(rows.slice(handlerFrom).map((r) => r.kind === "step" ? r.n + " " + r.step.id : "")).toEqual(["5 s5"]);
+    expect(agentRows(flow()).handlerFrom).toBe(agentRows(flow()).rows.length);
+  });
+
+  it("takes clicked, dropped, moved and pasted steps at its heading, and edits them like any step", () => {
+    const f = addOnError(flow());
+    expect(f.onError).toEqual({ steps: [] });
+    expect(addOnError(f)).toBe(f);
+    const added = addStep(f, [ON_ERROR], { id: "s9", action: "core/log" });
+    expect(added.onError!.steps.map((s) => s.id)).toEqual(["s9"]);
+    expect(added.steps).toHaveLength(3);
+    const dropped = insertAt(added, { id: "s10", action: "core/log" }, ON_ERROR, "inside");
+    expect(dropped.onError!.steps.map((s) => s.id)).toEqual(["s9", "s10"]);
+    const moved = moveManyTo(dropped, ["s4"], "s9", "before");
+    expect(moved.steps.map((s) => s.id)).toEqual(["s1", "s2"]);
+    expect(moved.onError!.steps.map((s) => s.id)).toEqual(["s4", "s9", "s10"]);
+    expect(setArg(moved, "s10", "message", "failed").onError!.steps[2].args).toEqual({ message: "failed" });
+    expect(removeSteps(moved, ["s9"]).onError!.steps.map((s) => s.id)).toEqual(["s4", "s10"]);
+    const pasted = pasteSteps(moved, { steps: [{ id: "x", action: "core/log" }], variables: [] }, spotFor(moved, [ON_ERROR]));
+    expect(pasted.flow.onError!.steps).toHaveLength(4);
+    expect(topSteps(moved, ["s1", "s4"]).map((s) => s.id)).toEqual(["s1", "s4"]);
+    expect(replaceInSteps(withHandler(), "err.message", "err.code", false).flow.onError!.steps[0].args).toEqual({ message: "${err.code}" });
+  });
+
+  it("keeps fail as the default and drops empty settings", () => {
+    const f = withHandler();
+    expect(setOnError(f, { then: "succeed" }).onError!.then).toBe("succeed");
+    expect("then" in setOnError(setOnError(f, { then: "succeed" }), { then: "fail" }).onError!).toBe(false);
+    expect("as" in setOnError(f, { as: "" }).onError!).toBe(false);
+    expect(setOnError(f, { as: "$problem" }).onError!.as).toBe("problem");
+    expect(setOnError(f, { screenshot: true }).onError!.screenshot).toBe(true);
+    expect(removeOnError(f).onError).toBeUndefined();
+    expect(setOnError(flow(), { then: "succeed" }).onError).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 # Windows services
 
-Toolkit `ooa.services`, version 1.0.0. Get the status of, start, stop and restart Windows services.
+Toolkit `ooa.services`, version 1.1.0. Get the status of, start, stop, pause, resume and restart Windows services on this or another computer.
 
 [All toolkits](README.md)
 
@@ -22,6 +22,9 @@ Return RUNNING, STOPPED, PAUSED, START_PENDING or STOP_PENDING.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. Example: `Spooler` |
+| Computer | `computer` | Text | No |  | Main; tick Service on another computer | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main; tick Service on another computer | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main; tick Service on another computer | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |
 
 **Results**
 
@@ -42,6 +45,9 @@ Pause a running service that supports pausing and wait until it is paused.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. |
+| Computer | `computer` | Text | No |  | Main; tick Service on another computer | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main; tick Service on another computer | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main; tick Service on another computer | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |
 | Wait | `wait` | Yes/No | No | Yes | More options | Wait until the service reaches the new state; false continues as soon as the request is sent. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | How long to wait. Range: 1 to ; Shown when: `{"wait": ["true"]}` |
 
@@ -58,6 +64,9 @@ Stop then start a service.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. |
+| Computer | `computer` | Text | No |  | Main; tick Service on another computer | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main; tick Service on another computer | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main; tick Service on another computer | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | How long to wait for each phase. Range: 1 to  |
 
 *Time limit 360 s.*
@@ -73,6 +82,9 @@ Continue a paused service and wait until it is running again.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. |
+| Computer | `computer` | Text | No |  | Main; tick Service on another computer | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main; tick Service on another computer | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main; tick Service on another computer | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |
 | Wait | `wait` | Yes/No | No | Yes | More options | Wait until the service reaches the new state; false continues as soon as the request is sent. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | How long to wait. Range: 1 to ; Shown when: `{"wait": ["true"]}` |
 
@@ -89,6 +101,9 @@ Start a service and wait until it is running.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. |
+| Computer | `computer` | Text | No |  | Main; tick Service on another computer | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main; tick Service on another computer | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main; tick Service on another computer | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |
 | Wait | `wait` | Yes/No | No | Yes | More options | Wait until the service reaches the new state; false continues as soon as the request is sent. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | How long to wait. Range: 1 to ; Shown when: `{"wait": ["true"]}` |
 
@@ -105,6 +120,9 @@ Stop a service and wait until it has stopped.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. |
+| Computer | `computer` | Text | No |  | Main; tick Service on another computer | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main; tick Service on another computer | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main; tick Service on another computer | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |
 | Wait | `wait` | Yes/No | No | Yes | More options | Wait until the service reaches the new state; false continues as soon as the request is sent. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | How long to wait. Range: 1 to ; Shown when: `{"wait": ["true"]}` |
 
@@ -125,3 +143,6 @@ True when the service state is RUNNING.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Service name. |
+| Computer | `computer` | Text | No |  | Main | Computer that runs the service, e.g. FILESRV01 or 10.0.0.5; this computer when empty. Needs administrator rights there and the Remote Service Management firewall rule. Example: `FILESRV01` |
+| User | `user` | Text | No |  | Main | Windows user (DOMAIN\\user) for the other computer; the runner's account when empty. Shown when: `{"computer": ["!", ""]}` |
+| Password | `password` | Credential (vault) | No |  | Main | Password of user, from the vault. Shown when: `{"computer": ["!", ""]}` |

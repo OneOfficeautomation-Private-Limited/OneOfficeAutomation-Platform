@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Per-address request limits for the routes anyone can call without a session: sign-in and tokens (60 a minute),
- * runner registration (60), and webhooks, API tasks and MCP (1,200). A fixed one-minute window per address and group.
+ * runner registration (60), and webhooks, Agent APIs and MCP (1,200). A fixed one-minute window per address and group.
  */
 final class RateLimiter {
     private record Window(long start, int count) { }

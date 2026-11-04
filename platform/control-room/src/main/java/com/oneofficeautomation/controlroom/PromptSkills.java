@@ -9,7 +9,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * Prompt Skills kept in the Command Center: named, reviewed prompt templates ({system, prompt, connection, output,
+ * Prompt Skills kept in One CommandCenter: named, reviewed prompt templates ({system, prompt, connection, output,
  * temperature, inputs}) that agents run with ooa.ai_skills/run. Each save is a new version. A skill is private to its
  * owner until shared; templates are starting points people copy. Runs receive the skills their agents name (shared
  * ones, and the owner's own private ones).
@@ -91,6 +91,12 @@ public final class PromptSkills {
         if (out != null && !"text".equals(out) && !"json".equals(out)) throw new OoaException("CR.BAD_INPUT", "output is text or json");
         if (m.get("temperature") != null && !(m.get("temperature") instanceof Number)) throw new OoaException("CR.BAD_INPUT", "temperature is a number");
         if (m.get("inputs") != null && !(m.get("inputs") instanceof List)) throw new OoaException("CR.BAD_INPUT", "inputs is a list of {name, description, default}");
+        if (m.get("knowledge") != null) {
+            if (!(m.get("knowledge") instanceof Map<?, ?> k) || !(k.get("index") instanceof String ix) || ix.isBlank())
+                throw new OoaException("CR.BAD_INPUT", "knowledge is {\"index\": \"knowledge/policies.json\", \"top_k\": 4, \"query\": \"...\"}");
+            if (k.get("top_k") != null && (!(k.get("top_k") instanceof Number t) || t.intValue() < 1 || t.intValue() > 20)) throw new OoaException("CR.BAD_INPUT", "knowledge top_k is between 1 and 20");
+            if (k.get("query") != null && !(k.get("query") instanceof String)) throw new OoaException("CR.BAD_INPUT", "knowledge query is text");
+        }
         if (JsonLite.write(d).length() > MAX_DEFINITION) throw new OoaException("CR.TOO_LARGE", "A skill is at most " + MAX_DEFINITION + " characters");
     }
 

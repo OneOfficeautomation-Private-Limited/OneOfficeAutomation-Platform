@@ -4,7 +4,7 @@
 # After a release, and alone with -PageOnly, it refreshes the public releases page (Q10): docs\index.html,
 # docs\releases.json and the signed template catalogue docs\templates.json (K7) in that repository, which GitHub Pages
 # serves (Settings > Pages: branch main, folder /docs).
-# -Preview publishes v<version>-preview as a GitHub pre-release, for customers' sandbox Command Centers about three weeks
+# -Preview publishes v<version>-preview as a GitHub pre-release, for customers' sandbox One CommandCenter installations about three weeks
 # before the general release v<version> of the same version (docs\infrastructure\10-upgrades-releases-and-patching.md, Release cadence).
 # It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
 # release v<version> (the version in platform\build.gradle.kts) with the zips, the software bill of materials and a
@@ -42,7 +42,7 @@ function Update-ReleasesPage([string]$Token) {
     try { & $ooa release page --repo $Repository --out $pageDir --token-env OOA_RELEASE_PAGE_TOKEN } finally { Remove-Item Env:OOA_RELEASE_PAGE_TOKEN }
     if ($LASTEXITCODE -ne 0) { throw "Making the releases page failed" }
     $pageFiles = @("index.html", "releases.json")
-    # the template catalogue (K7), signed with the vendor key: Command Centers list it in Automation > Templates
+    # the template catalogue (K7), signed with the vendor key: One CommandCenter installations list it in Automation > Templates
     $templates = Join-Path (Split-Path -Parent $platform) "templates"
     if (Test-Path $templates) {
         & $ooa release templates --dir $templates --key $SigningKey --out (Join-Path $pageDir "templates.json")
@@ -113,7 +113,7 @@ try { Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Re
 catch { if ($_.Exception.Message -like "Release $tag exists*") { throw } }
 $source = (git -C $platform rev-parse --short HEAD).Trim()
 if (-not $Notes) { $Notes = "See RELEASES.md for what changed." }
-$body = $(if ($Preview) { "ONEOFFICEAUTOMATION $version preview, for sandbox Command Centers. The general release follows in about three weeks; report problems before then." } else { "ONEOFFICEAUTOMATION $version for customers." }) + "`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Check downloads first with: ooa release verify ooa-$version.manifest.json (from an earlier install), or compare the SHA-256 values in it. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
+$body = $(if ($Preview) { "ONEOFFICEAUTOMATION $version preview, for sandbox One CommandCenter installations. The general release follows in about three weeks; report problems before then." } else { "ONEOFFICEAUTOMATION $version for customers." }) + "`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Check downloads first with: ooa release verify ooa-$version.manifest.json (from an earlier install), or compare the SHA-256 values in it. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
 $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases" -ContentType "application/json" `
     -Body (@{ tag_name = $tag; target_commitish = "main"; name = "ONEOFFICEAUTOMATION $version" + $(if ($Preview) { " (sandbox preview)" } else { "" }); body = $body; draft = [bool]$Draft; prerelease = [bool]$Preview } | ConvertTo-Json)
 

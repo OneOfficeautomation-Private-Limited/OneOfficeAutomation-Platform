@@ -20,7 +20,7 @@ Everything below is a summary written in our own words. No text or files from th
 
 ## 2. Control Room API: where we stand
 
-Our Control Room (Command Center) already covers the following, with routes under `/api/`:
+Our Control Room (One CommandCenter) already covers the following, with routes under `/api/`:
 
 - sign-in, SSO, sign-out and API keys;
 - users and roles (RBAC);
@@ -59,11 +59,11 @@ Gaps, ranked by value for an enterprise customer:
 | 11 | Scheduler extras | Activate or deactivate several at once; change owner; run-as mapping for triggers | Done (2026-10-23) |
 | 12 | Code analysis | Analyse a bot against policy rules (on demand and at check-in), with stored reports | Done (2026-10-23) |
 | 13 | Process composer helpers | A process's first form; a request by reference | Done (2026-10-23) |
-| 14 | API tasks | A per-agent URL and scoped token that runs an agent and waits for the result | Done (2026-10-23); runs on a runner or pool, not inside the Command Center |
+| 14 | API tasks | A per-agent URL and scoped token that runs an agent and waits for the result | Done (2026-10-23); runs on a runner or pool, not inside One CommandCenter |
 | 15 | Lower priority | Package-version usage; bulk package version update; licence endpoints; variable profile and log purge (retention); migration from other products | Done (2026-10-23), except migration from other products (their formats are proprietary) |
 
 ## 3. Next checks in the Community Edition (needs a sign-in)
 
 - Control Room screens for each of the gaps above: folder permissions, lockers (members), queues (work item models), lifecycle (export/import), run-as users, teams, code analysis policies, the Operations dashboards.
-- The AI Agent Studio screens: model connections, guardrails and the governance view.
+- The AI One AgentStudio screens: model connections, guardrails and the governance view.
 - The AI package actions in the bot editor: their inputs and outputs. The documentation pages for these do not load.

@@ -6,7 +6,7 @@ Toolkit `ooa.email`, version 1.0.0. Send emails with attachments, read and searc
 
 ## Contents
 
-- **Mailbox**: Connect to mailbox, Delete email, Delete all matching emails, Disconnect, Check folder exists, Read email, Get folders, Find emails, Mark read or unread, Move email, Move all matching emails, Save attachments of all matching emails, Save attachments, Save email as .eml
+- **Mailbox**: Connect to mailbox, Delete email, Delete all matching emails, Disconnect, Check folder exists, Read email, Get folders, Find emails, Mark read or unread, Move email, Move all matching emails, Save attachments of all matching emails, Save attachments, Save email as .eml, Save email as .msg
 - **Send**: Forward email, Reply to email, Reply to all, Send email
 - **Loop types**: Each email in a mailbox
 
@@ -342,6 +342,31 @@ Save a complete email, with attachments, as an .eml file that mail programs can 
 | Name | Type | Description |
 | --- | --- | --- |
 | `path` | File path | Saved local path. |
+
+*Time limit 60 s; needs: network, filesystem.*
+
+### Save email as .msg
+
+`ooa.email/save_email_as_msg` (action)
+
+Save an email, with its recipients, HTML body and attachments, as an Outlook .msg file.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| ID | `id` | Number | Yes |  | Main | Email id from Find emails. |
+| Folder | `folder` | Text | No | `INBOX` | Main | Mail folder. |
+| Local path | `local_path` | File path | Yes |  | Main | Where to save the .msg file; a path ending in / or \ is a folder, and the file is named after the subject. Example: `mail/invoice.msg` |
+| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false a number such as (2) is added to the name. |
+| Session | `session` | Text | No | `mail` | More options | Session name of the open mailbox. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Saved local path. |
+| `attachments` | Number | Number of attachments saved in the file. |
 
 *Time limit 60 s; needs: network, filesystem.*
 

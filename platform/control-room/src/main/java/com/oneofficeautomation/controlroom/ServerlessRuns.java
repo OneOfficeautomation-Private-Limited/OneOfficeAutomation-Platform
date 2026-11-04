@@ -13,15 +13,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.oneofficeautomation.controlroom.ControlRoom.*;
 
 /**
- * Serverless API tasks (C7): agents that only call web services and work on data run inside the Command Center, with
- * no runner. They run on a virtual runner, "Command Center (serverless)", so they are queued, logged, audited, licensed
+ * Serverless Agent APIs (C7): agents that only call web services and work on data run inside One CommandCenter, with
+ * no runner. They run on a virtual runner, "One CommandCenter (serverless)", so they are queued, logged, audited, licensed
  * and finished like any other run. Only the toolkits below may be used (no desktop, browser, programs, scripts or
  * databases), every file path stays inside the run's own temporary workspace, at most four run at once, and a run
  * lasts at most five minutes.
  */
 public final class ServerlessRuns {
     static final String DEVICE = "dev_serverless";
-    static final String NAME = "Command Center (serverless)";
+    static final String NAME = "One CommandCenter (serverless)";
     static final int PARALLEL = 4;
     static final double MAX_SECONDS = 300;
     /** Toolkits that need no desktop and cannot reach the server's programs, settings or databases. */
@@ -55,7 +55,7 @@ public final class ServerlessRuns {
             try {
                 db.update("UPDATE devices SET last_seen = ? WHERE id = ?", now(), DEVICE);
                 db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE device_id = ? AND status = 'running' AND started < ?", now(),
-                    JsonLite.write(new OoaException("RUN.INTERRUPTED", "The Command Center stopped during the run").toMap()), DEVICE, now().minusSeconds((long) MAX_SECONDS + 120));
+                    JsonLite.write(new OoaException("RUN.INTERRUPTED", "One CommandCenter stopped during the run").toMap()), DEVICE, now().minusSeconds((long) MAX_SECONDS + 120));
             } catch (RuntimeException ignored) { }
         }, 0, 30, TimeUnit.SECONDS);
         kick();
@@ -66,7 +66,7 @@ public final class ServerlessRuns {
         Map<String, Object> d = db.one("SELECT * FROM devices WHERE id = ?", DEVICE);
         if (d != null) return d;
         db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by, lifespan, secret_set) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            DEVICE, NAME, "command-center", "Command Center", VERSION, Security.sha256(Security.token(32)), true, now(), now(), "system", "persistent", now());
+            DEVICE, NAME, "command-center", "One CommandCenter", VERSION, Security.sha256(Security.token(32)), true, now(), now(), "system", "persistent", now());
         db.update("UPDATE devices SET device_type = 'serverless' WHERE id = ?", DEVICE);
         start();
         return db.one("SELECT * FROM devices WHERE id = ?", DEVICE);
@@ -75,14 +75,14 @@ public final class ServerlessRuns {
     /** Refuses an agent (or an agent it calls) that uses a toolkit serverless runs may not use. */
     @SuppressWarnings("unchecked")
     void check(Map<String, Object> main) {
-        if (cr.tenant != null && !cr.serverlessAllowed) throw ControlRoom.notInSaas("Running agents in the Command Center (serverless)");
+        if (cr.tenant != null && !cr.serverlessAllowed) throw ControlRoom.notInSaas("Running agents in One CommandCenter (serverless)");
         Map<String, Object> bundle = new LinkedHashMap<>();
         cr.collect(main, bundle, 0);
         List<Map<String, Object>> flows = new ArrayList<>(List.of(main));
         for (Object b : bundle.values()) if (b instanceof Map<?, ?> m) flows.add((Map<String, Object>) m);
         Set<String> bad = new TreeSet<>();
         for (Map<String, Object> f : flows)
-            for (Map<String, Object> s : Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+            for (Map<String, Object> s : Steps.walkFlow(f)) {
                 String a = String.valueOf(s.get("action"));
                 String pid = a.contains("/") ? a.substring(0, a.indexOf('/')) : "core";
                 if (!TOOLKITS.contains(pid)) bad.add(pid);
@@ -123,7 +123,7 @@ public final class ServerlessRuns {
             AutomationRepository repo = (id, version) -> {
                 if (id.equals(main.get("id"))) return main;
                 Object f = bots.get(id);
-                if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in Command Center (no live production version)");
+                if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in One CommandCenter (no live production version)");
                 return (Map<String, Object>) f;
             };
             CredentialVault vault = (ref, principal) -> new SecureString(cr.credentialForRun(d, runId, ref), ref, false);
@@ -141,6 +141,8 @@ public final class ServerlessRuns {
                 .service("connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("connections", Map.of()))
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
                 .service("prompt_skills", (java.util.function.Supplier<Object>) () -> job.getOrDefault("skills", Map.of()))
+                .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
+                .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("confine_paths", Boolean.TRUE)
                 .principal(String.valueOf(job.getOrDefault("principal", "agent"))).build();
             RunResult result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),

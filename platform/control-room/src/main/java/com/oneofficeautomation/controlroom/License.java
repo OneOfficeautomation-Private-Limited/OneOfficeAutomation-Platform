@@ -15,7 +15,7 @@ import java.util.*;
  * signed with the vendor's Ed25519 key. The file holds {"format":"ooa-license-1","payload":"<Base64 JSON>",
  * "signature":"<Base64>"}, so the signed bytes never change shape. The vendor's public key is built into the product;
  * the private key stays with the vendor and signs licenses with "ooa license issue".
- * {@code installId} ties the license to one Command Center (its install id, shown in Administration > Licenses); an
+ * {@code installId} ties the license to one One CommandCenter (its install id, shown in Administration > Licenses); an
  * empty one lets the file work on any installation.
  */
 public record License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes, String installId) {

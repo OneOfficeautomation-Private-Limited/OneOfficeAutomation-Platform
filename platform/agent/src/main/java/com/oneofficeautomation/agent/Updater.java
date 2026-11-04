@@ -9,8 +9,8 @@ import java.security.MessageDigest;
 import java.util.*;
 
 /**
- * The runner's side of updates from the Command Center. The build id of the runner's program files goes with every
- * heartbeat; when the Command Center answers with an update and the runner is idle, it fetches the Command Center's file
+ * The runner's side of updates from One CommandCenter. The build id of the runner's program files goes with every
+ * heartbeat; when One CommandCenter answers with an update and the runner is idle, it fetches One CommandCenter's file
  * list, takes the files it already has from its own lib folder, downloads the others and checks every SHA-256, all into
  * update/lib beside the installation. A helper process ({@link UpdateHelper}) then waits for the runner to exit, swaps
  * the folders and, for a runner started at sign-in, starts its task again; a runner service is started again by Windows
@@ -20,7 +20,7 @@ import java.util.*;
 final class Updater {
     private Updater() { }
 
-    /** Reads the Command Center's file list and files (the runner's client, or a test double). */
+    /** Reads One CommandCenter's file list and files (the runner's client, or a test double). */
     interface Source {
         Map<String, Object> manifest();
         byte[] file(String name);
@@ -35,7 +35,7 @@ final class Updater {
         return null;
     }
 
-    /** The build id of a lib folder: the same calculation as the Command Center's (jar names and SHA-256, licence tools left out). */
+    /** The build id of a lib folder: the same calculation as One CommandCenter's (jar names and SHA-256, licence tools left out). */
     static String build(Path lib) {
         if (lib == null) return null;
         try (var s = Files.list(lib)) {
@@ -54,14 +54,14 @@ final class Updater {
     }
 
     /**
-     * Puts the Command Center's program files into update/lib beside the installation; returns that folder. Files the runner
+     * Puts One CommandCenter's program files into update/lib beside the installation; returns that folder. Files the runner
      * already has are copied; others downloaded; a file whose hash does not match stops the update.
      */
     @SuppressWarnings("unchecked")
     static Path stage(Path lib, Source source) throws Exception {
         Map<String, Object> m = source.manifest();
         List<Map<String, Object>> files = (List<Map<String, Object>>) m.get("files");
-        if (files == null || files.isEmpty()) throw new OoaException("AGENT.UPDATE", "The Command Center sent an empty file list");
+        if (files == null || files.isEmpty()) throw new OoaException("AGENT.UPDATE", "One CommandCenter sent an empty file list");
         Path target = lib.getParent().resolve("update").resolve("lib");
         if (Files.exists(target.getParent())) deleteTree(target.getParent());
         Files.createDirectories(target);

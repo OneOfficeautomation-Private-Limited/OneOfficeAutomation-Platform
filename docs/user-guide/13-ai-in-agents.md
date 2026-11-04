@@ -26,7 +26,7 @@ The **AI** section of the Actions panel has four groups:
 
 | Group | Use it to |
 | --- | --- |
-| **Generative AI** | Prompt a model; chat; work with pictures; summarise, classify, translate, extract fields, sentiment, language, key phrases, named entities; generate pictures |
+| **Generative AI** | Prompt a model; chat; work with pictures; summarise, classify, translate, extract fields, sentiment, language, key phrases, named entities, personal data; generate pictures |
 | **Prompt Skills** | Run a reviewed, reusable prompt by name |
 | **Knowledge Q&A** | Answer questions from your own documents, with citations |
 | **AI agents** | Let a model reach a goal by calling your agents as tools |
@@ -42,17 +42,17 @@ Instead of repeating the provider, model and key on every step, name the setting
 
 **In Studio (for your local runs):**
 
-1. Open the **Theme and density** menu (sun icon) in the top bar and choose **One Model Connections…**.
+1. Open the **Theme and density** menu (sun icon) in the top bar and choose **Model Connections…**.
 2. Click **+ Connection**. For each connection set:
    - a **name** (for example `gpt`), and **Default** for the one used when a step names none;
    - **Provider** and **Model** (for example `gpt-4o-mini`);
-   - **API key from**: *Environment variable* (its name, such as `OPENAI_API_KEY`), *One Agent Vault credential*
+   - **API key from**: *Environment variable* (its name, such as `OPENAI_API_KEY`), *Credential vault credential*
      (`vault folder/credential/attribute`) or *No key (local model)*;
    - **Endpoint (optional)**: for Azure or a local server.
 3. Click **Save**. The settings go to `model-connections.json` in your workspace; keys are never stored there, only where
    to find them.
 
-**In One Command Center (for runs on runners):** AI > **One Model Connections**. Administrators also set which roles may
+**In One CommandCenter (for runs on runners):** AI > **Model Connections**. Administrators also set which roles may
 use each connection, monthly token budgets, call limits, personal-data detection and content checks. Runs receive the
 connections they are allowed to use.
 
@@ -72,6 +72,7 @@ here* (**Provider**, **Model**, **API key**, **Endpoint address**, and for Bedro
 | **Extract fields** | **Text**, **Fields** (name to description) | A Dictionary of values (see section 8) |
 | **Translate** | **Text**, **Target language** | The translation |
 | **Sentiment**, **Detect language**, **Key phrases**, **Named entities** | **Text** | The result |
+| **Detect personal data** | **Text**, **Kinds**, **Mask style**, **Use AI** | Each email, phone, card, IBAN, IP address, SSN, PAN or Aadhaar number found (checked by its check digit where it has one) and a masked copy of the text; needs no model unless **Use AI** also looks for names and addresses |
 | **Generate picture** | **Prompt**, **Output folder**, **Number of images** | Picture files |
 
 More options include **Temperature** (0 is the most predictable), **Max tokens**, **Hide personal data** and
@@ -107,7 +108,7 @@ A Prompt Skill is a prompt that someone has written and reviewed once, kept as a
 
 API keys never go into skill files: give the step a **Connection**, or an **API key** credential.
 
-In One Command Center (AI > **Prompt Skills**), skills are shared, versioned and can start from templates. A skill kept
+In One CommandCenter (AI > **Prompt Skills**), skills are shared, versioned and can start from templates. A skill kept
 there wins over a file of the same name in a runner's workspace.
 
 ## 5. AI agents that use your agents as tools
@@ -130,7 +131,7 @@ which tools to call, in which order, with which inputs, until the goal is reache
 3. Outputs: **answer**, **status** (`completed`, `limit_reached` or `stopped`; with output fields also `failed` or
    `cancelled`), **outputs**, **trace** (each model turn and tool call, for review) and **tokens**.
 
-Check the tool agents in to One Command Center too. In unattended runs, approvals of sensitive tools are refused.
+Check the tool agents in to One CommandCenter too. In unattended runs, approvals of sensitive tools are refused.
 
 ## 6. The web goal agent
 
@@ -164,7 +165,7 @@ Answer questions from your company's documents:
 3. **Ask**: **Index file**, **Question**, **Model to answer with**: the model answers from the passages only, cites them
    like `[1]`, and says when the documents do not cover the question. When nothing matches, the model is not called.
 
-Keep the index file in One Command Center's repository files so runners get it with the run.
+Keep the index file in One CommandCenter's repository files so runners get it with the run.
 
 ## 8. Document extraction with validation
 
@@ -201,21 +202,45 @@ Set **Min confidence** (More options of Extract fields), for example `0.8`:
 - **validation** holds the values, the confidence and the threshold.
 
 When the agent runs from a work queue and returns `validation` as an output named `validation`, the item waits as
-**To validate** in One Command Center. A person opens **Validate**, sees the unsure fields in red, corrects them and
+**To validate** in One CommandCenter. A person opens **Validate**, sees the unsure fields in red, corrects them and
 **Approve**s (the item goes back to the agent with `validated_fields`) or **Reject**s it.
+
+### 8.4 Ready-made cloud AI services (AWS, Azure, Google)
+
+If your company already pays for a cloud provider's AI services, three toolkits call them directly, with no REST
+set-up. Each starts with **Connect** (keys come from the vault, never typed into the step); the other steps use that
+session.
+
+| Toolkit | Connect with | Steps |
+| --- | --- | --- |
+| **AWS AI services** (`ooa.aws_ai`) | Region, access key id and secret key (and a session token for temporary keys). **Check now** confirms the keys with a free identity check. | Comprehend: sentiment, entities, language, personal data (with a masked copy). Textract: text of a scan; forms and tables, each table as a Data Table. Rekognition: labels and text in a picture. |
+| **Azure AI services** (`ooa.azure_ai`) | The resource's endpoint and key (or a Microsoft Entra access token). | Language: sentiment, entities, personal data. Document Intelligence: read any document; analyse invoices, receipts or layout into fields, key and value pairs and Data Tables. Vision: caption, tags, objects and text of a picture. |
+| **Google Cloud AI** (`ooa.google_ai`) | An API key, or an OAuth access token; the project and location (us or eu) for Document AI. | Natural Language: sentiment, entities. Vision: labels, text (OCR). Document AI: send a file to any processor and get its text, entities, form fields and tables. |
+
+Good to know:
+
+- Files are read from the run's workspace. Each step names its size limit (for example 5 MB for Rekognition, 10 MB
+  for Textract, 50 MB for Document Intelligence) and fails with a clear error when a file is too large or missing.
+- Azure Document Intelligence works in the background: the step waits for the result, up to `timeout_seconds`
+  (120 by default), and then fails with `AZURE_AI.ANALYSIS_TIMEOUT`, which a retry can repeat.
+- Document AI does not take API keys; connect with an access token of a service account.
+- Errors start with `AWS_AI.`, `AZURE_AI.` or `GOOGLE_AI.`. `AUTH_FAILED` and `FORBIDDEN` say how to fix the sign-in;
+  `RATE_LIMITED`, `THROTTLED` and `SERVER_ERROR` are marked retryable, so a step's retry policy can try again.
+- The text and files go to the provider's cloud: check that this is allowed for the data before you use these steps,
+  and prefer **Detect personal data** / **Find personal data** to mask text before sending it elsewhere.
 
 ## 9. The Studio assistant
 
 The **Assistant** button in the top bar opens **Agent assistant** with two tabs:
 
 - **Build from a description**: describe the job ("Read invoices.csv, and for every row with amount above 1000 send an
-  email to approvals@company.com with the invoice number"), choose a **One Model Connection** and click
+  email to approvals@company.com with the invoice number"), choose a **Model Connection** and click
   **Generate steps**. Review the proposed steps and click **Insert into the agent**. They go where the canvas hint says;
   new variables come with them. Problems to fix are listed. Always review before running.
 - **Explain this agent**: the agent in plain words (what it needs, what it returns, each step). **Copy** puts it on the
   clipboard, handy for documentation or a hand-over.
 
-The assistant needs a model connection; without one it offers **Set up a One Model Connection**.
+The assistant needs a model connection; without one it offers **Set up a Model Connection**.
 
 ## 10. Good practice: masking, budgets, testing
 
@@ -224,13 +249,13 @@ The assistant needs a model connection; without one it offers **Set up a One Mod
   Administrators can add a Presidio analyzer for names, places and IDs.
 - **Send only what is needed.** Extract the relevant part of a document before prompting; never send whole mailboxes.
 - **Keep keys in the vault.** Use connections or Credential variables, never keys in steps or skill files.
-- **Mind the budget.** Connections in One Command Center have monthly token budgets and call limits; past them, steps
+- **Mind the budget.** Connections in One CommandCenter have monthly token budgets and call limits; past them, steps
   fail with `AI.BUDGET_REACHED` or `AI.CALL_LIMIT`. Set **Max tokens**, **Max steps** and **Max tokens total**.
 - **Make answers predictable.** Use temperature 0, **Classify** with fixed labels, **Extract fields** with clear
   descriptions, or JSON answers, rather than free text that later steps must parse.
 - **Check before acting.** Use Min confidence and work-queue validation, approvals for sensitive tools, and **If**
   steps that check a value is sensible before it is used.
-- **Test with variety.** One Command Center's **Agent tests** can check outputs with `contains`, `one_of`, `approx` or
+- **Test with variety.** One CommandCenter's **Agent tests** can check outputs with `contains`, `one_of`, `approx` or
   `not_empty`, which suit answers worded differently each time.
 - **Audit.** Every AI call of a run is listed in its **AI calls** tab and in **AI governance**; prompts and answers are
   never stored, only fingerprints.
@@ -239,7 +264,7 @@ The assistant needs a model connection; without one it offers **Set up a One Mod
 
 | What you see | Cause and fix |
 | --- | --- |
-| The assistant says it needs a language model | Set up a connection in **One Model Connections…**. |
+| The assistant says it needs a language model | Set up a connection in **Model Connections…**. |
 | "API keys are never stored in connections" when saving | Point to an environment variable or a vault credential instead of typing the key. |
 | An authorisation error from the provider | The key is wrong or expired, or the environment variable is not set for ONEOFFICEAUTOMATION. |
 | `AI.BUDGET_REACHED` / `AI.CALL_LIMIT` | The connection's monthly budget or per-run limit is used up. Ask your administrator. |
@@ -255,4 +280,4 @@ The assistant needs a model connection; without one it offers **Set up a One Mod
 - [Cloud and business apps](12-cloud-and-business-apps.md)
 - [Child agents](09-child-agents.md)
 - [Business users: tasks and notifications](14-business-users.md)
-- [Publishing to Command Center](15-publishing-to-command-center.md)
+- [Publishing to One CommandCenter](15-publishing-to-command-center.md)

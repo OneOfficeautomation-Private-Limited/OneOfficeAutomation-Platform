@@ -12,7 +12,7 @@ import java.util.concurrent.*;
 
 /**
  * The web server of a SaaS region (C3): one port for every tenant. The host name picks the tenant, acme.DOMAIN for
- * tenant acme, and its own Command Center answers (ControlRoomServer, with its own database schema, files and vault).
+ * tenant acme, and its own One CommandCenter answers (ControlRoomServer, with its own database schema, files and vault).
  * The region's own address (DOMAIN) answers only /healthz. TLS ends in front of it, at the region's load balancer or
  * ingress with a wildcard certificate for *.DOMAIN; it sends X-Forwarded-Proto: https.
  * <p>
@@ -94,7 +94,7 @@ public final class TenantHost {
                 send(ex, 200, Map.of("status", "ok", "region", tenants.region, "tenants_open", tenants.opened().size()));
                 return;
             }
-            send(ex, 404, Map.of("error", Map.of("code", "SAAS.NO_TENANT", "message", "No Command Center at this address")));
+            send(ex, 404, Map.of("error", Map.of("code", "SAAS.NO_TENANT", "message", "No One CommandCenter at this address")));
         } catch (RuntimeException e) {
             e.printStackTrace();
             try { send(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error"))); } catch (RuntimeException | IOException ignored) { }

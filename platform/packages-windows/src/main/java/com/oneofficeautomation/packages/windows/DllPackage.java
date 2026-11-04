@@ -30,6 +30,26 @@ public final class DllPackage {
         };
     }
 
+    /**
+     * A plain argument without {type, value}: whole numbers are int (long when too large for int), other numbers double,
+     * true/false bool and text a Unicode string (wstring), the usual types of Windows API functions.
+     */
+    static Object plain(Object v, int position) {
+        if (v == null) return 0;
+        if (v instanceof Boolean b) return b ? 1 : 0;
+        if (v instanceof Number n) {
+            BigDecimal d = Values.toNumber(n);
+            if (d.stripTrailingZeros().scale() <= 0) {
+                long l = d.longValueExact();
+                return l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE ? (Object) (int) l : (Object) l;
+            }
+            return d.doubleValue();
+        }
+        if (v instanceof String t) return new WString(t);
+        throw new ActionException("DLL.BAD_ARGUMENT", "Argument " + position + " is a " + Values.typeName(v) + "; give a number, text, true/false or {\"type\": ..., \"value\": ...}",
+                "Types: int, long, double, bool, string (ANSI) or wstring (Unicode).");
+    }
+
     @Action(id = "call", name = "Call DLL function", category = "DLL", timeoutSeconds = 120, capabilities = "desktop",
             description = "Call an exported function, e.g. user32.dll MessageBeep, with typed arguments; returns its value.",
             panel = "(Library: By name or path = library / An open session = session), function, arguments, return_type | calling_convention")
@@ -37,7 +57,7 @@ public final class DllPackage {
     public Map<String, Object> call(ActionContext ctx,
             @Input(name = "library", type = OoaType.STRING, required = false, example = "user32", description = "Library name or full path of the DLL (or use session).") String library,
             @Input(name = "function", type = OoaType.STRING, example = "MessageBeep", description = "Exported function name.") String function,
-            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments in order, each {\"type\": \"int|long|double|bool|string|wstring\", \"value\": ...}.") List<Object> args,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments in order: plain values (whole numbers are int, other numbers double, text a Unicode string, true/false bool) or {\"type\": \"int|long|double|bool|string|wstring\", \"value\": ...} to choose the type.") List<Object> args,
             @Input(name = "return_type", type = OoaType.STRING, required = false, defaultValue = "\"int\"", enumValues = {"void", "int", "long", "double", "string", "wstring"}, description = "Type of the return value.") String ret,
             @Input(name = "session", type = OoaType.STRING, required = false, description = "Session from Open DLL; used instead of library.") String session,
             @Input(name = "calling_convention", type = OoaType.STRING, required = false, defaultValue = "\"c\"", enumValues = {"c", "stdcall"},
@@ -45,8 +65,7 @@ public final class DllPackage {
         if (function == null || !function.matches("^[A-Za-z_][A-Za-z0-9_@]{0,127}$")) throw new ActionException("DLL.BAD_NAME", "Invalid function name '" + function + "'");
         Object[] in = new Object[args == null ? 0 : args.size()];
         for (int i = 0; i < in.length; i++) {
-            if (!(args.get(i) instanceof Map<?, ?> m)) throw new ActionException("DLL.BAD_ARGUMENT", "Argument " + (i + 1) + " must be {\"type\": ..., \"value\": ...}");
-            in[i] = arg(m);
+            in[i] = args.get(i) instanceof Map<?, ?> m ? arg(m) : plain(args.get(i), i + 1);
         }
         int flags = callFlags(convention);
         NativeLibrary lib;

@@ -2,7 +2,7 @@
 
 ## What this covers
 
-Who can use the Command Center and what they may do: user accounts and their life cycle, built-in and custom roles,
+Who can use One CommandCenter and what they may do: user accounts and their life cycle, built-in and custom roles,
 the complete permission list, further roles per person, switching off built-in roles, teams, the ways to sign in
 (password, single sign-on with OpenID Connect or SAML, two-step sign-in), password and session rules, API keys and
 session tokens, address allow-lists and the other security settings.
@@ -39,12 +39,12 @@ session tokens, address allow-lists and the other security settings.
 Life cycle:
 
 - **New user** gives a one-time temporary password, which must be changed at the first sign-in.
-- The first start of a new Command Center creates the user `admin` with a one-time password printed on the console.
+- The first start of a new One CommandCenter creates the user `admin` with a one-time password printed on the console.
 - **Inactive accounts**: with `inactive_user_days` (0-3650, 0 = never) accounts that have not signed in for that many
   days are disabled automatically.
-- Rules that protect the Command Center: nobody can disable themselves or remove their own administrator role, and at
+- Rules that protect One CommandCenter: nobody can disable themselves or remove their own administrator role, and at
   least one enabled administrator must remain.
-- **Delete** a user is refused while they own schedules, triggers, API tasks, running work queues or vault folders
+- **Delete** a user is refused while they own schedules, triggers, Agent APIs, running work queues or vault folders
   where they are the only owner (`CR.IN_USE`, listing them); hand those over or disable the user instead. Deleting
   removes their sign-ins, API keys, default runner, team places, own vault values and every rule that names them; the
   audit trail keeps their name. Nobody can delete themselves.
@@ -91,16 +91,19 @@ Permissions marked "admin only" belong to administrators unless a custom role gr
 | `globals.manage` (admin only) | Change shared values and saved connections |
 | `lockers.own` | Create vault folders (and own them) |
 | `lockers.manage` (admin only) | Administer every vault folder; vault key status and rotation |
-| `analytics.view` | Operations, dashboards, Home figures |
-| `apitasks.manage` | Manage API tasks |
+| `analytics.view` | Overview, Operations, dashboards, alerts, Home figures |
+| `alerts.manage` (admin only) | Make, change, test and delete alert rules |
+| `insights.design` (admin only) | Make, change, share, copy and e-mail dashboards (AA's Insight designer) |
+| `insights.admin` (admin only) | Savings per agent and work queue, and the yearly goal (Business > Value) |
+| `apitasks.manage` | Manage Agent APIs |
 | `skills.view` | See and use Prompt Skills |
 | `skills.manage` | Create and change own Prompt Skills |
 | `skills.all` (admin only) | Change anyone's Prompt Skills |
-| `connections.manage` (admin only) | Manage and test One Model Connections |
+| `connections.manage` (admin only) | Manage and test Model Connections |
 | `toolkits.manage` (admin only) | Switch toolkits on and off, upload own toolkits, trusted publishers |
 | `users.manage` (admin only) | Manage users and roles, default runners, licence seats, act on any task |
 | `teams.manage` (admin only) | Create teams and change any team |
-| `audit.view` (admin only) | One Audit Trail and AI governance |
+| `audit.view` (admin only) | Audit Trail and AI governance |
 | `settings.manage` (admin only) | Settings, licences, backups, retention, Git sync, code analysis policy, template catalogue, nodes |
 
 Every API call checks one permission; the console hides pages and buttons a person cannot use. A refused call answers
@@ -141,7 +144,9 @@ A principal that does not exist is refused when a rule is saved.
 ## 7. Signing in with a password
 
 - A wrong user name or password answers `CR.LOGIN_FAILED`. Every fifth failure in a row (passwords or two-step codes)
-  locks the account for 15 minutes (`CR.LOCKED_OUT`).
+  locks the account for 15 minutes (`CR.LOCKED_OUT`). Both are Settings since 1 Nov 2026 (`lockout_attempts`, 0 never
+  locks; `lockout_minutes`), with the password rules, idle sign-out, the sign-in notice and the API key lifetime
+  (Settings > Sign-in and security; see the user guide for administrators, section 5).
 - A disabled account is refused (`CR.USER_DISABLED`).
 - A person whose password is temporary or has expired must choose a new one before doing anything else.
 - After the licence's grace period only administrators can sign in ([document 13](13-licensing-and-editions.md)).
@@ -177,11 +182,70 @@ Passwords are stored as PBKDF2-SHA256 hashes. Single sign-on users are not affec
 | --- | --- | --- |
 | Settings | Issuer URL, client id, client secret (vault reference), default role, button label | Identity provider sign-in address (`https://`), entity id, signing certificate (PEM), our entity id, button label |
 | Provider set-up | Register the redirect address shown | Give the provider the metadata address `/api/auth/saml/metadata` |
-| Checks | Signature, issuer, audience, expiry, one-time nonce, PKCE | Signed assertion or response; encrypted assertions are refused; sign-ins must start at the Command Center |
+| Checks | Signature, issuer, audience, expiry, one-time nonce, PKCE | Signed assertion or response; encrypted assertions are refused; sign-ins must start at One CommandCenter |
 
 On the first sign-in an existing account with the same verified e-mail address or user name is linked; otherwise a new
 account is made with the role for new people (`sso_default_role`). With no default role, only existing accounts may sign
 in (`SSO.NO_ACCOUNT`). A provider refusal shows as `SSO.DENIED`.
+
+**Groups to roles.** Settings > Single sign-on > Groups to roles takes one `group = role` line per mapping (`#` starts a
+comment). At every single sign-on the person's groups (the OpenID Connect `groups` or `roles` claim; the SAML `groups`,
+`memberOf` or `role` attributes, including the Microsoft Entra claim names) are compared with the lines in order, and the
+first match sets the person's role. A role change is audited as `user.role`. With no match, new people get the default
+role and existing people keep theirs. Every role named must exist.
+
+**Coming back.** A single sign-on started from a page of the new console returns to that page afterwards. Only a path
+on this One CommandCenter is accepted as the place to return to; anything else returns to the home page.
+
+**Local accounts.** Accounts with a password, such as the first administrator, can always sign in with it, even with
+single sign-on on, so a broken identity provider never locks everyone out.
+
+**In the new console** (`/next/`): the sign-in page shows a button for each provider set up; a person whose password an
+administrator set chooses their own before going on; and when two-step sign-in is required, the person sets it up there
+(a key for an authenticator app, a code, then recovery codes shown once). A forgotten password is reset by an
+administrator.
+
+### Active Directory or LDAP
+
+Since 1 Nov 2026 people can sign in on the normal sign-in page with their directory user name and password, as with
+AA's Control Room on premises (Settings > Single sign-on > Active Directory or LDAP). Passwords stay in the directory.
+
+- A read-only **service account** (`ldap_bind_dn`, its password from the vault in `ldap_bind_password_ref`) finds the
+  person under `ldap_base_dn` with `ldap_user_filter` (`{0}` is what they typed; by default the Windows account name or
+  the user principal name). Their password is checked by binding as them; an empty password is always refused.
+- `ldap_urls`: one or more `ldaps://` addresses, tried in order (failover). Plain `ldap://` is accepted only for a
+  directory on the same computer (tests). Java must trust the domain controllers' certificate.
+- Groups come from `memberOf`, or from groups listing the person as `member`/`uniqueMember`; with `ldap_nested_groups`,
+  Active Directory's nested groups count too. The **groups-to-roles** list (by group name or full DN) gives the role,
+  at every sign-in. The first time, someone in a mapped group gets an account (user name from `ldap_name_attribute`,
+  name and e-mail from the directory); someone in no mapped group is refused (`LDAP.NO_ROLE`).
+- A local account with the same name keeps signing in with its own password; an account switched off here stays off;
+  wrong passwords count towards the lockout. If the directory cannot be reached, sign-in fails with `LDAP.UNREACHABLE`
+  (never the local password).
+- **Test the directory** (Settings) checks the service account and, given a user name, shows who is found, their groups
+  and the role they would get. `POST /api/settings/ldap-test` `{username}`.
+- The account remembers its directory entry (`users.directory`, `users.external_id`, schema 30).
+
+### SCIM provisioning
+
+Identity providers (Microsoft Entra ID, Okta and others) can create, change and switch off people, and push groups,
+through SCIM 2.0 at `<public address>/scim/v2` (Settings > Single sign-on > SCIM provisioning), as UiPath's SCIM
+user sync does, with groups as well.
+
+- A token per identity provider is made in Settings and shown once; only its hash is kept. Tokens show when they were
+  last used and can be revoked. The IP allow list applies.
+- `/Users`: list (filters `userName`, `externalId`, `emails.value` or `id`, with `eq`), get, create, replace, PATCH
+  (`active`, `userName`, `displayName`, `name.givenName`, `name.familyName`, `emails`, `externalId`; other attributes
+  are accepted and ignored; `active` may come as `"False"`, as Entra ID sends it) and DELETE.
+- Removing a person (DELETE, or `active` false) **switches the account off** and ends its sessions; history stays.
+- `/Groups`: list (filters `displayName`, `externalId`, `id`), get, create, replace, PATCH (members add, remove,
+  replace; `members[value eq "id"]`; `displayName`) and DELETE. A person's SCIM groups give the role through the
+  **groups-to-roles** list; with no mapped group the *role for new people* is used; with neither, the account stays off.
+- SCIM sees and changes **only the accounts it created**: a local or administrator account cannot be read, changed,
+  switched off or put in a group, and its user name cannot be taken (`409 uniqueness`).
+- People provisioned by SCIM sign in with single sign-on (OpenID Connect or SAML), which finds the account by its user
+  name. Also `/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`. Schema 31 adds `scim_tokens`, `scim_groups`,
+  `scim_members` and `users.directory_active`.
 
 ## 11. Sessions, API keys and tokens
 
@@ -204,12 +268,12 @@ in (`SSO.NO_ACCOUNT`). A provider refusal shows as `SSO.DENIED`.
 | Maximum upload (`max_upload_mb`, 1-1024, default 25) | The largest request body |
 | Announcement | A banner shown to everyone |
 | Approval before production (`production_approval`) | [document 08](08-repository-versions-and-templates.md) |
-| Outgoing proxy (`outbound_proxy`, `outbound_proxy_bypass`) | The Command Center's own outgoing connections go through `http://host:port`, except listed hosts and this computer |
+| Outgoing proxy (`outbound_proxy`, `outbound_proxy_bypass`) | One CommandCenter's own outgoing connections go through `http://host:port`, except listed hosts and this computer |
 | Syslog (`syslog_target`, `syslog_protocol` udp or tcp) | Audit records are forwarded to `host:port` |
 
 ## 13. Recovery
 
-`ooa reset-admin` (or `--user NAME`), run on the Command Center's machine with it stopped, gives a one-time password,
+`ooa reset-admin` (or `--user NAME`), run on One CommandCenter's machine with it stopped, gives a one-time password,
 re-enables and unlocks the account, clears two-step sign-in, ends its sessions and records the reset in the audit trail.
 
 ## 14. Permissions and audit
@@ -226,5 +290,5 @@ changes, user and role changes, team changes, API key creation and revocation, a
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [Command Center and runner, section 2](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 2](../user-guide/00-README.md)
 - [Security review](../architecture/06-security-architecture.md#14-independent-security-review)

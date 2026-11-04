@@ -33,11 +33,13 @@ In the **Actions** panel these toolkits sit under **Office documents**, **Files 
 | Run macros, refresh data, export to PDF in real Excel | **Excel desktop** | Yes (Windows) |
 | Read and write .docx letters and reports | **Word** | No |
 | Read and write .pptx decks | **PowerPoint** | No |
+| Insert videos and files, paste, run macros in real PowerPoint | **PowerPoint desktop** | Yes (Windows) |
 | Read, split, merge, fill and protect PDFs | **PDF** | No |
 | CSV and delimited text files | **CSV / Text files** | No |
 | Files, folders, zip | **Files**, **Folders** | No |
 | Mail through any mail server | **Email** | No |
 | Outlook mail, OneDrive, SharePoint, Teams, Excel online | **Microsoft 365** | No (cloud) |
+| Mail on your own Exchange Server (on premises) | **Exchange on-premises (EWS)** | No |
 | The Outlook program on the desktop | **Outlook desktop** | Yes (Windows) |
 | Gmail, Google Drive, Sheets, Calendar | **Google Workspace** | No (cloud) |
 
@@ -86,6 +88,23 @@ The **Excel** group works on workbook files directly, so it runs on servers and 
 **Delete rows**, **Insert columns**, **Delete columns**, **Replace**, **Sort**, **Filter**, **Remove blank rows**,
 **Set cell colour**.
 
+**Ranges, columns and rows**
+
+| Action | What it does |
+| --- | --- |
+| **Copy range** | Copies a range to a **Destination** cell, on the same or another sheet. **Paste**: everything, values only, formulas only or formats only. Relative references in formulas move with the copy, as in Excel. |
+| **Clear range** | Clears the **contents** (keeps the formats, like the Delete key), the **formats**, or **all** of a range or the selection. The cells do not move. |
+| **Fill down or right** | Copies the first row of a range down to the other rows (or the first column right), with formulas adjusted, like Excel's Fill Down. |
+| **Remove duplicate rows** | Removes rows that repeat an earlier row, comparing all columns or only the chosen **Columns**; the first of each set stays. Upper and lower case count as the same unless **Match case** is ticked. Gives how many were removed. |
+| **Autofit columns** | Makes every used column, or chosen columns, just wide enough for their contents. |
+| **Set column width**, **Set row height** | Width in characters (Excel's default is 8.43) or height in points (default 15). |
+**Reports: pivot tables, charts, tables and formats** (.xlsx)
+| **Create pivot table** | From a range with a header row: **Rows**, **Columns**, **Values** (each `Amount` or `Amount:average`; sum, count, average, max or min) and **Filters**, on a new sheet called Pivot or one you name. Excel fills in the figures when the workbook is opened, so read them back with Excel open (Excel desktop) rather than with Get range. |
+| **Create chart** | Column, bar, line or pie chart of a range: categories in the first column, one series per further column, names from the header row. **Title**, **Position**, size in columns and rows, **Legend**. |
+| **Create Excel table** | Turns a range into a named Excel table with a style (like Ctrl+T), e.g. `TableStyleMedium2`. |
+| **Format cells** | Number format (`#,##0.00`, `0%`, `dd/mm/yyyy`), bold, italic, underline, font, size, font and fill colours, alignment, wrap text and borders (all, outline or none). Only what you set changes. |
+| **Text to columns** | Splits a column at a delimiter (`,` `;` `|` tab or space) into the next columns; text in double quotes stays whole, numbers become numbers, codes with a leading 0 stay text. |
+
 **Worksheets and workbooks**
 
 **Create workbook**, **Create worksheet**, **Delete worksheet**, **Rename worksheet**, **Copy worksheet**,
@@ -108,6 +127,25 @@ The **Excel** group works on workbook files directly, so it runs on servers and 
 | **Convert workbook** | Save as another format, optionally with a new password |
 
 These need Windows with Excel installed on the runner. Leave **Visible** off for unattended runs.
+
+### Files a person already has open
+
+**Open Excel and Word files** works in a workbook or document that is already open on the desktop, in the same window,
+so a person can keep working while the agent reads or fills it in. Name the file as Excel or Word shows it
+(`Sales.xlsx`) or give its full path.
+
+| Action | Use |
+| --- | --- |
+| **List open workbooks** / **List open documents** | The open files, their paths, sheets, and whether they have unsaved changes |
+| **Read range from open workbook** | A range or the used area as a Data Table, including values not saved yet |
+| **Write to open workbook** | A value, a list of rows or a Data Table from a start cell |
+| **Read open document** | The document's text |
+| **Replace text in open document** | Replace every match (up to 255 characters); returns how many |
+| **Append text to open document** | Add text at the end, as a new paragraph or not |
+| **Save open workbook** / **Save open document** | Save in place |
+
+These actions never open, close or quit anything. They need an attended runner, signed in as the same Windows user who
+opened the file. If the file is not open, the error lists the files that are.
 
 ## 5. Word
 
@@ -132,12 +170,21 @@ These need Windows with Excel installed on the runner. Leave **Visible** off for
 A common pattern: keep a template deck with placeholders such as `{{month}}`, open it, **Find and replace text**, insert
 this month's chart picture and table, and **Save as** a new file.
 
+**PowerPoint desktop** drives the installed PowerPoint (Windows) for what needs it: **Insert video** (embedded, at a
+position and size), **Insert file** (an embedded file shown as an icon that opens it), **Paste into slide** (the
+clipboard as PowerPoint pastes it, as a picture or as text; a minimised PowerPoint window shows while it works) and
+**Run macro** (in a .pptm, with up to five text arguments; a Function's result comes back, and a macro that stops with
+an error is reported straight away with VBA's message). Each step opens the file, works on the slide you choose, saves
+(or **Save as**) and closes it. When you have PowerPoint open yourself, it closes only the file it opened.
+
 ## 7. PDF
 
 | Action | What it does |
 | --- | --- |
 | **Extract text** | All pages, a page range or listed pages; optionally save the text to a file |
 | **Extract text from area** | Text inside a rectangle of one page (fixed layouts such as forms) |
+| **Extract tables** | Tables of a PDF that holds text (invoices, statements, reports) as Data Tables, found by how the text lines up in columns; a table that continues on the next page is joined into one, and a repeated heading row is left out |
+| **Read XPS text** | The text of an XPS or OpenXPS file, page by page |
 | **Get page count**, **Get document properties** | Information about the file |
 | **Merge PDFs** | Listed files, or every PDF in a folder |
 | **Split PDF** | By pages per file, page lists or bookmarks |
@@ -220,6 +267,19 @@ are marked "(Outlook)": **Send email (Outlook)**, **Find emails (Outlook)**, **R
 application permission). The same toolkit has OneDrive/SharePoint files, Excel online, calendar and Teams (see
 [Cloud and business apps](12-cloud-and-business-apps.md)).
 
+**Exchange on-premises (EWS)** works with a mailbox on your own Exchange Server (2013, 2016, 2019 or Subscription
+Edition) through Exchange Web Services, without Outlook and without opening IMAP on the server. **Connect to Exchange
+mailbox** takes the **Exchange web services address (URL)**, usually `https://<mail server>/EWS/Exchange.asmx`, a
+**User** (`DOMAIN\user` or `user@domain`), a **Password** from the vault and **Sign in** (*ntlm*, the usual Windows
+sign-in, or *basic*). Under **Open another person's or a shared mailbox** you can work in a shared mailbox the user has
+full access to, or act as its owner with **Impersonate** (the user needs the ApplicationImpersonation role). The other
+actions match the Email toolkit, so a bot moves between them easily: **Find emails** (same columns), **Read email**,
+**Save attachments**, **Send email**, **Reply to email**, **Reply to all**, **Forward email**, **Move email**,
+**Mark read or unread**, **Delete email** (to Deleted Items unless **Permanent**), **Get folders** and **Disconnect**.
+Folders are well-known names such as `inbox` or `sentitems`, or paths such as `Inbox/Invoices`. Email ids are Exchange
+item ids; a moved email gets a new id, which **Move email** returns. Microsoft is retiring EWS in Exchange Online, so
+use the Microsoft 365 toolkit for Microsoft 365 mailboxes.
+
 **Outlook desktop** drives the Outlook program on Windows with its mail profile: **Find emails**, **Read email**,
 **Send email**, **Reply to email**, **Forward email**, **Save attachments**, **Move email**, **Mark read or unread**,
 **Delete email**, **Get folders**, including shared mailboxes. It needs a signed-in Windows desktop.
@@ -271,6 +331,7 @@ The sample agent `O3-pdf-to-word-letters` in `examples/use-cases` shows a comple
 | "The file is in use" kinds of errors | Another program (or an earlier failed run) still has the file open. Close it; put **Close** in a **Finally**. |
 | Numbers from CSV compare as text | Tick **Detect numbers and dates**, or convert with the Number toolkit. |
 | SMTP refuses to sign in (`EMAIL.` error) | Check port and **Security** (587 STARTTLS, 465 SSL), and that the account may send through SMTP; Microsoft 365 often needs an access token instead of a password. |
+| Exchange on-premises stops with `EXCHANGE.AUTH_FAILED` or `EXCHANGE.BAD_URL` | Check the user is written `DOMAIN\user`, the password in the vault, **Sign in** (NTLM or Basic, as the server's EWS site allows) and that the address ends in `/EWS/Exchange.asmx`. |
 | Microsoft 365 or Google steps fail with an authorisation error | The access token has expired or lacks the permission (scope). Renew the token in the vault. |
 | Excel desktop or Outlook desktop steps fail on a runner | The runner needs Windows, Office installed and (for Outlook) a mail profile, in a signed-in session. |
 

@@ -24,24 +24,24 @@ repository are covered in later documents.
 ## 1. Kinds of automation item
 
 Every item lives as a file in the designer's Studio workspace and, once checked in, as a versioned entry in the
-Command Center's agent repository. The file name ending decides how the repository treats it.
+One CommandCenter's agent repository. The file name ending decides how the repository treats it.
 
 | Item (Studio "Create" menu) | Stored as | Kind field | Purpose | Runs where |
 | --- | --- | --- | --- | --- |
 | Agent | `Name.flow.json` | `TaskBot` | Automates applications, files, the desktop and the web | A runner (attended, unattended or headless) |
 | Agent from a blueprint | `Name.flow.json` | `TaskBot` | A new agent started from a ready-made pattern | As an agent |
-| Headless API agent | `Name.flow.json` | `ApiTask` | Automation that needs no desktop; may not use actions that need one | A runner, or the Command Center as a serverless API task |
+| Headless API agent | `Name.flow.json` | `ApiTask` | Automation that needs no desktop; may not use actions that need one | A runner, or One CommandCenter as a serverless API task |
 | AI agent definition | `Name.flow.json` | `Agent` | A flow with an `agent` section instead of steps, used by the AI agent action | Called by other agents |
 | Form | `Name.form.json` | `Form` | Fields people fill in: workflow start forms and human tasks | Inside a workflow (the Task inbox) |
-| Workflow | `Name.process.json` | `Process` | Chains agents, forms, approvals, decisions and notifications | The Command Center workflow engine |
+| Workflow | `Name.process.json` | `Process` | Chains agents, forms, approvals, decisions and notifications | One CommandCenter workflow engine |
 | Document intelligence | workspace item | | Defines fields to extract from documents with AI | Used by the document actions of agents |
-| Prompt Skill | workspace item, or kept in the Command Center | | A reviewed prompt template run by the Prompt Skills toolkit | Used by agents (see [document 09](09-ai-features.md)) |
+| Prompt Skill | workspace item, or kept in One CommandCenter | | A reviewed prompt template run by the Prompt Skills toolkit | Used by agents (see [document 09](09-ai-features.md)) |
 | Python script, PowerShell script, VBScript, JavaScript | script file in the workspace | | A script run by the Scripts toolkit actions | Inside an agent step |
 
 Rules that follow from the file kind:
 
 - Only `.flow.json` items can be run, scheduled, triggered, queued or put behind an API task. Starting a run of
-  anything else is refused with `CR.NOT_AN_AGENT` ("Start workflows from One Workflow; forms run inside workflows").
+  anything else is refused with `CR.NOT_AN_AGENT` ("Start workflows from Workflow; forms run inside workflows").
 - Workflows and forms are versioned, checked out and given a live production version like agents, but they are
   validated by the workflow rules ([document 06](06-workflows-and-human-tasks.md)), not by the agent validator.
 - A workflow's or form's repository id is made from its path (`workflow:Folder/Name`, `form:Folder/Name`). An agent's
@@ -58,9 +58,10 @@ An agent is one JSON document (format "OOA Flow v1"). The parts that carry behav
 | `id`, `name`, `description` | Identity. The id is what other agents call; the description is read by AI agents that decide when to call it. Both id and name are required. |
 | `kind` | `TaskBot`, `ApiTask`, `Process`, `Form` or `Agent`. |
 | `variables` | Declared variables (section 3). |
-| `steps` | The ordered list of steps; block steps hold further lists (`children`, `else`, `elseIf`, `catch`, `finally`). |
+| `steps` | The ordered list of steps; block steps hold further lists (`children`, `else`, `elseIf`, `catch`, `finally`, `cases`, `default`). |
 | `requires` | Toolkit version ranges, capabilities (for example `desktop`) and repository files (section 8). |
 | `errorHandling` | Agent-wide default retry policy for action steps that have none of their own ([document 02](02-toolkits-and-actions.md)). |
+| `onError` | The agent's error handler ("On error"): steps that run once when an error no Try caught ends the agent, then fail the run with that error or let it succeed ([architecture 03](../architecture/03-agent-model-and-runner.md), section 9). |
 | `ui` | Designer-only data such as breakpoints; it has no effect on runs. |
 
 Each step has a unique `id`, an `action` address `toolkit/action` (for example `ooa.excel/open`), `args` (the input
@@ -118,7 +119,7 @@ value and an optional description.
   value is refused. The runner fetches the secret just in time, as the run's user ([document 07](07-vault-credentials-and-connections.md)).
 - When a run ends, the values of all `output` and `in_out` variables are returned as the run's outputs. They are shown
   in the run details, returned to API callers and callback URLs, kept with work items and merged into workflow data.
-- Inputs that the Command Center fills by itself, when the agent declares them:
+- Inputs that One CommandCenter fills by itself, when the agent declares them:
 
 | Input name | Filled by |
 | --- | --- |
@@ -136,7 +137,7 @@ value and an optional description.
 | Run | `run_id`, `bot_id`, `bot_name`, `principal` (the person the run is for), `workspace` |
 | Text | `newline`, `tab`, `empty` |
 
-`$global.NAME` reads a shared value from the Command Center (or, in Studio, the workspace's `global-values.json`). A
+`$global.NAME` reads a shared value from One CommandCenter (or, in Studio, the workspace's `global-values.json`). A
 person's own value wins for shared values that people may change for themselves ([document 07](07-vault-credentials-and-connections.md)).
 
 ## 6. The core actions (flow and control)
@@ -146,6 +147,7 @@ The core toolkit is always present and cannot be switched off.
 | Action | Name | Behaviour |
 | --- | --- | --- |
 | `core/if` | If | Runs its children when the condition holds; otherwise the first matching Else if branch, then Else |
+| `core/switch` | Switch | Compares one value with each case's values in turn and runs only the first case that matches, or Default when none does; matching by equals, contains, starts with, ends with, regular expression, or a condition per case |
 | `core/loop` | Loop | Iterators `times`, `while`, `list`, `dictionary`, `dictionary_keys`, `dictionary_values`, `table_rows`, or a toolkit iterator; options for item and index variables, columns to variables, from/to index, step, reverse, check at end (while), a label, and `max_iterations` (default 100,000) |
 | `core/try` | Try | Runs its children; on an error runs the first Catch whose codes match, then always Finally |
 | `core/step` | Step | A named group of steps; no effect on the run |
@@ -158,7 +160,7 @@ The core toolkit is always present and cannot be switched off.
 | `core/comment` | Comment | A note; does nothing |
 | `core/break`, `core/continue` | Exit loop, Continue loop | Leave or skip to the next pass of the innermost loop, or of the loop with the given label |
 | `core/stop` | Stop agent | Ends the current agent at once with status success, or failed with `AGENT.STOPPED`; Finally blocks still run |
-| `core/pause` | Pause agent | Pauses the run until resumed from Studio or the Command Center, or until the optional timeout |
+| `core/pause` | Pause agent | Pauses the run until resumed from Studio or One CommandCenter, or until the optional timeout |
 | `core/run_bot` | Run Agent | Runs a child agent (section 7) |
 
 A disabled step is skipped and its variables keep their values.
@@ -182,7 +184,7 @@ Rules:
 - Child agents run inside the parent's run, with their own variable scope (only inputs and outputs cross over). Stop and
   pause apply to the children too; stopping a child stops the parent.
 - Nesting is limited to 10 levels (`CHILD.DEPTH`).
-- When a run is sent to a runner, the Command Center adds the live production versions of every agent it calls
+- When a run is sent to a runner, One CommandCenter adds the live production versions of every agent it calls
   (Run Agent steps and the tools of AI agent steps), followed transitively up to 10 levels and 100 agents. A child
   without a live production version is left out, and the runner reports it when the step is reached.
 - A deleted agent cannot be used as a child (`CR.DELETED`).
@@ -200,7 +202,7 @@ refuses check-in and runs with `CR.TOOLKIT_DISABLED`.
 
 ## 9. Event handling inside an agent
 
-Besides the Command Center's triggers ([document 04](04-schedules-and-triggers.md)), an agent can react to events while it runs:
+Besides One CommandCenter's triggers ([document 04](04-schedules-and-triggers.md)), an agent can react to events while it runs:
 
 - **Trigger loop** (`ooa.triggerloop` iterators used in a Loop): the loop waits for events (for example files or
   e-mails) and runs its body once per event while the agent is running. The range options of the loop are applied as
@@ -216,7 +218,7 @@ Besides the Command Center's triggers ([document 04](04-schedules-and-triggers.m
 - The Studio workspace holds one working copy of each item. Saving in Studio does not create a version.
 - **Agent check-in** stores a new numbered version (1, 2, 3 …) in the repository with a comment, author, time and
   SHA-256 checksum. Versions are never changed or removed by later check-ins.
-- One version can be the **live production version**. Runs, schedules, triggers, work queues, API tasks and workflows
+- One version can be the **live production version**. Runs, schedules, triggers, work queues, Agent APIs and workflows
   always use it; an item without one cannot be run (`CR.NO_PRODUCTION`). A check-in sets it only when asked to
   (Studio: the tick **Make this the live version**; an agent's first Studio check-in always does, and publishing a
   workflow or form always does).
@@ -246,6 +248,6 @@ At check-in, the repository's code analysis policy is applied as well ([document
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
-- [14 One Agent Studio](14-studio-features.md)
+- [14 One AgentStudio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
 - [Architecture](../architecture/README.md)

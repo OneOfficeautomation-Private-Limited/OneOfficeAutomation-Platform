@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Runs in the cli module because its test classpath has every toolkit, including the optional Office, Email, PDF,
  * Browser, Transfer and Windows modules. Cases live in {@code src/test/resources/command-samples/*.json} as a list of
- * {@code {"command", "name"?, "vars"?: {name: value}, "files"?: {relative path: text}, "agents"?: {id: child flow}, "steps": [...],
+ * {@code {"command", "name"?, "vars"?: {name: value}, "types"?: {name: type}, "files"?: {relative path: text}, "agents"?: {id: child flow}, "steps": [...], "subflows"?: [{name, steps}],
  * "expect"?: {variable: value}, "expectFiles"?: {relative path: text | true | false}, "error"?: "CODE"}}.
  * Every variable named in vars or in a step's out map is declared (type Any). The text {@code {tmp}} anywhere in a
  * case is replaced by the case's temporary folder (with forward slashes). Results are written to
@@ -92,6 +92,9 @@ class CommandSamplesTest {
         Path dir = Path.of("src/test/resources/command-samples");
         List<DynamicTest> tests = new ArrayList<>();
         Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmpRoot).build();
+        // as a Bot Agent does when it starts: PDF's font list is made in the background while the first files run (on a
+        // fresh Windows CI machine it took over 300 s, and the first PDF sample timed out waiting for it)
+        FirstPartyPackages.warmUp();
         try (Stream<Path> files = Files.list(dir)) {
             String only = System.getenv("OOA_SAMPLES");   // e.g. OOA_SAMPLES=20-use-cases runs that file only
             for (Path f : files.filter(p -> p.toString().endsWith(".json") && (only == null || only.isBlank() || p.getFileName().toString().contains(only))).sorted().toList()) {
@@ -264,8 +267,8 @@ class CommandSamplesTest {
         int n = 0;
         for (Map<String, Object> s : steps == null ? List.<Map<String, Object>>of() : steps) {
             n++;
-            for (String k : List.of("children", "else", "finally")) n += countSteps((List<Map<String, Object>>) s.get(k));
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) n += countSteps((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"));
+            for (String k : List.of("children", "else", "finally", "default")) n += countSteps((List<Map<String, Object>>) s.get(k));
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) n += countSteps((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"));
         }
         return n;
     }
@@ -279,21 +282,32 @@ class CommandSamplesTest {
             Files.writeString(p, String.valueOf(e.getValue()), StandardCharsets.UTF_8);
         }
         Map<String, Object> vars = (Map<String, Object>) cs.getOrDefault("vars", Map.of());
+        // "types": {variable: "Time"} declares those variables with that type instead of Any
+        Map<String, Object> types = (Map<String, Object>) cs.getOrDefault("types", Map.of());
         List<Map<String, Object>> steps = (List<Map<String, Object>>) cs.get("steps");
         Set<String> names = new LinkedHashSet<>(vars.keySet());
         int[] id = {0};
         collect(steps, names, id);
+        // "onError": the agent's error handler {"as", "steps", "then"}; its variable and steps are declared like the others
+        Map<String, Object> onError = cs.get("onError") instanceof Map<?, ?> h ? (Map<String, Object>) h : null;
+        List<Map<String, Object>> handlerSteps = onError == null ? List.of() : (List<Map<String, Object>>) onError.getOrDefault("steps", List.of());
+        if (onError != null) { collect(handlerSteps, names, id); if (onError.get("as") instanceof String v) names.add(v); }
+        // "subflows": [{"name", "steps"}] are the agent's subflows (core/run_subflow), ids and variables collected the same way
+        List<Map<String, Object>> subflows = (List<Map<String, Object>>) cs.getOrDefault("subflows", List.of());
+        for (Map<String, Object> sub : subflows) collect((List<Map<String, Object>>) sub.get("steps"), names, id);
         names.addAll(((Map<String, Object>) cs.getOrDefault("expect", Map.of())).keySet());
         List<Map<String, Object>> decl = new ArrayList<>();
         for (String name : names) {
             Map<String, Object> v = new LinkedHashMap<>();
-            v.put("name", name); v.put("type", "Any"); v.put("direction", "output");
+            v.put("name", name); v.put("type", String.valueOf(types.getOrDefault(name, "Any"))); v.put("direction", "output");
             if (vars.containsKey(name)) v.put("default", vars.get(name));
             decl.add(v);
         }
         Map<String, Object> flow = new LinkedHashMap<>();
         flow.put("kind", "TaskBot"); flow.put("id", "sample"); flow.put("name", label.length() > 190 ? label.substring(0, 190) : label);
         flow.put("variables", decl); flow.put("steps", steps);
+        if (onError != null) flow.put("onError", onError);
+        if (cs.get("subflows") instanceof List<?>) flow.put("subflows", subflows);
         // "credentials": {variable: "locker/credential/attribute"} become Credential inputs read from a test vault
         Map<String, Object> inputs = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("credentials", Map.of())).entrySet()) {
@@ -317,6 +331,8 @@ class CommandSamplesTest {
         result.put("command", cs.get("command")); result.put("name", cs.getOrDefault("name", ""));
         Set<String> uses = new TreeSet<>();
         usedActions(steps, uses);
+        usedActions(handlerSteps, uses);
+        for (Map<String, Object> sub : subflows) usedActions((List<Map<String, Object>>) sub.get("steps"), uses);
         result.put("uses", new ArrayList<>(uses));
         result.put("status", r.status());
         if (r.error() != null) result.put("error", r.error().get("code"));
@@ -325,6 +341,10 @@ class CommandSamplesTest {
             if (cs.containsKey("error")) {
                 assertFalse(r.ok(), label + ": expected error " + cs.get("error"));
                 assertEquals(cs.get("error"), r.error().get("code"), label + ": " + r.error().get("message"));
+                // with an error handler, what it did is checked too (the run still fails with the original error)
+                if (onError != null) for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("expect", Map.of())).entrySet())
+                    assertTrue(same(e.getValue(), ((Map<String, Object>) Values.toJsonable(r.outputs())).get(e.getKey())),
+                            label + ": $" + e.getKey() + " expected " + JsonLite.write(e.getValue()) + " but was " + JsonLite.write(((Map<String, Object>) Values.toJsonable(r.outputs())).get(e.getKey())));
             } else {
                 assertTrue(r.ok(), label + ": " + r.error());
                 Object actual = Values.toJsonable(r.outputs());
@@ -354,9 +374,11 @@ class CommandSamplesTest {
             if (s.get("out") instanceof Map<?, ?> out) for (Object v : out.values()) names.add(String.valueOf(v));
             Map<String, Object> a = (Map<String, Object>) s.getOrDefault("args", Map.of());
             if ("core/set".equals(s.get("action")) && a.get("variable") instanceof String v) names.add(v);
+            if ("core/set_many".equals(s.get("action")) && a.get("assignments") instanceof List<?> rows)
+                for (Object r : rows) if (r instanceof Map<?, ?> rm && rm.get("variable") instanceof String v) names.add(v);
             for (String k : List.of("as", "index")) if ("core/loop".equals(s.get("action")) && a.get(k) instanceof String v) names.add(v);
-            for (String k : List.of("children", "else", "finally")) collect((List<Map<String, Object>>) s.get(k), names, id);
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) {
+            for (String k : List.of("children", "else", "finally", "default")) collect((List<Map<String, Object>>) s.get(k), names, id);
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) {
                 Map<String, Object> bm = (Map<String, Object>) b;
                 if (bm.get("as") instanceof String v) names.add(v);
                 if (bm.get("message_to") instanceof String v) names.add(v);
@@ -373,8 +395,8 @@ class CommandSamplesTest {
             Map<String, Object> a = (Map<String, Object>) s.getOrDefault("args", Map.of());
             if (a.get("iterator") instanceof String it && it.contains("/")) uses.add(it + " (iterator)");
             if (a.get("condition") instanceof Map<?, ?> c && c.get("condition") instanceof String cid) uses.add(cid + " (condition)");
-            for (String k : List.of("children", "else", "finally")) usedActions((List<Map<String, Object>>) s.get(k), uses);
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l)
+            for (String k : List.of("children", "else", "finally", "default")) usedActions((List<Map<String, Object>>) s.get(k), uses);
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l)
                 for (Object b : l) usedActions((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"), uses);
         }
     }

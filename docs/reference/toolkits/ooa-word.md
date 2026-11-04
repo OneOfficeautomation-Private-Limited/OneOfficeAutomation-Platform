@@ -8,7 +8,7 @@ Toolkit `ooa.word`, version 1.0.0. Open or create .docx documents, read text and
 
 - **Text**: Add paragraph, Extract text from a file, Format text, Insert text, Read text, Replace text
 - **Tables**: Insert table, Read tables
-- **Document**: Close, Create document, Open document, Save, Save as
+- **Document**: Close, Create document, Get page count, Open document, Save, Save as
 - **Pictures**: Find and replace picture, Insert picture
 
 ## Text
@@ -25,7 +25,7 @@ Append a paragraph, optionally bold or with a style such as Heading1.
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | Paragraph text. |
 | Bold | `bold` | Yes/No | No | No | Main | Bold text. |
-| Style | `style` | Text | No |  | Main | Style id from the document, e.g. Heading1. |
+| Style | `style` | Text | No |  | Main | Style of the document by id or name, e.g. Heading1 or Heading 1; Heading1-6, Title, Subtitle and Quote are added to documents that lack them. |
 | Session | `session` | Text | No | `word` | More options | Session name. |
 
 *Time limit 60 s.*
@@ -88,7 +88,7 @@ Apply bold, italic, underline, strikethrough, highlight, font, size or colour to
 
 `ooa.word/insert_text` (action)
 
-Insert text at the start or end of the document, or just before or after a marker text or a bookmark, optionally with its own font formatting.
+Insert text, or HTML (headings, lists, tables, links, formatting and pictures), at the start or end of the document, or just before or after a marker text or a bookmark, optionally with its own font formatting.
 
 **Settings**
 
@@ -97,6 +97,7 @@ Insert text at the start or end of the document, or just before or after a marke
 | Position | `position` | Text | No | `end` | Main | Where to insert: end, start of the document, after_text, before_text or bookmark. One of: `end`, `start`, `after_text`, `before_text`, `bookmark` |
 | Anchor | `anchor` | Text | No |  | Main | Marker text or bookmark name the position refers to. |
 | Text | `text` | Text | Yes |  | Main | Text to insert; line breaks are kept. |
+| As HTML | `as_html` | Yes/No | No | No | Main | The text is HTML: headings, paragraphs, bold/italic/underline, colours and sizes, links, bulleted and numbered lists, tables and pictures (data: URIs or local files) become Word formatting; it always starts in its own paragraph. |
 | New paragraph | `new_paragraph` | Yes/No | No | Yes | Main | Put the text in its own paragraph; false adds it inside the existing paragraph. |
 | Font | `font` | Text | No |  | Main; tick Format the text | Font name for the inserted text, e.g. Calibri. |
 | Color | `color` | Text | No |  | Main; tick Format the text | Hex colour for the inserted text. Example: `#C00000` |
@@ -121,7 +122,8 @@ Return the paragraph text, one paragraph per line, of the whole body, a range of
 | From paragraph | `from_paragraph` | Number | No |  | Main; choice Read = A paragraph range | 1-based first body paragraph to read; the first when empty. |
 | To paragraph | `to_paragraph` | Number | No |  | Main; choice Read = A paragraph range | 1-based last body paragraph to read; the last when empty. |
 | Bookmark | `bookmark` | Text | No |  | Main; choice Read = A bookmark | Read only the text between the start and end of this bookmark (tables inside it included); overrides the paragraph range and page. |
-| Page | `page` | Number | No |  | Main; choice Read = A page | Read only this 1-based page, counted from page breaks, 'page break before' paragraphs and section breaks stored in the file (pages Word fills up on its own are not counted); overrides the paragraph range. Range: 1 to  |
+| Page | `page` | Number | No |  | Main; choice Read = A page | Read only this 1-based page (see page_breaks for how pages are counted); overrides the paragraph range. Range: 1 to  |
+| Page breaks | `page_breaks` | Text | No | `auto` | Main; choice Read = A page | How pages are counted: auto uses the page layout Word saved in the file when there is one, else the page and section breaks stored in it; layout uses only Word's saved layout; breaks uses only the stored breaks (pages Word fills up on its own are then not counted). One of: `auto`, `layout`, `breaks`; Shown when: `{"page": ["!", ""]}` |
 | Include tables | `include_tables` | Yes/No | No | No | Main | Also return the text of table cells, in document order, one cell per line. |
 | Include headers footers | `include_headers_footers` | Yes/No | No | No | Main | Also return the text of page headers (before the body) and footers (after it). |
 | Session | `session` | Text | No | `word` | More options | Session name. |
@@ -150,6 +152,7 @@ Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}}
 | Whole word | `whole_word` | Yes/No | No | No | Main | Only match the text as a whole word, not inside a longer word. |
 | From paragraph | `from_paragraph` | Number | No |  | Main; choice Look in = A paragraph range | 1-based first body paragraph to search; the whole document (with tables, headers and footers) when both are empty. Range: 1 to  |
 | To paragraph | `to_paragraph` | Number | No |  | Main; choice Look in = A paragraph range | 1-based last body paragraph to search, included; to the end when empty. Range: 1 to  |
+| Page | `page` | Number | No |  | Main; choice Look in = A page | Only replace text on this 1-based page of the body (from Word's saved page layout, else the stored page breaks). Range: 1 to  |
 | Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text. |
 | Occurrence | `occurrence` | Text | No | `all` | Main | Which occurrences to change, in document order: all, the first or the last. One of: `all`, `first`, `last` |
 | Session | `session` | Text | No | `word` | More options | Session name. |
@@ -235,7 +238,7 @@ Close the document, saving the changes first when asked.
 
 `ooa.word/create_document` (action)
 
-Create a new .docx file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.
+Create a new .docx (or .doc, .rtf or .odt) file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.
 
 **Settings**
 
@@ -250,11 +253,33 @@ Create a new .docx file on disk, empty or as a copy of a template document, opti
 
 *Time limit 60 s; needs: filesystem.*
 
+### Get page count
+
+`ooa.word/get_page_count` (action)
+
+Count the document's pages, from the page layout Word saved in the file or from its page and section breaks.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Page breaks | `page_breaks` | Text | No | `auto` | Main | How pages are counted: auto uses the page layout Word saved in the file when there is one, else the page and section breaks stored in it; layout uses only Word's saved layout; breaks uses only the stored breaks (pages Word fills up on its own are then not counted). One of: `auto`, `layout`, `breaks` |
+| Session | `session` | Text | No | `word` | More options | Session name. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `pages` | Number | Number of pages. |
+| `counted_from` | Text | layout (Word's saved layout) or breaks (stored page and section breaks). |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Open document
 
 `ooa.word/open` (action)
 
-Open a .docx document, or create a new one, as a named session; can open password-protected files and open read-only.
+Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named session; can open password-protected .docx files and open read-only. .doc, .rtf and .odt files are converted with Word or LibreOffice on the runner and saved back in their own format.
 
 **Settings**
 
@@ -288,7 +313,7 @@ Save the document, optionally to a new path; password-protected documents stay p
 
 `ooa.word/save_as` (action)
 
-Save the document to a new .docx file (optionally password-protected) and continue the session on it, or export its text as a .txt file; PDF output is not available in this toolkit.
+Save the document to a new .docx, .doc, .rtf or .odt file (.docx optionally password-protected) and continue the session on it, or export it as PDF or its text as a .txt file.
 
 **Settings**
 
@@ -296,7 +321,7 @@ Save the document to a new .docx file (optionally password-protected) and contin
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Target file path. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that already exists at the target path; false stops with WORD.EXISTS. |
-| Format | `format` | Text | No | `docx` | Main | docx keeps the document; txt writes the plain text (body, tables and headers) and the session stays on the docx file. One of: `docx`, `txt` |
+| Format | `format` | Text | No | `docx` | Main | docx keeps the document; doc (Word 97-2003), rtf and odt are written with Microsoft Word (or LibreOffice) on the runner; pdf exports it the same way; txt writes the plain text (body, tables and headers). After pdf and txt the session stays on the previous file. One of: `docx`, `doc`, `rtf`, `odt`, `pdf`, `txt` |
 | Password | `password` | Credential (vault) | No |  | More options | Encrypt the new .docx file with this password; later saves keep it. |
 | Session | `session` | Text | No | `word` | More options | Session name. |
 
@@ -317,6 +342,7 @@ Swap an existing picture, found by its alternative text or its position in the d
 | Alt text | `alt_text` | Text | No |  | Main; choice Find the picture by = Its alt text | Replace every picture whose alternative text equals this. |
 | Occurrence | `occurrence` | Text | No | `all` | Main; choice Find the picture by = Its alt text | With alt_text: replace all matching pictures, or only the first or last one in document order. One of: `all`, `first`, `last` |
 | Index | `index` | Number | No |  | Main; choice Find the picture by = Its position | 1-based position of the picture in the document; used when alt_text is empty. |
+| Page | `page` | Number | No |  | Main | Only look at pictures on this 1-based page of the body; index then counts the pictures on that page. Range: 1 to  |
 | Image | `image` | File path | Yes |  | Main | New image file. |
 | New alt text | `new_alt_text` | Text | No |  | Main | New alternative text for the replaced pictures; kept when empty. |
 | Width | `width` | Number | No |  | Main | New width in points; kept when empty (with only height, the width follows the new image's ratio). |

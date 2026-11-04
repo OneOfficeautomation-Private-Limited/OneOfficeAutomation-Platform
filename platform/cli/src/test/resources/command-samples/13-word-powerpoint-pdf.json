@@ -659,5 +659,21 @@
    }
   ],
   "error": "PDF.NO_FORM"
- }
+ },
+  {"command": "ooa.pdf/extract_tables", "name": "missing file (G12)", "steps": [
+     {"action": "ooa.pdf/extract_tables", "args": {"path": "{tmp}/none.pdf"}}], "error": "FILE.NOT_FOUND"},
+  {"command": "ooa.pdf/read_xps_text", "name": "not an XPS file (G12)", "files": {"a.xps": "plain text"}, "steps": [
+     {"action": "ooa.pdf/read_xps_text", "args": {"path": "{tmp}/a.xps"}}], "error": "PDF.INVALID"},
+  {"command": "ooa.powerpoint_desktop/run_macro", "name": "macro name is checked (G13)", "files": {"deck.pptm": "x"}, "steps": [
+     {"action": "ooa.powerpoint_desktop/run_macro", "args": {"path": "{tmp}/deck.pptm", "macro": "Go; Remove-Item"}}], "error": "POWERPOINT_DESKTOP.BAD_MACRO"},
+  {"command": "ooa.powerpoint_desktop/run_macro", "name": "at most five arguments", "files": {"deck.pptm": "x"}, "steps": [
+     {"action": "ooa.powerpoint_desktop/run_macro", "args": {"path": "{tmp}/deck.pptm", "macro": "Go", "arguments": ["1", "2", "3", "4", "5", "6"]}}], "error": "POWERPOINT_DESKTOP.TOO_MANY_ARGS"},
+  {"command": "ooa.powerpoint_desktop/insert_video", "name": "missing video", "files": {"deck.pptx": "x"}, "steps": [
+     {"action": "ooa.powerpoint_desktop/insert_video", "args": {"path": "{tmp}/deck.pptx", "video": "{tmp}/none.mp4"}}], "error": "FILE.NOT_FOUND"},
+  {"command": "ooa.powerpoint_desktop/insert_file", "name": "missing presentation", "files": {"a.csv": "x"}, "steps": [
+     {"action": "ooa.powerpoint_desktop/insert_file", "args": {"path": "{tmp}/none.pptx", "file": "{tmp}/a.csv"}}], "error": "FILE.NOT_FOUND"},
+  {"command": "ooa.powerpoint_desktop/paste", "name": "keeps an existing save_as file", "files": {"deck.pptx": "x", "out.pptx": "old"}, "steps": [
+     {"action": "ooa.powerpoint_desktop/paste", "args": {"path": "{tmp}/deck.pptx", "save_as": "{tmp}/out.pptx", "overwrite": false}}], "error": "POWERPOINT_DESKTOP.EXISTS"},
+ {"command": "ooa.office_attach/word_replace_text", "name": "Word replaces at most 255 characters at a time", "steps": [{"action": "ooa.office_attach/word_replace_text", "args": {"document": "Letter.docx", "find": "{{name}}", "replace_with": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}], "error": "WORD_OPEN.TOO_LONG"},
+ {"command": "ooa.office_attach/word_append_text", "name": "nothing to add", "steps": [{"action": "ooa.office_attach/word_append_text", "args": {"document": "Letter.docx", "text": ""}}], "error": "WORD_OPEN.NO_TEXT"}
 ]

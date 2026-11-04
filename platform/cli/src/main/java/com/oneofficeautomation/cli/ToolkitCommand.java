@@ -10,11 +10,11 @@ import java.util.*;
 /**
  * {@code ooa toolkit}: for developers of custom toolkits (K6).
  * <pre>
- * ooa toolkit keygen --publisher NAME [--out DIR]   a publisher key pair: NAME.key (keep it safe) and NAME.pub (for Command Center admins)
+ * ooa toolkit keygen --publisher NAME [--out DIR]   a publisher key pair: NAME.key (keep it safe) and NAME.pub (for One CommandCenter admins)
  * ooa toolkit sign --jar FILE --class NAME --key FILE [--out FILE]   sign the toolkit class in the jar
  * ooa toolkit inspect --jar FILE                    the toolkit in a signed jar: id, version, publisher, actions
  * </pre>
- * Upload the signed jar in Command Center > Toolkits after an admin has trusted the publisher's .pub key.
+ * Upload the signed jar in One CommandCenter > Toolkits after an admin has trusted the publisher's .pub key.
  */
 final class ToolkitCommand {
     private ToolkitCommand() { }
@@ -27,7 +27,7 @@ final class ToolkitCommand {
                 Path dir = Path.of(o.getOrDefault("out", "."));
                 ToolkitJar.keygen(pub, dir);
                 System.out.println("Wrote " + dir.resolve(pub + ".key") + " (private: keep it out of source control)");
-                System.out.println("  and " + dir.resolve(pub + ".pub") + " (give it to the Command Center admins: Toolkits > Publishers)");
+                System.out.println("  and " + dir.resolve(pub + ".pub") + " (give it to One CommandCenter admins: Toolkits > Publishers)");
                 return 0;
             }
             case "sign" -> {

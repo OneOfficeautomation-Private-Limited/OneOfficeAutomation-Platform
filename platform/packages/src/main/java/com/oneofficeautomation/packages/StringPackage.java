@@ -39,7 +39,7 @@ public final class StringPackage {
         else if (before != null && !missing && after == null && stop.equals("marker")) { out = ""; missing = true; }
         if (missing && "source".equals(ifNotFound)) out = text;
         if (removeLineBreaks) out = out.replace("\r", "").replace("\n", "");
-        if (trim) out = out.strip();
+        if (trim) out = stripSpace(out);
         if (maxLength != null) {
             if (maxLength < 0) throw new ActionException("STRING.BAD_LENGTH", "max_length cannot be negative", "Use 0 or more.");
             if (out.length() > maxLength) out = out.substring(0, maxLength);
@@ -119,7 +119,7 @@ public final class StringPackage {
         }
         List<Object> items = new ArrayList<>();
         for (String part : p.split(text, maxParts == 0 ? -1 : maxParts)) {
-            String v = trimItems ? part.strip() : part;
+            String v = trimItems ? stripSpace(part) : part;
             if (!(removeEmpty && v.isEmpty())) items.add(v);
         }
         return Map.of("items", items);
@@ -291,6 +291,36 @@ public final class StringPackage {
         return Out.of("result", text.substring(start, stop));
     }
 
+    /** White space as people see it: Java white space, every Unicode space separator (incl. no-break spaces), BOM and zero-width space. */
+    private static final java.util.regex.Pattern CUR_START = java.util.regex.Pattern.compile("^(\\p{Sc}+|[A-Z]{3}(?![A-Za-z])|Rs\\.?(?![A-Za-z]))\\s*");
+    private static final java.util.regex.Pattern CUR_END = java.util.regex.Pattern.compile("\\s*(\\p{Sc}+|(?<![A-Za-z])[A-Z]{3}|(?<![A-Za-z])Rs\\.?)$");
+
+    /** The text without one currency sign, ISO 4217 code (USD, EUR, INR) or "Rs." before and one after the number. */
+    static String withoutCurrency(String t) {
+        String s = t;
+        java.util.regex.Matcher m = CUR_START.matcher(s);
+        if (m.find() && isCurrency(m.group(1))) s = s.substring(m.end());
+        m = CUR_END.matcher(s);
+        if (m.find() && isCurrency(m.group(1))) s = s.substring(0, m.start());
+        return stripSpace(s);
+    }
+
+    private static boolean isCurrency(String token) {
+        if (!token.matches("[A-Z]{3}")) return true;
+        try { java.util.Currency.getInstance(token); return true; } catch (IllegalArgumentException e) { return false; }
+    }
+
+    static String stripSpace(String t) {
+        int a = 0, b = t.length();
+        while (a < b && isSpace(t.charAt(a))) a++;
+        while (b > a && isSpace(t.charAt(b - 1))) b--;
+        return t.substring(a, b);
+    }
+
+    static boolean isSpace(int c) {
+        return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '\uFEFF' || c == '\u200B';
+    }
+
     @Action(id = "trim", name = "Trim", category = "Text", idempotent = true,
             description = "Remove spaces, or the characters you list, from both ends, the start or the end of a text.",
             panel = "text, side | characters")
@@ -300,7 +330,8 @@ public final class StringPackage {
             @Input(name = "side", type = OoaType.STRING, required = false, defaultValue = "\"both\"", enumValues = {"both", "left", "right"},
                     description = "Which end to trim.") String side,
             @Input(name = "characters", type = OoaType.STRING, required = false, description = "Characters to remove, e.g. 0 or *-; whitespace when empty.") String chars) {
-        java.util.function.IntPredicate strip = chars == null || chars.isEmpty() ? Character::isWhitespace : c -> chars.indexOf(c) >= 0;
+        // white space includes the no-break spaces common in web pages, PDFs and Excel exports (U+00A0, U+2007, U+202F) and zero-width marks
+        java.util.function.IntPredicate strip = chars == null || chars.isEmpty() ? StringPackage::isSpace : c -> chars.indexOf(c) >= 0;
         String s = side == null ? "both" : side;
         int a = 0, b = text.length();
         if (!s.equals("right")) while (a < b && strip.test(text.charAt(a))) a++;
@@ -313,6 +344,56 @@ public final class StringPackage {
     @Output(name = "result", type = OoaType.STRING, description = "Reversed text.")
     public Map<String, Object> reverse(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text) {
         return Out.of("result", new StringBuilder(text).reverse().toString());
+    }
+
+    @Action(id = "pad", name = "Pad text", category = "Text", idempotent = true,
+            description = "Fill a text up to a length with a character on the left or the right, e.g. 42 to 00042; longer text is left as it is.",
+            panel = "text, length, character, side")
+    @Output(name = "result", type = OoaType.STRING, description = "The padded text.")
+    public Map<String, Object> pad(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Source text; a number is used as it is written, e.g. 42.") String text,
+            @Input(name = "length", type = OoaType.NUMBER, min = 0, max = 100000, example = "5", description = "Length the result should have, in characters.") int length,
+            @Input(name = "character", type = OoaType.STRING, required = false, defaultValue = "\" \"", example = "0", description = "One character to fill with; a space when empty.") String character,
+            @Input(name = "side", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right"},
+                    description = "left puts the fill before the text (numbers, codes); right puts it after (fixed-width columns).") String side) {
+        String fill = character == null || character.isEmpty() ? " " : character;
+        if (fill.codePointCount(0, fill.length()) != 1)
+            throw new ActionException("STRING.BAD_CHARACTER", "Pad with one character, not '" + fill + "'", "Give a single character such as 0 or a space.");
+        if (length < 0 || length > 100000) throw new ActionException("STRING.BAD_LENGTH", "Length " + length + " is out of range", "Use a length from 0 to 100000.");
+        String t = text == null ? "" : text;
+        int have = t.codePointCount(0, t.length());
+        if (have >= length) return Out.of("result", t);
+        String padding = fill.repeat(length - have);
+        return Out.of("result", "right".equals(side) ? t + padding : padding + t);
+    }
+
+    @Action(id = "count_occurrences", name = "Count occurrences", category = "Text", idempotent = true,
+            description = "Count how many times a piece of text appears in a text (matches do not overlap).",
+            panel = "text, find, match_case, whole_word")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of times it appears; 0 when it does not.")
+    public Map<String, Object> countOccurrences(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to search in.") String text,
+            @Input(name = "find", type = OoaType.STRING, example = ",", description = "Text to count.") String find,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Count only matches with the same upper and lower case.") boolean matchCase,
+            @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Count only matches that are whole words, not parts of longer words (cat in cat food, not in catalogue).") boolean wholeWord) {
+        if (find == null || find.isEmpty()) throw new ActionException("STRING.EMPTY_FIND", "Nothing to count", "Fill in the text to count.");
+        String t = text == null ? "" : text;
+        int flags = matchCase ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE;
+        String q = java.util.regex.Pattern.quote(find);
+        if (wholeWord) q = "(?<![\\p{L}\\p{N}_])" + q + "(?![\\p{L}\\p{N}_])";
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(q, flags).matcher(t);
+        int n = 0;
+        while (m.find()) n++;
+        return Out.of("count", java.math.BigDecimal.valueOf(n));
+    }
+
+    @Action(id = "escape_regex", name = "Escape for regex", category = "Text", idempotent = true,
+            description = "Put a backslash before every character that has a meaning in regular expressions, so the text is matched exactly, e.g. 1+1=2? to 1\\+1=2\\?.",
+            panel = "text")
+    @Output(name = "result", type = OoaType.STRING, description = "The text, safe to use inside a regular expression.")
+    public Map<String, Object> escapeRegex(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to escape.") String text) {
+        return Out.of("result", (text == null ? "" : text).replaceAll("[\\\\^$.|?*+()\\[\\]{}\\-/]", "\\\\$0"));
     }
 
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
@@ -344,24 +425,36 @@ public final class StringPackage {
 
     @Action(id = "to_number", name = "Text to number", category = "Text", idempotent = true,
             description = "Read a number from text written for a locale, or with the decimal and grouping separators you give.",
-            panel = "text | locale, decimal_separator, grouping_separator")
+            panel = "text | locale, decimal_separator, grouping_separator, ignore_currency")
     @Output(name = "result", type = OoaType.NUMBER, description = "The number.")
     public Map<String, Object> toNumber(ActionContext ctx,
-            @Input(name = "text", type = OoaType.STRING, example = "1.234,56", description = "Text such as 1,234.56 or 1.234,56.") String text,
+            @Input(name = "text", type = OoaType.STRING, example = "1.234,56", description = "Text such as 1,234.56, 1.234,56, $ 1,200.50, (1,234.00) or 1,234.00- (negative).") String text,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en-US\"", description = "Locale the text is written in, e.g. en-US, de-DE, fr-FR.") String locale,
             @Input(name = "decimal_separator", type = OoaType.STRING, required = false, description = "Decimal separator; overrides the locale.") String decimalSep,
-            @Input(name = "grouping_separator", type = OoaType.STRING, required = false, description = "Thousands separator; overrides the locale.") String groupSep) {
+            @Input(name = "grouping_separator", type = OoaType.STRING, required = false, description = "Thousands separator; overrides the locale.") String groupSep,
+            @Input(name = "ignore_currency", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Ignore a currency symbol or code before or after the number ($, €, ₹, USD, EUR, Rs.); when off such text is not a number.") boolean ignoreCurrency) {
         String loc = locale == null || locale.isBlank() ? "en-US" : locale;
         java.text.DecimalFormatSymbols sym = java.text.DecimalFormatSymbols.getInstance(Locale.forLanguageTag(loc));
         String dec = decimalSep != null && !decimalSep.isEmpty() ? decimalSep : String.valueOf(sym.getDecimalSeparator());
         String grp = groupSep != null && !groupSep.isEmpty() ? groupSep : String.valueOf(sym.getGroupingSeparator());
         if (dec.equals(grp)) throw new ActionException("STRING.BAD_SEPARATORS", "Decimal and grouping separators are both '" + dec + "'", "Use different separators.");
-        String s = text == null ? "" : text.strip();
+        String s = text == null ? "" : stripSpace(text);
+        if (ignoreCurrency) s = withoutCurrency(s);
+        // accounting negatives: (1,234.00) and 1,234.00- (SAP, bank exports); a currency sign may sit inside the brackets
+        boolean negative = false;
+        if (s.length() > 2 && s.startsWith("(") && s.endsWith(")")) { negative = true; s = stripSpace(s.substring(1, s.length() - 1)); }
+        else if (s.length() > 1 && s.endsWith("-") && !s.startsWith("-")) { negative = true; s = stripSpace(s.substring(0, s.length() - 1)); }
+        if (negative && ignoreCurrency) s = withoutCurrency(s);
         s = s.replace(grp, "");
         if (grp.isBlank() || Character.isSpaceChar(grp.charAt(0))) s = s.replaceAll("[\\s\\u00A0\\u202F]", "");
         s = s.replace(dec, ".");
         if (s.startsWith("+")) s = s.substring(1);
-        try { return Out.of("result", new java.math.BigDecimal(s)); }
+        try {
+            if (negative && s.startsWith("-")) throw new NumberFormatException("two minus signs");
+            java.math.BigDecimal n = new java.math.BigDecimal(s);
+            return Out.of("result", negative ? n.negate() : n);
+        }
         catch (NumberFormatException e) {
             throw new ActionException("STRING.NOT_A_NUMBER", "'" + text + "' is not a number for locale " + loc + " (decimal '" + dec + "', grouping '" + grp + "')",
                     "Check the locale or set decimal_separator and grouping_separator.");

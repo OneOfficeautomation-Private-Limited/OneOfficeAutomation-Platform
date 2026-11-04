@@ -1191,58 +1191,58 @@
     },
     "ooa.microsoft365": {
       "test": "CommandSamplesTest (cli, 15-connectors.json), Microsoft365GapsTest, Microsoft365OptionsTest, ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.google": {
       "test": "CommandSamplesTest (cli, 15), GoogleGapsTest, GoogleOptionsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.jira": {
       "test": "CommandSamplesTest (cli, 15), ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.servicenow": {
       "test": "CommandSamplesTest (cli, 15), ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.salesforce": {
       "test": "CommandSamplesTest (cli, 15), ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.slack": {
       "test": "CommandSamplesTest (cli, 15), SlackOptionsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.workday": {
       "test": "EnterpriseGapsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
     },
     "ooa.asana": {
       "test": "CommandSamplesTest (cli, 15), AsanaPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.azure_devops": {
       "test": "CommandSamplesTest (cli, 15), AzureDevOpsPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.box": {
       "test": "BoxPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.docusign": {
       "test": "CommandSamplesTest (cli, 15), DocuSignPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.github": {
       "test": "CommandSamplesTest (cli, 15), GitHubPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.okta": {
       "test": "OktaPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.zendesk": {
       "test": "CommandSamplesTest (cli, 15), ZendeskPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
-      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+      "ideas": "Proposal: named connections (address and vault credential kept once in One CommandCenter, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
     },
     "ooa.connector": {
       "test": "ConnectorsTest, CustomConnectorTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
@@ -1407,7 +1407,7 @@
     "ooa.datetime/add": {
       "diff": "AA: units ms to years.",
       "fixed": "New unit business_days (skips weekends and an optional holiday list, shown only for that unit).",
-      "ideas": "Done. Proposal: named holiday calendars kept in Command Center."
+      "ideas": "Done. Proposal: named holiday calendars kept in One CommandCenter."
     },
     "ooa.datetime/subtract": {
       "fixed": "New unit business_days with holidays."

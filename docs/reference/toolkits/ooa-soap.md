@@ -72,4 +72,4 @@ Send a SOAP envelope (or just the body, which is wrapped for you) and return the
 | `body` | Any | The first element inside the SOAP Body, as a dictionary. |
 | `values` | List | Text of the nodes selected by xpath; empty without xpath. |
 
-*Time limit 120 s; needs: network.*
+*Time limit 120 s; needs: network, filesystem.*

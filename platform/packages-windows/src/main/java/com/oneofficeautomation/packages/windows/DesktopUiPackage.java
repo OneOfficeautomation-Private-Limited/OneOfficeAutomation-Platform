@@ -22,7 +22,7 @@ public final class DesktopUiPackage {
     public static final String SESSION = "ooa.desktop_ui.bridge";
     static final long CALL_TIMEOUT_MS = 30_000;
 
-    static final String D_OBJECT = "The captured object (from Pick object or Studio's desktop capture): window, properties with match and use, path and index.";
+    static final String D_OBJECT = "The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index.";
     static final String D_TIMEOUT = "How long to wait for the object to appear, in seconds.";
 
     static void windows() {
@@ -136,7 +136,13 @@ public final class DesktopUiPackage {
         UiGuard.before(ctx);
         try { resizeWindows(ctx, o); } catch (ActionException e) { ctx.warn("Could not resize the window: " + e.getMessage()); }
         List<SelfHealing.Candidate> chain = new ArrayList<>(o.chain());
-        if (o.anchor() != null) chain.add(new SelfHealing.Candidate("anchor", "anchor"));
+        if (o.anchor() != null) {
+            // the anchor the user set is tried before the weakest guess, "the only control of that type in the window",
+            // which would otherwise win in simple windows (one edit box) and could pick the wrong control in others
+            int at = chain.size();
+            for (int i = 0; i < chain.size(); i++) if (chain.get(i).strategy().equals("control_type")) { at = i; break; }
+            chain.add(at, new SelfHealing.Candidate("anchor", "anchor"));
+        }
         try {
             return SelfHealing.locate(chain, c -> resolve(ctx, o, c), (long) (Math.max(0, timeoutSeconds) * 1000), SelfHealing.SYSTEM, 400,
                     () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled);
@@ -588,6 +594,38 @@ public final class DesktopUiPackage {
             } catch (ActionException e) { ctx.warn("Could not work out the object's index: " + e.getMessage()); }
         }
         return obj;
+    }
+
+    @Action(id = "get_parent", name = "Get parent object", category = "Capture", idempotent = true, capabilities = "desktop",
+            description = "Find a captured control and return the control that contains it, one or more levels up or the nearest of a given type (for example the panel or table row around a label), as an object the other Desktop objects actions accept.",
+            panel = "object, (Go up: A number of levels = levels / To the nearest of a type = control_type) | timeout_seconds")
+    @Output(name = "parent", type = OoaType.DICTIONARY, description = "The containing control as a captured object: pass it to Desktop object action, Get desktop table and the others.")
+    @Output(name = "name", type = OoaType.STRING, description = "Its Name.")
+    @Output(name = "control_type", type = OoaType.STRING, description = "Its type, e.g. Pane, Group, DataItem.")
+    @Output(name = "automation_id", type = OoaType.STRING, description = "Its AutomationId; empty when it has none.")
+    @Output(name = "levels_up", type = OoaType.NUMBER, description = "How many levels above the control it is.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getParent(ActionContext ctx,
+            @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
+            @Input(name = "levels", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 50, description = "How many levels to go up: 1 is the direct container.") int levels,
+            @Input(name = "control_type", type = OoaType.STRING, required = false, example = "Pane",
+                    description = "Go up to the nearest container of this type instead, e.g. Pane, Group, DataItem, Table, List, Window.") String controlType,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = D_TIMEOUT) double timeout) {
+        if (levels < 1 || levels > 50) throw new ActionException("DESKTOP_UI.BAD_OPTION", "levels must be 1 to 50", "Go up 1 to 50 levels.");
+        SelfHealing.Found<Element> f = locate(ctx, DesktopObject.parse(object), timeout);
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("ref", f.element().ref());
+        args.put("levels", BigDecimal.valueOf(levels));
+        if (controlType != null && !controlType.isBlank()) args.put("control_type", controlType.strip());
+        Map<String, Object> raw = (Map<String, Object>) call(ctx, "parent", args);   // DESKTOP_UI.NO_PARENT when there is none
+        Map<String, Object> el = raw.get("element") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("parent", captured(ctx, raw));
+        out.put("name", String.valueOf(el.getOrDefault("Name", "")));
+        out.put("control_type", String.valueOf(el.getOrDefault("ControlType", "")));
+        out.put("automation_id", String.valueOf(el.getOrDefault("AutomationId", "")));
+        out.put("levels_up", raw.get("levels_up") instanceof Number n ? BigDecimal.valueOf(n.longValue()) : BigDecimal.ONE);
+        return out;
     }
 
     @Condition(id = "object_exists", name = "Desktop object exists", description = "True when the captured control can be found now in a Windows application (self-healing applies).")

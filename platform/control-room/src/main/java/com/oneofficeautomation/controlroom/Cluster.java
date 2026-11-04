@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.*;
 
 /**
- * Several Command Center nodes on one database (I5). Every node serves the console, API and runners; one node, the
+ * Several One CommandCenter nodes on one database (I5). Every node serves the console, API and runners; one node, the
  * leader, runs the background work that must happen once (schedules, triggers, work-queue dispatch, workflows,
  * housekeeping, backups, audit checkpoints). The leader holds a lease row in the database and renews it every
  * {@link #RENEW_SECONDS}; when it stops renewing, another node takes over after {@link #LEASE_SECONDS}. Sign-ins in

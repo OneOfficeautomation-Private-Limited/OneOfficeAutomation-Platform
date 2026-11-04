@@ -1,12 +1,12 @@
-# 04 Command Center internals
+# 04 One CommandCenter internals
 
 ## What this covers / who it is for
 
-This document opens up One Command Center (module `control-room`): how the server is started, how a request is
+This document opens up One CommandCenter (module `control-room`): how the server is started, how a request is
 handled, which API families exist (REST for people and programs, the runner API with long polling, webhooks, API
 tasks, MCP), the background clock (schedules, triggers, work queues, workflows, housekeeping), how runs are dispatched
 to runners and pools, serverless runs, the leader lease for several nodes, and how runner updates are distributed. It
-is for developers changing the Command Center and for architects sizing or clustering it.
+is for developers changing One CommandCenter and for architects sizing or clustering it.
 
 ## Contents
 
@@ -20,7 +20,7 @@ is for developers changing the Command Center and for architects sizing or clust
 8. [Schedules and triggers](#8-schedules-and-triggers)
 9. [Work queues](#9-work-queues)
 10. [Workflows and human tasks](#10-workflows-and-human-tasks)
-11. [API tasks and serverless runs](#11-api-tasks-and-serverless-runs)
+11. [Agent APIs and serverless runs](#11-api-tasks-and-serverless-runs)
 12. [Several nodes and the leader lease](#12-several-nodes-and-the-leader-lease)
 13. [Runner updates](#13-runner-updates)
 14. [Repository services](#14-repository-services)
@@ -37,7 +37,7 @@ is for developers changing the Command Center and for architects sizing or clust
 | `Platform` | Settings (`DEFAULTS`), custom roles, API keys, runner pools, work queues and item models, model connections, holiday calendars, toolkit switches, AI governance, retention purges, outbound proxy |
 | `ControlRoomServer` | HTTP server, static files, routing of `/api/*`, cookies, security headers, background clock |
 | `Db`, `DbConfig`, `SqlServerDialect` | Database pool, transactions, migrations, dialect translation (see [05-data-model.md](05-data-model.md)) |
-| `Workflows` | One Workflow engine and the task inbox |
+| `Workflows` | Workflow engine and the task inbox |
 | `TriggerKinds`, `TriggerPollers`, `ImapMailSource`, `GraphMailSource`, `PollHttp`, `JsonPath` | Trigger definitions and server-side polling |
 | `ApiTasks`, `ServerlessRuns` | Agents behind their own URL; agents run inside the server |
 | `McpServer` | Model Context Protocol endpoint |
@@ -166,7 +166,7 @@ trigger, a work queue (`queue:<id>`), a workflow (`workflow:<id>`), an API task,
 5. Wakes runners waiting in a long poll (`wake`).
 
 Claiming (`claimNext`) is atomic: the runner's oldest highest-priority `queued` run is switched to `running` with
-`UPDATE ... WHERE status = 'queued'`, so two requests never get the same run. Before handing it out the Command Center:
+`UPDATE ... WHERE status = 'queued'`, so two requests never get the same run. Before handing it out One CommandCenter:
 
 - refuses work to a runner newer than itself (`ControlRoom.VERSION`; runners may be older, never newer). Both
   `ControlRoom.VERSION` and `Agent.VERSION` come from the build: `sdk` generates `BuildInfo` from the `version` in the
@@ -191,8 +191,8 @@ runner to send a heartbeat at once, which carries the instruction back.
 
 ```mermaid
 sequenceDiagram
-    participant R as One Runner
-    participant C as Command Center
+    participant R as OneRunner
+    participant C as One CommandCenter
     participant W as RunWorker
     R->>C: POST agent/register {key, name, hostname, os, agent_version}
     C-->>R: device id + secret (stored as SHA-256 only)
@@ -212,8 +212,8 @@ sequenceDiagram
     R->>C: POST agent/runs/{id}/finish {result}
 ```
 
-- The runner waits up to 25 seconds per poll (`Agent.waitSeconds`). The Command Center's `nextJob` re-checks every
-  2 seconds while waiting, for work queued on another node or without a wake-up. An older Command Center that answers
+- The runner waits up to 25 seconds per poll (`Agent.waitSeconds`). One CommandCenter's `nextJob` re-checks every
+  2 seconds while waiting, for work queued on another node or without a wake-up. An older One CommandCenter that answers
   at once makes the runner fall back to polling every 2 seconds.
 - A runner takes **one job at a time** and runs it in its own JVM (`RunWorker`), with stderr appended to a log file in
   the runner's workspace.
@@ -225,7 +225,7 @@ sequenceDiagram
 
 ## 7. The background clock
 
-`ControlRoomServer.startBackground()` creates one scheduled thread per Command Center (per tenant in SaaS):
+`ControlRoomServer.startBackground()` creates one scheduled thread per One CommandCenter (per tenant in SaaS):
 
 | Every | Work | Leader only |
 | --- | --- | --- |
@@ -253,7 +253,7 @@ checkpoints, scheduled backups (`backup_hours`, `backup_keep_days`) and licence 
 | Where evaluated | Kinds |
 | --- | --- |
 | Runner (`LocalTriggers`) | `file`, `file_changed`, `file_deleted`, `folder_created`, `folder_deleted`, `window_opened`, `window_closed`, `process_started`, `process_stopped`, `service_started`, `service_stopped`, `hotkey` |
-| Command Center (`TriggerPollers`) | `email` (IMAP), `outlook` (Microsoft 365 via Graph), `servicenow`, `http_poll` (universal HTTP poller with JSON path selection) |
+| One CommandCenter (`TriggerPollers`) | `email` (IMAP), `outlook` (Microsoft 365 via Graph), `servicenow`, `http_poll` (universal HTTP poller with JSON path selection) |
 | Webhook | `webhook` (`POST /api/hooks/{id}`) |
 
 Server-side triggers poll at `interval_seconds` (default 60, minimum 15). The cursor is kept in `triggers.last_hash`
@@ -293,9 +293,9 @@ Stage results are stored under the stage id and merged into the data, so later s
 `$stage_id.name`. People claim and complete tasks in the **Task inbox** (`tasks` routes); answers are checked against
 the form. Completing a task or finishing a run calls `resume`, and `tick()` moves waiting runs on.
 
-## 11. API tasks and serverless runs
+## 11. Agent APIs and serverless runs
 
-**API tasks** (`ApiTasks`, table `api_tasks`) put an agent behind its own address:
+**Agent APIs** (`ApiTasks`, table `api_tasks`) put an agent behind its own address:
 
 - `POST /api/apitasks/{id}/run` with `X-OOA-Task-Token` and `{inputs}` runs the live version on the task's runner or
   the least busy runner of its pool, as the person who created the task.
@@ -305,8 +305,8 @@ the form. Completing a task or finishing a run calls `resume`, and `tick()` move
 - The token is shown once, stored as a SHA-256 hash, compared in constant time, can be replaced, and works only for its
   own task. A wrong token and an unknown task give the same answer.
 
-**Serverless runs** (`ServerlessRuns`) run API-task agents inside the Command Center with no runner, on a virtual
-runner `dev_serverless` named "Command Center (serverless)" whose secret nobody knows. They are queued, logged,
+**Serverless runs** (`ServerlessRuns`) run API-task agents inside One CommandCenter with no runner, on a virtual
+runner `dev_serverless` named "One CommandCenter (serverless)" whose secret nobody knows. They are queued, logged,
 audited and licensed like other runs. Limits: only data, web-service and document toolkits (`ServerlessRuns.TOOLKITS`:
 no desktop, browser, programs, scripts or databases), file paths confined to the run's temporary workspace, 4 runs at
 once, 5 minutes per run. In SaaS they are off unless the region sets `serverless=true` (see
@@ -314,7 +314,7 @@ once, 5 minutes per run. In SaaS they are off unless the region sets `serverless
 
 ## 12. Several nodes and the leader lease
 
-Several Command Centers can share one SQL Server or PostgreSQL database behind a load balancer; no sticky sessions are
+Several One CommandCenter installations can share one SQL Server or PostgreSQL database behind a load balancer; no sticky sessions are
 needed.
 
 - Every node serves the console, the API and runners.
@@ -330,7 +330,7 @@ needed.
 
 ## 13. Runner updates
 
-`RunnerUpdates` offers the program files of the Command Center's own installation (`lib`, without the vendor tools)
+`RunnerUpdates` offers the program files of One CommandCenter's own installation (`lib`, without the vendor tools)
 with their SHA-256 hashes; a build id names the set (`GET agent/update/manifest`). Each runner reports its build id in
 the heartbeat. When they differ and either `runner_auto_update` is on or an administrator asked for that runner
 (`POST /api/devices/update`, column `devices.update_requested`), an idle runner is told to update. The runner's
@@ -347,7 +347,7 @@ not updated this way, and a build from source never offers updates.
 | Labels | `bot_labels` | Named pointers to versions, usable as `version` in child agent steps |
 | Code analysis | `CodeAnalysis` | Policy rules with severity; runs at check-in; can refuse check-in on errors (`CR.POLICY_VIOLATION`) |
 | Repository files | `RepoFiles` | Non-agent files stored once per content in `repo-files/<sha256>` |
-| Lifecycle | `Lifecycle` | Export/import bundles with checksums, all or nothing; promote to another Command Center with an API key from the vault |
+| Lifecycle | `Lifecycle` | Export/import bundles with checksums, all or nothing; promote to another One CommandCenter with an API key from the vault |
 | Git mirror | `GitSync` | One-way mirror to a Git remote |
 | Templates | `Templates` | Signed vendor catalogue and, in SaaS, the region's shared templates |
 | Test sets | `TestSets` | Cases with expectations; one run per case; scored |

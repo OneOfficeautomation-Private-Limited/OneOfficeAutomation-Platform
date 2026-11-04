@@ -1,5 +1,5 @@
 """Structured run events (architecture s6 'Stream'). The Agent forwards these to
-the Control Center: live Runs view, logs search and Insights."""
+One CommandCenter: live Runs view, logs search and Insights."""
 from __future__ import annotations
 
 import json

@@ -3,7 +3,7 @@
 ## What this covers / audience
 
 How releases are published and how often, how to verify a download with its signed manifest and software bill of
-materials, the order in which to upgrade the Command Center, the database and the runners, how runners update
+materials, the order in which to upgrade One CommandCenter, the database and the runners, how runners update
 themselves, sandbox previews, and operating system and Java patching. For release managers, change managers and
 administrators.
 
@@ -16,7 +16,7 @@ administrators.
 5. The software bill of materials
 6. Sandbox previews
 7. Upgrade order
-8. Upgrading the Command Center
+8. Upgrading One CommandCenter
 9. Runner self-update
 10. Updating runners by package
 11. Version compatibility
@@ -30,9 +30,9 @@ administrators.
 | --- | --- | --- |
 | Feature release `x.y.0` | Each quarter | New functions |
 | Fix release `x.y.z` | When needed | Only the fixes |
-| Sandbox preview `v<version>-preview` | Three weeks before a feature release | The same version, for testing on a sandbox Command Center |
+| Sandbox preview `v<version>-preview` | Three weeks before a feature release | The same version, for testing on a sandbox One CommandCenter |
 
-Upgrades need a short downtime of the Command Center (no rolling upgrades).
+Upgrades need a short downtime of One CommandCenter (no rolling upgrades).
 
 ## 2. Where releases are published
 
@@ -95,7 +95,7 @@ check its version with `runtime\bin\java -version`.
 
 ## 6. Sandbox previews
 
-1. Install the preview on a **sandbox** Command Center: a separate install with its own database and runners, never
+1. Install the preview on a **sandbox** One CommandCenter: a separate install with its own database and runners, never
    production.
 2. Export your agents from production (Export / promote, with the agents they call) and import them into the
    sandbox.
@@ -108,17 +108,17 @@ check its version with `runtime\bin\java -version`.
 | Step | Why |
 | --- | --- |
 | 1. Back up (`ooa backup now` and a database backup) | Rollback point |
-| 2. Stop every Command Center node | No mixed versions on one database |
+| 2. Stop every One CommandCenter node | No mixed versions on one database |
 | 3. Install the new version over the old one | The data folder is kept |
 | 4. Upgrade the schema (`ooa db migrate`, or at start when the account may change tables) | Data-only runtime accounts cannot |
 | 5. Start one node, check, then start the rest | |
-| 6. Update the runners | A runner newer than the Command Center gets no work, so the Command Center always goes first |
+| 6. Update the runners | A runner newer than One CommandCenter gets no work, so One CommandCenter always goes first |
 | 7. Update Studio computers and browser connector installs | Same package |
 
 Queued runs wait during the downtime and then continue. In multi-region service, upgrade one region at a time, a
 week apart, smallest first ([09](09-saas-and-multi-region-operations.md)).
 
-## 8. Upgrading the Command Center
+## 8. Upgrading One CommandCenter
 
 | Install type | Command |
 | --- | --- |
@@ -132,10 +132,10 @@ test run.
 
 ## 9. Runner self-update
 
-The Command Center offers its own program files (`lib`, without the vendor's licence tools) to runners:
+One CommandCenter offers its own program files (`lib`, without the vendor's licence tools) to runners:
 
 - Each runner reports the build id of its program files with every heartbeat. The Runners list shows whether each
-  runner matches the Command Center.
+  runner matches One CommandCenter.
 - When they differ and either **Update** was clicked for that runner or `runner_auto_update` is 1 (Settings >
   Update runners automatically), an **idle** runner is told to update.
 - The runner fetches the file list, reuses files it already has, downloads the rest, checks every SHA-256, and stages
@@ -162,10 +162,10 @@ through your software distribution tool. The registration in `%USERPROFILE%\.ooa
 
 | Combination | Result |
 | --- | --- |
-| Runner same as Command Center | Supported |
-| Runner older than Command Center | Works; update it to get new toolkits (runs that need a missing toolkit fail with `RUN.TOOLKIT_MISSING`) |
-| Runner newer than Command Center | Gets no work; the Runners page says to update the Command Center |
-| Two Command Center versions on one database | Not supported; a node meeting a newer schema stops with `CR.DB_NEWER` |
+| Runner same as One CommandCenter | Supported |
+| Runner older than One CommandCenter | Works; update it to get new toolkits (runs that need a missing toolkit fail with `RUN.TOOLKIT_MISSING`) |
+| Runner newer than One CommandCenter | Gets no work; the Runners page says to update One CommandCenter |
+| Two One CommandCenter versions on one database | Not supported; a node meeting a newer schema stops with `CR.DB_NEWER` |
 | Backup from a newer release | Restore refuses it |
 
 ## 12. Rolling back
@@ -180,7 +180,7 @@ A schema upgrade cannot be undone in place. To roll back:
 
 ## 13. Patching the operating system and Java
 
-- Command Center: patch one node at a time behind the balancer ([06](06-high-availability-and-scaling.md)); a single
+- One CommandCenter: patch one node at a time behind the balancer ([06](06-high-availability-and-scaling.md)); a single
   server needs a short window. Services restart automatically after reboot.
 - Runners: patch outside run windows; a runner that reboots during a run causes `AGENT.LOST` after two minutes, and
   queue items retry according to their attempts. Screen runners need their user signed in again after a reboot
@@ -250,7 +250,7 @@ ooa release templates --dir <repository>\templates --key private.key --out DIR\t
 `release page` reads the repository's GitHub releases and writes `index.html` and `releases.json`. It checks each
 release's signed manifest with the key built into the product and shows sizes and checksums only from a manifest that
 checks out; drafts are left out. `release templates` signs the template catalogue from the `templates` folder (one
-folder per template with `template.json` and its agents); Command Centers read it as the ONEOFFICEAUTOMATION template
+folder per template with `template.json` and its agents); One CommandCenter installations read it as the ONEOFFICEAUTOMATION template
 catalogue ([functional/08](../functional/08-repository-versions-and-templates.md)). The script then
 puts `docs/index.html`, `docs/releases.json` and `docs/templates.json` on the `main` branch of `OneOfficeAutomation-Customer-Build`,
 which GitHub Pages serves at `https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/`.

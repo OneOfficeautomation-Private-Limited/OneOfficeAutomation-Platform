@@ -49,18 +49,18 @@ public final class ControlRoomServer {
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
 
-    /** A tenant's Command Center inside a SaaS region: no port of its own; the region's server hands it requests (TenantHost). */
+    /** A tenant's One CommandCenter inside a SaaS region: no port of its own; the region's server hands it requests (TenantHost). */
     static ControlRoomServer forTenant(ControlRoom cr) { return new ControlRoomServer(cr, null, 0); }
 
-    /** True when the browser reached the Command Center over HTTPS: served here directly, or through a TLS proxy that says so. */
+    /** True when the browser reached One CommandCenter over HTTPS: served here directly, or through a TLS proxy that says so. */
     private static boolean overHttps(HttpExchange ex) { return ex instanceof HttpsExchange || "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
 
-    /** The Secure cookie flag whenever the Command Center is used over HTTPS, so the session cookie never travels in clear text. */
+    /** The Secure cookie flag whenever One CommandCenter is used over HTTPS, so the session cookie never travels in clear text. */
     private String secureFlag(HttpExchange ex) {
         return overHttps(ex) || String.valueOf(cr.platform.setting("public_url")).toLowerCase(Locale.ROOT).startsWith("https://") ? "; Secure" : "";
     }
 
-    /** The address people use to reach the Command Center (Settings: public_url), for single sign-on redirects. */
+    /** The address people use to reach One CommandCenter (Settings: public_url), for single sign-on redirects. */
     private String origin(HttpExchange ex) {
         String pub = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
         if (!pub.isEmpty()) return pub;
@@ -76,6 +76,15 @@ public final class ControlRoomServer {
     }
 
     private static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
+
+    /**
+     * After a single sign-on: a same-site page that moves on, so the browser sends the new SameSite=Strict cookie, to
+     * the page the sign-in started from (the new console comes back to /next/), never another site (safeReturn).
+     */
+    private static String continuePage(Map<String, Object> r) {
+        String to = esc(ControlRoom.safeReturn(r.get("return") instanceof String s ? s : "/"));
+        return "<meta http-equiv=\"refresh\" content=\"0;url=" + to + "\"></head><body><p>Signed in. <a href=\"" + to + "\">Continue to One CommandCenter</a></p></body></html>";
+    }
 
     /** Serves another application under a path prefix on the same port (used by `ooa server` for Studio at /studio). Call before start(). */
     public ControlRoomServer mount(String prefix, HttpHandler handler) { mounts.put(prefix, handler); return this; }
@@ -112,7 +121,7 @@ public final class ControlRoomServer {
             }
         }
         catch (java.net.BindException e) {
-            throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Command Center may still be running", "Stop it, or start with --port " + (port + 1) + ".");
+            throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another One CommandCenter may still be running", "Stop it, or start with --port " + (port + 1) + ".");
         }
         // one virtual thread per request: runners waiting for work (long polls) cost almost nothing while they wait
         server.setExecutor(Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("ooa-cr-http-", 0).factory()));
@@ -158,6 +167,12 @@ public final class ControlRoomServer {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
+            else if (path.equals("/scim/v2") || path.startsWith("/scim/v2/")) scim(ex, path.substring(Math.min(path.length(), 9)));
+            else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
+            // The new console is the default (31 Oct 2026): the bare address opens it. The classic console stays at
+            // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
+            else if (path.equals("/") && ex.getRequestURI().getRawQuery() == null) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
+            else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
             else if (path.equals("/documents") || path.startsWith("/documents/")) documentsPage(ex, path);
             else serveStatic(ex, path);
         } catch (OoaException e) {
@@ -181,9 +196,44 @@ public final class ControlRoomServer {
         } catch (RuntimeException | Error e) {
             // Any failure still gets an answer, so a client never sees a dropped connection.
             e.printStackTrace();
-            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see the Command Center console log"))); }
+            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
+    }
+
+    /**
+     * SCIM 2.0 at /scim/v2 (Scim.java): a token from Settings as the bearer, the IP allow list as for the API, answers as
+     * application/scim+json, errors in SCIM's own shape.
+     */
+    private void scim(HttpExchange ex, String path) throws IOException {
+        String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
+        IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
+        try {
+            if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new Scim.Problem(403, null, "This address may not use One CommandCenter");
+            String auth = ex.getRequestHeaders().getFirst("Authorization");
+            String tokenId = cr.scim.tokenId(auth != null && auth.startsWith("Bearer ") ? auth.substring(7).trim() : null);
+            if (tokenId == null) {
+                ex.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"SCIM\"");
+                throw new Scim.Problem(401, null, "A SCIM token from One CommandCenter's Settings is needed");
+            }
+            String m = ex.getRequestMethod();
+            Object b = m.equals("POST") || m.equals("PUT") || m.equals("PATCH") ? body(ex) : null;
+            String base = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
+            if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
+            Scim.Answer a = cr.scim.handle(m, path, query(ex), b, base + "/scim/v2");
+            scimReply(ex, a.status(), a.body());
+        } catch (Scim.Problem p) {
+            scimReply(ex, p.status, p.body());
+        } catch (OoaException e) {
+            scimReply(ex, e.code().equals("CR.TOO_LARGE") ? 413 : 400, new Scim.Problem(400, "invalidValue", e.getMessage()).body());
+        }
+    }
+
+    private static void scimReply(HttpExchange ex, int status, Object body) throws IOException {
+        securityHeaders(ex);
+        if (body == null) { writeBody(ex, status, new byte[0]); return; }
+        ex.getResponseHeaders().set("Content-Type", "application/scim+json; charset=utf-8");
+        writeBody(ex, status, JsonLite.write(body).getBytes(StandardCharsets.UTF_8));
     }
 
     static Map<String, String> query(HttpExchange ex) {
@@ -244,7 +294,7 @@ public final class ControlRoomServer {
     }
 
     /**
-     * OAuth protected resource metadata (RFC 9728) for MCP clients: this Command Center's MCP address and the identity
+     * OAuth protected resource metadata (RFC 9728) for MCP clients: this One CommandCenter's MCP address and the identity
      * provider that issues tokens for it. Empty of authorization servers until MCP over OAuth is set up.
      */
     private void protectedResource(HttpExchange ex) throws IOException {
@@ -257,7 +307,7 @@ public final class ControlRoomServer {
         m.put("bearer_methods_supported", List.of("header"));
         String scope = String.valueOf(cr.platform.setting("mcp_oauth_scope")).trim();
         if (!scope.isEmpty()) m.put("scopes_supported", List.of(scope));
-        m.put("resource_name", "ONEOFFICEAUTOMATION Command Center (MCP)");
+        m.put("resource_name", "ONEOFFICEAUTOMATION One CommandCenter (MCP)");
         sendJson(ex, 200, m);
     }
 
@@ -278,7 +328,7 @@ public final class ControlRoomServer {
 
     private Map<String, Object> device(HttpExchange ex) {
         Map<String, Object> d = cr.device(ex.getRequestHeaders().getFirst("X-OOA-Device"), ex.getRequestHeaders().getFirst("X-OOA-Device-Secret"));
-        if (d == null) throw new OoaException("CR.UNAUTHENTICATED", "Unknown or disabled runner", "Re-register the One Runner with a new registration key.");
+        if (d == null) throw new OoaException("CR.UNAUTHENTICATED", "Unknown or disabled runner", "Re-register the OneRunner with a new registration key.");
         return d;
     }
 
@@ -295,7 +345,7 @@ public final class ControlRoomServer {
         if (!route.startsWith("health") && !fromHere) {
             IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
             if (!allow.isEmpty() && !allow.allows(ip)) {
-                sendJson(ex, 403, Map.of("error", Map.of("code", "CR.IP_BLOCKED", "message", "This address may not use the Command Center", "retryable", false)));
+                sendJson(ex, 403, Map.of("error", Map.of("code", "CR.IP_BLOCKED", "message", "This address may not use One CommandCenter", "retryable", false)));
                 return;
             }
         }
@@ -314,6 +364,9 @@ public final class ControlRoomServer {
         // ---------- public ----------
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
+            // with the sign-in notice set to be accepted, a sign-in without the tick is refused
+            if (cr.platform.intSetting("signin_notice_accept") == 1 && !String.valueOf(cr.platform.setting("signin_notice")).isBlank() && !Boolean.TRUE.equals(b.get("accepted")))
+                throw new OoaException("CR.NOTICE_NOT_ACCEPTED", "Accept the notice on the sign-in page to sign in");
             Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), (String) b.get("code"), ip);
             if (r.get("token") == null) { sendJson(ex, 200, r); return; }   // two-step sign-in: the code comes next (auth/mfa)
             ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
@@ -346,7 +399,18 @@ public final class ControlRoomServer {
             else notFound(ex);
             return;
         }
-        if (m.equals("GET") && route.equals("auth/sso")) { Map<String, Object> info = new LinkedHashMap<>(sso.info()); info.put("saml", cr.saml.info()); sendJson(ex, 200, info); return; }
+        if (m.equals("GET") && route.equals("auth/sso")) {
+            Map<String, Object> info = new LinkedHashMap<>(sso.info());
+            info.put("saml", cr.saml.info());
+            // the sign-in notice (Settings), shown before anyone signs in
+            String notice = String.valueOf(cr.platform.setting("signin_notice"));
+            if (!notice.isBlank()) info.put("notice", Map.of("text", notice, "accept", cr.platform.intSetting("signin_notice_accept") == 1));
+            if (cr.directory.enabled()) info.put("directory", true);   // the sign-in form takes directory (AD) accounts too
+            Map<String, Object> env = cr.platform.environment();   // which One CommandCenter this is (Settings)
+            if (env != null) info.put("environment", env);
+            sendJson(ex, 200, info);
+            return;
+        }
         if (m.equals("GET") && route.equals("auth/saml/metadata")) {
             byte[] b = cr.saml.metadata(origin(ex)).getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().set("Content-Type", "application/samlmetadata+xml; charset=utf-8");
@@ -354,7 +418,7 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/saml/start")) {
-            ex.getResponseHeaders().set("Location", cr.saml.start(origin(ex)));
+            ex.getResponseHeaders().set("Location", cr.saml.start(origin(ex), q.get("return")));
             ex.sendResponseHeaders(302, -1); ex.close();
             return;
         }
@@ -368,7 +432,7 @@ public final class ControlRoomServer {
             try {
                 Map<String, Object> r = cr.saml.acs(form.get("SAMLResponse"), origin(ex), ip);
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
-                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+                html(ex, 200, continuePage(r));
             } catch (OoaException e) {
                 html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
                         + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");
@@ -376,7 +440,7 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/sso/start")) {
-            ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback"));
+            ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback", q.get("return")));
             ex.getResponseHeaders().set("Cache-Control", "no-store");
             ex.sendResponseHeaders(302, -1);
             return;
@@ -387,7 +451,7 @@ public final class ControlRoomServer {
                 Map<String, Object> r = sso.callback(q.get("code"), q.get("state"), origin(ex) + "/api/auth/sso/callback", ip);
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
                 // A same-site page moves on to the console, so the browser sends the new SameSite=Strict cookie.
-                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+                html(ex, 200, continuePage(r));
             } catch (OoaException e) {
                 html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
                         + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");
@@ -415,6 +479,9 @@ public final class ControlRoomServer {
 
         // ---------- agents ----------
         if (seg[0].equals("agent")) {
+            // Settings: runners connect only over HTTPS; a runner on this computer always may
+            if (cr.platform.intSetting("runner_require_https") == 1 && !overHttps(ex) && !ex.getRemoteAddress().getAddress().isLoopbackAddress())
+                throw new OoaException("CR.HTTPS_REQUIRED", "Runners connect to One CommandCenter only over HTTPS", "Point the runner at the https:// address of One CommandCenter.");
             if (m.equals("POST") && route.equals("agent/register")) {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, cr.registerDevice((String) b.get("key"), (String) b.get("name"), (String) b.get("hostname"), (String) b.get("os"), (String) b.get("agent_version"), ip));
@@ -441,6 +508,7 @@ public final class ControlRoomServer {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
+            else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
@@ -487,6 +555,8 @@ public final class ControlRoomServer {
         switch (seg[0]) {
             case "docflow" -> docflow.forward(ex, u, m, route.startsWith("docflow/") ? route.substring(8) : "");   // Document Automation (DocFlowProxy)
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
+            // pages optional modules add (Document Automation): what is installed, for the menu's plug-in pages
+            case "plugins" -> sendJson(ex, 200, Map.of("plugins", ConsolePlugin.installed()));
             case "changes" -> sendJson(ex, 200, cr.changes(u, q.get("since"), ControlRoom.intOr(q.get("wait"), 0)));
             case "license" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));
@@ -500,13 +570,41 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "policies" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("policies", cr.policies.list(u)));
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.policies.get(u, seg[1]));
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("stopped")) sendJson(ex, 200, cr.policies.stopped(u, seg[1], q));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.policies.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.policies.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.policies.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
             case "dashboards" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("dashboards", cr.dashboards.list(u)));
                 else if (m.equals("GET") && route.equals("dashboards/kpis")) sendJson(ex, 200, Map.of("kpis", cr.dashboards.kpis(u)));
+                // e-mailed on a schedule: dashboards/{id}/mail lists and adds; dashboards/mail/{schedule} stops; .../send sends now
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("mail")) sendJson(ex, 200, Map.of("schedules", cr.dashboards.mailList(u, seg[1])));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("mail")) sendJson(ex, 200, cr.dashboards.mailSave(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 3 && seg[1].equals("mail")) { cr.dashboards.mailDelete(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 4 && seg[1].equals("mail") && seg[3].equals("send")) sendJson(ex, 200, cr.dashboards.mailNow(u, seg[2], ip));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.dashboards.save(u, null, map(body(ex)), ip));
                 else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.dashboards.save(u, seg[1], map(body(ex)), ip));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.dashboards.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("data")) sendJson(ex, 200, cr.dashboards.data(u, seg[1], q.get("tz")));
+                else notFound(ex);
+            }
+            case "alerts" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.alerts.list(u, q));
+                else if (m.equals("POST") && route.equals("alerts/acknowledge")) sendJson(ex, 200, cr.alerts.acknowledge(u, (List<?>) map(body(ex)).getOrDefault("ids", List.of()), ip));
+                else notFound(ex);
+            }
+            case "alert-rules" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("rules", cr.alerts.rules(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.alerts.saveRule(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.alerts.saveRule(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("PATCH") && seg.length == 2) { cr.alerts.setEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.alerts.deleteRule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, cr.alerts.test(u, seg[1], ip));
                 else notFound(ex);
             }
             case "test-sets" -> {
@@ -550,6 +648,11 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, cr.db.info());
             }
             case "settings" -> {
+                if (m.equals("GET") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, Map.of("tokens", cr.scim.tokens(u))); return; }
+                if (m.equals("POST") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, cr.scim.makeToken(u, (String) map(body(ex)).get("name"), ip)); return; }
+                if (m.equals("DELETE") && route.startsWith("settings/scim-tokens/") && seg.length == 3) { cr.scim.revokeToken(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); return; }
+                if (m.equals("POST") && route.equals("settings/ldap-test")) { cr.require(u, "settings.manage", "test the directory"); sendJson(ex, 200, cr.directory.test((String) map(body(ex)).get("username"))); return; }
+                if (m.equals("POST") && route.equals("settings/siem-test")) { cr.require(u, "settings.manage", "test the SIEM connection"); sendJson(ex, 200, cr.syslog.testHttps(u.username())); return; }
                 if (m.equals("POST") && route.equals("settings/syslog-test")) { cr.require(u, "settings.manage", "test the syslog connection"); sendJson(ex, 200, cr.syslog.test(u.username())); }
                 else if (m.equals("POST") && route.equals("settings/mail-test")) sendJson(ex, 200, cr.mailer.test(u, (String) map(body(ex)).get("to"), ip));
                 else if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
@@ -572,8 +675,8 @@ public final class ControlRoomServer {
             case "pools" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("pools", cr.platform.pools(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.platform.pools(u).stream().filter(p0 -> seg[1].equals(p0.get("id"))).findFirst().orElseThrow(() -> ControlRoom.notFound("Runner pool")));
-                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), ip)); }
-                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), ip)); }
+                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
@@ -609,6 +712,17 @@ public final class ControlRoomServer {
             case "analytics" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.analytics.overview(u, q));
                 else if (m.equals("GET") && route.equals("analytics/agent")) sendJson(ex, 200, cr.analytics.agent(u, q.get("path"), q));
+                else if (m.equals("GET") && route.equals("analytics/capacity")) sendJson(ex, 200, cr.analytics.capacity(u, q));
+                else if (m.equals("GET") && route.equals("analytics/audit")) sendJson(ex, 200, cr.analytics.audit(u, q));
+                else if (m.equals("GET") && route.equals("analytics/business-agents")) sendJson(ex, 200, cr.analytics.businessAgents(u, q));
+                // the analytics data API: pages of rows ({items, next}) for Power BI, Tableau or a data warehouse
+                else if (m.equals("GET") && route.equals("analytics/data/runs")) sendJson(ex, 200, cr.analytics.dataRuns(u, q));
+                else if (m.equals("GET") && route.equals("analytics/data/kpis")) sendJson(ex, 200, cr.analytics.dataKpis(u, q));
+                else if (m.equals("GET") && route.equals("analytics/data/audit")) sendJson(ex, 200, cr.analytics.dataAudit(u, q));
+                else if (m.equals("POST") && route.equals("analytics/goal")) sendJson(ex, 200, cr.platform.setSavingsGoal(u, map(body(ex)), ip));
+                else if (m.equals("POST") && route.equals("analytics/queue-savings")) { Map<String, Object> b = map(body(ex)); cr.platform.setQueueSavings(u, String.valueOf(b.get("queue_id")), b, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && route.equals("analytics/queues")) sendJson(ex, 200, cr.analytics.queues(u, q));
+                else if (m.equals("GET") && route.equals("analytics/value")) sendJson(ex, 200, cr.analytics.value(u, q));
                 else if (m.equals("GET") && route.equals("analytics/variables")) sendJson(ex, 200, cr.analytics.variables(u, q.get("path"), q));
                 else if (m.equals("GET") && route.equals("analytics/export")) {
                     String report = q.getOrDefault("report", "");
@@ -643,6 +757,14 @@ public final class ControlRoomServer {
                     Map<String, Object> b = map(body(ex));
                     sendJson(ex, 200, cr.templates.share(u, (String) b.get("path"), (String) b.get("name"), (String) b.get("description"), (String) b.get("category"), ip));
                 } else if (m.equals("POST") && route.equals("templates/catalogue")) sendJson(ex, 200, cr.templates.upload(u, (String) map(body(ex)).get("text"), ip));
+                else if (m.equals("PUT") && route.equals("templates/folders")) {
+                    Map<String, Object> b = map(body(ex));
+                    List<String> fs = new ArrayList<>();
+                    if (b.get("folders") instanceof List<?> l) for (Object o : l) fs.add(String.valueOf(o));
+                    Map<String, String> placed = new LinkedHashMap<>();
+                    if (b.get("placed") instanceof Map<?, ?> pm) pm.forEach((k, v) -> placed.put(String.valueOf(k), String.valueOf(v)));
+                    sendJson(ex, 200, cr.templates.arrange(u, fs, placed, ip));
+                }
                 else notFound(ex);
             }
             case "queues" -> {
@@ -709,6 +831,7 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) { cr.updateUser(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-password")) sendJson(ex, 200, cr.resetPassword(u, seg[1], ip));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("unlock")) { cr.unlockUser(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-mfa")) { cr.mfa.reset(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("default-device")) { cr.setDefaultDevice(u, seg[1], (String) map(body(ex)).get("device_id"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
@@ -755,8 +878,8 @@ public final class ControlRoomServer {
                 else if (m.equals("PUT") && route.equals("repo/policy")) sendJson(ex, 200, cr.codeAnalysis.savePolicy(u, map(body(ex)), ip));
                 else if (m.equals("GET") && route.equals("repo/bot")) sendJson(ex, 200, cr.getBot(u, p, q.getOrDefault("version", "latest")));
                 else if (m.equals("GET") && route.equals("repo/versions")) sendJson(ex, 200, Map.of("versions", cr.versions(u, p)));
-                else if (m.equals("POST") && route.equals("repo/roi")) { Map<String, Object> b = map(body(ex)); cr.platform.setMinutesSaved(u, (String) b.get("path"), b.get("minutes_saved"), ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("POST") && route.equals("repo/checkout")) sendJson(ex, 200, cr.checkout(u, (String) map(body(ex)).get("path"), ip));
+                else if (m.equals("POST") && route.equals("repo/roi")) { Map<String, Object> b = map(body(ex)); if (b.containsKey("hourly_cost") || b.containsKey("estimated_runs_month")) cr.platform.setAgentSavings(u, b, ip); else cr.platform.setMinutesSaved(u, (String) b.get("path"), b.get("minutes_saved"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && route.equals("repo/checkout")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.checkout(u, (String) b.get("path"), b.get("version"), ip)); }
                 else if (m.equals("POST") && route.equals("repo/undo-checkout")) { cr.undoCheckout(u, (String) map(body(ex)).get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("repo/checkin")) {
                     Map<String, Object> b = map(body(ex));
@@ -782,7 +905,7 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
-            case "cluster" -> { cr.require(u, "settings.manage", "see the Command Center nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
+            case "cluster" -> { cr.require(u, "settings.manage", "see One CommandCenter nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
             case "backups" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.backups.backupNow(u, ip));
@@ -802,6 +925,9 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.deviceDetail(u, seg[1]));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteDevice(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PATCH") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.updateDevices(u, ControlRoom.csv(b.get("ids")), b, ip)); }
+                else if (m.equals("POST") && route.equals("devices/maintenance")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.runnerCare.setMaintenance(u, ControlRoom.csv(b.get("ids")), (String) b.get("mode"), ip)); }
+                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("logs") || seg[2].equals("screen"))) sendJson(ex, 200, cr.runnerCare.request(u, seg[1], seg[2], ip));
+                else if (m.equals("GET") && seg.length == 3 && (seg[2].equals("logs") || seg[2].equals("screen"))) sendJson(ex, 200, cr.runnerCare.file(u, seg[1], seg[2]));
                 else if (m.equals("POST") && route.equals("devices/update")) sendJson(ex, 200, cr.runnerUpdates.request(u, ControlRoom.csv(map(body(ex)).get("ids")), ip));
                 else if (m.equals("GET") && route.equals("devices/update")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); sendJson(ex, 200, mf == null ? Map.of("available", false) : Map.of("available", true, "build", mf.get("build"), "version", mf.get("version"), "auto", cr.platform.intSetting("runner_auto_update") == 1)); }
                 else if (m.equals("POST") && route.equals("devices/registration-key")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) b.getOrDefault("hours", 24)).intValue(), Boolean.TRUE.equals(b.get("temporary")), ip)); }
@@ -809,7 +935,8 @@ public final class ControlRoomServer {
                     Map<String, Object> b = map(body(ex));
                     if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);
                     if (b.containsKey("enabled")) cr.setDeviceEnabled(u, seg[1], Boolean.TRUE.equals(b.get("enabled")), ip);
-                    if (b.containsKey("log_level") || b.containsKey("device_type") || b.containsKey("after_run")) cr.updateDevices(u, List.of(seg[1]), b, ip);
+                    if (b.containsKey("nickname") || b.containsKey("description")) cr.runnerCare.describe(u, seg[1], (String) b.get("nickname"), (String) b.get("description"), ip);
+                    if (b.containsKey("log_level") || b.containsKey("device_type") || b.containsKey("after_run") || b.containsKey("cpu_max") || b.containsKey("mem_max")) cr.updateDevices(u, List.of(seg[1]), b, ip);
                     sendJson(ex, 200, Map.of("ok", true));
                 }
                 else notFound(ex);
@@ -871,7 +998,10 @@ public final class ControlRoomServer {
             }
             case "globals" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("globals", cr.globals(u)));
-                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); cr.setGlobal(u, seg[1], b.get("value"), b.get("changeable") instanceof Boolean c ? c : null, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); cr.setGlobal(u, seg[1], b.get("value"), b.get("changeable") instanceof Boolean c ? c : null,
+                        b.get("type") instanceof String t && !t.isBlank() ? t : null, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 4 && seg[2].equals("teams")) { cr.setTeamGlobal(u, seg[1], seg[3], map(body(ex)).get("value"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 4 && seg[2].equals("teams")) { cr.deleteTeamGlobal(u, seg[1], seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("mine")) { cr.setMyGlobal(u, seg[1], map(body(ex)).get("value"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 3 && seg[2].equals("mine")) { cr.deleteMyGlobal(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteGlobal(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
@@ -942,11 +1072,45 @@ public final class ControlRoomServer {
     }
 
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml",
-        "json", "application/json; charset=utf-8");
+        "json", "application/json; charset=utf-8", "ico", "image/x-icon");
+
+    /** Files of the rebuilt console (platform/ui's console.html and its assets, built into /studio-next/ with Studio's). */
+    private static final java.util.regex.Pattern NEXT_FILE = java.util.regex.Pattern.compile("^assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png)$");
+    private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
+
+    /**
+     * The rebuilt console, served beside today's at /next/ while it is built (docs/architecture/12-ui-redesign.md, C0).
+     * Its page gets a fresh style nonce each time: the dialogs' one style element carries it, every other inline style
+     * is still refused. A copy built without Node.js has no page and says how to build one.
+     */
+    private void nextConsole(HttpExchange ex, String file) throws IOException {
+        boolean page = file.isEmpty() || file.equals("index.html");
+        if (!page && !NEXT_FILE.matcher(file).matches()) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/" + (page ? "console.html" : file))) {
+            if (in == null) {
+                if (!page) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+                securityHeaders(ex);
+                ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+                writeBody(ex, 503, "The new console was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            byte[] b = in.readAllBytes();
+            securityHeaders(ex);
+            if (page) {
+                byte[] r = new byte[16];
+                NONCES.nextBytes(r);
+                String nonce = Base64.getEncoder().encodeToString(r);
+                b = new String(b, StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce
+                        + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+            }
+            ex.getResponseHeaders().set("Content-Type", page ? "text/html; charset=utf-8" : TYPES.getOrDefault(file.substring(file.lastIndexOf('.') + 1), "application/octet-stream"));
+            writeBody(ex, 200, b);
+        }
+    }
 
     /** Files of Document Automation's page (platform/ui's docflow.html, built with Studio into /studio-next/). */
     private static final java.util.regex.Pattern DOCS_FILE = java.util.regex.Pattern.compile("^(|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
-    private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
 
     /**
      * AI > Document Automation at /documents/. The page signs in like the console (it asks /api/auth/me) and reaches
@@ -985,7 +1149,7 @@ public final class ControlRoomServer {
         String name = path.equals("/") ? "index.html" : path.substring(1);
         if (!name.matches("^[A-Za-z0-9_.-]+$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
         // The shared design system (ooa-tokens.css, ooa-components.css) and the interface languages (ooa-i18n.js and its
-        // catalogs) live in /ooa-ui/; Agent Studio serves the same files.
+        // catalogs) live in /ooa-ui/; One AgentStudio serves the same files.
         String folder = name.startsWith("ooa-") && name.matches(".*\\.(css|js|json)$") ? "/ooa-ui/" : "/console/";
         try (InputStream in = ControlRoomServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }

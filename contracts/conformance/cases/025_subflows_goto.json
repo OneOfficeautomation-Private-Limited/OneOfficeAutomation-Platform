@@ -1,0 +1,52 @@
+{
+  "name": "025_subflows_goto",
+  "description": "Subflows share the automation's variables, Exit subflow returns to the caller, an error in a subflow reaches the caller's Catch; Go to jumps back to a label, forward past steps, and out of nested blocks to a label around them.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c19",
+    "name": "c19",
+    "variables": [
+      {"name": "n", "type": "Number", "direction": "output", "default": 0},
+      {"name": "trace", "type": "String", "direction": "output", "default": ""},
+      {"name": "caught", "type": "String", "direction": "output", "default": ""}
+    ],
+    "steps": [
+      {"id": "call1", "action": "core/run_subflow", "args": {"subflow": "Add"}},
+      {"id": "call2", "action": "core/run_subflow", "args": {"subflow": "Add"}},
+      {"id": "try", "action": "core/try",
+       "children": [{"id": "call3", "action": "core/run_subflow", "args": {"subflow": "Fail"}}],
+       "catch": [{"codes": ["BUSINESS.*"], "children": [{"id": "k", "action": "core/set", "args": {"variable": "caught", "value": "yes"}}]}]},
+      {"id": "top", "action": "core/label", "args": {"name": "again"}},
+      {"id": "inc", "action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}},
+      {"id": "back", "action": "core/if", "args": {"condition": "$n < 5"},
+       "children": [{"id": "g1", "action": "core/goto", "args": {"label": "again"}}]},
+      {"id": "g2", "action": "core/goto", "args": {"label": "skip"}},
+      {"id": "never", "action": "core/set", "args": {"variable": "trace", "value": "${trace}never;"}},
+      {"id": "lbl", "action": "core/label", "args": {"name": "skip"}},
+      {"id": "loop", "action": "core/loop", "args": {"iterator": "times", "count": 3},
+       "children": [
+         {"id": "t2", "action": "core/try",
+          "children": [{"id": "g3", "action": "core/goto", "args": {"label": "out"}}],
+          "finally": [{"id": "fin", "action": "core/set", "args": {"variable": "trace", "value": "${trace}finally;"}}]}
+       ]},
+      {"id": "never2", "action": "core/set", "args": {"variable": "trace", "value": "${trace}never;"}},
+      {"id": "out", "action": "core/label", "args": {"name": "out"}},
+      {"id": "end", "action": "core/set", "args": {"variable": "trace", "value": "${trace}end"}}
+    ],
+    "subflows": [
+      {"name": "Add", "steps": [
+        {"id": "a1", "action": "core/set", "args": {"variable": "trace", "value": "${trace}add;"}},
+        {"id": "a2", "action": "core/exit_subflow"},
+        {"id": "a3", "action": "core/set", "args": {"variable": "trace", "value": "${trace}never;"}}
+      ]},
+      {"name": "Fail", "steps": [
+        {"id": "f1", "action": "core/throw", "args": {"code": "BUSINESS.FAILED", "message": "no"}}
+      ]}
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {"n": 5, "trace": "add;add;finally;end", "caught": "yes"}
+  }
+}

@@ -89,7 +89,7 @@ class GitSyncTest {
         assertEquals(true, cr.gitSync.syncNow(admin, null).get("changed"));
         Path c3 = cloneRemote("c3");
         assertFalse(Files.exists(c3.resolve("agents/HR/Onboard.flow.json")));
-        assertTrue(Files.readString(c3.resolve("agents/Finance/Invoices.flow.json")).contains("now with VAT"), "the Command Center is the source of truth");
+        assertTrue(Files.readString(c3.resolve("agents/Finance/Invoices.flow.json")).contains("now with VAT"), "One CommandCenter is the source of truth");
         try (Git g = Git.open(c3.toFile())) {
             List<String> messages = new ArrayList<>();
             for (RevCommit c : g.log().call()) messages.add(c.getShortMessage());

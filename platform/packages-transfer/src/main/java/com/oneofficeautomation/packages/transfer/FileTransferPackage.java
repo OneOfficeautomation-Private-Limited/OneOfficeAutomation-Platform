@@ -26,16 +26,35 @@ public final class FileTransferPackage {
         void rmdir(String dir) throws Exception;
         void cd(String dir) throws Exception;
         String pwd() throws Exception;
+        /** Best effort: set a remote file's modified time; servers that cannot are left as they are. */
+        default void setModified(String remote, java.time.Instant time) throws Exception { }
+        /** Listing with the most exact times the server offers, for comparing files; rows as in list. */
+        default List<Object> listExact(String dir) throws Exception { return list(dir); }
+        /** Seconds two modified times may differ by and still count as the same. */
+        default long timeToleranceSeconds() { return 2; }
         @Override void close();
     }
 
     static final class Ftp implements Conn {
         final FTPClient c;
+        Boolean mlsd;   // whether the server offers MLSD (UTC times to the second); asked once
         Ftp(FTPClient c) { this.c = c; }
         private void check(boolean ok, String what) throws IOException { if (!ok) throw new IOException(what + " failed: " + c.getReplyString().trim()); }
-        public List<Object> list(String dir) throws IOException {
+        boolean exactTimes() {
+            if (mlsd == null) { try { mlsd = c.hasFeature("MLST") || c.hasFeature("MLSD"); } catch (IOException e) { mlsd = false; } }
+            return mlsd;
+        }
+        public List<Object> listExact(String dir) throws IOException {
+            FTPFile[] files = exactTimes() ? c.mlistDir(dir) : c.listFiles(dir);
+            // an empty answer may mean a missing folder; a sync must not take that for "no files"
+            if (!FTPReply.isPositiveCompletion(c.getReplyCode())) throw new FileNotFoundException("Listing " + dir + " failed: " + c.getReplyString().trim());
+            return rows(files);
+        }
+        public long timeToleranceSeconds() { return exactTimes() ? 2 : 60; }   // LIST gives times to the minute, in the server's own zone
+        public List<Object> list(String dir) throws IOException { return rows(c.listFiles(dir)); }
+        private static List<Object> rows(FTPFile[] files) {
             List<Object> rows = new ArrayList<>();
-            for (FTPFile f : c.listFiles(dir)) {
+            for (FTPFile f : files) {
                 if (f == null || f.getName().equals(".") || f.getName().equals("..")) continue;
                 rows.add(new ArrayList<>(Arrays.asList(f.getName(), f.isDirectory(), BigDecimal.valueOf(f.getSize()),
                         f.getTimestamp() == null ? null : LocalDateTime.ofInstant(f.getTimestamp().toInstant(), ZoneOffset.UTC))));
@@ -50,6 +69,9 @@ public final class FileTransferPackage {
         public void rmdir(String d) throws IOException { check(c.removeDirectory(d), "Delete folder " + d); }
         public void cd(String d) throws IOException { check(c.changeWorkingDirectory(d), "Change folder to " + d); }
         public String pwd() throws IOException { String p = c.printWorkingDirectory(); if (p == null) throw new IOException("Cannot read the current folder: " + c.getReplyString().trim()); return p; }
+        public void setModified(String r, java.time.Instant t) throws IOException {   // MFMT; many servers support it, the rest refuse it
+            c.setModificationTime(r, java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC).format(t));
+        }
         public void close() { try { c.logout(); } catch (IOException ignored) { } try { c.disconnect(); } catch (IOException ignored) { } }
     }
 
@@ -74,6 +96,7 @@ public final class FileTransferPackage {
         public void rmdir(String d) throws SftpException { ch.rmdir(d); }
         public void cd(String d) throws SftpException { ch.cd(d); }
         public String pwd() throws SftpException { return ch.pwd(); }
+        public void setModified(String r, java.time.Instant t) throws SftpException { ch.setMtime(r, (int) t.getEpochSecond()); }
         public void close() { ch.disconnect(); s.disconnect(); }
     }
 
@@ -84,8 +107,13 @@ public final class FileTransferPackage {
         if (e instanceof JSchException && m.contains("Auth")) return new ActionException("TRANSFER.AUTH_FAILED", "Sign-in failed: " + m, "Check the user, password or private key.");
         if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) return new ActionException("TRANSFER.NOT_FOUND", what + ": no such file or folder", "Check the remote path.");
         if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_PERMISSION_DENIED) return new ActionException("TRANSFER.ACCESS_DENIED", what + ": permission denied", null);
-        if (e instanceof IOException && !(e instanceof FileNotFoundException)) return new ActionException("TRANSFER.FAILED", what + ": " + m, "Check the connection and paths.", true);
-        return new ActionException("TRANSFER.FAILED", what + ": " + m, null);
+        // JSch wraps the socket error ("java.net.ConnectException: Connection refused: getsockopt"): say what it means
+        boolean network = e.getCause() instanceof IOException || e instanceof java.net.SocketException || e instanceof java.net.UnknownHostException
+                || (e instanceof JSchException && (m.contains("Exception") || m.contains("timeout")));
+        if (network) return new ActionException("TRANSFER.UNREACHABLE", what + ": " + com.oneofficeautomation.packages.NetErrors.reason(e, null),
+                "Check the host, port and protocol (SFTP is usually port 22, FTP 21, FTPS 990), and that a firewall allows the connection.", true);
+        if (e instanceof IOException && !(e instanceof FileNotFoundException)) return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), "Check the connection and paths.", true);
+        return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), null);
     }
 
     public Map<String, Object> connect(ActionContext ctx, String protocol, String host, Integer port, String user, Object password, String key, Object keyPass,
@@ -138,7 +166,7 @@ public final class FileTransferPackage {
                     if (attempt > 0) throw new ActionException(e.code(), e.getMessage() + " (after " + (attempt + 1) + " tries)", e.suggestedFix(), e.retryable());
                     throw e;
                 }
-                ctx.warn("Connecting to " + host + " failed (try " + (attempt + 1) + " of " + (retryAttempts + 1) + "): " + e.getMessage() + "; trying again in " + retryDelay + " s.");
+                ctx.warn("Connecting to " + host + " failed (try " + (attempt + 1) + " of " + (retryAttempts + 1) + "): " + com.oneofficeautomation.packages.NetErrors.reason(e, null) + "; trying again in " + retryDelay + " s.");
                 pause(ctx, retryDelay);
             }
         }
@@ -511,6 +539,224 @@ public final class FileTransferPackage {
             if (Files.exists(target) && (!o.overwrite() || (o.onlyNewer() && !newer(row.get(3), target)))) continue;
             c.download(join(remote, name), target);
             done.add(target.toString());
+        }
+    }
+
+    // ---------- Raw FTP command ----------
+
+    /** Commands that would change the connection itself (sign-in, security, data channel set-up, closing). */
+    static final Set<String> CONNECTION_COMMANDS = Set.of("USER", "PASS", "ACCT", "QUIT", "REIN", "PORT", "EPRT", "LPRT", "PASV", "EPSV", "LPSV", "AUTH", "PROT", "PBSZ", "CCC");
+    /** Commands that need a data connection, which a raw command does not open. */
+    static final Set<String> DATA_COMMANDS = Set.of("LIST", "NLST", "MLSD", "RETR", "STOR", "STOU", "APPE");
+
+    /** Splits "SITE CHMOD 644 a.txt" into {"SITE", "CHMOD 644 a.txt"}; refuses what cannot be sent safely. */
+    static String[] parseCommand(String command) {
+        String c = command == null ? "" : command.strip();
+        if (c.isEmpty()) throw new ActionException("TRANSFER.BAD_COMMAND", "Give the FTP command to send", "For example FEAT, SYST or SITE CHMOD 644 file.txt.");
+        if (c.indexOf('\r') >= 0 || c.indexOf('\n') >= 0 || c.indexOf('\0') >= 0)
+            throw new ActionException("TRANSFER.BAD_COMMAND", "The FTP command must be a single line", "Send one command per step.");
+        int sp = c.indexOf(' ');
+        String verb = (sp < 0 ? c : c.substring(0, sp)).toUpperCase(Locale.ROOT);
+        String args = sp < 0 ? null : c.substring(sp + 1).strip();
+        if (!verb.matches("[A-Z]{3,4}"))
+            throw new ActionException("TRANSFER.BAD_COMMAND", "'" + verb + "' is not an FTP command name", "FTP commands are 3 or 4 letters, such as FEAT, SYST, SITE or MDTM.");
+        if (CONNECTION_COMMANDS.contains(verb))
+            throw new ActionException("TRANSFER.BAD_COMMAND", verb + " changes the connection itself and cannot be sent as a raw command",
+                    "Use Connect and Disconnect to sign in, choose security or passive mode, and close the session.");
+        if (DATA_COMMANDS.contains(verb))
+            throw new ActionException("TRANSFER.BAD_COMMAND", verb + " needs a data connection, which a raw command does not open",
+                    "Use List files, Download or Upload instead.");
+        return new String[]{verb, args == null || args.isEmpty() ? null : args};
+    }
+
+    @Action(id = "send_command", name = "Send FTP command", category = "Connection", timeoutSeconds = 300, capabilities = "network",
+            description = "Send one raw command, such as SITE CHMOD 644 file.txt, FEAT or SYST, to an FTP or FTPS server and return its reply. SFTP sessions do not take raw commands.",
+            panel = "session, command")
+    @Output(name = "reply_code", type = OoaType.NUMBER, description = "The server's three-digit reply code, such as 200 or 550.")
+    @Output(name = "reply_text", type = OoaType.STRING, description = "The server's reply, all lines.")
+    @Output(name = "ok", type = OoaType.BOOLEAN, description = "True when the reply code is 2xx or 3xx.")
+    public Map<String, Object> sendCommand(ActionContext ctx,
+            @Input(name = "command", type = OoaType.STRING, example = "SITE CHMOD 644 report.csv",
+                    description = "The command and its arguments. Commands that sign in, change security or the data channel, or close the connection are refused.") String command,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session) {
+        String[] cmd = parseCommand(command);
+        Conn c = conn(ctx, session);
+        if (!(c instanceof Ftp f)) throw new ActionException("TRANSFER.NOT_SUPPORTED", "Session '" + session + "' is not an FTP or FTPS session; SFTP has no raw commands",
+                "Use the other File transfer actions on SFTP sessions.");
+        try {
+            int code = f.c.sendCommand(cmd[0], cmd[1]);
+            String text = String.valueOf(f.c.getReplyString()).replace("\r\n", "\n").strip();
+            return Map.of("reply_code", BigDecimal.valueOf(code), "reply_text", text, "ok", code >= 200 && code < 400);
+        } catch (Exception e) { throw fail(e, "Sending " + cmd[0]); }
+    }
+
+    // ---------- Synchronise folders ----------
+
+    /** One file seen by a sync: size in bytes and modified time (null when the server does not report it). */
+    record SyncFile(long size, java.time.Instant modified) { }
+
+    /** The files under one folder, by path relative to it ("a/b.csv"), and its sub-folders. */
+    record SyncSide(SortedMap<String, SyncFile> files, Set<String> folders) {
+        SyncSide() { this(new TreeMap<>(), new HashSet<>()); }
+    }
+
+    static SyncSide scanLocal(Path root, boolean sub, java.util.function.Predicate<String> match) throws IOException {
+        SyncSide side = new SyncSide();
+        if (!Files.isDirectory(root)) return side;
+        try (java.util.stream.Stream<Path> s = Files.walk(root, sub ? MAX_DEPTH : 1)) {
+            for (Path p : (Iterable<Path>) s::iterator) {
+                if (p.equals(root)) continue;
+                String rel = root.relativize(p).toString().replace('\\', '/');
+                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) side.folders().add(rel);
+                else if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS) && match.test(p.getFileName().toString()))
+                    side.files().put(rel, new SyncFile(Files.size(p), Files.getLastModifiedTime(p).toInstant()));
+            }
+        }
+        return side;
+    }
+
+    private static void scanRemote(ActionContext ctx, Conn c, String root, String rel, boolean sub, java.util.function.Predicate<String> match, SyncSide side, int depth) throws Exception {
+        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + root, null);
+        for (Object o : c.listExact(rel.isEmpty() ? root : join(root, rel))) {
+            ctx.checkCancelled();
+            List<?> row = (List<?>) o;
+            String name = safeEntry(String.valueOf(row.get(0))), child = rel.isEmpty() ? name : rel + "/" + name;
+            if (Boolean.TRUE.equals(row.get(1))) {
+                side.folders().add(child);
+                if (sub) scanRemote(ctx, c, root, child, sub, match, side, depth + 1);
+            } else if (match.test(name)) {
+                long size = row.get(2) instanceof Number n ? n.longValue() : -1;
+                side.files().put(child, new SyncFile(size, row.get(3) instanceof LocalDateTime t ? t.toInstant(ZoneOffset.UTC) : null));
+            }
+        }
+    }
+
+    /** Whether the source copy should replace the target copy under the chosen comparison. */
+    static boolean differs(SyncFile src, SyncFile tgt, String compare, long toleranceSeconds) {
+        boolean bySize = src.size() != tgt.size();
+        boolean byTime = src.modified() == null || tgt.modified() == null || src.modified().isAfter(tgt.modified().plusSeconds(toleranceSeconds));
+        return switch (compare) {
+            case "size" -> bySize;
+            case "both" -> bySize || byTime;
+            default -> byTime;
+        };
+    }
+
+    @Action(id = "sync_folder", name = "Synchronise folders", category = "Folders", timeoutSeconds = 7200, capabilities = {"network", "filesystem"},
+            description = "Make a local and a remote folder match: copy new and changed files one way or both ways, optionally delete files that are no longer on the source side, or only report what would change.",
+            panel = "session, direction, local_folder, remote_folder, pattern, compare | include_subfolders, delete_extra, dry_run")
+    @Output(name = "uploaded", type = OoaType.NUMBER, description = "Files copied to the server (or that would be, in a dry run).")
+    @Output(name = "downloaded", type = OoaType.NUMBER, description = "Files copied from the server.")
+    @Output(name = "deleted", type = OoaType.NUMBER, description = "Files deleted on the target side.")
+    @Output(name = "skipped", type = OoaType.NUMBER, description = "Source files left alone because the target copy is the same, or, in both directions, because neither copy is newer.")
+    @Output(name = "details", type = OoaType.LIST, description = "One entry per file: {path, action}; path is relative to the folders, action is upload, download, delete_remote, delete_local, skip or conflict.")
+    public Map<String, Object> syncFolder(ActionContext ctx,
+            @Input(name = "direction", type = OoaType.STRING, enumValues = {"upload", "download", "both"},
+                    description = "upload makes the remote folder match the local one, download the other way round; both copies each side's new and newer files to the other.") String direction,
+            @Input(name = "local_folder", type = OoaType.FILE, description = "Local folder.") String local,
+            @Input(name = "remote_folder", type = OoaType.STRING, description = "Remote folder.") String remote,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", example = "*.csv", description = "Only files whose names match this wildcard (* and ?); other files are neither copied nor deleted.") String pattern,
+            @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also synchronise sub-folders and their files.") boolean sub,
+            @Input(name = "compare", type = OoaType.STRING, required = false, defaultValue = "\"newer\"", enumValues = {"newer", "size", "both"},
+                    description = "When a file is on both sides, copy it when the source is newer (newer), when the sizes differ (size), or either (both). Times within 2 seconds count as the same; on FTP servers that only give times to the minute, within a minute.") String compare,
+            @Input(name = "delete_extra", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Delete files on the target side that are not on the source side; folders are left in place. Not allowed when direction is both.") boolean deleteExtra,
+            @Input(name = "dry_run", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only report what would be copied and deleted; change nothing.") boolean dryRun) {
+        String dir = direction == null ? "" : direction.strip().toLowerCase(Locale.ROOT);
+        if (!Set.of("upload", "download", "both").contains(dir))
+            throw new ActionException("TRANSFER.BAD_OPTION", "Unknown direction '" + direction + "'", "Use upload, download or both.");
+        String cmp = compare == null || compare.isBlank() ? "newer" : compare.strip().toLowerCase(Locale.ROOT);
+        if (!Set.of("newer", "size", "both").contains(cmp))
+            throw new ActionException("TRANSFER.BAD_OPTION", "Unknown compare '" + compare + "'", "Use newer, size or both.");
+        if (deleteExtra && dir.equals("both"))
+            throw new ActionException("TRANSFER.BAD_OPTION", "delete_extra cannot be used when direction is both", "Choose upload or download to mirror one side onto the other, or turn off delete_extra.");
+        if (remote == null || remote.isBlank()) throw new ActionException("TRANSFER.BAD_OPTION", "Give the remote folder", "Use . for the session's current folder.");
+        String r = remote.strip();
+        Path l = ctx.resolvePath(local).toAbsolutePath().normalize();
+        if (dir.equals("upload") && !Files.isDirectory(l)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + l, "Check the local folder path.");
+        java.util.function.Predicate<String> match = wildcard(pattern);
+        Conn c = conn(ctx, session);
+        long tolerance = c.timeToleranceSeconds();
+        boolean up = !dir.equals("download"), down = !dir.equals("upload");
+
+        int[] uploaded = {0}, downloaded = {0}, deleted = {0}, skipped = {0};
+        List<Object> details = new ArrayList<>();
+        try {
+            SyncSide loc = scanLocal(l, sub, match);
+            SyncSide rem = new SyncSide();
+            if (up && !dryRun) ensureFolder(c, r);
+            try { scanRemote(ctx, c, r, "", sub, match, rem, 0); }
+            catch (ActionException e) { throw e; }
+            catch (Exception e) { if (!(up && dryRun)) throw e; }   // a dry-run upload to a folder that does not exist yet
+            if (down && !dryRun) Files.createDirectories(l);
+
+            SortedSet<String> paths = new TreeSet<>(loc.files().keySet());
+            paths.addAll(rem.files().keySet());
+            for (String p : paths) {
+                ctx.checkCancelled();
+                SyncFile lf = loc.files().get(p), rf = rem.files().get(p);
+                String action;
+                if (rf == null) action = up ? "upload" : deleteExtra ? "delete_local" : null;
+                else if (lf == null) action = down ? "download" : deleteExtra ? "delete_remote" : null;
+                else if (dir.equals("upload")) action = differs(lf, rf, cmp, tolerance) ? "upload" : "skip";
+                else if (dir.equals("download")) action = differs(rf, lf, cmp, tolerance) ? "download" : "skip";
+                else if (!differs(lf, rf, cmp, tolerance) && !differs(rf, lf, cmp, tolerance)) action = "skip";
+                else if (lf.modified() != null && rf.modified() != null && lf.modified().isAfter(rf.modified().plusSeconds(tolerance))) action = "upload";
+                else if (lf.modified() != null && rf.modified() != null && rf.modified().isAfter(lf.modified().plusSeconds(tolerance))) action = "download";
+                else action = "conflict";   // the copies differ but neither is clearly newer: leave both
+                if (action == null) continue;   // a file only on the target side, and delete_extra is off
+
+                String remotePath = join(r, p);
+                Path localPath = l.resolve(p).normalize();
+                if (!localPath.startsWith(l)) throw new ActionException("TRANSFER.UNSAFE_NAME", "The server listed an unsafe file name '" + p + "'", null);
+                switch (action) {
+                    case "upload" -> {
+                        if (!dryRun) {
+                            int slash = p.lastIndexOf('/');
+                            if (slash > 0) makeRemoteFolders(c, r, p.substring(0, slash), rem.folders());
+                            c.upload(localPath, remotePath);
+                            try { c.setModified(remotePath, lf.modified()); } catch (Exception ignored) { }   // keeps the next "newer" comparison steady
+                        }
+                        uploaded[0]++;
+                    }
+                    case "download" -> {
+                        if (!dryRun) {
+                            Files.createDirectories(localPath.getParent());
+                            c.download(remotePath, localPath);
+                            if (rf.modified() != null) Files.setLastModifiedTime(localPath, java.nio.file.attribute.FileTime.from(rf.modified()));
+                        }
+                        downloaded[0]++;
+                    }
+                    case "delete_remote" -> { if (!dryRun) c.delete(remotePath); deleted[0]++; }
+                    case "delete_local" -> { if (!dryRun) Files.delete(localPath); deleted[0]++; }
+                    default -> skipped[0]++;
+                }
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("path", p);
+                d.put("action", action);
+                details.add(d);
+            }
+        } catch (ActionException e) { throw e;
+        } catch (Exception e) { throw fail(e, "Synchronising " + l + " with " + r); }
+        if (dryRun) ctx.info("Dry run: nothing was copied or deleted.");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("uploaded", BigDecimal.valueOf(uploaded[0]));
+        out.put("downloaded", BigDecimal.valueOf(downloaded[0]));
+        out.put("deleted", BigDecimal.valueOf(deleted[0]));
+        out.put("skipped", BigDecimal.valueOf(skipped[0]));
+        out.put("details", details);
+        return out;
+    }
+
+    /** Creates each missing remote folder on the way to rel ("a/b"), remembering what exists. */
+    private static void makeRemoteFolders(Conn c, String root, String rel, Set<String> known) {
+        String[] parts = rel.split("/");
+        StringBuilder sofar = new StringBuilder();
+        for (String part : parts) {
+            if (sofar.length() > 0) sofar.append('/');
+            sofar.append(part);
+            if (known.add(sofar.toString())) ensureFolder(c, join(root, sofar.toString()));
         }
     }
 

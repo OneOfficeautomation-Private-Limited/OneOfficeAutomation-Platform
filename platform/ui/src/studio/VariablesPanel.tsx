@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentSummary, Builtins, Flow, FlowVariable, StudioApi } from "../api/client";
-import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Menu, Select, TextArea, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
 import {
-  compatible, directionOf, GROUPS, guessType, isInput, isOutput, saveVariable, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
+  compatible, directionOf, GROUPS, guessType, isInput, isOutput, parseTime, parseTimeSpan, saveVariable, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
 } from "./variables";
 
 /**
@@ -93,7 +93,7 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor }:
         {good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? usedAs(v).toLowerCase() : ""))}
         {sys.length > 0 && <div className="st-vp-head">System</div>}
         {sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val)))}
-        {glob.length > 0 && <div className="st-vp-head">Shared values</div>}
+        {glob.length > 0 && <div className="st-vp-head">Shared Global values</div>}
         {glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val)))}
         {!good.length && !sys.length && !glob.length && <p className="st-vp-empty">{typed && !all ? "No " + typed + " variables yet." : "No variables match."}</p>}
       </div>
@@ -117,6 +117,12 @@ function ValueEditor({ type, value, onChange, options }: { type: string; value: 
     onChange={(e) => { const t = e.target.value.trim(); const n = Number(t); onChange(t === "" ? undefined : Number.isFinite(n) ? n : t); }} />;
   if (type === "DateTime") return <TextInput aria-label="Default value" type="datetime-local" step="1"
     defaultValue={typeof value === "string" ? value.slice(0, 19) : ""} onChange={(e) => onChange(e.target.value ? (e.target.value.length === 16 ? e.target.value + ":00" : e.target.value) : undefined)} />;
+  if (type === "Time") return <TextInput aria-label="Default value" type="time" step="1"
+    defaultValue={typeof value === "string" ? parseTime(value) ?? value : ""} onChange={(e) => onChange(e.target.value ? parseTime(e.target.value) ?? e.target.value : undefined)} />;
+  if (type === "TimeSpan") return <TimeSpanEditor value={typeof value === "string" ? value : value === undefined ? "" : showValue(value)} onChange={onChange} />;
+  if (type === "Image" || type === "Binary") return <TextInput aria-label="Default value" defaultValue={typeof value === "string" ? value : value === undefined ? "" : plainValue(value)}
+    placeholder={type === "Image" ? "pictures/logo.png (read when the agent starts)" : "data/file.pdf or Base64 text"}
+    onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />;
   if (type === "List") return <ListEditor value={Array.isArray(value) ? value : []} onChange={(l) => onChange(l.length ? l : undefined)} />;
   if (type === "Dictionary" || type === "Record") return <PairsEditor value={value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}}
     onChange={(o) => onChange(Object.keys(o).length ? o : undefined)} />;
@@ -126,6 +132,19 @@ function ValueEditor({ type, value, onChange, options }: { type: string; value: 
   return <TextInput aria-label="Default value" defaultValue={value === undefined ? "" : showValue(value)}
     placeholder={type === "File" ? "data/orders.csv or C:\\Folder\\file.xlsx" : type === "Window" ? "Window title, e.g. *Notepad" : ""}
     onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />;
+}
+
+/** A length of time typed as people write it (2h 15m, 01:30:00); kept as ISO 8601 (PT2H15M), which the runner reads. */
+function TimeSpanEditor({ value, onChange }: { value: string; onChange: (v: unknown) => void }) {
+  const [text, setText] = useState(value);
+  const iso = text.trim() ? parseTimeSpan(text) : undefined;
+  return (
+    <div className="st-ve">
+      <TextInput aria-label="Default value" value={text} placeholder="2h 15m, 1d 3h, 01:30:00 or PT2H15M"
+        onChange={(e) => { const t = e.target.value; setText(t); onChange(t.trim() === "" ? undefined : parseTimeSpan(t) ?? t); }} />
+      {text.trim() !== "" && <span className={iso ? "st-muted" : "st-error"} role={iso ? undefined : "alert"}>{iso ? "Saved as " + iso : "Not a length of time: write it like 2h 15m or 01:30:00."}</span>}
+    </div>
+  );
 }
 
 function ListEditor({ value, onChange }: { value: unknown[]; onChange: (v: unknown[]) => void }) {
@@ -199,7 +218,7 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
           <label className="st-check-line"><input type="checkbox" checked={isOutput(v)} onChange={(e) => setUse(isInput(v), e.target.checked)} /> Use as output: returned when the agent ends</label>
           {isInput(v) && <label className="st-check-line"><input type="checkbox" checked={!!v.required} onChange={(e) => put({ required: e.target.checked || undefined })} /> Required: the agent cannot start without a value</label>}
           {isOutput(v) && ["Number", "String", "Boolean"].includes(v.type) && <label className="st-check-line"><input type="checkbox" checked={!!v.kpi}
-            onChange={(e) => put({ kpi: e.target.checked || undefined })} /> Business figure: each successful run records it for Command Center dashboards</label>}
+            onChange={(e) => put({ kpi: e.target.checked || undefined })} /> Business figure: each successful run records it for One CommandCenter dashboards</label>}
         </fieldset>
         {isInput(v) && ["String", "Number"].includes(v.type) && <Field label="Allowed values" hint="Optional: the only values a caller may give, separated by commas.">{(id) =>
           <TextInput id={id} value={allowed} onChange={(e) => setAllowed(e.target.value)} />}</Field>}
@@ -219,20 +238,20 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
 
 /**
  * The agent's variables, grouped by use (inputs, inputs and outputs, outputs, inside the agent), each with its type,
- * default or last value, and how often it is used; then the platform's System values and the Shared values.
+ * default or last value, and how often it is used; then the platform's System values and the Shared Global values.
  */
 export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
   { flow: Flow; builtins: Builtins; last: Map<string, unknown>; onEdit: (next: Flow) => void; onRefresh: () => void }) {
   const ctx = useVars();
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<FlowVariable | null>(null);
+  const [asking, setAsking] = useState<FlowVariable | null>(null);   // a variable in use, asked before it is deleted
   const f = q.trim().toLowerCase();
   const vars = (flow.variables ?? []).filter((v) => !f || v.name.toLowerCase().includes(f) || v.type.toLowerCase().includes(f) || (v.description ?? "").toLowerCase().includes(f));
-  const remove = (v: FlowVariable) => {
-    const uses = usageCount(flow, v.name);
-    if (uses && !window.confirm("$" + v.name + " is used " + uses + " time" + (uses > 1 ? "s" : "") + " in this agent. Delete it anyway?")) return;
-    onEdit({ ...flow, variables: (flow.variables ?? []).filter((x) => x !== v) });
-  };
+  // review round 2 (1 Nov 2026): a variable in use is asked about in a bar in the panel, not the browser's own pop-up;
+  // an unused one goes at once (Ctrl+Z brings it back)
+  const drop = (v: FlowVariable) => { setAsking(null); onEdit({ ...flow, variables: (flow.variables ?? []).filter((x) => x.name !== v.name) }); };
+  const remove = (v: FlowVariable) => { if (usageCount(flow, v.name)) setAsking(v); else drop(v); };
   const duplicate = (v: FlowVariable) => onEdit({ ...flow, variables: [...(flow.variables ?? []), { ...structuredClone(v), name: uniqueName(flow, v.name + "_copy") }] });
   const row = (v: FlowVariable) => {
     const uses = usageCount(flow, v.name);
@@ -245,8 +264,11 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
           <span className="st-var-text"><span className="st-var ui-mono">${v.name}</span><span className="st-var-meta">{meta}</span></span>
           <span className={"st-uses" + (uses ? "" : " is-none")}>{uses ? uses + (uses === 1 ? " use" : " uses") : "unused"}</span>
         </button>
-        <Button kind="plain" aria-label={"Duplicate $" + v.name} onClick={() => duplicate(v)}>Copy</Button>
-        <Button kind="plain" aria-label={"Delete $" + v.name} onClick={() => remove(v)}>Delete</Button>
+        <Menu label={"$" + v.name + " menu"} align="end" items={[
+          { key: "change", label: "Change…", onSelect: () => setEditing(v) },
+          { key: "copy", label: "Copy", description: "A copy named $" + uniqueName(flow, v.name + "_copy"), onSelect: () => duplicate(v) },
+          { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => remove(v) },
+        ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for $" + v.name} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} />
       </li>
     );
   };
@@ -268,6 +290,8 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
         <TextInput type="search" aria-label="Search variables" placeholder="Search variables" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button kind="primary" icon="plus" onClick={() => ctx?.newVariable({})}>New</Button>
       </div>
+      {asking && <div className="st-ask" role="alert"><span>${asking.name} is used {usageCount(flow, asking.name)} time{usageCount(flow, asking.name) === 1 ? "" : "s"} in this agent. Delete it anyway?</span>
+        <Button kind="danger" onClick={() => drop(asking)}>Delete</Button><Button kind="plain" onClick={() => setAsking(null)}>Cancel</Button></div>}
       {!(flow.variables ?? []).length ? (
         <div className="st-var-empty"><strong>No variables yet</strong>
           <p>Variables hold values while the agent runs. Inputs are given when it starts; outputs are returned at the end.</p></div>
@@ -283,7 +307,7 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
         );
       })}
       {builtin("System variables", "$sys.", builtins.sys, "Read-only values from the platform at run time, such as today's date or the machine name.")}
-      {builtin("Shared values", "$global.", builtins.global, "Shared by all agents; managed in Command Center under Shared values.")}
+      {builtin("Shared Global values", "$global.", builtins.global, "Shared by all agents; managed in One CommandCenter under Shared Global values.")}
       <div className="st-pad"><Button kind="plain" onClick={onRefresh}>Refresh system and shared values</Button></div>
       {editing && <VariableDialog flow={flow} existing={editing} onClose={() => setEditing(null)} onSave={(next) => { onEdit(next); setEditing(null); }} />}
     </div>

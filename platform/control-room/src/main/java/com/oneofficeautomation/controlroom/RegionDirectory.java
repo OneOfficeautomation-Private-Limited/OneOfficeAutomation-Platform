@@ -99,7 +99,7 @@ public final class RegionDirectory {
             }
             if (path.startsWith("/t/") && m.equals("GET")) {
                 Region r = find(path.substring(3).toLowerCase(Locale.ROOT));
-                if (r == null) { send(ex, 404, Map.of("error", Map.of("code", "SAAS.NO_TENANT", "message", "No Command Center with this name"))); return; }
+                if (r == null) { send(ex, 404, Map.of("error", Map.of("code", "SAAS.NO_TENANT", "message", "No One CommandCenter with this name"))); return; }
                 redirect(ex, "https://" + path.substring(3).toLowerCase(Locale.ROOT) + "." + r.domain() + "/");
                 return;
             }
@@ -109,7 +109,7 @@ public final class RegionDirectory {
                 switch (m) {
                     case "GET" -> {
                         Region r = find(slug);
-                        if (r == null) send(ex, 404, Map.of("error", Map.of("code", "SAAS.NO_TENANT", "message", "No Command Center with this name")));
+                        if (r == null) send(ex, 404, Map.of("error", Map.of("code", "SAAS.NO_TENANT", "message", "No One CommandCenter with this name")));
                         else send(ex, 200, Map.of("slug", slug, "region", r.name(), "url", "https://" + slug + "." + r.domain() + "/"));
                     }
                     case "POST" -> { reserve(slug, token); send(ex, 200, Map.of("slug", slug, "reserved", true)); }

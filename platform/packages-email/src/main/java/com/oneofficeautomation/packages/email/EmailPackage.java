@@ -85,10 +85,19 @@ public final class EmailPackage {
 
     private static ActionException mail(MessagingException e) {
         String m = String.valueOf(e.getMessage());
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        String why = root instanceof java.net.ConnectException ? "the connection was refused (is the server running and the port open?)"
+                : root instanceof java.net.UnknownHostException ? "the host name is unknown"
+                : root instanceof java.net.SocketTimeoutException ? "the server did not answer in time"
+                : root instanceof javax.net.ssl.SSLException ? "the secure connection failed (check security: ssl for port 465, starttls for 587)" : null;
         if (e instanceof AuthenticationFailedException) return new ActionException("EMAIL.AUTH_FAILED", "Mail sign-in failed: " + m,
                 "Check the user and password or token; Microsoft 365 and Gmail need OAuth or an app password.");
-        if (m.contains("connect") || m.contains("timed out") || m.contains("UnknownHost"))
-            return new ActionException("EMAIL.UNREACHABLE", "Cannot reach the mail server: " + m, "Check host, port, security and network access.", true);
+        if (e instanceof SendFailedException sf && sf.getInvalidAddresses() != null && sf.getInvalidAddresses().length > 0)
+            return new ActionException("EMAIL.BAD_ADDRESS", "The server refused the address(es) " + Arrays.toString(sf.getInvalidAddresses()) + ": " + m, "Check the recipient addresses.");
+        if (why != null || m.contains("connect") || m.contains("timed out") || m.contains("UnknownHost"))
+            return new ActionException("EMAIL.UNREACHABLE", "Cannot reach the mail server: " + (why != null ? why + " (" + m.replaceAll(";\\s*timeout -?\\d+", "") + ")" : m),
+                    "Check host, port, security and network access.", true);
         return new ActionException("EMAIL.ERROR", m, null);
     }
 
@@ -165,7 +174,7 @@ public final class EmailPackage {
             ctx.info("Sent '" + subject + "' to " + Arrays.toString(msg.getRecipients(Message.RecipientType.TO)));
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (AddressException e) {
-            throw new ActionException("EMAIL.BAD_ADDRESS", "Invalid email address: " + e.getMessage(), "Check the recipient addresses.");
+            throw new ActionException("EMAIL.BAD_ADDRESS", "Invalid email address: " + e.getMessage(), "Check the sender and recipient addresses.");
         } catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
     }
@@ -670,10 +679,15 @@ public final class EmailPackage {
                                     List<MimeBodyPart> attachments, List<MimeBodyPart> inline, String importance, Object replyTo, boolean receipt)
             throws MessagingException {
         MimeMessage msg = new MimeMessage(session);
-        msg.setFrom(new InternetAddress(from, true));
+        // without a sender (an internal relay used without signing in has no user to send as) this used to crash with a NullPointerException
+        if (from == null || from.isBlank())
+            throw new ActionException("EMAIL.NO_SENDER", "There is no sender address for this email", "Fill in from (or user, which is also used as the sender).");
+        msg.setFrom(new InternetAddress(from.strip(), true));
         msg.setRecipients(Message.RecipientType.TO, addresses(to));
         if (cc != null) msg.setRecipients(Message.RecipientType.CC, addresses(cc));
         if (bcc != null) msg.setRecipients(Message.RecipientType.BCC, addresses(bcc));
+        if (msg.getAllRecipients() == null || msg.getAllRecipients().length == 0)
+            throw new ActionException("EMAIL.BAD_ADDRESS", "The email has no recipient", "Give at least one address in to, cc or bcc.");
         msg.setSubject(subject, "UTF-8");
         MimeBodyPart text = new MimeBodyPart();
         text.setText(body == null ? "" : body, "UTF-8", html ? "html" : "plain");
@@ -823,8 +837,10 @@ public final class EmailPackage {
     private static String key(Address a) { return (a instanceof InternetAddress ia ? ia.getAddress() : a.toString()).toLowerCase(Locale.ROOT); }
 
     /** The .eml path: inside a folder it is named after the subject; without overwrite a free name such as "x (2).eml" is chosen. */
-    static Path emlTarget(Path p, boolean isFolder, String subject, boolean overwrite) {
-        Path out = isFolder || Files.isDirectory(p) ? p.resolve(safeName((subject == null || subject.isBlank() ? "email" : subject.replaceAll("[/\\\\]", "_")) + ".eml")) : p;
+    static Path emlTarget(Path p, boolean isFolder, String subject, boolean overwrite) { return mailTarget(p, isFolder, subject, overwrite, ".eml"); }
+
+    static Path mailTarget(Path p, boolean isFolder, String subject, boolean overwrite, String extension) {
+        Path out = isFolder || Files.isDirectory(p) ? p.resolve(safeName((subject == null || subject.isBlank() ? "email" : subject.replaceAll("[/\\\\]", "_")) + extension)) : p;
         if (!overwrite) {
             String name = out.getFileName().toString();
             for (int i = 2; Files.exists(out); i++) out = out.resolveSibling(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
@@ -1028,6 +1044,74 @@ public final class EmailPackage {
         if (folder == null || folder.isBlank()) throw new ActionException("EMAIL.BAD_INPUT", "Give a folder name", null);
         try { return Map.of("exists", ms(ctx, session).store.getFolder(folder).exists()); }
         catch (MessagingException e) { throw mail(e); }
+    }
+
+    @Action(id = "save_email_as_msg", name = "Save email as .msg", category = "Mailbox", capabilities = {"network", "filesystem"},
+            description = "Save an email, with its recipients, HTML body and attachments, as an Outlook .msg file.",
+            panel = "id, folder, local_path, overwrite | session")
+    @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
+    @Output(name = "attachments", type = OoaType.NUMBER, description = "Number of attachments saved in the file.")
+    public Map<String, Object> saveMsg(ActionContext ctx,
+            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
+            @Input(name = "local_path", type = OoaType.FILE, example = "mail/invoice.msg", description = "Where to save the .msg file; a path ending in / or \\ is a folder, and the file is named after the subject.") String local,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+        try {
+            Message m = byUid(ms(ctx, session).folder(folder), id);
+            com.oneofficeautomation.packages.MsgFile.Message msg = toMsg(m);
+            Path p = mailTarget(ctx.resolvePath(local), local.endsWith("/") || local.endsWith("\\"), m.getSubject(), overwrite, ".msg");
+            com.oneofficeautomation.packages.MsgFile.write(msg, p);
+            return Map.of("path", p.toString(), "attachments", BigDecimal.valueOf(msg.attachments.size()));
+        }
+        catch (MessagingException e) { throw mail(e);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+    }
+
+    /** The parts of a MIME message an Outlook .msg file holds. */
+    static com.oneofficeautomation.packages.MsgFile.Message toMsg(Message m) throws MessagingException, IOException {
+        var out = new com.oneofficeautomation.packages.MsgFile.Message();
+        out.subject = m.getSubject() == null ? "" : m.getSubject();
+        Address[] from = m.getFrom();
+        if (from != null && from.length > 0) out.from = msgAddress(from[0]);
+        for (Message.RecipientType t : List.of(Message.RecipientType.TO, Message.RecipientType.CC, Message.RecipientType.BCC)) {
+            Address[] list = m.getRecipients(t);
+            if (list != null) for (Address a : list) (t == Message.RecipientType.TO ? out.to : t == Message.RecipientType.CC ? out.cc : out.bcc).add(msgAddress(a));
+        }
+        out.sent = m.getSentDate() == null ? null : m.getSentDate().toInstant();
+        out.received = m.getReceivedDate() == null ? null : m.getReceivedDate().toInstant();
+        String[] id = m.getHeader("Message-ID");
+        out.messageId = id == null || id.length == 0 ? null : id[0];
+        String[] imp = m.getHeader("Importance"), prio = m.getHeader("X-Priority");
+        String level = imp != null && imp.length > 0 ? imp[0].trim().toLowerCase(Locale.ROOT) : prio != null && prio.length > 0 ? (prio[0].trim().startsWith("1") || prio[0].trim().startsWith("2") ? "high" : prio[0].trim().startsWith("4") || prio[0].trim().startsWith("5") ? "low" : "normal") : "normal";
+        out.importance = level;
+        out.read = m.isSet(Flags.Flag.SEEN);
+        collectParts(m, out);
+        return out;
+    }
+
+    private static com.oneofficeautomation.packages.MsgFile.Address msgAddress(Address a) {
+        if (a instanceof InternetAddress ia) return new com.oneofficeautomation.packages.MsgFile.Address(ia.getPersonal() == null ? "" : ia.getPersonal(), ia.getAddress());
+        return new com.oneofficeautomation.packages.MsgFile.Address("", a.toString());
+    }
+
+    /** Walks the MIME tree: the first text/plain and text/html bodies, every other leaf part as an attachment. */
+    private static void collectParts(Part p, com.oneofficeautomation.packages.MsgFile.Message out) throws MessagingException, IOException {
+        if (p.isMimeType("multipart/*")) {
+            Multipart mp = (Multipart) p.getContent();
+            for (int i = 0; i < mp.getCount(); i++) collectParts(mp.getBodyPart(i), out);
+            return;
+        }
+        String disposition = p.getDisposition();
+        boolean attachment = Part.ATTACHMENT.equalsIgnoreCase(disposition) || (p.getFileName() != null && !p.isMimeType("text/*"));
+        if (!attachment && p.isMimeType("text/plain") && out.bodyText == null) { out.bodyText = String.valueOf(p.getContent()); return; }
+        if (!attachment && p.isMimeType("text/html") && out.bodyHtml == null) { out.bodyHtml = String.valueOf(p.getContent()); return; }
+        byte[] data;
+        try (java.io.InputStream in = p.getInputStream()) { data = in.readAllBytes(); }
+        String cid = p instanceof MimePart mp && mp.getContentID() != null ? mp.getContentID().replaceAll("^<|>$", "") : null;
+        String name = p.getFileName() != null ? MimeUtility.decodeText(p.getFileName()) : p.isMimeType("message/rfc822") ? "message.eml" : "part" + (out.attachments.size() + 1);
+        String type = p.getContentType() == null ? "application/octet-stream" : p.getContentType().split(";")[0].trim();
+        out.attachments.add(new com.oneofficeautomation.packages.MsgFile.Attachment(name, type, data, cid, Part.INLINE.equalsIgnoreCase(disposition) && cid != null));
     }
 
     @Action(id = "save_email_as_eml", name = "Save email as .eml", category = "Mailbox", capabilities = {"network", "filesystem"},

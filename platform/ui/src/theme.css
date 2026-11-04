@@ -16,6 +16,7 @@
   --ui-selected: #e8f0fe;
   --ui-divider: #e3e7ed;
   --ui-border: #c9d0da;        /* panel and table outlines */
+  --ui-col-line: #c9d0da;      /* lines between table columns (1.5:1 on white) */
   --ui-field: #7d8797;         /* field and control borders, 3.6:1 */
 
   --ui-accent: #2f6fde;        /* white text on it: 4.7:1 */
@@ -70,6 +71,7 @@
   --ui-selected: #243c66;
   --ui-divider: #2e3849;
   --ui-border: #445066;
+  --ui-col-line: #445066;
   --ui-field: #7d899c;
   --ui-accent-text: #8fb6ff;
   --ui-warning-text: #f5c26b;
@@ -89,15 +91,6 @@
   --ui-offer-bg: #3b3018;
   --ui-guide: #5d6a80;
   color-scheme: dark;
-}
-
-/* Compact density (Display menu): shorter lines and bars, so more steps fit on screen */
-:root[data-density="compact"] {
-  --ui-size: 12.5px;
-  --ui-h: 28px;
-  --ui-row: 28px;
-  --ui-step: 28px;
-  --ui-bar: 34px;
 }
 
 * { box-sizing: border-box; }

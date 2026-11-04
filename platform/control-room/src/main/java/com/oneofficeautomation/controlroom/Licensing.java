@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  * or fewer left: a banner for administrators, critical in the last 7), grace (expired, still working for the grace
  * days in the file) and expired (runs stop and only administrators can sign in, to install a new license).
  * While a license is installed: seats cannot be assigned beyond the file's counts, checking in agents needs a Developer
- * or Citizen Developer seat, and a runner takes Command Center work only with an Unattended Runner seat; a person with an
+ * or Citizen Developer seat, and a runner takes One CommandCenter work only with an Unattended Runner seat; a person with an
  * Attended Runner (or developer) seat may still run agents on their own default runner.
  */
 public final class Licensing {
@@ -37,7 +37,7 @@ public final class Licensing {
     /** Licensed customer installs run on a server database (SQL Server or PostgreSQL), never on the embedded one. */
     boolean serverDatabase() { return serverDatabaseOverride != null ? serverDatabaseOverride : !db.h2; }
 
-    static final String DATABASE_STEPS = "Stop the Command Center, then in its folder run: bin\\ooa.bat db configure --engine sqlserver --host DBSERVER --database ooa_command_center "
+    static final String DATABASE_STEPS = "Stop One CommandCenter, then in its folder run: bin\\ooa.bat db configure --engine sqlserver --host DBSERVER --database ooa_command_center "
         + "--user ooa_app --setup-user ooa_setup; bin\\ooa.bat db set-password; bin\\ooa.bat db set-password --setup; bin\\ooa.bat db init; "
         + "bin\\ooa.bat db copy --from \"%USERPROFILE%\\OOA Command Center\" (keeps the evaluation's data). Start it again and install the license. See INSTALL.md, section 5.";
 
@@ -69,7 +69,7 @@ public final class Licensing {
     }
 
     /**
-     * This Command Center's install id (OOA-XXXX-XXXX-XXXX-XXXX), made at the first start. A license with an install id
+     * This One CommandCenter's install id (OOA-XXXX-XXXX-XXXX-XXXX), made at the first start. A license with an install id
      * works only where it matches. It is stored encrypted with the vault key, so copying it into another database without
      * that key does not move a license.
      */
@@ -361,7 +361,7 @@ public final class Licensing {
         }
         String url = String.valueOf(cr.platform.setting("public_url"));
         body += "\n\nInstall a new license in Administration > Licenses. This install's id is " + installId() + "; send it to ONEOFFICEAUTOMATION when you ask for one."
-            + (url.isEmpty() ? "" : "\n\nCommand Center: " + url);
+            + (url.isEmpty() ? "" : "\n\nOne CommandCenter: " + url);
         cr.mailer.send(to, subject, body);
         String json = com.oneofficeautomation.sdk.JsonLite.write(marker);
         if (db.update("UPDATE settings SET json_value = ?, updated = ? WHERE name = 'license_mail_sent'", json, Instant.now(clock)) == 0)

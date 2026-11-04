@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Runner updates: the Command Center's file list and build id, when a heartbeat offers an update, staging with checksum
+ * Runner updates: One CommandCenter's file list and build id, when a heartbeat offers an update, staging with checksum
  * checks (reusing files the runner has), and the helper that swaps the program folders.
  */
 class RunnerUpdateTest {
@@ -51,7 +51,7 @@ class RunnerUpdateTest {
         List<Map<String, Object>> files = (List<Map<String, Object>>) m.get("files");
         assertEquals(List.of("cli-0.1.2.jar", "packages-0.1.2.jar"), files.stream().map(f -> f.get("name")).toList(), "the licence tools never go to runners");
         assertEquals("0.1.2", m.get("version"));
-        assertEquals(m.get("build"), Updater.build(ccLib), "runner and Command Center calculate the build alike");
+        assertEquals(m.get("build"), Updater.build(ccLib), "runner and One CommandCenter calculate the build alike");
         String mine = Updater.build(runnerLib);
         assertNotEquals(m.get("build"), mine);
 
@@ -83,7 +83,7 @@ class RunnerUpdateTest {
         assertFalse(Files.exists(runnerLib.getParent().resolve("lib.old")));
         assertFalse(UpdateHelper.apply(runnerLib.getParent(), done.pid(), null), "nothing staged: nothing to do");
 
-        // a runner on the Command Center's build gets nothing more, and the request is cleared
+        // a runner on One CommandCenter's build gets nothing more, and the request is cleared
         assertNull(beat((String) m.get("build")).get("update"));
         assertEquals(false, db.one("SELECT update_requested FROM devices WHERE id = ?", device.get("id")).get("update_requested"));
         cr.platform.updateSettings(admin, Map.of("runner_auto_update", 1), null);

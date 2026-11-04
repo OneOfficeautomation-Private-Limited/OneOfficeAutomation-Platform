@@ -11,7 +11,7 @@ import java.util.*;
 import static com.oneofficeautomation.controlroom.ControlRoom.*;
 
 /**
- * One Workflow runtime. A workflow (Name.process.json, designed in One Agent Studio and checked in like an agent) is a
+ * Workflow runtime. A workflow (Name.process.json, designed in One AgentStudio and checked in like an agent) is a
  * list of stages: agent tasks, human tasks (a form), approvals, decisions and notifications. The engine keeps each
  * workflow run's data, moves it from stage to stage, starts agent runs, puts human tasks in the task inbox and waits
  * for them. Stage results are kept under the stage id and merged into the workflow data, so later stages can use
@@ -190,6 +190,14 @@ public final class Workflows {
                                 String.valueOf(s.get("assignee")), "open", now(), due);
                         data.put("_task", tid);
                         history(wf, h, sid, "task_created", Map.of("task_id", tid, "assignee", s.get("assignee")));
+                        // Settings: the people the task is given to get an e-mail too
+                        if (cr.platform.intSetting("notify_task_assigned") == 1) {
+                            String link = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
+                            cr.mailPeople(List.of(String.valueOf(s.get("assignee")).split(",")), "A task for you: " + title,
+                                    "You have a new " + (type.equals("approval") ? "approval" : "form") + " to complete: " + title + "."
+                                    + (due == null ? "" : "\nIt is due by " + due + ".") + "\n\n"
+                                    + (link.isEmpty() ? "Open One CommandCenter to see it (Workflows > Tasks)." : "See it: " + link + "/next/#/tasks"), "task", tid);
+                        }
                         save(wfId, "waiting", sid, data, h);
                         return;
                     }
@@ -209,7 +217,7 @@ public final class Workflows {
                         Map<String, Object> sent = new LinkedHashMap<>();
                         sent.put("to", inbox);
                         if (!other.isEmpty()) {
-                            // e-mail addresses go out through the Command Center's own mail server (Settings > E-mail)
+                            // e-mail addresses go out through One CommandCenter's own mail server (Settings > E-mail)
                             if (!cr.mailer.configured()) { sent.put("not_delivered", other); sent.put("note", "E-mail is not set up (Administration > Settings > E-mail); the inbox notification was sent."); }
                             else {
                                 String subject = String.valueOf(s.getOrDefault("subject", s.getOrDefault("name", "Notification") + " — " + String.valueOf(def.getOrDefault("name", wf.get("path"))).replace(".process.json", "")));
@@ -358,10 +366,18 @@ public final class Workflows {
                 ? db.query("SELECT * FROM human_tasks WHERE status IN ('open', 'claimed') ORDER BY COALESCE(due, created), created LIMIT 500")
                 : db.query("SELECT * FROM human_tasks WHERE status = ? ORDER BY completed DESC LIMIT 300", st);
         boolean admin = cr.can(u, "users.manage");
+        Map<Object, Map<String, Object>> runs = new HashMap<>();   // each task's workflow, read once per run
         for (Map<String, Object> t : rows) {
             boolean mine = assignedTo((String) t.get("assignee"), u) || u.username().equals(t.get("claimed_by")) || u.username().equals(t.get("completed_by"));
             if (!mine && !(admin && all)) continue;
             Map<String, Object> m = new LinkedHashMap<>(t);
+            Object runId = t.get("workflow_run_id");
+            Map<String, Object> wf = runId == null ? null : runs.computeIfAbsent(runId, k -> db.one("SELECT path, reference FROM workflow_runs WHERE id = ?", k));
+            if (wf != null) {   // where the task comes from, as AA's task list shows the request and its reference
+                String path = String.valueOf(wf.get("path"));
+                m.put("workflow", path.substring(path.lastIndexOf('/') + 1).replaceAll("\\.[a-z]+\\.json$", ""));
+                m.put("reference", wf.get("reference"));
+            }
             m.put("form", t.get("form") == null ? null : JsonLite.parse((String) t.get("form")));
             m.put("data", t.get("data") == null ? Map.of() : JsonLite.parse((String) t.get("data")));
             m.put("result", t.get("result") == null ? null : JsonLite.parse((String) t.get("result")));

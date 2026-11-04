@@ -36,7 +36,7 @@ customers do not need this page.
 | Router | All tenants on one port; the host name picks the tenant: `acme.in.example.com` is tenant `acme` in region `in` |
 | Directory (optional) | Maps address name to region only; `https://example.com/t/acme` redirects to the right region. No customer data. |
 
-Each tenant runs the same Command Center code as an on-premises install. Separate schemas mean a missed filter
+Each tenant runs the same One CommandCenter code as an on-premises install. Separate schemas mean a missed filter
 cannot show one tenant's rows to another; CI checks isolation with two tenants that use identical names.
 
 Customers' runners stay in their own networks and connect out to their tenant address:
@@ -49,7 +49,7 @@ Customers' runners stay in their own networks and connect out to their tenant ad
 | The server connects only to public addresses on a tenant's behalf (mail, syslog, mailboxes, trigger sources, external vaults, identity provider, callbacks, promotion targets, Git remote). Loopback, private, link-local (cloud metadata), carrier-grade NAT, unique-local and multicast addresses and `*.internal`/`localhost` names are refused. | `SAAS.ADDRESS_BLOCKED` |
 | Git remotes must be `https://` or SSH | - |
 | No custom toolkit uploads (no tenant code in the server) | `SAAS.NOT_AVAILABLE` |
-| Serverless API tasks off unless the region sets `serverless=true` | - |
+| Serverless Agent APIs off unless the region sets `serverless=true` | - |
 | Backup folder and repository folder cannot be changed | `SAAS.NOT_AVAILABLE` |
 | The outgoing proxy setting has no effect | - |
 | Licence files cannot be installed (seats come from the operator) | - |
@@ -239,7 +239,7 @@ administrator frees one in Administration > Licenses or asks for more.
 2. Upgrade one region at a time, a week apart, starting with the smallest.
 3. In a region: back up PostgreSQL, stop all nodes, roll out the new image, start one node (it upgrades each tenant
    schema as it opens it), check `/healthz` and a tenant sign-in, then start the other nodes.
-4. Tell tenants to update their runners from Runners > Update (runners newer than the Command Center get no work, so
+4. Tell tenants to update their runners from Runners > Update (runners newer than One CommandCenter get no work, so
    the region goes first).
 5. Upgrade the directory independently; it holds only the name table.
 

@@ -2,6 +2,7 @@ package com.oneofficeautomation.runner;
 
 import com.oneofficeautomation.sdk.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,11 +16,31 @@ public final class CorePackage {
     public static final Set<String> CONTAINERS = Set.of("if", "loop", "try", "step", "parallel");
     public static final Set<String> BUILTIN_ITERATORS = Set.of("times", "while", "list", "dictionary", "dictionary_keys", "dictionary_values", "table_rows");
 
+    /** How core/switch compares its value with a case's values; "expression" makes each case value a condition. */
+    public static final List<String> SWITCH_MATCHES = List.of("equals", "contains", "starts_with", "ends_with", "regex", "expression");
+
+    /** The condition operator a switch match kind compares with (the same rules as If's equals, contains ...). */
+    static String switchOperator(String match) {
+        return switch (match) { case "contains" -> "contains"; case "starts_with" -> "startsWith"; case "ends_with" -> "endsWith"; case "regex" -> "matches"; default -> "eq"; };
+    }
+
     private static Map<String, Object> interp() { throw new IllegalStateException("core actions are executed by the interpreter"); }
 
     @Action(id = "if", name = "If", category = "Logic", description = "Run the children when the condition is true; otherwise evaluate elseIf branches, then else.")
     public Map<String, Object> ifAction(ActionContext c,
             @Input(name = "condition", description = "Condition object, expression string or $reference.") Object condition) { return interp(); }
+
+    @Action(id = "switch", name = "Switch", category = "Logic",
+            description = "Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.")
+    public Map<String, Object> switchAction(ActionContext c,
+            @Input(name = "value", required = false, visibleWhen = "match!=expression",
+                    description = "Value to compare with each case's values: text, a number, a $reference or an expression.") Object value,
+            @Input(name = "match", type = OoaType.STRING, required = false, defaultValue = "\"equals\"",
+                    enumValues = {"equals", "contains", "starts_with", "ends_with", "regex", "expression"},
+                    description = "How a case value matches: equals (like ==, so 5 and \"5\" match), contains, starts_with, ends_with, regex (the case value is a pattern), "
+                            + "or expression (each case value is a condition and the value is not used).") String match,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "match!=expression",
+                    description = "Compare text without upper/lower case.") Object ignoreCase) { return interp(); }
 
     @Action(id = "loop", name = "Loop", category = "Logic",
             description = "Repeat the children using an iterator: times, while, list, dictionary, dictionary_keys, dictionary_values, table_rows or a toolkit iterator (package/iterator).")
@@ -56,7 +77,7 @@ public final class CorePackage {
 
     @Action(id = "step", name = "Step", category = "Logic", description = "Named group of steps for readability; no runtime effect.")
     public Map<String, Object> step(ActionContext c,
-            @Input(name = "title", type = OoaType.STRING, required = false, description = "Group title shown in Agent Studio.") String title) { return interp(); }
+            @Input(name = "title", type = OoaType.STRING, required = false, description = "Group title shown in One AgentStudio.") String title) { return interp(); }
 
     @Action(id = "parallel", name = "Parallel", category = "Logic", description = "Run each child step as a concurrent branch and wait for all branches.")
     public Map<String, Object> parallel(ActionContext c,
@@ -66,6 +87,12 @@ public final class CorePackage {
     public Map<String, Object> set(ActionContext c,
             @Input(name = "variable", type = OoaType.STRING, description = "Name of a declared variable.") String variable,
             @Input(name = "value", required = false, description = "Value, $reference or {\"expr\": ...}.") Object value) { return interp(); }
+
+    @Action(id = "set_many", name = "Assign several variables", category = "Variables",
+            description = "Assign values to several declared variables in one step, in order: a later value can use a variable set above it.")
+    public Map<String, Object> setMany(ActionContext c,
+            @Input(name = "assignments", type = OoaType.LIST, example = "[{\"variable\": \"total\", \"value\": 0}, {\"variable\": \"status\", \"value\": \"new\"}]",
+                    description = "Records with variable (a declared variable's name) and value (a value, $reference or {\"expr\": ...}).") Object assignments) { return interp(); }
 
     @Action(id = "log", name = "Log message", category = "Runtime", description = "Write a message to the run log.")
     public Map<String, Object> log(ActionContext c,
@@ -116,7 +143,25 @@ public final class CorePackage {
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"success\"", enumValues = {"success", "failed"},
                     description = "success ends the agent normally; failed ends it with error AGENT.STOPPED.") String status) { return interp(); }
 
-    @Action(id = "pause", name = "Pause agent", category = "Agent", description = "Pause the run until someone resumes it from Agent Studio or Command Center, or until the optional timeout.")
+    @Action(id = "run_subflow", name = "Run subflow", category = "Agent",
+            description = "Run one of this agent's subflows (a named list of steps kept beside the main steps) and carry on when it ends; it uses the agent's own variables.")
+    public Map<String, Object> runSubflow(ActionContext c,
+            @Input(name = "subflow", type = OoaType.STRING, description = "Name of the subflow to run.") String subflow) { return interp(); }
+
+    @Action(id = "exit_subflow", name = "Exit subflow", category = "Agent",
+            description = "Leave the subflow being run at once (Finally blocks still run); the agent carries on after the Run subflow step.")
+    public Map<String, Object> exitSubflow(ActionContext c) { return interp(); }
+
+    @Action(id = "label", name = "Label", category = "Logic", description = "A named place in the steps that Go to can jump to; does nothing itself.")
+    public Map<String, Object> label(ActionContext c,
+            @Input(name = "name", type = OoaType.STRING, pattern = "^[A-Za-z0-9_ -]+$", description = "Name of the place, unique among the labels Go to steps can see.") String name) { return interp(); }
+
+    @Action(id = "goto", name = "Go to", category = "Logic",
+            description = "Carry on from a Label in the same step list or a list around it (never into a block or out of a subflow); a run fails with GOTO.LIMIT after too many jumps.")
+    public Map<String, Object> gotoAction(ActionContext c,
+            @Input(name = "label", type = OoaType.STRING, description = "Name of the Label to carry on from.") String label) { return interp(); }
+
+    @Action(id = "pause", name = "Pause agent", category = "Agent", description = "Pause the run until someone resumes it from One AgentStudio or One CommandCenter, or until the optional timeout.")
     public Map<String, Object> pause(ActionContext c,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Why the run is waiting; shown with the paused run.") String message,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, min = 0, description = "Resume by itself after this many seconds; waits until resumed when empty.") Object timeout) { return interp(); }

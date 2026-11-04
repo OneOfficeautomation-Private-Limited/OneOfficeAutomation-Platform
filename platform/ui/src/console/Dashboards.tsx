@@ -1,0 +1,335 @@
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import type { CrApi, CrUser, CustomDashboard, DashMail, DashWidget, WidgetData } from "../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { RefreshButton, RowMenu } from "./ListParts";
+
+/**
+ * Operational Insights > Dashboards, rebuilt from today's console with AA's Bot Insight custom dashboards and UiPath
+ * Insights' templates in mind (checked 31 Oct 2026): dashboards of widgets over the KPIs agents record and over the
+ * runs, kept to oneself or shared; ready-made dashboards to start from; widgets made in a form (or as JSON) and shown as
+ * a number, bars, a line, a table or a pie; a CSV of each widget; any dashboard one may see copied as one's own.
+ * Review round 2 (1 Nov 2026): a one-line toolbar (the dashboard, whose it is, a menu with Edit, Copy as mine and Delete
+ * asked first, and the refresh icon), and a menu per widget in the editor.
+ */
+type Kpi = { bot_path: string; name: string; n: number };
+const TYPES: [NonNullable<DashWidget["type"]>, string][] = [["number", "A number"], ["bars", "Bars"], ["line", "A line over time"], ["table", "A table"], ["pie", "A pie"]];
+const METRICS: [NonNullable<DashWidget["metric"]>, string][] = [["runs", "Runs"], ["success_rate", "Success rate (%)"], ["failed", "Failed runs"], ["avg_seconds", "Average run time (seconds)"], ["hours_saved", "Hours saved"]];
+const AGGS: [NonNullable<DashWidget["agg"]>, string][] = [["sum", "Total"], ["avg", "Average"], ["count", "How many"], ["min", "Smallest"], ["max", "Largest"], ["last", "Latest"]];
+const GROUPS: [NonNullable<DashWidget["group"]>, string][] = [["none", "Nothing"], ["day", "Day"], ["week", "Week"], ["month", "Month"], ["agent", "Agent"], ["value", "A value"]];
+const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
+const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+const titleOf = (w: DashWidget) => w.title || (w.source === "runs" ? METRICS.find(([m]) => m === (w.metric ?? "runs"))?.[1] ?? "Runs" : (AGGS.find(([a]) => a === (w.agg ?? "sum"))?.[1] ?? "") + " of " + w.kpi);
+const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your agents record (outputs marked KPI in One AgentStudio) and figures about the "
+  + "runs, on dashboards you keep to yourself or share. The figures refresh every minute.",
+  items: [
+    { name: "New dashboard", text: "Start from nothing or from a ready-made dashboard (Operations at a glance, Value, or one over a business figure), "
+      + "then name it, share it and change its widgets." },
+    { name: "Dashboard", text: "Pick the dashboard to show: your own and those shared with you. Beside it you see whose it is and who it is shared with." },
+    { name: "Share with", text: "In the editor: role:NAME, team:NAME, user:NAME or * for everyone, separated by commas. "
+      + "Empty keeps the dashboard to yourself." },
+    { name: "Add a widget", text: "Choose how it shows (a number, bars, a line, a table or a pie), where the figure comes from (the runs or a KPI), "
+      + "an agent, what to split by and how many days to look at." },
+    { name: "Figure", text: "For the runs: how many ran, the success rate, failed runs, the average run time or the hours saved." },
+    { name: "Work out", text: "For a KPI: the total, average, count, smallest, largest or latest value it recorded." },
+    { name: "Edit as JSON", text: "Shows the widgets as JSON, to copy or change many at once. Back to the form checks the JSON first." },
+    { name: "CSV", text: "On each widget: saves its figures as a CSV file." },
+    { name: "Actions (⋯)", text: "Edit or delete a dashboard you may change, or Copy as mine to make your own copy of any dashboard you can see." },
+    { name: "Print or save as PDF", text: "Opens your browser's print window with only the dashboard; choose Save as PDF there to keep or send it." },
+    { name: "E-mail it on a schedule…", text: "Sends the dashboard's figures and a link each day, week or month to people, roles or e-mail addresses. "
+      + "The figures are the ones you see, so send it only to people who may see them. Needs permission to make dashboards and e-mail set up in Settings." },
+    { name: "Address", text: "The address in the browser opens this dashboard, so you can send a link to it." },
+  ] };
+const fmt = (w: DashWidget, v?: number | null) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }) + (w.metric === "success_rate" ? "%" : "");
+
+/** Ready-made dashboards: two over the runs, and one over the first KPI recorded (when there is one). */
+function readyMade(kpis: Kpi[]): { id: string; name: string; description: string; widgets: DashWidget[] }[] {
+  const out = [
+    { id: "ops", name: "Operations at a glance", description: "How the agents ran this month.", widgets: [
+      { title: "Success rate, last 7 days", type: "number", source: "runs", metric: "success_rate", days: 7 },
+      { title: "Runs per day", type: "line", source: "runs", metric: "runs", group: "day", days: 30 },
+      { title: "Failed runs per agent", type: "bars", source: "runs", metric: "failed", group: "agent", days: 30 },
+      { title: "Runs per agent", type: "pie", source: "runs", metric: "runs", group: "agent", days: 30 }] as DashWidget[] },
+    { id: "value", name: "Value", description: "Hours of manual work the agents saved.", widgets: [
+      { title: "Hours saved, last 30 days", type: "number", source: "runs", metric: "hours_saved", days: 30 },
+      { title: "Hours saved per week", type: "line", source: "runs", metric: "hours_saved", group: "week", days: 90 },
+      { title: "Hours saved per agent", type: "bars", source: "runs", metric: "hours_saved", group: "agent", days: 90 }] as DashWidget[] }];
+  const k = kpis[0];
+  if (k) out.push({ id: "kpi", name: "Business figure: " + k.name, description: "The " + k.name + " " + name(k.bot_path) + " records.", widgets: [
+    { title: "Total " + k.name + ", last 30 days", type: "number", source: "kpi", kpi: k.name, bot: k.bot_path, agg: "sum", days: 30 },
+    { title: k.name + " per day", type: "line", source: "kpi", kpi: k.name, bot: k.bot_path, agg: "sum", group: "day", days: 30 },
+    { title: k.name + " by value", type: "table", source: "kpi", kpi: k.name, bot: k.bot_path, agg: "count", group: "value", days: 30 }] as DashWidget[] });
+  return out;
+}
+
+export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; title?: string; tabs?: ReactNode }) {
+  const [list, setList] = useState<CustomDashboard[] | null>(null);
+  const [current, setCurrent] = useState<string | null>(null);
+  const [data, setData] = useState<WidgetData[] | null>(null);
+  const [kpis, setKpis] = useState<Kpi[]>([]);
+  const [agents, setAgents] = useState<string[]>([]);
+  const [editing, setEditing] = useState<{ d: CustomDashboard | null; copy?: boolean } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [mailing, setMailing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback((pick?: string) => api.dashboards().then((l) => {
+    setList(l); setError(null);
+    setCurrent((c) => { const want = pick ?? c; return l.some((d) => d.id === want) ? want! : l[0]?.id ?? null; });
+  }, (e) => setError(message(e))), [api]);
+  // the dashboard named in the address (#/business?tab=dashboards&dashboard=ID) opens first, so a link to it works
+  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, () => {}); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), () => {}); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const refresh = useCallback(() => {
+    if (!current) { setData(null); return; }
+    api.dashboardData(current, Intl.DateTimeFormat().resolvedOptions().timeZone).then((r) => setData(r.widgets), (e) => setError(message(e)));
+  }, [api, current]);
+  useEffect(() => { setData(null); refresh(); const t = setInterval(refresh, 60000); return () => clearInterval(t); }, [refresh]);
+
+  const cur = list?.find((d) => d.id === current) ?? null;
+  useEffect(() => {   // the address names the dashboard shown
+    if (!current || !location.hash.startsWith("#/business")) return;
+    const q = new URLSearchParams(location.hash.split("?")[1] ?? "");
+    if (q.get("dashboard") === current) return;
+    q.set("tab", "dashboards"); q.set("dashboard", current);
+    history.replaceState(null, "", "#/business?" + q.toString());
+  }, [current]);
+  /** The browser's print window with only the dashboard (Save as PDF there). */
+  const print = () => {
+    document.body.classList.add("cc-printing");
+    const done = () => { document.body.classList.remove("cc-printing"); removeEventListener("afterprint", done); };
+    addEventListener("afterprint", done);
+    window.print();
+  };
+  const design = user.permissions.includes("insights.design");   // make and share dashboards (AA's Insight designer)
+  const more = cur ? [...(design && cur.can_edit ? [{ key: "edit", label: "Edit", onSelect: () => setEditing({ d: cur }) }] : []),
+    ...(design ? [{ key: "copy", label: "Copy as mine", onSelect: () => setEditing({ d: cur, copy: true }) }] : []),
+    { key: "print", label: "Print or save as PDF", onSelect: print },
+    { key: "mail", label: "E-mail it on a schedule…", onSelect: () => setMailing(true) },
+    ...(design && cur.can_edit ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(true) }] : [])] : [];
+  const remove = () => cur && api.deleteDashboard(cur.id).then(() => { onNotice("Deleted the dashboard " + cur.name + "."); setDeleting(false); load(""); }, (e) => setError(message(e)));
+
+  return (
+    <section className="st-page cc-home cc-list" aria-labelledby="cc-db-title">
+      <header className="cc-list-head">
+        <h1 id="cc-db-title">{title ?? "Dashboards"}</h1>
+        <HelpButton topic={HELP} />
+        <span className="ov-fill" />
+        {design && <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>}
+      </header>
+      {tabs}
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {list && !list.length && <p className="st-muted cc-pad">No dashboards yet. Make one, or start from a ready-made one with New dashboard.</p>}
+      {list && list.length > 0 && <div className="cc-list-tools">
+        <div className="cc-list-filters" role="toolbar" aria-label="Dashboard">
+          <span className="cc-chip"><Select aria-label="Dashboard" value={current ?? ""} onChange={(e) => { setCurrent(e.target.value); setDeleting(false); }} options={list.map((d) => ({ value: d.id, label: d.name }))} /></span>
+          <span className="st-muted" title={cur?.description || undefined}>{cur ? (cur.owner === user.username ? "Yours" : "Made by " + cur.owner) + (cur.shared_with.length ? " · shared with " + cur.shared_with.join(", ") : " · not shared") : ""}</span>
+          {cur && <RowMenu label={"More for " + cur.name} items={more} />}
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={refresh} /></div>
+      </div>}
+      {deleting && cur && <div className="cc-list-bulk cc-pad-x" role="alert"><span>Delete the dashboard {cur.name}?{cur.shared_with.length ? " People it is shared with lose it too." : ""}</span>
+        <Button kind="danger" onClick={remove}>Delete</Button><Button kind="plain" onClick={() => setDeleting(false)}>Cancel</Button></div>}
+      {cur?.description && <p className="st-muted cc-pad-x">{cur.description}</p>}
+      {cur && !data && <p className="st-muted cc-pad" role="status">Loading…</p>}
+      {data && cur && <div className="cc-db-print"><h2 className="cc-print-only">{cur.name} · {new Date().toLocaleString()}</h2>
+        <div className="cc-dash">{data.map((w, i) => <WidgetCard key={i} w={w} />)}</div></div>}
+      {mailing && cur && <MailDialog api={api} user={user} d={cur} onClose={() => setMailing(false)} onNotice={onNotice} />}
+      {editing && <DashboardEditor api={api} d={editing.d} copy={!!editing.copy} kpis={kpis} agents={agents} onClose={() => setEditing(null)}
+        onSaved={(id, t) => { onNotice(t); setEditing(null); load(id); }} />}
+    </section>
+  );
+}
+
+function WidgetCard({ w }: { w: WidgetData }) {
+  const title = titleOf(w);
+  const pts = (w.points ?? []).filter((p) => p.value != null) as { label: string; value: number }[];
+  const csv = () => {
+    const rows = w.type === "number" || !w.type ? [["Figure"], [String(w.value ?? "")]] : [["Label", "Figure"], ...(w.points ?? []).map((p) => [p.label, String(p.value ?? "")])];
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv" }));
+    a.download = title.replace(/[^\w -]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  let body: ReactNode;
+  if (w.error) body = <p className="st-alert">{w.error}</p>;
+  else if (w.type === "number" || !w.type) body = <div className="cc-dash-number">{fmt(w, w.value)}</div>;
+  else if (!pts.length) body = <p className="st-muted">No figures in this period.</p>;
+  else if (w.type === "table") body = <table className="st-table" aria-label={title}><thead><tr><th scope="col">{w.group === "agent" ? "Agent" : w.group === "value" ? "Value" : "Period"}</th><th scope="col">Figure</th></tr></thead>
+    <tbody>{(w.points ?? []).map((p) => <tr key={p.label}><td>{w.group === "agent" ? name(p.label) : p.label}</td><td>{fmt(w, p.value)}</td></tr>)}</tbody></table>;
+  else if (w.type === "bars") { const max = Math.max(1, ...pts.map((p) => p.value)); body = <ul className="cc-hbars" aria-label={title}>{pts.map((p) => <li key={p.label}>
+    <span className="cc-hbar-label" title={p.label}>{w.group === "agent" ? name(p.label) : p.label}</span>
+    <span className="cc-hbar-track"><span className="cc-hbar-fill" style={{ width: (100 * p.value / max) + "%" }} /></span><span className="cc-hbar-value">{fmt(w, p.value)}</span></li>)}</ul>; }
+  else if (w.type === "pie") body = <Pie w={w} pts={pts} title={title} />;
+  else body = <Line w={w} pts={pts} title={title} />;
+  return <article className="cc-card cc-card-flat cc-dash-card" aria-label={title}>
+    <div className="cc-card-head"><h2>{title}</h2>{!w.error && <Button kind="plain" onClick={csv} aria-label={"CSV of " + title}>CSV</Button>}</div>
+    {body}
+    <p className="cc-card-foot st-muted">{w.days ?? 30} days{w.bot ? " · " + name(w.bot) : ""}</p>
+  </article>;
+}
+
+function Line({ w, pts, title }: { w: DashWidget; pts: { label: string; value: number }[]; title: string }) {
+  const W = 320, H = 120;
+  const max = Math.max(...pts.map((p) => p.value)), min = Math.min(0, ...pts.map((p) => p.value));
+  const x = (i: number) => pts.length === 1 ? W / 2 : 6 + i * (W - 12) / (pts.length - 1), y = (v: number) => H - 4 - (H - 8) * (v - min) / Math.max(1e-9, max - min);
+  return <figure className="cc-dash-line">
+    <svg viewBox={"0 0 " + W + " " + H} role="img" aria-label={title + ": from " + fmt(w, pts[0].value) + " (" + pts[0].label + ") to " + fmt(w, pts[pts.length - 1].value) + " (" + pts[pts.length - 1].label + ")"}>
+      <polyline points={pts.map((p, i) => x(i).toFixed(1) + "," + y(p.value).toFixed(1)).join(" ")} fill="none" strokeWidth="2" />
+      {pts.length <= 60 && pts.map((p, i) => <circle key={i} cx={x(i).toFixed(1)} cy={y(p.value).toFixed(1)} r="3"><title>{p.label + ": " + fmt(w, p.value)}</title></circle>)}
+    </svg>
+    <figcaption className="cc-dash-axis"><span>{pts[0].label}</span><span>highest {fmt(w, max)}</span><span>{pts[pts.length - 1].label}</span></figcaption>
+  </figure>;
+}
+
+/** A pie of the three largest parts and the rest, with a legend of values and shares (colours as Home's chart: 3:1 or more on the card in both themes). */
+function Pie({ w, pts, title }: { w: DashWidget; pts: { label: string; value: number }[]; title: string }) {
+  const sorted = [...pts].filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
+  const parts = sorted.length > 4 ? [...sorted.slice(0, 3), { label: "Others", value: sorted.slice(3).reduce((n, p) => n + p.value, 0) }] : sorted;
+  const total = parts.reduce((n, p) => n + p.value, 0);
+  if (!total) return <p className="st-muted">No figures in this period.</p>;
+  let a = -Math.PI / 2;
+  const arcs = parts.map((p) => {
+    const share = p.value / total, b = a + share * 2 * Math.PI, large = share > 0.5 ? 1 : 0;
+    const d = share >= 0.9999 ? "M 50 10 A 40 40 0 1 1 49.99 10 Z" : `M 50 50 L ${50 + 40 * Math.cos(a)} ${50 + 40 * Math.sin(a)} A 40 40 0 ${large} 1 ${50 + 40 * Math.cos(b)} ${50 + 40 * Math.sin(b)} Z`;
+    a = b; return d;
+  });
+  const label = (l: string) => w.group === "agent" && l !== "Others" ? name(l) : l;
+  return <div className="cc-pie">
+    <svg viewBox="0 0 100 100" role="img" aria-label={title}>{arcs.map((d, i) => <path key={i} d={d} className={"cc-pie-" + i}><title>{label(parts[i].label)}</title></path>)}</svg>
+    <ul className="cc-pie-legend" aria-label={"Parts of " + title}>{parts.map((p, i) => <li key={p.label}><span className={"cc-pie-key cc-pie-" + i} />{label(p.label)}<span className="st-muted">{fmt(w, p.value)} · {Math.round(100 * p.value / total)}%</span></li>)}</ul>
+  </div>;
+}
+
+/** Making, changing or copying a dashboard: name, sharing, and its widgets (in a form, or as JSON). */
+function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api: CrApi; d: CustomDashboard | null; copy: boolean; kpis: Kpi[]; agents: string[];
+  onClose: () => void; onSaved: (id: string, t: string) => void }) {
+  const [v, setV] = useState({ name: d ? (copy ? d.name + " (copy)" : d.name) : "", description: d?.description ?? "", shared: copy ? "" : (d?.shared_with ?? []).join(", ") });
+  const [widgets, setWidgets] = useState<DashWidget[]>(d?.widgets ?? []);
+  const [json, setJson] = useState<string | null>(null);
+  const [widget, setWidget] = useState<{ i: number | null; w: DashWidget } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ready = readyMade(kpis);
+  const move = (i: number, by: number) => { const n = [...widgets]; const [x] = n.splice(i, 1); n.splice(i + by, 0, x); setWidgets(n); };
+  const save = () => {
+    let ws = widgets;
+    if (json != null) { try { ws = JSON.parse(json); } catch { setError("The widgets are not valid JSON."); return; } }
+    api.saveDashboard(d && !copy ? d.id : null, { name: v.name.trim(), description: v.description.trim(), shared_with: v.shared.split(",").map((x) => x.trim()).filter(Boolean), widgets: ws })
+      .then((r) => onSaved(r.id, (d && !copy ? "Saved " : "Made ") + v.name.trim() + "."), (e) => setError(message(e)));
+  };
+  return (
+    <Dialog open title={d ? (copy ? "Copy " + d.name : "Edit " + d.name) : "New dashboard"} width={760} onClose={onClose}
+      footer={<><Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!v.name.trim() || (json == null && !widgets.length)} onClick={save}>Save</Button></>}>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {!d && <Field label="Start from" hint="A ready-made dashboard fills in its widgets; change them as you like.">{(id) => <Select id={id} defaultValue=""
+        onChange={(e) => { const t = ready.find((r) => r.id === e.target.value); if (t) { setV({ ...v, name: v.name || t.name, description: v.description || t.description }); setWidgets(t.widgets); setJson(null); } }}
+        options={[{ value: "", label: "Nothing: add widgets myself" }, ...ready.map((r) => ({ value: r.id, label: r.name }))]} />}</Field>}
+      <div className="cc-grid2">
+        <Field label="Name">{(id) => <TextInput id={id} value={v.name} maxLength={120} onChange={(e) => setV({ ...v, name: e.target.value })} />}</Field>
+        <Field label="Share with" hint="role:NAME, team:NAME, user:NAME or * for everyone; empty keeps it yours">{(id) => <TextInput id={id} value={v.shared} placeholder="role:viewer, team:finance" onChange={(e) => setV({ ...v, shared: e.target.value })} />}</Field>
+      </div>
+      <Field label="Description">{(id) => <TextInput id={id} value={v.description} maxLength={1000} onChange={(e) => setV({ ...v, description: e.target.value })} />}</Field>
+      <div className="cc-card-head cc-gap"><h3 className="cc-log-title">Widgets</h3>
+        <span className="cc-inline">{json == null && <Button kind="secondary" disabled={widgets.length >= 40} onClick={() => setWidget({ i: null, w: { type: "number", source: "runs", metric: "runs", days: 30 } })}>Add a widget</Button>}
+          <Button kind="plain" onClick={() => { if (json == null) setJson(JSON.stringify(widgets, null, 2)); else { try { setWidgets(JSON.parse(json)); setJson(null); setError(null); } catch { setError("The widgets are not valid JSON."); } } }}>
+            {json == null ? "Edit as JSON" : "Back to the form"}</Button></span></div>
+      {json != null ? <TextArea aria-label="Widgets (JSON)" rows={14} className="ui-mono" value={json} onChange={(e) => setJson(e.target.value)} />
+        : widgets.length ? <table className="st-table" aria-label="Widgets"><tbody>{widgets.map((w, i) => <tr key={i}>
+          <td>{titleOf(w)}</td><td className="st-muted">{TYPES.find(([t]) => t === (w.type ?? "number"))?.[1]} · {w.days ?? 30} days</td>
+          <td className="cc-list-menu"><RowMenu label={"Actions for " + titleOf(w)} items={[{ key: "change", label: "Change", onSelect: () => setWidget({ i, w }) },
+            ...(i > 0 ? [{ key: "up", label: "Move up", onSelect: () => move(i, -1) }] : []),
+            ...(i < widgets.length - 1 ? [{ key: "down", label: "Move down", onSelect: () => move(i, 1) }] : []),
+            { key: "remove", label: "Remove", separatorBefore: true, onSelect: () => setWidgets(widgets.filter((_, j) => j !== i)) }]} /></td></tr>)}</tbody></table>
+        : <p className="st-muted">No widgets yet: add one, or start from a ready-made dashboard.</p>}
+      {kpis.length === 0 && <p className="st-muted">No KPI values recorded yet: mark an agent's outputs as KPI in One AgentStudio and run it. Run figures work now.</p>}
+      {widget && <WidgetEditor w={widget.w} kpis={kpis} agents={agents} onClose={() => setWidget(null)}
+        onDone={(w) => { setWidgets(widget.i == null ? [...widgets, w] : widgets.map((x, j) => j === widget.i ? w : x)); setWidget(null); }} />}
+    </Dialog>
+  );
+}
+
+const WEEKDAYS: [string, string][] = [["MON", "Monday"], ["TUE", "Tuesday"], ["WED", "Wednesday"], ["THU", "Thursday"], ["FRI", "Friday"], ["SAT", "Saturday"], ["SUN", "Sunday"]];
+const whenText = (m: DashMail) => (m.every === "day" ? "Each day" : m.every === "week" ? "Each " + (WEEKDAYS.find(([k]) => k === m.weekday)?.[1] ?? m.weekday) : "On the 1st of each month")
+  + " at " + m.at_time + " (" + m.time_zone + ")";
+const at = (t?: string | null) => t ? new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+
+/** A dashboard e-mailed on a schedule: its schedules (send now, stop) and a new one (UiPath's scheduled dashboard e-mails). */
+function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrUser; d: CustomDashboard; onClose: () => void; onNotice: (t: string) => void }) {
+  const [list, setList] = useState<DashMail[] | null>(null);
+  const [x, setX] = useState({ recipients: "", every: "week", weekday: "MON", at_time: "08:00", time_zone: user.default_time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
+  const [error, setError] = useState<string | null>(null);
+  const design = user.permissions.includes("insights.design");
+  const load = useCallback(() => api.dashboardMail(d.id).then(setList, (e) => setError(message(e))), [api, d.id]);
+  useEffect(() => { load(); }, [load]);
+  const add = () => api.addDashboardMail(d.id, { recipients: x.recipients, every: x.every, at_time: x.at_time, time_zone: x.time_zone.trim(), ...(x.every === "week" ? { weekday: x.weekday } : {}) })
+    .then(() => { setX({ ...x, recipients: "" }); setError(null); onNotice("The dashboard " + d.name + " will be e-mailed " + (x.every === "day" ? "each day" : x.every === "week" ? "each week" : "each month") + "."); load(); },
+      (e) => setError(message(e)));
+  const mine = (m: DashMail) => m.created_by === user.username || user.permissions.includes("settings.manage");
+  return (
+    <Dialog open title={"E-mail " + d.name + " on a schedule"} width={760} onClose={onClose} footer={<><span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Close</Button></>}>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {!list && !error && <p className="st-muted" role="status">Loading…</p>}
+      {list && <table className="st-table" aria-label="E-mail schedules">
+        <thead><tr><th scope="col">To</th><th scope="col">When</th><th scope="col">Next</th><th scope="col">Last sent</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+        <tbody>{list.map((m) => <tr key={m.id}><td className="cc-clip" title={m.recipients}>{m.recipients.split(",").join(", ")}</td><td>{whenText(m)}</td><td>{at(m.next_send)}</td>
+          <td>{m.last_error ? <span className="cc-err" title={m.last_error}>Failed: {m.last_error}</span> : at(m.last_sent)}</td>
+          <td className="cc-list-menu">{mine(m) && <RowMenu label={"Actions for the e-mail to " + m.recipients} items={[
+            { key: "send", label: "Send now", onSelect: () => api.sendDashboardMail(m.id).then((r) => { onNotice("Sent to " + r.sent_to + " address" + (r.sent_to === 1 ? "" : "es") + "."); load(); }, (e) => setError(message(e))) },
+            { key: "stop", label: "Stop", separatorBefore: true, onSelect: () => api.stopDashboardMail(m.id).then(() => { onNotice("Stopped the e-mail to " + m.recipients + "."); load(); }, (e) => setError(message(e))) }]} />}</td></tr>)}
+          {!list.length && <tr><td colSpan={5} className="cc-none">Not e-mailed yet.</td></tr>}</tbody>
+      </table>}
+      {design && <>
+        <h3 className="cc-dlg-h">E-mail it</h3>
+        <Field label="To" hint="user:NAME, role:NAME or e-mail addresses, separated by commas. They get the figures you see.">{(id) =>
+          <TextInput id={id} value={x.recipients} placeholder="role:finance, cfo@example.com" onChange={(e) => setX({ ...x, recipients: e.target.value })} />}</Field>
+        <div className="cc-grid2">
+          <Field label="How often">{(id) => <Select id={id} value={x.every} onChange={(e) => setX({ ...x, every: e.target.value })}
+            options={[{ value: "day", label: "Each day" }, { value: "week", label: "Each week" }, { value: "month", label: "Each month (the 1st)" }]} />}</Field>
+          {x.every === "week" && <Field label="On">{(id) => <Select id={id} value={x.weekday} onChange={(e) => setX({ ...x, weekday: e.target.value })} options={WEEKDAYS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>}
+          <Field label="At">{(id) => <TextInput id={id} type="time" value={x.at_time} onChange={(e) => setX({ ...x, at_time: e.target.value })} />}</Field>
+          <Field label="Time zone">{(id) => <TextInput id={id} value={x.time_zone} onChange={(e) => setX({ ...x, time_zone: e.target.value })} />}</Field>
+        </div>
+        <Button kind="primary" disabled={!x.recipients.trim()} onClick={add}>Add the e-mail</Button>
+      </>}
+    </Dialog>
+  );
+}
+
+function WidgetEditor({ w, kpis, agents, onClose, onDone }: { w: DashWidget; kpis: Kpi[]; agents: string[]; onClose: () => void; onDone: (w: DashWidget) => void }) {
+  const [x, setX] = useState<DashWidget>(w);
+  const kpiNames = [...new Set(kpis.filter((k) => !x.bot || k.bot_path === x.bot).map((k) => k.name))];
+  const set = (p: Partial<DashWidget>) => setX({ ...x, ...p });
+  const done = () => {
+    const out: DashWidget = { title: x.title?.trim() || undefined, type: x.type ?? "number", source: x.source ?? "runs", days: x.days ?? 30 };
+    if (out.source === "runs") out.metric = x.metric ?? "runs"; else { out.kpi = x.kpi?.trim(); out.agg = x.agg ?? "sum"; }
+    if (x.bot) out.bot = x.bot;
+    if (out.type !== "number" && x.group && x.group !== "none") { out.group = x.group; if (x.group === "value" && x.by) out.by = x.by; }
+    onDone(out);
+  };
+  const valid = (x.source !== "kpi" || !!x.kpi) && (x.source !== "output" || (!!x.kpi?.trim() && !!x.bot)) && (x.days ?? 30) >= 1 && (x.days ?? 30) <= 365;
+  return (
+    <Dialog open title={w.title ? "Widget " + w.title : "Widget"} width={600} onClose={onClose}
+      footer={<><Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!valid} onClick={done}>Done</Button></>}>
+      <Field label="Title" hint="Empty: named after its figure">{(id) => <TextInput id={id} value={x.title ?? ""} maxLength={120} onChange={(e) => set({ title: e.target.value })} />}</Field>
+      <div className="cc-grid2">
+        <Field label="Show as">{(id) => <Select id={id} value={x.type ?? "number"} onChange={(e) => set({ type: e.target.value as DashWidget["type"] })} options={TYPES.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
+        <Field label="Figure from">{(id) => <Select id={id} value={x.source ?? "runs"} onChange={(e) => set({ source: e.target.value as DashWidget["source"] })}
+          options={[{ value: "runs", label: "The runs" }, { value: "kpi", label: "A KPI agents record" }, { value: "output", label: "An agent's output" }]} />}</Field>
+        {(x.source ?? "runs") === "runs"
+          ? <Field label="Figure">{(id) => <Select id={id} value={x.metric ?? "runs"} onChange={(e) => set({ metric: e.target.value as DashWidget["metric"] })} options={METRICS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
+          : <>
+            {x.source === "output"
+              ? <Field label="Output" hint="Its name in the agent; choose the agent below">{(id) => <TextInput id={id} value={x.kpi ?? ""} maxLength={80} onChange={(e) => set({ kpi: e.target.value })} />}</Field>
+              : <Field label="KPI">{(id) => <Select id={id} value={x.kpi ?? ""} onChange={(e) => set({ kpi: e.target.value })} options={[{ value: "", label: "Choose a KPI" }, ...kpiNames.map((k) => ({ value: k, label: k }))]} />}</Field>}
+            <Field label="Work out">{(id) => <Select id={id} value={x.agg ?? "sum"} onChange={(e) => set({ agg: e.target.value as DashWidget["agg"] })} options={AGGS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
+          </>}
+        <Field label="Agent">{(id) => <Select id={id} value={x.bot ?? ""} onChange={(e) => set({ bot: e.target.value || undefined })}
+          options={[{ value: "", label: x.source === "output" ? "Choose an agent" : "All agents" }, ...agents.map((a) => ({ value: a, label: name(a) }))]} />}</Field>
+        {(x.type ?? "number") !== "number" && <Field label="Split by">{(id) => <Select id={id} value={x.group ?? "none"} onChange={(e) => set({ group: e.target.value as DashWidget["group"] })}
+          options={GROUPS.filter(([g]) => g !== "value" || x.source === "kpi" || x.source === "output").map(([v, l]) => ({ value: v, label: l }))} />}</Field>}
+        {x.group === "value" && x.source === "kpi" && <Field label="The value of" hint="Empty: the KPI's own value">{(id) => <Select id={id} value={x.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })}
+          options={[{ value: "", label: x.kpi ?? "The KPI" }, ...kpiNames.filter((k) => k !== x.kpi).map((k) => ({ value: k, label: k }))]} />}</Field>}
+        <Field label="Days looked at" hint="1 to 365">{(id) => <TextInput id={id} type="number" min={1} max={365} value={String(x.days ?? 30)} onChange={(e) => set({ days: Number(e.target.value) || undefined })} />}</Field>
+      </div>
+    </Dialog>
+  );
+}

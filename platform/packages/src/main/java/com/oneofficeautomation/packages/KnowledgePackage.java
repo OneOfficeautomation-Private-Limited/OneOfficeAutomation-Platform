@@ -309,7 +309,7 @@ public final class KnowledgePackage {
     }
 
     /** The query's vector, when the index has embeddings and their model can be reached (its saved connection, or the given one). */
-    private static float[] queryVector(ActionContext ctx, Index idx, String query, String connection, Object key) {
+    static float[] queryVector(ActionContext ctx, Index idx, String query, String connection, Object key) {
         if (idx.model() == null) return null;
         String conn = connection != null && !connection.isBlank() ? connection : (String) idx.model().get("connection");
         String provider = (String) idx.model().get("provider");
@@ -321,7 +321,7 @@ public final class KnowledgePackage {
         return LlmClient.embed(ctx, c, List.of(query)).get(0);
     }
 
-    private static List<Object> results(List<Hit> hits) {
+    static List<Object> results(List<Hit> hits) {
         List<Object> out = new ArrayList<>();
         int n = 0;
         for (Hit h : hits) {

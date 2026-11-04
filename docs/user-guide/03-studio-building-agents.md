@@ -1,4 +1,4 @@
-# Building agents in One Agent Studio
+# Building agents in One AgentStudio
 
 **Audience:** agent builders who know the Studio screen (see [Studio basics](02-studio-basics.md)) and want to build
 real agents: adding steps, filling in settings, working with variables, conditions, loops and error handling.
@@ -17,7 +17,7 @@ real agents: adding steps, filling in settings, working with variables, conditio
 10. [Step groups, notes and comments](#10-step-groups-notes-and-comments)
 11. [Disable steps](#11-disable-steps)
 12. [Copy, paste and the shared clipboard](#12-copy-paste-and-the-shared-clipboard)
-13. [Undo and redo](#13-undo-and-redo)
+13. [Find and replace, undo and redo](#13-find-and-replace-undo-and-redo)
 14. [A worked example](#14-a-worked-example)
 15. [If it goes wrong](#15-if-it-goes-wrong)
 16. [Related guides](#related-guides)
@@ -52,8 +52,8 @@ It goes where the canvas hint says:
   it will land.
 - Near the top or bottom edge of the canvas, the canvas scrolls by itself.
 
-**Quick add.** Press **Ctrl+K** or **/** on the canvas (or click **+ Quick add**). Type a few words, use the arrow keys
-and press Enter. The header tells you where the step goes ("after the selected step", "at the end" …).
+**Adding from the search.** Type a few words in **Search actions** at the top of the Actions panel and press Enter:
+the best match is added after the selected step (or at the end when nothing is selected).
 
 **Record or capture.** **Record**, **Capture** and **Capture desktop** add steps for what you do on screen (see
 [Web and desktop automation](10-web-and-desktop-automation.md)). The **Assistant** can also propose steps from a
@@ -88,7 +88,8 @@ Select a step to see its settings on the right. From top to bottom:
 1. **Title**: the action's icon, name, toolkit and address (for example `ooa.excel/open`), then its description.
 2. **Inputs**: the fields the action needs.
 3. **Outputs**: where to keep what the action returns.
-4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try).
+4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try), **Case** and
+   **Default** (Switch).
 5. **Error handling** (folded): **Disabled (skip this step)**, **Continue the agent if this step fails**, and for toolkit
    actions **Retries on temporary errors** and **Timeout (seconds)**.
 6. **General** (folded): **Step id** and **Note**.
@@ -147,7 +148,7 @@ Variables hold values while the agent runs. Open the **Variables** panel from th
      **Use as output** (returned when the agent ends). Neither ticked: a working value inside the agent.
    - **Required: the agent cannot start without a value** (inputs only).
    - **Business figure (KPI)** (Number, String or Boolean outputs): each successful run records it for dashboards in One
-     Command Center.
+     One CommandCenter.
    - **Default value**: an editor that suits the type.
    - **Allowed values** (String and Number inputs): a comma-separated list; people then pick from it.
    - **Description**: what it holds. People running the agent, and AI agents, read it.
@@ -159,15 +160,23 @@ Variables hold values while the agent runs. Open the **Variables** panel from th
 | Number | A whole or decimal number |
 | Boolean | True or false |
 | DateTime | A date and time |
+| Time | A time of day without a date, such as 14:30:05. Type 14:30 or 2:30 PM |
+| TimeSpan | A length of time, such as 2h 15m, 1d 3h or 01:30:00 (kept as PT2H15M). It can be negative |
 | List | Ordered items |
 | Dictionary | Named keys and values |
 | Table | Rows and columns |
 | Record | One row of named values |
 | File | A file or folder path |
+| Image | A picture held in memory (shown as Image 640x480). Its default is a picture file, read when the agent starts. Give it straight to the picture fields of the Image commands |
+| Binary | Bytes held in memory, such as a file's contents (shown as Binary 1.2 KB). Its default is a file path or Base64 text |
 | Window | An application window |
 | UIElement | An element on screen or in a web page |
 | Credential | A secret from the vault |
 | Any | Any kind of value |
+
+A Time default is picked with a time field; a TimeSpan default is typed as you would say it and shows what it is saved as.
+Add a TimeSpan to a date or a time in a calculation (`$start + $duration`), and use `timeBetween($a, $b)` for the
+time between two dates.
 
 Lists, dictionaries, records and tables get small editors (**+ Item**, **+ Key**, **+ Column**, **+ Row**) with
 **Edit as JSON** for when you prefer to type.
@@ -178,7 +187,7 @@ Lists, dictionaries, records and tables get small editors (**+ Item**, **+ Key**
 - Each row shows the type, default and how often it is used ("3 uses" or "unused").
 - **→** inserts `$name` into the field you edited last; **⧉** duplicates; **✕** deletes (Studio warns when it is in use).
 - **System variables** (`$sys.…`) are read-only values from the platform, such as today's date or the machine name.
-- **Shared values** (`$global.…`) are shared by all agents. They are managed in One Command Center > Shared values (or
+- **Shared Global values** (`$global.…`) are shared by all agents. They are managed in One CommandCenter > Shared Global values (or
   `global-values.json` in the workspace for local runs). **Refresh** reloads both lists.
 
 ### 4.3 Credentials
@@ -192,7 +201,7 @@ Never type a password or token into a step. Use a **Credential** variable instea
    `finance/erp/password`. The secret is fetched only while the step runs and is masked in every log.
 
 > **Tip:** For local test runs in Studio, the reference `finance/erp/password` is read from the environment variable
-> `OOA_SECRET_FINANCE_ERP_PASSWORD`, set before ONEOFFICEAUTOMATION starts. Runs in One Command Center read One Agent
+> `OOA_SECRET_FINANCE_ERP_PASSWORD`, set before ONEOFFICEAUTOMATION starts. Runs in One CommandCenter read One Agent
 > Vault.
 
 ## 5. Values, `$variables` and `${...}` text
@@ -216,6 +225,8 @@ Calculations are worked out when the step runs.
 
 - **Assign variable** has two modes: **Text or value** (saved as typed) and **Calculation**. Text that looks like a
   calculation, such as `$i + 1`, is saved as one automatically ("Saved as a calculation: …").
+- **Assign several variables** sets many variables in one step, one row each. Rows run from the top, so a row can use a
+  variable set above it; reorder them with the arrows. Start a value with `=` for a calculation: `=$price * $qty`.
 - Number fields accept a calculation directly: `$count - 1`.
 - **Set text** fields have a **Calculation** mode too: `upper($row.Name)` or `$qty * 2`.
 
@@ -254,6 +265,22 @@ than 1000"). Click it to open the test:
 2. Type sample values and click **Test**.
 3. The answer is **True: the steps inside If run.** or **False: the Else steps run.**, or the reason it could not be
    checked.
+
+**Switch: one value, many cases.** When one value decides between several paths (a status, a country, a file type),
+a **Switch** reads better than a chain of Else ifs:
+
+1. Add **Switch** (Logic) and fill in **Value**, for example `$status`.
+2. Select the **Case** row under it and type the values that select it, one per field (an empty field at the end adds
+   another). Any one of them selects the case. Values can be text, numbers or `$variables`.
+3. Click **+ Case** in the Switch's settings for each further case, and **+ Default** for steps to run when no case
+   matches. **Move case up** and **Move case down** change the order.
+4. Click actions in the library with a case selected to put them in it.
+
+Cases are tried from the top and only the first match runs. **Match** sets the comparison: **equals**
+(numbers and the same number written as text are equal, so `5` matches `"5"`), **contains**, **starts with**, **ends
+with**, **regex** (each case value is a pattern), or **expression**, where each case value is its own condition and
+Value is not used. **Ignore case** compares text without upper and lower case. **Exit loop** and **Continue loop**
+inside a case act on the loop around the Switch. The run log says which case ran.
 
 ## 8. Loops
 
@@ -323,13 +350,69 @@ In a step's **Error handling** section:
   rate limit).
 - **Timeout (seconds)**: how long the step may take; the placeholder shows the action's default.
 
+### 9.4 On error: steps for any error that ends the agent
+
+A Try covers the steps inside it. **On error** covers the whole agent: its steps run once when an error that no Try
+caught is about to end the agent, while the browser, workbook and windows the agent opened are still open. Use it to
+take a screenshot, close applications, write the error to a file or send a mail.
+
+1. With no step selected, the **Properties** tab has **If an error ends the agent**. Click **Add error steps (On
+   error)**. (Or **More step actions** > **Add error steps (On error)**.)
+2. A red **ON ERROR** heading appears under **END**. While it is selected, actions you click in the library go into it;
+   you can also drag steps and actions onto it. Its steps are numbered on from the agent's last line.
+3. Click **ON ERROR** to set:
+   - **Keep the error in**: a Dictionary variable that gets the error: `code`, `message`, `suggestedFix`, `stepId`,
+     `line`, `action`, and `stack` (the agents and steps it happened in). For example `${err.message}` in a mail.
+   - **Then**: **Fail the run** (the default) ends the run failed with the original error, so One CommandCenter, retries
+     and the agents that called this one see the real cause. **Succeed with a warning** ends it as succeeded; the run
+     log says which error was handled.
+   - **Take a screenshot first**: saved under `screenshots/` in the workspace.
+   - **Remove On error** removes it with its steps.
+
+Good to know:
+
+- On error does not run for an error a Catch handles, for a step set to continue on error, for a **Stop agent** step, or
+  when someone stops the run.
+- If a step inside On error fails, the run log shows that error and the run fails with the original one. On error never
+  runs again for its own errors.
+- A child agent has its own On error. The parent's On error sees the child's failure only when the child still fails.
+- When the run went over its time limit, On error gets one extra minute.
+- **Run from here** is not offered on On error steps: they run only after an error.
+
 ## 10. Step groups, notes and comments
 
 - **Step** (in Logic and flow) is a named group of steps. Give it a **Title**; it changes nothing when the agent runs
   but keeps long agents readable, and you can fold it.
 - **Notes**: **Add note…** in the step menu, or the **Note** field in **General**. The note replaces the settings
   summary on the card. Leave it empty to remove it.
+- **Rename a step**: select it and press **F2** (or choose **Rename** in the step menu). The cursor goes to **Shown on
+  the step** (under **Comment** in its settings, the step's note): type what the card should say.
 - **Comment** is a step that does nothing; use it for longer explanations.
+
+### 10.1 Subflows
+
+A subflow is a named list of steps kept inside the agent, beside its main steps: for example **Login**, used at the
+start and again after a time-out. It uses the agent's own variables, so there is nothing to pass in or out.
+
+- **Add one**: **More (⋯) > Add a subflow…** in the steps toolbar, then give it a name. The agent then shows a row of
+  lists above the steps, **Main** first and then each subflow; click one to show and edit its steps. Actions you click
+  or drag from the library go into the list shown.
+- **Rename or delete it**: show it and use the **⋯** beside the lists. Renaming also changes the **Run subflow** steps
+  that run it. Deleting removes its steps too (**Ctrl+Z** brings it back).
+- **Run it**: add **Run subflow** (Agent) and choose the subflow. **Open the subflow it runs** in the step menu shows it.
+  A subflow may run other subflows, and itself, up to 100 deep.
+- **Leave it early**: **Exit subflow** ends the subflow; the agent carries on after the Run subflow step.
+- An error in a subflow goes to the **Try** around the Run subflow step. **Exit loop** and **Continue loop** in a
+  subflow only work on loops inside it.
+- **Run from here** on a step in a subflow runs the rest of that subflow only. When debugging, the steps list follows
+  the run into the subflow where it stops.
+
+### 10.2 Labels and Go to
+
+**Label** (Logic) marks a place; **Go to** carries on from a label, forward or back. Choose the label from the list:
+it offers only labels Go to can reach, those in the same list of steps and in the blocks around it, never inside
+another block or across subflows. Blocks it leaves end, and their **Finally** parts still run. A run that jumps more
+than 10,000 times stops with **GOTO.LIMIT**. A Loop is usually clearer; use Go to for a retry from an earlier point.
 
 ## 11. Disable steps
 
@@ -346,10 +429,19 @@ Select steps and press **Ctrl+/** (or **Disable** in the toolbar or step menu). 
   even after reloading Studio.
 - Script and Prompt Skill editors have **Copy as an agent step**: open an agent and press Ctrl+V to add the step.
 
-## 13. Undo and redo
+## 13. Find and replace, undo and redo
 
-**Undo** (Ctrl+Z, ↶) and **Redo** (Ctrl+Y or Ctrl+Shift+Z, ↷) cover your last 100 changes to the open agent. Undo history
-starts again when you open another agent.
+**Find and replace** changes the same text in many steps at once, for example a folder path or a sheet name.
+
+1. Press **Ctrl+H** (or choose **Find and replace…** in the steps toolbar's **More step actions** menu).
+2. Type the text in **Find** and the new text in **Replace with**. Studio looks in the steps' settings, outputs and
+   names, not in step ids or actions.
+3. Tick **Match case** to find only the same capitals. When steps are selected, tick **Only the n selected steps (and
+   the steps inside them)** to leave the rest of the agent alone; otherwise the whole agent is searched.
+4. The dialog shows how many places it found. Press **Replace all**. The toast says how many places changed.
+
+**Undo** (Ctrl+Z, ↶) and **Redo** (Ctrl+Y or Ctrl+Shift+Z, ↷) cover your last 100 changes to the open agent, a whole
+**Replace all** included. Undo history starts again when you open another agent.
 
 ## 14. A worked example
 

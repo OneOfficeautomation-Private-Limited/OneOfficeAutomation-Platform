@@ -6,10 +6,10 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 
 ## Contents
 
-- **Logic**: Exit loop, Comment, Continue loop, If, Loop, Parallel, Step
+- **Logic**: Exit loop, Comment, Continue loop, Go to, If, Label, Loop, Parallel, Step, Switch
 - **Runtime**: Delay, Log message, Wait for condition
-- **Agent**: Pause agent, Run Agent, Stop agent
-- **Variables**: Assign variable
+- **Agent**: Exit subflow, Pause agent, Run Agent, Run subflow, Stop agent
+- **Variables**: Assign variable, Assign several variables
 - **Error handling**: Throw error, Try
 
 ## Logic
@@ -56,6 +56,20 @@ Skip to the next pass of the innermost loop, or of the enclosing loop with the g
 
 *Time limit 60 s.*
 
+### Go to
+
+`core/goto` (action)
+
+Carry on from a Label in the same step list or a list around it (never into a block or out of a subflow); a run fails with GOTO.LIMIT after too many jumps.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Label | `label` | Text | Yes |  | Main | Name of the Label to carry on from. |
+
+*Time limit 60 s.*
+
 ### If
 
 `core/if` (action)
@@ -67,6 +81,20 @@ Run the children when the condition is true; otherwise evaluate elseIf branches,
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Condition | `condition` | Any | Yes |  | Main | Condition object, expression string or $reference. |
+
+*Time limit 60 s.*
+
+### Label
+
+`core/label` (action)
+
+A named place in the steps that Go to can jump to; does nothing itself.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Name | `name` | Text | Yes |  | Main | Name of the place, unique among the labels Go to steps can see. |
 
 *Time limit 60 s.*
 
@@ -123,7 +151,23 @@ Named group of steps for readability; no runtime effect.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Group title shown in Agent Studio. |
+| Title | `title` | Text | No |  | Main | Group title shown in One AgentStudio. |
+
+*Time limit 60 s.*
+
+### Switch
+
+`core/switch` (action)
+
+Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | Any | No |  | Main | Value to compare with each case's values: text, a number, a $reference or an expression. Shown when: `{"match": ["!", "expression"]}` |
+| Match | `match` | Text | No | `equals` | Main | How a case value matches: equals (like ==, so 5 and "5" match), contains, starts_with, ends_with, regex (the case value is a pattern), or expression (each case value is a condition and the value is not used). One of: `equals`, `contains`, `starts_with`, `ends_with`, `regex`, `expression` |
+| Ignore case | `ignore_case` | Yes/No | No | No | Main | Compare text without upper/lower case. Shown when: `{"match": ["!", "expression"]}` |
 
 *Time limit 60 s.*
 
@@ -185,11 +229,21 @@ Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).
 
 ## Agent
 
+### Exit subflow
+
+`core/exit_subflow` (action)
+
+Leave the subflow being run at once (Finally blocks still run); the agent carries on after the Run subflow step.
+
+No settings.
+
+*Time limit 60 s.*
+
 ### Pause agent
 
 `core/pause` (action)
 
-Pause the run until someone resumes it from Agent Studio or Command Center, or until the optional timeout.
+Pause the run until someone resumes it from One AgentStudio or One CommandCenter, or until the optional timeout.
 
 **Settings**
 
@@ -231,6 +285,20 @@ Run a published child automation with mapped inputs and receive its outputs.
 
 *Time limit 60 s.*
 
+### Run subflow
+
+`core/run_subflow` (action)
+
+Run one of this agent's subflows (a named list of steps kept beside the main steps) and carry on when it ends; it uses the agent's own variables.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Subflow | `subflow` | Text | Yes |  | Main | Name of the subflow to run. |
+
+*Time limit 60 s.*
+
 ### Stop agent
 
 `core/stop` (action)
@@ -260,6 +328,20 @@ Assign a value or expression result to a declared variable.
 | --- | --- | --- | --- | --- | --- | --- |
 | Variable | `variable` | Text | Yes |  | Main | Name of a declared variable. |
 | Value | `value` | Any | No |  | Main | Value, $reference or {"expr": ...}. |
+
+*Time limit 60 s.*
+
+### Assign several variables
+
+`core/set_many` (action)
+
+Assign values to several declared variables in one step, in order: a later value can use a variable set above it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Assignments | `assignments` | List | Yes |  | Main | Records with variable (a declared variable's name) and value (a value, $reference or {"expr": ...}). Example: `[{"variable": "total", "value": 0}, {"variable": "status", "value": "new"}]` |
 
 *Time limit 60 s.*
 

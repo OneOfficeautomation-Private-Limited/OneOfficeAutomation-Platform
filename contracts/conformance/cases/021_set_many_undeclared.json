@@ -1,0 +1,39 @@
+{
+  "name": "021_set_many_undeclared",
+  "description": "Every variable in Assign several variables must be declared; the agent is refused before it runs.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c21",
+    "name": "c21",
+    "variables": [
+      {
+        "name": "a",
+        "type": "Number",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/set_many",
+        "args": {
+          "assignments": [
+            {
+              "variable": "a",
+              "value": 1
+            },
+            {
+              "variable": "missing",
+              "value": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "FLOW.INVALID"
+  }
+}

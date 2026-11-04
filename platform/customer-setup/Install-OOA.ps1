@@ -1,31 +1,31 @@
 <#
-ONEOFFICEAUTOMATION setup: installs the product with its own Java, then sets this computer up as a Command Center or
+ONEOFFICEAUTOMATION setup: installs the product with its own Java, then sets this computer up as One CommandCenter or
 as a runner. Run it through Install.cmd. Without -Silent it asks for anything not given.
 
   -Role CommandCenter|Runner   what this computer is (default: asked; CommandCenter when silent)
   -InstallDir DIR              where the product goes (default: Program Files with -AllUsers, else your own Programs folder)
   -AllUsers                    install for everyone on this computer (needs administrator)
   -Silent                      no questions; for SCCM, Intune or Group Policy
-  Command Center:
+  One CommandCenter:
   -Service                     run it as a Windows service that starts with Windows (needs administrator)
   -Port N                      its port (default 8720)
   -ListenAddress ADDR          the address the service listens on (default 0.0.0.0, every network card, so runners on
                                other machines reach it; 127.0.0.1 for this computer only). Set up HTTPS (bin\ooa.bat tls)
                                before other machines use it.
   -DataDir DIR                 its data folder (default: as the product chooses; for the MSI, which runs as the system
-                               account, %ProgramData%\OneOfficeAutomation\Command Center)
+                               account, %ProgramData%\OneOfficeAutomation\One CommandCenter)
   -DbServer NAME               put its data on this SQL Server (host or host\instance); default: the built-in evaluation
                                database. With it: -DbName (ooa_command_center), -DbUser (ooa_app), -DbSetupUser (ooa_setup),
                                -DbPasswordEnv VAR and -DbSetupPasswordEnv VAR (environment variables holding the passwords;
                                asked for when not silent), -DbTrustCertificate (a test server's self-signed certificate)
   -SkipCheck                   install even when the prerequisite check (ooa check) finds a problem
   Runner:
-  -Url URL                     the Command Center address, for example https://ooa.example.com:8720
-  -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner (not needed
+  -Url URL                     One CommandCenter address, for example https://ooa.example.com:8720
+  -RegistrationKey KEY         a one-time key from One CommandCenter > Runners > Register a runner (not needed
                                when setup runs again on a registered runner: it keeps its registration)
-  -RunnerName NAME             the runner's name in Command Center (default: the computer name)
-  -CaFile FILE                 the Command Center certificate to trust (for a self-signed one)
-  -Proxy system|none|URL       how the runner reaches the Command Center (default system: the Windows proxy)
+  -RunnerName NAME             the runner's name in One CommandCenter (default: the computer name)
+  -CaFile FILE                 One CommandCenter certificate to trust (for a self-signed one)
+  -Proxy system|none|URL       how the runner reaches One CommandCenter (default system: the Windows proxy)
   -Service                     run the runner as a Windows service (only agents that need no screen); default: it starts
                                when the user signs in, for agents that use the screen
   Both:
@@ -83,8 +83,8 @@ if (-not $Role) {
     if ($Silent) { $Role = "CommandCenter" }
     else {
         Write-Host "ONEOFFICEAUTOMATION $version setup"
-        Write-Host "  1  Command Center (with Agent Studio): the server people sign in to"
-        Write-Host "  2  Runner: a computer that runs agents for a Command Center elsewhere"
+        Write-Host "  1  One CommandCenter (with One AgentStudio): the server people sign in to"
+        Write-Host "  2  Runner: a computer that runs agents for One CommandCenter elsewhere"
         $Role = if ((Ask "Install which (1 or 2)?" "1") -eq "2") { "Runner" } else { "CommandCenter" }
     }
 }
@@ -95,19 +95,19 @@ if ($ConfigureOnly) {
     $InstallDir = $source
     # the MSI runs this as the system account: a runner it sets up is a Windows service (there is no user to sign in)
     if ($Role -eq "Runner") { $Service = [switch]::Present }
-    # ...whose profile folder is under C:\Windows\System32: keep the Command Center's data in ProgramData instead
-    if ($Role -eq "CommandCenter" -and -not $DataDir) { $DataDir = Join-Path $env:ProgramData "OneOfficeAutomation\Command Center" }
+    # ...whose profile folder is under C:\Windows\System32: keep One CommandCenter's data in ProgramData instead
+    if ($Role -eq "CommandCenter" -and -not $DataDir) { $DataDir = Join-Path $env:ProgramData "OneOfficeAutomation\One CommandCenter" }
 } else { $InstallDir = Ask "Install folder" $InstallDir }
 if ($Role -eq "Runner") {
-    $Url = Ask "Command Center address (for example https://ooa.example.com:8720)" $Url
+    $Url = Ask "One CommandCenter address (for example https://ooa.example.com:8720)" $Url
     # setup run again on a registered runner (an update or repair) keeps its registration: no key is needed then
-    $RegistrationKey = Ask "Registration key (Command Center > Runners > Register a runner; empty keeps this computer's registration)" $RegistrationKey
+    $RegistrationKey = Ask "Registration key (One CommandCenter > Runners > Register a runner; empty keeps this computer's registration)" $RegistrationKey
     if (-not $Url) { Fail 1 "A runner needs -Url (and -RegistrationKey the first time)." }
     if ($Url -notmatch '^https?://') { Fail 1 "-Url starts with https:// or http://" }
     if ($CaFile -and -not (Test-Path $CaFile)) { Fail 1 "No such certificate file: $CaFile" }
 }
 if ($Role -eq "CommandCenter" -and -not $ConfigureOnly -and -not $DbServer -and -not $Silent) {
-    $DbServer = Ask "SQL Server for the Command Center's data (host or host\instance; empty = built-in evaluation database)" ""
+    $DbServer = Ask "SQL Server for One CommandCenter's data (host or host\instance; empty = built-in evaluation database)" ""
 }
 if ($Role -eq "CommandCenter" -and $DbServer) {
     # passwords travel in environment variables only, never on a command line or in the log
@@ -192,7 +192,7 @@ if ($Role -eq "CommandCenter") {
         if ((Ooa (@("db", "set-password", "--from-env", $DbPasswordEnv) + $dataArgs)) -ne 0) { Fail 2 "The database password could not be stored (see $log)." }
         if ((Ooa (@("db", "set-password", "--setup", "--from-env", $DbSetupPasswordEnv) + $dataArgs)) -ne 0) { Fail 2 "The setup password could not be stored (see $log)." }
         if ((Ooa (@("db", "init") + $dataArgs)) -ne 0) { Fail 2 "The database could not be created on $DbServer (see $log). Check the server name and the setup account's rights." }
-        Log "The Command Center keeps its data in $DbName on $DbServer."
+        Log "One CommandCenter keeps its data in $DbName on $DbServer."
     } elseif ((Test-Path (Join-Path $(if ($DataDir) { $DataDir } else { Join-Path $env:USERPROFILE "OOA Command Center" }) "config\ooa-db.properties")) -and ((Ooa (@("db", "migrate") + $dataArgs)) -ne 0)) {
         Log "Warning: the database could not be upgraded now; the server upgrades it at its next start, or run: bin\ooa.bat db migrate"
     }
@@ -209,7 +209,7 @@ if ($Role -eq "CommandCenter") {
             Log "The service listens on $ListenAddress, port $Port, so other machines can reach it. Set up HTTPS before they do: bin\ooa.bat tls (see docs\infrastructure\04-network-ports-proxies-and-certificates.md)."
         }
     }
-    Log "Command Center installed. $(if ($Service) { "It runs as the Windows service 'OOA Command Center' on port $Port." } else { "Start it from the Start menu (ONEOFFICEAUTOMATION) or with START-OOA.cmd." })"
+    Log "One CommandCenter installed. $(if ($Service) { "It runs as the Windows service 'OOA Command Center' on port $Port." } else { "Start it from the Start menu (ONEOFFICEAUTOMATION) or with START-OOA.cmd." })"
 } else {
     $a = @("agent", "register", "--url", $Url, "--keep-existing")
     if ($RegistrationKey) { $a += @("--key", $RegistrationKey) }

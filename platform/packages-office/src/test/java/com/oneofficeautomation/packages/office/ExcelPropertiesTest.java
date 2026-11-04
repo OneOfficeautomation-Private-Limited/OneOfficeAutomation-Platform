@@ -120,8 +120,8 @@ class ExcelPropertiesTest {
         assertEquals(3, rows(xl.getAllCells(ctx, "Data", Boolean.TRUE, "excel", "value", true, false)).size());
         assertEquals(4, rows(xl.getAllCells(ctx, "Data", Boolean.TRUE, "excel", "value", true, true)).size());
         assertEquals(List.of("Name", "Amount"), ((List<?>) rows(xl.getRange(ctx, "A1:B2", Boolean.FALSE, "Data", "excel", "text")).get(0)));
-        assertEquals(Arrays.asList("Acme", "Globex"), xl.readColumn(ctx, "A", 2, "Data", "excel", 3, "value").get("values"));
-        assertEquals(Arrays.asList("Acme", "Globex", null), xl.readColumn(ctx, "A", 2, "Data", "excel", 4, "value").get("values"));
+        assertEquals(Arrays.asList("Acme", "Globex"), xl.readColumn(ctx, "A", 2, "Data", "excel", 3, "value", null).get("values"));
+        assertEquals(Arrays.asList("Acme", "Globex", null), xl.readColumn(ctx, "A", 2, "Data", "excel", 4, "value", null).get("values"));
         assertEquals(Arrays.asList("Acme", "300", "Open", null), xl.readRow(ctx, 2, "A", "Data", "excel", "D", "text").get("values"));
         assertEquals(4, n(xl.rowCount(ctx, "Data", "excel", "non_empty").get("count")));
         assertEquals(5, n(xl.rowCount(ctx, "Data", "excel", "all").get("count")));
@@ -175,6 +175,31 @@ class ExcelPropertiesTest {
         t.setDisplayName("Orders");
         assertEquals("A1:B4", xl.getTableRange(ctx, null, "excel", "Orders", true).get("range"));
         assertEquals("A2:B4", xl.getTableRange(ctx, null, "excel", "Orders", false).get("range"));
+    }
+
+    /** Gap: Get table range includes pivot tables, and finds a pivot table by name. */
+    @Test void tableRangeIncludesPivotTables() throws Exception {
+        XSSFSheet sh = (XSSFSheet) data();
+        XSSFPivotTable pt = sh.createPivotTable(new AreaReference("A1:C5", SpreadsheetVersion.EXCEL2007), new org.apache.poi.ss.util.CellReference("F8"));
+        pt.addRowLabel(2);
+        pt.addColumnLabel(org.apache.poi.ss.usermodel.DataConsolidateFunction.SUM, 1);
+        pt.getCTPivotTableDefinition().setName("StatusTotals");
+        pt.getCTPivotTableDefinition().getLocation().setRef("F8:G11");
+        assertEquals("A1:G11", xl.getTableRange(ctx, "Data", "excel", null, true, true).get("range"));
+        assertEquals("A1:C5", xl.getTableRange(ctx, "Data", "excel", null, true, false).get("range"), "without pivot tables");
+        Map<String, Object> p = xl.getTableRange(ctx, null, "excel", "statustotals", true, true);
+        assertEquals("F8:G11", p.get("range"));
+        assertEquals(4, n(p.get("rows")));
+        // a report filter adds its rows above the location
+        pt.addReportFilter(0);
+        assertEquals("F6:G11", xl.getTableRange(ctx, null, "excel", "StatusTotals", true, true).get("range"));
+        // a pivot on its own sheet
+        XSSFSheet other = (XSSFSheet) session().wb.createSheet("Pivot");
+        XSSFPivotTable p2 = other.createPivotTable(new AreaReference("Data!A1:C5", SpreadsheetVersion.EXCEL2007), new org.apache.poi.ss.util.CellReference("B3"), sh);
+        p2.addRowLabel(0);
+        p2.getCTPivotTableDefinition().getLocation().setRef("B3:C9");
+        assertEquals("B3:C9", xl.getTableRange(ctx, "Pivot", "excel").get("range"));
+        assertEquals("EXCEL.NO_TABLE", code(() -> xl.getTableRange(ctx, null, "excel", "NoSuchPivot", true, true)));
     }
 
     @Test void colourProtectionSortFilter() {

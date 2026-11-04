@@ -93,7 +93,7 @@ public final class ConnectorImporter {
         try { yamlCls = Class.forName("org.yaml.snakeyaml.Yaml"); }
         catch (ClassNotFoundException | LinkageError e) {
             throw new ActionException("CONNECTOR.YAML_UNSUPPORTED", "YAML files cannot be read here because no YAML parser is installed",
-                    "Convert the spec to JSON (most API tools can export JSON), or import it from One Agent Studio, which can read YAML.");
+                    "Convert the spec to JSON (most API tools can export JSON), or import it from One AgentStudio, which can read YAML.");
         }
         Object loaded;
         try {

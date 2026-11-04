@@ -1,0 +1,69 @@
+{
+  "name": "024_switch_cases",
+  "description": "Switch: equals compares like == (number 2 matches text \"2\"), a case may list several values, the first matching case runs, no fall-through; default runs when nothing matches; break inside a case leaves the loop; expression cases are conditions.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c19",
+    "name": "c19",
+    "variables": [
+      {"name": "codes", "type": "List", "direction": "input", "required": true},
+      {"name": "code", "type": "Any"},
+      {"name": "labels", "type": "String", "direction": "output", "default": ""},
+      {"name": "size", "type": "String", "direction": "output", "default": "-"}
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/loop",
+        "args": {"iterator": "list", "over": "$codes", "as": "code"},
+        "children": [
+          {
+            "id": "s2",
+            "action": "core/switch",
+            "args": {"value": "$code"},
+            "cases": [
+              {"values": [1, "one"], "children": [
+                {"id": "s3", "action": "core/set", "args": {"variable": "labels", "value": "${labels}first;"}}
+              ]},
+              {"values": ["2"], "children": [
+                {"id": "s4", "action": "core/set", "args": {"variable": "labels", "value": "${labels}second;"}}
+              ]},
+              {"values": [2, "stop"], "children": [
+                {"id": "s5", "action": "core/break"}
+              ]}
+            ],
+            "default": [
+              {"id": "s6", "action": "core/set", "args": {"variable": "labels", "value": "${labels}other;"}}
+            ]
+          }
+        ]
+      },
+      {
+        "id": "s7",
+        "action": "core/switch",
+        "args": {"match": "expression"},
+        "cases": [
+          {"values": ["len($labels) > 30"], "children": [
+            {"id": "s8", "action": "core/set", "args": {"variable": "size", "value": "large"}}
+          ]},
+          {"values": [{"op": "ge", "left": {"expr": "len($labels)"}, "right": 20}], "children": [
+            {"id": "s9", "action": "core/set", "args": {"variable": "size", "value": "medium"}}
+          ]}
+        ],
+        "default": [
+          {"id": "s10", "action": "core/set", "args": {"variable": "size", "value": "small"}}
+        ]
+      }
+    ]
+  },
+  "inputs": {
+    "codes": ["one", 2, 9, 1, "stop", 1]
+  },
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "labels": "first;second;other;first;",
+      "size": "medium"
+    }
+  }
+}

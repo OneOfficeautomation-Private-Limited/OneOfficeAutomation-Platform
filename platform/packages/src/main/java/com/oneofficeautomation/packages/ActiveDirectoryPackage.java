@@ -1172,6 +1172,58 @@ public final class ActiveDirectoryPackage {
 
     // ---- Queries ----
 
+    /** Containers AD creates itself (CN=, not OU=), when they are the first part of a path. */
+    static final Set<String> BUILT_IN_CONTAINERS = Set.of("users", "computers", "builtin", "system", "program data", "foreignsecurityprincipals", "managed service accounts", "lostandfound");
+
+    /**
+     * A distinguished name from a readable path: "Corp/Sales/EMEA" in corp.example.com gives
+     * OU=EMEA,OU=Sales,OU=Corp,DC=corp,DC=example,DC=com. Special characters in names are escaped.
+     */
+    static String buildDn(String path, String domain, String name, String nameKind, String partKind) {
+        List<String> rdns = new ArrayList<>();
+        String n = name == null ? "" : name.strip();
+        String kind = nameKind == null || nameKind.isBlank() ? "CN" : nameKind.strip().toUpperCase(Locale.ROOT);
+        if (!Set.of("CN", "OU").contains(kind)) throw new ActionException("AD.BAD_OPTION", "name_kind is CN or OU, not '" + nameKind + "'", null);
+        String parts = partKind == null || partKind.isBlank() ? "auto" : partKind.strip().toLowerCase(Locale.ROOT);
+        if (!Set.of("auto", "ou", "cn").contains(parts)) throw new ActionException("AD.BAD_OPTION", "path_kind is auto, ou or cn, not '" + partKind + "'", null);
+        if (!n.isEmpty()) rdns.add(kind + "=" + Rdn.escapeValue(n));
+        List<String> segs = new ArrayList<>();
+        String p = path == null ? "" : path.strip().replace('\\', '/');
+        String dom = domain == null ? "" : domain.strip();
+        if (!p.isEmpty()) {
+            for (String s : p.split("/")) if (!s.isBlank()) segs.add(s.strip());
+            if (dom.isEmpty() && !segs.isEmpty() && segs.get(0).matches("(?i)^[a-z0-9-]+(\\.[a-z0-9-]+)+$")) dom = segs.remove(0);  // corp.example.com/Corp/Sales
+        }
+        for (int i = segs.size() - 1; i >= 0; i--) {
+            String seg = segs.get(i);
+            String k = parts.equals("cn") || (parts.equals("auto") && i == 0 && BUILT_IN_CONTAINERS.contains(seg.toLowerCase(Locale.ROOT))) ? "CN" : "OU";
+            rdns.add(k + "=" + Rdn.escapeValue(seg));
+        }
+        if (dom.isEmpty()) throw new ActionException("AD.BAD_DN", "No domain to build the distinguished name in", "Give domain, e.g. corp.example.com, or start the path with it.");
+        if (!dom.matches("(?i)^[a-z0-9-]+(\\.[a-z0-9-]+)*$")) throw new ActionException("AD.BAD_DN", "'" + dom + "' is not a domain name", "Use the DNS name, e.g. corp.example.com.");
+        for (String dc : dom.split("\\.")) rdns.add("DC=" + dc);
+        String dn = String.join(",", rdns);
+        if (!isDn(dn)) throw new ActionException("AD.BAD_DN", "Cannot build a distinguished name from '" + path + "'", null);
+        return dn;
+    }
+
+    @Action(id = "build_dn", name = "Build distinguished name", category = "Directory", idempotent = true,
+            description = "Turn a readable path such as Corp/Sales/EMEA and a domain into a distinguished name (OU=EMEA,OU=Sales,OU=Corp,DC=corp,DC=example,DC=com), optionally ending with a user, group or computer name.",
+            panel = "path, domain, name | name_kind, path_kind")
+    @Output(name = "dn", type = OoaType.STRING, description = "The distinguished name.")
+    @Output(name = "parent_dn", type = OoaType.STRING, description = "The distinguished name of the container (without the name).")
+    public Map<String, Object> buildDnAction(ActionContext ctx,
+            @Input(name = "path", type = OoaType.STRING, required = false, example = "Corp/Sales/EMEA", description = "Organizational units from the top down, separated by /; may start with the domain (corp.example.com/Corp/Sales).") String path,
+            @Input(name = "domain", type = OoaType.STRING, required = false, example = "corp.example.com", description = "DNS name of the domain; taken from the start of path when empty.") String domain,
+            @Input(name = "name", type = OoaType.STRING, required = false, example = "Ann Lee", description = "Name of the object at the end (its common name); the container's own name when empty.") String name,
+            @Input(name = "name_kind", type = OoaType.STRING, required = false, defaultValue = "\"CN\"", enumValues = {"CN", "OU"}, description = "CN for users, groups and computers; OU when name is an organizational unit.") String nameKind,
+            @Input(name = "path_kind", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "ou", "cn"},
+                    description = "auto makes path parts organizational units, except built-in containers such as Users or Computers at the top (CN=); ou or cn forces one kind.") String partKind) {
+        String dn = buildDn(path, domain, name, nameKind, partKind);
+        String parent = name == null || name.isBlank() ? dn.substring(dn.indexOf(',') + 1) : buildDn(path, domain, null, null, partKind);
+        return Map.of("dn", dn, "parent_dn", parent);
+    }
+
     @Action(id = "run_query", name = "Run LDAP query", category = "Directory", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Run a raw LDAP filter from any starting point and scope and return the entries as a table.",
             panel = "session, filter, attributes | base_dn, scope, max_results")

@@ -85,4 +85,14 @@ class LongPollTest {
         for (Future<Map<String, Object>> f : waits) assertEquals(false, f.get(20, TimeUnit.SECONDS).get("job"));
         pool.shutdownNow();
     }
+
+    /** The bare address opens the new console; the classic one stays at /?classic and its pages at /?page=<id>. */
+    @Test void theNewConsoleIsTheDefault() throws Exception {
+        String root = base.substring(0, base.length() - "api/".length());
+        HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(root)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(302, r.statusCode());
+        assertEquals("/next/", r.headers().firstValue("Location").orElse(""));
+        for (String classic : List.of("?classic", "?page=users"))
+            assertNotEquals(302, http.send(HttpRequest.newBuilder(URI.create(root + classic)).build(), HttpResponse.BodyHandlers.ofString()).statusCode(), classic);
+    }
 }

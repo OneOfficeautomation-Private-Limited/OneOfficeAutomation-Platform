@@ -594,3 +594,5 @@ True when the pull request has been merged.
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Pull request number. |
+
+*Needs: network.*

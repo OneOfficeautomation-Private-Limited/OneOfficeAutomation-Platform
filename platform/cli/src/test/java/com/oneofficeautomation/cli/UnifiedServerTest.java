@@ -54,8 +54,12 @@ class UnifiedServerTest {
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"), "Studio's API is under /studio/api/");
             for (String gone : List.of("/studio/classic/", "/studio/classic/studio.js", "/studio/studio.js"))
                 assertEquals(404, call(base, "GET", gone, null, null, null).status(), gone + ": Classic Studio was removed");
+            // the bare address opens the new console (the default since 31 Oct 2026)
+            Res home = call(base, "GET", "/", null, null, null);
+            assertEquals(302, home.status());
+            assertEquals("/next/", home.headers().firstValue("Location").orElse(""));
             // HEAD (used by uptime checks and some proxies): same status, no body, and no server warning
-            for (String p : List.of("/", "/studio/", "/api/health")) {
+            for (String p : List.of("/next/", "/studio/", "/api/health")) {
                 Res head = call(base, "HEAD", p, null, null, null);
                 assertEquals(200, head.status(), "HEAD " + p);
                 assertEquals("", head.body(), "HEAD " + p + " has no body");
@@ -63,7 +67,7 @@ class UnifiedServerTest {
             assertTrue(call(base, "GET", "/ooa-tokens.css", null, null, null).body().contains("--surface-canvas"));
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));
             assertEquals("/studio/", call(base, "GET", "/api/health", null, null, null).json().get("studio"), "Control Room links to Studio for browsers on this computer");
-            assertTrue(call(base, "GET", "/", null, null, null).body().contains("One Command Center"));
+            assertTrue(call(base, "GET", "/next/", null, null, null).body().contains("One CommandCenter"));
             assertEquals(404, call(base, "GET", "/studio-other", null, null, null).status());
 
             // ---- blueprints (Create > Start from), one shared list for both Studios ----
@@ -93,6 +97,21 @@ class UnifiedServerTest {
             assertFalse(next.body().contains("__CSP_NONCE__"));
             assertNotEquals(nonce.group(1), call(base, "GET", "/studio/", null, null, null).headers().firstValue("Content-Security-Policy").orElse("").replaceAll(".*'nonce-([^']+)'.*", "$1"), "a new nonce per page");
             for (String bad : List.of("/studio/assets/../classic/studio.js", "/studio/..%2fstudio.js", "/studio/assets/x.exe", "/studio/secret.txt"))
+                assertEquals(404, call(base, "GET", bad, null, null, null).status(), bad);
+
+            // ---- the rebuilt console beside today's, at /next/ (C0): its own page with a fresh style nonce, its files, nothing else ----
+            assertEquals("/next/", call(base, "GET", "/next", null, null, null).headers().firstValue("Location").orElse(""));
+            Res console = call(base, "GET", "/next/", null, null, null);
+            assertEquals(200, console.status());
+            assertTrue(console.body().contains("<title>One CommandCenter</title>"), "the console's own page, not Studio's");
+            java.util.regex.Matcher cnonce = java.util.regex.Pattern.compile("style-src 'self' 'nonce-([A-Za-z0-9+/=]{24})'").matcher(console.headers().firstValue("Content-Security-Policy").orElse(""));
+            assertTrue(cnonce.find(), console.headers().toString());
+            assertTrue(console.body().contains("content=\"" + cnonce.group(1) + "\""), "the page carries the same nonce");
+            assertTrue(console.headers().firstValue("Content-Security-Policy").orElse("").contains("script-src 'self'"));
+            java.util.regex.Matcher cscript = java.util.regex.Pattern.compile("src=\"\\./(assets/[^\"]+\\.js)\"").matcher(console.body());
+            assertTrue(cscript.find(), "the page loads its script by a relative path");
+            assertEquals(200, call(base, "GET", "/next/" + cscript.group(1), null, null, null).status());
+            for (String bad : List.of("/next/assets/../console.html", "/next/assets/x.exe", "/next/secret.txt", "/next/console.html"))
                 assertEquals(404, call(base, "GET", bad, null, null, null).status(), bad);
 
             // ---- Studio reuses the browser's Control Room sign-in ----

@@ -65,7 +65,7 @@ public final class TriggerLoopPackage {
         };
     }
 
-    /** Sleeps in short slices so a stop request from Control Center ends the wait promptly. */
+    /** Sleeps in short slices so a stop request from One CommandCenter ends the wait promptly. */
     static void sleepUntil(ActionContext ctx, long deadlineNanos) {
         while (true) {
             ctx.checkCancelled();
@@ -81,7 +81,7 @@ public final class TriggerLoopPackage {
     record Seen(long size, long modified) {}
 
     @LoopIterator(id = "file_arrives", name = "Each new file in folder",
-            description = "Wait for files to appear in a folder and run the nested steps once for each, oldest first; gives path, name, size and time.")
+            description = "Wait for files to appear in a folder and run the nested steps once for each, oldest first; gives path, name, size and time (UTC, like every DateTime).")
     public Iterable<Object> fileArrives(ActionContext ctx,
             @Input(name = "folder", type = OoaType.FILE, description = "Folder to watch.") String folder,
             @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Glob for file names, e.g. *.pdf.") String pattern,
@@ -121,7 +121,7 @@ public final class TriggerLoopPackage {
             ev.put("path", p.toString());
             ev.put("name", p.getFileName().toString());
             ev.put("size", BigDecimal.valueOf(now.get(p).size()));
-            ev.put("time", LocalDateTime.now().withNano(0));
+            ev.put("time", LocalDateTime.now(java.time.ZoneOffset.UTC).withNano(0));  // UTC, like every DateTime
             return ev;
         });
     }
@@ -147,7 +147,7 @@ public final class TriggerLoopPackage {
     // ---------- timer ----------
 
     @LoopIterator(id = "timer_tick", name = "Every interval",
-            description = "Run the nested steps on a fixed interval, e.g. every 60 seconds; gives the tick number and time.")
+            description = "Run the nested steps on a fixed interval, e.g. every 60 seconds; gives the tick number and time (UTC).")
     public Iterable<Object> timerTick(ActionContext ctx,
             @Input(name = "interval_seconds", type = OoaType.NUMBER, description = "Seconds between ticks.") double interval,
             @Input(name = "run_immediately", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Fire the first tick at once instead of after one interval.") boolean immediately,
@@ -165,7 +165,7 @@ public final class TriggerLoopPackage {
             Map<String, Object> ev = new LinkedHashMap<>();
             ev.put("event", "tick");
             ev.put("tick", BigDecimal.valueOf(++n[0]));
-            ev.put("time", LocalDateTime.now().withNano(0));
+            ev.put("time", LocalDateTime.now(java.time.ZoneOffset.UTC).withNano(0));  // UTC, like every DateTime
             return ev;
         });
     }
@@ -208,7 +208,7 @@ public final class TriggerLoopPackage {
             ev.put("name", processName(found));
             ev.put("command", found.info().command().orElse(""));
             ev.put("started", found.info().startInstant().map(Instant::toString).orElse(""));
-            ev.put("time", LocalDateTime.now().withNano(0));
+            ev.put("time", LocalDateTime.now(java.time.ZoneOffset.UTC).withNano(0));  // UTC, like every DateTime
             return ev;
         });
     }

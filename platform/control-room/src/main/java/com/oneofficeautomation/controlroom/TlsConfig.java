@@ -13,12 +13,12 @@ import java.security.cert.X509Certificate;
 import java.util.*;
 
 /**
- * HTTPS for the Command Center, from {@code <data>/config/ooa-tls.properties}:
+ * HTTPS for One CommandCenter, from {@code <data>/config/ooa-tls.properties}:
  * <pre>
  * keystore=C:\certs\ooa.pfx      a PKCS#12 file (.pfx/.p12) with the server certificate and its private key
  * password=enc:...               written by "ooa tls set-password" (encrypted with the vault key), or env:VARIABLE
  * </pre>
- * When the file exists, the Command Center serves HTTPS on its port (TLS 1.2 and 1.3). "ooa tls self-signed" makes a
+ * When the file exists, One CommandCenter serves HTTPS on its port (TLS 1.2 and 1.3). "ooa tls self-signed" makes a
  * certificate for tests; production uses one from the company's certificate authority.
  */
 public final class TlsConfig {

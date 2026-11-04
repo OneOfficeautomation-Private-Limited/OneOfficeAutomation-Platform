@@ -10,4 +10,6 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql:42.7.4")
     runtimeOnly("com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11")
     testRuntimeOnly("com.h2database:h2:2.2.224")
+    // tests only: an in-memory LDAP directory for sign-in with Active Directory or LDAP (the server uses the JDK's own client)
+    testImplementation("com.unboundid:unboundid-ldapsdk:7.0.1")
 }

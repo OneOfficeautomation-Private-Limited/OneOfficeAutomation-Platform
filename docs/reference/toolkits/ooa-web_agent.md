@@ -37,7 +37,7 @@ Describe the goal in plain words; the AI model works the page in a browser sessi
 | Start address (URL) | `start_url` | Text | No |  | Main | Open this address before the first step; the page already open when empty. Example: `https://portal.example.com/invoices` |
 | Goal | `goal` | Text | Yes |  | Main | What to achieve, in plain words; ${...} interpolation allowed. Example: `Search for invoice 4711 and tell me its total and due date.` |
 | Secrets | `secrets` | Dictionary | No |  | Main | Name to Credential, e.g. {"password": a Credential}. The model types them as {{secret:password}} and never sees the values. |
-| Connection | `connection` | Text | No |  | Main; choice Model = A saved connection | Name of a One Model Connection (provider, model and key managed in one place). Leave empty to set them on this action. |
+| Connection | `connection` | Text | No |  | Main; choice Model = A saved connection | Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action. |
 | Provider | `provider` | Text | No | `openai` | Main; choice Model = Set up here | openai, azure_openai, anthropic, openai_compatible (LiteLLM, vLLM, Ollama), huggingface (Hugging Face router or your own TGI server), aws_bedrock_sagemaker (a model on an Amazon SageMaker endpoint), aws_bedrock (Amazon Bedrock) or google_vertex (Gemini on Google Vertex AI). One of: `openai`, `azure_openai`, `anthropic`, `openai_compatible`, `huggingface`, `aws_bedrock_sagemaker`, `aws_bedrock`, `google_vertex` |
 | Model | `model` | Text | No |  | Main; choice Model = Set up here | Model name; the deployment name for Azure OpenAI; the endpoint name for aws_bedrock_sagemaker; the model or inference profile id for aws_bedrock. |
 | API key | `api_key` | Credential (vault) | No |  | Main; choice Model = Set up here | API key or access token from the vault (not needed for some self-hosted endpoints). For aws_bedrock and aws_bedrock_sagemaker: the AWS secret access key (or ACCESS_KEY_ID:SECRET). For google_vertex: a service-account JSON key or an access token. |
@@ -66,7 +66,7 @@ Describe the goal in plain words; the AI model works the page in a browser sessi
 | `input_tokens` | Number | Tokens sent to the model in all steps. |
 | `output_tokens` | Number | Tokens the model answered with in all steps. |
 
-*Time limit 1800 s; needs: browser, network, ai.*
+*Time limit 1800 s; needs: browser, network, ai, filesystem.*
 
 ### Start web agent session
 
@@ -87,4 +87,4 @@ Open a browser for the web goal agent (the same session works with every Browser
 | Browser path | `browser_path` | File path | No |  | More options | Start this browser program instead of the installed one (a Chromium-based browser, or Firefox when browser is firefox). Example: `C:\Program Files\Google\Chrome Beta\Application\chrome.exe` |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 
-*Time limit 300 s; needs: browser.*
+*Time limit 300 s; needs: browser, network, filesystem.*

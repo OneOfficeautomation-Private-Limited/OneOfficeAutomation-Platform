@@ -135,7 +135,7 @@ function fakeServer() {
     usedBy: [{ path: "Finance/lookup.flow.json" }] });
   routes["POST assistant/build"] = (b) => { created.push({ assistant: b.prompt, connection: b.connection });
     return { notes: "Logs a greeting.", steps: [{ id: "x1", action: "core/log", args: { message: "Hello $who" } }], variables: [{ name: "who", type: "String" }] }; };
-  // the Command Center agent repository: one agent, checked out by nobody; the fake account's password is "letmein"
+  // One CommandCenter agent repository: one agent, checked out by nobody; the fake account's password is "letmein"
   let cr: any = { connected: false, url: "http://cc.example:8720", user: null };
   let locked: string | null = null;
   const apiError = (message: string) => Object.assign(new Error(message), { api: { code: "STUDIO.CR", message } });
@@ -143,11 +143,16 @@ function fakeServer() {
   routes["POST cr/connect"] = (b) => { if (b.password !== "letmein") throw apiError("Wrong user name or password");
     created.push({ connect: b.url, user: b.username }); cr = { connected: true, url: b.url, user: { username: b.username } }; return cr; };
   routes["POST cr/disconnect"] = () => (cr = { connected: false, url: cr.url, user: null });
-  routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked }],
-    mapping: locked ? { "Command Center/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
+  routes["GET cr/repo"] = () => ({ bots: [{ path: "Finance/Invoice intake.flow.json", latest_version: 2, production_version: 1, locked_by: locked,
+    labels: [{ label: "UAT", version: 2 }], analysis: { errors: 0, warnings: 1 }, platform: "Windows", size: 2048, updated_by: "asha" }],
+    mapping: locked ? { "Finance/Invoice intake.flow.json": "Finance/Invoice intake.flow.json" } : {} });
   routes["GET cr/versions"] = () => ({ versions: [{ version: 2, author: "asha", created: "2026-10-29T10:00:00Z", comment: "Reads the totals" },
     { version: 1, author: "asha", created: "2026-10-28T10:00:00Z", comment: "First version" }] });
-  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: "Command Center/Invoice intake.flow.json", path: b.path, version: 2 }; };
+  routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: b.path, path: b.path, version: 2 }; };
+  let edited = false;
+  routes["GET cr/states"] = () => ({ connected: cr.connected, states: locked
+    ? { "Finance/Invoices/Invoice intake.flow.json": { status: edited ? "checked_out_edited" : "checked_out", path: "Finance/Invoice intake.flow.json" } } : {} });
+  routes["POST cr/revert"] = (b) => { created.push({ revert: b.local }); edited = false; return { local: b.local, path: "Finance/Invoice intake.flow.json", version: 2 }; };
   routes["POST cr/undo-checkout"] = (b) => { created.push({ undo: b.path }); locked = null; return { ok: true }; };
   routes["POST cr/checkin"] = (b) => { created.push({ checkin: b }); return { path: "Finance/Invoice intake.flow.json", version: 3, local: b.local, production: b.production }; };
   let windows: unknown[] = [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }];
@@ -183,17 +188,68 @@ function fakeServer() {
     try { return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 }); }
     catch (e: any) { if (e?.api) return new Response(JSON.stringify({ error: e.api }), { status: 400 }); throw e; }
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; } };
+  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; }, setEdited: (e: boolean) => { edited = e; } };
 }
 
 describe("new Studio", () => {
-  it("shows the Command Center menu in four sections, with links to Command Center pages", async () => {
+  it("shows One CommandCenter menu in five sections by task, with links to One CommandCenter pages", async () => {
     render(<App api={fakeServer().api} />);
-    const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    for (const s of ["BUILD", "MANAGE", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/?page=queues"));
+    const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
+    for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
+    expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
     for (const gone of ["Workflows", "Forms", "Templates"]) expect(within(menu).queryByText(gone)).toBeNull();   // made from Create, called from agents
+  });
+
+  it("opens the Help panel beside the page from the i after a title, and closes it with its close button", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Help: Automation (Private)" }));
+    const help = screen.getByRole("complementary", { name: "Help: Automation (Private)" });
+    expect(within(help).getByText("Create")).toBeTruthy();
+    fireEvent.click(within(help).getByRole("button", { name: "Close the help" }));
+    expect(screen.queryByRole("complementary", { name: /^Help/ })).toBeNull();
+  });
+
+  it("has a menu on every folder in the tree, with Rename and Delete for that folder", async () => {
+    render(<App api={fakeServer().api} />);
+    const tree = await screen.findByRole("tree", { name: "Folders" });
+    fireEvent.keyDown(within(tree).getByRole("button", { name: "Actions for folder Finance" }), { key: "Enter" });
+    const menu = await screen.findByRole("menu", { name: "Actions for folder Finance" });
+    expect(within(menu).getByRole("menuitem", { name: /Rename…/ })).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Rename…/ }));
+    expect(await screen.findByRole("dialog", { name: /Rename Finance/ })).toBeTruthy();   // that folder, not the one chosen in the tree
+  });
+
+  it("chooses the lists' columns as AA's: Platform, Label, Code analysis, Size, Modified by", async () => {
+    const { api } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); });
+    render(<App api={api} />);
+    // Private: some columns start hidden so a row fits on one line; Columns shows them
+    const headers = () => screen.getAllByRole("columnheader").map((h) => h.textContent);
+    await screen.findByRole("button", { name: "Finance" });
+    expect(headers()).not.toContain("Size");
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    const pick = await screen.findByRole("dialog", { name: "Columns" });
+    fireEvent.click(within(pick).getByRole("checkbox", { name: "Size" }));
+    fireEvent.click(within(pick).getByRole("button", { name: "Done" }));
+    expect(headers()).toContain("Size");
+    // Public: the repository's label and code analysis
+    fireEvent.click(screen.getByRole("tab", { name: "Public" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    await screen.findByText("Invoice intake");
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    const pick2 = await screen.findByRole("dialog", { name: "Columns" });
+    for (const c of ["Label", "Code analysis", "Platform"]) fireEvent.click(within(pick2).getByRole("checkbox", { name: c }));
+    fireEvent.click(within(pick2).getByRole("button", { name: "Done" }));
+    const row = screen.getByText("Invoice intake").closest("tr")!;
+    for (const t of ["UAT v2", "1 warning", "Windows"]) expect(row.textContent).toContain(t);
+    // the same columns as One CommandCenter's Public tab, Type first
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent).slice(0, 3)).toEqual(["Name", "Type", "Platform"]);
+    expect(row.textContent).toContain("Agent");
   });
 
   it("creates in AA's order: folder, then Create, then the type, then the name", async () => {
@@ -210,6 +266,15 @@ describe("new Studio", () => {
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
     expect(within(dialog).getByText("Finance")).toBeTruthy();
     expect(document.activeElement).toBe(within(dialog).getByLabelText("Name"));
+    // Change picks another folder in the dialog (it once closed the dialog instead), then back to Finance
+    fireEvent.click(within(dialog).getByRole("button", { name: "Change" }));
+    fireEvent.focus(within(dialog).getByLabelText("Folder"));
+    fireEvent.mouseDown(within(dialog).getByRole("option", { name: /^Workspace/ }));
+    expect(within(dialog).getByText("Workspace")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Change" }));
+    fireEvent.focus(within(dialog).getByLabelText("Folder"));
+    fireEvent.mouseDown(within(dialog).getByRole("option", { name: "Finance" }));
+    expect(within(dialog).getByText("Finance")).toBeTruthy();
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice intake Germany" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
 
@@ -233,9 +298,26 @@ describe("new Studio", () => {
     expect(created).toEqual([]);
   });
 
+  it("shows only the canvas in full screen, and Esc or the button brings everything back", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
+    const steps = await screen.findByRole("region", { name: "Agent steps" });
+    const wrap = steps.closest(".st-agent-wrap")!;
+    fireEvent.click(within(steps).getByRole("button", { name: "Full screen" }));
+    expect(wrap.classList.contains("is-full")).toBe(true);
+    fireEvent.keyDown(steps, { key: "Escape" });
+    expect(wrap.classList.contains("is-full")).toBe(false);
+    fireEvent.click(within(steps).getByRole("button", { name: "Full screen" }));
+    fireEvent.click(within(steps).getByRole("button", { name: "Exit full screen" }));
+    expect(wrap.classList.contains("is-full")).toBe(false);
+  });
+
   it("opens an agent in a tab with numbered steps, properties and variables, and Close returns to Automation", async () => {
     render(<App api={fakeServer().api} />);
     const search = await screen.findByLabelText("Search items");
+    const brand = () => document.querySelector(".st-brand")?.textContent;
+    expect([brand(), document.title]).toEqual(["One CommandCenter", "One CommandCenter"]);   // AA's one Control Room: only the editor is One AgentStudio
     fireEvent.change(search, { target: { value: "intake" } });
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
 
@@ -245,9 +327,32 @@ describe("new Studio", () => {
     expect((screen.getByLabelText("path") as HTMLInputElement).value).toBe("$workbook");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
     expect(await screen.findByText("$workbook")).toBeTruthy();
+    // with no step selected, Properties has the agent's own id and description (AA's bot properties)
+    fireEvent.keyDown(steps, { key: "Escape" });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Properties" }));
+    const id = await screen.findByLabelText("Agent id") as HTMLInputElement;
+    fireEvent.change(id, { target: { value: "bad id!" } });
+    expect(screen.getByRole("alert").textContent).toContain("letters, digits");
+    fireEvent.change(id, { target: { value: "invoice_intake_de" } });
+    fireEvent.blur(id);
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Reads supplier invoices" } });
+    fireEvent.blur(screen.getByLabelText("Description"));
+    expect(await screen.findByText("Unsaved")).toBeTruthy();
+
+    expect([brand(), document.title]).toEqual(["One AgentStudio", "Invoice intake · One AgentStudio"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Don't save" }));   // the id and description changed
     expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(brand()).toBe("One CommandCenter");
+  });
+
+  it("opens Create > Agent on the Private tab when One CommandCenter's Automation asks for a new agent (#private/new)", async () => {
+    location.hash = "#private/new";
+    render(<App api={fakeServer().api} />);
+    const dialog = await screen.findByRole("dialog", { name: "New agent" });
+    expect(within(dialog).getByText("Workspace")).toBeTruthy();
+    expect(location.hash).toBe("");
   });
 
   it("loads its data once when it makes its own API client (no reload loop)", async () => {
@@ -270,7 +375,10 @@ describe("new Studio", () => {
   it("folds the menu to icons and back, opens and closes sections, and remembers it", async () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
-    const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));   // one section open at a time
+    expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
+    expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
@@ -279,7 +387,7 @@ describe("new Studio", () => {
 
     unmount();
     render(<App api={api} />);
-    const again = await screen.findByRole("navigation", { name: "Command Center" });
+    const again = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(again).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(within(again).getByRole("button", { name: "MANAGE" }));   // an icon opens the menu at its section
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
@@ -426,7 +534,7 @@ describe("new Studio", () => {
     const group = await screen.findByRole("region", { name: "Inputs and outputs" });
     expect(within(group).getByText("$codes")).toBeTruthy();
     expect(within(group).getByText(/= A1, 42/)).toBeTruthy();
-    // the System and Shared values from the platform are listed too
+    // the System and Shared Global values from the platform are listed too
     expect(screen.getByText("$sys.today")).toBeTruthy();
     expect(screen.getByText("$global.company")).toBeTruthy();
     const saved = await saveAndGet(created);
@@ -544,10 +652,89 @@ describe("new Studio", () => {
     expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Close workbook"]);
   });
 
+  it("adds On error after END: its steps are numbered on, it has its own settings, and it is saved as the agent's onError", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.keyDown(steps, { key: "Escape" });
+    fireEvent.click(await screen.findByRole("button", { name: "Add error steps (On error)" }));
+    expect(within(steps).getByText("ON ERROR")).toBeTruthy();
+    expect(screen.getByText(/Runs once when an error no Try block catches/)).toBeTruthy();
+    // ON ERROR is selected, so an action clicked in the library goes into it, numbered on from the agent's last line
+    addFromLibrary(/^Core/, "Write to log");
+    const lines = () => within(steps).getAllByRole("button").filter((b) => b.classList.contains("st-step")).map((b) => b.querySelector(".st-step-n")?.textContent + " " + b.querySelector("strong")?.textContent);
+    expect(lines()).toEqual(["1 Open workbook", "2 Loop", "3 Write to log", "4 Write to log"]);
+    fireEvent.click(within(steps).getByText("ON ERROR"));
+    fireEvent.click(screen.getByRole("radio", { name: "Succeed with a warning" }));
+    expect(within(steps).getByText("1 step, then the run succeeds")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.steps).toHaveLength(2);
+    expect(saved.onError).toMatchObject({ then: "succeed", steps: [{ action: "core/log" }] });
+    // removing it takes its steps with it
+    fireEvent.click(screen.getByRole("button", { name: "Remove On error and its 1 step" }));
+    expect(within(steps).queryByText("ON ERROR")).toBeNull();
+    expect(lines()).toEqual(["1 Open workbook", "2 Loop", "3 Write to log"]);
+  });
+
+  it("adds a subflow, edits its steps apart from the main steps and saves both (G27)", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    expect(within(steps).queryByRole("radiogroup", { name: "Steps shown" })).toBeNull();   // no subflows: no list switcher
+    fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Add a subflow/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Add a subflow" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Close up" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    const lists = await within(steps).findByRole("radiogroup", { name: "Steps shown" });
+    await waitFor(() => expect(within(lists).getByRole("radio", { name: "Close up" }).getAttribute("aria-checked")).toBe("true"));
+    expect(stepNames(steps)).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: /^Excel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Close workbook" }));
+    expect(stepNames(steps)).toEqual(["Close workbook"]);
+    fireEvent.click(within(lists).getByRole("radio", { name: "Main" }));
+    expect(stepNames(steps)).toEqual(["Open workbook", "Loop", "Write to log"]);
+    const saved = await saveAndGet(created);
+    expect(saved.steps.map((s: any) => s.id)).toEqual(["open", "loop"]);
+    expect(saved.subflows).toMatchObject([{ name: "Close up", steps: [{ action: "ooa.excel/close" }] }]);
+  });
+
+  it("keeps On error with the main steps: hidden while a subflow is shown, back and saved with Main", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.keyDown(steps, { key: "Escape" });
+    fireEvent.click(await screen.findByRole("button", { name: "Add error steps (On error)" }));
+    addFromLibrary(/^Core/, "Write to log");
+    expect(within(steps).getByText("ON ERROR")).toBeTruthy();
+    fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Add a subflow/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Add a subflow" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Tidy" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    const lists = await within(steps).findByRole("radiogroup", { name: "Steps shown" });
+    await waitFor(() => expect(within(lists).getByRole("radio", { name: "Tidy" }).getAttribute("aria-checked")).toBe("true"));
+    expect(within(steps).queryByText("ON ERROR")).toBeNull();
+    fireEvent.click(within(lists).getByRole("radio", { name: "Main" }));
+    expect(within(steps).getByText("ON ERROR")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.onError).toMatchObject({ steps: [{ action: "core/log" }] });
+    expect(saved.subflows).toMatchObject([{ name: "Tidy", steps: [] }]);
+    expect(saved).not.toHaveProperty("mainOnError");
+    expect(saved).not.toHaveProperty("subflowView");
+  });
+
   it("selects several steps with Ctrl and Shift, then switches them off and deletes them together", async () => {
     render(<App api={fakeServer().api} />);
     const steps = await openIntake();
+    // the toolbar shows the step actions only while steps are selected (no greyed-out buttons), Undo and Redo always
+    const bar = within(steps).getByRole("toolbar", { name: "Edit steps" });
+    fireEvent.click(within(steps).getByText("START"));   // no step selected
+    expect(within(bar).queryByRole("button", { name: "Cut" })).toBeNull();
+    expect(within(bar).queryByRole("button", { name: "Paste" })).toBeNull();
+    expect(within(bar).getByRole("button", { name: "Undo" })).toBeTruthy();
     fireEvent.click(stepButton(steps, "Open workbook"));
+    expect(within(bar).getByRole("button", { name: "Cut" }).getAttribute("title")).toBe("Cut (Ctrl+X)");
     fireEvent.click(stepButton(steps, "Write to log"), { shiftKey: true });
     expect(within(steps).getByText(/^3 selected of 3 steps/)).toBeTruthy();
     expect(screen.getByText(/3 steps selected/)).toBeTruthy();
@@ -632,7 +819,7 @@ describe("new Studio", () => {
     fireEvent.click(stepButton(steps, "Loop"));
     fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9" });
     expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Debug" }));
+    fireEvent.keyDown(window, { key: "F5" });   // F5 debugs, as the Debug button
     const dialog = await screen.findByRole("dialog", { name: "Debug Invoice intake" });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Debug" })); });
     expect(runs[0]).toMatchObject({ debug: true, breakpoints: ["loop"], stopAtStart: false });
@@ -641,9 +828,45 @@ describe("new Studio", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Debug values" }));
     expect((await screen.findByText("$workbook")).closest("tr")!.textContent).toContain("C:/in.xlsx");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Run output" }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
+    expect(screen.getByRole("button", { name: "Continue" }).title).toContain("F5");
+    await act(async () => { fireEvent.keyDown(window, { key: "F5" }); });   // F5 continues while the run waits at a step
     expect(runs[1]).toEqual({ command: "continue" });
     expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it("has AA's editor keys: fold with [ and ], every breakpoint off with Shift+F9, find with Ctrl+Shift+F, Enter to the settings", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Loop"));
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "[" });
+    expect(await screen.findByRole("button", { name: /^Unfold line/ })).toBeTruthy();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "]" });
+    expect(await screen.findByRole("button", { name: /^Fold line/ })).toBeTruthy();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9" });
+    expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeTruthy();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9", shiftKey: true });
+    expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeNull();
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F", ctrlKey: true, shiftKey: true });
+    const box = await screen.findByLabelText("Find in this agent");
+    fireEvent.change(box, { target: { value: "open workbook" } });
+    expect(stepButton(steps, "Open workbook").getAttribute("aria-pressed") === "true" || stepButton(steps, "Open workbook").className.includes("is-selected")).toBe(true);
+    expect(screen.getByText("1 step")).toBeTruthy();
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.queryByLabelText("Find in this agent")).toBeNull();
+    fireEvent.keyDown(stepButton(steps, "Open workbook"), { key: "Enter" });
+    await waitFor(() => expect(screen.getByRole("complementary", { name: /Properties, variables and triggers/ }).contains(document.activeElement)).toBe(true));
+  });
+
+  it("lists the triggers beside the actions, as AA's editor: a workspace trigger opens Details, One CommandCenter's its Create trigger", async () => {
+    render(<App api={fakeServer().api} />);
+    await openIntake();
+    fireEvent.click(screen.getByRole("button", { name: /^Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: "When a file arrives in a folder" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Triggers" }).getAttribute("aria-selected")).toBe("true"));
+    const opened: string[] = [];
+    window.open = ((u: string) => { opened.push(u); return null; }) as typeof window.open;
+    fireEvent.click(screen.getByRole("button", { name: "New email (IMAP mailbox)" }));
+    expect(opened[0]).toMatch(/^\/next\/#\/triggers\?new=email&bot=/);
   });
 
   it("adds a schedule trigger for this agent only", async () => {
@@ -657,6 +880,29 @@ describe("new Studio", () => {
     expect(triggers()).toHaveLength(1);
     expect(triggers()[0]).toMatchObject({ bot: "Finance/Invoices/Invoice intake.flow.json", type: "schedule", every_minutes: 15 });
     expect(screen.getByText("Every 15 minutes")).toBeTruthy();
+    // a trigger's actions are in its menu; Delete asks first (it is saved at once, with no undo)
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for trigger: Every 15 minutes" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(screen.getByRole("alert").textContent).toContain("Delete the trigger “Every 15 minutes”?");
+    expect(triggers()).toHaveLength(1);
+    await act(async () => { fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Delete" })); });
+    expect(triggers()).toHaveLength(0);
+  });
+
+  it("asks in the panel before deleting a variable that steps use, and deletes an unused one at once", async () => {
+    render(<App api={fakeServer().api} />);
+    await openIntake();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Actions for $workbook" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    const ask = screen.getByRole("alert");
+    expect(ask.textContent).toContain("$workbook is used 1 time in this agent. Delete it anyway?");
+    fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Actions for $workbook" })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for $workbook" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Delete" }));
+    expect(screen.queryByRole("button", { name: "Actions for $workbook" })).toBeNull();
   });
 
   const openItem = async (name: string) => {
@@ -671,8 +917,11 @@ describe("new Studio", () => {
     const fields = await screen.findByRole("region", { name: "Form fields" });
     expect(within(fields).getByText("Invoice number")).toBeTruthy();
     expect(screen.queryByRole("complementary", { name: "Actions" })).toBeNull();   // the action library is for agents only
+    expect(within(fields).queryByRole("button", { name: "Move up" })).toBeNull();   // move and delete show once a field is selected
     fireEvent.change(screen.getByLabelText("Add a field"), { target: { value: "dropdown" } });
     fireEvent.click(within(fields).getByRole("button", { name: "Add" }));
+    expect(within(fields).getByRole("button", { name: "Move up" })).toBeTruthy();
+    expect((within(fields).getByRole("button", { name: "Move down" }) as HTMLButtonElement).disabled).toBe(true);   // the new one is last
     const label = screen.getByLabelText("Label") as HTMLInputElement;
     fireEvent.change(label, { target: { value: "Currency" } });
     fireEvent.blur(label);
@@ -735,7 +984,8 @@ describe("new Studio", () => {
     for (const n of names) { fireEvent.click(await within(tree).findByText(n)); fireEvent.keyDown(within(tree).getByText(n), { key: "ArrowRight" }); }
     return tree;
   };
-  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td")?.textContent?.startsWith(name))!;
+  // the name cell: the first one, or the second after a tick box
+  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td:not(.st-tick)")?.textContent?.startsWith(name))!;
 
   it("deletes an item and a folder to the trash after asking", async () => {
     const { api, created } = fakeServer();
@@ -804,13 +1054,18 @@ describe("new Studio", () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     await goToFolder("Finance", "Invoices");
-    fireEvent.click((await waitFor(() => row("Invoice check"))).querySelectorAll("td")[1]);
+    await waitFor(() => row("Invoice check"));
+    expect(screen.queryByRole("toolbar", { name: "Selected items" })).toBeNull();   // no greyed-out buttons: the bar shows once something is ticked
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "form" } });   // the Type filter
+    expect(row("Approve")).toBeUndefined();
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "" } });
+    fireEvent.click(row("Invoice check").querySelectorAll("td")[1]);
     fireEvent.click(row("Approve").querySelectorAll("td")[1], { ctrlKey: true });
     const bar = screen.getByRole("toolbar", { name: "Selected items" });
     expect(within(bar).getByText("2 selected")).toBeTruthy();
     fireEvent.click(within(bar).getByRole("button", { name: "Copy" }));
     fireEvent.click(within(screen.getByRole("tree", { name: "Folders" })).getByText("Finance"));
-    await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Paste 2 items" })); });
+    await act(async () => { fireEvent.click(within(screen.getByRole("toolbar", { name: "Selected items" })).getByRole("button", { name: "Paste 2 items here" })); });
     expect(created).toContainEqual({ copied: "Finance/Invoices/Invoice check.form.json", to: "Finance" });
     expect(created).toContainEqual({ copied: "Finance/Invoices/Approve.process.json", to: "Finance" });
     expect(screen.getByText("Pasted 2 items into Finance.")).toBeTruthy();
@@ -1115,8 +1370,9 @@ describe("new Studio", () => {
     fireEvent.click(stepButton(steps, "Open workbook"));
     await more("Custom connectors");
     const dlg = await screen.findByRole("dialog", { name: "Custom connectors" });
-    expect(within(dlg).getByText("Pet store")).toBeTruthy();
-    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Operations" })); });
+    expect(within(dlg).getByText("petstore").closest("td")!.getAttribute("title")).toBe("Pet store");   // the title on hover
+    fireEvent.keyDown(within(dlg).getByRole("button", { name: "Actions for petstore" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Operations" })); });
     fireEvent.change(within(dlg).getByLabelText("Filter operations"), { target: { value: "list" } });
     expect(within(dlg).queryByText("Add a pet")).toBeNull();
     fireEvent.click(within(dlg).getByRole("button", { name: "Add step" }));
@@ -1129,8 +1385,10 @@ describe("new Studio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Manage connections…" }));
     const sc = await screen.findByRole("dialog", { name: "Saved connections" });
     expect(await within(sc).findByText("snow-prod")).toBeTruthy();
-    fireEvent.click(within(sc).getByRole("button", { name: "Delete sf" }));
-    await act(async () => { fireEvent.click(within(sc).getByRole("button", { name: "Delete" })); });
+    fireEvent.keyDown(within(sc).getByRole("button", { name: "Actions for sf" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete…" }));
+    expect(within(sc).getByRole("alert").textContent).toContain("Delete the connection sf?");
+    await act(async () => { fireEvent.click(within(within(sc).getByRole("alert")).getByRole("button", { name: "Delete" })); });
     expect(created).toContainEqual({ deletedConnection: "sf" });
     fireEvent.click(within(sc).getByRole("button", { name: "New connection" }));
     fireEvent.change(within(sc).getByLabelText("Name"), { target: { value: "snow-test" } });
@@ -1323,7 +1581,7 @@ describe("new Studio", () => {
     const steps = await openIntake();
     fireEvent.click(within(steps).getByRole("button", { name: "Assistant" }));
     let dialog = await screen.findByRole("dialog", { name: "Agent assistant" });
-    expect(await within(dialog).findByRole("button", { name: "Set up a One Model Connection" })).toBeTruthy();
+    expect(await within(dialog).findByRole("button", { name: "Set up a Model Connection" })).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("tab", { name: "Explain this agent" }));
     const text = within(dialog).getByText(/Steps:/).textContent!;
     expect(text).toContain("It needs: $workbook (File).");
@@ -1374,12 +1632,12 @@ describe("new Studio", () => {
     expect(saved.variables.map((v: any) => v.name)).toEqual(["document", "api_key", "text", "fields"]);
   });
 
-  it("signs in to Command Center on the Public tab, lists the agent repository, and checks an agent out", async () => {
+  it("signs in to One CommandCenter on the Public tab, lists the agent repository, and checks an agent out", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
-    const form = await screen.findByRole("form", { name: "Sign in to Command Center" });
-    expect((within(form).getByLabelText("Command Center address") as HTMLInputElement).value).toBe("http://cc.example:8720");
+    const form = await screen.findByRole("form", { name: "Sign in to One CommandCenter" });
+    expect((within(form).getByLabelText("One CommandCenter address") as HTMLInputElement).value).toBe("http://cc.example:8720");
     fireEvent.change(within(form).getByLabelText("User name"), { target: { value: "ravi" } });
     fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "wrong" } });
     await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Sign in" })); });
@@ -1387,17 +1645,22 @@ describe("new Studio", () => {
     fireEvent.change(within(form).getByLabelText("Password"), { target: { value: "letmein" } });
     await act(async () => { fireEvent.submit(form); });
     expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
-    const row = (await screen.findByText("Finance/Invoice intake")).closest("tr")!;
+    // laid out as Private: the folders on the left, a folder's sub-folders and agents on the right
+    expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Public")).toBeTruthy();
+    expect(screen.getByText("Signed in as ravi").getAttribute("title")).toBe("http://cc.example:8720");   // the address only on hover
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("v2");
     expect(screen.queryByRole("button", { name: "Create ▾" })).toBeNull();   // Create belongs to the workspace
-    fireEvent.click(within(row).getByRole("button", { name: "Versions" }));
+    fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Versions" })); });
     const versions = await screen.findByRole("dialog", { name: "Versions of Finance/Invoice intake" });
     expect(within(versions).getByText("Reads the totals")).toBeTruthy();
     expect(within(versions).getByText(/live/).closest("tr")!.textContent).toContain("v1");
     fireEvent.click(within(versions).getAllByRole("button", { name: "Close" }).pop()!);
     await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "Check out" })); });
     expect(created).toContainEqual({ checkout: "Finance/Invoice intake.flow.json" });
-    expect(await screen.findByText(/Checked out v2 into your workspace: Command Center\/Invoice intake.flow.json/)).toBeTruthy();
+    expect(await screen.findByText(/Checked out v2 into your workspace: Finance\/Invoice intake.flow.json/)).toBeTruthy();   // the same folder path
     expect(screen.getByRole("tab", { name: /Invoice intake/, selected: true })).toBeTruthy();
   });
 
@@ -1406,17 +1669,63 @@ describe("new Studio", () => {
     await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
-    const row = (await screen.findByText("Finance/Invoice intake")).closest("tr")!;
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("By you");
-    expect(row.textContent).toContain("Private copy: Command Center/Invoice intake.flow.json");
+    expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: Finance/Invoice intake.flow.json");
     expect(within(row).getByRole("button", { name: "Open my copy" })).toBeTruthy();
-    fireEvent.click(within(row).getByRole("button", { name: "Undo check-out" }));
+    fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));
     const ask = await screen.findByRole("dialog", { name: "Undo check-out of Finance/Invoice intake?" });
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Undo check-out" })); });
     expect(created).toContainEqual({ undo: "Finance/Invoice intake.flow.json" });
-    await waitFor(() => expect(screen.getByText("Finance/Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
+    await waitFor(() => expect(screen.getByText("Invoice intake").closest("tr")!.textContent).not.toContain("By you"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
-    expect(await screen.findByRole("form", { name: "Sign in to Command Center" })).toBeTruthy();
+    expect(await screen.findByRole("form", { name: "Sign in to One CommandCenter" })).toBeTruthy();
+  });
+
+  it("shows each private item's status as AA's, and checks in, undoes a check-out and reverts edits from the list", async () => {
+    const { api, created } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    const intake = (await screen.findByRole("button", { name: "Invoice intake" })).closest("tr")!;
+    await waitFor(() => expect(within(intake).getByText("Checked out")).toBeTruthy());
+    const approve = screen.getByRole("button", { name: "Approve" }).closest("tr")!;
+    expect(within(approve).getByText("New")).toBeTruthy();   // never checked in
+    // two ticked items check in together, with one comment
+    fireEvent.click(within(intake).getByRole("checkbox"));
+    fireEvent.click(within(approve).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByRole("toolbar", { name: "Selected items" })).getByRole("button", { name: "Check in…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Check in 2 items" });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Check in" })); });
+    expect((created as Record<string, unknown>[]).filter((c) => "checkin" in c).map((c) => (c as { checkin: { local: string } }).checkin.local))
+      .toEqual(["Finance/Invoices/Invoice intake.flow.json", "Finance/Invoices/Approve.process.json"]);
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    // a row's menu: Undo check-out asks first
+    fireEvent.keyDown(within(intake).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));
+    const ask = await screen.findByRole("dialog", { name: "Undo check-out of Finance/Invoices/Invoice intake.flow.json?" });
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Undo check-out" })); });
+    expect(created).toContainEqual({ undo: "Finance/Invoice intake.flow.json" });
+  });
+
+  it("reverts edits to a checked-out agent after asking", async () => {
+    const { api, created, setEdited } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
+    setEdited(true);
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    const intake = (await screen.findByRole("button", { name: "Invoice intake" })).closest("tr")!;
+    await waitFor(() => expect(within(intake).getByText("Checked out · edited")).toBeTruthy());
+    fireEvent.keyDown(within(intake).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Revert edits…" }));
+    const ask = await screen.findByRole("dialog", { name: "Revert edits to Finance/Invoices/Invoice intake.flow.json?" });
+    await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Revert edits" })); });
+    expect(created).toContainEqual({ revert: "Finance/Invoices/Invoice intake.flow.json" });
+    await waitFor(() => expect(within(screen.getByRole("button", { name: "Invoice intake" }).closest("tr")!).getByText("Checked out")).toBeTruthy());
   });
 
   it("checks the open agent in, signing in first and saving unsaved changes", async () => {
@@ -1433,12 +1742,17 @@ describe("new Studio", () => {
     dialog = screen.getByRole("dialog", { name: "Check in Invoice intake" });
     expect(within(dialog).getByText(/as ravi/)).toBeTruthy();
     fireEvent.change(within(dialog).getByLabelText("What changed"), { target: { value: "Adds a note" } });
-    fireEvent.click(within(dialog).getByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Make this the live version/ }));
+    // the review of the agents it runs (AA's Review dependencies): a new one goes in with it, first
+    const review = within(dialog).getByRole("group", { name: "Agents it runs" });
+    const lookup = within(review).getByRole("checkbox") as HTMLInputElement;
+    expect(lookup.checked && lookup.disabled).toBe(true);
+    expect(review.textContent).toContain("New: checked in with it");
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Check in" })); });
-    const order = created.map((c: any) => c.saved ? "saved" : c.checkin ? "checkin" : "").filter(Boolean);
-    expect(order).toEqual(["saved", "checkin"]);   // saved first, so the new version has the change
+    const order = created.map((c: any) => c.saved ? "saved" : c.checkin ? "checkin:" + c.checkin.local : "").filter(Boolean);
+    expect(order).toEqual(["checkin:Finance/lookup.flow.json", "saved", "checkin:Finance/Invoices/Invoice intake.flow.json"]);   // the agent it runs first; saved before its own check-in
     expect(created).toContainEqual({ checkin: { local: "Finance/Invoices/Invoice intake.flow.json", comment: "Adds a note", production: true } });
-    expect(await screen.findByText(/Checked in Finance\/Invoice intake.flow.json as version 3; it is now the live version/)).toBeTruthy();
+    expect(await screen.findByText(/Checked in .*Invoice intake v3/)).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -1483,20 +1797,25 @@ describe("new Studio", () => {
     expect(wrap().className).toContain("is-out-float");   // back where it was
   });
 
-  it("switches to the dark theme and compact density from the Display menu, and remembers them", async () => {
+  it("offers two themes only, light and dark, and remembers the choice", async () => {
     render(<App api={fakeServer().api} />);
     const pick = async (name: string) => {
-      fireEvent.pointerDown(await screen.findByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
+      fireEvent.pointerDown(await screen.findByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
       fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp("^" + name) }));
     };
     expect(document.documentElement.dataset.theme).toBe("light");
     await pick("Dark theme");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
-    await pick("Compact density");
-    await waitFor(() => expect(document.documentElement.dataset.density).toBe("compact"));
     expect(localStorage.getItem("ooa.studio.display.theme")).toBe('"dark"');
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
     expect((await screen.findByRole("menuitem", { name: /^Dark theme, In use/ }))).toBeTruthy();
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toHaveLength(3);   // the two themes, and Keyboard shortcuts
+    // the Keyboard shortcuts dialog, with the switch for single-key shortcuts
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Keyboard shortcuts/ }));
+    const d = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(within(within(d).getByRole("region", { name: "Run and debug" })).getByText("F10")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("checkbox", { name: /Single-key shortcuts/ }));
+    expect(localStorage.getItem("ooa.studio.display.singleKeys")).toBe("false");
   });
 
   it("asks which window to record in, as AA does: browser tabs, application windows, and browsers that are not connected", async () => {
@@ -1505,7 +1824,7 @@ describe("new Studio", () => {
       { source: "browser", title: "Search - Firefox tab", url: "https://www.example.com/search", browser: "firefox", tab_id: 1, connector: true },
       { source: "browser", title: "Google", url: "https://www.google.com/", browser: "edge", endpoint: "http://127.0.0.1:9222" },
       { source: "application", title: "Untitled - Notepad", process: "notepad", browser: "" },
-      { source: "application", title: "One Agent Studio - Google Chrome", process: "chrome", browser: "chrome" },
+      { source: "application", title: "One AgentStudio - Google Chrome", process: "chrome", browser: "chrome" },
       { source: "application", title: "Guide.pdf - Personal - Microsoft Edge", process: "msedge", browser: "edge" },
       { source: "application", title: "Google - Microsoft​ Edge", process: "msedge", browser: "edge" },   // the agents' window: its tab is listed
       { source: "application", title: "Sticky Notes", process: "ApplicationFrameHost", browser: "" },   // a Store app's frame and its program
@@ -1524,7 +1843,7 @@ describe("new Studio", () => {
     expect(within(within(where).getByRole("group", { name: "Browser windows" })).getAllByRole("button")).toHaveLength(1);   // the agents' window is not offered twice
     // a browser Studio cannot reach: how to connect it, or a new recording window, or record it as an application
     fireEvent.click(within(within(where).getByRole("group", { name: "Browser windows" })).getByRole("button", { name: /Guide.pdf/ }));
-    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to Studio");
+    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to One AgentStudio");
     fireEvent.click(within(where).getByRole("button", { name: "Record a page in a new Microsoft Edge window…" }));
     expect((within(where).getByLabelText("Browser") as HTMLSelectElement).value).toBe("edge");
     // Refresh reads the windows again

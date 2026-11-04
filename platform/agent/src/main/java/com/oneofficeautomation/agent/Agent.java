@@ -15,7 +15,7 @@ import java.util.concurrent.*;
 /**
  * The Bot Agent: registers this device with Control Room, sends heartbeats, takes jobs one at a time and runs each bot
  * in its own worker process (crash isolation), relays live events, credential requests and stop/pause/resume, and
- * watches this machine for Command Center triggers (files and folders, windows, processes, services, hotkeys).
+ * watches this machine for One CommandCenter triggers (files and folders, windows, processes, services, hotkeys).
  */
 public final class Agent {
     public static final String VERSION = com.oneofficeautomation.sdk.BuildInfo.VERSION;
@@ -27,7 +27,7 @@ public final class Agent {
     /** The build of this runner's program files (null for a build from source); sent with each heartbeat. */
     private final String build = Updater.build(Updater.lib());
     private volatile boolean updating;
-    /** The toolkits this runner has (id@version), sent with the first heartbeat and when the Command Center asks. */
+    /** The toolkits this runner has (id@version), sent with the first heartbeat and when One CommandCenter asks. */
     static final List<String> TOOLKITS = toolkits();
     private volatile boolean toolkitsSent;
 
@@ -39,7 +39,7 @@ public final class Agent {
     private final ExecutorService io = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-agent-io"); t.setDaemon(true); return t; });
     private final LocalTriggers localTriggers;
     long heartbeatMs = 10_000, pollMs = 2_000, triggerPollMs = 2_000;
-    /** How long the Command Center may hold a request for work before answering (the long poll), in seconds. */
+    /** How long One CommandCenter may hold a request for work before answering (the long poll), in seconds. */
     long waitSeconds = 25;
 
     /** Heartbeat and job-poll intervals in milliseconds (defaults 10 s and 2 s); a poll under a second also turns the long poll off. */
@@ -53,7 +53,7 @@ public final class Agent {
     /** One-time registration with a key created in Control Room > Devices. Writes the device credentials to the config file. */
     public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException { return register(url, key, name, configFile, null); }
 
-    /** As above; {@code ca} is a certificate to trust for an HTTPS Command Center (copied next to the config as ca.cer). */
+    /** As above; {@code ca} is a certificate to trust for an HTTPS One CommandCenter (copied next to the config as ca.cer). */
     public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException { return register(url, key, name, configFile, ca, null, null, null); }
 
     /**
@@ -83,7 +83,7 @@ public final class Agent {
     }
 
     /**
-     * The registration in {@code configFile} when it is for the Command Center at {@code url} and that Command Center
+     * The registration in {@code configFile} when it is for One CommandCenter at {@code url} and that One CommandCenter
      * still accepts it, else null: setup run again (an update or repair) keeps the runner instead of registering anew.
      */
     @SuppressWarnings("unchecked")
@@ -95,14 +95,14 @@ public final class Agent {
             new AgentClient(url, (String) cfg.get("device_id"), (String) cfg.get("secret"), Network.from(cfg)).post("heartbeat", Map.of("agent_version", VERSION, "diagnose", true));
             return Map.of("device_id", cfg.get("device_id"), "name", String.valueOf(cfg.get("name")), "config", configFile.toString());
         } catch (Exception e) {
-            return null;    // unreadable, deleted or disabled on the Command Center, or not reachable: register again
+            return null;    // unreadable, deleted or disabled on One CommandCenter, or not reachable: register again
         }
     }
 
     @SuppressWarnings("unchecked")
     public Agent(Path configFile, Path workspace) throws IOException {
         this.configFile = configFile;
-        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")", "Run: ooa agent register --url <Command Center URL> --key <registration key>");
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")", "Run: ooa agent register --url <One CommandCenter URL> --key <registration key>");
         this.config = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
@@ -135,14 +135,14 @@ public final class Agent {
     }
 
     /**
-     * Points a registered runner at a new Command Center address (ooa agent move), keeping its registration: for a
-     * Command Center that moved (to the cloud, a new server) with its data copied or restored. The new address must
+     * Points a registered runner at a new One CommandCenter address (ooa agent move), keeping its registration: for a
+     * One CommandCenter that moved (to the cloud, a new server) with its data copied or restored. The new address must
      * accept this runner's credentials before anything is saved; a new certificate authority file may come along.
      */
     @SuppressWarnings("unchecked")
     public static String moveTo(Path configFile, String url, Path ca) throws IOException {
         if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
-        if (url == null || !url.matches("(?i)https?://[^\\s/]+.*")) throw new OoaException("AGENT.BAD_URL", "The Command Center address starts with https:// (or http://)");
+        if (url == null || !url.matches("(?i)https?://[^\\s/]+.*")) throw new OoaException("AGENT.BAD_URL", "One CommandCenter address starts with https:// (or http://)");
         Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
         Network now = Network.from(cfg);
         Path newCa = null;
@@ -153,8 +153,8 @@ public final class Agent {
                 .post("heartbeat", Map.of("agent_version", VERSION, "diagnose", true));
         } catch (RuntimeException e) {
             if (newCa != null) Files.deleteIfExists(newCa);
-            throw new OoaException("AGENT.MOVE_REFUSED", "The Command Center at " + clean + " did not accept this runner: " + e.getMessage(),
-                "Copy or restore the old Command Center's data there first (its runners come with it), or register this runner again");
+            throw new OoaException("AGENT.MOVE_REFUSED", "One CommandCenter at " + clean + " did not accept this runner: " + e.getMessage(),
+                "Copy or restore the old One CommandCenter's data there first (its runners come with it), or register this runner again");
         }
         Path keptCa = now.ca();
         if (newCa != null) { keptCa = configFile.resolveSibling("ca.cer"); Files.move(newCa, keptCa, StandardCopyOption.REPLACE_EXISTING); }
@@ -168,15 +168,15 @@ public final class Agent {
     }
 
     /**
-     * Updates the program files from the Command Center (it asked, and nothing is running): stages them, starts the helper
+     * Updates the program files from One CommandCenter (it asked, and nothing is running): stages them, starts the helper
      * that swaps them once this process ends, and exits. A service is started again by Windows; a runner started at sign-in
      * by the helper. Failing leaves everything as it was.
      */
     void update(Map<String, Object> u) {
         Path lib = Updater.lib();
         try {
-            if (lib == null || !DesktopSession.WINDOWS) { log("info", "Command Center offers update " + u.get("version") + ", but this runner is not an installation on Windows; update it by hand"); return; }
-            log("Updating to " + u.get("version") + " (build " + u.get("build") + ") from Command Center");
+            if (lib == null || !DesktopSession.WINDOWS) { log("info", "One CommandCenter offers update " + u.get("version") + ", but this runner is not an installation on Windows; update it by hand"); return; }
+            log("Updating to " + u.get("version") + " (build " + u.get("build") + ") from One CommandCenter");
             Updater.stage(lib, new Updater.Source() {
                 public Map<String, Object> manifest() { return client.getJson("update/manifest"); }
                 public byte[] file(String name) { return client.getBytes("update/file?name=" + java.net.URLEncoder.encode(name, StandardCharsets.UTF_8)); }
@@ -193,7 +193,7 @@ public final class Agent {
     }
 
     /**
-     * Takes a new secret from the Command Center (its heartbeat asked for it) and saves it in the config file: written to
+     * Takes a new secret from One CommandCenter (its heartbeat asked for it) and saves it in the config file: written to
      * a new file first, then moved over the old one, so the file always holds a working secret.
      */
     synchronized void rotateSecret() {
@@ -212,9 +212,9 @@ public final class Agent {
         } catch (Exception e) { log("warning", "Could not rotate the runner secret (the old one keeps working): " + e.getMessage()); }
     }
 
-    /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */
+    /** The runner's log level, set in One CommandCenter and received with each heartbeat: error, warning, info or debug. */
     volatile String logLevel = "info";
-    /** What to do with the screen after an unattended run (nothing, lock, sign_out), set in Command Center. */
+    /** What to do with the screen after an unattended run (nothing, lock, sign_out), set in One CommandCenter. */
     volatile String afterRun = "nothing";
     static final List<String> LEVELS = List.of("error", "warning", "info", "debug");
 
@@ -222,13 +222,32 @@ public final class Agent {
 
     void log(String level, String msg) {
         if (LEVELS.indexOf(level) > LEVELS.indexOf(logLevel)) return;
-        System.err.println(LocalDateTime.now().withNano(0) + "  " + (level.equals("info") ? "" : level.toUpperCase(Locale.ROOT) + "  ") + msg);
+        String line = LocalDateTime.now().withNano(0) + "  " + (level.equals("info") ? "" : level.toUpperCase(Locale.ROOT) + "  ") + msg;
+        System.err.println(line);
+        health.remember(line);
+    }
+
+    /** CPU and memory use, recent log lines and a screen picture, for One CommandCenter's Runners page. */
+    final RunnerHealth health = new RunnerHealth();
+    /** Maintenance set in One CommandCenter (drain or stop), or null; the runner takes no new work meanwhile. */
+    volatile String maintenance;
+
+    /** Sends what One CommandCenter asked for: the logs, or a picture of the screen (or why there is none). */
+    void send(String kind) {
+        Map<String, Object> b = new HashMap<>();
+        try {
+            if (kind.equals("logs")) b.put("text", health.logs(workspace));
+            else b.put("image", RunnerHealth.screen(DesktopSession.state()));
+        } catch (IOException | RuntimeException e) { b.put("error", e.getMessage() == null ? e.toString() : e.getMessage()); }
+        try { client.post(kind, b); log(kind.equals("logs") ? "Sent the logs One CommandCenter asked for" : "Sent the screen picture One CommandCenter asked for"); }
+        catch (OoaException e) { log("warning", "Could not send the " + kind + " One CommandCenter asked for: " + e.getMessage()); }
     }
 
     // ---------------- main loop ----------------
     public void run() {
-        log("ONEOFFICEAUTOMATION One Runner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
+        log("ONEOFFICEAUTOMATION OneRunner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
         log("Workspace: " + workspace);
+        com.oneofficeautomation.packages.FirstPartyPackages.warmUp();   // e.g. PDF's font list, so the first PDF step does not wait for it
         ScheduledExecutorService hb = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-agent-heartbeat"); t.setDaemon(true); return t; });
         hb.scheduleWithFixedDelay(this::heartbeat, 0, heartbeatMs, TimeUnit.MILLISECONDS);
         localTriggers.start(triggerPollMs);
@@ -239,10 +258,10 @@ public final class Agent {
                     Map<String, Object> r = client.post(waitSeconds > 0 ? "jobs/next?wait=" + waitSeconds : "jobs/next", Map.of());
                     if (r.get("job") instanceof Map<?, ?> job) { @SuppressWarnings("unchecked") Map<String, Object> j = (Map<String, Object>) job; execute(j); continue; }
                     if (Boolean.TRUE.equals(r.get("check"))) io.submit(this::heartbeat);
-                    // the Command Center held the request (long poll): ask again at once; an older one answers at once, so wait as before
+                    // One CommandCenter held the request (long poll): ask again at once; an older one answers at once, so wait as before
                     if (System.currentTimeMillis() - asked >= pollMs) continue;
                 }
-            } catch (OoaException e) { log("warning", "Command Center: " + e.getMessage()); }
+            } catch (OoaException e) { log("warning", "One CommandCenter: " + e.getMessage()); }
             try { Thread.sleep(pollMs); } catch (InterruptedException e) { break; }
         }
         hb.shutdownNow();
@@ -258,6 +277,7 @@ public final class Agent {
             Map<String, Object> beat = new HashMap<>(Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
                     "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state(), "build", build == null ? "" : build));
             if (!toolkitsSent) beat.put("toolkits", TOOLKITS);
+            beat.putAll(health.usage());
             Map<String, Object> r = client.post("heartbeat", beat);
             toolkitsSent = !Boolean.TRUE.equals(r.get("send_toolkits"));
             if (r.get("update") instanceof Map<?, ?> u && w == null && !updating) { updating = true; io.submit(() -> update((Map<String, Object>) u)); }
@@ -267,9 +287,13 @@ public final class Agent {
                 else if (((List<Object>) r.getOrDefault("resume", List.of())).contains(w.runId)) w.send(Map.of("type", "resume"));
             }
             localTriggers.update(r.get("local_triggers") instanceof List<?> l ? (List<Object>) l : (List<Object>) r.getOrDefault("file_triggers", List.of()));
-            if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by Command Center"); }
-            if (r.get("after_run") instanceof String ar && !ar.equals(afterRun)) { afterRun = ar; log("After unattended runs: " + ar + " (set in Command Center)"); }
+            if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by One CommandCenter"); }
+            if (r.get("after_run") instanceof String ar && !ar.equals(afterRun)) { afterRun = ar; log("After unattended runs: " + ar + " (set in One CommandCenter)"); }
             if (Boolean.TRUE.equals(r.get("rotate"))) rotateSecret();
+            String mt = r.get("maintenance") instanceof String x ? x : null;
+            if (!Objects.equals(mt, maintenance)) { maintenance = mt; log(mt == null ? "Maintenance ended in One CommandCenter" : "In maintenance (" + mt + ", set in One CommandCenter): no new work"); }
+            if (Boolean.TRUE.equals(r.get("send_logs"))) io.submit(() -> send("logs"));
+            if (Boolean.TRUE.equals(r.get("send_screen"))) io.submit(() -> send("screen"));
         } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }
@@ -292,7 +316,7 @@ public final class Agent {
         }
     }
 
-    /** The run's mode from Command Center: attended, unattended (the default) or headless. */
+    /** The run's mode from One CommandCenter: attended, unattended (the default) or headless. */
     static String workerMode(Map<String, Object> job) {
         String m = String.valueOf(job.getOrDefault("mode", "unattended"));
         return List.of("attended", "unattended", "headless").contains(m) ? m : "unattended";
@@ -346,7 +370,7 @@ public final class Agent {
         if (result == null) {
             String tail = "";
             try { List<String> lines = Files.readAllLines(logFile); tail = String.join("\n", lines.subList(Math.max(0, lines.size() - 5), lines.size())); } catch (IOException ignored) { }
-            result = w.cancelled ? Map.of("status", "stopped", "error", Map.of("code", "RUN.CANCELLED", "message", "Stopped from Control Room"))
+            result = w.cancelled ? Map.of("status", "stopped", "error", Map.of("code", "RUN.CANCELLED", "message", "Stopped from One CommandCenter"))
                     : Map.of("status", "failed", "error", Map.of("code", "AGENT.WORKER_CRASHED", "message", "The agent's worker process ended unexpectedly (exit " + w.proc.exitValue() + ")",
                             "suggestedFix", "See the agent log " + logFile + (tail.isBlank() ? "" : ": " + tail)));
         }
@@ -357,8 +381,8 @@ public final class Agent {
     }
 
     /**
-     * Sends a run's result, trying again when the Command Center cannot be reached (a dropped connection, a restart):
-     * 6 attempts over about a minute. Sending it twice is harmless, as the Command Center ignores a result for a run
+     * Sends a run's result, trying again when One CommandCenter cannot be reached (a dropped connection, a restart):
+     * 6 attempts over about a minute. Sending it twice is harmless, as One CommandCenter ignores a result for a run
      * that is no longer running.
      */
     void reportResult(String runId, Map<String, Object> result) {

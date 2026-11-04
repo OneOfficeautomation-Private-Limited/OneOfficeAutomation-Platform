@@ -23,6 +23,14 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class Runner {
     public static final int MAX_CHILD_DEPTH = 10;
+    /** Session key of the run's log fields: name to value, added to every log event (ooa.log Add log fields). */
+    public static final String LOG_FIELDS_SESSION = "ooa.log.fields";
+    /** Extra time the agent's error handler gets when the run went over its time limit. */
+    static final long HANDLER_GRACE_NANOS = 60L * 1_000_000_000L;
+    /** How deep Run subflow calls may nest inside one agent (a subflow may call itself; this stops endless recursion). */
+    public static final int MAX_SUBFLOW_DEPTH = 100;
+    /** Go to jumps allowed in one run unless RunOptions.maxJumps says otherwise (stops endless jumping). */
+    public static final int DEFAULT_MAX_JUMPS = 10_000;
 
     private final PackageRegistry registry;
     private final Map<String, Object> services;
@@ -74,6 +82,7 @@ public final class Runner {
         r.onlyStep = opts.onlyStep;
         r.carryOver = opts.carryOver;
         r.trail = opts.trail;
+        r.maxJumps = opts.maxJumps;
         return r.execute(inputs == null ? Map.of() : inputs, true);
     }
 
@@ -89,8 +98,13 @@ public final class Runner {
         /** Step nesting across agents, for step over and step out: deeper steps have a higher level. */
         int level();
         String automation();
-        /** Outermost first: {automation, stepId} for each agent that is running. */
+        /**
+         * Outermost first: {automation, stepId} for each agent that is running, and for each Run subflow call within an
+         * agent; entries for steps inside a subflow also have "subflow" (its name).
+         */
         List<Map<String, Object>> stack();
+        /** The subflow the step is in, or null for the agent's main steps. */
+        default String subflow() { return null; }
         /** Declared variables of the current agent; credentials are masked. */
         Map<String, Object> variables();
         /** Change a variable while stopped (the value is converted to the variable's type). */
@@ -107,13 +121,17 @@ public final class Runner {
      *       runs only the branch that holds the start step. Try keeps its Catch and Finally when the start step is in the Try
      *       part. After the enclosing blocks end, the run carries on normally with the steps that follow them.</li>
      *   <li>With onlyStep, the run ends successfully once the start step (and, for a block, everything inside it) has run.</li>
+     *   <li>A start step inside a subflow runs that subflow from the step to its end, as if called; the main steps do not run
+     *       and the run ends with the subflow.</li>
      * </ul>
      * The skipped steps never set their variables, so these keep their defaults and inputs, unless {@link #carryOver(Map)}
      * gives values (usually the ones an earlier run had when it reached the start step, from its {@link ValueTrail}).
      */
     public static final class RunOptions {
         String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger; String startAt; boolean onlyStep;
-        Map<String, Object> carryOver; ValueTrail trail;
+        Map<String, Object> carryOver; ValueTrail trail; int maxJumps = DEFAULT_MAX_JUMPS;
+        /** Go to jumps allowed in the run (each child agent gets the same allowance); more fail the run with GOTO.LIMIT. */
+        public RunOptions maxJumps(int n) { maxJumps = Math.max(0, n); return this; }
         public RunOptions startAt(String stepId) { startAt = stepId == null || stepId.isBlank() ? null : stepId; return this; }
         /**
          * With startAt: values for the agent's variables before the start step, in place of the ones the skipped steps
@@ -170,6 +188,16 @@ public final class Runner {
         StopSignal(boolean failed, String reason) { super(null, null, false, false); this.failed = failed; this.reason = reason; }
     }
 
+    /** core/goto: caught by the step list that holds the label, which carries on from it; Finally blocks run on the way. */
+    private static final class GotoSignal extends RuntimeException {
+        final String label;
+        GotoSignal(String label) { super(null, null, false, false); this.label = label; }
+    }
+    /** core/exit_subflow: leaves the subflow being run; the Run subflow step that called it ends normally. */
+    private static final class ExitSubflowSignal extends RuntimeException {
+        ExitSubflowSignal() { super(null, null, false, false); }
+    }
+
     private static String labelOf(RuntimeException e) {
         return e instanceof BreakSignal b ? b.label : e instanceof ContinueSignal c ? c.label : null;
     }
@@ -181,11 +209,15 @@ public final class Runner {
     /** Bot-level variable scope. Child bots get a new scope (inputs/outputs only). */
     /** Names reserved for built-in, read-only variables: $sys.* (system values) and $global.* (global values). */
     public static final Set<String> RESERVED = Set.of("sys", "global");
+    /** File fields that read a picture: an Image variable may be given to them directly. */
+    static final Set<String> PICTURE_INPUTS = Set.of("image", "template");
 
     static final class Scope {
         final Map<String, String> types = new LinkedHashMap<>();
         final Map<String, Object> values = new HashMap<>();
         final Map<String, java.util.function.Supplier<Object>> builtins = new HashMap<>();
+        /** Where relative file paths given to Image and Binary variables are read from (the run's working folder). */
+        Path baseDir;
 
         synchronized Object get(String name) {
             java.util.function.Supplier<Object> b = builtins.get(name);
@@ -199,7 +231,7 @@ public final class Runner {
             if (builtins.containsKey(name)) throw new OoaException("VAR.READ_ONLY", "'" + name + "' is a built-in variable and cannot be changed",
                     "Assign to one of your own variables instead.");
             if (!types.containsKey(name)) throw new OoaException("VAR.UNDECLARED", "Variable '" + name + "' is not declared");
-            Object v = Values.coerce(value, types.get(name), name);
+            Object v = Values.coerce(value, types.get(name), name, baseDir);
             values.put(name, v);
             return v;
         }
@@ -209,9 +241,12 @@ public final class Runner {
         final Map<String, Object> flow;
         final String runId;
         final AtomicBoolean cancel;
-        final long deadlineNanos;
+        long deadlineNanos;
         final int depth;
         final Scope scope = new Scope();
+        { scope.baseDir = workDir; }
+        /** Picture files written for Image values given to the Image commands' picture fields; deleted when the run ends. */
+        final List<Path> tempFiles = new CopyOnWriteArrayList<>();
         final Map<String, Object> requires;
         Map<String, Object> sessions = new ConcurrentHashMap<>();
         boolean borrowedSessions;
@@ -233,6 +268,14 @@ public final class Runner {
         String parentStep;
         volatile int nesting;
         final List<ExecutorService> workers = new CopyOnWriteArrayList<>();
+        /** Go to: the jumps allowed and made in this run. */
+        int maxJumps = DEFAULT_MAX_JUMPS;
+        final AtomicInteger jumps = new AtomicInteger();
+        /** Run subflow calls in progress on this thread, outermost first: {subflow name, id of the calling step}. Parallel branches start with a copy. */
+        final InheritableThreadLocal<ArrayDeque<String[]>> calls = new InheritableThreadLocal<>() {
+            @Override protected ArrayDeque<String[]> initialValue() { return new ArrayDeque<>(); }
+            @Override protected ArrayDeque<String[]> childValue(ArrayDeque<String[]> parent) { return new ArrayDeque<>(parent); }
+        };
 
         @SuppressWarnings("unchecked")
         Run(Map<String, Object> flow, String runId, AtomicBoolean cancel, Double maxRunSeconds, int depth) {
@@ -308,7 +351,7 @@ public final class Runner {
         }
 
         /**
-         * Saved connections by name: from the connections service (Command Center) or connections.json in the
+         * Saved connections by name: from the connections service (One CommandCenter) or connections.json in the
          * workspace. Each is {"package": "ooa.servicenow", "values": {input: value}, "credentials": {input: vault ref}}.
          */
         @SuppressWarnings("unchecked")
@@ -329,7 +372,7 @@ public final class Runner {
         Map<String, Object> withConnection(String name, String pid, ActionSpec spec, Map<String, Object> raw) {
             if (!(connections().get(name) instanceof Map<?, ?> found))
                 throw new OoaException("CONNECTION.NOT_FOUND", "There is no saved connection named '" + name + "'",
-                        "Create it under Connections (Command Center or Studio), or choose another connection on the step.");
+                        "Create it under Connections (One CommandCenter or One AgentStudio), or choose another connection on the step.");
             Map<String, Object> conn = (Map<String, Object>) found;
             Object pkgOf = conn.get("package");
             if (pkgOf instanceof String cp && !cp.isBlank() && !cp.equals(pid))
@@ -362,7 +405,15 @@ public final class Runner {
 
         void log(String level, String message, String stepId) {
             for (String s : secrets) if (!s.isEmpty()) message = message.replace(s, SecureString.MASK);
-            emit("log", stepId, data("level", level, "message", message));
+            emit("log", stepId, logData(level, message));
+        }
+
+        /** A log event's data: level and message, plus the run's log fields (Add log fields) when any are set. */
+        @SuppressWarnings("unchecked")
+        Map<String, Object> logData(String level, String message) {
+            Map<String, Object> d = data("level", level, "message", message);
+            if (sessions.get(LOG_FIELDS_SESSION) instanceof Map<?, ?> f && !f.isEmpty()) d.put("fields", new LinkedHashMap<>((Map<String, Object>) f));
+            return d;
         }
 
         @SuppressWarnings("unchecked")
@@ -371,6 +422,7 @@ public final class Runner {
             String aid = String.valueOf(flow.getOrDefault("id", "?"));
             String status = "success";
             Map<String, Object> error = null;
+            OoaException handled = null;
             String planHash = "";
             try {
                 if ("Agent".equals(flow.get("kind")))
@@ -378,27 +430,41 @@ public final class Runner {
                 if (validate) validator.validateOrThrow(flow);
                 bindInputs(inputs);
                 planHash = planHash(inputs);
+                String startIn = null;   // run from a step inside a subflow: only that subflow runs, from the step to its end
                 if (startAt != null) {
                     List<String> path = pathTo((List<Object>) flow.get("steps"), startAt);
+                    if (path == null) for (var sub : Steps.subflows(flow).entrySet())
+                        if ((path = pathTo(sub.getValue(), startAt)) != null) { startIn = sub.getKey(); break; }
                     if (path == null) throw new OoaException("RUN.START_NOT_FOUND", "There is no step '" + startAt + "' in agent " + aid,
                             "Choose a step of the agent being run.");
                     startPath = Set.copyOf(path.subList(0, path.size() - 1));
                 }
                 List<String> carried = startAt != null && carryOver != null ? applyCarryOver(inputs) : List.of();
                 emit("run.started", null, data("automation", aid, "kind", flow.get("kind"), "planHash", planHash, "depth", depth,
-                        "totalSteps", Steps.walk((List<Object>) flow.get("steps")).size(), "startAt", startAt, "onlyStep", onlyStep));
-                if (startAt != null) log("info", (onlyStep ? "Running only step " : "Running from step ") + startAt + "; earlier steps are skipped", null);
+                        "totalSteps", Steps.walkFlow(flow).size() - Steps.walk(Steps.onErrorSteps(flow)).size(), "startAt", startAt, "onlyStep", onlyStep));
+                if (startAt != null) log("info", (onlyStep ? "Running only step " : "Running from step ") + startAt
+                        + (startIn == null ? "" : " in subflow " + startIn + " (the run ends with the subflow)") + "; earlier steps are skipped", null);
                 if (!carried.isEmpty()) {
                     log("info", "Values from the last run: " + String.join(", ", carried), null);
                     for (String n : carried) emit("variable.set", null, data("name", n, "value", Values.safeRepr(scope.values.get(n)), "carried", true));
                 }
-                execSteps((List<Object>) flow.get("steps"), true);
+                try {
+                    if (startIn != null) runSubflow(startIn, null);
+                    else execSteps((List<Object>) flow.get("steps"), true);
+                } catch (OoaException e) { if (!handleError(e)) throw e; handled = e; }
             } catch (OoaException e) {
                 status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : "failed";
                 error = e.toMap();
             } catch (BreakSignal | ContinueSignal e) {
                 status = "failed";
                 error = new OoaException("FLOW.BAD_BREAK", "break/continue used outside a loop" + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'")).toMap();
+            } catch (GotoSignal e) {
+                status = "failed";
+                error = new OoaException("FLOW.BAD_GOTO", "Go to label '" + e.label + "': there is no such label in the step list or in a list around it",
+                        "Put a Label step with this name in the same list as the Go to, or in a list around it.").toMap();
+            } catch (ExitSubflowSignal e) {
+                status = "failed";
+                error = new OoaException("FLOW.BAD_EXIT_SUBFLOW", "Exit subflow used outside a subflow", "Use Stop agent to end the agent's main steps.").toMap();
             } catch (StopSignal e) {
                 if (e.failed) {
                     status = "failed";
@@ -410,6 +476,9 @@ public final class Runner {
             } finally {
                 if (!borrowedSessions) closeSessions();
                 workers.forEach(ExecutorService::shutdownNow);
+                for (Path p : tempFiles) { try { java.nio.file.Files.deleteIfExists(p); } catch (java.io.IOException ignored) { } }
+                tempFiles.clear();
+                calls.remove();
             }
             Map<String, Object> outputs = new LinkedHashMap<>();
             for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
@@ -418,7 +487,9 @@ public final class Runner {
             }
             long dur = (System.nanoTime() - t0) / 1_000_000;
             if (trail != null && depth == 0) { trail.endedEarly = !"success".equals(status); trail.atEnd = snapshot(); }
-            emit("run.finished", null, data("status", status, "durationMs", dur, "error", error, "outputs", outputs));
+            Map<String, Object> finished = data("status", status, "durationMs", dur, "error", error, "outputs", outputs);
+            if (handled != null) finished.put("handledError", handled.toMap());   // ended as succeeded by the error handler
+            emit("run.finished", null, finished);
             if (depth == 0) { secureValues.forEach(SecureString::wipe); secrets.clear(); }
             return new RunResult(runId, aid, status, outputs, error, dur, planHash, stepsExecuted.get());
         }
@@ -489,7 +560,7 @@ public final class Runner {
             Map<String, Object> logic = new LinkedHashMap<>(flow);
             logic.remove("ui");
             Map<String, Object> versions = new TreeMap<>();
-            for (Map<String, Object> s : Steps.walk((List<Object>) flow.get("steps"))) {
+            for (Map<String, Object> s : Steps.walkFlow(flow)) {
                 String pid = String.valueOf(s.get("action")).split("/")[0];
                 try { versions.put(pid, registry.resolve(pid, (String) requires.get(pid)).version()); }
                 catch (OoaException e) { versions.put(pid, "?"); }
@@ -510,7 +581,7 @@ public final class Runner {
         Object lookup(String name) { return scope.get(name); }
 
         void check() {
-            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from Control Center");
+            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter");
             if (pause.get()) {
                 emit("run.paused", null, data());
                 while (pause.get() && !cancel.get()) {
@@ -526,22 +597,76 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         void execSteps(List<Object> steps, boolean topLevel) {
             boolean continueDefault = topLevel && "continue".equals(((Map<String, Object>) flow.getOrDefault("errorHandling", Map.of())).get("default"));
-            if (!topLevel) nesting++;
+            execList(steps, continueDefault, !topLevel);
+        }
+
+        /**
+         * Runs a step list in order. A Go to whose label is in this list (and was not caught by a list inside it) carries
+         * on from the label; any other Go to goes up to the lists around this one.
+         */
+        @SuppressWarnings("unchecked")
+        void execList(List<Object> steps, boolean forceContinue, boolean nested) {
+            if (nested) nesting++;
             try {
-                for (Object o : steps == null ? List.of() : steps) {
+                List<Object> list = steps == null ? List.of() : steps;
+                for (int i = 0; i < list.size(); i++) {
                     if (onlyDone) return;
-                    Map<String, Object> s = (Map<String, Object>) o;
+                    Map<String, Object> s = (Map<String, Object>) list.get(i);
                     boolean off = Boolean.TRUE.equals(s.get("disabled"));
                     String id = String.valueOf(s.get("id"));
                     if (startAt != null && !reached) {
                         if (id.equals(startAt)) reached = true;
                         else { if (!off && startPath.contains(id)) enterTowards(s); continue; }
                     }
-                    if (!off) execStep(s, continueDefault);
+                    try {
+                        if (!off) execStep(s, forceContinue);
+                    } catch (GotoSignal g) {
+                        int at = labelIndex(list, g.label);
+                        if (at < 0) throw g;
+                        i = at - 1;   // the loop's i++ lands on the label
+                        continue;
+                    }
                     if (onlyStep && id.equals(startAt)) onlyDone = true;
                 }
-            } finally { if (!topLevel) nesting--; }
+            } finally { if (nested) nesting--; }
         }
+
+        /** Where the Label step with this name is in a list (disabled or not), or -1. */
+        @SuppressWarnings("unchecked")
+        int labelIndex(List<Object> list, String label) {
+            for (int i = 0; i < list.size(); i++)
+                if (list.get(i) instanceof Map<?, ?> m && "core/label".equals(m.get("action")) && m.get("args") instanceof Map<?, ?> a
+                        && label.equals(String.valueOf(a.get("name")).strip())) return i;
+            return -1;
+        }
+
+        /**
+         * Runs a subflow by name in this run: same variables, sessions and events. Exit subflow ends it; Exit loop,
+         * Continue loop and Go to cannot leave it. `callStep` is the Run subflow step (null for Run from here inside it).
+         */
+        void runSubflow(String name, String callStep) {
+            List<Object> body = Steps.subflows(flow).get(name);
+            if (body == null) throw new OoaException("SUBFLOW.NOT_FOUND", "There is no subflow named '" + name + "'",
+                    Steps.subflows(flow).isEmpty() ? "Add the subflow to the agent, or remove the Run subflow step." : "Subflows: " + String.join(", ", Steps.subflows(flow).keySet()) + ".");
+            ArrayDeque<String[]> stack = calls.get();
+            if (stack.size() >= MAX_SUBFLOW_DEPTH) throw new OoaException("SUBFLOW.DEPTH", "Subflows are nested more than " + MAX_SUBFLOW_DEPTH + " deep (subflow '" + name + "')",
+                    "A subflow that runs itself needs a condition that stops it; check the Run subflow steps.");
+            stack.addLast(new String[]{name, callStep});
+            try {
+                execSteps(body, false);
+            } catch (ExitSubflowSignal e) {
+                log("info", "Left subflow " + name, callStep);
+            } catch (BreakSignal | ContinueSignal e) {
+                throw new OoaException("FLOW.BAD_BREAK", "Exit loop or Continue loop in subflow '" + name + "' is not inside a loop of the subflow"
+                        + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'"), "A subflow can only leave or continue its own loops.");
+            } catch (GotoSignal e) {
+                throw new OoaException("FLOW.BAD_GOTO", "Go to label '" + e.label + "' in subflow '" + name + "': the label is not in the subflow",
+                        "Go to can only jump to a label in the same subflow, in the same step list or a list around it.");
+            } finally { stack.removeLast(); }
+        }
+
+        /** The subflow the current thread is in, or null in the main steps. */
+        String currentSubflow() { ArrayDeque<String[]> s = calls.get(); return s.isEmpty() ? null : s.peekLast()[0]; }
 
         /** Ids from the outermost block down to the step with `id`, or null when the agent has no such step. */
         @SuppressWarnings("unchecked")
@@ -552,8 +677,8 @@ public final class Runner {
                 String sid = String.valueOf(s.get("id"));
                 if (sid.equals(id)) return new ArrayList<>(List.of(sid));
                 List<List<Object>> sections = new ArrayList<>();
-                for (String k : List.of("children", "else", "finally")) sections.add(list(s, k));
-                for (String k : List.of("elseIf", "catch"))
+                for (String k : List.of("children", "else", "finally", "default")) sections.add(list(s, k));
+                for (String k : List.of("elseIf", "catch", "cases"))
                     for (Object b : list(s, k)) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) sections.add((List<Object>) c);
                 for (List<Object> sec : sections) {
                     List<String> p = pathTo(sec, id);
@@ -567,7 +692,8 @@ public final class Runner {
 
         /**
          * Run from here: goes into a block that holds the start step without evaluating it (no If condition, one Loop pass
-         * without item variables, only the Parallel branch that holds the step). A Try keeps its Catch and Finally.
+         * without item variables, only the Parallel branch that holds the step, a Switch case without comparing its
+         * values). A Try keeps its Catch and Finally.
          */
         @SuppressWarnings("unchecked")
         void enterTowards(Map<String, Object> step) {
@@ -589,8 +715,8 @@ public final class Runner {
                 }
                 return;
             }
-            for (String k : List.of("else", "finally")) if (holdsStart(list(step, k))) { execSteps(list(step, k), false); return; }
-            for (String k : List.of("elseIf", "catch"))
+            for (String k : List.of("else", "finally", "default")) if (holdsStart(list(step, k))) { execSteps(list(step, k), false); return; }
+            for (String k : List.of("elseIf", "catch", "cases"))
                 for (Object b : list(step, k))
                     if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c && holdsStart((List<Object>) c)) { execSteps((List<Object>) c, false); return; }
         }
@@ -598,15 +724,24 @@ public final class Runner {
         /** The debugger's view of this run, stopped before `step`. */
         Frame frame(Map<String, Object> step) {
             Run run = this;
+            List<String[]> subCalls = List.copyOf(calls.get());
             return new Frame() {
                 public String stepId() { return String.valueOf(step.get("id")); }
                 public String action() { return String.valueOf(step.get("action")); }
                 public int depth() { return depth; }
                 public int level() { int l = nesting; for (Run p = parent; p != null; p = p.parent) l += p.nesting + 1; return l; }
                 public String automation() { return String.valueOf(flow.getOrDefault("id", "?")); }
+                public String subflow() { return subCalls.isEmpty() ? null : subCalls.get(subCalls.size() - 1)[0]; }
                 public List<Map<String, Object>> stack() {
                     LinkedList<Map<String, Object>> out = new LinkedList<>();
-                    out.addFirst(Map.of("automation", automation(), "stepId", stepId()));
+                    // this agent: the step, then the Run subflow steps that led to it (innermost first, as they are added at the front)
+                    String in = subflow();
+                    out.addFirst(in == null ? Map.of("automation", automation(), "stepId", stepId()) : Map.of("automation", automation(), "stepId", stepId(), "subflow", in));
+                    for (int k = subCalls.size() - 1; k >= 0; k--) {
+                        String caller = k > 0 ? subCalls.get(k - 1)[0] : null, callStep = subCalls.get(k)[1];
+                        if (callStep == null) continue;   // Run from here inside a subflow: no step called it
+                        out.addFirst(caller == null ? Map.of("automation", automation(), "stepId", callStep) : Map.of("automation", automation(), "stepId", callStep, "subflow", caller));
+                    }
                     String at = parentStep;
                     for (Run p = parent; p != null; at = p.parentStep, p = p.parent)
                         out.addFirst(Map.of("automation", String.valueOf(p.flow.getOrDefault("id", "?")), "stepId", at == null ? "" : at));
@@ -617,7 +752,7 @@ public final class Runner {
                     synchronized (run.scope) {
                         for (String name : run.scope.types.keySet()) {
                             Object v = run.scope.values.get(name);
-                            out.put(name, v instanceof SecureString || (v instanceof String str && run.secrets.contains(str)) ? SecureString.MASK : Values.toJsonable(v));
+                            out.put(name, v instanceof SecureString || (v instanceof String str && run.secrets.contains(str)) ? SecureString.MASK : Values.toDisplay(v));
                         }
                     }
                     return out;
@@ -647,7 +782,7 @@ public final class Runner {
                 String pid = act.substring(0, act.indexOf('/')), aid = act.substring(act.indexOf('/') + 1);
                 if (pid.equals("core")) execCore(step, aid); else execLeaf(step, pid, aid);
                 stepsExecuted.incrementAndGet();
-            } catch (BreakSignal | ContinueSignal | StopSignal sig) {
+            } catch (BreakSignal | ContinueSignal | StopSignal | GotoSignal | ExitSubflowSignal sig) {
                 emit("step.finished", sid, data("action", act, "durationMs", (System.nanoTime() - t0) / 1_000_000));
                 throw sig;
             } catch (OoaException e) {
@@ -678,13 +813,21 @@ public final class Runner {
                     }
                     execSteps(list(step, "else"), false);
                 }
+                case "switch" -> switchStep(step, a, sid);
                 case "loop" -> loop(step, a);
                 case "try" -> tryBlock(step);
                 case "step" -> execSteps(list(step, "children"), false);
                 case "parallel" -> parallel(step, a);
-                case "set" -> {
-                    Object stored = scope.set((String) a.get("variable"), resolve(a.get("value")));
-                    emit("variable.set", sid, data("name", a.get("variable"), "value", Values.safeRepr(stored)));
+                case "set" -> assign((String) a.get("variable"), a.get("value"), sid);
+                case "set_many" -> {
+                    // in order, so a later value can use a variable assigned above it
+                    if (!(a.get("assignments") instanceof List<?> l))
+                        throw new OoaException("FLOW.INVALID", "Assign several variables needs a list of assignments", "Add records with variable and value.", false, null);
+                    for (Object o : l) {
+                        if (!(o instanceof Map<?, ?> m) || !(m.get("variable") instanceof String v) || v.isBlank())
+                            throw new OoaException("FLOW.INVALID", "Each assignment needs a variable name", "Give every row a declared variable.", false, null);
+                        assign(v, m.get("value"), sid);
+                    }
                 }
                 case "log" -> log(String.valueOf(a.getOrDefault("level", "info")), Values.text(resolve(a.get("message"))), sid);
                 case "delay" -> delay(a);
@@ -723,11 +866,75 @@ public final class Runner {
                 }
                 case "pause" -> pauseHere(a, sid);
                 case "run_bot" -> runChild(step, a);
+                case "run_subflow" -> {
+                    String name = optText(a.get("subflow"));
+                    if (name == null) throw new OoaException("SUBFLOW.NOT_FOUND", "Run subflow has no subflow chosen", "Choose the subflow to run.");
+                    runSubflow(name.strip(), sid);
+                }
+                case "exit_subflow" -> {
+                    // outside a subflow it reaches the run, which fails with FLOW.BAD_EXIT_SUBFLOW
+                    throw new ExitSubflowSignal();
+                }
+                case "label" -> { }
+                case "goto" -> {
+                    String label = Values.text(a.get("label")).strip();
+                    if (jumps.incrementAndGet() > maxJumps)
+                        throw new OoaException("GOTO.LIMIT", "The run made more than " + maxJumps + " Go to jumps (last to label '" + label + "')",
+                                "Go to may be jumping round endlessly: check the condition that ends it, or use a Loop.");
+                    throw new GotoSignal(label);
+                }
                 default -> throw new OoaException("FLOW.UNKNOWN_ACTION", "Unknown core action '" + aid + "'");
             }
         }
 
+        /** Assign variable, and each row of Assign several variables. */
+        void assign(String variable, Object raw, String sid) {
+            Object value = resolve(raw);
+            // a Credential variable set from a vault reference gets the secret, fetched just in time
+            if ("Credential".equals(scope.types.get(variable)) && value instanceof Map<?, ?> m && m.containsKey("$credential"))
+                value = credentialArg(variable, value);
+            Object stored = scope.set(variable, value);
+            emit("variable.set", sid, data("name", variable, "value", Values.safeRepr(stored)));
+        }
+
         Object resolve(Object v) { return Expressions.resolve(v, this::lookup); }
+
+        /**
+         * core/switch: the value is compared with each case's values in order and the first case with a match runs; when
+         * none matches, the default steps run. No fall-through. Exit loop and Continue loop inside a case reach the loop.
+         */
+        @SuppressWarnings("unchecked")
+        void switchStep(Map<String, Object> step, Map<String, Object> a, String sid) {
+            String match = Objects.requireNonNullElse(optText(a.get("match")), "equals");
+            if (!CorePackage.SWITCH_MATCHES.contains(match))
+                throw new OoaException("SWITCH.BAD_MATCH", "Unknown match '" + match + "'", "Use one of " + String.join(", ", CorePackage.SWITCH_MATCHES) + ".");
+            boolean byCondition = match.equals("expression");
+            Object value = byCondition ? null : resolve(a.get("value"));
+            Map<String, Object> opts = !byCondition && flag(a, "ignore_case", false) ? Map.of("ignoreCase", true) : Map.of();
+            String shown = byCondition ? "" : " (value " + Values.safeRepr(value) + ")";
+            List<Object> cases = list(step, "cases");
+            for (int i = 0; i < cases.size(); i++) {
+                Map<String, Object> c = cases.get(i) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+                for (Object raw : list(c, "values")) {
+                    boolean hit;
+                    if (byCondition) hit = condition(raw, sid);
+                    else {
+                        try { hit = Conditions.compare(CorePackage.switchOperator(match), value, resolve(raw), opts); }
+                        catch (java.util.regex.PatternSyntaxException e) {
+                            throw new OoaException("SWITCH.BAD_REGEX", "Case " + (i + 1) + " has an invalid pattern: " + e.getDescription(), "Fix the regular expression.");
+                        }
+                    }
+                    if (hit) {
+                        log("info", "Switch: case " + (i + 1) + " matched" + shown, sid);
+                        execSteps(list(c, "children"), false);
+                        return;
+                    }
+                }
+            }
+            boolean hasDefault = step.get("default") instanceof List<?>;
+            log("info", "Switch: no case matched" + shown + (hasDefault ? "; running the default steps" : "; nothing to run"), sid);
+            execSteps(list(step, "default"), false);
+        }
 
         String optText(Object raw) {
             Object v = resolve(raw);
@@ -756,7 +963,7 @@ public final class Runner {
             sleep("milliseconds".equals(unit) ? wait / 1000 : "minutes".equals(unit) ? wait * 60 : wait);
         }
 
-        /** core/pause: the same pause the Control Center button uses, started from inside the agent. */
+        /** core/pause: the same pause One CommandCenter button uses, started from inside the agent. */
         void pauseHere(Map<String, Object> a, String sid) {
             String msg = optText(a.get("message"));
             Object t = resolve(a.get("timeout_seconds"));
@@ -972,17 +1179,31 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         Map<String, Object> errorInfo(OoaException e) {
             Map<String, Object> m = new LinkedHashMap<>(e.toMap());
-            if (walked == null) walked = Steps.walk((List<Object>) flow.get("steps"));
+            // the main steps then the error handler's, numbered on as One AgentStudio shows them; subflows are numbered apart
+            if (walked == null) {
+                walked = Steps.walk(flow.get("steps") instanceof List<?> l ? (List<Object>) l : List.of());
+                walked.addAll(Steps.walk(Steps.onErrorSteps(flow)));
+            }
             Object line = null, action = null;
             for (int i = 0; i < walked.size(); i++)
                 if (String.valueOf(walked.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = walked.get(i).get("action"); break; }
+            String inSub = null;
+            if (line == null)   // a step of a subflow: its line within the subflow, as One AgentStudio numbers it
+                for (var sub : Steps.subflows(flow).entrySet()) {
+                    List<Map<String, Object>> w = Steps.walk(sub.getValue());
+                    for (int i = 0; i < w.size() && line == null; i++)
+                        if (String.valueOf(w.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = w.get(i).get("action"); inSub = sub.getKey(); }
+                    if (line != null) break;
+                }
             m.put("line", line);
             m.put("action", action);
+            if (inSub != null) m.put("subflow", inSub);
             return m;
         }
 
         /** Screenshot for a Catch block; never fails the Catch. Returns the file path, or null when no picture could be taken. */
         String screenshot(Object option, String stepId) {
+            if (Boolean.FALSE.equals(services.get("error_screenshots"))) { log("info", "Error screenshots are switched off in One CommandCenter's Settings", stepId); return null; }
             Object v = resolve(option);
             String name = v instanceof String s && !s.isBlank() && !s.equalsIgnoreCase("true") ? s
                     : "screenshots/" + runId + "_" + stepId + "_" + System.currentTimeMillis() + ".png";
@@ -999,6 +1220,50 @@ public final class Runner {
                 log("warning", "Could not take the error screenshot: " + ex.getMessage(), stepId);
                 return null;
             }
+        }
+
+        /**
+         * The agent's error handler (flow "onError"): runs once when an error escapes every Try block of the main steps,
+         * while browsers, files and windows are still open. Returns true when the run is to end as succeeded ("then":
+         * "succeed"); false ends it failed with the original error. Stop and cancel never reach it; an error inside the
+         * handler is logged and the run fails with the original error (the handler never handles its own errors).
+         */
+        boolean handleError(OoaException e) {
+            Map<String, Object> h = Steps.onError(flow);
+            if (h == null || "RUN.CANCELLED".equals(e.code())) return false;
+            String sid = e.stepId();
+            boolean succeed = "succeed".equals(h.get("then"));
+            // a run that went over its time limit gets a short extra time for its handler
+            if ("RUN.TIMEOUT".equals(e.code()) || System.nanoTime() > deadlineNanos) deadlineNanos = System.nanoTime() + HANDLER_GRACE_NANOS;
+            emit("error_handler.started", sid, data("code", e.code(), "message", e.getMessage(), "then", succeed ? "succeed" : "fail"));
+            log("info", "Running the agent's error handler for " + e.code(), sid);
+            long t0 = System.nanoTime();
+            String outcome = "done";
+            try {
+                Map<String, Object> err = errorInfo(e);
+                err.put("stack", frame(Map.of("id", sid == null ? "" : sid)).stack());
+                if (h.get("screenshot") != null && !Boolean.FALSE.equals(h.get("screenshot"))) err.put("screenshot", screenshot(h.get("screenshot"), sid == null ? "run" : sid));
+                if (h.get("as") instanceof String as && !as.isBlank()) scope.set(as, err);
+                execSteps(Steps.onErrorSteps(flow), false);
+            } catch (StopSignal stop) {
+                log("info", "A Stop step ended the error handler", sid);
+            } catch (OoaException x) {
+                if ("RUN.CANCELLED".equals(x.code())) { emitHandlerFinished(sid, "stopped", t0); throw x; }
+                log("error", "The error handler failed with " + x.code() + ": " + x.getMessage() + "; the run fails with the original error " + e.code(), x.stepId());
+                outcome = "failed"; succeed = false;
+            } catch (BreakSignal | ContinueSignal | GotoSignal | ExitSubflowSignal x) {
+                log("error", "The error handler used " + (x instanceof GotoSignal ? "Go to with a label outside its steps"
+                        : x instanceof ExitSubflowSignal ? "Exit subflow outside a subflow" : "break/continue outside a loop")
+                        + "; the run fails with the original error " + e.code(), sid);
+                outcome = "failed"; succeed = false;
+            }
+            emitHandlerFinished(sid, outcome, t0);
+            if (succeed) log("warning", "The error handler handled " + e.code() + " (" + e.getMessage() + "); the run ends as succeeded", sid);
+            return succeed;
+        }
+
+        void emitHandlerFinished(String sid, String outcome, long t0) {
+            emit("error_handler.finished", sid, data("status", outcome, "durationMs", (System.nanoTime() - t0) / 1_000_000));
         }
 
         @SuppressWarnings("unchecked")
@@ -1021,11 +1286,9 @@ public final class Runner {
                         if (c.get("line_to") instanceof String lt) scope.set(lt, err.get("line"));
                         log("info", "Caught " + e.code(), sid);
                         List<Object> body = c.get("children") instanceof List<?> l ? (List<Object>) l : List.of();
-                        if (Boolean.TRUE.equals(c.get("continueOnError"))) {
-                            nesting++;
-                            try { for (Object s : body) if (!Boolean.TRUE.equals(((Map<String, Object>) s).get("disabled"))) execStep((Map<String, Object>) s, true); }
-                            finally { nesting--; }
-                        } else execSteps(body, false);
+                        // continueOnError: every step of the Catch runs even when one fails (execList also handles Go to in it)
+                        if (Boolean.TRUE.equals(c.get("continueOnError"))) execList(body, true, true);
+                        else execSteps(body, false);
                         handled = true;
                         if (Boolean.TRUE.equals(c.get("rethrow"))) throw e;
                         break;
@@ -1045,17 +1308,24 @@ public final class Runner {
             Semaphore permits = new Semaphore(Math.max(1, n));
             List<OoaException> errors = new CopyOnWriteArrayList<>();
             List<StopSignal> stops = new CopyOnWriteArrayList<>();
+            List<ExitSubflowSignal> exits = new CopyOnWriteArrayList<>();
             try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {
                 for (Map<String, Object> b : branches) ex.submit(() -> {
                     try { permits.acquire(); execStep(b, false); }
                     catch (OoaException e) { errors.add(e); }
                     catch (StopSignal s) { stops.add(s); }
+                    catch (GotoSignal g) {
+                        errors.add(new OoaException("FLOW.BAD_GOTO", "Go to label '" + g.label + "' cannot leave a Parallel branch",
+                                "Jump only to labels inside the same branch.").atStep(String.valueOf(b.get("id"))));
+                    }
+                    catch (ExitSubflowSignal x) { exits.add(x); }
                     catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                     finally { permits.release(); }
                 });
             }
             if (!errors.isEmpty()) throw errors.get(0);
             if (!stops.isEmpty()) throw stops.get(0);
+            if (!exits.isEmpty()) throw exits.get(0);   // Exit subflow in a branch: the subflow ends once every branch is done
         }
 
         @SuppressWarnings("unchecked")
@@ -1086,6 +1356,7 @@ public final class Runner {
                 child.debugger = debugger;
                 child.parent = this;
                 child.parentStep = String.valueOf(step.get("id"));
+                child.maxJumps = maxJumps;
                 if (same) { child.sessions = sessions; child.borrowedSessions = true; }
                 RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
                 runs++;
@@ -1148,22 +1419,41 @@ public final class Runner {
 
         RunResult executeAsChild(Map<String, Object> inputs, long parentDeadline, List<String> parentSecrets) {
             secrets.addAll(parentSecrets);
+            deadlineNanos = Math.min(deadlineNanos, parentDeadline);  // a child agent cannot outlive the run that started it
             return execute(inputs, true);
         }
 
         // ----- leaf actions -----
+        /** Platform services plus this run's read-only variable view. */
+        private Map<String, Object> stepServices;
+
+        Map<String, Object> stepServices() {
+            if (stepServices == null) {
+                Map<String, Object> m = new HashMap<>(services);
+                m.putIfAbsent(FlowVariables.SERVICE, new FlowVariables() {
+                    public Map<String, String> declared() { synchronized (scope) { return new LinkedHashMap<>(scope.types); } }
+                    public Object value(String name) { synchronized (scope) { return scope.values.get(name); } }
+                });
+                stepServices = java.util.Collections.unmodifiableMap(m);
+            }
+            return stepServices;
+        }
+
         ActionContext ctx(String stepId) {
-            return new ActionContext(runId, stepId, tenantId, workDir, sessions, services, cancel, () -> List.copyOf(secrets),
-                    (lvl, msg) -> emit("log", stepId, data("level", lvl, "message", msg)));
+            return new ActionContext(runId, stepId, tenantId, workDir, sessions, stepServices(), cancel, () -> List.copyOf(secrets),
+                    (lvl, msg) -> emit("log", stepId, logData(lvl, msg)));
         }
 
         Map<String, Object> prepareArgs(ActionSpec spec, Map<String, Object> raw) {
             Map<String, Object> out = new LinkedHashMap<>();
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
+                if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
+                else if (v != null) refuseVaultReference(in.name(), v, 0);
                 if (v != null) {
+                    if (in.type() == OoaType.FILE && v instanceof com.oneofficeautomation.sdk.ImageValue img && PICTURE_INPUTS.contains(in.name())) v = pictureFile(img);
                     if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {
-                        try { v = Values.coerce(v, in.type().flowName(), in.name()); }
+                        try { v = Values.coerce(v, in.type().flowName(), in.name(), workDir); }
                         catch (OoaException e) {
                             // name the step's input, not a variable: "Input 'values' expects Dictionary, got List"
                             if (!"VAR.TYPE_MISMATCH".equals(e.code())) throw e;
@@ -1181,6 +1471,46 @@ public final class Runner {
                 }
             }
             return out;
+        }
+
+        /**
+         * A Credential field of a step: a vault reference {"$credential": "locker/credential/attribute"} written in the step
+         * is fetched from the vault just in time (as for run inputs and connections) and masked in logs; a Credential
+         * variable is passed as it is. Plain text is passed on (Office passwords accept it; connectors refuse it) but masked
+         * in logs. Any other dictionary or list is refused, so a reference can never be used as the secret itself.
+         */
+        Object credentialArg(String name, Object v) {
+            if (v == null || v instanceof SecureString) return v;
+            if (v instanceof String s && s.isEmpty()) return null;
+            if (v instanceof Map<?, ?> m && m.containsKey("$credential")) {
+                Object ref = m.get("$credential");
+                if (m.size() != 1 || !(ref instanceof String r) || r.isBlank())
+                    throw new ActionException("VAULT.BAD_REF", "Input '" + name + "' has a malformed vault reference",
+                            "Write it as {\"$credential\": \"locker/credential/attribute\"}.");
+                CredentialVault vault = (CredentialVault) services.get("vault");
+                if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault is configured, so the credential for input '" + name + "' cannot be read",
+                        "Run the agent where a vault is set up (One CommandCenter, or OOA_SECRET_... variables for local runs).");
+                SecureString sec = vault.getSecret(r.strip(), principal);
+                secrets.add(sec.reveal()); secureValues.add(sec);
+                return sec;
+            }
+            if (v instanceof Map<?, ?> || v instanceof List<?>)
+                throw new ActionException("VAR.SECURE_REQUIRED", "Input '" + name + "' needs a Credential, got " + Values.typeName(v),
+                        "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
+            String plain = Values.text(v);
+            if (plain.length() >= 4) secrets.add(plain);
+            return v;
+        }
+
+        /** A vault reference is only resolved in Credential fields; anywhere else it would be sent as text, so it is refused. */
+        void refuseVaultReference(String name, Object v, int depth) {
+            if (depth > 6 || v == null) return;
+            if (v instanceof Map<?, ?> m) {
+                if (m.containsKey("$credential"))
+                    throw new ActionException("VAULT.REFERENCE_NOT_ALLOWED", "Input '" + name + "' is not a Credential field, so the vault reference in it would be sent as plain text",
+                            "Use the command's Credential field for the secret (for example password, bearer_token or access_token).");
+                for (Object x : m.values()) refuseVaultReference(name, x, depth + 1);
+            } else if (v instanceof List<?> l) for (Object x : l) refuseVaultReference(name, x, depth + 1);
         }
 
         Object invoke(PackageRegistry.LoadedPackage pkg, ActionSpec spec, Map<String, Object> args, ActionContext ctx) {
@@ -1215,13 +1545,32 @@ public final class Runner {
                 worker.set(ex);
                 workers.add(ex);
             }
+            long start = System.nanoTime();
+            long stepEnd = start + (long) Math.min(timeoutSeconds * 1e9, Long.MAX_VALUE / 4.0);
+            if (deadlineNanos != Long.MAX_VALUE && start >= deadlineNanos)
+                throw new OoaException("RUN.TIMEOUT", "Run exceeded its maximum duration", "Raise the run time limit or split the bot.");
             Future<Object> f = ex.submit(fn);
             try {
-                return f.get((long) (timeoutSeconds * 1000), TimeUnit.MILLISECONDS);
+                // the step's own timeout, the run's time limit and Stop all end a running step (a long Databricks wait used to
+                // run far past the run limit, and Stop waited for the step to finish)
+                while (true) {
+                    long now = System.nanoTime(), end = Math.min(stepEnd, deadlineNanos);
+                    if (now >= end) throw new TimeoutException();
+                    try { return f.get(Math.min(TimeUnit.NANOSECONDS.toMillis(end - now) + 1, 200), TimeUnit.MILLISECONDS); }
+                    catch (TimeoutException slice) {
+                        if (cancel.get()) {
+                            f.cancel(true); ex.shutdownNow(); worker.remove();
+                            throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter while a step was running");
+                        }
+                    }
+                }
             } catch (TimeoutException e) {
                 f.cancel(true);
                 ex.shutdownNow();
                 worker.remove();
+                if (System.nanoTime() >= deadlineNanos && deadlineNanos < stepEnd)
+                    throw new OoaException("RUN.TIMEOUT", "Run exceeded its maximum duration while a step was running; the step was stopped",
+                            "Raise the run time limit or split the bot.");
                 throw new OoaException("STEP.TIMEOUT", "Action did not finish within " + timeoutSeconds + " s",
                         "Raise timeoutSeconds on the step or check the target application.", true, null);
             } catch (ExecutionException e) {
@@ -1289,9 +1638,22 @@ public final class Runner {
             }
         }
 
+        /** An Image given to a picture field (which takes a file): written once to a temporary PNG, deleted when the run ends. */
+        String pictureFile(com.oneofficeautomation.sdk.ImageValue img) {
+            try {
+                Path p = java.nio.file.Files.createTempFile("ooa-image-", ".png");
+                tempFiles.add(p);
+                java.nio.file.Files.write(p, img.bytes());
+                return p.toString();
+            } catch (java.io.IOException e) {
+                throw new OoaException("ACTION.INPUT_INVALID", "Cannot hand the Image to the command as a file: " + e.getMessage());
+            }
+        }
+
         /** Package results may use int/long/double; the runtime model uses BigDecimal. SecureString is kept. */
         Object normalise(Object v) {
-            if (v instanceof SecureString || v instanceof java.time.LocalDateTime) return v;
+            if (v instanceof SecureString || v instanceof java.time.LocalDateTime || v instanceof java.time.LocalTime || v instanceof java.time.Duration
+                    || v instanceof com.oneofficeautomation.sdk.ImageValue || v instanceof com.oneofficeautomation.sdk.BinaryValue) return v;
             return Values.toJsonable(v);
         }
     }

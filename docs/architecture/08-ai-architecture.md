@@ -35,14 +35,14 @@ flowchart LR
       A[AI actions: ooa.genai, ooa.ai_skills, ooa.ai_agent, ooa.knowledge, ooa.web_agent] --> MC[ModelConnections]
       MC --> L[LlmClient: mask, call, unmask, record]
     end
-    CC[(Command Center)] -- job: model_connections allowed for the run's role --> MC
+    CC[(One CommandCenter)] -- job: model_connections allowed for the run's role --> MC
     L -- HTTPS --> P[Providers]
     L -- optional --> PA[Presidio analyzer inside the company]
     L -- ai_calls with the run result --> CC
     MCPC[Outside AI assistant] -- JSON-RPC /api/mcp --> CC
 ```
 
-Model calls happen **on the runner** (or in Studio, or in a serverless run), not in the Command Center. The Command
+Model calls happen **on the runner** (or in Studio, or in a serverless run), not in One CommandCenter. The Command
 Center decides which connections a run may use, sends their settings with the job, and stores the governance records
 the run sends back.
 
@@ -77,10 +77,10 @@ and AI agents use by name (`ModelConnections`).
 
 | Source | Where | Notes |
 | --- | --- | --- |
-| Command Center | `model_connections` table; Administration > One Model Connections; `GET/PUT/DELETE /api/connections`, `POST /api/connections/test` | Key as a vault reference (`key_ref`); `allowed_roles`; `model_type`; budgets and limits; PII analyzer; content check |
+| One CommandCenter | `model_connections` table; Administration > Model Connections; `GET/PUT/DELETE /api/connections`, `POST /api/connections/test` | Key as a vault reference (`key_ref`); `allowed_roles`; `model_type`; budgets and limits; PII analyzer; content check |
 | Workspace (Studio, local runs) | `model-connections.json` | `{"default": "gpt", "connections": [{name, provider, model, api_key_env}]}` or `api_key: {"$credential": ...}`; keys are never stored in the file |
 
-When a run is claimed, the Command Center sends only the connections that the run user's roles may use
+When a run is claimed, One CommandCenter sends only the connections that the run user's roles may use
 (`platform.connectionsForJob`). A connection whose monthly token budget is used up is sent as **blocked**, so calls
 through it fail with the reason. Values set directly on an action win over the named connection.
 
@@ -88,14 +88,14 @@ through it fail with the reason. Values set directly on an action win over the n
 
 | Control | Where enforced | Detail |
 | --- | --- | --- |
-| Who may use a connection | Command Center, at job time | `allowed_roles` per connection |
-| Monthly token budget | Command Center | `monthly_tokens`; counted from `ai_calls`; an exhausted connection goes to the runner as blocked |
+| Who may use a connection | One CommandCenter, at job time | `allowed_roles` per connection |
+| Monthly token budget | One CommandCenter | `monthly_tokens`; counted from `ai_calls`; an exhausted connection goes to the runner as blocked |
 | Calls per run | Runner (`ModelConnections.beforeCall`) | `calls_per_run`; beyond it `AI.CALL_LIMIT` |
 | Calls per minute | Runner | `calls_per_minute`, counted per run and connection; the call waits (up to a minute) instead of failing |
 | Personal data masking | Runner (`LlmClient`) | Before every call (unless switched off on the action): built-in patterns for e-mail addresses, IBANs, credit card numbers, US social security numbers, IP addresses and phone numbers are replaced by typed tokens and restored in the answer. With `pii_analyzer_url` set, a Microsoft Presidio analyzer inside the company also finds names, places and IDs in many languages |
 | Content check | Runner | `content_check: moderation` runs the provider's moderation check on answers (OpenAI and OpenAI-compatible endpoints); a flagged answer fails the step |
-| Records of every call | Runner → Command Center | Who, which run and agent, purpose, provider, model, connection, input and output tokens, latency, what was masked, which tools were called, and a SHA-256 fingerprint of the prompt. **Never the prompt or answer text.** Studio writes the same records to `ai-governance.jsonl` in the workspace; runners send them with the run result and the Command Center stores them in `ai_calls` before marking the run finished |
-| Review | Command Center | AI governance page (`GET /api/governance?days=30`) and per-run AI calls (`GET /api/runs/{id}/ai-calls`); retention `ai_call_retention_days` |
+| Records of every call | Runner → One CommandCenter | Who, which run and agent, purpose, provider, model, connection, input and output tokens, latency, what was masked, which tools were called, and a SHA-256 fingerprint of the prompt. **Never the prompt or answer text.** Studio writes the same records to `ai-governance.jsonl` in the workspace; runners send them with the run result and One CommandCenter stores them in `ai_calls` before marking the run finished |
+| Review | One CommandCenter | AI governance page (`GET /api/governance?days=30`) and per-run AI calls (`GET /api/runs/{id}/ai-calls`); retention `ai_call_retention_days` |
 | Approval of sensitive tools | Runner | See AI agents |
 
 ## 5. Generative AI actions
@@ -112,7 +112,7 @@ or structured values plus token counts.
 
 A Prompt Skill is a reviewed, reusable prompt template: `{system, prompt, connection, output, temperature, inputs}`.
 
-- In the Command Center (`PromptSkills`, tables `prompt_skills` and `prompt_skill_versions`): every save is a new
+- In One CommandCenter (`PromptSkills`, tables `prompt_skills` and `prompt_skill_versions`): every save is a new
   version; a skill is private to its owner until shared; templates are starting points people copy
   (`skills/templates`, `skills/from-template`).
 - In a workspace: `ai-skills/*.json`.
@@ -190,16 +190,16 @@ starts agents for the signed-in person (with their API key, kept with Windows DP
 
 | Method | Behaviour |
 | --- | --- |
-| `initialize` | Server info "ONEOFFICEAUTOMATION One Command Center" |
+| `initialize` | Server info "ONEOFFICEAUTOMATION One CommandCenter" |
 | `ping` | Empty result |
 | `tools/list` | The agents an administrator exposed (setting `mcp_agents`) that the caller may run; tool names from paths (`Finance/Invoice worker.flow.json` → `Finance_Invoice_worker`); input schemas from the agents' input variables (Number → number, Boolean → boolean, List/Table → array, Dictionary/Record → object, others → string) |
 | `tools/call` | Starts a normal run (source `mcp`) as the calling user on the runner or pool in `mcp_runner` (or any online runner), waits up to `mcp_timeout_seconds` (default 120) and returns the outputs |
 
 - Authentication: an API key (`ooak_`), a session token, or an **OAuth access token** (JWT) from the configured
-  identity provider. For OAuth the Command Center publishes `/.well-known/oauth-protected-resource` (RFC 9728) with
+  identity provider. For OAuth One CommandCenter publishes `/.well-known/oauth-protected-resource` (RFC 9728) with
   `mcp_oauth_audience` and `mcp_oauth_scope`, and a 401 on `/api/mcp` carries a `WWW-Authenticate` header pointing
   there.
-- Every call uses the user's role, folder permissions and vault access, appears in Agent Runs and is audited.
+- Every call uses the user's role, folder permissions and vault access, appears in Agent Activity and is audited.
 - MCP calls share the "calls" rate-limit group (1,200 per minute per address).
 
 ## 12. Human review of AI output

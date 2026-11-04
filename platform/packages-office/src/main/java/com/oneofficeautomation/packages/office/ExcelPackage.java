@@ -2,6 +2,18 @@ package com.oneofficeautomation.packages.office;
 
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
+import org.apache.poi.ss.formula.FormulaParser;
+import org.apache.poi.ss.formula.FormulaParsingWorkbook;
+import org.apache.poi.ss.formula.FormulaRenderer;
+import org.apache.poi.ss.formula.FormulaRenderingWorkbook;
+import org.apache.poi.ss.formula.FormulaType;
+import org.apache.poi.ss.formula.ptg.Area3DPxg;
+import org.apache.poi.ss.formula.ptg.AreaPtg;
+import org.apache.poi.ss.formula.ptg.AreaPtgBase;
+import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.formula.ptg.Ref3DPxg;
+import org.apache.poi.ss.formula.ptg.RefPtg;
+import org.apache.poi.ss.formula.ptg.RefPtgBase;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.AreaReference;
 import org.apache.poi.ss.util.CellReference;
@@ -127,7 +139,7 @@ public final class ExcelPackage {
         return r;
     }
 
-    @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = "filesystem",
+    @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = {"filesystem", "network"},
             description = "Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.",
             panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password], [The file is on OneDrive or SharePoint: access_token, drive] | create, session, graph_url")
     public Map<String, Object> open(ActionContext ctx,
@@ -196,7 +208,7 @@ public final class ExcelPackage {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("EXCEL.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XSSFWorkbook wb = new XSSFWorkbook();
-        try { wb.createSheet(sheet == null || sheet.isBlank() ? "Sheet1" : sheet); }
+        try { wb.createSheet(sheetName(sheet == null || sheet.isBlank() ? "Sheet1" : sheet)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         WorkbookSession s = new WorkbookSession(p, wb);
         s.password = OfficeCrypto.secret(password);
@@ -502,7 +514,7 @@ public final class ExcelPackage {
             if (!replace) throw new ActionException("EXCEL.SHEET_EXISTS", "Sheet '" + name + "' already exists", "Set replace to true or choose another name.");
             s.wb.removeSheetAt(idx);
         }
-        try { s.wb.createSheet(name); }
+        try { s.wb.createSheet(sheetName(name)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         if (position != null) {
             int n = s.wb.getNumberOfSheets();
@@ -833,10 +845,23 @@ public final class ExcelPackage {
         Sheet copy = s.wb.cloneSheet(s.wb.getSheetIndex(src));
         int idx = s.wb.getSheetIndex(copy);
         if (newName != null && !newName.isBlank()) {
-            try { s.wb.setSheetName(idx, newName); }
+            try { s.wb.setSheetName(idx, sheetName(newName)); }
             catch (IllegalArgumentException e) { s.wb.removeSheetAt(idx); throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         }
         return out("name", s.wb.getSheetName(idx));
+    }
+
+    /**
+     * Excel's rules for a sheet name, checked before POI sees it: POI cut names longer than 31 characters silently, so later
+     * steps using the full name did not find the sheet.
+     */
+    static String sheetName(String name) {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("A sheet name cannot be empty");
+        if (name.length() > 31) throw new IllegalArgumentException("Sheet name '" + name + "' has " + name.length() + " characters; Excel allows at most 31");
+        if (name.matches(".*[:\\\\/?*\\[\\]].*")) throw new IllegalArgumentException("Sheet name '" + name + "' contains one of : \\ / ? * [ ]");
+        if (name.startsWith("'") || name.endsWith("'")) throw new IllegalArgumentException("Sheet name '" + name + "' cannot start or end with an apostrophe");
+        if (name.equalsIgnoreCase("History")) throw new IllegalArgumentException("'History' is reserved by Excel");
+        return name;
     }
 
     public Map<String, Object> renameSheet(ActionContext ctx, String sheet, String newName, String session) { return renameSheet(ctx, sheet, newName, session, null); }
@@ -852,7 +877,7 @@ public final class ExcelPackage {
         int idx = s.wb.getSheetIndex(sheetByNameOrIndex(s, sheet, index));
         int clash = s.wb.getSheetIndex(newName);
         if (clash >= 0 && clash != idx) throw new ActionException("EXCEL.SHEET_EXISTS", "Sheet '" + newName + "' already exists", "Choose another name.");
-        try { s.wb.setSheetName(idx, newName); }
+        try { s.wb.setSheetName(idx, sheetName(newName)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         return Map.of();
     }
@@ -1132,6 +1157,363 @@ public final class ExcelPackage {
         return out("count", n(removed));
     }
 
+    // ------------------------------------------------------------------------------------------------
+    // Ranges: copy, clear, fill, remove duplicates, column widths and row heights (gap G01, 3 Nov 2026)
+    // ------------------------------------------------------------------------------------------------
+
+    @Action(id = "copy_range", name = "Copy range", category = "Cells",
+            description = "Copy a range to another place on the same sheet or another sheet of the workbook, like copy and paste in Excel: everything, values only, formulas only or formats only. Relative cell references in formulas move with the copy.",
+            panel = "range, destination, paste | sheet, destination_sheet, session")
+    @Output(name = "range", type = OoaType.STRING, description = "Address of the cells written, e.g. E2:G10.")
+    public Map<String, Object> copyRange(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:C10", description = "Cells to copy.") String range,
+            @Input(name = "destination", type = OoaType.STRING, pattern = CELL, example = "E1", description = "Top-left cell to paste to.") String destination,
+            @Input(name = "paste", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "values", "formulas", "formats"},
+                    description = "all copies contents and formats; values pastes the calculated values (no formulas, destination formats kept); formulas copies contents without formats; formats copies only the formats.") String paste,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet to copy from; active sheet when empty.") String sheet,
+            @Input(name = "destination_sheet", type = OoaType.STRING, required = false, description = "Sheet to paste to; the sheet copied from when empty.") String destinationSheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Sheet from = sheet(s, sheet);
+        Sheet to = destinationSheet == null || destinationSheet.isBlank() ? from : sheet(s, destinationSheet);
+        String mode = paste == null || paste.isBlank() ? "all" : paste.toLowerCase(Locale.ROOT);
+        if (!Set.of("all", "values", "formulas", "formats").contains(mode))
+            throw new ActionException("EXCEL.BAD_PASTE", "Paste must be all, values, formulas or formats, not '" + paste + "'", "Pick one of the four.");
+        AreaReference a = area(s, range);
+        CellReference d = new CellReference(destination.toUpperCase(Locale.ROOT));
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        int dr = d.getRow() - r0, dc = d.getCol() - c0;
+        SpreadsheetVersion v = s.wb.getSpreadsheetVersion();
+        if (d.getRow() + (r1 - r0) > v.getLastRowIndex() || d.getCol() + (c1 - c0) > v.getLastColumnIndex())
+            throw new ActionException("EXCEL.BAD_RANGE", "The copy would go past the edge of the sheet", "Pick a destination nearer the top-left.");
+        FormulaEvaluator ev = evaluator(s);
+        // read everything first, so a destination that overlaps the source is still copied correctly
+        Snap[][] cells = new Snap[r1 - r0 + 1][c1 - c0 + 1];
+        Object[][] values = new Object[r1 - r0 + 1][c1 - c0 + 1];
+        for (int r = r0; r <= r1; r++) {
+            Row row = from.getRow(r);
+            for (int c = c0; c <= c1; c++) {
+                Cell x = row == null ? null : row.getCell(c);
+                cells[r - r0][c - c0] = snap(x);
+                if (mode.equals("values") && x != null) values[r - r0][c - c0] = read(x, ev);
+            }
+        }
+        for (int r = r0; r <= r1; r++) {
+            Row dst = row(to, r + dr);
+            for (int c = c0; c <= c1; c++) {
+                Snap x = cells[r - r0][c - c0];
+                int col = c + dc;
+                switch (mode) {
+                    case "all" -> restore(shifted(s, from, x, dr, dc), dst, col);
+                    case "formulas" -> {
+                        CellStyle keep = dst.getCell(col) == null ? null : dst.getCell(col).getCellStyle();
+                        restore(shifted(s, from, x, dr, dc), dst, col);
+                        Cell t = dst.getCell(col);
+                        if (t != null && keep != null) t.setCellStyle(keep);
+                        else if (t != null) t.setCellStyle(s.wb.getCellStyleAt(0));
+                    }
+                    case "values" -> {
+                        Object val = values[r - r0][c - c0];
+                        Cell t = dst.getCell(col);
+                        if (val == null) { if (t != null) t.setBlank(); continue; }
+                        if (t == null) t = dst.createCell(col);
+                        if (val instanceof BigDecimal b) t.setCellValue(b.doubleValue());
+                        else if (val instanceof Number nn) t.setCellValue(nn.doubleValue());
+                        else if (val instanceof Boolean b) t.setCellValue(b);
+                        else if (val instanceof LocalDateTime ldt) t.setCellValue(ldt);
+                        else t.setCellValue(Values.text(val));
+                        if (x != null && x.type() == CellType.NUMERIC && DateUtil.isADateFormat(x.style().getDataFormat(), x.style().getDataFormatString())
+                                && !DateUtil.isADateFormat(t.getCellStyle().getDataFormat(), t.getCellStyle().getDataFormatString()))
+                            t.setCellStyle(x.style());  // a date pasted as a value stays a date
+                    }
+                    default -> {  // formats
+                        if (x == null) continue;
+                        Cell t = dst.getCell(col);
+                        (t == null ? dst.createCell(col) : t).setCellStyle(x.style());
+                    }
+                }
+            }
+        }
+        return out("range", addr(r0 + dr, c0 + dc) + ":" + addr(r1 + dr, c1 + dc));
+    }
+
+    /** The snapshot with a formula's relative references moved by dr rows and dc columns, as Excel does when pasting. */
+    private static Snap shifted(WorkbookSession s, Sheet sh, Snap x, int dr, int dc) {
+        if (x == null || x.type() != CellType.FORMULA || (dr == 0 && dc == 0)) return x;
+        return new Snap(CellType.FORMULA, shiftFormula(s, sh, (String) x.value(), dr, dc), x.style());
+    }
+
+    private static String shiftFormula(WorkbookSession s, Sheet sh, String formula, int dr, int dc) {
+        FormulaParsingWorkbook fpw = s.wb instanceof XSSFWorkbook x ? XSSFEvaluationWorkbook.create(x)
+                : org.apache.poi.hssf.usermodel.HSSFEvaluationWorkbook.create((org.apache.poi.hssf.usermodel.HSSFWorkbook) s.wb);
+        Ptg[] ptgs = FormulaParser.parse(formula, fpw, FormulaType.CELL, s.wb.getSheetIndex(sh));
+        SpreadsheetVersion v = s.wb.getSpreadsheetVersion();
+        for (Ptg p : ptgs) {
+            if (p instanceof RefPtgBase r) {
+                if (r.isRowRelative()) r.setRow(checkRow(r.getRow() + dr, v));
+                if (r.isColRelative()) r.setColumn(checkColumn(r.getColumn() + dc, v));
+            } else if (p instanceof AreaPtgBase a) {
+                if (a.isFirstRowRelative()) a.setFirstRow(checkRow(a.getFirstRow() + dr, v));
+                if (a.isLastRowRelative()) a.setLastRow(checkRow(a.getLastRow() + dr, v));
+                if (a.isFirstColRelative()) a.setFirstColumn(checkColumn(a.getFirstColumn() + dc, v));
+                if (a.isLastColRelative()) a.setLastColumn(checkColumn(a.getLastColumn() + dc, v));
+            }
+        }
+        return FormulaRenderer.toFormulaString((FormulaRenderingWorkbook) fpw, ptgs);
+    }
+
+    /**
+     * A formula with its references to cells of rows r0..r1, columns c0..c1 of this sheet moved to where those rows went
+     * (moved: old row to new row). A reference to a removed row is left as it was; an area keeps its first and last
+     * rows mapped to the nearest rows that stay.
+     */
+    private static String followMoves(WorkbookSession s, Sheet sh, String formula, Map<Integer, Integer> moved, int r0, int r1, int c0, int c1) {
+        FormulaParsingWorkbook fpw = s.wb instanceof XSSFWorkbook x ? XSSFEvaluationWorkbook.create(x)
+                : org.apache.poi.hssf.usermodel.HSSFEvaluationWorkbook.create((org.apache.poi.hssf.usermodel.HSSFWorkbook) s.wb);
+        Ptg[] ptgs;
+        try { ptgs = FormulaParser.parse(formula, fpw, FormulaType.CELL, s.wb.getSheetIndex(sh)); }
+        catch (RuntimeException e) { return formula; }
+        boolean changed = false;
+        for (Ptg p : ptgs) {
+            if (p.getClass() == RefPtg.class || p instanceof Ref3DPxg rx && sh.getSheetName().equalsIgnoreCase(rx.getSheetName())) {
+                RefPtgBase r = (RefPtgBase) p;
+                if (r.getColumn() >= c0 && r.getColumn() <= c1 && moved.containsKey(r.getRow()) && moved.get(r.getRow()) != r.getRow()) {
+                    r.setRow(moved.get(r.getRow())); changed = true;
+                }
+            } else if (p.getClass() == AreaPtg.class || p instanceof Area3DPxg ax && sh.getSheetName().equalsIgnoreCase(ax.getSheetName())) {
+                AreaPtgBase a = (AreaPtgBase) p;
+                if (a.getLastColumn() < c0 || a.getFirstColumn() > c1 || a.getLastRow() < r0 || a.getFirstRow() > r1) continue;
+                int first = a.getFirstRow(), last = a.getLastRow();
+                if (first >= r0 && first <= r1) {  // the nearest row at or after it that stays
+                    int k = first;
+                    while (k <= r1 && !moved.containsKey(k)) k++;
+                    first = k <= r1 ? moved.get(k) : r0 + moved.size();
+                }
+                if (last >= r0 && last <= r1) {    // the nearest row at or before it that stays
+                    int k = last;
+                    while (k >= r0 && !moved.containsKey(k)) k--;
+                    last = k >= r0 ? moved.get(k) : r0 - 1;
+                }
+                if (last < first) continue;   // every row of the area went: leave it as it was
+                if (first != a.getFirstRow() || last != a.getLastRow()) { a.setFirstRow(first); a.setLastRow(last); changed = true; }
+            }
+        }
+        return changed ? FormulaRenderer.toFormulaString((FormulaRenderingWorkbook) fpw, ptgs) : formula;
+    }
+
+    private static int checkRow(int r, SpreadsheetVersion v) {
+        if (r < 0 || r > v.getLastRowIndex()) throw new ActionException("EXCEL.BAD_RANGE", "A formula would refer to a row outside the sheet after the copy",
+                "Copy to a place where the formula's references stay on the sheet, or paste values.");
+        return r;
+    }
+
+    private static int checkColumn(int c, SpreadsheetVersion v) {
+        if (c < 0 || c > v.getLastColumnIndex()) throw new ActionException("EXCEL.BAD_RANGE", "A formula would refer to a column outside the sheet after the copy",
+                "Copy to a place where the formula's references stay on the sheet, or paste values.");
+        return c;
+    }
+
+    @Action(id = "clear_range", name = "Clear range", category = "Cells",
+            description = "Clear the contents, the formats or both of a range, or of the current selection; the cells stay where they are (Delete cells moves the cells around them).",
+            panel = "(Cells: The selection or active cell = / A specific range = range), clear | sheet, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells that held contents or formats and were cleared.")
+    public Map<String, Object> clearRange(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "B2:D20",
+                    description = "Cell or range to clear; when empty, the range chosen by select_range or the cell chosen by go_to_cell.") String range,
+            @Input(name = "clear", type = OoaType.STRING, required = false, defaultValue = "\"contents\"", enumValues = {"contents", "formats", "all"},
+                    description = "contents empties the cells and keeps their formats (as the Delete key does); formats resets the formats and keeps the contents; all does both.") String clear,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Sheet sh = sheet(s, sheet);
+        String mode = clear == null || clear.isBlank() ? "contents" : clear.toLowerCase(Locale.ROOT);
+        if (!Set.of("contents", "formats", "all").contains(mode))
+            throw new ActionException("EXCEL.BAD_CLEAR", "Clear must be contents, formats or all, not '" + clear + "'", "Pick one of the three.");
+        AreaReference a = area(s, range == null || range.isBlank() ? selectionOf(s, sh) : range);
+        CellStyle plain = s.wb.getCellStyleAt(0);
+        int count = 0;
+        for (int r = a.getFirstCell().getRow(); r <= a.getLastCell().getRow(); r++) {
+            Row row = sh.getRow(r);
+            if (row == null) continue;
+            for (int c = a.getFirstCell().getCol(); c <= a.getLastCell().getCol(); c++) {
+                Cell x = row.getCell(c);
+                if (x == null) continue;
+                boolean had = x.getCellType() != CellType.BLANK || x.getCellStyle().getIndex() != 0;
+                switch (mode) {
+                    case "contents" -> { if (x.getCellType() != CellType.BLANK) x.setBlank(); }
+                    case "formats" -> x.setCellStyle(plain);
+                    default -> row.removeCell(x);
+                }
+                if (had) count++;
+            }
+        }
+        return out("count", n(count));
+    }
+
+    @Action(id = "fill_range", name = "Fill down or right", category = "Cells",
+            description = "Copy the first row of a range down to its other rows, or its first column right to its other columns, like Excel's Fill Down and Fill Right: values, formulas (with relative references moved) and formats.",
+            panel = "range, direction | sheet, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells filled.")
+    public Map<String, Object> fillRange(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "D2:D50", description = "Range to fill, including the first row (or column) that is copied.") String range,
+            @Input(name = "direction", type = OoaType.STRING, required = false, defaultValue = "\"down\"", enumValues = {"down", "right"},
+                    description = "down copies the top row to the rows below it; right copies the left column to the columns right of it.") String direction,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Sheet sh = sheet(s, sheet);
+        boolean right = "right".equalsIgnoreCase(direction);
+        if (!right && direction != null && !direction.isBlank() && !"down".equalsIgnoreCase(direction))
+            throw new ActionException("EXCEL.BAD_DIRECTION", "Direction must be down or right, not '" + direction + "'", "Use down or right.");
+        AreaReference a = area(s, range);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        int count = 0;
+        if (right) {
+            for (int r = r0; r <= r1; r++) {
+                Row row = sh.getRow(r);
+                Snap x = row == null ? null : snap(row.getCell(c0));
+                if (row == null && x == null) continue;
+                for (int c = c0 + 1; c <= c1; c++) { restore(shifted(s, sh, x, 0, c - c0), row(sh, r), c); count++; }
+            }
+        } else {
+            Row top = sh.getRow(r0);
+            for (int c = c0; c <= c1; c++) {
+                Snap x = top == null ? null : snap(top.getCell(c));
+                for (int r = r0 + 1; r <= r1; r++) { restore(shifted(s, sh, x, r - r0, 0), row(sh, r), c); count++; }
+            }
+        }
+        return out("count", n(count));
+    }
+
+    @Action(id = "remove_duplicates", name = "Remove duplicate rows", category = "Cells",
+            description = "Remove the rows of a range (or of the used area) that repeat an earlier row, comparing all columns or only the chosen ones, like Excel's Remove Duplicates; the first of each set is kept and the rows below move up inside the range.",
+            panel = "sheet, range, header, columns | match_case, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows removed.")
+    @Output(name = "remaining", type = OoaType.NUMBER, description = "Number of rows left in the range, the header row not counted.")
+    public Map<String, Object> removeDuplicates(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "A1:F200", description = "Range to check; the used area when empty.") String range,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, description = "The first row is a header and is kept as it is; the workbook's open setting (true by default) when empty.") Boolean header,
+            @Input(name = "columns", type = OoaType.LIST, required = false, example = "[\"Invoice\", \"Vendor\"]",
+                    description = "Columns that make a row a duplicate: header names, letters or 1-based sheet column numbers; all columns of the range when empty.") List<Object> columns,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat \"ACME\" and \"acme\" as different; Excel treats them as the same.") boolean matchCase,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Sheet sh = sheet(s, sheet);
+        boolean hdr = header == null ? s.header : header;
+        String rg = range;
+        if (rg == null || rg.isBlank()) {
+            rg = (String) getTableRange(ctx, sh.getSheetName(), session).get("range");
+            if (rg.isEmpty()) return out("count", n(0), "remaining", n(0));
+        }
+        AreaReference a = area(s, rg);
+        FormulaEvaluator ev = evaluator(s);
+        int r0 = a.getFirstCell().getRow() + (hdr ? 1 : 0), r1 = a.getLastCell().getRow();
+        int c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        Row headRow = hdr ? sh.getRow(a.getFirstCell().getRow()) : null;
+        List<Integer> keys = new ArrayList<>();
+        if (columns == null || columns.isEmpty()) for (int c = c0; c <= c1; c++) keys.add(c);
+        else for (Object col : columns) {
+            int k = resolveColumn(col, headRow, ev);
+            if (k < c0 || k > c1) throw new ActionException("EXCEL.BAD_COLUMN", "Column '" + Values.text(col) + "' is outside the range " + rg, "Pick columns inside the range.");
+            keys.add(k);
+        }
+        Set<List<Object>> seen = new HashSet<>();
+        List<Snap[]> kept = new ArrayList<>();
+        Map<Integer, Integer> moved = new HashMap<>();  // old row -> new row, for the rows that stay
+        int total = 0;
+        for (int r = r0; r <= r1; r++) {
+            Row row = sh.getRow(r);
+            total++;
+            List<Object> key = new ArrayList<>();
+            for (int k : keys) {
+                Object v = row == null ? null : read(row.getCell(k), ev);
+                if (v instanceof BigDecimal b) v = b.stripTrailingZeros();
+                else if (v instanceof String t) { t = t.trim(); v = matchCase ? t : t.toLowerCase(Locale.ROOT); if (((String) v).isEmpty()) v = null; }
+                key.add(v);
+            }
+            if (!seen.add(key)) continue;
+            Snap[] cells = new Snap[c1 - c0 + 1];
+            for (int c = c0; c <= c1; c++) cells[c - c0] = row == null ? null : snap(row.getCell(c));
+            moved.put(r, r0 + kept.size());
+            kept.add(cells);
+        }
+        if (kept.size() == total) return out("count", n(0), "remaining", n(total));
+        // formulas follow the cells they point at, as when Excel moves cells: =C5*0.2 moved up a row becomes =C4*0.2,
+        // and a total such as =SUM(C2:C5) under the range shrinks to the rows left
+        for (Snap[] cells : kept)
+            for (int c = 0; c < cells.length; c++)
+                if (cells[c] != null && cells[c].type() == CellType.FORMULA)
+                    cells[c] = new Snap(CellType.FORMULA, followMoves(s, sh, (String) cells[c].value(), moved, r0, r1, c0, c1), cells[c].style());
+        for (Row row : sh) {
+            if (row.getRowNum() >= r0 && row.getRowNum() <= r1) {
+                for (Cell x : row) if ((x.getColumnIndex() < c0 || x.getColumnIndex() > c1) && x.getCellType() == CellType.FORMULA)
+                    x.setCellFormula(followMoves(s, sh, x.getCellFormula(), moved, r0, r1, c0, c1));
+            } else for (Cell x : row) if (x.getCellType() == CellType.FORMULA) x.setCellFormula(followMoves(s, sh, x.getCellFormula(), moved, r0, r1, c0, c1));
+        }
+        for (int i = 0; i <= r1 - r0; i++) {
+            Snap[] cells = i < kept.size() ? kept.get(i) : null;
+            Row row = sh.getRow(r0 + i);
+            if (cells == null && row == null) continue;
+            if (row == null) row = sh.createRow(r0 + i);
+            for (int c = c0; c <= c1; c++) restore(cells == null ? null : cells[c - c0], row, c);
+        }
+        return out("count", n(total - kept.size()), "remaining", n(kept.size()));
+    }
+
+    @Action(id = "autofit_columns", name = "Autofit columns", category = "Rows and columns",
+            description = "Make columns just wide enough for their contents, like double-clicking a column border in Excel.",
+            panel = "(Columns: Every used column = / Chosen columns = column, count) | sheet, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of columns resized.")
+    public Map<String, Object> autofitColumns(ActionContext ctx,
+            @Input(name = "column", required = false, example = "A", description = "Letter or 1-based number of the first column; every used column when empty.") Object column,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, visibleWhen = "column!=", description = "How many columns from the first one.") int count,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        Sheet sh = sheet(session(ctx, session), sheet);
+        boolean all = column == null || Values.text(column).isBlank();
+        int first = all ? 0 : columnIndex(column), last = all ? lastCol(sh) : first + count(count) - 1;
+        try {
+            for (int c = first; c <= last; c++) sh.autoSizeColumn(c, sh.getNumMergedRegions() > 0);
+        } catch (RuntimeException | Error e) {  // AWT font measuring is missing on some headless servers
+            throw new ActionException("EXCEL.AUTOFIT_FAILED", "Cannot measure the text to fit the columns: " + e.getMessage(),
+                    "On a Linux server install a font package (for example fontconfig and dejavu fonts), or set widths with set_column_width.");
+        }
+        return out("count", n(Math.max(0, last - first + 1)));
+    }
+
+    @Action(id = "set_column_width", name = "Set column width", category = "Rows and columns",
+            description = "Set the width of one or more columns, in characters as Excel shows it.",
+            panel = "column, count, width | sheet, session")
+    public Map<String, Object> setColumnWidth(ActionContext ctx,
+            @Input(name = "column", example = "B", description = "Column letter or 1-based number of the first column.") Object column,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many columns.") int count,
+            @Input(name = "width", type = OoaType.NUMBER, example = "20", min = 0, max = 255, description = "Width in characters (Excel's default is 8.43); 0 hides the columns.") double width,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        if (width < 0 || width > 255) throw new ActionException("EXCEL.BAD_SIZE", "Width " + width + " is out of range", "Use a width from 0 to 255 characters.");
+        Sheet sh = sheet(session(ctx, session), sheet);
+        // Excel's own width unit: characters of the default font's widest digit (7 px) plus 5 px of padding
+        int units = width == 0 ? 0 : (int) Math.min(255 * 256, Math.floor((width * 7 + 5) / 7 * 256));
+        for (int c = columnIndex(column), e = c + count(count); c < e; c++) sh.setColumnWidth(c, units);
+        return Map.of();
+    }
+
+    @Action(id = "set_row_height", name = "Set row height", category = "Rows and columns",
+            description = "Set the height of one or more rows, in points as Excel shows it.",
+            panel = "row, count, height | sheet, session")
+    public Map<String, Object> setRowHeight(ActionContext ctx,
+            @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based number of the first row.") int row,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many rows.") int count,
+            @Input(name = "height", type = OoaType.NUMBER, example = "30", min = 0, max = 409, description = "Height in points (Excel's default is 15); 0 hides the rows.") double height,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        if (height < 0 || height > 409) throw new ActionException("EXCEL.BAD_SIZE", "Height " + height + " is out of range", "Use a height from 0 to 409 points.");
+        Sheet sh = sheet(session(ctx, session), sheet);
+        for (int r = rowIndex(row), e = r + count(count); r < e; r++) row(sh, r).setHeightInPoints((float) height);
+        return Map.of();
+    }
+
     public Map<String, Object> rowCount(ActionContext ctx, String sheet, String session) { return rowCount(ctx, sheet, session, "non_empty"); }
 
     @Action(id = "row_count", name = "Get number of rows", category = "Rows and columns", idempotent = true,
@@ -1153,20 +1535,49 @@ public final class ExcelPackage {
 
     public Map<String, Object> getTableRange(ActionContext ctx, String sheet, String session) { return getTableRange(ctx, sheet, session, null, true); }
 
+    public Map<String, Object> getTableRange(ActionContext ctx, String sheet, String session, String tableName, boolean includeHeader) {
+        return getTableRange(ctx, sheet, session, tableName, includeHeader, true);
+    }
+
+    /** Pivot tables of a sheet as {name, first row, first column, last row, last column} (0-based), from their location. */
+    static List<Object[]> pivotAreas(Sheet sh) {
+        List<Object[]> out = new ArrayList<>();
+        if (!(sh instanceof XSSFSheet xs)) return out;
+        for (org.apache.poi.xssf.usermodel.XSSFPivotTable p : xs.getPivotTables()) {
+            var def = p.getCTPivotTableDefinition();
+            if (def == null || def.getLocation() == null || def.getLocation().getRef() == null) continue;
+            org.apache.poi.ss.util.CellRangeAddress a = org.apache.poi.ss.util.CellRangeAddress.valueOf(def.getLocation().getRef());
+            // the location excludes the page (report filter) fields shown above the pivot: one row each plus a blank row
+            int pages = def.getPageFields() == null ? 0 : (int) def.getPageFields().getCount();
+            int top = pages > 0 ? Math.max(0, a.getFirstRow() - pages - 1) : a.getFirstRow();
+            out.add(new Object[]{def.getName(), top, a.getFirstColumn(), a.getLastRow(), a.getLastColumn()});
+        }
+        return out;
+    }
+
     @Action(id = "get_table_range", name = "Get table range", category = "Cells", idempotent = true,
-            description = "Return the address of the smallest rectangle holding all data on the sheet, or of a named Excel table, e.g. A1:D20.",
-            panel = "table, include_header | sheet, session")
+            description = "Return the address of the smallest rectangle holding all data on the sheet (including pivot tables), or of a named Excel table or pivot table, e.g. A1:D20.",
+            panel = "table, include_header, include_pivot_tables | sheet, session")
     @Output(name = "range", type = OoaType.STRING, description = "Used range address; empty when the sheet is empty.")
     @Output(name = "rows", type = OoaType.NUMBER, description = "Number of rows in the range.")
     @Output(name = "columns", type = OoaType.NUMBER, description = "Number of columns in the range.")
     public Map<String, Object> getTableRange(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "table", type = OoaType.STRING, required = false, description = "Excel table name, e.g. Table1; the sheet's used area when empty.") String tableName,
-            @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "For an Excel table, include its header row in the range.") boolean includeHeader) {
+            @Input(name = "table", type = OoaType.STRING, required = false, description = "Excel table or pivot table name, e.g. Table1 or PivotTable1; the sheet's used area when empty.") String tableName,
+            @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "For an Excel table, include its header row in the range.") boolean includeHeader,
+            @Input(name = "include_pivot_tables", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Count the whole area of the sheet's pivot tables (with their filter fields) as data, even cells Excel has not filled in yet.") boolean includePivots) {
         WorkbookSession s = session(ctx, session);
         if (tableName != null && !tableName.isBlank()) {
-            XSSFTable t = table(xlsx(s, "Excel tables"), tableName);
+            XSSFWorkbook wb = xlsx(s, "Excel tables");
+            for (int i = 0; i < wb.getNumberOfSheets(); i++)
+                for (Object[] p : pivotAreas(wb.getSheetAt(i)))
+                    if (String.valueOf(p[0]).equalsIgnoreCase(tableName.trim())) {
+                        int pr0 = (int) p[1], pc0 = (int) p[2], pr1 = (int) p[3], pc1 = (int) p[4];
+                        return out("range", addr(pr0, pc0) + ":" + addr(pr1, pc1), "rows", n(pr1 - pr0 + 1), "columns", n(pc1 - pc0 + 1));
+                    }
+            XSSFTable t = table(wb, tableName);
             CellReference a = t.getStartCellReference(), b = t.getEndCellReference();
             int r0 = a.getRow() + (includeHeader ? 0 : Math.max(0, t.getHeaderRowCount()));
             return out("range", addr(r0, a.getCol()) + ":" + addr(b.getRow(), b.getCol()), "rows", n(b.getRow() - r0 + 1), "columns", n(b.getCol() - a.getCol() + 1));
@@ -1176,6 +1587,10 @@ public final class ExcelPackage {
         for (Row r : sh) for (Cell c : r) if (!blank(c)) {
             r0 = Math.min(r0, r.getRowNum()); r1 = Math.max(r1, r.getRowNum());
             c0 = Math.min(c0, c.getColumnIndex()); c1 = Math.max(c1, c.getColumnIndex());
+        }
+        if (includePivots) for (Object[] p : pivotAreas(sh)) {
+            r0 = Math.min(r0, (int) p[1]); c0 = Math.min(c0, (int) p[2]);
+            r1 = Math.max(r1, (int) p[3]); c1 = Math.max(c1, (int) p[4]);
         }
         if (r1 < 0) return out("range", "", "rows", n(0), "columns", n(0));
         return out("range", addr(r0, c0) + ":" + addr(r1, c1), "rows", n(r1 - r0 + 1), "columns", n(c1 - c0 + 1));
@@ -1339,28 +1754,49 @@ public final class ExcelPackage {
     }
 
     public Map<String, Object> readColumn(ActionContext ctx, Object column, int startRow, String sheet, String session) {
-        return readColumn(ctx, column, startRow, sheet, session, null, "value");
+        return readColumn(ctx, column, startRow, sheet, session, null, "value", null);
     }
 
     @Action(id = "read_column", name = "Read column", category = "Cells", idempotent = true,
             description = "Read the values of one column, from a start row down to an end row or the last used row.",
-            panel = "column, start_row, end_row, read_as | sheet, session")
+            panel = "column, start_row, end_row, read_as | header_row, sheet, session")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values from top to bottom; empty cells are null.")
     public Map<String, Object> readColumn(ActionContext ctx,
-            @Input(name = "column", example = "B", description = "Column letter or 1-based number.") Object column,
+            @Input(name = "column", example = "B", description = "Column letter, 1-based number or header name (looked up in header_row).") Object column,
             @Input(name = "start_row", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "1-based row to start from, e.g. 2 to skip a header.") int startRow,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "end_row", type = OoaType.NUMBER, required = false, min = 1, description = "1-based last row to read; the last used row when empty.") Integer endRow,
-            @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"}, description = D_READ_AS) String readAs) {
+            @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"}, description = D_READ_AS) String readAs,
+            @Input(name = "header_row", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "Row with the column names. A column given by name is looked up here (row 1 when empty), and reading starts below this row.") Integer headerRow) {
         WorkbookSession s = session(ctx, session);
         Sheet sh = sheet(s, sheet);
         FormulaEvaluator ev = evaluator(s);
         DataFormatter fmt = new DataFormatter();
-        int c = columnIndex(column);
+        int first = rowIndex(startRow);
+        int c = -1;
+        String t = Values.text(column).trim();
+        boolean plain = column instanceof Number || t.matches("\\d+|[A-Za-z]{1,3}");
+        if (!plain || headerRow != null) {
+            // a header name (like filter and sort accept): an exact header match wins over a 1-3 letter column name
+            int h = rowIndex(headerRow == null ? 1 : headerRow);
+            Row hr = sh.getRow(h);
+            List<String> names = new ArrayList<>();
+            if (hr != null) for (Cell cell : hr) {
+                Object v = read(cell, ev);
+                if (v == null) continue;
+                names.add(Values.text(v).trim());
+                if (c < 0 && Values.text(v).trim().equalsIgnoreCase(t)) c = cell.getColumnIndex();
+            }
+            if (c >= 0) first = Math.max(first, h + 1);
+            else if (!plain) throw new ActionException("EXCEL.BAD_COLUMN", "There is no column named '" + t + "' in row " + (h + 1),
+                    names.isEmpty() ? "Row " + (h + 1) + " is empty; set header_row to the row with the column names." : "Column names in row " + (h + 1) + ": " + String.join(", ", names) + ".");
+        }
+        if (c < 0) c = columnIndex(column);
         int last = endRow == null ? sh.getLastRowNum() : rowIndex(endRow);
         List<Object> vals = new ArrayList<>();
-        for (int r = rowIndex(startRow); r <= last; r++) { Row row = sh.getRow(r); vals.add(row == null ? null : read(row.getCell(c), ev, readAs, fmt)); }
+        for (int r = first; r <= last; r++) { Row row = sh.getRow(r); vals.add(row == null ? null : read(row.getCell(c), ev, readAs, fmt)); }
         if (endRow == null) while (!vals.isEmpty() && vals.get(vals.size() - 1) == null) vals.remove(vals.size() - 1);
         return out("values", vals);
     }
@@ -1404,10 +1840,31 @@ public final class ExcelPackage {
         return String.format("#%02X%02X%02X", rgb[rgb.length - 3] & 0xff, rgb[rgb.length - 2] & 0xff, rgb[rgb.length - 1] & 0xff);
     }
 
+    /** Colour names people type, with Excel's standard palette values. */
+    static final Map<String, String> COLOR_NAMES = Map.ofEntries(
+            Map.entry("black", "000000"), Map.entry("white", "FFFFFF"), Map.entry("red", "FF0000"), Map.entry("green", "00B050"),
+            Map.entry("blue", "0070C0"), Map.entry("yellow", "FFFF00"), Map.entry("orange", "FFC000"), Map.entry("purple", "7030A0"),
+            Map.entry("gray", "808080"), Map.entry("grey", "808080"), Map.entry("pink", "FFC0CB"), Map.entry("brown", "996633"),
+            Map.entry("cyan", "00FFFF"), Map.entry("magenta", "FF00FF"), Map.entry("lime", "00FF00"), Map.entry("navy", "002060"),
+            Map.entry("teal", "008080"), Map.entry("maroon", "800000"), Map.entry("olive", "808000"), Map.entry("silver", "C0C0C0"),
+            Map.entry("gold", "FFD700"), Map.entry("lightgray", "D9D9D9"), Map.entry("lightgrey", "D9D9D9"), Map.entry("darkgray", "595959"),
+            Map.entry("darkgrey", "595959"), Map.entry("lightblue", "BDD7EE"), Map.entry("lightgreen", "C6EFCE"), Map.entry("lightyellow", "FFFFCC"),
+            Map.entry("lightred", "FFC7CE"), Map.entry("darkblue", "002060"), Map.entry("darkgreen", "006100"), Map.entry("darkred", "C00000"));
+
     static XSSFColor parseColor(String colour) {
-        String h = colour == null ? "" : colour.trim().replace("#", "");
+        String t = colour == null ? "" : colour.trim();
+        String h = t.replace("#", "");
+        String named = COLOR_NAMES.get(t.toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", ""));
+        if (named != null) h = named;
+        else if (h.matches("[0-9A-Fa-f]{3}")) h = "" + h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+        else if (t.matches("\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}")) {
+            String[] p = t.split("\\s*,\\s*");
+            int r = Integer.parseInt(p[0]), g = Integer.parseInt(p[1]), b = Integer.parseInt(p[2]);
+            if (r < 256 && g < 256 && b < 256) h = String.format("%02X%02X%02X", r, g, b);
+        }
         if (!h.matches("[0-9A-Fa-f]{6}"))
-            throw new ActionException("EXCEL.BAD_COLOR", "'" + colour + "' is not a colour", "Use a hex colour such as #FFC000.");
+            throw new ActionException("EXCEL.BAD_COLOR", "'" + colour + "' is not a colour",
+                    "Use a hex colour such as #FFC000, red,green,blue numbers such as 255,192,0, or a name: " + String.join(", ", new TreeSet<>(COLOR_NAMES.keySet())) + ".");
         int v = Integer.parseInt(h, 16);
         return new XSSFColor(new byte[]{(byte) (v >> 16), (byte) (v >> 8), (byte) v}, null);
     }
@@ -1447,7 +1904,7 @@ public final class ExcelPackage {
             panel = "range, target, color | sheet, session")
     public Map<String, Object> setCellColor(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:D1", description = "Cell or range to colour.") String range,
-            @Input(name = "color", type = OoaType.STRING, example = "#FFC000", description = "Hex colour.") String colour,
+            @Input(name = "color", type = OoaType.STRING, example = "#FFC000", description = "Hex colour (#FFC000), red,green,blue numbers (255,192,0) or a colour name such as yellow or light blue.") String colour,
             @Input(name = "target", type = OoaType.STRING, required = false, defaultValue = "\"fill\"", enumValues = {"fill", "font"}, description = "fill for the background, font for the text colour.") String target,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
@@ -1480,6 +1937,394 @@ public final class ExcelPackage {
             c.setCellStyle(st);
         }
         return Map.of();
+    }
+
+    @Action(id = "format_cells", name = "Format cells", category = "Formatting",
+            description = "Set the number format, font, fill, alignment, wrapping and borders of a range or the selection; only the options given change, the rest of each cell's format stays.",
+            panel = "(Cells: The selection or active cell = / A specific range = range), number_format, bold, italic, underline, font_name, font_size, font_color, fill_color, horizontal, vertical, wrap_text, borders | sheet, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells formatted.")
+    public Map<String, Object> formatCells(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "B2:D20",
+                    description = "Cell or range to format; when empty, the range chosen by select_range or the cell chosen by go_to_cell.") String range,
+            @Input(name = "number_format", type = OoaType.STRING, required = false, example = "#,##0.00",
+                    description = "Excel number format, e.g. #,##0.00, 0%, dd/mm/yyyy, @ for text or General.") String numberFormat,
+            @Input(name = "bold", type = OoaType.BOOLEAN, required = false, description = "Bold on or off; unchanged when empty.") Boolean bold,
+            @Input(name = "italic", type = OoaType.BOOLEAN, required = false, description = "Italic on or off; unchanged when empty.") Boolean italic,
+            @Input(name = "underline", type = OoaType.BOOLEAN, required = false, description = "Single underline on or off; unchanged when empty.") Boolean underline,
+            @Input(name = "font_name", type = OoaType.STRING, required = false, example = "Calibri", description = "Font name; unchanged when empty.") String fontName,
+            @Input(name = "font_size", type = OoaType.NUMBER, required = false, min = 1, max = 409, example = "12", description = "Font size in points; unchanged when empty.") Double fontSize,
+            @Input(name = "font_color", type = OoaType.STRING, required = false, example = "#C00000",
+                    description = "Text colour: hex (#C00000), red,green,blue numbers or a name such as dark red; unchanged when empty. .xlsx only.") String fontColor,
+            @Input(name = "fill_color", type = OoaType.STRING, required = false, example = "light yellow",
+                    description = "Solid background colour, as for font_color; none removes the fill; unchanged when empty. .xlsx only.") String fillColor,
+            @Input(name = "horizontal", type = OoaType.STRING, required = false, enumValues = {"general", "left", "center", "right", "justify"},
+                    description = "Horizontal alignment; unchanged when empty.") String horizontal,
+            @Input(name = "vertical", type = OoaType.STRING, required = false, enumValues = {"top", "center", "bottom"}, description = "Vertical alignment; unchanged when empty.") String vertical,
+            @Input(name = "wrap_text", type = OoaType.BOOLEAN, required = false, description = "Wrap long text onto several lines; unchanged when empty.") Boolean wrapText,
+            @Input(name = "borders", type = OoaType.STRING, required = false, enumValues = {"all", "outline", "none"},
+                    description = "all draws thin lines around every cell; outline only around the range; none removes the lines; unchanged when empty.") String borders,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Workbook wb = s.wb;
+        Sheet sh = sheet(s, sheet);
+        boolean hasFontColor = fontColor != null && !fontColor.isBlank(), hasFill = fillColor != null && !fillColor.isBlank();
+        if ((hasFontColor || hasFill) && !(wb instanceof XSSFWorkbook)) xlsx(s, "Font and fill colours");
+        XSSFColor fc = hasFontColor ? parseColor(fontColor) : null;
+        boolean noFill = hasFill && fillColor.trim().equalsIgnoreCase("none");
+        XSSFColor bg = hasFill && !noFill ? parseColor(fillColor) : null;
+        boolean fontChange = bold != null || italic != null || underline != null || (fontName != null && !fontName.isBlank()) || fontSize != null || fc != null;
+        String bd = borders == null || borders.isBlank() ? null : borders.toLowerCase(Locale.ROOT);
+        HorizontalAlignment ha = horizontal == null || horizontal.isBlank() ? null : HorizontalAlignment.valueOf(horizontal.toUpperCase(Locale.ROOT));
+        VerticalAlignment va = vertical == null || vertical.isBlank() ? null : VerticalAlignment.valueOf(vertical.toUpperCase(Locale.ROOT));
+        short fmt = numberFormat == null || numberFormat.isBlank() ? -1 : wb.createDataFormat().getFormat(numberFormat);
+        AreaReference a = area(s, range == null || range.isBlank() ? selectionOf(s, sh) : range);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        Map<Integer, Font> fonts = new HashMap<>();
+        Map<String, CellStyle> styles = new HashMap<>();
+        int count = 0;
+        for (int r = r0; r <= r1; r++) {
+            Row row = row(sh, r);
+            for (int c = c0; c <= c1; c++) {
+                Cell cell = row.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                CellStyle old = cell.getCellStyle();
+                // with an outline, the cell's place in the range decides its lines
+                String edges = "outline".equals(bd) ? "" + (r == r0 ? 'T' : '-') + (r == r1 ? 'B' : '-') + (c == c0 ? 'L' : '-') + (c == c1 ? 'R' : '-') : "";
+                final int rr = r, cc = c;
+                CellStyle st = styles.computeIfAbsent(old.getIndex() + "|" + edges, k -> {
+                    CellStyle ns = wb.createCellStyle();
+                    ns.cloneStyleFrom(old);
+                    if (fmt >= 0) ns.setDataFormat(fmt);
+                    if (fontChange) ns.setFont(fonts.computeIfAbsent(old.getFontIndex(), fi -> {
+                        Font of = wb.getFontAt(fi);
+                        Font nf = wb.createFont();
+                        nf.setFontName(fontName != null && !fontName.isBlank() ? fontName : of.getFontName());
+                        nf.setFontHeight(fontSize != null ? (short) Math.round(fontSize * 20) : of.getFontHeight());
+                        nf.setBold(bold != null ? bold : of.getBold());
+                        nf.setItalic(italic != null ? italic : of.getItalic());
+                        nf.setUnderline(underline != null ? (underline ? Font.U_SINGLE : Font.U_NONE) : of.getUnderline());
+                        nf.setStrikeout(of.getStrikeout());
+                        if (fc != null) ((XSSFFont) nf).setColor(fc);
+                        else if (nf instanceof XSSFFont x && of instanceof XSSFFont ox && ox.getXSSFColor() != null) x.setColor(ox.getXSSFColor());
+                        else nf.setColor(of.getColor());
+                        return nf;
+                    }));
+                    if (bg != null) { ((XSSFCellStyle) ns).setFillForegroundColor(bg); ns.setFillPattern(FillPatternType.SOLID_FOREGROUND); }
+                    else if (noFill) ns.setFillPattern(FillPatternType.NO_FILL);
+                    if (ha != null) ns.setAlignment(ha);
+                    if (va != null) ns.setVerticalAlignment(va);
+                    if (wrapText != null) ns.setWrapText(wrapText);
+                    if (bd != null) {
+                        boolean all = bd.equals("all"), none = bd.equals("none");
+                        if (all || none) {
+                            BorderStyle b = all ? BorderStyle.THIN : BorderStyle.NONE;
+                            ns.setBorderTop(b); ns.setBorderBottom(b); ns.setBorderLeft(b); ns.setBorderRight(b);
+                        } else {
+                            if (rr == r0) ns.setBorderTop(BorderStyle.THIN);
+                            if (rr == r1) ns.setBorderBottom(BorderStyle.THIN);
+                            if (cc == c0) ns.setBorderLeft(BorderStyle.THIN);
+                            if (cc == c1) ns.setBorderRight(BorderStyle.THIN);
+                        }
+                    }
+                    return ns;
+                });
+                cell.setCellStyle(st);
+                count++;
+            }
+        }
+        return out("count", n(count));
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Pivot tables, charts, Excel tables and text to columns (gap G02, 3 Nov 2026)
+    // ------------------------------------------------------------------------------------------------
+
+    /** Zero-based column of a field inside the source area, from its header name, letter or sheet column number. */
+    private static int fieldColumn(Object field, Row header, FormulaEvaluator ev, int c0, int c1, String what) {
+        int k = resolveColumn(field, header, ev);
+        if (k < c0 || k > c1)
+            throw new ActionException("EXCEL.BAD_COLUMN", what + " '" + Values.text(field) + "' is not a column of the source range", "Use a header name of the source range.");
+        return k - c0;
+    }
+
+    private static List<Object> listOf(List<Object> l) { return l == null ? List.of() : l; }
+
+    @Action(id = "create_pivot_table", name = "Create pivot table", category = "Pivot tables and charts",
+            description = "Create a pivot table from a range with a header row: fields as rows, columns, values (Sum, Count, Average, Max or Min) and filters. Excel fills in the figures when the workbook is opened.",
+            panel = "sheet, range, destination_sheet, destination, name, rows, columns, values, filters | session")
+    @Output(name = "name", type = OoaType.STRING, description = "Name of the pivot table.")
+    @Output(name = "sheet", type = OoaType.STRING, description = "Sheet the pivot table is on.")
+    public Map<String, Object> createPivotTable(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "A1:F200",
+                    description = "Source range including its header row; the used area of the sheet when empty.") String range,
+            @Input(name = "destination", type = OoaType.STRING, required = false, pattern = CELL, defaultValue = "\"A3\"", description = "Top-left cell of the pivot table.") String destination,
+            @Input(name = "name", type = OoaType.STRING, required = false, example = "SalesByRegion", description = "Pivot table name; PivotTable1, PivotTable2 … when empty.") String name,
+            @Input(name = "rows", type = OoaType.LIST, required = false, example = "[\"Region\"]", description = "Fields shown down the side (header names).") List<Object> rows,
+            @Input(name = "columns", type = OoaType.LIST, required = false, example = "[\"Quarter\"]", description = "Fields shown across the top.") List<Object> columns,
+            @Input(name = "values", type = OoaType.LIST, example = "[\"Amount\", \"Amount:count\"]",
+                    description = "Fields to summarise, each as Field or Field:function, function sum (the default), count, average, max or min.") List<Object> values,
+            @Input(name = "filters", type = OoaType.LIST, required = false, example = "[\"Year\"]", description = "Fields offered as report filters above the table.") List<Object> filters,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet with the source data; active sheet when empty.") String sheet,
+            @Input(name = "destination_sheet", type = OoaType.STRING, required = false, example = "Pivot",
+                    description = "Sheet to put the pivot table on; created when it does not exist; a new sheet named Pivot when empty.") String destinationSheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        XSSFWorkbook wb = xlsx(s, "Pivot tables");
+        XSSFSheet src = (XSSFSheet) sheet(s, sheet);
+        String rg = range;
+        if (rg == null || rg.isBlank()) rg = (String) getTableRange(ctx, src.getSheetName(), session).get("range");
+        if (rg == null || rg.isEmpty()) throw new ActionException("EXCEL.EMPTY", "The source sheet has no data", "Write the data first or give a range.");
+        AreaReference a = area(s, rg);
+        int hr = a.getFirstCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        if (a.getLastCell().getRow() <= hr) throw new ActionException("EXCEL.BAD_RANGE", "The source range needs a header row and at least one data row", "Give a range such as A1:F200.");
+        Row header = src.getRow(hr);
+        FormulaEvaluator ev = evaluator(s);
+        Set<String> heads = new HashSet<>();
+        for (int c = c0; c <= c1; c++) {
+            Object h = header == null ? null : read(header.getCell(c), ev);
+            if (h == null || Values.text(h).isBlank())
+                throw new ActionException("EXCEL.BAD_HEADER", "Column " + CellReference.convertNumToColString(c) + " of the source range has no header", "Every source column needs a name in the header row.");
+            if (!heads.add(Values.text(h).trim().toLowerCase(Locale.ROOT)))
+                throw new ActionException("EXCEL.BAD_HEADER", "Two source columns are both called '" + Values.text(h) + "'", "Give every source column its own name.");
+        }
+        if (values == null || values.isEmpty()) throw new ActionException("EXCEL.NO_VALUES", "No value fields given", "Name at least one field to summarise, e.g. [\"Amount\"].");
+        String dn = destinationSheet == null || destinationSheet.isBlank() ? uniqueSheetName(wb, "Pivot") : destinationSheet;
+        XSSFSheet dst = wb.getSheet(dn) != null ? wb.getSheet(dn) : wb.createSheet(dn);
+        CellReference at = new CellReference((destination == null || destination.isBlank() ? "A3" : destination).toUpperCase(Locale.ROOT));
+        if (dst == src && at.getRow() >= hr && at.getRow() <= a.getLastCell().getRow() && at.getCol() >= c0 && at.getCol() <= c1)
+            throw new ActionException("EXCEL.BAD_RANGE", "The pivot table would start inside its own source range", "Put it on another sheet or outside the source range.");
+        if (name != null && !name.isBlank())
+            for (XSSFPivotTable p : wb.getPivotTables())
+                if (name.equalsIgnoreCase(p.getCTPivotTableDefinition().getName()))
+                    throw new ActionException("EXCEL.EXISTS", "A pivot table called '" + name + "' already exists", "Choose another name.");
+        // check every field before anything is added to the workbook
+        List<Integer> rowIdx = new ArrayList<>(), colIdx = new ArrayList<>(), filterIdx = new ArrayList<>();
+        for (Object f : listOf(rows)) rowIdx.add(fieldColumn(f, header, ev, c0, c1, "Row field"));
+        for (Object f : listOf(columns)) colIdx.add(fieldColumn(f, header, ev, c0, c1, "Column field"));
+        for (Object f : listOf(filters)) filterIdx.add(fieldColumn(f, header, ev, c0, c1, "Filter field"));
+        List<Object[]> valueIdx = new ArrayList<>();
+        for (Object v : values) {
+            String t = Values.text(v).trim();
+            int colon = t.lastIndexOf(':');
+            String field = colon > 0 ? t.substring(0, colon).trim() : t, fn = colon > 0 ? t.substring(colon + 1).trim().toLowerCase(Locale.ROOT) : "sum";
+            DataConsolidateFunction f = switch (fn) {
+                case "sum" -> DataConsolidateFunction.SUM;
+                case "count" -> DataConsolidateFunction.COUNT;
+                case "average", "avg" -> DataConsolidateFunction.AVERAGE;
+                case "max" -> DataConsolidateFunction.MAX;
+                case "min" -> DataConsolidateFunction.MIN;
+                default -> throw new ActionException("EXCEL.BAD_FUNCTION", "'" + fn + "' is not a summary function", "Use sum, count, average, max or min, e.g. Amount:average.");
+            };
+            int k = fieldColumn(field, header, ev, c0, c1, "Value field");
+            String label = switch (f) { case SUM -> "Sum"; case COUNT -> "Count"; case AVERAGE -> "Average"; case MAX -> "Max"; default -> "Min"; }
+                    + " of " + Values.text(read(header.getCell(c0 + k), ev)).trim();
+            valueIdx.add(new Object[]{f, k, label});
+        }
+        XSSFPivotTable pt = dst.createPivotTable(new AreaReference(a.getFirstCell(), a.getLastCell(), wb.getSpreadsheetVersion()), at, src);
+        for (int k : rowIdx) pt.addRowLabel(k);
+        for (int k : colIdx) pt.addColLabel(k);
+        for (Object[] v : valueIdx) pt.addColumnLabel((DataConsolidateFunction) v[0], (Integer) v[1], (String) v[2]);
+        for (int k : filterIdx) pt.addReportFilter(k);
+        String pn = name;
+        if (pn == null || pn.isBlank()) {  // the next free PivotTableN, as Excel names them
+            Set<String> used = new HashSet<>();
+            for (XSSFPivotTable o : wb.getPivotTables()) if (o != pt) used.add(o.getCTPivotTableDefinition().getName().toLowerCase(Locale.ROOT));
+            int k = 1;
+            while (used.contains("pivottable" + k)) k++;
+            pn = "PivotTable" + k;
+        }
+        pt.getCTPivotTableDefinition().setName(pn);
+        pt.getPivotCacheDefinition().getCTPivotCacheDefinition().setRefreshOnLoad(true);
+        return out("name", pt.getCTPivotTableDefinition().getName(), "sheet", dst.getSheetName());
+    }
+
+    @Action(id = "create_chart", name = "Create chart", category = "Pivot tables and charts",
+            description = "Add a column, bar, line or pie chart of a range: the first column gives the categories, the header row the series names and each further column one series.",
+            panel = "sheet, range, chart_type, title, destination_sheet, position, width, height | legend, session")
+    @Output(name = "range", type = OoaType.STRING, description = "Cells the chart covers, e.g. H2:O17.")
+    public Map<String, Object> createChart(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:C13", description = "Data with a header row: categories in the first column, one series per further column.") String range,
+            @Input(name = "chart_type", type = OoaType.STRING, required = false, defaultValue = "\"column\"", enumValues = {"column", "bar", "line", "pie"},
+                    description = "column (vertical bars), bar (horizontal bars), line, or pie (the first series only).") String chartType,
+            @Input(name = "title", type = OoaType.STRING, required = false, example = "Sales by month", description = "Chart title; none when empty.") String title,
+            @Input(name = "position", type = OoaType.STRING, required = false, pattern = CELL, description = "Top-left cell of the chart; two columns right of the data when empty.") String position,
+            @Input(name = "width", type = OoaType.NUMBER, required = false, defaultValue = "8", min = 1, max = 100, description = "Width in columns.") int width,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, defaultValue = "15", min = 1, max = 500, description = "Height in rows.") int height,
+            @Input(name = "legend", type = OoaType.STRING, required = false, defaultValue = "\"right\"", enumValues = {"right", "bottom", "top", "left", "none"}, description = "Where the legend goes.") String legend,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet with the data; active sheet when empty.") String sheet,
+            @Input(name = "destination_sheet", type = OoaType.STRING, required = false, description = "Sheet to put the chart on; the data sheet when empty; created when it does not exist.") String destinationSheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        XSSFWorkbook wb = xlsx(s, "Charts");
+        XSSFSheet src = (XSSFSheet) sheet(s, sheet);
+        XSSFSheet dst = destinationSheet == null || destinationSheet.isBlank() ? src
+                : wb.getSheet(destinationSheet) != null ? wb.getSheet(destinationSheet) : wb.createSheet(destinationSheet);
+        AreaReference a = area(s, range);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        if (r1 <= r0 || c1 <= c0) throw new ActionException("EXCEL.BAD_RANGE", "A chart needs a header row, a category column and at least one value column",
+                "Give a range such as A1:C13: names in the first row, categories in the first column.");
+        String type = chartType == null || chartType.isBlank() ? "column" : chartType.toLowerCase(Locale.ROOT);
+        if (width < 1 || height < 1) throw new ActionException("EXCEL.BAD_SIZE", "Width and height must be at least 1", "Give the size in columns and rows.");
+        CellReference p = position == null || position.isBlank() ? new CellReference(r0, c1 + 2) : new CellReference(position.toUpperCase(Locale.ROOT));
+        XSSFDrawing drawing = dst.createDrawingPatriarch();
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, p.getCol(), p.getRow(), p.getCol() + width, p.getRow() + height);
+        XSSFChart chart = drawing.createChart(anchor);
+        if (title != null && !title.isBlank()) { chart.setTitleText(title); chart.setTitleOverlay(false); }
+        String lg = legend == null || legend.isBlank() ? "right" : legend.toLowerCase(Locale.ROOT);
+        if (!lg.equals("none")) chart.getOrAddLegend().setPosition(switch (lg) {
+            case "bottom" -> org.apache.poi.xddf.usermodel.chart.LegendPosition.BOTTOM;
+            case "top" -> org.apache.poi.xddf.usermodel.chart.LegendPosition.TOP;
+            case "left" -> org.apache.poi.xddf.usermodel.chart.LegendPosition.LEFT;
+            default -> org.apache.poi.xddf.usermodel.chart.LegendPosition.RIGHT;
+        });
+        var cats = org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromStringCellRange(src,
+                new org.apache.poi.ss.util.CellRangeAddress(r0 + 1, r1, c0, c0));
+        org.apache.poi.xddf.usermodel.chart.XDDFChartData data;
+        if (type.equals("pie")) {
+            data = chart.createData(org.apache.poi.xddf.usermodel.chart.ChartTypes.PIE, null, null);
+            data.setVaryColors(true);
+        } else {
+            var bottom = chart.createCategoryAxis(org.apache.poi.xddf.usermodel.chart.AxisPosition.BOTTOM);
+            var left = chart.createValueAxis(org.apache.poi.xddf.usermodel.chart.AxisPosition.LEFT);
+            left.setCrosses(org.apache.poi.xddf.usermodel.chart.AxisCrosses.AUTO_ZERO);
+            data = chart.createData(type.equals("line") ? org.apache.poi.xddf.usermodel.chart.ChartTypes.LINE : org.apache.poi.xddf.usermodel.chart.ChartTypes.BAR, bottom, left);
+            if (data instanceof org.apache.poi.xddf.usermodel.chart.XDDFBarChartData bar) {
+                bar.setBarDirection(type.equals("bar") ? org.apache.poi.xddf.usermodel.chart.BarDirection.BAR : org.apache.poi.xddf.usermodel.chart.BarDirection.COL);
+                left.setCrossBetween(org.apache.poi.xddf.usermodel.chart.AxisCrossBetween.BETWEEN);
+            }
+            data.setVaryColors(false);
+        }
+        for (int c = c0 + 1; c <= (type.equals("pie") ? c0 + 1 : c1); c++) {
+            var vals = org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromNumericCellRange(src,
+                    new org.apache.poi.ss.util.CellRangeAddress(r0 + 1, r1, c, c));
+            var series = data.addSeries(cats, vals);
+            Row h = src.getRow(r0);
+            series.setTitle(h == null || h.getCell(c) == null ? "Series " + (c - c0) : Values.text(read(h.getCell(c), evaluator(s))),
+                    new CellReference(src.getSheetName(), r0, c, true, true));
+            if (series instanceof org.apache.poi.xddf.usermodel.chart.XDDFLineChartData.Series ls) ls.setSmooth(false);
+        }
+        chart.plot(data);
+        return out("range", addr(p.getRow(), p.getCol()) + ":" + addr(p.getRow() + height - 1, p.getCol() + width - 1));
+    }
+
+    @Action(id = "create_table", name = "Create Excel table", category = "Pivot tables and charts",
+            description = "Turn a range with a header row into a named Excel table with a table style, like Ctrl+T in Excel.",
+            panel = "sheet, range, name, style, banded_rows | session")
+    @Output(name = "name", type = OoaType.STRING, description = "Name of the new table.")
+    public Map<String, Object> createTable(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "A1:F200", description = "Range including its header row; the used area when empty.") String range,
+            @Input(name = "name", type = OoaType.STRING, required = false, example = "Invoices", description = "Table name: letters, digits, _ and ., starting with a letter; Table1, Table2 … when empty.") String name,
+            @Input(name = "style", type = OoaType.STRING, required = false, defaultValue = "\"TableStyleMedium2\"", example = "TableStyleLight9",
+                    description = "Excel table style: TableStyleLight1–21, TableStyleMedium1–28 or TableStyleDark1–11.") String style,
+            @Input(name = "banded_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Shade every other row.") boolean bandedRows,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        XSSFWorkbook wb = xlsx(s, "Excel tables");
+        XSSFSheet sh = (XSSFSheet) sheet(s, sheet);
+        String rg = range;
+        if (rg == null || rg.isBlank()) rg = (String) getTableRange(ctx, sh.getSheetName(), session).get("range");
+        if (rg == null || rg.isEmpty()) throw new ActionException("EXCEL.EMPTY", "The sheet has no data", "Write the data first or give a range.");
+        AreaReference a = area(s, rg);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        String st = style == null || style.isBlank() ? "TableStyleMedium2" : style.trim();
+        if (!st.matches("TableStyle(Light([1-9]|1[0-9]|2[01])|Medium([1-9]|1[0-9]|2[0-8])|Dark([1-9]|1[01]))"))
+            throw new ActionException("EXCEL.BAD_STYLE", "'" + style + "' is not an Excel table style", "Use TableStyleLight1–21, TableStyleMedium1–28 or TableStyleDark1–11.");
+        for (XSSFTable t : sh.getTables()) {
+            AreaReference o = t.getArea();
+            if (o.getFirstCell().getRow() <= r1 && o.getLastCell().getRow() >= r0 && o.getFirstCell().getCol() <= c1 && o.getLastCell().getCol() >= c0)
+                throw new ActionException("EXCEL.OVERLAP", "The range overlaps the table " + t.getName(), "Pick a range outside existing tables.");
+        }
+        if (name != null && !name.isBlank()) {
+            if (!name.matches("[A-Za-z_\\\\][A-Za-z0-9_.]{0,254}") || name.matches("(?i)[A-Z]{1,3}[0-9]+|R[0-9]*C[0-9]*|[RC]"))
+                throw new ActionException("EXCEL.BAD_NAME", "'" + name + "' cannot be a table name", "Start with a letter; use letters, digits, _ and .; it must not look like a cell address.");
+            if (wb.getTable(name) != null) throw new ActionException("EXCEL.EXISTS", "A table called '" + name + "' already exists", "Choose another name.");
+        }
+        // Excel needs one unique text heading per column
+        FormulaEvaluator ev = evaluator(s);
+        Row h = row(sh, r0);
+        Set<String> seen = new HashSet<>();
+        for (int c = c0; c <= c1; c++) {
+            Cell x = h.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            Object v = read(x, ev);
+            String t = v == null || Values.text(v).isBlank() ? "Column" + (c - c0 + 1) : Values.text(v).trim();
+            String u = t;
+            for (int i = 2; !seen.add(u.toLowerCase(Locale.ROOT)); i++) u = t + i;
+            if (x.getCellType() != CellType.STRING || !u.equals(x.getStringCellValue())) x.setCellValue(u);
+        }
+        XSSFTable t = sh.createTable(new AreaReference(a.getFirstCell(), a.getLastCell(), wb.getSpreadsheetVersion()));
+        if (name != null && !name.isBlank()) { t.setName(name); t.setDisplayName(name); }
+        var info = t.getCTTable().isSetTableStyleInfo() ? t.getCTTable().getTableStyleInfo() : t.getCTTable().addNewTableStyleInfo();
+        info.setName(st);
+        info.setShowRowStripes(bandedRows);
+        info.setShowColumnStripes(false);
+        info.setShowFirstColumn(false);
+        info.setShowLastColumn(false);
+        if (r1 == r0) t.getCTTable().setInsertRow(true);
+        return out("name", t.getName());
+    }
+
+    @Action(id = "text_to_columns", name = "Text to columns", category = "Cells",
+            description = "Split the text of a column into several columns at a delimiter, like Excel's Text to Columns; the parts overwrite the cells to the right.",
+            panel = "column, delimiter, (Rows: Every used row = / From a row = start_row, end_row), destination, trim, convert_numbers | sheet, session")
+    @Output(name = "rows", type = OoaType.NUMBER, description = "Number of cells split.")
+    @Output(name = "columns", type = OoaType.NUMBER, description = "Most parts any cell was split into.")
+    public Map<String, Object> textToColumns(ActionContext ctx,
+            @Input(name = "column", example = "A", description = "Column holding the text: letter or 1-based number.") Object column,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", example = ";",
+                    description = "Text between the parts: a character such as , ; | or the words tab or space. Parts inside double quotes are kept whole.") String delimiter,
+            @Input(name = "start_row", type = OoaType.NUMBER, required = false, min = 1, description = "First row to split; the first used row when empty.") Integer startRow,
+            @Input(name = "end_row", type = OoaType.NUMBER, required = false, min = 1, description = "Last row to split; the last used row when empty.") Integer endRow,
+            @Input(name = "destination", required = false, example = "B", description = "Column to write the first part to; the column itself when empty.") Object destination,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces around each part.") boolean trim,
+            @Input(name = "convert_numbers", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Store parts that are plain numbers, such as 12.5, as numbers, as Excel does.") boolean convertNumbers,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Sheet sh = sheet(s, sheet);
+        int col = columnIndex(column);
+        int to = destination == null || Values.text(destination).isBlank() ? col : columnIndex(destination);
+        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equalsIgnoreCase("tab") ? "\t" : delimiter.equalsIgnoreCase("space") ? " " : delimiter;
+        if (startRow != null && endRow != null && endRow < startRow)
+            throw new ActionException("EXCEL.BAD_RANGE", "End row " + endRow + " is before start row " + startRow, "Give an end row at or after the start row.");
+        int first = startRow != null ? startRow - 1 : Math.max(0, sh.getFirstRowNum()), last = endRow != null ? endRow - 1 : sh.getLastRowNum();
+        FormulaEvaluator ev = evaluator(s);
+        int rowsSplit = 0, most = 0;
+        for (int r = first; r <= last; r++) {
+            Row row = sh.getRow(r);
+            if (row == null) continue;
+            Object v = read(row.getCell(col), ev);
+            if (v == null) continue;
+            List<String> parts = splitQuoted(Values.text(v), d);
+            for (int i = 0; i < parts.size(); i++) {
+                String p = trim ? parts.get(i).trim() : parts.get(i);
+                Cell c = row.getCell(to + i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                if (p.isEmpty()) c.setBlank();
+                else if (convertNumbers && p.matches("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?") && !(p.length() > 1 && p.startsWith("0") && !p.startsWith("0.")))
+                    c.setCellValue(Double.parseDouble(p));  // 0123 stays text, as a code or account number
+                else c.setCellValue(p);
+            }
+            rowsSplit++;
+            most = Math.max(most, parts.size());
+        }
+        return out("rows", n(rowsSplit), "columns", n(most));
+    }
+
+    /** Splits at the delimiter; a part in double quotes keeps its delimiters, and "" inside quotes is one quote. */
+    private static List<String> splitQuoted(String text, String d) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < text.length() && text.charAt(i + 1) == '"') { cur.append('"'); i++; }
+                else quoted = !quoted;
+            } else if (!quoted && text.startsWith(d, i)) { out.add(cur.toString()); cur.setLength(0); i += d.length() - 1; }
+            else cur.append(ch);
+        }
+        out.add(cur.toString());
+        return out;
     }
 
     // ------------------------------------------------------------------------------------------------
@@ -1589,15 +2434,18 @@ public final class ExcelPackage {
 
     @Action(id = "unprotect_sheet", name = "Unprotect sheet", category = "Protection", description = "Remove protection from a worksheet; for .xlsx files the password is checked first.",
             panel = "password | sheet, session")
+    @Output(name = "was_protected", type = OoaType.BOOLEAN, description = "False when the sheet was not protected (nothing to do).")
     public Map<String, Object> unprotectSheet(ActionContext ctx,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Sheet password; a credential from the vault or text.") Object password,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
         Sheet sh = sheet(session(ctx, session), sheet);
+        // an unprotected sheet used to crash with IndexOutOfBoundsException inside POI: there is simply nothing to do
+        if (!sh.getProtect()) { ctx.info("Sheet '" + sh.getSheetName() + "' is not protected; nothing to unprotect"); return Map.of("was_protected", false); }
         if (sh instanceof XSSFSheet x && x.isSheetLocked() && !x.validateSheetPassword(Objects.requireNonNullElse(OfficeCrypto.secret(password), "")))
             throw new ActionException("EXCEL.WRONG_PASSWORD", "The sheet password is wrong", "Check the password stored in the credential vault.");
         sh.protectSheet(null);
-        return Map.of();
+        return Map.of("was_protected", true);
     }
 
     // ------------------------------------------------------------------------------------------------
@@ -1758,7 +2606,7 @@ public final class ExcelPackage {
             Row row = sh.getRow(r);
             Snap[] cells = new Snap[c1 - c0 + 1];
             for (int c = c0; c <= c1; c++) cells[c - c0] = row == null ? null : snap(row.getCell(c));
-            rows.add(new Object[]{row == null ? null : read(row.getCell(key), ev), cells, row == null || !second ? null : read(row.getCell(key2), ev)});
+            rows.add(new Object[]{row == null ? null : read(row.getCell(key), ev), cells, row == null || !second ? null : read(row.getCell(key2), ev), r});
         }
         Comparator<Object[]> cmp = (x, y) -> {
             int v = compareKeys(x[0], y[0], descending);
@@ -1767,10 +2615,31 @@ public final class ExcelPackage {
         rows.sort(cmp);
         for (int i = 0; i < rows.size(); i++) {
             Snap[] cells = (Snap[]) rows.get(i)[1];
+            int moved = r0 + i - (Integer) rows.get(i)[3];
             Row row = row(sh, r0 + i);
-            for (int c = c0; c <= c1; c++) restore(cells[c - c0], row, c);
+            // a formula moves with its row, as in Excel: =B3*0.2 sorted up to row 2 becomes =B2*0.2 ($ references stay)
+            for (int c = c0; c <= c1; c++) restore(movedFormula(s, sh, cells[c - c0], moved), row, c);
         }
         return Map.of();
+    }
+
+    /** The snapshot with its formula's relative row references moved by dr rows; unchanged when it holds no formula. */
+    private static Snap movedFormula(WorkbookSession s, Sheet sh, Snap x, int dr) {
+        if (x == null || x.type() != CellType.FORMULA || dr == 0) return x;
+        FormulaParsingWorkbook fpw = s.wb instanceof XSSFWorkbook w ? XSSFEvaluationWorkbook.create(w)
+                : org.apache.poi.hssf.usermodel.HSSFEvaluationWorkbook.create((org.apache.poi.hssf.usermodel.HSSFWorkbook) s.wb);
+        Ptg[] ptgs;
+        try { ptgs = FormulaParser.parse((String) x.value(), fpw, FormulaType.CELL, s.wb.getSheetIndex(sh)); }
+        catch (RuntimeException e) { return x; }
+        int last = s.wb.getSpreadsheetVersion().getLastRowIndex();
+        for (Ptg p : ptgs) {
+            if (p instanceof RefPtgBase r && r.isRowRelative()) r.setRow(Math.max(0, Math.min(last, r.getRow() + dr)));
+            else if (p instanceof AreaPtgBase a) {
+                if (a.isFirstRowRelative()) a.setFirstRow(Math.max(0, Math.min(last, a.getFirstRow() + dr)));
+                if (a.isLastRowRelative()) a.setLastRow(Math.max(0, Math.min(last, a.getLastRow() + dr)));
+            }
+        }
+        return new Snap(CellType.FORMULA, FormulaRenderer.toFormulaString((FormulaRenderingWorkbook) fpw, ptgs), x.style());
     }
 
     /** Compares sort keys; empty keys always sort last. */

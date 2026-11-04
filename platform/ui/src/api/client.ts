@@ -1,6 +1,6 @@
 /**
  * Typed client for the Studio API. The screens call the server only through here. The base is the folder the API
- * lives in: locally Studio's own /api/ (or /studio/api/ under `ooa server`); later the Command Center (V2).
+ * lives in: locally Studio's own /api/ (or /studio/api/ under `ooa server`); later One CommandCenter (V2).
  */
 
 export type ApiError = { code: string; message: string; hint?: string; suggestedFix?: string | null };
@@ -11,7 +11,7 @@ export class ApiFailure extends Error {
 
 export type WorkspaceNode = {
   name: string; path: string; type: "folder" | "bot" | "form" | "process" | "document" | "skill" | "script" | "file";
-  kind?: "TaskBot" | "ApiTask"; modified?: string; children?: WorkspaceNode[];
+  kind?: "TaskBot" | "ApiTask"; modified?: string; size?: number; platform?: "Windows" | "Any"; children?: WorkspaceNode[];
 };
 
 /** One input or output of an action, as the toolkit catalogue describes it (JSON Schema plus OOA's own keys). */
@@ -49,10 +49,20 @@ export type FlowStep = {
   /** A saved connection that supplies the connector's address and sign-in. */
   connection?: string;
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
+  /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
+  cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
 };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
-export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; ui?: FlowUi };
+/** A named list of steps inside an agent, run by a Run subflow step; it shares the agent's variables. */
+export type Subflow = { name: string; description?: string; steps: FlowStep[] };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError; ui?: FlowUi };
+
+/**
+ * The agent's error handler: steps that run once when an error no Try block caught ends the run, while its windows and
+ * files are still open; then the run fails with that error (fail, the default) or ends as succeeded with a warning.
+ */
+export type FlowOnError = { as?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
@@ -95,10 +105,16 @@ export type Proposal = { steps?: FlowStep[]; variables?: FlowVariable[]; notes?:
 export type ModelConnection = { name: string; provider: string; model?: string; base_url?: string; api_key_env?: string; api_key?: { $credential: string }; description?: string };
 export type ModelConnections = { default: string; connections: ModelConnection[] };
 
-/** The Command Center link: signed in or not, and when Studio and Command Center run together, the browser's own sign-in. */
+/** One CommandCenter link: signed in or not, and when Studio and One CommandCenter run together, the browser's own sign-in. */
 export type CrStatus = { connected: boolean; url?: string | null; user?: { username: string } | null; sameServer?: boolean };
-/** An agent in the Command Center agent repository (the public one): its latest version, and who has it checked out. */
-export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null };
+/** An agent in One CommandCenter agent repository (the public one): its latest version, and who has it checked out. */
+/** The repository's facts for a list's columns (AA's Public list): labels, code analysis, platform, size, who changed it last. */
+export type RepoFacts = { labels?: { label: string; version: number }[]; analysis?: { errors: number; warnings: number }; platform?: "Windows" | "Any";
+  size?: number; updated?: string; updated_by?: string };
+export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null } & RepoFacts;
+/** A private copy's state against the repository, as AA's statuses (1 Nov 2026). "linked": signed out, so the locks are not known. */
+export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited"; path: string; locked_by?: string;
+  latest_version?: number; production_version?: number | null } & RepoFacts;
 export type RepoVersion = { version: number; author: string; created: string; comment?: string };
 /** A check-in: the new version, and whether it became live or waits for approval first. */
 export type CheckIn = { path: string; version: number; local: string; production: boolean; production_request?: unknown };
@@ -226,14 +242,22 @@ export class StudioApi {
   async duplicate(path: string) { return (await this.call<{ path: string }>("POST", "files/duplicate", { path })).path; }
   /** Agents whose name, description, id, actions or variables match, with what matched. */
   async search(q: string) { return (await this.call<{ results: { path: string; matches: string[] }[] }>("GET", "search?q=" + encodeURIComponent(q))).results; }
-  // ---- the Command Center agent repository: sign in, check out, check in ----
+  // ---- One CommandCenter agent repository: sign in, check out, check in ----
   crStatus() { return this.call<CrStatus>("GET", "cr/status"); }
-  crConnect(url: string, username: string, password: string, code: string) { return this.call<CrStatus>("POST", "cr/connect", { url, username, password, code }); }
+  crConnect(url: string, username: string, password: string, code: string, accepted = false) {
+    return this.call<CrStatus>("POST", "cr/connect", accepted ? { url, username, password, code, accepted } : { url, username, password, code });
+  }
   crDisconnect() { return this.call<CrStatus>("POST", "cr/disconnect"); }
   /** The repository's agents (matching q), and which workspace file is the private copy of which repository agent. */
   async crRepo(q = "") { const r = await this.call<{ bots?: RepoAgent[]; mapping?: Record<string, string> }>("GET", "cr/repo?q=" + encodeURIComponent(q)); return { agents: r.bots ?? [], mapping: r.mapping ?? {} }; }
   async crVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "cr/versions?path=" + encodeURIComponent(path))).versions ?? []; }
-  crCheckout(path: string) { return this.call<{ local: string; path: string; version: number }>("POST", "cr/checkout", { path }); }
+  crCheckout(path: string, version?: number) {
+    return this.call<{ local: string; path: string; version: number; kept?: boolean; cloned?: string[] }>("POST", "cr/checkout", version ? { path, version } : { path });
+  }
+  /** Each private copy linked to the repository, with its state (checked out, edited, checked in …); unlinked items are new. */
+  crStates() { return this.call<{ states: Record<string, RepoState>; connected: boolean }>("GET", "cr/states"); }
+  /** Revert edits: the private copy goes back to the version that was checked out. */
+  crRevert(local: string) { return this.call<{ local: string; path: string; version: number }>("POST", "cr/revert", { local }); }
   crUndoCheckout(path: string) { return this.call<{ ok: boolean }>("POST", "cr/undo-checkout", { path }); }
   crCheckin(local: string, comment: string, production: boolean) { return this.call<CheckIn>("POST", "cr/checkin", { local, comment, production }); }
 

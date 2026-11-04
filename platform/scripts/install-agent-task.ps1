@@ -18,7 +18,7 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAM
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
     -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Force `
-    -Description "ONEOFFICEAUTOMATION Bot Agent: runs bots from Control Room on this device." | Out-Null
+    -Description "ONEOFFICEAUTOMATION OneRunner: runs agents from One CommandCenter on this computer." | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "Installed and started '$TaskName'. It starts automatically when you sign in."
 Write-Host "Stop it:      Stop-ScheduledTask -TaskName '$TaskName'"

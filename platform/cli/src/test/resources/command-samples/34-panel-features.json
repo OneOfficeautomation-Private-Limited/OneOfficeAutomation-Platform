@@ -612,5 +612,10 @@
    }
   ],
   "error": "M365.BAD_RANGE"
- }
+ },
+ {"command": "ooa.rest/request", "name": "OAuth 2.0 sign-in without a token URL is refused before sending", "steps": [{"action": "ooa.rest/request", "args": {"url": "http://127.0.0.1:1/api", "oauth_client_id": "app"}}], "error": "REST.OAUTH_SETTINGS"},
+ {"command": "ooa.rest/request", "name": "OAuth 2.0 client secret as plain text is refused", "steps": [{"action": "ooa.rest/request", "args": {"url": "http://127.0.0.1:1/api", "oauth_token_url": "http://127.0.0.1:1/token", "oauth_client_id": "app", "oauth_client_secret": "plain-text"}}], "error": "REST.NO_SECRET"},
+ {"command": "ooa.rest/request", "name": "OAuth 1.0a without a consumer secret is refused", "steps": [{"action": "ooa.rest/request", "args": {"url": "http://127.0.0.1:1/api", "oauth1_consumer_key": "ck"}}], "error": "REST.OAUTH_SETTINGS"},
+ {"command": "ooa.rest/request", "name": "two sign-in options at once are refused", "steps": [{"action": "ooa.rest/request", "args": {"url": "http://127.0.0.1:1/api", "oauth1_consumer_key": "ck", "ntlm_user": "bob"}}], "error": "REST.BAD_AUTH"},
+ {"command": "ooa.rest/request", "name": "NTLM password as plain text is refused", "steps": [{"action": "ooa.rest/request", "args": {"url": "http://127.0.0.1:1/api", "ntlm_user": "bob", "ntlm_domain": "CONTOSO", "ntlm_password": "plain-text"}}], "error": "REST.NO_SECRET"}
 ]

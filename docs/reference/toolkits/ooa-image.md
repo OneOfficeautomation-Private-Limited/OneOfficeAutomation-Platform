@@ -6,7 +6,7 @@ Toolkit `ooa.image`, version 1.0.0. Find, wait for and click images on the scree
 
 ## Contents
 
-- **Image**: Click image, Find image in image, Find image on screen, Wait for image, Wait for screen change
+- **Image**: Click image, Compare images, Find image in image, Find image on screen, Wait for image, Wait for screen change
 - **Conditions**: Image is in image file, Image is on screen
 
 ## Image
@@ -42,7 +42,36 @@ Find a picture on the screen (optionally waiting for it, in a region, or its n-t
 | `x` | Number | Clicked x. |
 | `y` | Number | Clicked y. |
 
-*Time limit 60 s; needs: desktop.*
+*Time limit 60 s; needs: desktop, filesystem.*
+
+### Compare images
+
+`ooa.image/compare_images` (action)
+
+Compare two pictures pixel by pixel: whether they are the same, how much differs, where, and optionally a copy of the first with the changes in red.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Image | `image` | File path | Yes |  | Main | First picture, e.g. the approved layout (PNG, JPG, BMP or GIF). |
+| Other | `other` | File path | Yes |  | Main | Second picture, e.g. a screen capture saved by an earlier step. |
+| Tolerance | `tolerance` | Number | No | `10` | Main | How different one pixel's colour may be and still count as the same, in percent (0 = exact); ignores compression noise and slight colour shifts. Range: 0 to 100 |
+| Maximum difference percent | `max_difference_percent` | Number | No | `0` | Main | Share of pixels that may differ while the pictures still count as the same. Range: 0 to 100 |
+| Size mismatch | `size_mismatch` | Text | No | `error` | More options | When the sizes differ: error stops with IMAGE.SIZE_MISMATCH; scale stretches the second picture to the first one's size first. One of: `error`, `scale` |
+| Difference image | `difference_image` | File path | No |  | More options | Save a PNG copy of the first picture with the changed pixels in red here; none when empty. Example: `output/diff.png` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `same` | Yes/No | True when no more than max_difference_percent of the pixels differ. |
+| `difference_percent` | Number | Share of pixels that differ, 0 to 100, two decimals. |
+| `changed_pixels` | Number | Number of pixels that differ. |
+| `changed_area` | Dictionary | x, y, width and height of the box around every changed pixel (in the first image); empty when nothing changed. |
+| `difference_image` | File path | Path of the difference picture; empty when none was asked for. |
+
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Find image in image
 
@@ -80,7 +109,7 @@ Look for a small picture inside a larger image file, optionally in a region and 
 | `left` | Number | Left edge of the match. |
 | `top` | Number | Top edge of the match. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Find image on screen
 
@@ -115,7 +144,7 @@ Look for a picture on the screen, optionally in a region and for its n-th appear
 | `similarity` | Number | Similarity in percent. |
 | `count` | Number | Number of matches found (up to occurrence when it is above 1). |
 
-*Time limit 60 s; needs: desktop.*
+*Time limit 60 s; needs: desktop, filesystem.*
 
 ### Wait for image
 
@@ -144,7 +173,7 @@ Wait until a picture appears on the screen, or disappears from it, checking a re
 | `x` | Number | Centre x on screen. |
 | `y` | Number | Centre y on screen. |
 
-*Time limit 3600 s; needs: desktop.*
+*Time limit 3600 s; needs: desktop, filesystem.*
 
 ### Wait for screen change
 
@@ -196,6 +225,8 @@ True when the picture appears inside an image file.
 | Template | `template` | File path | Yes |  | Main | Picture to look for. |
 | Tolerance | `tolerance` | Number | No | `10` | Main | Allowed difference in percent (0 = pixel-exact); raise for anti-aliased or scaled screens. |
 
+*Needs: filesystem.*
+
 ### Image is on screen
 
 `ooa.image/image_on_screen` (condition)
@@ -208,3 +239,5 @@ True when the picture is visible on the screen within the tolerance.
 | --- | --- | --- | --- | --- | --- | --- |
 | Template | `template` | File path | Yes |  | Main | Picture to look for. |
 | Tolerance | `tolerance` | Number | No | `10` | Main | Allowed difference in percent (0 = pixel-exact); raise for anti-aliased or scaled screens. |
+
+*Needs: filesystem.*

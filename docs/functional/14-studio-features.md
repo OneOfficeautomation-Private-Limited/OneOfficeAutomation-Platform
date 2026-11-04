@@ -1,13 +1,13 @@
-# 14 One Agent Studio
+# 14 One AgentStudio
 
 ## What this covers
 
-The feature specification of One Agent Studio, the browser-based designer served at `/studio/`: the layout and the
+The feature specification of One AgentStudio, the browser-based designer served at `/studio/`: the layout and the
 Automation home, the Explorer and the private workspace, the editor views of an agent, the canvas and its editing
 commands, the Actions and Variables panels, the step settings panel (choices, tick boxes, More options, error
 handling), validation and the Problems tab, running and the Run window, debugging with breakpoints, Run from here (with
 the last run's values or with default values) and Run this step only, opening child agents with breadcrumbs and the
-"Run by" note, recording and capture, the assistant, local triggers, and the link to One Command Center (connect,
+"Run by" note, recording and capture, the assistant, local triggers, and the link to One CommandCenter (connect,
 check-out, check-in).
 
 ## Contents
@@ -30,7 +30,7 @@ check-out, check-in).
 16. Connectors and connections
 17. The assistant
 18. Local triggers
-19. One Command Center link
+19. One CommandCenter link
 20. Other item editors
 21. Preferences and keyboard
 
@@ -38,7 +38,7 @@ check-out, check-in).
 
 | Area | Contents |
 | --- | --- |
-| Top bar | Automation home, breadcrumbs of the open item, Close, "Unsaved" marker, One Command Center link (opens the console in another tab), toggles for the left panel, Run dock and Action settings, theme and density, One Model Connections…, Connectors…, Save, Validate, Assistant, Debug, Run |
+| Top bar | Automation home, breadcrumbs of the open item, Close, "Unsaved" marker, One CommandCenter link (opens the console in another tab), toggles for the left panel, Run dock and Action settings, theme (light or dark), Model Connections…, Connectors…, Save, Validate, Assistant, Debug, Run |
 | Left rail | Explorer, Actions, Variables, Triggers |
 | Centre | The Automation home, the agent editor, or another item's editor |
 | Right | Action settings of the selected step (collapsible) |
@@ -61,7 +61,7 @@ New items go into the selected folder (or the folder of the selected file). Clos
   move after Cut; an open agent follows a move), Copy path, Upload file(s)… (a taken name gets " (2)"), Download (files
   as they are, folders as .zip), Delete (to the workspace trash, after confirmation).
 - **Search** finds agents by name, description or action.
-- Agents checked out from the Command Center are copied under `Control Room/<repository path>`; the mapping is
+- Agents checked out from One CommandCenter are copied under `Control Room/<repository path>`; the mapping is
   remembered so check-in sends the copy back to the right path.
 
 ## 4. Editor views of an agent
@@ -69,7 +69,7 @@ New items go into the selected folder (or the folder of the selected file). Clos
 | Tab | Contents |
 | --- | --- |
 | Canvas | The steps as cards (section 5) |
-| Agent settings | Name, id ("used by parent agents and AI agents to call this agent"), description (read by AI agents), file (rename or move in the Explorer), and other agent-wide settings |
+| Properties, no step selected | The agent's own **Agent id** (unique in the repository: `CR.DUPLICATE_ID` otherwise; Run agent steps find the agent by it) and **Description** (read by AI agents), as AA's bot properties; since 2 Nov 2026 |
 | Dependencies | The agents it calls and the toolkits it uses |
 | JSON | The agent document; **Apply JSON** replaces the agent with edited JSON (it must be a JSON object), **Format** tidies it |
 
@@ -144,7 +144,7 @@ Text with a bare `$name` inside other text gets a note that it is sent literally
 - **Run** shows the agent's inputs in the Run tab (with defaults as placeholders; Credential inputs take a vault
   reference) and **Run agent** starts a local test run on this computer with the saved or open agent.
 - Studio runs use the workspace (files, `global-values.json`, Studio's model and saved connections) and last at most
-  one hour (24 hours when debugging). They do not appear in the Command Center.
+  one hour (24 hours when debugging). They do not appear in One CommandCenter.
 - While running: steps are highlighted as they run, finish or fail, and the canvas keeps the running step in view. When
   the run ends, the result, the Run log and the final Variables are shown, and a toast gives the status and duration.
 - A run that cannot start (for example validation problems) shows the error and opens the Problems tab.
@@ -214,7 +214,7 @@ Rules for both:
 - **Connectors…** imports an OpenAPI, Swagger or Postman file as a custom connector, lists its operations (with a
   filter) and inserts a call step with its parameters filled from defaults.
 - Saved connections of the workspace can be listed, created, edited and deleted (secrets as vault references).
-- **One Model Connections…** keeps Studio's own named model settings used by AI actions, Prompt Skills and the assistant.
+- **Model Connections…** keeps Studio's own named model settings used by AI actions, Prompt Skills and the assistant.
 
 ## 17. The assistant
 
@@ -224,13 +224,20 @@ ids, selected for review), and **Explain this agent**.
 
 ## 18. Local triggers
 
+Since 2 Nov 2026 the editor's command list (the Actions panel) has a **Triggers** group, as AA's editor lists triggers
+beside actions: the workspace's own triggers (schedule, file, webhook) open Details > Triggers with that kind chosen;
+One CommandCenter's triggers (on the runner: files, folders, windows, processes, services, hotkey; checked by One
+CommandCenter: e-mail, Outlook, ServiceNow, universal poller, webhook) open its **Create trigger** for this agent in a
+new tab (`next/#/triggers?new=<event>&bot=<agent>`), for the agent once it is checked in. Both lists come from one list
+of trigger kinds (`ui/src/shell/triggerKinds.ts`).
+
 The Triggers panel keeps Studio's own triggers: file arrives in a folder (pattern), schedule (every N minutes or daily
 at HH:mm), local webhook (secret shown once). Each can be switched on or off, test-run and deleted; recent activity is
 listed. They work only while Studio runs ([document 04](04-schedules-and-triggers.md)).
 
-## 19. One Command Center link
+## 19. One CommandCenter link
 
-- **Connect** at the bottom of the Explorer (One Command Center section) with the address, user name, password and, for
+- **Connect** at the bottom of the Explorer (One CommandCenter section) with the address, user name, password and, for
   two-step accounts, a code; or by using the console's own sign-in when Studio is served by the same server. The session
   token stays in the Studio process, never in the browser.
 - The section lists the repository (searchable) with each agent's state; **Check out** copies the latest version into the
@@ -239,10 +246,10 @@ listed. They work only while Studio runs ([document 04](04-schedules-and-trigger
 - **Agent check-in** saves the open agent and opens a dialog with **What changed** (shown in the version history) and
   the tick **Make this the live version**, off by default. Off: a new version only; the live version is unchanged.
   On: the new version becomes the live production version (or, with approval before production, a request: "sent for
-  approval before it goes live"). An agent with no live version yet gets its first one live even with the tick off. The Command Center validates it first; problems open the Problems tab. Check-in
+  approval before it goes live"). An agent with no live version yet gets its first one live even with the tick off. One CommandCenter validates it first; problems open the Problems tab. Check-in
   needs `repo.checkin`, edit access on the folder (manage access too when the tick is on), and a Developer or Citizen
   Developer seat. A new agent checked in with the tick off has no live version until one is set.
-- Workflows and forms are published with **Publish to Command Center** in their editors. Publishing always makes the
+- Workflows and forms are published with **Publish to One CommandCenter** in their editors. Publishing always makes the
   new version live (or asks for approval).
 
 ## 20. Other item editors
@@ -253,10 +260,32 @@ text files open in their own editors in the centre area, with Save and, for scri
 
 ## 21. Preferences and keyboard
 
-Theme and density (top bar), language (view menu: English, Deutsch, Français, Español, 日本語), panel and dock
-visibility, and the Run window position are remembered in the browser. Keys: Ctrl+S save, Ctrl+Z/Y undo/redo, Ctrl+C/X/V,
-Ctrl+D, Del, Ctrl+/, Alt+Up/Down, Ctrl+A, Ctrl+K or `/` Quick add, F9 breakpoint, F5/F10/F11/Shift+F11 while debugging,
-Esc closes menus.
+Theme, light or dark only (top bar); a full-screen button at the top right of the canvas (Esc leaves it); language (view menu: English, Deutsch, Français, Español, 日本語), panel and dock
+visibility, and the Run window position are remembered in the browser. Keys: every shortcut is in one list
+(`ui/src/components/shortcuts.ts`) that feeds the key handlers, menus, tooltips and the **Keyboard shortcuts** window (`?`,
+or the Display menu), and a test fails if a key is shown without a handler. Run and debug follow UiPath (F5, Ctrl+F5,
+Shift+F5, F10 or F6, F11, Shift+F11); the step list follows AA's editor (Enter, Space, `[` `]`, Ctrl+`[` `]`, Shift+F9,
+Ctrl+Shift+F, Ctrl+Shift+R). Single-character keys can be switched off per person (WCAG 2.1.4); no key the browser keeps
+for itself is used. See the user guide, Studio basics, section 10.
+
+Also since 2 Nov 2026: **Ctrl+H** Find and replace changes text in the steps' settings, outputs and names (the whole agent
+or the selected steps and those inside them; Match case; the count shows before Replace all; Ctrl+Z undoes it), never ids
+or actions. **F2** renames the selected step (its *Shown on the step*). **Create**'s dialog picks the folder itself
+(Change lists every folder of the workspace; it used to close the dialog). The **Automation** page has **Public** (left)
+and **Private** (right) tabs in both apps, as AA's one Automation page: in One CommandCenter, Private opens the
+builder's workspace for people who build agents (`repo.checkin`) and is shown switched off for others; Studio's menu is
+the console's, so administrators and developers see one layout and differ only in what they may open.
+
+Since 2 Nov 2026 there is one One CommandCenter, as AA has one Control Room: the menu has no One AgentStudio page, and
+the Private workspace's pages say **One CommandCenter** in the top bar and the browser tab. Only the editor (the dev
+canvas, an agent or other item open) says **One AgentStudio**, with the item's name in the tab. One CommandCenter's
+Automation offers **Create > New agent** (`../studio/#private/new`, which opens Create > Agent on the Private tab) and,
+on an agent's page, **Edit** (the Public tab, to check it out), both only for people who may check in.
+
+Also since 2 Nov 2026: both apps' **Public** tabs show one list with AA's columns (Type, Latest, Live, Checked out, Last
+modified; Platform, Label, Code analysis, Size and Modified by under **Columns**, one choice for both, kept in this
+browser as `automation.public.columns.hidden`). **Copy** gives a copied agent its own id, as **Duplicate** does (from
+its new name, or the old id with `_copy` when the name stayed the same in another folder).
 
 ## Related documents
 
@@ -264,5 +293,5 @@ Esc closes menus.
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
 - [04 Schedules and triggers](04-schedules-and-triggers.md)
-- [Command Center and runner, section 4](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 4](../user-guide/00-README.md)
 - [Browser Connector](../user-guide/08-browser-connector-guide.md)

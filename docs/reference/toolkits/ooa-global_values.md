@@ -1,4 +1,4 @@
-# Shared values
+# Shared Global values
 
 Toolkit `ooa.global_values`, version 1.0.0. Read shared values that many agents use, such as folders, thresholds or URLs.
 
@@ -6,10 +6,10 @@ Toolkit `ooa.global_values`, version 1.0.0. Read shared values that many agents 
 
 ## Contents
 
-- **Shared values**: Get shared value, Get all shared values
+- **Shared Global values**: Get shared value, Get all shared values
 - **Conditions**: Shared value is defined
 
-## Shared values
+## Shared Global values
 
 ### Get shared value
 

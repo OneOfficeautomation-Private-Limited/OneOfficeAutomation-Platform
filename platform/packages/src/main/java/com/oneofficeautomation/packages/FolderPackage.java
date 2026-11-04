@@ -23,7 +23,7 @@ public final class FolderPackage {
     private static final String D_LARGER = "Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes).";
     private static final String D_SMALLER = "Only when the folder holds less than this many KB in all its files, at any depth.";
     private static final String D_AFTER = "Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it.";
-    private static final String D_BEFORE = "Only when the folder itself was last changed before this date and time (local time).";
+    private static final String D_BEFORE = "Only when the folder itself was last changed before this date and time (UTC, like every DateTime; Text to date converts local times).";
 
     /**
      * The optional conditions of Delete folder and Rename folder. Every limit given must hold; size is the total of all
@@ -121,8 +121,8 @@ public final class FolderPackage {
             @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "overwrite=true", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer,
             @Input(name = "larger_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files larger than this many KB (1 KB = 1024 bytes).") java.math.BigDecimal largerKb,
             @Input(name = "smaller_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files smaller than this many KB.") java.math.BigDecimal smallerKb,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only copy files last changed after this date and time (local time).") java.time.LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only copy files last changed before this date and time (local time).") java.time.LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only copy files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") java.time.LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only copy files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") java.time.LocalDateTime before) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
         if (!Files.isDirectory(s)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + s, "Check the source path.");
         PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
@@ -180,6 +180,115 @@ public final class FolderPackage {
         try { Files.move(p, target); }
         catch (IOException e) { throw new ActionException("FOLDER.IO_ERROR", "Cannot rename " + p + ": " + e.getMessage(), "Close any program using the folder and try again.", true); }
         return Map.of("path", target.toString(), "renamed", true);
+    }
+
+    // ---------- move folder and special folders (gap G07, 3 Nov 2026) ----------
+
+    @Action(id = "move", name = "Move folder", category = "Folders", capabilities = "filesystem",
+            description = "Move a folder with everything in it into another folder, also to another drive.",
+            panel = "source, destination, overwrite")
+    @Output(name = "path", type = OoaType.FILE, description = "New full path of the folder.")
+    public Map<String, Object> move(ActionContext ctx,
+            @Input(name = "source", type = OoaType.FILE, description = "Folder to move.") String source,
+            @Input(name = "destination", type = OoaType.FILE, description = "Folder to move it into; created when missing.") String destination,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "When the destination already has a folder of the same name, merge into it and replace files of the same name; when off, stop with FOLDER.EXISTS.") boolean overwrite) {
+        Path s = ctx.resolvePath(source).toAbsolutePath().normalize();
+        Path d = ctx.resolvePath(destination).toAbsolutePath().normalize();
+        if (!Files.isDirectory(s)) throw new ActionException("FOLDER.NOT_FOUND", "Folder not found: " + s, "Check the folder path.");
+        if (s.getParent() == null || s.equals(ctx.workDir().toAbsolutePath().normalize()))
+            throw new ActionException("FOLDER.PROTECTED", "Refusing to move " + s, "Point to a specific sub-folder.");
+        if (d.startsWith(s)) throw new ActionException("FOLDER.BAD_TARGET", "Cannot move " + s + " into itself", "Choose a destination outside the folder.");
+        Path t = d.resolve(s.getFileName().toString());
+        try {
+            Files.createDirectories(d);
+            if (Files.exists(t) && !overwrite)
+                throw new ActionException("FOLDER.EXISTS", "'" + t + "' already exists", "Turn on overwrite to merge into it, or choose another destination.");
+            if (!Files.exists(t)) {
+                try { Files.move(s, t); return Map.of("path", t.toString()); }
+                catch (DirectoryNotEmptyException | AtomicMoveNotSupportedException e) { /* another drive: copy, then delete below */ }
+            }
+            List<Path> all;
+            try (Stream<Path> w = Files.walk(s)) { all = w.toList(); }
+            for (Path x : all) {
+                Path dst = t.resolve(s.relativize(x).toString());
+                if (Files.isDirectory(x)) Files.createDirectories(dst);
+                else Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            }
+            for (Path x : all.stream().sorted(Comparator.reverseOrder()).toList()) Files.delete(x);
+        } catch (IOException e) { throw new ActionException("FOLDER.IO_ERROR", "Cannot move " + s + ": " + e.getMessage(), "Close any program using the folder and try again.", true); }
+        return Map.of("path", t.toString());
+    }
+
+    /** Windows' Known Folder names in HKCU ...\User Shell Folders, for the folders a user can move (to OneDrive, another drive). */
+    private static final Map<String, String> SHELL_FOLDERS = Map.of(
+            "desktop", "Desktop", "documents", "Personal", "downloads", "{374DE290-123F-4565-9164-39C4925E467B}",
+            "pictures", "My Pictures", "music", "My Music", "videos", "My Video", "startup", "Startup", "appdata", "AppData", "local_appdata", "Local AppData");
+
+    @Action(id = "special_folder", name = "Get special folder", category = "Folders", idempotent = true, capabilities = "filesystem",
+            description = "Return the path of a standard folder of the signed-in user or of Windows, such as Desktop, Documents, Downloads or Temp, also when the user moved it (for example to OneDrive).",
+            panel = "folder")
+    @Output(name = "path", type = OoaType.FILE, description = "Full path of the folder.")
+    @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the folder exists on this computer.")
+    public Map<String, Object> specialFolder(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, enumValues = {"desktop", "documents", "downloads", "pictures", "music", "videos", "temp", "home",
+                    "appdata", "local_appdata", "startup", "program_files", "program_files_x86", "program_data", "public_documents", "windows", "system"},
+                    description = "Which folder; appdata is the roaming AppData folder, local_appdata is AppData\\Local.") String folder) {
+        String f = folder == null ? "" : folder.toLowerCase(java.util.Locale.ROOT).strip();
+        boolean win = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        String home = System.getProperty("user.home");
+        String p = switch (f) {
+            case "temp" -> Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize().toString();
+            case "home" -> home;
+            case "program_files" -> win ? env("ProgramFiles", "C:\\Program Files") : "/usr/local";
+            case "program_files_x86" -> win ? env("ProgramFiles(x86)", env("ProgramFiles", "C:\\Program Files")) : "/usr/local";
+            case "program_data" -> win ? env("ProgramData", "C:\\ProgramData") : "/var/lib";
+            case "public_documents" -> win ? Path.of(env("PUBLIC", "C:\\Users\\Public"), "Documents").toString() : "/srv";
+            case "windows" -> win ? env("SystemRoot", "C:\\Windows") : "/";
+            case "system" -> win ? Path.of(env("SystemRoot", "C:\\Windows"), "System32").toString() : "/usr/bin";
+            default -> {
+                if (!SHELL_FOLDERS.containsKey(f))
+                    throw new ActionException("FOLDER.BAD_OPTION", "'" + folder + "' is not a special folder", "Pick one from the list, e.g. documents or downloads.");
+                String moved = win ? shellFolder(SHELL_FOLDERS.get(f)) : null;
+                if (moved != null) yield moved;
+                yield switch (f) {
+                    case "appdata" -> win ? env("APPDATA", Path.of(home, "AppData", "Roaming").toString()) : Path.of(home, ".config").toString();
+                    case "local_appdata" -> win ? env("LOCALAPPDATA", Path.of(home, "AppData", "Local").toString()) : Path.of(home, ".local", "share").toString();
+                    case "startup" -> Path.of(env("APPDATA", Path.of(home, "AppData", "Roaming").toString()), "Microsoft", "Windows", "Start Menu", "Programs", "Startup").toString();
+                    default -> Path.of(home, Character.toUpperCase(f.charAt(0)) + f.substring(1)).toString();
+                };
+            }
+        };
+        return Map.of("path", p, "exists", Files.isDirectory(Path.of(p)));
+    }
+
+    private static String env(String name, String fallback) {
+        String v = System.getenv(name);
+        return v == null || v.isBlank() ? fallback : v;
+    }
+
+    /** The folder Windows has on record for the user (HKCU User Shell Folders, with %VARIABLES% expanded); null when it cannot be read. */
+    static String shellFolder(String valueName) {
+        try {
+            Process pr = new ProcessBuilder("reg", "query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", valueName)
+                    .redirectErrorStream(true).start();
+            String out = new String(pr.getInputStream().readAllBytes(), java.nio.charset.Charset.defaultCharset());
+            if (!pr.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) { pr.destroyForcibly(); return null; }
+            for (String line : out.split("\\R")) {
+                String t = line.strip();
+                if (!t.startsWith(valueName + " ") && !t.startsWith(valueName + "\t")) continue;
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("REG_(?:EXPAND_)?SZ\\s+(.*)$").matcher(t);
+                if (!m.find()) return null;
+                String v = m.group(1).strip();
+                java.util.regex.Matcher e = java.util.regex.Pattern.compile("%([^%]+)%").matcher(v);
+                StringBuilder sb = new StringBuilder();
+                while (e.find()) e.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(env(e.group(1), e.group(0))));
+                e.appendTail(sb);
+                return sb.toString();
+            }
+        } catch (IOException e) { return null; }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); return null; }
+        return null;
     }
 
     /** Rename folder with the signature before the size and date conditions were added. */

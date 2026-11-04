@@ -498,7 +498,7 @@ class GoogleGapsTest {
             Call patch = f.last("PATCH", "/calendar/v3/calendars/.*/events/E1");
             Map<String, Object> body = json(patch);
             assertEquals("Review v2", body.get("summary"));
-            assertEquals(Map.of("dateTime", "2026-10-21T09:00", "timeZone", "UTC"), body.get("start"));
+            assertEquals(Map.of("dateTime", "2026-10-21T09:00:00", "timeZone", "UTC"), body.get("start"));
             assertEquals("Room 5", body.get("location"));
             assertFalse(body.containsKey("end") || body.containsKey("attendees"), "only given fields change");
             assertTrue(q(patch).contains("sendUpdates=none"));

@@ -3,16 +3,20 @@ import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, 
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
+import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
-  addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
-  pasteSteps, readClip, removeBranch, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded,
-  setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
+  addBranch, addOnError, blockIds, CLIP_KEY, copySteps, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
+  pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
+  replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
+  moveCase, parseLoose, setCaseValues, showValue,
+  addSubflow, listOf, removeSubflow, renameSubflow, swapSubflow,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
 import { TriggersPanel } from "./TriggersPanel";
+import { KINDS, TRIGGER_GROUPS } from "../shell/triggerKinds";
 import { lastValues } from "./variables";
 import { ConnectorsDialog, SavedConnectionsDialog } from "./WorkspaceTools";
 import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
@@ -24,7 +28,7 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
-import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
+import { agentRows, describeAction, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -34,7 +38,10 @@ const ACTION_DRAG = "application/x-ooa-action";
  * The action library on the left: toolkits with their mark and count, searchable, one open at a time. Clicking an
  * action adds it after the selected step (or inside it, when it is a block); dragging puts it where it is dropped.
  */
-export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[]; onAdd: (action: string) => void }) {
+/** The triggers in the command list: the workspace's own (Details > Triggers) and One CommandCenter's (after check-in). */
+const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["file", "When a file arrives in a folder"], ["webhook", "When a web address is called (webhook)"]];
+
+export function ActionsPanel({ packages, onAdd, onTrigger }: { packages: PackageManifest[]; onAdd: (action: string) => void; onTrigger?: (kind: string, where: "studio" | "server") => void }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
@@ -50,12 +57,31 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
   const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
-    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
+    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions" actions={<HelpButton topic={ACTIONS_HELP} />}
       style={width ? { width } : undefined} panelRef={(el) => { panel.current = el; }}>
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
       <p className="st-panel-hint">Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match.</p>
       <ul className="st-groups">
+        {onTrigger && (() => {
+          // as AA's editor, the triggers that start the agent sit beside its actions
+          type Item = [kind: string, label: string, where: "studio" | "server"];
+          const all: [string, Item[]][] = [["In this workspace", STUDIO_TRIGGERS.map(([k, l]): Item => [k, l, "studio"])],
+            ...TRIGGER_GROUPS.map(([g, ks]): [string, Item[]] => ["One CommandCenter: " + g.toLowerCase() + " (after check-in)", ks.map((k): Item => [k, KINDS[k]?.label ?? k, "server"])])];
+          const kinds = all.map(([g, ks]): [string, Item[]] => [g, ks.filter(([, l]) => !q || l.toLowerCase().includes(q) || "trigger".includes(q))]).filter(([, ks]) => ks.length);
+          if (!kinds.length) return null;
+          const isOpen = open === "triggers" || (!!q && list.length <= 3);
+          return <li>
+            <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : "triggers")}>
+              <IconTile name="bolt" color="#b45309" size={22} /><span className="st-group-name">Triggers</span><span className="st-count">{kinds.reduce((n, [, ks]) => n + ks.length, 0)}</span>
+            </button>
+            {isOpen && <ul className="st-group-actions">{kinds.map(([g, ks]) => <li key={g}>
+              <span className="st-trigger-where">{g}</span>
+              <ul>{ks.map(([k, l, where]) => <li key={where + k}><button type="button" className="st-action"
+                title={where === "studio" ? "Add it in Details > Triggers" : "Opens One CommandCenter's Create trigger for this agent"} onClick={() => onTrigger(k, where)}>{l}</button></li>)}</ul>
+            </li>)}</ul>}
+          </li>;
+        })()}
         {list.map(({ p, actions }) => {
           const isOpen = open === p.id || (!!q && list.length <= 3);
           const m = toolkitMark(p.id);
@@ -98,20 +124,77 @@ export type StepsClipboard = Clip & { system: boolean };
  * selected step, the agent's variables, and the problems the last save found. Ctrl+click adds a step to the
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
-export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
+/**
+ * With no step selected, the agent's own settings, as AA's bot properties: its id, by which One CommandCenter's agent
+ * repository and Run agent steps know it (each agent needs its own), and its description, which people and AI agents read.
+ */
+function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) => void }) {
+  const [id, setId] = useState(flow.id);
+  const [about, setAbout] = useState(flow.description ?? "");
+  useEffect(() => { setId(flow.id); setAbout(flow.description ?? ""); }, [flow.id, flow.description]);
+  const bad = !/^[A-Za-z0-9_.-]+$/.test(id.trim());
+  return (
+    <div className="st-pad">
+      <p className="st-muted">Select a step to change its settings. With none selected, these are the agent's own.</p>
+      <Field label="Agent id" hint="One CommandCenter knows the agent by it, and Run agent steps find it by it; each agent needs its own. Letters, digits, _ . and -.">
+        {(fid) => <TextInput id={fid} className="ui-mono" value={id} onChange={(e) => setId(e.target.value)}
+          onBlur={() => { const v = id.trim(); if (!bad && v !== flow.id) onEdit({ ...flow, id: v }); }} />}</Field>
+      {bad && <p className="st-alert" role="alert">An agent id has letters, digits, _ . and - only. It stays {flow.id}.</p>}
+      <Field label="Description" hint="What the agent does: people who run it read this, and AI agents that may call it.">
+        {(fid) => <TextArea id={fid} rows={3} value={about} onChange={(e) => setAbout(e.target.value)}
+          onBlur={() => { if (about !== (flow.description ?? "")) onEdit({ ...flow, description: about }); }} />}</Field>
+    </div>
+  );
+}
+
+export function AgentView({ api, path, flow: whole, list: shown = null, onList: setShown = () => {}, packages, selected, onSelect, onEdit: onEditWhole, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo, askTrigger,
   run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, onChecked, dirty }:
-  { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
+  { api: StudioApi; path: string; flow: Flow;
+    /** The subflow shown (null: the main steps), and switching it. */
+    list?: string | null; onList?: (name: string | null) => void; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
+    /** A workspace trigger kind picked in the command list (n changes each time). */
+    askTrigger?: { kind: string; n: number } | null;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
     onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
     onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void;
     /** The problems a check without saving found. */
     onChecked: (problems: Problem[]) => void; dirty: boolean }) {
+  // Subflows: the steps list shows the main steps or one subflow. Everything below edits `flow`, a view of the agent with
+  // the shown subflow's steps as its steps (swapSubflow); each edit is swapped back before it reaches the agent. The
+  // Studio keeps which list is shown (library clicks and drops go into it too).
+  const sub = shown !== null && whole.subflows?.some((s) => s.name === shown) ? shown : null;
+  const flow = useMemo(() => swapSubflow(whole, sub), [whole, sub]);
+  const onEdit = (next: Flow, select?: string[]) => { if (next !== flow) onEditWhole(swapSubflow(next, sub), select); };
+  const [subDialog, setSubDialog] = useState<{ rename?: string } | null>(null);
+  /** Shows the list that holds a step (a selected step, or where a debugged run stopped) when it is not the one shown. */
+  const showListOf = (id: string | undefined | null) => {
+    if (!id || findStep(flow, id)) return;
+    const where = listOf(whole, id);
+    if (where !== undefined) setShown(where);
+  };
+  useEffect(() => { showListOf(selected.find((k) => !k.startsWith("@"))); }, [selected]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { showListOf(run?.stopped?.stepId); }, [run?.stopped?.stepId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Full screen: only the canvas (its toolbar, the steps and the details panel); the browser's own full screen when it
+  // allows it, else the page area. Esc, or the button again, brings everything back.
+  const [full, setFull] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = () => { if (!document.fullscreenElement) setFull(false); };
+    document.addEventListener("fullscreenchange", on);
+    return () => document.removeEventListener("fullscreenchange", on);
+  }, []);
+  const toggleFull = () => {
+    if (full) { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); setFull(false); return; }
+    setFull(true);
+    wrapRef.current?.requestFullscreen?.().catch(() => {});   // refused or not offered: the page area is used
+  };
   const folded = useMemo(() => foldedSet(flow), [flow]);
-  const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
+  const { rows, handlerFrom } = useMemo(() => agentRows(flow, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
+  useEffect(() => { if (askTrigger) { setRightTab("triggers"); setRightHidden(false); } }, [askTrigger]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
   const [rightWidth, setRightWidth] = usePanelSize("details");
   // the output panel: at the bottom, on the right or floating (moved by its grip), or minimised to a bar
@@ -144,7 +227,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const checkNow = async () => {
     setChecking(true);
     try {
-      const found = await api.validate(flow);
+      const found = await api.validate(whole);
       onChecked(found);
       setBottomTab("problems");
       onNotice(found.length ? found.length + " problem" + (found.length > 1 ? "s" : "") + " to check." : "No problems found.");
@@ -229,7 +312,17 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
-  const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
+  // a step of the list on screen by its line; one in another list (a subflow, or the main steps) by its line there and the list's name
+  const lineOf = (id: string) => {
+    const name = (r: StepRow | undefined, where?: string) => r?.kind === "step" ? `Line ${r.n}${where ? " of " + where : ""} ${describeAction(r.step.action, packages).name}` : undefined;
+    const here = name(rows.find((x) => x.kind === "step" && x.step.id === id));
+    if (here) return here;
+    const list = listOf(whole, id);
+    if (list === undefined) return id;
+    // the main steps are numbered with their On error steps after them, as Main shows them
+    const other = list === null ? agentRows(whole).rows : stepRows(whole.subflows?.find((s) => s.name === list)?.steps ?? []);
+    return name(other.find((x) => x.kind === "step" && x.step.id === id), list === null ? "Main" : list) ?? id;
+  };
   const ids = rows.flatMap((r) => r.kind === "step" ? [r.step.id] : []);
   const chosen = ids.filter((id) => selected.includes(id));   // in the agent's order
   const one = chosen.length === 1 ? rows.find((r) => r.kind === "step" && r.step.id === chosen[0]) : undefined;
@@ -257,7 +350,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       const after = ids.slice(ids.indexOf(chosen[chosen.length - 1]) + 1).find((id) => !chosen.includes(id));
       const before = ids.slice(0, ids.indexOf(chosen[0])).reverse()[0];
       const next = removeSteps(flow, chosen);
-      const survivor = [after, before].find((id) => id && locate(next.steps, id));
+      const survivor = [after, before].find((id) => id && findStep(next, id));
       onEdit(next, survivor ? [survivor] : []);
     },
     up: () => { if (chosen.length) onEdit(moveSelection(flow, chosen, -1)); },
@@ -284,6 +377,11 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       try { const c = await api.sharedClipboard(); act.paste({ steps: c.steps ?? [], variables: c.variables ?? [] }); } catch { /* nothing shared */ }
     },
     fold: (ids: string[], fold: boolean) => { if (ids.length) onEdit(setFolded(flow, ids, fold)); },
+    /** AA's Enter on a step: the Details panel's Properties, with the cursor in its first field. */
+    settings: () => {
+      setRightTab("properties"); setRightHidden(false);
+      setTimeout(() => rightPanel.current?.querySelector<HTMLElement>("input, select, textarea")?.focus(), 30);
+    },
     note: () => {
       setRightTab("properties"); setRightHidden(false);
       setTimeout(() => [...document.querySelectorAll("label")].find((l) => l.textContent === "Shown on the step")?.control?.focus(), 30);
@@ -301,36 +399,61 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     setAnchor(from); setCursor(id);
   };
   const selectOne = (id: string) => { onSelect([id]); setAnchor(id); setCursor(id); };
-  const onKeys = (e: KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;
-    const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  const onKeys = (ev: KeyboardEvent) => {
+    if ((ev.target as HTMLElement).closest("input, textarea, select, [role=menu]")) return;
+    const e = ev.nativeEvent;
     const i = chosen.length ? ids.indexOf(chosen[chosen.length - 1]) : -1;
     const c = ids.indexOf(cursor && chosen.includes(cursor) ? cursor : chosen[chosen.length - 1] ?? "");
-    if (e.key === "Delete") act.remove();
-    else if (e.altKey && e.key === "ArrowUp") act.up();
-    else if (e.altKey && e.key === "ArrowDown") act.down();
-    else if (e.shiftKey && e.key === "ArrowDown" && c >= 0 && c + 1 < ids.length) extendTo(ids[c + 1]);
-    else if (e.shiftKey && e.key === "ArrowUp" && c > 0) extendTo(ids[c - 1]);
-    else if (e.key === "ArrowDown" && i + 1 < ids.length) selectOne(ids[i + 1]);
-    else if (e.key === "ArrowUp" && i > 0) selectOne(ids[i - 1]);
-    else if (e.key === "Escape" && selected.length) onSelect([]);
-    else if (ctrl && k === "d") act.duplicate();
-    else if (ctrl && k === "a") onSelect(ids);
-    else if (ctrl && k === "c") act.copy();
-    else if (ctrl && k === "x") act.cut();
-    else if (ctrl && k === "v") {
+    const chosenBlocks = chosen.filter((id) => blocks.includes(id));
+    if (is(e, "steps.delete")) act.remove();
+    else if (is(e, "steps.up")) act.up();
+    else if (is(e, "steps.down")) act.down();
+    else if (is(e, "steps.extendDown") && c >= 0 && c + 1 < ids.length) extendTo(ids[c + 1]);
+    else if (is(e, "steps.extendUp") && c > 0) extendTo(ids[c - 1]);
+    else if (is(e, "steps.fold") && chosenBlocks.length) act.fold(chosenBlocks, true);   // before the arrows: ← and → fold a selected block
+    else if (is(e, "steps.unfold") && chosenBlocks.length) act.fold(chosenBlocks, false);
+    else if (is(e, "steps.next") && i + 1 < ids.length) selectOne(ids[i + 1]);
+    else if (is(e, "steps.previous") && i > 0) selectOne(ids[i - 1]);
+    else if (is(e, "steps.clear") && selected.length) onSelect([]);
+    else if (is(e, "steps.foldAll") && blocks.length) act.fold(blocks, true);
+    else if (is(e, "steps.unfoldAll") && folded.size) onEdit(setFolded(flow, [...folded], false));
+    else if (is(e, "steps.settings") && chosen.length) act.settings();
+    else if (is(e, "steps.details")) setRightHidden(!rightHidden);
+    else if (is(e, "steps.find")) setFinding("");
+    else if (is(e, "steps.replace")) setReplacing(true);
+    else if (is(e, "steps.rename") && chosen.length === 1) act.note();
+    else if (is(e, "steps.record") && !recording) record();
+    else if (is(e, "steps.duplicate")) act.duplicate();
+    else if (is(e, "steps.all")) onSelect(ids);
+    else if (is(e, "steps.copy")) act.copy();
+    else if (is(e, "steps.cut")) act.cut();
+    else if (is(e, "steps.paste")) {
       // a paste event follows when the browser gives one (it carries steps copied in another Studio window); on a step
       // Chrome gives none, so then the Studio's own clipboard is pasted
       pasted.current = false;
       setTimeout(() => { if (!pasted.current) act.paste(); }, 0);
       return;
     }
-    else if (ctrl && e.key === "/") act.disable();
-    else if (e.key === "F9" && chosen.length) chosen.forEach(onToggleBreakpoint);
-    else if ((e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) && chosen.length) setMenuFor(chosen[chosen.length - 1]);
+    else if (is(e, "steps.disable")) act.disable();
+    else if (is(e, "run.breakpoint") && chosen.length) chosen.forEach(onToggleBreakpoint);
+    else if (is(e, "run.clearBreakpoints") && breakpoints.length) breakpoints.forEach(onToggleBreakpoint);
+    else if (is(e, "steps.menu") && chosen.length) setMenuFor(chosen[chosen.length - 1]);
     else return;
-    e.preventDefault();
+    ev.preventDefault();
   };
+  // Find in this agent (AA's Ctrl+Shift+F): the steps whose name or settings hold the words are selected; Enter goes to the next
+  const [finding, setFinding] = useState<string | null>(null);
+  const findBox = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (finding === "") findBox.current?.focus(); }, [finding]);
+  /** The steps whose line (as shown) or settings hold the words. */
+  const findSteps = (q: string) => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    const shown = new Map([...document.querySelectorAll<HTMLElement>(".st-steps .st-step[data-key]")].map((b) => [b.dataset.key!, (b.textContent ?? "").toLowerCase()]));
+    return rows.flatMap((r) => "step" in r && ((shown.get(r.step.id) ?? "").includes(t) || JSON.stringify(r.step).toLowerCase().includes(t)) ? [r.step.id] : []);
+  };
+  const [hits, setHits] = useState<string[]>([]);
+  const [replacing, setReplacing] = useState(false);   // Find and replace (Ctrl+H)
   const onPaste = (e: ClipboardEvent) => {
     if ((e.target as HTMLElement).closest("input, textarea, select")) return;
     pasted.current = true;
@@ -351,25 +474,29 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const over = (e: DragEvent, key: string | null, where: Place) => { e.preventDefault(); if (drop?.key !== key || drop.where !== where) setDrop({ key, where }); };
   const menuItems = (step: FlowStep): MenuItem[] => {
     const items: MenuItem[] = [
-      { key: "cut", label: "Cut", shortcut: "Ctrl+X", onSelect: act.cut },
-      { key: "copy", label: "Copy", shortcut: "Ctrl+C", onSelect: () => { act.copy(); } },
+      { key: "cut", label: "Cut", shortcut: keyOf("steps.cut"), onSelect: act.cut },
+      { key: "copy", label: "Copy", shortcut: keyOf("steps.copy"), onSelect: () => { act.copy(); } },
     ];
-    if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: "Ctrl+V", onSelect: () => act.paste() });
+    if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: keyOf("steps.paste"), onSelect: () => act.paste() });
     items.push(
-      { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any Studio window", separatorBefore: true, onSelect: act.share },
+      { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any One AgentStudio window", separatorBefore: true, onSelect: act.share },
       { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
-      { key: "duplicate", label: "Duplicate", shortcut: "Ctrl+D", separatorBefore: true, onSelect: act.duplicate },
-      { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: "Ctrl+/", onSelect: act.disable },
-      { key: "delete", label: "Delete", shortcut: "Del", onSelect: act.remove },
-      { key: "up", label: "Move up", shortcut: "Alt+↑", separatorBefore: true, onSelect: act.up },
-      { key: "down", label: "Move down", shortcut: "Alt+↓", onSelect: act.down },
+      { key: "rename", label: "Rename", description: "Shown on the step", shortcut: keyOf("steps.rename"), onSelect: act.note },
+      { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },
+      { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: keyOf("steps.disable"), onSelect: act.disable },
+      { key: "delete", label: "Delete", shortcut: keyOf("steps.delete"), onSelect: act.remove },
+      { key: "up", label: "Move up", shortcut: keyOf("steps.up"), separatorBefore: true, onSelect: act.up },
+      { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
       { key: "note", label: step.note ? "Edit note" : "Add note", separatorBefore: true, onSelect: act.note },
-      { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: "F9", onSelect: () => chosen.forEach(onToggleBreakpoint) },
+      { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
     );
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
       items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
+    const target = step.action === "core/run_subflow" ? String(step.args?.subflow ?? "") : "";
+    if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
+      items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
-    if (!running && chosen.length === 1) items.push(
+    if (!running && chosen.length === 1 && !inHandler(flow, step.id)) items.push(   // the error handler's steps run only after an error
       { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
       { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true) },
       { key: "only", label: "Run this step only", onSelect: () => onRunFrom(step.id, true, false) },
@@ -378,48 +505,146 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     return items;
   };
 
+  /** One line of the steps list: a step, or the heading of a block's part. */
+  const rowItem = (r: StepRow) => {
+    if (r.kind === "section") {
+      const key = sectionKey(r.stepId, r.part);
+      const isSel = selected.includes(key);
+      return (
+        <li key={key}>
+          <button type="button" data-key={key} className={`st-section${isSel ? " is-selected" : ""}${drop?.key === key ? " drop-inside" : ""}`}
+            style={{ paddingLeft: 46 + r.depth * 22 }} aria-pressed={isSel} onClick={() => onSelect([key])}
+            onDragOver={(e) => over(e, key, "inside")} onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.stepId, "inside", r.part)}>
+            {r.label}
+          </button>
+        </li>
+      );
+    }
+    const info = describeAction(r.step.action, packages);
+    const isSel = selected.includes(r.step.id);
+    const hint = (drop?.key === r.step.id ? " drop-" + drop.where : "") + (at === r.step.id ? " is-running" : "");
+    const bp = breakpoints.includes(r.step.id);
+    const hasParts = innerLists(r.step).length > 0;
+    return (
+      <li key={r.step.id} className="st-step-row"
+        onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuFor(r.step.id); }}>
+        <button type="button" data-key={r.step.id} className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
+          draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, JSON.stringify(dragIds(r.step.id))); e.dataTransfer.effectAllowed = "move"; }}
+          onDragOver={(e) => over(e, r.step.id, placeFor(e, r.step))}
+          onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
+          onClick={(e) => click(e, r.step.id)}>
+          <span className="st-step-n">{bp && <span className="st-bp" title="Breakpoint" aria-label="breakpoint" />}{r.n}</span>
+          <span className="st-guides" style={{ width: r.depth * 22 }} />
+          <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
+          <strong>{info.name}</strong>
+          {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
+            return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
+          {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
+          {r.step.disabled && <span className="st-badge">OFF</span>}
+          {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
+        </button>
+        <span className="st-step-tools">
+          {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
+            aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
+          <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
+            onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); setMenuFor(o ? r.step.id : null); }}
+            trigger={<button type="button" className="ui-icon-btn" aria-label={"Line " + r.n + " actions"} title="Step menu (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
+        </span>
+      </li>
+    );
+  };
+
   return (
     <VarsContext.Provider value={vars}>
-    <div className={`st-agent-wrap is-out-${outMin ? "min" : outAt}`}>
+    <div className={`st-agent-wrap is-out-${outMin ? "min" : outAt}${full ? " is-full" : ""}`} ref={wrapRef}
+      onKeyDown={(e) => { if (e.key === "Escape" && full && !document.fullscreenElement) setFull(false); }}>
       <div className="st-agent">
+        {replacing && <ReplaceDialog flow={flow} selected={chosen} onClose={() => setReplacing(false)}
+          onReplace={(next, n) => { onEdit(next); setReplacing(false); onNotice(n + (n === 1 ? " place" : " places") + " changed. " + keyOf("app.undo") + " undoes it."); }} />}
         <section className="st-steps" aria-label="Agent steps" onKeyDown={onKeys} onPaste={onPaste}>
+          {/* review round 2 (1 Nov 2026): one line, icons with their name and shortcut on hover (as AA's editor), the step
+              actions only while steps are selected and Paste only while something is copied; the count is at the list's foot */}
           <div role="toolbar" aria-label="Edit steps" className="st-edit-bar">
-            <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
-            <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
-            <span className="st-bar-gap" />
-            <Button kind="plain" onClick={act.cut} disabled={!chosen.length} title="Ctrl+X">Cut</Button>
-            <Button kind="plain" onClick={() => act.copy()} disabled={!chosen.length} title="Ctrl+C">Copy</Button>
-            <Button kind="plain" onClick={() => act.paste()} disabled={!clipboard} title="Ctrl+V">Paste</Button>
-            <span className="st-bar-gap" />
-            <Button kind="plain" onClick={act.remove} disabled={!chosen.length} title="Delete">Delete</Button>
-            <Button kind="plain" onClick={act.duplicate} disabled={!chosen.length} title="Ctrl+D">Duplicate</Button>
-            <Button kind="plain" onClick={act.disable} disabled={!chosen.length} title="Ctrl+/">{allOff ? "Switch on" : "Switch off"}</Button>
+            <button type="button" className="st-tool" aria-label="Undo" title={withKey("Undo", "app.undo")} disabled={!canUndo} onClick={onUndo}><Icon name="undo" size={16} /></button>
+            <button type="button" className="st-tool" aria-label="Redo" title={withKey("Redo", "app.redo")} disabled={!canRedo} onClick={onRedo}><Icon name="redo" size={16} /></button>
+            {(chosen.length > 0 || clipboard) && <span className="st-bar-gap" />}
+            {chosen.length > 0 && <>
+              <button type="button" className="st-tool" aria-label="Cut" title={withKey("Cut", "steps.cut")} onClick={act.cut}><Icon name="cut" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Copy" title={withKey("Copy", "steps.copy")} onClick={() => act.copy()}><Icon name="copy" size={16} /></button>
+            </>}
+            {clipboard && <button type="button" className="st-tool" aria-label="Paste" title={withKey("Paste", "steps.paste")} onClick={() => act.paste()}><Icon name="paste" size={16} /></button>}
+            {chosen.length > 0 && <>
+              <button type="button" className="st-tool" aria-label="Delete" title={withKey("Delete", "steps.delete")} onClick={act.remove}><Icon name="trash" size={16} /></button>
+              <button type="button" className="st-tool" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
+              <button type="button" className="st-tool" aria-label={allOff ? "Switch on" : "Switch off"} title={withKey(allOff ? "Switch on" : "Switch off", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
+            </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [
-                { key: "up", label: "Move up", shortcut: "Alt+↑", onSelect: act.up },
-                { key: "down", label: "Move down", shortcut: "Alt+↓", onSelect: act.down },
-                { key: "bp", label: "Breakpoint", description: "Stop here when debugging", shortcut: "F9", onSelect: () => chosen.forEach(onToggleBreakpoint) },
+                { key: "up", label: "Move up", shortcut: keyOf("steps.up"), onSelect: act.up },
+                { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
+                { key: "bp", label: "Breakpoint", description: "Stop here when debugging", shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
               ] : []),
-              { key: "all", label: "Select all", shortcut: "Ctrl+A", onSelect: () => onSelect(ids) },
-              ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
-              ...(folded.size ? [{ key: "unfold", label: "Unfold all", onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
+              ...(breakpoints.length ? [{ key: "nobp", label: "Remove every breakpoint", shortcut: keyOf("run.clearBreakpoints"), onSelect: () => breakpoints.forEach(onToggleBreakpoint) }] : []),
+              { key: "all", label: "Select all", shortcut: keyOf("steps.all"), onSelect: () => onSelect(ids) },
+              { key: "find", label: "Find in this agent", shortcut: keyOf("steps.find"), onSelect: () => setFinding("") },
+              { key: "replace", label: "Find and replace…", shortcut: keyOf("steps.replace"), onSelect: () => setReplacing(true) },
+              ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", shortcut: keyOf("steps.foldAll"), separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
+              ...(folded.size ? [{ key: "unfold", label: "Unfold all", shortcut: keyOf("steps.unfoldAll"), onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
+              { key: "add-subflow", label: "Add a subflow…", description: "A named list of steps that Run subflow steps run", separatorBefore: true, onSelect: () => setSubDialog({}) },
+              ...(sub === null ? [flow.onError ? { key: "onerror", label: "Go to On error", description: "The steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onSelect([ON_ERROR]) } : { key: "onerror", label: "Add error steps (On error)", description: "Steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onEdit(addOnError(flow), [ON_ERROR]) }] : []),
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
-            ]} trigger={<Button kind="plain" icon="chevronDown">More</Button>} />
+            ]} trigger={<button type="button" className="st-tool" aria-label="More" title="More step actions"><Icon name="more" size={16} stroke={3} /></button>} />
+            {finding !== null && <span className="st-find">
+              <input ref={findBox} type="search" aria-label="Find in this agent" placeholder="Find in this agent" value={finding}
+                onChange={(e) => { setFinding(e.target.value); const found = findSteps(e.target.value); setHits(found); if (found.length) onSelect(found); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); setFinding(null); }
+                  else if (e.key === "Enter" && hits.length) { e.preventDefault(); const at = hits.indexOf(chosen[chosen.length - 1] ?? ""); selectOne(hits[(at + 1) % hits.length]); }
+                }} />
+              <span className="st-find-n" aria-live="polite">{finding.trim() ? hits.length + (hits.length === 1 ? " step" : " steps") : ""}</span>
+              <button type="button" className="ui-icon-btn" aria-label="Close the search" onClick={() => setFinding(null)}><Icon name="close" size={12} /></button>
+            </span>}
             <span className="st-bar-gap" />
             <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
               {([["list", "List"], ["flow", "Flow"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={view === k} className="st-seg-btn" onClick={() => setView(k)}>{t}</button>)}
             </div>
-            <Button kind="plain" icon="spark" onClick={() => setAssistant("build")} title="Build steps from a description, or explain this agent">Assistant</Button>
-            <Button kind="plain" className="st-record-btn" onClick={record} disabled={!!recording} title="Record actions in a web browser or a Windows application">
-              <span className="st-rec-dot" aria-hidden="true" />{recording ? "Recording…" : "Record"}</Button>
-            <Menu label="Capture" align="start" items={[
-              { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
-              { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
-            ]} trigger={<Button kind="plain" icon="chevronDown" disabled={capturing}>{capturing ? "Capturing…" : "Capture"}</Button>} />
-            <span className="st-steps-meta" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
+            <button type="button" className="st-tool" aria-label="Assistant" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}><Icon name="spark" size={16} /></button>
+            {recording
+              ? <span className="st-tool-busy" role="status"><span className="st-rec-dot" aria-hidden="true" />Recording…</span>
+              : <button type="button" className="st-tool st-record-btn" aria-label="Record" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} onClick={record}><span className="st-rec-dot" aria-hidden="true" /></button>}
+            {capturing
+              ? <span className="st-tool-busy" role="status">Capturing…</span>
+              : <Menu label="Capture" align="start" items={[
+                  { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
+                  { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
+                ]} trigger={<button type="button" className="st-tool" aria-label="Capture" title="Capture a web element or a desktop control"><Icon name="target" size={16} /></button>} />}
+            <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
+              aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
+              <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>
+            <HelpButton topic={EDITOR_HELP} />
           </div>
+          {!!whole.subflows?.length && <div className="st-subflow-bar">
+            <div className="st-seg" role="radiogroup" aria-label="Steps shown">
+              {[null, ...whole.subflows.map((s) => s.name)].map((n) => <button key={n ?? "@main"} type="button" role="radio" aria-checked={sub === n} className="st-seg-btn"
+                title={n === null ? "The agent's main steps" : "Subflow " + n} onClick={() => { if (sub !== n) { setShown(n); onSelect([]); } }}>{n ?? "Main"}</button>)}
+            </div>
+            <button type="button" className="st-tool" aria-label="Add a subflow" title="Add a subflow" onClick={() => setSubDialog({})}><Icon name="plus" size={16} /></button>
+            {sub !== null && <Menu label={"Subflow " + sub} align="start" items={[
+              { key: "rename", label: "Rename subflow…", description: "Run subflow steps follow the new name", onSelect: () => setSubDialog({ rename: sub }) },
+              { key: "delete", label: "Delete subflow", description: "With its steps; " + keyOf("app.undo") + " brings it back",
+                onSelect: () => { onEditWhole(removeSubflow(whole, sub), []); setShown(null); onNotice("Deleted subflow " + sub + ". " + keyOf("app.undo") + " undoes it."); } },
+            ]} trigger={<button type="button" className="st-tool" aria-label={"Subflow " + sub + " actions"} title="Rename or delete this subflow"><Icon name="more" size={16} stroke={3} /></button>} />}
+          </div>}
+          {subDialog && <SubflowDialog rename={subDialog.rename} onClose={() => setSubDialog(null)} onSave={(name) => {
+            try {
+              if (subDialog.rename !== undefined) onEditWhole(renameSubflow(whole, subDialog.rename, name));
+              else onEditWhole(addSubflow(whole, name), []);
+              setShown(name.trim()); setSubDialog(null);
+              return null;
+            } catch (e) { return e instanceof Error ? e.message : String(e); }
+          }} />}
           {longNames > 0 && !noRename && <div className="st-offer" role="status">
             <span>{longNames} recorded variable{longNames === 1 ? " has a long name" : "s have long names"} (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?</span>
             <Button kind="primary" onClick={() => { onEdit(shortenRecordedNames(flow)); onNotice("Renamed the recorded variables to short numbered names. Undo with Ctrl+Z."); }}>Rename</Button>
@@ -436,53 +661,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <span className="st-marker st-start">START</span>
               </button>
             </li>
-            {rows.map((r) => {
-              if (r.kind === "section") {
-                const key = sectionKey(r.stepId, r.part);
-                const isSel = selected.includes(key);
-                return (
-                  <li key={key}>
-                    <button type="button" data-key={key} className={`st-section${isSel ? " is-selected" : ""}${drop?.key === key ? " drop-inside" : ""}`}
-                      style={{ paddingLeft: 46 + r.depth * 22 }} aria-pressed={isSel} onClick={() => onSelect([key])}
-                      onDragOver={(e) => over(e, key, "inside")} onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.stepId, "inside", r.part)}>
-                      {r.label}
-                    </button>
-                  </li>
-                );
-              }
-              const info = describeAction(r.step.action, packages);
-              const isSel = selected.includes(r.step.id);
-              const hint = (drop?.key === r.step.id ? " drop-" + drop.where : "") + (at === r.step.id ? " is-running" : "");
-              const bp = breakpoints.includes(r.step.id);
-              const hasParts = innerLists(r.step).length > 0;
-              return (
-                <li key={r.step.id} className="st-step-row"
-                  onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuFor(r.step.id); }}>
-                  <button type="button" data-key={r.step.id} className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
-                    draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, JSON.stringify(dragIds(r.step.id))); e.dataTransfer.effectAllowed = "move"; }}
-                    onDragOver={(e) => over(e, r.step.id, placeFor(e, r.step))}
-                    onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
-                    onClick={(e) => click(e, r.step.id)}>
-                    <span className="st-step-n">{bp && <span className="st-bp" title="Breakpoint" aria-label="breakpoint" />}{r.n}</span>
-                    <span className="st-guides" style={{ width: r.depth * 22 }} />
-                    <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
-                    <strong>{info.name}</strong>
-                    <span className="st-step-sum">{r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note
-                      ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages)}</span>
-                    {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
-                    {r.step.disabled && <span className="st-badge">OFF</span>}
-                    {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
-                  </button>
-                  <span className="st-step-tools">
-                    {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
-                      aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
-                    <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
-                      onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); setMenuFor(o ? r.step.id : null); }}
-                      trigger={<button type="button" className="ui-icon-btn" aria-label={"Line " + r.n + " actions"} title="Step menu (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
-                  </span>
-                </li>
-              );
-            })}
+            {rows.slice(0, handlerFrom).map(rowItem)}
             {!ids.length && <li><p className="st-empty-steps">No steps yet. Pick an action in the Actions panel on the left, or drag one here.</p></li>}
             <li>
               <div className={`st-marker-row${drop?.key === null ? " drop-inside" : ""}`}
@@ -490,12 +669,26 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <span className="st-marker st-end">END</span>
               </div>
             </li>
+            {flow.onError && <>
+              {/* the agent's error handler: its own heading, then its steps, numbered on from the last line */}
+              <li>
+                <button type="button" data-key={ON_ERROR} className={`st-marker-row st-onerror-row${selected.includes(ON_ERROR) ? " is-selected" : ""}${drop?.key === ON_ERROR ? " drop-inside" : ""}`}
+                  aria-pressed={selected.includes(ON_ERROR)} onClick={() => onSelect([ON_ERROR])}
+                  onDragOver={(e) => over(e, ON_ERROR, "inside")} onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, ON_ERROR, "inside")}>
+                  <span className="st-marker st-onerror">ON ERROR</span>
+                  <span className="st-onerror-sum">{onErrorSummary(flow)}</span>
+                </button>
+              </li>
+              {rows.slice(handlerFrom).map(rowItem)}
+              {handlerFrom === rows.length && <li><p className="st-empty-steps">No error steps yet. Select ON ERROR, then pick actions: they run when an error ends the agent.</p></li>}
+            </>}
           </ol>}
+          <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
         </section>
 
         {!rightHidden && <Splitter label="Resize the details panel" axis="x" grow={-1} value={rightWidth} min={260} max={680}
           measure={() => rightPanel.current?.getBoundingClientRect().width ?? 340} onChange={setRightWidth} />}
-        <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden}
+        <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden} actions={<HelpButton topic={DETAILS_HELP} />}
           onToggle={() => setRightHidden(!rightHidden)} className="st-right" style={rightWidth ? { width: rightWidth } : undefined}
           panelRef={(el) => { rightPanel.current = el; }}>
           <Tabs label="Right panel" value={rightTab} onChange={setRightTab}
@@ -510,14 +703,22 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <BlockParts step={selStep.step} onAdd={(kind) => { const b = addBranch(flow, selStep.step.id, kind); if (b.part) onEdit(b.flow, [sectionKey(selStep.step.id, b.part)]); }} />
               </> : selSection && sectionRow?.kind === "section" ? (
                 <PartProperties flow={flow} label={sectionRow.label} id={selSection.id} part={selSection.part} onEdit={onEdit} />
-              ) : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
+              ) : selected.includes(ON_ERROR) && flow.onError ? <OnErrorProperties flow={flow} onEdit={onEdit} />
+              : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
                 : chosen.length > 1
                 ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
-                : <p className="st-muted st-pad">Select a step to change its settings.</p>}
+                : <AgentProperties flow={flow} onEdit={onEdit} />}
+              {!selected.length && <div className="st-pad">
+                <h3 className="st-prop-section">If an error ends the agent</h3>
+                {flow.onError
+                  ? <p>{onErrorSummary(flow)}. <Button kind="plain" onClick={() => onSelect([ON_ERROR])}>Change</Button></p>
+                  : <><p className="st-muted">Steps that run once when an error no Try block catches ends the agent, before its windows and files close: take a screenshot, close applications, send a mail.</p>
+                    <Button kind="secondary" icon="plus" onClick={() => onEdit(addOnError(flow), [ON_ERROR])}>Add error steps (On error)</Button></>}
+              </div>}
             </TabPanel>
             <TabPanel value="variables"><VariablesPanel flow={flow} builtins={builtins} last={last} onEdit={onEdit} onRefresh={loadBuiltins} /></TabPanel>
             <TabPanel value="triggers">
-              <TriggersPanel api={api} path={path} />
+              <TriggersPanel api={api} path={path} kind={askTrigger?.kind} />
             </TabPanel>
             <TabPanel value="deps">
               {rightTab === "deps" && <DependenciesPanel api={api} path={path} dirty={dirty} onOpen={onOpenPath} onStep={(id) => { selectOne(id); setRightTab("properties"); }} />}
@@ -541,6 +742,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       <section className="st-bottom" aria-label="Output" ref={outPanel} style={outStyle}>
         <Tabs label="Output" value={bottomTab} onChange={setBottomTab}
           actions={<>
+            <HelpButton topic={OUTPUT_HELP} />
             {outAt === "float" && <span className="st-out-grip" onPointerDown={moveOutput} title="Drag to move the output panel">⠿ Move</span>}
             <select className="ui-input st-out-place" aria-label="Place the output panel" value={outAt} onChange={(e) => setOutAt(e.target.value as typeof outAt)}>
               <option value="bottom">Bottom</option><option value="right">Right</option><option value="float">Floating</option>
@@ -557,11 +759,14 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 : problems.length === 0 ? <p className="st-pad">No problems found at the last check.</p>
                 : <ul className="st-problem-list">{problems.map((p, i) => {
                     const row = rows.find((r) => r.kind === "step" && r.step.id === p.stepId);
+                    // a step in a list not shown now (the main steps or another subflow): name the list and offer to show it
+                    const other = !row && p.stepId ? listOf(whole, p.stepId) : undefined;
                     return (
                       <li key={i}>
                         <span className="st-check">CHECK</span>
-                        <span>{row?.kind === "step" ? `Line ${row.n}: ` : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
+                        <span>{row?.kind === "step" ? `Line ${row.n}: ` : other !== undefined ? (other === null ? "Main steps: " : `Subflow ${other}: `) : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
                         {row?.kind === "step" && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Go to line {row.n}</Button>}
+                        {other !== undefined && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Show the step</Button>}
                       </li>
                     );
                   })}</ul>}
@@ -597,8 +802,46 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
 }
 
 /** The parts an If or a Try can have, with buttons to add them; each new part is selected so clicked actions go in it. */
-function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally") => void }) {
-  if (step.action !== "core/if" && step.action !== "core/try") return null;
+/** Find and replace (AA's Ctrl+H) in the steps' settings: the whole agent or the selected steps; the count shows first. */
+function ReplaceDialog({ flow, selected, onClose, onReplace }: { flow: Flow; selected: string[]; onClose: () => void; onReplace: (next: Flow, count: number) => void }) {
+  const [find, setFind] = useState("");
+  const [to, setTo] = useState("");
+  const [matchCase, setMatchCase] = useState(false);
+  const [onlySelected, setOnlySelected] = useState(selected.length > 1);
+  const result = useMemo(() => replaceInSteps(flow, find, to, matchCase, onlySelected ? selected : []), [flow, find, to, matchCase, onlySelected, selected]);
+  return (
+    <Dialog open title="Find and replace" width={520} onClose={onClose} footer={<>
+      <span className="st-muted">{find ? result.count + (result.count === 1 ? " place" : " places") + (onlySelected ? " in the selected steps" : " in this agent") : ""}</span>
+      <span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Cancel</Button>
+      <Button kind="primary" disabled={!result.count} onClick={() => onReplace(result.flow, result.count)}>Replace all</Button></>}>
+      <Field label="Find" hint="In the steps' settings, outputs and names; not in ids or actions.">{(id) => <TextInput id={id} autoFocus value={find} onChange={(e) => setFind(e.target.value)} />}</Field>
+      <Field label="Replace with">{(id) => <TextInput id={id} value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
+      <label className="st-check-line"><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case</label>
+      {selected.length > 0 && <label className="st-check-line"><input type="checkbox" checked={onlySelected} onChange={(e) => setOnlySelected(e.target.checked)} /> {selected.length === 1 ? "Only the selected step (and the steps inside it)" : "Only the " + selected.length + " selected steps (and the steps inside them)"}</label>}
+    </Dialog>
+  );
+}
+
+/** Name a new subflow, or rename one; onSave returns a message when the name cannot be used. */
+function SubflowDialog({ rename, onClose, onSave }: { rename?: string; onClose: () => void; onSave: (name: string) => string | null }) {
+  const [name, setName] = useState(rename ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const save = () => setError(onSave(name));
+  return (
+    <Dialog open title={rename === undefined ? "Add a subflow" : "Rename subflow " + rename} width={440} onClose={onClose} footer={<>
+      <span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Cancel</Button>
+      <Button kind="primary" disabled={!name.trim()} onClick={save}>{rename === undefined ? "Add" : "Rename"}</Button></>}>
+      <Field label="Name" hint="Run subflow steps choose it by this name. Letters, digits, spaces, _ and -.">{(id) =>
+        <TextInput id={id} autoFocus value={name} onChange={(e) => { setName(e.target.value); setError(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { e.preventDefault(); save(); } }} />}</Field>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {rename === undefined && <p className="st-muted">A subflow is a list of steps kept beside the main steps. It uses the agent's variables, and runs where a Run subflow step runs it.</p>}
+    </Dialog>
+  );
+}
+
+function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default") => void }) {
+  if (step.action !== "core/if" && step.action !== "core/try" && step.action !== "core/switch") return null;
   return <>
     <h3 className="st-prop-section">Parts</h3>
     <div className="st-row st-pad">
@@ -610,13 +853,83 @@ function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | 
         <Button kind="secondary" icon="plus" onClick={() => onAdd("catch")}>Catch</Button>
         {!step.finally && <Button kind="secondary" icon="plus" onClick={() => onAdd("finally")}>Finally</Button>}
       </>}
+      {step.action === "core/switch" && <>
+        <Button kind="secondary" icon="plus" onClick={() => onAdd("cases")}>Case</Button>
+        {!step.default && <Button kind="secondary" icon="plus" onClick={() => onAdd("default")}>Default</Button>}
+      </>}
     </div>
   </>;
 }
 
+/**
+ * The values that select a Switch case, one field each: a value to compare (text, number, $variable), or a condition
+ * when the Switch matches by expression. An empty last field adds a value.
+ */
+function CaseValues({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const step = findStep(flow, id)?.step;
+  const values = step?.cases?.[k]?.values ?? [];
+  const byCondition = step?.args?.match === "expression";
+  const put = (i: number, v: unknown) => { const next = [...values]; next[i] = v; onEdit(setCaseValues(flow, id, k, next)); };
+  const drop = (i: number) => onEdit(setCaseValues(flow, id, k, values.filter((_, j) => j !== i)));
+  return (
+    <div className="st-case-values">
+      {[...values, undefined].map((v, i) => (
+        <div key={id + ":" + k + ":" + i + ":" + values.length + ":" + JSON.stringify(v ?? null)} className="st-row-tight">
+          <span className="st-bar-fill">{byCondition
+            ? <ConditionEditor value={v} onCommit={(c) => put(i, c)} />
+            : <CommitInput initial={showValue(v)} mono want="Any" label={i < values.length ? "Value " + (i + 1) : "New value"}
+                placeholder={i < values.length ? "" : i ? "Another value" : "A value, e.g. Approved or $status"}
+                onCommit={(t) => { const p = parseLoose(t); if (p === undefined) { if (i < values.length) drop(i); } else put(i, p); }} />}</span>
+          {i < values.length && <IconButton icon="trash" label={"Remove value " + (i + 1)} onClick={() => drop(i)} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The error handler in a few words: what it keeps the error in and how the run ends after it. */
+function onErrorSummary(flow: Flow): string {
+  const h = flow.onError;
+  if (!h) return "";
+  const n = (h.steps ?? []).length;
+  return (n ? n + (n === 1 ? " step" : " steps") : "No steps") + (h.as ? ", error in $" + h.as : "")
+    + (h.then === "succeed" ? ", then the run succeeds" : ", then the run fails");
+}
+
+/**
+ * Settings of the agent's error handler (On error): the variable that gets the error, whether the run fails (the
+ * default, with the original error) or succeeds after the handler, a screenshot first; and removing it.
+ */
+function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, select?: string[]) => void }) {
+  const h = flow.onError!;
+  const dicts = (flow.variables ?? []).filter((v) => v.type === "Dictionary" || v.type === "Any");
+  const n = (h.steps ?? []).length;
+  return (
+    <div>
+      <div className="st-prop-head"><div><strong>On error</strong><div>Runs once when an error no Try block catches ends the agent, while its windows and files are still open. Steps you click in the library go at its end{n ? ` (${n} now)` : ""}.</div></div></div>
+      <div className="st-prop-fields">
+        <Field label="Keep the error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{(fid) =>
+          <Select id={fid} value={h.as ?? ""} onChange={(e) => onEdit(setOnError(flow, { as: e.target.value }))}
+            options={[{ value: "", label: "(not kept)" }, ...dicts.map((v) => ({ value: v.name, label: "$" + v.name })),
+              ...(h.as && !dicts.some((v) => v.name === h.as) ? [{ value: h.as, label: "$" + h.as + " (not a Dictionary variable)" }] : [])]} />}</Field>
+        <Field label="Then" hint="Fail keeps the original error, so One CommandCenter, retries and parent agents see the real cause." layout="beside">{() =>
+          <div className="st-seg" role="radiogroup" aria-label="After the error steps">
+            {([["fail", "Fail the run"], ["succeed", "Succeed with a warning"]] as const).map(([k, t]) =>
+              <button key={k} type="button" role="radio" aria-checked={(h.then ?? "fail") === k} className="st-seg-btn"
+                onClick={() => onEdit(setOnError(flow, { then: k }))}>{t}</button>)}
+          </div>}</Field>
+        <label className="st-check-line"><input type="checkbox" checked={!!h.screenshot} onChange={(e) => onEdit(setOnError(flow, { screenshot: e.target.checked }))} /> Take a screenshot first (saved under screenshots/)</label>
+      </div>
+      <div className="st-pad">
+        <Button kind="secondary" icon="trash" onClick={() => onEdit(removeOnError(flow), [])}>Remove On error{n ? ` and its ${n} step${n > 1 ? "s" : ""}` : ""}</Button>
+      </div>
+    </div>
+  );
+}
+
 /** Settings of a selected block part: an Else if's condition, the errors a Catch takes; and removing the part. */
 function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: string; id: string; part: Part; onEdit: (next: Flow, select?: string[]) => void }) {
-  const step = locate(flow.steps, id)?.step;
+  const step = findStep(flow, id)?.step;
   if (!step) return null;
   const [kind, k] = part.split(":");
   const removed = removeBranch(flow, id, part);
@@ -630,6 +943,12 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
         {kind === "catch" && <Field label="Errors it catches" hint="Error codes, separated by commas. Empty catches every error." layout="beside">{(fid) =>
           <CommitInput key={id + part + (step.catch?.[+k]?.codes ?? []).join(",")} id={fid} mono initial={(step.catch?.[+k]?.codes ?? []).join(", ")} placeholder="Any error"
             onCommit={(t) => onEdit(setCatchCodes(flow, id, +k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>}
+        {kind === "cases" && <Field label={step.args?.match === "expression" ? "Conditions (any one selects this case)" : "Values (any one selects this case)"}
+          hint="Cases are tried from the top; only the first that matches runs.">{() => <CaseValues flow={flow} id={id} k={+k} onEdit={onEdit} />}</Field>}
+        {kind === "cases" && (step.cases?.length ?? 0) > 1 && <div className="st-row">
+          <Button kind="secondary" icon="up" disabled={+k === 0} onClick={() => { const m = moveCase(flow, id, +k, -1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case up</Button>
+          <Button kind="secondary" icon="down" disabled={+k === (step.cases?.length ?? 0) - 1} onClick={() => { const m = moveCase(flow, id, +k, 1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case down</Button>
+        </div>}
       </div>
       {part !== "children" && removed !== flow && <div className="st-pad">
         <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>Remove this part{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>

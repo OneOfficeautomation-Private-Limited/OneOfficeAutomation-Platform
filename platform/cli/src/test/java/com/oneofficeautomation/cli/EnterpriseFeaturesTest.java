@@ -22,8 +22,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * One Command Center enterprise features end to end: external vaults (HashiCorp KV v2, AWS SigV4), AI governance,
- * the MCP server, single sign-on with OpenID Connect, and One Workflow with the task inbox.
+ * One CommandCenter enterprise features end to end: external vaults (HashiCorp KV v2, AWS SigV4), AI governance,
+ * the MCP server, single sign-on with OpenID Connect, and Workflow with the task inbox.
  */
 class EnterpriseFeaturesTest {
     static UnifiedServerTest.Res call(String base, String method, String path, Object body, String bearer) throws Exception {
@@ -162,7 +162,7 @@ class EnterpriseFeaturesTest {
             Map<String, Object> unknown = call(base, "POST", "/api/mcp", Map.of("jsonrpc", "2.0", "id", 5, "method", "no/such"), apiKey).json();
             assertEquals(-32601, ((Number) ((Map<String, Object>) unknown.get("error")).get("code")).intValue());
 
-            // ---- One Workflow and the task inbox ----
+            // ---- Workflow and the task inbox ----
             Map<String, Object> form = (Map<String, Object>) JsonLite.parse("{\"name\":\"Expense details\",\"fields\":[{\"id\":\"reason\",\"type\":\"text\",\"label\":\"Reason\",\"required\":true},"
                     + "{\"id\":\"level\",\"type\":\"dropdown\",\"label\":\"Level\",\"options\":[\"low\",\"high\"]}]}");
             assertEquals(200, call(base, "POST", "/api/repo/checkin", Map.of("path", "Forms/Expense details.form.json", "flow", form, "comment", "v1"), admin).status());

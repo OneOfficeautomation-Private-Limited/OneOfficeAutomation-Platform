@@ -2,14 +2,14 @@
 
 ## What this covers
 
-The AI capabilities of ONEOFFICEAUTOMATION and the controls around them: One Model Connections (providers, roles,
+The AI capabilities of ONEOFFICEAUTOMATION and the controls around them: Model Connections (providers, roles,
 budgets and limits, personal-data masking, content check, connection test), AI governance, the AI calls of a run,
 Prompt Skills, the generative AI, AI agent and web goal agent actions, Knowledge Q&A, document extraction with
 confidence, the Studio assistant, and AI assistants connecting over the Model Context Protocol (MCP).
 
 ## Contents
 
-1. One Model Connections
+1. Model Connections
 2. Budgets and call limits
 3. Personal-data masking and the content check
 4. Testing a connection
@@ -25,9 +25,9 @@ confidence, the Studio assistant, and AI assistants connecting over the Model Co
 14. AI assistants over MCP
 15. Retention, permissions and audit
 
-## 1. One Model Connections
+## 1. Model Connections
 
-One Model Connections (AI > One Model Connections, `connections.manage`) are named AI model connections that agents
+Model Connections (AI > Model Connections, `connections.manage`) are named AI model connections that agents
 choose by name in the Prompt Skill, AI agent, generative AI, knowledge and web goal agent actions.
 
 | Field | Rule |
@@ -67,6 +67,13 @@ against its budget, key reference and last change.
   and AI governance.
 - **Content check** `moderation` sends each answer to the provider's moderation endpoint; a flagged answer fails the
   step with `AI.CONTENT_FLAGGED`, naming the categories.
+- **AI guardrails policies** (Administration > Policies, given to folders) apply to every AI step of the agents in those
+  folders when they run: masking always on, the model connections allowed (`AI.MODEL_NOT_ALLOWED` otherwise) and the
+  content check (off, log or block). Since 2 Nov 2026 a policy chooses the **personal data to mask**: names and places
+  (with a Presidio analyzer), e-mail addresses and phone numbers, card numbers and IBANs, government ids, IP addresses
+  (`mask_kinds`; all by default). Each AI guardrails policy has **What it stopped**: over 7 days to a year, the steps it
+  stopped (a model not allowed, an answer flagged; with links to the runs) and the personal data masked by kind
+  (`GET /api/policies/{id}/stopped?days=`).
 
 ## 4. Testing a connection
 
@@ -78,7 +85,7 @@ only, and shows the answer and the time. The tester must be a consumer of the ke
 
 When a runner claims a run, it receives the connections the run's user may use (by role), with keys as vault references
 only, plus their limits, analyzer address and content check. The first allowed connection is the default. Keys are
-fetched just in time as the run's user. Studio test runs use Studio's own One Model Connections (Studio top bar).
+fetched just in time as the run's user. Studio test runs use Studio's own Model Connections (Studio top bar).
 
 ## 6. AI calls of a run and AI governance
 
@@ -108,7 +115,7 @@ Prompt Skills (AI > Prompt Skills) are reviewed prompt templates that agents run
 | From a template | Starts a private skill from a built-in template (summary, request routing, invoice fields) or a template an administrator published |
 
 Runs receive the skills their agents name (shared skills, and the run's person's own private ones). When a step names
-the skill through a variable, every skill the person may use is sent. A skill in the Command Center wins over a skill
+the skill through a variable, every skill the person may use is sent. A skill in One CommandCenter wins over a skill
 file of the same name in the runner's workspace. A missing skill fails the run before it starts.
 
 Permissions: `skills.view` to see and use, `skills.manage` to create and change, `skills.all` to change anyone's.
@@ -116,7 +123,7 @@ Permissions: `skills.view` to see and use, `skills.manage` to create and change,
 ## 8. Generative AI actions
 
 The generative AI toolkit (`ooa.genai`) sends prompts to a connection for tasks such as summarising, classifying,
-extracting, translating and analysing sentiment, entities and language. Every call goes through One Model Connections,
+extracting, translating and analysing sentiment, entities and language. Every call goes through Model Connections,
 so roles, budgets, limits, masking, content checks and the AI calls record apply.
 
 ## 9. AI agents
@@ -160,7 +167,7 @@ The Knowledge Q&A toolkit (`ooa.knowledge`) answers questions from a company's o
 
 Keep the index as a repository file so runs that need it receive it; rebuild it when documents change.
 
-Embedding and answer calls go through One Model Connections, so their budgets, masking and the run's AI calls apply.
+Embedding and answer calls go through Model Connections, so their budgets, masking and the run's AI calls apply.
 Build the index with a saved connection for the embeddings: the index remembers its name, so Search and Ask reach the
 same embedding model by themselves. An index built with a model set up on the step needs its key given again on
 Search and Ask (**API key**, or an **Embedding connection**); without it they warn and search by words only.
@@ -186,7 +193,7 @@ only when the name is free; inserted steps get fresh ids and stay selected for r
 | OAuth checks | Signature, issuer, audience (`mcp_oauth_audience`), expiry and, when set, scope (`mcp_oauth_scope`); the token must belong to an existing, enabled account; it works for MCP only, never as a console session. Assistants find the issuer at `/.well-known/oauth-protected-resource`, and a 401 points them there. |
 | What is offered | The agents an administrator lists (Settings > AI assistants, `mcp_agents`), that the user may see, with their inputs as the tool's input schema; Credential inputs are never offered |
 | Runner, wait | The runner given in `mcp_runner`; each call waits up to `mcp_timeout_seconds` (10-3600, default 120) |
-| Runs | Normal runs with source `mcp` at priority 5, as that user and with their permissions, in Agent Runs and the audit trail |
+| Runs | Normal runs with source `mcp` at priority 5, as that user and with their permissions, in Agent Activity and the audit trail |
 
 ## 15. Retention, permissions and audit
 
@@ -206,4 +213,4 @@ only when the name is free; inserted steps get fresh ids and stay selected for r
 - [05 Work queues](05-work-queues.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
 - [12 Agent tests](12-agent-tests.md) (checks suited to AI answers)
-- [Command Center and runner, section 9](../user-guide/00-README.md)
+- [One CommandCenter and runner, section 9](../user-guide/00-README.md)

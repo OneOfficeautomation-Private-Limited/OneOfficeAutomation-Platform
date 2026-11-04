@@ -110,7 +110,7 @@ Prompt already exist in `ooa.desktop`, so nothing new was registered in `FirstPa
 | SNMP send trap | Same connection options | v2c trap | nothing added | v1 traps use a different message layout; v2c is what monitoring systems accept today |
 | Log to file (Log text to file) | File, text, append timestamp, append or overwrite, encoding (ANSI, Unicode, UTF-8, UTF-16LE with BOM) | path, message, level, timestamp, overwrite | `encoding` (utf-8, utf-16le with BOM, ansi), `timestamp_format` | |
 | Log variables to file | File (.txt), append or overwrite, timestamp, variables by type or chosen | path, variables, title, timestamp, overwrite | `encoding`, `timestamp_format` | "All variables of a type": the Runner would need to expose the variable list to toolkits |
-| Log to Command Center | (Log to server) | | nothing needed | |
+| Log to One CommandCenter | (Log to server) | | nothing needed | |
 | Hash text / Hash file | Algorithm, encoding (fields not published) | text or path, algorithm | `output_format` (hex, hex_upper, base64), `encoding` (text); SHA-384 and SHA3-256 | |
 | HMAC signature | (ours) | text, key | `algorithm` (SHA-256/384/512/1), `output_format`, `key_is_base64` | |
 | Base64 encode / decode | (ours) | text | `url_safe`, `encoding`; decode accepts URL-safe text and line breaks | |

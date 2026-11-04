@@ -1,4 +1,4 @@
-"""Governance building blocks used by the agent runtime and the Control Center:
+"""Governance building blocks used by the agent runtime and One CommandCenter:
 
 AuditLog    append-only, hash-chained audit events (NFR-011, FR-CC-ADM007)
 Policy      permissions x scopes, like AA custom roles (FR-CC-ADM004); OPA/Rego in production

@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Turns the portable SQL the Command Center writes (H2 and PostgreSQL syntax) into Microsoft SQL Server syntax.
+ * Turns the portable SQL One CommandCenter writes (H2 and PostgreSQL syntax) into Microsoft SQL Server syntax.
  * Statements: TRUE/FALSE become 1/0, a trailing LIMIT/OFFSET becomes OFFSET ... FETCH (or TOP without ORDER BY),
  * two-argument SUBSTRING gets a length and the reserved column name "external" is bracketed. Text inside quotes is
  * never changed. Schema: Unicode text types, BIT, DATETIME2, ADD without COLUMN, composite keys non-clustered (a

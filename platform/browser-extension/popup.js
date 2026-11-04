@@ -5,6 +5,6 @@ chrome.runtime.sendMessage({ ooa: "status" }, (s) => {
   dot.className = "dot " + (s.connected ? "on" : "off");
   state.textContent = s.connected ? "Connected" : "Not connected";
   detail.textContent = s.connected
-    ? "Agents and Agent Studio can see and automate the tabs of this browser (" + s.browser + ")."
+    ? "Agents and One AgentStudio can see and automate the tabs of this browser (" + s.browser + ")."
     : "Install the connector on this computer: run  ooa browser-connector install  and restart the browser. " + (s.error || "");
 });

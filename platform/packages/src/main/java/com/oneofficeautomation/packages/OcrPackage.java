@@ -18,11 +18,12 @@ import java.util.*;
 import java.util.List;
 
 /**
- * Optical character recognition with Tesseract (open source; install on the device, e.g. the UB Mannheim build on Windows).
+ * Optical character recognition with Tesseract when it is installed (open source, e.g. the UB Mannheim build on Windows), and
+ * otherwise with the OCR engine built into Windows 10 and 11, so OCR works on a fresh runner without installing anything.
  * Reads text from images, image URLs, PDFs rendered to images, or the live screen, and can locate and click words, which is how
  * Citrix and legacy applications without accessible controls are automated.
  */
-@OoaPackage(id = "ooa.ocr", name = "OCR", version = "1.0.0", description = "Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract).")
+@OoaPackage(id = "ooa.ocr", name = "OCR", version = "1.0.0", description = "Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed).")
 public final class OcrPackage {
 
     record Word(String text, int left, int top, int width, int height, int line, double conf) {}
@@ -39,16 +40,29 @@ public final class OcrPackage {
         if (lang == null || !lang.matches("^[a-z_+]{3,40}$")) throw new ActionException("OCR.BAD_LANGUAGE", "Invalid language '" + lang + "'", "Examples: eng, deu, eng+fra.");
     }
 
-    private static ProcessRunner.Result tess(ActionContext ctx, Path image, String lang, int psm, boolean tsv) {
+    /** auto (Tesseract when installed, else the OCR built into Windows), tesseract or windows; set with OOA_OCR_ENGINE. */
+    static String engine() {
+        String e = System.getenv("OOA_OCR_ENGINE");
+        return e == null || e.isBlank() ? "auto" : e.strip().toLowerCase(Locale.ROOT);
+    }
+
+    private static ProcessRunner.Result tess(ActionContext ctx, Path image, String lang, int psm, boolean tsv, boolean enlarged) {
         checkLanguage(lang);
+        if (engine().equals("windows")) return WindowsOcr.run(ctx, image, lang, tsv, enlarged);
         List<String> cmd = new ArrayList<>(List.of(exe(), image.toString(), "stdout", "-l", lang, "--psm", String.valueOf(psm)));
         if (tsv) cmd.add("tsv");
         ProcessRunner.Result r;
         try { r = ProcessRunner.run(ctx, cmd, null, null, 300); }
         catch (ActionException e) {
-            if ("PROCESS.NOT_FOUND".equals(e.code())) throw new ActionException("OCR.NOT_INSTALLED", "Tesseract OCR is not installed on this runner",
-                    "Install Tesseract (on Windows the UB Mannheim installer) or set OOA_TESSERACT to tesseract.exe.");
-            throw e;
+            if (!"PROCESS.NOT_FOUND".equals(e.code())) throw e;
+            // a fresh runner has no Tesseract: Windows 10 and 11 include an OCR engine, used without any installation
+            if (ProcessRunner.WINDOWS && !engine().equals("tesseract")) {
+                ProcessRunner.Result w = WindowsOcr.run(ctx, image, lang, tsv, enlarged);
+                WindowsOcr.noteOnce(ctx);
+                return w;
+            }
+            throw new ActionException("OCR.NOT_INSTALLED", "No OCR engine on this runner: Tesseract is not installed" + (ProcessRunner.WINDOWS ? "" : " (the Windows OCR engine needs Windows 10 or later)"),
+                    "Install Tesseract (on Windows the UB Mannheim installer, on Linux the tesseract-ocr package) or set OOA_TESSERACT to its program.");
         }
         if (r.exitCode() != 0) {
             if (r.stderr().contains("Failed loading language")) throw new ActionException("OCR.LANGUAGE_MISSING", "Tesseract language data '" + lang + "' is not installed", "Install the language pack for Tesseract.");
@@ -186,14 +200,14 @@ public final class OcrPackage {
 
     /** OCR of an image in memory, such as a rendered PDF page (the PDF toolkit's read_text_ocr), then the marker filter. */
     public static String readText(ActionContext ctx, BufferedImage img, String lang, int psm, String after, String before, boolean trim) {
-        return filterText(ocr(ctx, img, lang, psm), after, before, trim);
+        return filterText(ocr(ctx, img, lang, psm, true), after, before, trim);
     }
 
     /** OCR of an image after the optional preparation; the temporary file is always removed. */
-    private static String ocr(ActionContext ctx, BufferedImage img, String lang, int psm) {
+    private static String ocr(ActionContext ctx, BufferedImage img, String lang, int psm, boolean enlarged) {
         checkLanguage(lang);
         Path p = temp(img);
-        try { return tess(ctx, p, lang, psm, false).stdout(); }
+        try { return tess(ctx, p, lang, psm, false, enlarged).stdout(); }
         finally { try { Files.deleteIfExists(p); } catch (IOException ignored) { } }
     }
 
@@ -211,6 +225,89 @@ public final class OcrPackage {
 
     public Map<String, Object> readImage(ActionContext ctx, String path, String lang, int psm) {
         return readImage(ctx, path, lang, psm, null, null, true, 1, "none", null, null, null, null);
+    }
+
+    /** Lists the languages of the OCR built into Windows (its language tags, e.g. en-US). */
+    static final String WINDOWS_LANGUAGES = """
+            $ErrorActionPreference = 'Stop'
+            [void][Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+            Write-Output ('OOA_LANGS ' + (([Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages | ForEach-Object { $_.LanguageTag }) -join ','))
+            """;
+
+    /** Adds the OCR language capability of Windows (needs administrator rights and Windows Update or a local source). */
+    static final String WINDOWS_ADD_LANGUAGE = """
+            $ErrorActionPreference = 'Stop'
+            $tag = $args[0]
+            $cap = Get-WindowsCapability -Online | Where-Object { $_.Name -like ('Language.OCR~~~' + $tag + '~*') } | Select-Object -First 1
+            if (-not $cap) { Write-Output 'OOA_NO_CAPABILITY'; exit 3 }
+            if ($cap.State -eq 'Installed') { Write-Output 'OOA_ALREADY'; exit 0 }
+            Add-WindowsCapability -Online -Name $cap.Name | Out-Null
+            Write-Output 'OOA_ADDED'
+            """;
+
+    /** Runs a PowerShell script from a temporary file, with arguments (never inside the script). */
+    static ProcessRunner.Result powershell(ActionContext ctx, String script, List<String> args, double timeout) {
+        java.nio.file.Path file = null;
+        try {
+            file = java.nio.file.Files.createTempFile("ooa-ocr-", ".ps1");
+            java.nio.file.Files.writeString(file, "\uFEFF" + ScriptPackage.UTF8_PREAMBLE + "\n" + script, java.nio.charset.StandardCharsets.UTF_8);
+            List<String> cmd = new ArrayList<>(List.of("powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", file.toString()));
+            cmd.addAll(args);
+            return ProcessRunner.run(ctx, cmd, null, null, timeout, null, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new ActionException("FILE.IO_ERROR", "Cannot write the OCR script: " + e.getMessage(), null, true);
+        } finally { if (file != null) try { java.nio.file.Files.deleteIfExists(file); } catch (java.io.IOException ignored) { } }
+    }
+
+    @Action(id = "engine_status", name = "Get OCR engines", category = "OCR", idempotent = true, timeoutSeconds = 120,
+            description = "Show which OCR engines this runner has (the OCR built into Windows, and Tesseract when installed) and their languages, e.g. to check a runner before a run.")
+    @Output(name = "engine", type = OoaType.STRING, description = "The engine OCR steps use here: tesseract, windows or none.")
+    @Output(name = "windows_languages", type = OoaType.LIST, description = "Language tags the Windows OCR engine reads, e.g. en-US; empty when not on Windows 10 or later.")
+    @Output(name = "tesseract_languages", type = OoaType.LIST, description = "Tesseract languages, e.g. eng, deu; empty when Tesseract is not installed.")
+    @Output(name = "tesseract_path", type = OoaType.STRING, description = "The Tesseract program used, when installed.")
+    public Map<String, Object> engineStatus(ActionContext ctx) {
+        List<Object> tLangs = new ArrayList<>();
+        String tPath = "";
+        try {
+            ProcessRunner.Result r = ProcessRunner.run(ctx, List.of(exe(), "--list-langs"), null, null, 30);
+            if (r.exitCode() == 0) {
+                tPath = exe();
+                for (String line : (r.stdout() + "\n" + r.stderr()).split("\\R")) {
+                    String l = line.strip();
+                    if (!l.isEmpty() && l.matches("^[A-Za-z_]+$") && !l.equalsIgnoreCase("osd")) tLangs.add(l);
+                }
+            }
+        } catch (ActionException notInstalled) { /* no Tesseract */ }
+        List<Object> wLangs = new ArrayList<>();
+        if (ProcessRunner.WINDOWS) {
+            ProcessRunner.Result r = powershell(ctx, WINDOWS_LANGUAGES, List.of(), 60);
+            int at = r.stdout().indexOf("OOA_LANGS ");
+            if (at >= 0) for (String t : r.stdout().substring(at + 10).strip().split(",")) if (!t.isBlank()) wLangs.add(t.strip());
+        }
+        String e = engine();
+        String used = e.equals("tesseract") ? (tPath.isEmpty() ? "none" : "tesseract") : e.equals("windows") ? (wLangs.isEmpty() ? "none" : "windows")
+                : !tPath.isEmpty() ? "tesseract" : !wLangs.isEmpty() ? "windows" : "none";
+        return Map.of("engine", used, "windows_languages", wLangs, "tesseract_languages", tLangs, "tesseract_path", tPath);
+    }
+
+    @Action(id = "add_windows_language", name = "Add OCR language to Windows", category = "OCR", timeoutSeconds = 1800,
+            description = "Install the OCR language pack of the OCR built into Windows (e.g. de-DE), so OCR steps can read that language without Tesseract. Needs administrator rights.",
+            panel = "language")
+    @Output(name = "status", type = OoaType.STRING, description = "added or already_installed.")
+    public Map<String, Object> addWindowsLanguage(ActionContext ctx,
+            @Input(name = "language", type = OoaType.STRING, example = "de-DE", description = "Windows language tag, e.g. de-DE, fr-FR or ja-JP.") String language) {
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Windows OCR languages exist only on Windows", "Install Tesseract and its language data on this runner instead.");
+        if (language == null || !language.strip().matches("^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$"))
+            throw new ActionException("OCR.BAD_LANGUAGE", "Invalid language tag '" + language + "'", "Use a tag such as de-DE or fr-FR.");
+        ProcessRunner.Result r = powershell(ctx, WINDOWS_ADD_LANGUAGE, List.of(language.strip()), 1800);
+        String out = r.stdout();
+        if (out.contains("OOA_ADDED")) return Map.of("status", "added");
+        if (out.contains("OOA_ALREADY")) return Map.of("status", "already_installed");
+        if (out.contains("OOA_NO_CAPABILITY")) throw new ActionException("OCR.LANGUAGE_UNAVAILABLE", "Windows has no OCR language pack for " + language, "Check the tag; Get OCR engines lists the installed ones.");
+        String why = (r.stderr().isBlank() ? out : r.stderr()).strip();
+        if (why.contains("elevation") || why.contains("Access is denied") || why.contains("requires elevation"))
+            throw new ActionException("OCR.ACCESS_DENIED", "Adding a Windows language needs administrator rights", "Run the step on a runner with administrator rights, or ask IT to add the OCR language.");
+        throw new ActionException("OCR.LANGUAGE_FAILED", "Could not add the OCR language " + language + ": " + ApplicationPackage.tail(why), "Check the runner can reach Windows Update.", true);
     }
 
     @Action(id = "read_image", name = "Read text from image", category = "OCR", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
@@ -232,7 +329,7 @@ public final class OcrPackage {
             @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Region height in pixels.") Integer h) {
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Image not found: " + p, "Check the path.");
-        String raw = plain(x, y, w, h, scale, mode) ? tess(ctx, p, lang, psm, false).stdout() : ocr(ctx, prepare(readFile(p), x, y, w, h, scale, mode), lang, psm);
+        String raw = plain(x, y, w, h, scale, mode) ? tess(ctx, p, lang, psm, false, false).stdout() : ocr(ctx, prepare(readFile(p), x, y, w, h, scale, mode), lang, psm, scale > 1);
         return Map.of("text", filterText(raw, after, before, trim));
     }
 
@@ -273,7 +370,7 @@ public final class OcrPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Maximum time for the download.") int timeout) {
         checkLanguage(lang);
         BufferedImage img = download(url, Math.max(1, timeout));
-        return Map.of("text", filterText(ocr(ctx, prepare(img, null, null, null, null, scale, mode), lang, psm), after, before, trim));
+        return Map.of("text", filterText(ocr(ctx, prepare(img, null, null, null, null, scale, mode), lang, psm, scale > 1), after, before, trim));
     }
 
     public Map<String, Object> readScreen(ActionContext ctx, Integer x, Integer y, Integer w, Integer h, String lang, int psm) {
@@ -313,7 +410,7 @@ public final class OcrPackage {
         BufferedImage shot;
         if (inWindow) { Rectangle r = windowRegion(x, y, w, h, wb); shot = capture(r.x, r.y, r.width, r.height); }
         else shot = capture(x, y, w, h);
-        return Map.of("text", filterText(ocr(ctx, prepare(shot, null, null, null, null, scale, mode), lang, psm), after, before, trim));
+        return Map.of("text", filterText(ocr(ctx, prepare(shot, null, null, null, null, scale, mode), lang, psm, scale > 1), after, before, trim));
     }
 
     /**
@@ -361,7 +458,7 @@ public final class OcrPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Word or phrase to find.") String text,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
             @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which appearance to return, counting in reading order from 1.") int occurrence) {
-        List<int[]> all = locateAll(words(tess(ctx, ctx.resolvePath(path), lang, 11, true).stdout()), text);
+        List<int[]> all = locateAll(words(tess(ctx, ctx.resolvePath(path), lang, 11, true, false).stdout()), text);
         int[] box = occurrence >= 1 && occurrence <= all.size() ? all.get(occurrence - 1) : null;
         BigDecimal count = BigDecimal.valueOf(all.size());
         return box == null ? Out.of("found", false, "x", null, "y", null, "count", count)
@@ -396,7 +493,7 @@ public final class OcrPackage {
         int mask = button(button);
         Path img = capture(ctx, null, null, null, null, 2);
         int[] box;
-        try { box = locate(words(tess(ctx, img, lang, 11, true).stdout()), text, occurrence); }
+        try { box = locate(words(tess(ctx, img, lang, 11, true, true).stdout()), text, occurrence); }
         finally { try { Files.deleteIfExists(img); } catch (IOException ignored) { } }
         if (box == null) throw new ActionException("OCR.TEXT_NOT_FOUND", "'" + text + "' was not found on the screen" + (occurrence > 1 ? " " + occurrence + " times" : ""), "Check the window is visible; try a shorter phrase.", true);
         int cx = (box[0] + box[2] / 2) / 2 + offsetX, cy = (box[1] + box[3] / 2) / 2 + offsetY;  // screen was captured at 2x
@@ -411,7 +508,7 @@ public final class OcrPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Word or phrase.") String text,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang) {
         Path img = capture(ctx, null, null, null, null, 2);
-        try { return locate(words(tess(ctx, img, lang, 11, true).stdout()), text) != null; }
+        try { return locate(words(tess(ctx, img, lang, 11, true, true).stdout()), text) != null; }
         finally { try { Files.deleteIfExists(img); } catch (IOException ignored) { } }
     }
 }

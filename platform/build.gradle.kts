@@ -28,6 +28,11 @@ subprojects {
         systemProperty("ooa.examples", rootProject.file("../examples").absolutePath)
         // -Pooa.test.db=jdbc:sqlserver://localhost:1433;encrypt=false (+ ooa.test.db.user, ooa.test.db.password) runs the tests on SQL Server
         for (k in listOf("ooa.test.db", "ooa.test.db.user", "ooa.test.db.password")) project.findProperty(k)?.let { systemProperty(k, it) }
+        // temp files of tests go to build/tmp/<task>-files, emptied before each run and by clean, never to the user's
+        // Temp folder (27,215 folders had piled up there by 1 Nov 2026)
+        val testTemp = layout.buildDirectory.dir("tmp/$name-files").get().asFile
+        systemProperty("java.io.tmpdir", testTemp.absolutePath)
+        doFirst { testTemp.deleteRecursively(); testTemp.mkdirs() }
         testLogging {
             events("passed", "failed", "skipped")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

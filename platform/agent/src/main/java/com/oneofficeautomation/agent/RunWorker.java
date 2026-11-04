@@ -25,7 +25,7 @@ public final class RunWorker {
 
     /**
      * Places the repository files the agent requires at the same path in the workspace (base64 contents). Paths come
-     * from Command Center, but are still kept inside the workspace.
+     * from One CommandCenter, but are still kept inside the workspace.
      */
     static void writeFiles(Path workspace, Map<String, Object> files) throws IOException {
         Path root = workspace.toAbsolutePath().normalize();
@@ -70,7 +70,7 @@ public final class RunWorker {
         AutomationRepository repo = (id, version) -> {
             if (id.equals(main.get("id"))) return main;
             Object f = bots.get(id);
-            if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in Command Center (no live production version)", "Check it in and set a live production version.");
+            if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in One CommandCenter (no live production version)", "Check it in and set a live production version.");
             return (Map<String, Object>) f;
         };
         CredentialVault vault = (ref, principal) -> {
@@ -80,7 +80,7 @@ public final class RunWorker {
             send(Map.of("type", "credential", "id", id, "ref", ref));
             Map<String, Object> r;
             try { r = f.get(60, TimeUnit.SECONDS); }
-            catch (Exception e) { throw new OoaException("VAULT.TIMEOUT", "No answer from Control Room for credential " + ref, null, true, null); }
+            catch (Exception e) { throw new OoaException("VAULT.TIMEOUT", "No answer from One CommandCenter for credential " + ref, null, true, null); }
             if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
             return new SecureString(String.valueOf(r.get("value")), ref, Boolean.TRUE.equals(r.get("password_only")));
         };
@@ -110,12 +110,16 @@ public final class RunWorker {
         BotInvoker invoker = (automationId, in2) -> holder[0].run(repo.get(automationId, "production"), in2, new Runner.RunOptions().cancel(cancel).pause(pause));
         holder[0] = Runner.builder(registry).sink(sink).workDir(workspace).service("repository", repo).service("vault", vault)
                 .service("global_values", (java.util.function.Supplier<Object>) () -> globals).service("bot_invoker", invoker)
-                // saved connections (address and vault references per connector) from Command Center; secrets resolve through the vault above
+                // saved connections (address and vault references per connector) from One CommandCenter; secrets resolve through the vault above
                 .service("connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("connections", Map.of()))
-                // One Model Connections from Command Center; their keys are vault references resolved through the vault above.
+                // Model Connections from One CommandCenter; their keys are vault references resolved through the vault above.
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
-                // Prompt Skills kept in Command Center; a skill file in the workspace is used when Command Center sends none
+                // Prompt Skills kept in One CommandCenter; a skill file in the workspace is used when One CommandCenter sends none
                 .service("prompt_skills", (java.util.function.Supplier<Object>) () -> skills)
+                // the folder's AI guardrails (Administration > Policies): masking, models allowed, content check
+                .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
+                // Settings: no pictures of the screen when a step fails
+                .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("docflow", docflow)
                 .principal(principal).build();
         RunResult result;
@@ -141,7 +145,7 @@ public final class RunWorker {
     }
 
     /**
-     * Custom toolkits the Command Center sent with the run (K6): each jar's hash and publisher signature are checked here
+     * Custom toolkits One CommandCenter sent with the run (K6): each jar's hash and publisher signature are checked here
      * again before it is loaded in a class loader of its own. Returns why one could not be loaded, or null.
      */
     @SuppressWarnings("unchecked")
@@ -165,7 +169,7 @@ public final class RunWorker {
         return null;
     }
 
-    /** The AI call records this run appended to the governance log (at most 500), for the Command Center's AI governance view. */
+    /** The AI call records this run appended to the governance log (at most 500), for One CommandCenter's AI governance view. */
     static List<Object> aiCalls(Path log, long from) {
         List<Object> out = new ArrayList<>();
         try (RandomAccessFile f = new RandomAccessFile(log.toFile(), "r")) {

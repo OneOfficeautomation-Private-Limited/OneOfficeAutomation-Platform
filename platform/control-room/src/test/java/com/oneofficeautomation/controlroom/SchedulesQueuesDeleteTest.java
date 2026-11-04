@@ -65,7 +65,7 @@ class SchedulesQueuesDeleteTest {
                 "missed_runs", "skip", "overlap", "skip")), null);
         assertEquals("CR.BAD_SCHEDULE", code(() -> cr.createSchedule(admin, new HashMap<>(Map.of("name", "x", "bot_path", "Ops/Work.flow.json", "device_id", device, "kind", "every", "every_minutes", 5,
                 "missed_runs", "all")), null)));
-        // both were due two hours ago (the Command Center was down)
+        // both were due two hours ago (One CommandCenter was down)
         Instant twoHoursAgo = Instant.now().minus(2, ChronoUnit.HOURS);
         db.update("UPDATE schedules SET next_run = ? WHERE id IN (?, ?)", twoHoursAgo, plain.get("id"), skip.get("id"));
         db.update("UPDATE runs SET status = 'success'");

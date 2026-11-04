@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ONEOFFICEAUTOMATION One Command Center</title>
-  <link rel="icon" href="/logo-mark.png">
+  <title>ONEOFFICEAUTOMATION One CommandCenter</title>
+  <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/ooa-tokens.css">
   <link rel="stylesheet" href="/ooa-components.css">
   <link rel="stylesheet" href="/cr.css">
@@ -14,7 +14,7 @@
   <div id="login-view" class="login" hidden>
     <form id="login-form" class="card login-card">
       <img src="/logo-full.png" alt="ONEOFFICEAUTOMATION" class="login-logo">
-      <h1>One Command Center</h1>
+      <h1>One CommandCenter</h1>
       <label>User name <input id="login-user" autocomplete="username" required></label>
       <label>Password <input id="login-pass" type="password" autocomplete="current-password" required></label>
       <label id="login-code-row" hidden>Code from your authenticator app (or a recovery code)
@@ -41,9 +41,9 @@
     <header class="topbar">
       <img src="/logo-mark.png" alt="" class="logo">
       <span class="brand-name">ONEOFFICEAUTOMATION</span>
-      <span class="brand-product">One Command Center</span>
+      <span class="brand-product">One CommandCenter</span>
       <span class="spacer"></span>
-      <a id="btn-studio" class="button-link" href="/studio/" target="ooa-studio" hidden title="Build and test agents in Agent Studio (this computer)">Open One Agent Studio</a>
+      <a id="btn-studio" class="button-link" href="/studio/" target="_blank" rel="noopener" hidden title="Build and test agents in One AgentStudio (this computer; opens in a new tab)">Open One AgentStudio</a>
       <button type="button" id="btn-theme" aria-label="Switch between light and dark" title="Light or dark">&#9680;</button>
       <div class="user-menu">
         <button type="button" id="btn-user" class="user-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-pop">
@@ -51,7 +51,7 @@
         </button>
         <div id="user-pop" class="user-pop" hidden>
           <div id="user-pop-head" class="user-pop-head"></div>
-          <button type="button" id="btn-apikeys" title="Keys for other systems to call the Command Center as you">API keys</button>
+          <button type="button" id="btn-apikeys" title="Keys for other systems to call One CommandCenter as you">API keys</button>
           <button type="button" id="btn-change-pw">Change password</button>
           <button type="button" id="btn-mfa">Two-step sign-in</button>
           <label class="lang-row">Language <select data-ooa-lang aria-label="Language"></select></label>
@@ -62,7 +62,7 @@
     <div id="announcement" class="announcement" role="status" hidden></div>
     <div id="license-banner" class="announcement license-banner" role="alert" hidden></div>
     <div class="layout">
-      <nav id="nav" class="nav" aria-label="Command Center sections"></nav>
+      <nav id="nav" class="nav" aria-label="One CommandCenter sections"></nav>
       <main id="main" class="main" tabindex="-1"></main>
     </div>
   </div>

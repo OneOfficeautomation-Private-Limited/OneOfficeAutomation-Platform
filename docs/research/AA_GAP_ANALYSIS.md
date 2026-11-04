@@ -60,7 +60,7 @@ separate action for it yet.
 | Number | 5 | 3 | Increment, decrement, to text (expressions today) |
 | Service | 5 | 4 | Pause, resume |
 | Window | 10 | 10 | Close all, set title |
-| Logging | 3 | 2 | Log to Command Center, log variables to file |
+| Logging | 3 | 2 | Log to One CommandCenter, log variables to file |
 | PDF | 8 | 9 | Extract images, document properties |
 | Others (1 each) | | | Boolean to number; Dictionary size; PGP create keys; Python execute function; REST download as file; Text file read variables; XML XPath function; Wait for screen change; OCR from URL; Image find window in window; Task: pause run |
 
@@ -73,7 +73,7 @@ sentiment; AA lists providers instead: we still need Amazon Bedrock and Google V
 
 | AA trigger | Ours |
 | --- | --- |
-| File and folder | File arrives (Studio and Command Center). **Add**: file changed or deleted, folder created/deleted |
+| File and folder | File arrives (Studio and One CommandCenter). **Add**: file changed or deleted, folder created/deleted |
 | Email (IMAP), Microsoft 365 Outlook | **Add** |
 | Hot key | **Add** (Runner on the desktop) |
 | Window (opened, closed) | **Add** |
@@ -98,9 +98,9 @@ Roles, audit log, settings, workload queues and schedules screens are not shown 
 | AA area | What it offers | Ours today | Gap to build |
 | --- | --- | --- | --- |
 | Home | My automations of the last 7 days, quick links, recently visited, learning links | Dashboard with runs, failures, devices | **Recent items and "continue where you left off"**, learning/help panel |
-| Automation | Private and public folders, Create: Process, Task Bot, AI Skill, Form; Manage: Import; upload files; customise columns; search in subfolders; per-item menu | Studio home (private), Command Center repository (public) | **Import/export of agents and folders as a package**, upload files to the repository, folder tree in Command Center, customisable columns |
-| AI > Skills | Public/private AI Skills, skill templates | AI Skills in the workspace | **Prompt Skill templates**, public/private skills in Command Center, test-run a skill from its page |
-| AI > Model connections | Central LLM connections (vendor, model, credentials) used by skills and agents | Provider/model set per action or skill | **One Model Connections**: named connections managed in Command Center, referenced by name, with role access and the vault for keys |
+| Automation | Private and public folders, Create: Process, Task Bot, AI Skill, Form; Manage: Import; upload files; customise columns; search in subfolders; per-item menu | Studio home (private), One CommandCenter repository (public) | **Import/export of agents and folders as a package**, upload files to the repository, folder tree in One CommandCenter, customisable columns |
+| AI > Skills | Public/private AI Skills, skill templates | AI Skills in the workspace | **Prompt Skill templates**, public/private skills in One CommandCenter, test-run a skill from its page |
+| AI > Model connections | Central LLM connections (vendor, model, credentials) used by skills and agents | Provider/model set per action or skill | **One Model Connections**: named connections managed in One CommandCenter, referenced by name, with role access and the vault for keys |
 | Document Automation | Learning instances (document types), validation, providers | Document intelligence designer + generated bot | **Validation queue** (human review of low-confidence fields), test documents, extraction history |
 | Activity | In progress and Historical with priority, current action, run-as user, team/role, time filter (90 days), CSV export, customise columns | Built in Part 3 | **Run priority**, run-as user column, customisable columns, time-range presets |
 | Bot Insights | Operational and business dashboards | Home dashboard | **One Insights**: business KPI dashboards from tagged values (our insights package already records them) |
@@ -123,7 +123,7 @@ priority for ONEOFFICEAUTOMATION. "Have" means it already exists in our product.
 | P1 | **AI guardrails and governance**: PII masking with restore, toxicity check, prompt and tool-call traces, governance dashboard | Partial: PII masking and governance log; add dashboard, toxicity, traces UI |
 | P1 | **One Model Connections** catalog: named models, bring-your-own/local LLMs, keys in the vault, role access, RAG sources | Gap |
 | P1 | **Debugger**: breakpoints (also in child agents), step over/into, call stack, watch and edit variables | Gap (pause/resume only) |
-| P1 | **Workload queues in Command Center**: SLAs, priority, sort columns, parallel processing across runners, auto-requeue on failure, statistics | Partial (per device); central queues planned |
+| P1 | **Workload queues in One CommandCenter**: SLAs, priority, sort columns, parallel processing across runners, auto-requeue on failure, statistics | Partial (per device); central queues planned |
 | P1 | **Universal triggers**: webhook listener and poller with filters, pause/resume, payload formats (JSON, XML, form, text), OAuth token refresh, trigger monitoring page | Partial: webhook, file, schedule |
 | P1 | **Self-healing UI automation** (fallback strategies when selectors break) and an **interrupt handler** for unexpected pop-ups | Gap |
 | P2 | **Natural-language agent building** (describe it, get steps; plan; explain this agent) | Gap |
@@ -135,7 +135,7 @@ priority for ONEOFFICEAUTOMATION. "Have" means it already exists in our product.
 | P2 | **Monitoring and insights**: live operations view, run-hour charts by agent/runner/user, ROI tracking, custom dashboards with sharing | Partial (dashboard) |
 | P2 | **Headless API agents**: callbacks to a URL with outputs, stop a running API agent, call a child API agent, read repository files, auto-scaling runtime | Partial |
 | P3 | Admin hygiene: auto-disable inactive users, disable built-in roles, IP allow-list, announcement banner, audit search 180+ days with before/after values, upload size limit, proxy settings | Partial (audit) |
-| P3 | Command Center as OAuth/OIDC provider; API keys per user; SSO (SAML/OIDC) | Gap |
+| P3 | One CommandCenter as OAuth/OIDC provider; API keys per user; SSO (SAML/OIDC) | Gap |
 | P3 | Toolkit lifecycle: versions, default version, "where used", bulk upgrade, compatibility check, delete unused versions | Gap |
 | P3 | Scheduling: holiday calendars, schedule ownership transfer, schedule processes directly, rename schedules, alert when run-as user is disabled | Partial |
 | P3 | Runner fleet: device pools with load balancing, bulk registration, proxy, RDP/virtual sessions, macOS and Linux runners | Partial (Windows runner) |
@@ -147,4 +147,4 @@ priority for ONEOFFICEAUTOMATION. "Have" means it already exists in our product.
 - The settings inside each action (fields, options, defaults). Next pass: open each action in the AA editor (read-only)
   for the ten most-used packages (Excel, Email, Browser/Recorder, Data Table, String, File/Folder, REST, Database, Loop,
   If) and compare field by field.
-- Command Center screens (Activity, Devices, Credentials, Workload queues, Bot Insights, Administration).
+- One CommandCenter screens (Activity, Devices, Credentials, Workload queues, Bot Insights, Administration).

@@ -46,8 +46,9 @@ public final class DateTimePackage {
         catch (DateTimeException e) { throw new ActionException("DATETIME.BAD_ZONE", "Unknown time zone '" + z + "'", "Use an IANA name such as Europe/London or Asia/Kolkata."); }
     }
 
-    @Action(id = "now", name = "Get current date and time", category = "Date and time", description = "Return the current date and time (UTC).")
-    @Output(name = "value", type = OoaType.DATETIME, description = "Current UTC date and time.")
+    @Action(id = "now", name = "Get current date and time", category = "Date and time",
+            description = "Return the current date and time in UTC. Every DateTime in OOA is UTC; use Format date with a time zone to show local time, or the ISO_INSTANT / ISO_OFFSET_DATE_TIME standard for text with Z or an offset for other systems.")
+    @Output(name = "value", type = OoaType.DATETIME, description = "Current date and time in UTC.")
     public Map<String, Object> now(ActionContext ctx) {
         return Out.of("value", LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS));
     }
@@ -57,13 +58,25 @@ public final class DateTimePackage {
     @Output(name = "result", type = OoaType.DATETIME, description = "New date and time.")
     public Map<String, Object> add(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
-            @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to add; negative to subtract.") long amount,
+            @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to add; negative to subtract. Fractions are exact for milliseconds to weeks (1.5 days = 36 hours); months, years and business days take whole numbers.") java.math.BigDecimal amount,
             @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"},
                     description = "Unit of the amount; business_days skips Saturdays, Sundays and the holidays.") String unit,
             @Input(name = "holidays", type = OoaType.LIST, required = false, visibleWhen = "unit=business_days",
                     description = "Dates that are not working days, e.g. [\"2026-12-25\"].") List<Object> holidays) {
-        if ("business_days".equals(unit)) return Out.of("result", plusBusinessDays(value, amount, holidays));
-        return add(ctx, value, amount, unit);
+        String u = unit == null || unit.isBlank() ? "days" : unit;
+        boolean whole = amount.stripTrailingZeros().scale() <= 0;
+        if (!whole && List.of("months", "years", "business_days").contains(u))
+            throw new ActionException("DATETIME.BAD_AMOUNT", "Add to date: " + u.replace('_', ' ') + " must be a whole number, got " + amount.stripTrailingZeros().toPlainString(),
+                    "Round the amount first, or use a smaller unit (e.g. days).");
+        if ("business_days".equals(u)) return Out.of("result", plusBusinessDays(value, amount.longValueExact(), holidays));
+        if (whole) return add(ctx, value, amount.longValueExact(), u);
+        // fractions used to be cut off silently (1.5 days added 1 day): add the exact duration instead
+        long nanosPerUnit = switch (u) {
+            case "milliseconds" -> 1_000_000L; case "seconds" -> 1_000_000_000L; case "minutes" -> 60_000_000_000L;
+            case "hours" -> 3_600_000_000_000L; case "weeks" -> 7 * 86_400_000_000_000L; default -> 86_400_000_000_000L;
+        };
+        java.math.BigDecimal nanos = amount.multiply(java.math.BigDecimal.valueOf(nanosPerUnit)).setScale(0, java.math.RoundingMode.HALF_EVEN);
+        return Out.of("result", value.plusNanos(nanos.longValueExact()));
     }
 
     public Map<String, Object> add(ActionContext ctx, LocalDateTime value, long amount, String unit) {
@@ -316,17 +329,17 @@ public final class DateTimePackage {
     @Output(name = "result", type = OoaType.DATETIME, description = "New date and time.")
     public Map<String, Object> subtract(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
-            @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to subtract.") long amount,
+            @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to subtract. Fractions are exact for milliseconds to weeks; months, years and business days take whole numbers.") BigDecimal amount,
             @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"},
                     description = "Unit of the amount; business_days skips Saturdays, Sundays and the holidays.") String unit,
             @Input(name = "holidays", type = OoaType.LIST, required = false, visibleWhen = "unit=business_days",
                     description = "Dates that are not working days, e.g. [\"2026-12-25\"].") List<Object> holidays) {
         if (unit != null && !java.util.Arrays.asList(UNITS).contains(unit))
             throw new ActionException("DATETIME.BAD_UNIT", "Unknown unit '" + unit + "'", "Use one of " + String.join(", ", UNITS) + ".");
-        return add(ctx, value, Math.negateExact(amount), unit == null ? "days" : unit, holidays);
+        return add(ctx, value, amount.negate(), unit == null ? "days" : unit, holidays);
     }
 
-    public Map<String, Object> subtract(ActionContext ctx, LocalDateTime value, long amount, String unit) { return subtract(ctx, value, amount, unit, null); }
+    public Map<String, Object> subtract(ActionContext ctx, LocalDateTime value, long amount, String unit) { return subtract(ctx, value, BigDecimal.valueOf(amount), unit, null); }
 
     /** Moves by whole working days (Monday to Friday, not a holiday), keeping the time of day; 0 keeps the date. */
     static LocalDateTime plusBusinessDays(LocalDateTime value, long amount, List<Object> holidays) {

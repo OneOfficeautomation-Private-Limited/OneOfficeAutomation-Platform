@@ -33,7 +33,7 @@ Used as the kind of loop in a Loop step.
 
 `ooa.triggerloop/file_arrives` (loop type)
 
-Wait for files to appear in a folder and run the nested steps once for each, oldest first; gives path, name, size and time.
+Wait for files to appear in a folder and run the nested steps once for each, oldest first; gives path, name, size and time (UTC, like every DateTime).
 
 **Settings**
 
@@ -46,6 +46,8 @@ Wait for files to appear in a folder and run the nested steps once for each, old
 | Poll (seconds) | `poll_seconds` | Number | No | `1` | Main | How often to check, in seconds. |
 | Maximum events | `max_events` | Number | No | `0` | Main | Stop after this many events; 0 = no limit. |
 | Maximum (seconds) | `max_seconds` | Number | No | `0` | Main | Stop waiting after this many seconds in total; 0 = no limit (until the run is stopped or an Exit loop step runs). |
+
+*Needs: filesystem.*
 
 ### Each time a program starts
 
@@ -66,7 +68,7 @@ Watch for a program to start (by executable name, e.g. excel or notepad.exe) and
 
 `ooa.triggerloop/timer_tick` (loop type)
 
-Run the nested steps on a fixed interval, e.g. every 60 seconds; gives the tick number and time.
+Run the nested steps on a fixed interval, e.g. every 60 seconds; gives the tick number and time (UTC).
 
 **Settings**
 

@@ -1,0 +1,194 @@
+[
+ {
+  "command": "ooa.application/open_session",
+  "name": "cmd echo session",
+  "steps": [
+   {
+    "action": "ooa.application/open_session",
+    "args": {}
+   },
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "text": "echo sample-ok"
+    }
+   },
+   {
+    "action": "ooa.application/read_session",
+    "args": {
+     "wait_for": "(?m)^sample-ok",
+     "match_type": "regex",
+     "timeout_seconds": 20
+    },
+    "out": {
+     "output": "o",
+     "matched": "m",
+     "exited": "x"
+    }
+   },
+   {
+    "action": "ooa.application/close_session",
+    "out": {
+     "exit_code": "e"
+    }
+   }
+  ],
+  "expect": {
+   "o": {
+    "$contains": "sample-ok"
+   },
+   "m": true,
+   "x": false,
+   "e": 0
+  }
+ },
+ {
+  "command": "ooa.application/write_session",
+  "name": "variable kept across writes",
+  "steps": [
+   {
+    "action": "ooa.application/open_session",
+    "args": {
+     "session": "s1"
+    }
+   },
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "session": "s1",
+     "text": "set OOA_SAMPLE=v42"
+    }
+   },
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "session": "s1",
+     "text": "echo [%OOA_SAMPLE%]"
+    }
+   },
+   {
+    "action": "ooa.application/read_session",
+    "args": {
+     "session": "s1",
+     "wait_for": "[v42]",
+     "timeout_seconds": 20
+    },
+    "out": {
+     "matched": "m"
+    }
+   }
+  ],
+  "expect": {
+   "m": true
+  }
+ },
+ {
+  "command": "ooa.application/write_session",
+  "name": "no session open",
+  "steps": [
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "text": "echo x"
+    }
+   }
+  ],
+  "error": "COMMAND.NO_SESSION"
+ },
+ {
+  "command": "ooa.application/write_session",
+  "name": "program has ended",
+  "steps": [
+   {
+    "action": "ooa.application/open_session",
+    "args": {}
+   },
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "text": "exit 3"
+    }
+   },
+   {
+    "action": "ooa.application/read_session",
+    "args": {
+     "timeout_seconds": 10
+    }
+   },
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "text": "echo late"
+    }
+   }
+  ],
+  "error": "COMMAND.EXITED"
+ },
+ {
+  "command": "ooa.application/read_session",
+  "name": "text never appears",
+  "steps": [
+   {
+    "action": "ooa.application/open_session",
+    "args": {}
+   },
+   {
+    "action": "ooa.application/read_session",
+    "args": {
+     "wait_for": "never-printed-7c1",
+     "timeout_seconds": 1
+    }
+   }
+  ],
+  "error": "COMMAND.TIMEOUT"
+ },
+ {
+  "command": "ooa.application/read_session",
+  "name": "not found, no failure",
+  "steps": [
+   {
+    "action": "ooa.application/open_session",
+    "args": {}
+   },
+   {
+    "action": "ooa.application/read_session",
+    "args": {
+     "wait_for": "never-printed-7c1",
+     "timeout_seconds": 1,
+     "fail_on_timeout": false
+    },
+    "out": {
+     "matched": "m"
+    }
+   }
+  ],
+  "expect": {
+   "m": false
+  }
+ },
+ {
+  "command": "ooa.application/close_session",
+  "name": "exit code of the program",
+  "steps": [
+   {
+    "action": "ooa.application/open_session",
+    "args": {}
+   },
+   {
+    "action": "ooa.application/write_session",
+    "args": {
+     "text": "exit 3"
+    }
+   },
+   {
+    "action": "ooa.application/close_session",
+    "out": {
+     "exit_code": "e"
+    }
+   }
+  ],
+  "expect": {
+   "e": 3
+  }
+ }
+]

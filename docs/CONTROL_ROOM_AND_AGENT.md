@@ -1,4 +1,4 @@
-# One Command Center and One Runner: setup and daily use (moved)
+# One CommandCenter and OneRunner: setup and daily use (moved)
 
 This document has been retired. Its content now lives in the documentation collections:
 

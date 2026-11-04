@@ -25,7 +25,7 @@ No administrator rights are needed: the connector is installed per Windows user.
 ## 1. What the connector does
 
 Without the connector, an agent's web steps use a browser the agent starts itself (Playwright): a clean window with
-no cookies and no sign-ins. With the connector, agents and One Agent Studio can also work **in your own Edge, Chrome
+no cookies and no sign-ins. With the connector, agents and One AgentStudio can also work **in your own Edge, Chrome
 or Firefox**: the windows and tabs you already have open, signed in as you. That matters when:
 
 - a site needs your single sign-on, a smart card or a session you already have;
@@ -106,7 +106,7 @@ listing on addons.mozilla.org) and pushed with Firefox policy.
 
 | State | Meaning |
 | --- | --- |
-| Green dot, **Connected** | "Agents and Agent Studio can see and automate the tabs of this browser" |
+| Green dot, **Connected** | "Agents and One AgentStudio can see and automate the tabs of this browser" |
 | Red dot, **Not connected** | The host is not installed or not reachable. The text tells you to run `ooa browser-connector install` and restart the browser, with the error |
 | **Not available** | The extension's background worker did not answer; reload the extension |
 

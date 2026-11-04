@@ -8,9 +8,10 @@ Toolkit `ooa.microsoft365`, version 1.0.0. Outlook mail, calendar, OneDrive and 
 
 - **Calendar**: Add event attendees, Add event attachment, Cancel calendar event, Clear event details, Create calendar event, Delete calendar event, Find free meeting times, Get calendar events, Remove event attendees, Respond to meeting invitation, Update calendar event
 - **Files**: Check file permission (OneDrive/SharePoint), Copy file or folder (OneDrive/SharePoint), Create folder (OneDrive/SharePoint), Create sharing link (OneDrive/SharePoint), Delete file or folder (OneDrive/SharePoint), Download file (OneDrive/SharePoint), Export file to PDF (OneDrive/SharePoint), Find files (OneDrive/SharePoint), Get file information (OneDrive/SharePoint), List files (OneDrive/SharePoint), List file permissions (OneDrive/SharePoint), Move file or folder (OneDrive/SharePoint), Rename file or folder (OneDrive/SharePoint), Restore file version (OneDrive/SharePoint), Share file or folder (OneDrive/SharePoint), Upload file (OneDrive/SharePoint)
-- **Teams**: Create one-on-one chat (Teams), Get channel by name (Teams), Get channel details (Teams), Get team by name (Teams), Get team details (Teams), Get user (Microsoft 365), List channels (Teams), List teams (Teams), Send chat message (Teams), Post Teams message
+- **Teams**: Create channel (Teams), Create one-on-one chat (Teams), Get channel by name (Teams), Get channel details (Teams), Get channel messages (Teams), Get team by name (Teams), Get team details (Teams), Get user (Microsoft 365), List channels (Teams), List teams (Teams), Reply to channel message (Teams), Send chat message (Teams), Post Teams message
 - **SharePoint**: Create SharePoint list item, Delete SharePoint list item, Get SharePoint list items, List SharePoint lists, Update SharePoint list item
-- **Mail**: Delete all emails (Outlook), Delete email (Outlook), Forward email (Outlook), Read email (Outlook), Find emails (Outlook), Check mail folder exists (Outlook), Change email status (Outlook), Move all emails (Outlook), Move email (Outlook), Reply all to email (Outlook), Reply to email (Outlook), Save attachments of all matching emails (Outlook), Save email as EML (Outlook), Save email attachments (Outlook), Send email (Outlook)
+- **Planner**: Create task (Planner), List plans (Planner), List tasks (Planner), Update task (Planner)
+- **Mail**: Delete all emails (Outlook), Delete email (Outlook), Forward email (Outlook), Read email (Outlook), Find emails (Outlook), Check mail folder exists (Outlook), Change email status (Outlook), Move all emails (Outlook), Move email (Outlook), Reply all to email (Outlook), Reply to email (Outlook), Save attachments of all matching emails (Outlook), Save email as EML (Outlook), Save email as MSG (Outlook), Save email attachments (Outlook), Send email (Outlook)
 - **Excel online**: Add table rows (Excel online), Add worksheet (Excel online), Autofit columns (Excel online), Autofit rows (Excel online), Clear range (Excel online), Get column name (Excel online), Copy Excel range (OneDrive/SharePoint), Copy worksheet (Excel online), Create table (Excel online), Create workbook (Excel online), Delete range (Excel online), Delete table (Excel online), Delete worksheet (Excel online), Find in sheet (Excel online), Find next empty cell (Excel online), Format range (Excel online), Get cell (Excel online), Read cell format (Excel online), Get range values (Excel online), Get table rows (Excel online), Get worksheets (Excel online), Hide worksheet (Excel online), Insert range (Excel online), List tables (Excel online), Read column (Excel online), Read formula (Excel online), Read Excel range (OneDrive/SharePoint), Read row (Excel online), Rename table (Excel online), Rename worksheet (Excel online), Set cell (Excel online), Set formula (Excel online), Set range values (Excel online), Show worksheet (Excel online), Get used range (Excel online), Write Data Table (Excel online), Write Excel range (OneDrive/SharePoint)
 
 ## Calendar
@@ -302,6 +303,8 @@ Change the title, times, description, location, all-day setting or repeat patter
 | Recurrence interval | `recurrence_interval` | Number | No | `1` | Main; tick Change the repeat | Repeat every this many days, weeks, months or years. |
 | Recurrence end | `recurrence_end` | DateTime | No |  | Main; tick Change the repeat | Last date of the series; it has no end when empty and no count is given. |
 | Recurrence count | `recurrence_count` | Number | No |  | Main; tick Change the repeat | Number of occurrences, instead of an end date. |
+| Recurrence days of week | `recurrence_days_of_week` | List | No |  | Main; tick Change the repeat | Weekdays the series repeats on. For weekly repeats, instead of the start's weekday; for monthly or yearly repeats, used with recurrence_week_of_month (e.g. the second Tuesday). Example: `["tuesday"]` |
+| Recurrence week of month | `recurrence_week_of_month` | Text | No |  | Main; tick Change the repeat | For monthly or yearly repeats: which week of the month, with recurrence_days_of_week (or the start's weekday). One of: `first`, `second`, `third`, `fourth`, `last` |
 | Body is HTML | `html` | Yes/No | No | No | More options | The description is HTML. |
 | Importance | `importance` | Text | No |  | More options | Importance; Outlook's default when empty. One of: `low`, `normal`, `high` |
 | Show as | `show_as` | Text | No |  | More options | How the time shows in the calendar (oof = out of office); busy when empty. One of: `free`, `tentative`, `busy`, `oof`, `workingElsewhere` |
@@ -702,7 +705,7 @@ Give people read or edit access to a file or folder, optionally emailing them an
 
 `ooa.microsoft365/upload_file` (action)
 
-Upload a local file (up to 250 MB) to a OneDrive or SharePoint folder path; creates or replaces it.
+Upload a local file of any size to a OneDrive or SharePoint folder path; creates or replaces it. Files over 4 MB go through a resumable upload session in chunks.
 
 **Settings**
 
@@ -712,6 +715,7 @@ Upload a local file (up to 250 MB) to a OneDrive or SharePoint folder path; crea
 | Local path | `local_path` | File path | Yes |  | Main | File to upload. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Target path in the drive, including the file name. Example: `Reports/2026/summary.xlsx` |
 | If exists | `if_exists` | Text | No | `replace` | Main | When the name is taken at the destination: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
+| Chunk size (MB) | `chunk_size_mb` | Number | No | `10` | More options | Size of each piece sent for files over 4 MB (rounded down to a multiple of 320 KB); smaller pieces suit slow or unreliable networks. Range: 0.3125 to 60 |
 | Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -721,10 +725,36 @@ Upload a local file (up to 250 MB) to a OneDrive or SharePoint folder path; crea
 | --- | --- | --- |
 | `item_id` | Text | Drive item id. |
 | `web_url` | Text | Link to the file. |
+| `size` | Number | Bytes uploaded. |
 
-*Time limit 600 s; needs: network, filesystem.*
+*Time limit 7200 s; needs: network, filesystem.*
 
 ## Teams
+
+### Create channel (Teams)
+
+`ooa.microsoft365/create_channel` (action)
+
+Add a standard channel, visible to every member, to a team.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Team ID | `team_id` | Text | Yes |  | Main | Team id. |
+| Name | `name` | Text | Yes |  | Main | Channel name, up to 50 characters, unique in the team. |
+| Description | `description` | Text | No |  | Main | What the channel is for. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `channel_id` | Text | Id of the new channel. |
+| `web_url` | Text | Link to open the channel in Teams. |
+
+*Time limit 60 s; needs: network.*
 
 ### Create one-on-one chat (Teams)
 
@@ -794,6 +824,32 @@ Read a channel's name, description, membership type, email address, creation dat
 | `channel` | Dictionary | id, name, description, membership_type, email, created, web_url. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+### Get channel messages (Teams)
+
+`ooa.microsoft365/get_channel_messages` (action)
+
+Read the posts of a Teams channel, newest first, optionally only those since a date.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Team ID | `team_id` | Text | Yes |  | Main | Team id. |
+| Channel ID | `channel_id` | Text | Yes |  | Main | Channel id. |
+| Since | `since` | DateTime | No |  | Main | Only posts created at or after this time (UTC); all posts when empty. |
+| Maximum results | `max_results` | Number | No | `100` | More options | Most posts to return. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, created, from, subject, text, body, content_type, reply_to_id, web_url. |
+| `count` | Number | Number of messages. |
+
+*Time limit 300 s; safe to repeat; needs: network.*
 
 ### Get team by name (Teams)
 
@@ -906,6 +962,32 @@ List the Microsoft Teams teams the user belongs to.
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
+### Reply to channel message (Teams)
+
+`ooa.microsoft365/reply_to_message` (action)
+
+Post a reply in the thread of a Teams channel message.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Team ID | `team_id` | Text | Yes |  | Main | Team id. |
+| Channel ID | `channel_id` | Text | Yes |  | Main | Channel id. |
+| Message ID | `message_id` | Text | Yes |  | Main | Id of the post to reply to, e.g. from Get channel messages. |
+| Message | `message` | Text | Yes |  | Main | Reply text (HTML allowed when html is true). |
+| Body is HTML | `html` | Yes/No | No | No | More options | Reply is HTML. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `reply_id` | Text | Id of the reply. |
+
+*Time limit 60 s; needs: network.*
+
 ### Send chat message (Teams)
 
 `ooa.microsoft365/send_chat_message` (action)
@@ -920,6 +1002,7 @@ Send a message into an existing Teams chat, or straight to one person, starting 
 | Chat ID | `chat_id` | Text | No |  | Main; choice Send to = A chat | Chat id, e.g. from Create chat; or give to instead. |
 | To | `to` | Text | No |  | Main; choice Send to = A person | Person's email address or user id; their one-on-one chat with the signed-in user is used, or started. Used instead of chat_id. Example: `ann@contoso.com` |
 | Message | `message` | Text | Yes |  | Main | Message text (HTML allowed when html is true). |
+| Mentions | `mentions` | List | No |  | Main | People in the chat to @mention, by email address or user id. Write @[ann@contoso.com] in the message where a mention goes; others are put at the start. Example: `["ann@contoso.com"]` |
 | Body is HTML | `html` | Yes/No | No | No | More options | Message is HTML. |
 | Importance | `importance` | Text | No | `normal` | More options | Importance of the message. One of: `normal`, `high`, `urgent` |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
@@ -949,6 +1032,7 @@ Post a message to a Microsoft Teams channel, chosen by id or by name.
 | Channel ID | `channel_id` | Text | No |  | Main; choice Channel = By id | Channel id; or give channel_name instead. |
 | Channel name | `channel_name` | Text | No |  | Main; choice Channel = By name | Channel display name (not case-sensitive); used instead of channel_id. Example: `General` |
 | Message | `message` | Text | Yes |  | Main | Message text (HTML allowed when html is true). |
+| Mentions | `mentions` | List | No |  | Main | People to @mention, by email address or user id; also channel or team (channel posts only) to notify everyone. Write @[ann@contoso.com] in the message where a mention goes; mentions not placed in the text are put at the start. Example: `["ann@contoso.com", "channel"]` |
 | Body is HTML | `html` | Yes/No | No | No | More options | Message is HTML. |
 | Subject | `subject` | Text | No |  | More options | Title shown above the message. |
 | Importance | `importance` | Text | No | `normal` | More options | Importance of the message. One of: `normal`, `high`, `urgent` |
@@ -1071,6 +1155,101 @@ Change some fields of a SharePoint list item; other fields keep their values.
 | List | `list` | Text | Yes |  | Main | List id or display name. |
 | Item ID | `item_id` | Text | Yes |  | Main | Item id. |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field internal names and their new values. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+## Planner
+
+### Create task (Planner)
+
+`ooa.microsoft365/create_task` (action)
+
+Add a task to a Planner plan, optionally in a bucket, with a due date and people assigned.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Plan ID | `plan_id` | Text | Yes |  | Main | Plan id, e.g. from List plans. |
+| Bucket ID | `bucket_id` | Text | No |  | Main | Bucket (column) to put the task in; leave empty for none. |
+| Title | `title` | Text | Yes |  | Main | Task title. |
+| Due date | `due_date` | DateTime | No |  | Main | When the task is due (UTC). |
+| Assigned to | `assigned_to` | List | No |  | Main | User ids of the people to assign; Get user gives a person's id. Example: `["0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"]` |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `task_id` | Text | Id of the new task. |
+
+*Time limit 60 s; needs: network.*
+
+### List plans (Planner)
+
+`ooa.microsoft365/list_plans` (action)
+
+List the Planner plans of a Microsoft 365 group (the group behind a team).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Group ID | `group_id` | Text | Yes |  | Main | Microsoft 365 group id; a team's id is its group id. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, title, created, group_id. |
+| `count` | Number | Number of plans. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### List tasks (Planner)
+
+`ooa.microsoft365/list_tasks` (action)
+
+List the tasks of a Planner plan, optionally only those in one bucket or assigned to one person.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Plan ID | `plan_id` | Text | Yes |  | Main | Plan id, e.g. from List plans. |
+| Bucket ID | `bucket_id` | Text | No |  | Main | Only tasks in this bucket; all buckets when empty. |
+| Assigned to | `assigned_to` | Text | No |  | Main | Only tasks assigned to this user id; everyone's when empty. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, title, bucket_id, percent_complete, due, start, created, completed, assigned_to, priority. |
+| `count` | Number | Number of tasks. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Update task (Planner)
+
+`ooa.microsoft365/update_task` (action)
+
+Change a Planner task's title, progress or due date; fields left empty keep their values.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Task ID | `task_id` | Text | Yes |  | Main | Task id, e.g. from List tasks. |
+| Title | `title` | Text | No |  | Main | New title. |
+| Percent complete | `percent_complete` | Number | No |  | Main | Progress from 0 to 100; Planner shows 0 as not started, 1 to 99 as in progress and 100 as completed. |
+| Due date | `due_date` | DateTime | No |  | Main | New due date (UTC). |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1414,6 +1593,32 @@ Save a complete email, including attachments, as a standard .eml file.
 
 *Time limit 60 s; needs: network, filesystem.*
 
+### Save email as MSG (Outlook)
+
+`ooa.microsoft365/save_mail_as_msg` (action)
+
+Save an email, with its recipients, HTML body and attachments, as an Outlook .msg file that opens in Outlook.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| ID | `id` | Text | Yes |  | Main | Email id. |
+| Local path | `local_path` | File path | Yes |  | Main | Where to save the .msg file; a path ending in / or an existing folder gets a file named after the subject. Example: `mail/order-123.msg` |
+| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false a number such as (2) is added to the name. |
+| Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Saved local path. |
+| `attachments` | Number | Number of attachments saved in the file. |
+
+*Time limit 600 s; needs: network, filesystem.*
+
 ### Save email attachments (Outlook)
 
 `ooa.microsoft365/save_mail_attachments` (action)
@@ -1634,7 +1839,7 @@ Copy a cell or range to another place in the same workbook, as values or with fo
 
 `ooa.microsoft365/excel_copy_worksheet` (action)
 
-Copy a worksheet's cells (values, formulas and number formats) into a new worksheet, in the same workbook or another one. Colours, fonts and column widths are not copied.
+Copy a worksheet's cells (values, formulas and number formats) into a new worksheet, in the same workbook or another one, with its column widths, row heights, fonts, fill colours and alignment.
 
 **Settings**
 
@@ -1645,6 +1850,7 @@ Copy a worksheet's cells (values, formulas and number formats) into a new worksh
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet to copy. |
 | Target remote path | `target_remote_path` | Text | No |  | Main; tick Into another workbook | Workbook to copy into (path in the same drive, or id:{item-id}); the same workbook when empty. |
 | New name | `new_name` | Text | No |  | Main | Name of the new worksheet; the source sheet's name when empty, which must then be free in the target workbook. |
+| Copy formats | `copy_formats` | Text | No | `all` | More options | all copies column widths, row heights, fonts, fill colours and alignment; sizes only widths and heights; none only cells and number formats (fastest). One of: `all`, `sizes`, `none` |
 | Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -1655,7 +1861,7 @@ Copy a worksheet's cells (values, formulas and number formats) into a new worksh
 | `sheet_name` | Text | Name of the new worksheet. |
 | `address` | Text | Cells written on the new worksheet, e.g. A1:F42; empty when the source sheet is empty. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 1800 s; needs: network.*
 
 ### Create table (Excel online)
 

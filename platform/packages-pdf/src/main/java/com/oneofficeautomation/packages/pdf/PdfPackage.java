@@ -25,6 +25,26 @@ import java.util.*;
         description = "Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images.")
 public final class PdfPackage {
 
+    private static final java.util.concurrent.atomic.AtomicBoolean FONTS_STARTED = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /**
+     * Starts PDFBox's list of this computer's fonts in the background. PDFBox makes the list the first time it reads a font
+     * that a PDF names without embedding it (Helvetica, Arial and the like), and keeps it in .pdfbox.cache in the user's
+     * folder; on a computer where that never happened the first Extract text, Extract text from area or Convert to images
+     * waited for all of it: from 1 to more than 5 minutes on the Windows machines of GitHub's CI (STEP.TIMEOUT after 300 s
+     * on 2 Nov 2026). Hosts that run bots call this when they start (FirstPartyPackages.warmUp), so the first PDF step waits
+     * for what is left at most. Once per process; never fails.
+     */
+    public static void warmUp() {
+        if (!FONTS_STARTED.compareAndSet(false, true)) return;
+        Thread t = new Thread(() -> {
+            try { org.apache.pdfbox.pdmodel.font.FontMappers.instance().getFontBoxFont("Helvetica", null); }
+            catch (RuntimeException | LinkageError ignored) { /* the first PDF step that needs the fonts makes the list then */ }
+        }, "ooa-pdf-fonts");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private static PDDocument load(ActionContext ctx, String path, Object password) {
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "PDF not found: " + p, "Check the path.");
@@ -99,8 +119,13 @@ public final class PdfPackage {
                 for (int pg : pages(pages, d.getNumberOfPages())) { s.setStartPage(pg); s.setEndPage(pg); sb.append(s.getText(d)); }
                 text = sb.toString();
             } else {
-                s.setStartPage(Math.max(1, from));
-                s.setEndPage(to == null ? d.getNumberOfPages() : Math.min(to, d.getNumberOfPages()));
+                int count = d.getNumberOfPages();
+                // a start page past the end used to return "" as if the page were empty
+                if (from > count || from < 1 || (to != null && to < from))
+                    throw new ActionException("PDF.BAD_PAGES", from > count ? "There is no page " + from + "; the document has " + count + " page" + (count == 1 ? "" : "s")
+                            : "from_page and to_page must be 1 or more, with to_page not before from_page", "The document has " + count + " page" + (count == 1 ? "" : "s") + ".");
+                s.setStartPage(from);
+                s.setEndPage(to == null ? count : Math.min(to, count));
                 text = s.getText(d);
             }
             if (outputFile != null && !outputFile.isBlank()) {
@@ -373,7 +398,7 @@ public final class PdfPackage {
             for (var e : values.entrySet()) {
                 PDField f = form.getField(e.getKey());
                 if (f == null) { missing.add(e.getKey()); continue; }
-                f.setValue(e.getValue() == null ? "" : Values.text(Values.toJsonable(e.getValue())));
+                setField(f, e.getKey(), e.getValue());
                 n++;
             }
             if (!missing.isEmpty()) throw new ActionException("PDF.NO_FIELD", "Fields not found: " + missing, "Use Read form fields to see the exact field names.");
@@ -381,6 +406,34 @@ public final class PdfPackage {
             save(ctx, d, target);
             return Map.of("filled", BigDecimal.valueOf(n));
         } catch (IOException e) { throw new ActionException("PDF.FORM_FAILED", e.getMessage()); }
+    }
+
+    /**
+     * A check box takes true/false (or yes/no, on/off, 1/0, x) and is set to its own on-value or Off: {"agree": true} used
+     * to crash with IllegalArgumentException. A wrong choice for a check box, radio group or list is PDF.BAD_VALUE with the
+     * allowed values.
+     */
+    static void setField(PDField f, String name, Object value) throws IOException {
+        String text = value == null ? "" : Values.text(Values.toJsonable(value));
+        try {
+            if (f instanceof org.apache.pdfbox.pdmodel.interactive.form.PDCheckBox cb) {
+                String t = text.strip().toLowerCase(Locale.ROOT);
+                Set<String> on = cb.getOnValues();
+                if (value instanceof Boolean b ? b : List.of("true", "yes", "y", "on", "1", "x", "checked").contains(t)) cb.check();
+                else if (value instanceof Boolean || List.of("false", "no", "n", "off", "0", "", "unchecked").contains(t)) cb.unCheck();
+                else if (on.contains(text.strip())) cb.setValue(text.strip());
+                else throw new ActionException("PDF.BAD_VALUE", "Check box '" + name + "' cannot be set to '" + text + "'",
+                            "Use true or false" + (on.isEmpty() ? "." : ", or its on-value " + on + "."));
+                return;
+            }
+            f.setValue(text);
+        } catch (IllegalArgumentException e) {
+            List<String> options = new ArrayList<>();
+            if (f instanceof org.apache.pdfbox.pdmodel.interactive.form.PDButton btn) options.addAll(btn.getOnValues());
+            if (f instanceof org.apache.pdfbox.pdmodel.interactive.form.PDChoice ch) options.addAll(ch.getOptionsExportValues().isEmpty() ? ch.getOptions() : ch.getOptionsExportValues());
+            throw new ActionException("PDF.BAD_VALUE", "Field '" + name + "' cannot be set to '" + text + "'" + (options.isEmpty() ? ": " + e.getMessage() : ""),
+                    options.isEmpty() ? "Use Read form fields to see what the field accepts." : "Allowed values: " + options + ".");
+        }
     }
 
     public Map<String, Object> encrypt(ActionContext ctx, String path, String target, SecureString user, SecureString owner, boolean print) {
@@ -442,18 +495,11 @@ public final class PdfPackage {
     }
 
     /** Writes an image in a format ImageIO knows; JPEG and BMP get an RGB copy because they have no alpha channel. */
-    private static void writeImage(java.awt.image.BufferedImage img, String format, File f) throws IOException {
-        java.awt.image.BufferedImage out = img;
-        if ((format.equals("jpg") || format.equals("bmp")) && img.getType() != java.awt.image.BufferedImage.TYPE_INT_RGB
-                && img.getType() != java.awt.image.BufferedImage.TYPE_BYTE_GRAY && img.getType() != java.awt.image.BufferedImage.TYPE_BYTE_BINARY) {
-            out = new java.awt.image.BufferedImage(img.getWidth(), img.getHeight(), java.awt.image.BufferedImage.TYPE_INT_RGB);
-            var g = out.createGraphics();
-            g.setColor(java.awt.Color.WHITE);
-            g.fillRect(0, 0, img.getWidth(), img.getHeight());
-            g.drawImage(img, 0, 0, null);
-            g.dispose();
-        }
-        if (!ImageIO.write(out, format.equals("jpg") ? "jpeg" : format, f)) throw new IOException("No " + format + " writer available");
+    private static void writeImage(java.awt.image.BufferedImage img, String format, File f) throws IOException { writeImage(img, format, f, null, null); }
+
+    /** Writes an image with the JPEG quality and TIFF compression chosen on the step (see ImageFiles). */
+    private static void writeImage(java.awt.image.BufferedImage img, String format, File f, Integer jpegQuality, String tiffCompression) throws IOException {
+        com.oneofficeautomation.packages.ImageFiles.write(img, format, f, jpegQuality, tiffCompression);
     }
 
     private static String imageFormat(String format) {
@@ -467,9 +513,13 @@ public final class PdfPackage {
 
     public Map<String, Object> toImages(ActionContext ctx, String path, String folder, int dpi) { return toImages(ctx, path, folder, dpi, "png", "color", null, null, null); }
 
+    public Map<String, Object> toImages(ActionContext ctx, String path, String folder, int dpi, String format, String colour, String pages, String prefix, Object password) {
+        return toImages(ctx, path, folder, dpi, format, colour, pages, prefix, password, null, null);
+    }
+
     @Action(id = "to_images", name = "Convert to images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Save each page, or chosen pages, as an image (PNG, JPEG, BMP, GIF or TIFF) in colour, grey or black and white, for OCR or previews.",
-            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, dpi, color | file_prefix")
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, dpi, color | jpeg_quality, tiff_compression, file_prefix")
     @Output(name = "files", type = OoaType.LIST, description = "Created images.")
     public Map<String, Object> toImages(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
@@ -480,7 +530,11 @@ public final class PdfPackage {
                     description = "color keeps the colours; gray gives greyscale; black_white gives 1-bit images, often best for OCR.") String colour,
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Pages to convert, e.g. 1,3,5-7; every page when empty.") String pages,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1 and so on; the PDF's name when empty.") String prefix,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "jpeg_quality", type = OoaType.NUMBER, required = false, defaultValue = "90", min = 1, max = 100, visibleWhen = "format=jpg|tiff",
+                    description = "JPEG quality from 1 (smallest file) to 100 (best picture); also used for TIFF with jpeg compression.") Integer jpegQuality,
+            @Input(name = "tiff_compression", type = OoaType.STRING, required = false, defaultValue = "\"lzw\"", enumValues = {"lzw", "deflate", "packbits", "jpeg", "ccitt_g4", "none"}, visibleWhen = "format=tiff",
+                    description = "TIFF compression: lzw and deflate are lossless; ccitt_g4 gives the smallest black-and-white files (pages are made black and white); jpeg suits photos.") String tiffCompression) {
         List<Object> out = new ArrayList<>();
         String fmt = imageFormat(format);
         org.apache.pdfbox.rendering.ImageType type = switch (colour == null ? "color" : colour.toLowerCase(Locale.ROOT)) {
@@ -497,11 +551,39 @@ public final class PdfPackage {
             for (int pg : pages(pages, d.getNumberOfPages())) {
                 ctx.checkCancelled();
                 File f = dir.resolve(base + "_page" + pg + "." + fmt).toFile();
-                writeImage(r.renderImageWithDPI(pg - 1, Math.max(36, Math.min(600, dpi)), type), fmt, f);
+                writeImage(r.renderImageWithDPI(pg - 1, Math.max(36, Math.min(600, dpi)), type), fmt, f, fmt.equals("jpg") || fmt.equals("tiff") ? jpegQuality : null, tiffCompression);
                 out.add(f.getPath());
             }
         } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
         return Map.of("files", out);
+    }
+
+    @Action(id = "render_page", name = "Get page as picture", category = "Document", idempotent = true, timeoutSeconds = 120, capabilities = "filesystem",
+            description = "Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by One AgentStudio to draw an area to read, and to show a page in forms or emails.",
+            panel = "path, page, [The file has a password: password] | dpi")
+    @Output(name = "image", type = OoaType.STRING, description = "The page as a data:image/png;base64 URI.")
+    @Output(name = "width_points", type = OoaType.NUMBER, description = "Page width in points (72 per inch), as Extract text from area measures it.")
+    @Output(name = "height_points", type = OoaType.NUMBER, description = "Page height in points.")
+    @Output(name = "page_count", type = OoaType.NUMBER, description = "Number of pages in the file.")
+    public Map<String, Object> renderPage(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "1-based page number.") int page,
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "96", min = 36, max = 300, description = "Resolution of the picture.") int dpi,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        try (PDDocument d = load(ctx, path, password)) {
+            if (page < 1 || page > d.getNumberOfPages())
+                throw new ActionException("PDF.NO_PAGE", "There is no page " + page + " (the file has " + d.getNumberOfPages() + ")", "Use a page from 1 to " + d.getNumberOfPages() + ".");
+            PDPage p = d.getPage(page - 1);
+            org.apache.pdfbox.pdmodel.common.PDRectangle box = p.getCropBox();
+            boolean turned = p.getRotation() % 180 != 0;
+            java.awt.image.BufferedImage img = new PDFRenderer(d).renderImageWithDPI(page - 1, Math.max(36, Math.min(300, dpi)), org.apache.pdfbox.rendering.ImageType.RGB);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            ImageIO.write(img, "png", out);
+            return Map.of("image", "data:image/png;base64," + Base64.getEncoder().encodeToString(out.toByteArray()),
+                    "width_points", BigDecimal.valueOf(turned ? box.getHeight() : box.getWidth()).setScale(2, java.math.RoundingMode.HALF_UP),
+                    "height_points", BigDecimal.valueOf(turned ? box.getWidth() : box.getHeight()).setScale(2, java.math.RoundingMode.HALF_UP),
+                    "page_count", BigDecimal.valueOf(d.getNumberOfPages()));
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
     }
 
     @Action(id = "read_text_ocr", name = "Read text with OCR", category = "Document", idempotent = true, timeoutSeconds = 1800, capabilities = "filesystem",
@@ -544,9 +626,14 @@ public final class PdfPackage {
         return extractImages(ctx, path, folder, minSize, password, pages, format, prefix, colour, 0);
     }
 
+    public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password,
+                                             String pages, String format, String prefix, String colour, int dpi) {
+        return extractImages(ctx, path, folder, minSize, password, pages, format, prefix, colour, dpi, null, null);
+    }
+
     @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.",
-            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color, [Resize to a resolution: dpi] | min_size")
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color, [Resize to a resolution: dpi] | jpeg_quality, tiff_compression, min_size")
     @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
     public Map<String, Object> extractImages(ActionContext ctx,
@@ -557,12 +644,20 @@ public final class PdfPackage {
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Only pages listed here, e.g. 1,3,5-7; every page when empty.") String pages,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp", "gif", "tiff"}, description = "Image file format.") String format,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty.") String prefix,
-            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour,
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray", "black_white"},
+                    description = "Colour depth: color keeps the colours (24-bit); gray saves 8-bit greyscale copies; black_white saves 1-bit images.") String colour,
             @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1200,
-                    description = "Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size.") int dpi) {
+                    description = "Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size.") int dpi,
+            @Input(name = "jpeg_quality", type = OoaType.NUMBER, required = false, defaultValue = "90", min = 1, max = 100, visibleWhen = "format=jpg|tiff",
+                    description = "JPEG quality from 1 (smallest file) to 100 (best picture); also used for TIFF with jpeg compression.") Integer jpegQuality,
+            @Input(name = "tiff_compression", type = OoaType.STRING, required = false, defaultValue = "\"lzw\"", enumValues = {"lzw", "deflate", "packbits", "jpeg", "ccitt_g4", "none"}, visibleWhen = "format=tiff",
+                    description = "TIFF compression: lzw and deflate are lossless; ccitt_g4 gives the smallest black-and-white files (images are made black and white); jpeg suits photos.") String tiffCompression) {
         List<Object> out = new ArrayList<>();
         String fmt = imageFormat(format);
-        boolean gray = colour != null && (colour.equalsIgnoreCase("gray") || colour.equalsIgnoreCase("grey"));
+        String depth = colour == null || colour.isBlank() ? "color" : colour.trim().toLowerCase(Locale.ROOT).replace("grey", "gray").replace("colour", "color");
+        if (!List.of("color", "gray", "black_white").contains(depth))
+            throw new ActionException("PDF.BAD_COLOR", "Colour must be color, gray or black_white", "Use color, gray or black_white.");
+        boolean gray = depth.equals("gray");
         try (PDDocument d = load(ctx, path, password)) {
             Path dir = ctx.resolvePath(folder);
             Files.createDirectories(dir);
@@ -578,13 +673,10 @@ public final class PdfPackage {
                     if (bi == null || bi.getWidth() < minSize || bi.getHeight() < minSize) return;
                     double[] size = placed.get(img.getCOSObject());
                     if (size != null) bi = resize(bi, (int) Math.max(1, Math.round(size[0] / 72 * dpi)), (int) Math.max(1, Math.round(size[1] / 72 * dpi)));
-                    if (gray) {
-                        java.awt.image.BufferedImage g = new java.awt.image.BufferedImage(bi.getWidth(), bi.getHeight(), java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
-                        var gr = g.createGraphics(); gr.drawImage(bi, 0, 0, null); gr.dispose();
-                        bi = g;
-                    }
+                    if (gray) bi = com.oneofficeautomation.packages.ImageFiles.gray(bi);
+                    else if (depth.equals("black_white")) bi = com.oneofficeautomation.packages.ImageFiles.binary(bi);
                     File f = dir.resolve(base + "_page" + pageNo + "_img" + (++n[0]) + "." + fmt).toFile();
-                    writeImage(bi, fmt, f);
+                    writeImage(bi, fmt, f, fmt.equals("jpg") || fmt.equals("tiff") ? jpegQuality : null, tiffCompression);
                     out.add(f.getPath());
                 });
             }
@@ -684,5 +776,289 @@ public final class PdfPackage {
 
     private static java.time.LocalDateTime date(Calendar c) {
         return c == null ? null : java.time.LocalDateTime.ofInstant(c.toInstant(), java.time.ZoneOffset.UTC);
+    }
+
+    // ---------- tables from text PDFs, and XPS text (gap G12, 3 Nov 2026) ----------
+
+    /** A word with its box on the page (points from the top-left). */
+    record Word(String text, double x0, double x1, double y, double height, double charWidth) { }
+
+    /** The words of one page, as PDFTextStripper finds them. */
+    static List<Word> words(PDDocument d, int page) throws IOException {
+        List<Word> out = new ArrayList<>();
+        PDFTextStripper s = new PDFTextStripper() {
+            @Override protected void writeString(String text, List<org.apache.pdfbox.text.TextPosition> pos) {
+                if (text.isBlank() || pos.isEmpty()) return;
+                org.apache.pdfbox.text.TextPosition a = pos.get(0), b = pos.get(pos.size() - 1);
+                double w = 0;
+                for (org.apache.pdfbox.text.TextPosition t : pos) w += t.getWidthDirAdj();
+                out.add(new Word(text.strip(), a.getXDirAdj(), b.getXDirAdj() + b.getWidthDirAdj(), a.getYDirAdj(),
+                        Math.max(1, a.getHeightDir()), Math.max(1, w / pos.size())));
+            }
+        };
+        s.setSortByPosition(true);
+        s.setStartPage(page);
+        s.setEndPage(page);
+        s.getText(d);
+        return out;
+    }
+
+    /** A cell: neighbouring words on one line that belong together. */
+    record Cell(String text, double x0, double x1) { }
+
+    /** Lines of cells, top to bottom: words on the same baseline; separate pieces of text stay separate cells. */
+    static List<List<Cell>> lines(List<Word> words, List<Double> lineY) {
+        List<Word> sorted = new ArrayList<>(words);
+        sorted.sort(Comparator.comparingDouble(Word::y).thenComparingDouble(Word::x0));
+        List<List<Word>> rows = new ArrayList<>();
+        for (Word w : sorted) {
+            List<Word> last = rows.isEmpty() ? null : rows.get(rows.size() - 1);
+            if (last != null && Math.abs(last.get(0).y() - w.y()) <= Math.max(2, last.get(0).height() * 0.5)) last.add(w);
+            else rows.add(new ArrayList<>(List.of(w)));
+        }
+        List<List<Cell>> out = new ArrayList<>();
+        for (List<Word> r : rows) {
+            r.sort(Comparator.comparingDouble(Word::x0));
+            List<Cell> cells = new ArrayList<>();
+            StringBuilder t = new StringBuilder(r.get(0).text());
+            double x0 = r.get(0).x0(), x1 = r.get(0).x1();
+            for (int i = 1; i < r.size(); i++) {
+                Word w = r.get(i);
+                // PDF text already comes in phrases (Blue pens, box of 10); only pieces that nearly touch are joined
+                if (w.x0() - x1 > Math.min(w.charWidth(), r.get(i - 1).charWidth()) * 0.6) { cells.add(new Cell(t.toString(), x0, x1)); t = new StringBuilder(w.text()); x0 = w.x0(); }
+                else t.append(' ').append(w.text());
+                x1 = Math.max(x1, w.x1());
+            }
+            cells.add(new Cell(t.toString(), x0, x1));
+            out.add(cells);
+            lineY.add(r.get(0).y());
+        }
+        return out;
+    }
+
+    /** Runs of lines with at least minColumns cells and no big vertical gap, turned into rows of equal width. */
+    static List<List<List<String>>> tablesOn(List<List<Cell>> lines, List<Double> ys, int minColumns) {
+        List<List<List<String>>> tables = new ArrayList<>();
+        int i = 0;
+        while (i < lines.size()) {
+            if (lines.get(i).size() < minColumns) { i++; continue; }
+            int j = i + 1;
+            double step = j < lines.size() ? ys.get(j) - ys.get(i) : 0;
+            while (j < lines.size() && lines.get(j).size() >= Math.min(2, minColumns)
+                    && ys.get(j) - ys.get(j - 1) <= Math.max(step, 1) * 2.5 + 1) j++;
+            if (j - i >= 2) tables.add(grid(lines.subList(i, j)));
+            i = j;
+        }
+        return tables;
+    }
+
+    /**
+     * Columns from the blank strips that (nearly) every row leaves free, so a heading spilling into the next column in
+     * one row does not join two columns; each cell goes to the column it overlaps most. A column with only a heading
+     * next to one with data but no heading (a left-aligned heading over right-aligned numbers) becomes one column.
+     */
+    static List<List<String>> grid(List<List<Cell>> rows) {
+        double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+        for (List<Cell> r : rows) for (Cell c : r) { min = Math.min(min, c.x0()); max = Math.max(max, c.x1()); }
+        int bins = (int) Math.ceil(max - min) + 2;
+        int[] cover = new int[bins];
+        for (List<Cell> r : rows) {
+            boolean[] row = new boolean[bins];
+            for (Cell c : r) for (int b = (int) Math.floor(c.x0() - min); b <= (int) Math.ceil(c.x1() - min) && b < bins; b++) row[Math.max(0, b)] = true;
+            for (int b = 0; b < bins; b++) if (row[b]) cover[b]++;
+        }
+        int blank = rows.size() >= 4 ? rows.size() / 4 : 0;   // a strip covered by this few rows still separates columns
+        List<double[]> cols = new ArrayList<>();
+        for (int b = 0; b < bins; b++) {
+            if (cover[b] <= blank) continue;
+            int e = b;
+            while (e + 1 < bins && cover[e + 1] > blank) e++;
+            cols.add(new double[]{min + b, min + e});
+            b = e;
+        }
+        if (cols.isEmpty()) cols.add(new double[]{min, max});
+        List<List<String>> out = new ArrayList<>();
+        for (List<Cell> r : rows) {
+            String[] row = new String[cols.size()];
+            Arrays.fill(row, "");
+            for (Cell c : r) {
+                int best = 0;
+                double bestOverlap = -Double.MAX_VALUE;   // no overlap at all: the nearest column
+                for (int k = 0; k < cols.size(); k++) {
+                    double ov = Math.min(c.x1(), cols.get(k)[1]) - Math.max(c.x0(), cols.get(k)[0]);
+                    if (ov > bestOverlap) { bestOverlap = ov; best = k; }
+                }
+                row[best] = row[best].isEmpty() ? c.text() : row[best] + " " + c.text();
+            }
+            out.add(new ArrayList<>(Arrays.asList(row)));
+        }
+        // join a heading-only column with a neighbouring data column that has no heading
+        for (int k = 0; k + 1 < (out.isEmpty() ? 0 : out.get(0).size()); k++) {
+            boolean leftHeadOnly = headingOnly(out, k), rightHeadOnly = headingOnly(out, k + 1);
+            boolean leftDataOnly = dataOnly(out, k), rightDataOnly = dataOnly(out, k + 1);
+            if ((leftHeadOnly && rightDataOnly) || (leftDataOnly && rightHeadOnly)) {
+                for (List<String> r : out) {
+                    String a = r.get(k), b = r.get(k + 1);
+                    r.set(k, a.isEmpty() ? b : b.isEmpty() ? a : a + " " + b);
+                    r.remove(k + 1);
+                }
+                k--;
+            }
+        }
+        return out;
+    }
+
+    private static boolean headingOnly(List<List<String>> rows, int col) {
+        if (rows.get(0).get(col).isEmpty()) return false;
+        for (int i = 1; i < rows.size(); i++) if (!rows.get(i).get(col).isEmpty()) return false;
+        return true;
+    }
+
+    private static boolean dataOnly(List<List<String>> rows, int col) {
+        if (!rows.get(0).get(col).isEmpty()) return false;
+        for (int i = 1; i < rows.size(); i++) if (!rows.get(i).get(col).isEmpty()) return true;
+        return false;
+    }
+
+    private static Map<String, Object> dataTable(List<List<String>> rows, boolean header) {
+        int width = rows.stream().mapToInt(List::size).max().orElse(0);
+        List<String> columns = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (int c = 0; c < width; c++) {
+            String n = header && c < rows.get(0).size() && !rows.get(0).get(c).isBlank() ? rows.get(0).get(c).strip() : "Column" + (c + 1);
+            String u = n;
+            for (int k = 2; !seen.add(u.toLowerCase(Locale.ROOT)); k++) u = n + "_" + k;
+            columns.add(u);
+        }
+        List<Object> data = new ArrayList<>();
+        for (List<String> r : header ? rows.subList(1, rows.size()) : rows) {
+            List<Object> row = new ArrayList<>(r);
+            while (row.size() < width) row.add("");
+            data.add(row);
+        }
+        return Values.table(columns, data);
+    }
+
+    @Action(id = "extract_tables", name = "Extract tables", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Find tables in a PDF that holds text (invoices, statements, reports) by how the text lines up in columns, and return each as a Data Table. Scanned PDFs need OCR first.",
+            panel = "path, [The file has a password: password], pages, header, merge_across_pages | min_columns")
+    @Output(name = "tables", type = OoaType.LIST, description = "Every table found, as Data Tables, top to bottom and page by page.")
+    @Output(name = "table", type = OoaType.TABLE, description = "The first (or only) table; an empty table when none was found.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of tables found.")
+    public Map<String, Object> extractTables(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3-4", description = "Pages to read, e.g. 1,3-4; every page when empty.") String pages,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first row of each table holds the column names; Column1, Column2 … when off.") boolean header,
+            @Input(name = "merge_across_pages", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Join a table that continues at the top of the next page (same number of columns) into one, leaving out a repeated header row.") boolean merge,
+            @Input(name = "min_columns", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 2, max = 50, description = "Lines need at least this many separate columns to count as a table.") int minColumns,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        if (minColumns < 2) throw new ActionException("PDF.BAD_OPTION", "min_columns must be at least 2", "A table needs two columns or more.");
+        List<List<List<String>>> all = new ArrayList<>();
+        int lastPage = -1;
+        try (PDDocument d = load(ctx, path, password)) {
+            for (int pg : pages(pages, d.getNumberOfPages())) {
+                List<Double> ys = new ArrayList<>();
+                List<List<List<String>>> found = tablesOn(lines(words(d, pg), ys), ys, minColumns);
+                for (int k = 0; k < found.size(); k++) {
+                    List<List<String>> t = found.get(k);
+                    List<List<String>> prev = all.isEmpty() ? null : all.get(all.size() - 1);
+                    if (merge && k == 0 && prev != null && lastPage == pg - 1 && prev.get(0).size() == t.get(0).size()) {
+                        boolean repeatedHeader = header && t.get(0).equals(prev.get(0));
+                        prev.addAll(repeatedHeader ? t.subList(1, t.size()) : t);
+                    } else all.add(new ArrayList<>(t));
+                }
+                if (!found.isEmpty()) lastPage = pg;
+            }
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+        List<Object> tables = new ArrayList<>();
+        for (List<List<String>> t : all) tables.add(dataTable(t, header));
+        Object first = tables.isEmpty() ? Values.table(new ArrayList<>(), new ArrayList<>()) : tables.get(0);
+        return Map.of("tables", tables, "table", first, "count", BigDecimal.valueOf(tables.size()));
+    }
+
+    @Action(id = "read_xps_text", name = "Read XPS text", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Read the text of an XPS or OpenXPS document (.xps, .oxps), page by page, in reading order.",
+            panel = "path")
+    @Output(name = "text", type = OoaType.STRING, description = "The text of every page, pages separated by a blank line.")
+    @Output(name = "pages", type = OoaType.LIST, description = "The text of each page.")
+    @Output(name = "page_count", type = OoaType.NUMBER, description = "Number of pages.")
+    public Map<String, Object> readXpsText(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "XPS file.") String path) {
+        Path p = ctx.resolvePath(path);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "XPS file not found: " + p, "Check the path.");
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(p.toFile())) {
+            List<String> pageNames = new ArrayList<>();
+            // page order: the fixed documents' PageContent entries; else every .fpage in name order
+            List<String> docs = new ArrayList<>();
+            zip.stream().map(java.util.zip.ZipEntry::getName).filter(n -> n.toLowerCase(Locale.ROOT).endsWith(".fdoc")).sorted(xpsOrder()).forEach(docs::add);
+            for (String doc : docs) {
+                String base = doc.contains("/") ? doc.substring(0, doc.lastIndexOf('/') + 1) : "";
+                org.w3c.dom.Document x = xml(zip, doc);
+                org.w3c.dom.NodeList pcs = x.getElementsByTagNameNS("*", "PageContent");
+                for (int i = 0; i < pcs.getLength(); i++) {
+                    String src = ((org.w3c.dom.Element) pcs.item(i)).getAttribute("Source");
+                    String name = src.startsWith("/") ? src.substring(1) : java.net.URI.create(base).resolve(src).toString();
+                    if (zip.getEntry(name) != null) pageNames.add(name);
+                }
+            }
+            if (pageNames.isEmpty())
+                zip.stream().map(java.util.zip.ZipEntry::getName).filter(n -> n.toLowerCase(Locale.ROOT).endsWith(".fpage")).sorted(xpsOrder()).forEach(pageNames::add);
+            if (pageNames.isEmpty()) throw new ActionException("PDF.INVALID", p + " has no XPS pages", "Check it is an .xps or .oxps file.");
+            List<Object> texts = new ArrayList<>();
+            for (String name : pageNames) texts.add(xpsPageText(xml(zip, name)));
+            return Map.of("text", String.join("\n\n", texts.stream().map(String::valueOf).toList()), "pages", texts, "page_count", BigDecimal.valueOf(texts.size()));
+        } catch (java.util.zip.ZipException e) {
+            throw new ActionException("PDF.INVALID", "Cannot read " + p + ": it is not an XPS file", "Check it is an .xps or .oxps file.");
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+    }
+
+    /** Names in natural order, so 2.fpage comes before 10.fpage. */
+    private static Comparator<String> xpsOrder() {
+        return Comparator.comparing((String n) -> n.replaceAll("\\d+", "")).thenComparingLong(n -> {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)(?!.*\\d)").matcher(n);
+            return m.find() ? Long.parseLong(m.group(1)) : 0;
+        });
+    }
+
+    private static org.w3c.dom.Document xml(java.util.zip.ZipFile zip, String name) throws IOException {
+        try (java.io.InputStream in = zip.getInputStream(zip.getEntry(name))) {
+            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            f.setNamespaceAware(true);
+            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);   // no external entities
+            f.setXIncludeAware(false);
+            f.setExpandEntityReferences(false);
+            return f.newDocumentBuilder().parse(in);
+        } catch (javax.xml.parsers.ParserConfigurationException | org.xml.sax.SAXException e) {
+            throw new ActionException("PDF.INVALID", "A page of the XPS file cannot be read: " + e.getMessage(), "Check the file is not damaged.");
+        }
+    }
+
+    /** The page's Glyphs, as lines by OriginY (top to bottom) and left to right by OriginX within a line. */
+    static String xpsPageText(org.w3c.dom.Document page) {
+        org.w3c.dom.NodeList gs = page.getElementsByTagNameNS("*", "Glyphs");
+        List<double[]> pos = new ArrayList<>();
+        List<String> text = new ArrayList<>();
+        for (int i = 0; i < gs.getLength(); i++) {
+            org.w3c.dom.Element g = (org.w3c.dom.Element) gs.item(i);
+            String t = g.getAttribute("UnicodeString");
+            if (t.startsWith("{}")) t = t.substring(2);   // XPS escape for text starting with {
+            if (t.isBlank()) continue;
+            double x = num(g.getAttribute("OriginX")), y = num(g.getAttribute("OriginY")), size = num(g.getAttribute("FontRenderingEmSize"));
+            pos.add(new double[]{x, y, Math.max(1, size), text.size()});
+            text.add(t);
+        }
+        pos.sort(Comparator.comparingDouble((double[] a) -> a[1]).thenComparingDouble(a -> a[0]));
+        StringBuilder sb = new StringBuilder();
+        double lineY = Double.NaN, size = 0;
+        for (double[] a : pos) {
+            if (!Double.isNaN(lineY) && Math.abs(a[1] - lineY) <= size * 0.5) sb.append(' ');
+            else { if (sb.length() > 0) sb.append('\n'); lineY = a[1]; size = a[2]; }
+            sb.append(text.get((int) a[3]));
+        }
+        return sb.toString();
+    }
+
+    private static double num(String s) {
+        try { return s == null || s.isBlank() ? 0 : Double.parseDouble(s.strip()); } catch (NumberFormatException e) { return 0; }
     }
 }

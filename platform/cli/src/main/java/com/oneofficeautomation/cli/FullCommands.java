@@ -9,46 +9,46 @@ import java.nio.file.Path;
 final class FullCommands {
     private FullCommands() { }
 
-    static final String DATA = "The Command Center data folder (default: ~/OOA Command Center).";
+    static final String DATA = "One CommandCenter data folder (default: ~/OOA Command Center).";
 
     static void add(OoaCli c) {
-        database(c.command("server", "Start everything on this computer: the Command Center, Agent Studio (/studio) and a runner.", a -> Ooa.server(a.o()))
+        database(c.command("server", "Start everything on this computer: One CommandCenter, One AgentStudio (/studio) and a runner.", a -> Ooa.server(a.o()))
             .number("--port", "N", "The port (default 8720).")
             .opt("--host", "HOST", "The address to listen on (default 127.0.0.1, this computer only).")
-            .opt("--workspace", "DIR", "Agent Studio's workspace (default: ~/OOA Workspace).")
+            .opt("--workspace", "DIR", "One AgentStudio's workspace (default: ~/OOA Workspace).")
             .flag("--no-agent", "Do not start the runner for this computer.")
             .flag("--no-browser", "Do not open the browser.")
             .opt("--agent-config", "FILE", "The local runner's registration (default: one file per data folder in ~/.ooa-agent).")
             .opt("--agent-workspace", "DIR", "The local runner's workspace (default: ~/OOA Agent Workspace)."));
-        c.command("studio", "Start Agent Studio on its own (http://localhost:8710).", a -> Ooa.studio(a.o()))
+        c.command("studio", "Start One AgentStudio on its own (http://localhost:8710).", a -> Ooa.studio(a.o()))
             .opt("--workspace", "DIR", "The workspace (default: ~/OOA Workspace).")
             .number("--port", "N", "The port (default 8710).");
-        database(c.command("control-room", "Start the Command Center (http://localhost:8720).", a -> Ooa.controlRoom(a.o()))
+        database(c.command("control-room", "Start One CommandCenter (http://localhost:8720).", a -> Ooa.controlRoom(a.o()))
             .number("--port", "N", "The port (default 8720).")
             .opt("--host", "HOST", "The address to listen on (default 127.0.0.1; 0.0.0.0 for other machines, with HTTPS)."));
         database(c.command("reset-admin", "Print a new one-time password for a user who forgot theirs. Stop the server first.", a -> Ooa.resetAdmin(a.o()))
             .opt("--user", "NAME", "The user (default admin)."));
 
-        c.group("agent", "Register and run a runner (Bot Agent) on this computer.");
-        network(c.command("agent register", "Register this computer as a runner with a Command Center.", a -> Ooa.agent("register", a.o()))
-            .required("--url", "URL", "The Command Center, such as https://commandcenter:8720.")
+        c.group("agent", "Register and run a runner (OneRunner) on this computer.");
+        network(c.command("agent register", "Register this computer as a runner with One CommandCenter.", a -> Ooa.agent("register", a.o()))
+            .required("--url", "URL", "One CommandCenter, such as https://commandcenter:8720.")
             .opt("--key", "KEY", "A registration key (Runners > Register a runner); not needed with --keep-existing when the registration is kept.")
             .opt("--name", "NAME", "The runner's name (default: this computer's name).")
-            .flag("--keep-existing", "Keep this computer's registration with the same Command Center when it still works (setup run again).")
+            .flag("--keep-existing", "Keep this computer's registration with the same One CommandCenter when it still works (setup run again).")
             .opt("--config", "FILE", "Where the registration is saved (default: ~/.ooa-agent/agent.json)."));
         c.command("agent start", "Run the registered runner until stopped.", a -> Ooa.agent("start", a.o())).opt("--config", "FILE", "The registration.")
             .opt("--workspace", "DIR", "The runner's workspace (default: ~/OOA Agent Workspace).");
         network(c.command("agent network", "Show or change the runner's proxy and trusted certificate.", a -> Ooa.agent("network", a.o()))
             .opt("--config", "FILE", "The registration."));
-        c.command("agent move", "Point the runner at the Command Center's new address, keeping its registration.", a -> Ooa.agent("move", a.o()))
+        c.command("agent move", "Point the runner at One CommandCenter's new address, keeping its registration.", a -> Ooa.agent("move", a.o()))
             .required("--url", "URL", "The new address.").opt("--ca", "FILE", "The certificate to trust for it.").opt("--config", "FILE", "The registration.");
-        c.command("agent diagnose", "Find why the runner cannot reach or work with its Command Center.", a -> Ooa.agent("diagnose", a.o()))
+        c.command("agent diagnose", "Find why the runner cannot reach or work with its One CommandCenter.", a -> Ooa.agent("diagnose", a.o()))
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent install-task", "Start the runner when you sign in to Windows (for runners that need a desktop).", a -> Ooa.agent("install-task", a.o()))
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent uninstall-task", "Stop starting the runner at sign-in.", a -> Ooa.agent("uninstall-task", a.o()));
 
-        c.group("db", "Set up and look after the Command Center database (docs/infrastructure/05-databases.md).");
+        c.group("db", "Set up and look after One CommandCenter database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")
             .opt("--engine", "ENGINE", "sqlserver (default) or postgresql.")
             .opt("--host", "HOST", "The database server.")
@@ -71,8 +71,8 @@ final class FullCommands {
         db(c, "init", "Create the database and schema, and give the runtime account its rights.");
         db(c, "migrate", "Upgrade the schema after an update.");
         db(c, "script", "Print the schema SQL for a database administrator.").opt("--engine", "ENGINE", "sqlserver, postgresql or h2.");
-        db(c, "copy", "Copy the data of a built-in (H2) Command Center into the configured database.")
-            .required("--from", "DIR", "The data folder of the built-in Command Center.")
+        db(c, "copy", "Copy the data of a built-in (H2) One CommandCenter into the configured database.")
+            .required("--from", "DIR", "The data folder of the built-in One CommandCenter.")
             .flag("--replace", "Delete the rows already there first.");
 
         if (LicenseCommand.vendorBuild()) {
@@ -133,20 +133,20 @@ final class FullCommands {
         c.command("directory start", "Start the directory (config/ooa-directory.properties lists the regions).", a -> RegionCommand.directory(a.o()))
             .opt("--data", "DIR", "Its data folder.").opt("--host", "HOST", "The address to listen on (default 0.0.0.0).").number("--port", "N", "The port (default 8720).");
 
-        c.command("check", "Check whether this computer is ready for a Command Center.", a -> CheckCommand.run(a.o()))
+        c.command("check", "Check whether this computer is ready for One CommandCenter.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
 
         c.group("vault", "Look after the vault's master key.");
         database(c.command("vault rekey", "Re-encrypt every stored secret with a new master key. Stop the server first.", a -> Ooa.vaultRekey(a.o()))
             .required("--new-key-env", "VAR", "The environment variable with the new key (32 random bytes, Base64)."));
 
-        c.group("backup", "Back up and restore the Command Center.");
+        c.group("backup", "Back up and restore One CommandCenter.");
         database(c.command("backup now", "Make a backup into the backup folder.", a -> BackupCommand.run("now", a.o(), null)));
         database(c.command("backup list", "List the backups, newest first.", a -> BackupCommand.run("list", a.o(), null)));
         database(c.command("backup restore", "Put a backup back. Stop the server first.", a -> BackupCommand.run("restore", a.o(), a.pos(0)))
             .param("FILE", "The backup file.", "1").flag("--replace", "Delete the rows already there first."));
 
-        c.group("tls", "HTTPS for the Command Center. Stop the server first; it uses the settings at its next start.");
+        c.group("tls", "HTTPS for One CommandCenter. Stop the server first; it uses the settings at its next start.");
         tls(c, "configure", "Use the company's certificate (a .pfx or .p12 with its private key); then set-password.")
             .required("--pfx", "FILE", "The certificate file.");
         tls(c, "set-password", "Store the certificate file's password, encrypted with the vault key.")
@@ -168,9 +168,9 @@ final class FullCommands {
             .required("--jar", "FILE", "The toolkit jar.");
 
         c.command("assistant", "Start the desktop assistant in the notification area, to run your automations.", a -> Assistant.run(a.o()))
-            .opt("--url", "URL", "The Command Center (asked the first time).").flag("--sign-out", "Forget the saved sign-in.");
+            .opt("--url", "URL", "One CommandCenter (asked the first time).").flag("--sign-out", "Forget the saved sign-in.");
 
-        c.group("service", "Run the Command Center or a runner as a Windows service.");
+        c.group("service", "Run One CommandCenter or a runner as a Windows service.");
         service(c, "install", "Install the service (an administrator prompt appears).")
             .number("--port", "N", "The port (default 8720).")
             .opt("--host", "HOST", "The address to listen on.")
@@ -199,7 +199,7 @@ final class FullCommands {
             .passThrough("ARGS", "What the browser passes.");
     }
 
-    /** The Command Center's data folder and database, for the commands that open it. */
+    /** One CommandCenter's data folder and database, for the commands that open it. */
     static OoaCli.Cmd database(OoaCli.Cmd c) {
         return c.opt("--data", "DIR", DATA)
             .opt("--db-url", "URL", "A JDBC address instead of the configured database.")
@@ -209,7 +209,7 @@ final class FullCommands {
     }
 
     static OoaCli.Cmd network(OoaCli.Cmd c) {
-        return c.opt("--ca", "FILE", "A certificate to trust for the Command Center (its own, or the company's CA).")
+        return c.opt("--ca", "FILE", "A certificate to trust for One CommandCenter (its own, or the company's CA).")
             .opt("--proxy", "PROXY", "system (default), none, or http://host:port.")
             .opt("--proxy-user", "NAME", "The proxy account.")
             .opt("--proxy-password-env", "VAR", "The environment variable with the proxy password.");

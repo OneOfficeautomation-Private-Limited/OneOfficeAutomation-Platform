@@ -8,6 +8,9 @@ from ..sdk.package import Input, Output, action, package
 
 CONTAINERS = {"if", "loop", "try", "step", "parallel"}
 BUILTIN_ITERATORS = ("times", "while", "list", "dictionary", "table_rows")
+# how core/switch compares its value with a case's values, and the condition operator that compares the same way
+SWITCH_MATCHES = ("equals", "contains", "starts_with", "ends_with", "regex", "expression")
+SWITCH_OPS = {"equals": "eq", "contains": "contains", "starts_with": "startsWith", "ends_with": "endsWith", "regex": "matches"}
 
 
 def _interp(*_a, **_k):  # pragma: no cover - never called; interpreter dispatches core actions
@@ -19,6 +22,16 @@ class CorePackage:
     @action("if", "If", category="Logic", description="Run the children when the condition is true; otherwise evaluate elseIf branches, then else.",
             inputs=[Input("condition", "Any", description="Condition object, expression string or $reference.")])
     def if_(self, ctx, **a): _interp()
+
+    @action("switch", "Switch", category="Logic",
+            description="Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.",
+            inputs=[Input("value", "Any", required=False, visible_when="match!=expression",
+                          description="Value to compare with each case's values: text, a number, a $reference or an expression."),
+                    Input("match", "String", required=False, default="equals", enum=SWITCH_MATCHES,
+                          description="How a case value matches: equals (like ==), contains, starts_with, ends_with, regex, or expression (each case value is a condition)."),
+                    Input("ignore_case", "Boolean", required=False, default=False, visible_when="match!=expression",
+                          description="Compare text without upper/lower case.")])
+    def switch(self, ctx, **a): _interp()
 
     @action("loop", "Loop", category="Logic",
             description="Repeat the children using an iterator: times, while, list, dictionary, table_rows or a package iterator (package/iterator).",
@@ -52,6 +65,11 @@ class CorePackage:
                     Input("value", "Any", required=False, description="Value, $reference or {\"expr\": ...}.")])
     def set(self, ctx, **a): _interp()
 
+    @action("set_many", "Assign several variables", category="Variables",
+            description="Assign values to several declared variables in one step, in order: a later value can use a variable set above it.",
+            inputs=[Input("assignments", "List", description="Records with variable (a declared variable's name) and value (a value, $reference or {\"expr\": ...}).")])
+    def set_many(self, ctx, **a): _interp()
+
     @action("log", "Log message", category="Runtime", description="Write a message to the run log.",
             inputs=[Input("message", "String", description="Text to log; ${...} interpolation allowed."),
                     Input("level", "String", required=False, default="info", enum=("debug", "info", "warning", "error"), description="Log level.")])
@@ -82,6 +100,24 @@ class CorePackage:
 
     @action("continue", "Continue loop", category="Logic", description="Skip to the next pass of the innermost loop.")
     def continue_(self, ctx, **a): _interp()
+
+    @action("run_subflow", "Run subflow", category="Task Bot",
+            description="Run one of this automation's subflows (a named step list kept beside the main steps); it uses the same variables.",
+            inputs=[Input("subflow", "String", description="Name of the subflow to run.")])
+    def run_subflow(self, ctx, **a): _interp()
+
+    @action("exit_subflow", "Exit subflow", category="Task Bot",
+            description="Leave the subflow being run; the automation carries on after the Run subflow step.")
+    def exit_subflow(self, ctx, **a): _interp()
+
+    @action("label", "Label", category="Logic", description="A named place that Go to can jump to; does nothing itself.",
+            inputs=[Input("name", "String", description="Name of the place.")])
+    def label(self, ctx, **a): _interp()
+
+    @action("goto", "Go to", category="Logic",
+            description="Carry on from a Label in the same step list or a list around it (GOTO.LIMIT after too many jumps).",
+            inputs=[Input("label", "String", description="Name of the Label to carry on from.")])
+    def goto(self, ctx, **a): _interp()
 
     @action("run_bot", "Run Task Bot", category="Task Bot",
             description="Run a published child automation with mapped inputs and receive its outputs.",

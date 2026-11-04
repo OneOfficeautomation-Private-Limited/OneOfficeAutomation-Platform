@@ -177,7 +177,12 @@ class ExcelGapsTest {
             assertEquals(FillPatternType.SOLID_FOREGROUND, st.getFillPattern());
             assertEquals("FFFFC000", st.getFillForegroundXSSFColor().getARGBHex());
         }
-        assertThrows(ActionException.class, () -> xl.setCellColor(ctx, "A1", "orange", "fill", "Data", "excel"));
+        // colour names, short hex and red,green,blue are accepted too; an unknown name is still refused
+        xl.setCellColor(ctx, "A1", "orange", "fill", "Data", "excel");
+        assertEquals("#FFC000", xl.getCellColor(ctx, "A1", "fill", "Data", "excel").get("color"));
+        xl.setCellColor(ctx, "A1", "255,0,0", "font", "Data", "excel");
+        assertEquals("#FF0000", xl.getCellColor(ctx, "A1", "font", "Data", "excel").get("color"));
+        assertEquals("EXCEL.BAD_COLOR", assertThrows(ActionException.class, () -> xl.setCellColor(ctx, "A1", "sparkly", "fill", "Data", "excel")).code());
     }
 
     @Test void protectionOfSheetAndWorkbook() throws Exception {

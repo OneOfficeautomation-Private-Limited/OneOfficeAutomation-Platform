@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * E-mail sent by the Command Center itself (licence expiry, workflow steps), through the company's SMTP server. A small
+ * E-mail sent by One CommandCenter itself (licence expiry, workflow steps), through the company's SMTP server. A small
  * SMTP client with no third-party library: EHLO, STARTTLS or implicit TLS, AUTH PLAIN/LOGIN, one plain-text message.
  * Settings: mail_smtp_host, mail_smtp_port (587), mail_smtp_security (starttls, ssl or none), mail_smtp_user,
  * mail_smtp_password_ref (a vault reference folder/credential/attribute, never the password itself) and mail_from.
@@ -31,7 +31,13 @@ final class Mailer {
     private String str(String name) { Object v = cr.platform.setting(name); return v == null ? "" : String.valueOf(v).trim(); }
 
     /** Sends one message to each address in to (at most 50). Throws OoaException with the server's answer on failure. */
-    void send(List<String> to, String subject, String body) {
+    /** A file sent with a message (a dashboard's PDF): its name, type and bytes. */
+    record Attachment(String name, String contentType, byte[] bytes) {}
+
+    void send(List<String> to, String subject, String body) { send(to, subject, body, List.of()); }
+
+    /** Sends one message, with files attached when given (multipart/mixed). */
+    void send(List<String> to, String subject, String body, List<Attachment> attachments) {
         if (!configured()) throw new OoaException("MAIL.NOT_SET_UP", "E-mail is not set up", "Fill in the outgoing mail server and sender in Administration > Settings > E-mail");
         List<String> rcpt = new ArrayList<>();
         for (String a : to) if (a != null && !a.isBlank()) rcpt.add(address(a.trim()));
@@ -63,7 +69,7 @@ final class Mailer {
             c.cmd("MAIL FROM:<" + from + ">", 250);
             for (String r : rcpt) c.cmd("RCPT TO:<" + r + ">", 250, 251);
             c.cmd("DATA", 354);
-            c.cmd(message(from, rcpt, subject, body) + "\r\n.", 250);
+            c.cmd(message(from, rcpt, subject, body, attachments) + "\r\n.", 250);
             try { c.cmd("QUIT", 221); } catch (RuntimeException ignored) { }
         } catch (IOException e) {
             throw new OoaException("MAIL.FAILED", "Could not reach the mail server " + host + ":" + port + ": " + e.getMessage(), "Check the server, port and security in Administration > Settings > E-mail");
@@ -89,7 +95,7 @@ final class Mailer {
         }
         if (addr.isBlank()) throw new OoaException("MAIL.NO_RECIPIENT", "Give an address to send the test to", "Or add your own e-mail address to your user");
         try {
-            send(List.of(addr), "ONEOFFICEAUTOMATION test e-mail", "This is a test e-mail from the ONEOFFICEAUTOMATION Command Center, sent by " + by.username() + ". E-mail is set up correctly.");
+            send(List.of(addr), "ONEOFFICEAUTOMATION test e-mail", "This is a test e-mail from the ONEOFFICEAUTOMATION One CommandCenter, sent by " + by.username() + ". E-mail is set up correctly.");
         } catch (OoaException e) {
             cr.audit.record(by.username(), "mail.test", "settings", null, Map.of("to", addr), "failed", ip);
             throw e;
@@ -105,7 +111,9 @@ final class Mailer {
         return s;
     }
 
-    static String message(String from, List<String> to, String subject, String body) {
+    static String message(String from, List<String> to, String subject, String body) { return message(from, to, subject, body, List.of()); }
+
+    static String message(String from, List<String> to, String subject, String body, List<Attachment> attachments) {
         String subj = subject == null ? "" : subject.replaceAll("[\\r\\n]+", " ").trim();
         StringBuilder m = new StringBuilder();
         m.append("From: ").append(from).append("\r\n");
@@ -113,9 +121,23 @@ final class Mailer {
         m.append("Subject: ").append(subj.chars().allMatch(ch -> ch < 128) ? subj : "=?UTF-8?B?" + b64(subj) + "?=").append("\r\n");
         m.append("Date: ").append(DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now())).append("\r\n");
         m.append("Message-ID: <").append(UUID.randomUUID()).append("@ooa-command-center>\r\n");
-        m.append("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n");
-        String encoded = Base64.getMimeEncoder(76, "\r\n".getBytes(StandardCharsets.US_ASCII)).encodeToString((body == null ? "" : body).getBytes(StandardCharsets.UTF_8));
-        m.append(encoded);
+        Base64.Encoder mime = Base64.getMimeEncoder(76, "\r\n".getBytes(StandardCharsets.US_ASCII));
+        String encoded = mime.encodeToString((body == null ? "" : body).getBytes(StandardCharsets.UTF_8));
+        if (attachments == null || attachments.isEmpty()) {
+            m.append("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n");
+            m.append(encoded);
+            return m.toString();
+        }
+        String boundary = "ooa-" + UUID.randomUUID();
+        m.append("MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"").append(boundary).append("\"\r\n\r\n");
+        m.append("--").append(boundary).append("\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n").append(encoded).append("\r\n");
+        for (Attachment a : attachments) {
+            String name = a.name().replaceAll("[^A-Za-z0-9 ._-]", "_");
+            m.append("--").append(boundary).append("\r\nContent-Type: ").append(a.contentType()).append("; name=\"").append(name).append("\"\r\n")
+             .append("Content-Disposition: attachment; filename=\"").append(name).append("\"\r\nContent-Transfer-Encoding: base64\r\n\r\n")
+             .append(mime.encodeToString(a.bytes())).append("\r\n");
+        }
+        m.append("--").append(boundary).append("--");
         return m.toString();
     }
 

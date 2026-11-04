@@ -1,6 +1,8 @@
 package com.oneofficeautomation.runner.expr;
 
 import com.oneofficeautomation.runner.Values;
+import com.oneofficeautomation.sdk.BinaryValue;
+import com.oneofficeautomation.sdk.ImageValue;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -49,6 +51,8 @@ public final class Functions {
             Object v = a.get(0);
             if (v == null) return BigDecimal.ZERO;
             if (v instanceof Map<?, ?> m && m.containsKey("rows") && m.containsKey("columns")) return BigDecimal.valueOf(((List<?>) m.get("rows")).size());
+            if (v instanceof BinaryValue b) return BigDecimal.valueOf(b.length());
+            if (v instanceof ImageValue i) return BigDecimal.valueOf(i.length());
             if (v instanceof Collection<?> c) return BigDecimal.valueOf(c.size());
             if (v instanceof Map<?, ?> m) return BigDecimal.valueOf(m.size());
             return BigDecimal.valueOf(Values.text(v).length());
@@ -91,6 +95,10 @@ public final class Functions {
         def("today", 0, 0, a -> LocalDate.now(ZoneOffset.UTC).atStartOfDay());
         def("dateAdd", 2, 3, a -> {
             LocalDateTime dt = Values.toDateTime(a.get(0));
+            if (a.get(1) instanceof Duration span) {
+                if (a.size() > 2) throw new OoaException("EXPR.INVALID", "dateAdd() with a TimeSpan takes no unit", "Write dateAdd($date, $span).");
+                return dt.plus(span);
+            }
             BigDecimal amount = n(a, 1);
             String unit = a.size() > 2 ? s(a, 2) : "days";
             if (unit.equals("months")) return dt.plusMonths(amount.longValue());
@@ -114,6 +122,37 @@ public final class Functions {
             DateTimeFormatter f = strftime(fmt);
             return fmt.contains("%H") ? LocalDateTime.parse(s(a, 0), f) : LocalDate.parse(s(a, 0), f).atStartOfDay();
         });
+        // Time and TimeSpan (G22)
+        def("time", 1, 3, a -> a.size() == 1 ? Values.toTime(a.get(0))
+                : LocalTime.of(whole(a, 0, "hour"), whole(a, 1, "minute"), a.size() > 2 ? whole(a, 2, "second") : 0));
+        def("timeSpan", 1, 2, a -> {
+            if (a.size() == 1) return Values.toTimeSpan(a.get(0));
+            Long secs = UNITS.get(s(a, 1));
+            if (secs == null) throw new OoaException("EXPR.INVALID", "Unknown unit '" + s(a, 1) + "'", "Use seconds, minutes, hours, days or weeks.");
+            return Values.toTimeSpan(n(a, 0).multiply(BigDecimal.valueOf(secs)));
+        });
+        def("timeBetween", 2, 2, a -> a.get(0) instanceof LocalTime || a.get(1) instanceof LocalTime
+                ? Duration.between(Values.toTime(a.get(0)), Values.toTime(a.get(1)))
+                : Duration.between(Values.toDateTime(a.get(0)), Values.toDateTime(a.get(1))));
+        def("totalSeconds", 1, 1, a -> Values.totalSeconds(Values.toTimeSpan(a.get(0))));
+        def("totalMinutes", 1, 1, a -> per(a, 60));
+        def("totalHours", 1, 1, a -> per(a, 3600));
+        def("totalDays", 1, 1, a -> per(a, 86400));
+        // Image and Binary (G22)
+        def("imageWidth", 1, 1, a -> BigDecimal.valueOf(Values.toImage(a.get(0), null).width()));
+        def("imageHeight", 1, 1, a -> BigDecimal.valueOf(Values.toImage(a.get(0), null).height()));
+        def("binaryLength", 1, 1, a -> BigDecimal.valueOf(Values.toBinary(a.get(0), null).length()));
+        def("toBase64", 1, 1, a -> {
+            Object v = a.get(0);
+            if (v instanceof BinaryValue b) return b.base64();
+            if (v instanceof ImageValue i) return i.base64();
+            return Base64.getEncoder().encodeToString(s(a, 0).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        });
+        def("fromBase64", 1, 2, a -> {
+            byte[] b = Values.base64(s(a, 0));
+            if (b == null) throw new OoaException("EXPR.INVALID", "fromBase64(): the text is not valid Base64", "Give standard Base64 text (A-Z, a-z, 0-9, + and /, padded with =).");
+            return new BinaryValue(b, a.size() > 1 ? s(a, 1) : null);
+        });
         ALL.put("coalesce", a -> a.stream().filter(x -> x != null && !"".equals(x)).findFirst().orElse(null));
         def("isEmpty", 1, 1, a -> {
             Object v = a.get(0);
@@ -136,6 +175,54 @@ public final class Functions {
         });
         def("jsonStringify", 1, 1, a -> JsonLite.write(Values.toJsonable(a.get(0))));
         def("if", 3, 3, a -> Expressions.truthy(a.get(0)) ? a.get(1) : a.get(2));
+        // gap G05 (3 Nov 2026): Power Automate's guid, first, last, union, intersection, base64 and URI functions
+        def("guid", 0, 0, a -> UUID.randomUUID().toString());
+        def("first", 1, 1, a -> edge(a.get(0), true));
+        def("last", 1, 1, a -> edge(a.get(0), false));
+        def("union", 2, 2, a -> {
+            List<Object> out = new ArrayList<>();
+            for (Object list : a) for (Object x : items(list)) if (out.stream().noneMatch(y -> Values.looseEquals(x, y))) out.add(x);
+            return out;
+        });
+        def("intersection", 2, 2, a -> {
+            List<Object> out = new ArrayList<>(), other = items(a.get(1));
+            for (Object x : items(a.get(0)))
+                if (other.stream().anyMatch(y -> Values.looseEquals(x, y)) && out.stream().noneMatch(y -> Values.looseEquals(x, y))) out.add(x);
+            return out;
+        });
+        def("base64Encode", 1, 1, a -> Base64.getEncoder().encodeToString(s(a, 0).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        def("base64Decode", 1, 1, a -> {
+            try { return new String(Base64.getDecoder().decode(s(a, 0).replaceAll("\\s", "")), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (IllegalArgumentException e) { throw new OoaException("EXPR.INVALID", "base64Decode(): the text is not Base64", "Pass text made by base64Encode or another Base64 encoder."); }
+        });
+        // as JavaScript's encodeURIComponent: a space is %20, and only A-Z a-z 0-9 - _ . ! ~ * ' ( ) stay as they are
+        def("uriEncode", 1, 1, a -> java.net.URLEncoder.encode(s(a, 0), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20").replace("%21", "!").replace("%27", "'").replace("%28", "(").replace("%29", ")").replace("%7E", "~"));
+        def("uriDecode", 1, 1, a -> {
+            try { return java.net.URLDecoder.decode(s(a, 0).replace("+", "%2B"), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (IllegalArgumentException e) { throw new OoaException("EXPR.INVALID", "uriDecode(): " + e.getMessage(), "Check every % is followed by two hex digits."); }
+        });
+    }
+
+    /** The items of a list, the rows of a Data Table, or nothing; one text or number is a list of one. */
+    @SuppressWarnings("unchecked")
+    private static List<Object> items(Object v) {
+        if (v == null) return List.of();
+        if (v instanceof Map<?, ?> m && m.containsKey("rows") && m.containsKey("columns") && m.get("rows") instanceof List<?> rows) return (List<Object>) rows;
+        if (v instanceof Collection<?> c) return new ArrayList<>(c);
+        return List.of(v);
+    }
+
+    /** The first or last item of a list (or row of a Data Table), or character of a text; null when there is none. */
+    private static Object edge(Object v, boolean first) {
+        if (v == null) return null;
+        if (v instanceof CharSequence cs) {
+            String t = cs.toString();
+            if (t.isEmpty()) return null;
+            return first ? t.substring(0, Character.charCount(t.codePointAt(0))) : t.substring(t.offsetByCodePoints(t.length(), -1));
+        }
+        List<Object> l = items(v);
+        return l.isEmpty() ? null : l.get(first ? 0 : l.size() - 1);
     }
 
     static Object call(String fn, List<Object> args) {
@@ -146,6 +233,16 @@ public final class Functions {
         } catch (RuntimeException e) {
             throw new OoaException("EXPR.INVALID", fn + "() failed: " + e.getMessage());
         }
+    }
+
+    private static BigDecimal per(List<Object> a, long unitSeconds) {
+        return Values.totalSeconds(Values.toTimeSpan(a.get(0))).divide(BigDecimal.valueOf(unitSeconds), 6, RoundingMode.HALF_UP).stripTrailingZeros();
+    }
+
+    private static int whole(List<Object> a, int i, String what) {
+        BigDecimal v = n(a, i);
+        if (v.stripTrailingZeros().scale() > 0) throw new OoaException("EXPR.INVALID", "time(): the " + what + " must be a whole number, got " + v.toPlainString());
+        return v.intValue();
     }
 
     private static OoaException badUnit(String unit) {

@@ -85,7 +85,7 @@ public final class ActionContext {
     }
 
     public void checkCancelled() {
-        if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from Control Center");
+        if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter");
     }
 
     /** A path relative to the working folder; where the run is confined to it (service confine_paths), no other path. */

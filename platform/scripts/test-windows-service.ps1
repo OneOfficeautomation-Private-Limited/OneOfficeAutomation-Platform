@@ -1,4 +1,4 @@
-# Tests "ooa service" on this machine: installs a throw-away Command Center service with a self-signed HTTPS
+# Tests "ooa service" on this machine: installs a throw-away One CommandCenter service with a self-signed HTTPS
 # certificate, checks it answers over HTTPS, stops it, removes it, and writes what happened to a log file.
 # Run it as administrator (installing a Windows service needs that):
 #   powershell -ExecutionPolicy Bypass -File scripts\test-windows-service.ps1
@@ -32,7 +32,7 @@ Check ((Ooa @("service", "install", "--mode", "control-room", "--name", $name, "
 
 $code = ""
 for ($i = 0; $i -lt 45 -and $code -ne "200"; $i++) { Start-Sleep -Seconds 2; $code = Health }
-Check ($code -eq "200") "Command Center answers over HTTPS on port $port (HTTP $code)"
+Check ($code -eq "200") "One CommandCenter answers over HTTPS on port $port (HTTP $code)"
 $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
 Check ($svc -and $svc.Status -eq "Running") "Windows reports the service running"
 Check ($svc -and $svc.StartType -eq "Automatic") "service starts automatically with Windows"
@@ -40,7 +40,7 @@ Ooa @("service", "status", "--name", $name) | Out-Null
 
 Check ((Ooa @("service", "stop", "--name", $name)) -eq 0) "service stopped"
 Start-Sleep -Seconds 3
-Check ((Health) -ne "200") "Command Center no longer answers after stop"
+Check ((Health) -ne "200") "One CommandCenter no longer answers after stop"
 Check ((Ooa @("service", "start", "--name", $name)) -eq 0) "service started again"
 $code = ""
 for ($i = 0; $i -lt 45 -and $code -ne "200"; $i++) { Start-Sleep -Seconds 2; $code = Health }

@@ -205,7 +205,7 @@ th .arrow { font-size: 9px; color: var(--accent-text); }
 .var-pop-item:hover, .var-pop-item:focus-visible, .qa-item:hover, .qa-item.sel { background: var(--surface-hover); }
 .ctx-menu button:disabled { background: transparent; color: var(--text-3); }
 
-/* ---------- 11. dialogs (Command Center: .modal/.modal-card; Agent Studio: .dialog-backdrop/.dialog) ---------- */
+/* ---------- 11. dialogs (One CommandCenter: .modal/.modal-card; One AgentStudio: .dialog-backdrop/.dialog) ---------- */
 .modal, .dialog-backdrop {
   position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: var(--space-5);
   background: var(--overlay); animation: ooa-fade var(--dur) var(--ease);

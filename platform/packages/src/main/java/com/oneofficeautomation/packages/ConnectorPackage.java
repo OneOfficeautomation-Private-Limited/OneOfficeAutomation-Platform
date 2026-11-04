@@ -26,7 +26,7 @@ public final class ConnectorPackage {
 
     // ---------- import and browse ----------
 
-    @Action(id = "import_connector", name = "Import connector", category = "Connectors", capabilities = "filesystem",
+    @Action(id = "import_connector", name = "Import connector", category = "Connectors", capabilities = {"filesystem", "network"},
             description = "Create or replace a custom connector from an OpenAPI 3.x or Swagger 2.0 document (JSON, or YAML where a YAML parser is installed) or a Postman v2.1 collection.",
             panel = "(API description: A file = spec_file / Pasted text = spec_text), name | server, overwrite")
     @Output(name = "connector", type = OoaType.STRING, description = "Name of the saved connector.")
@@ -104,7 +104,7 @@ public final class ConnectorPackage {
 
     // ---------- call ----------
 
-    @Action(id = "call_operation", name = "Call operation", category = "Connectors", timeoutSeconds = 300, capabilities = "network",
+    @Action(id = "call_operation", name = "Call operation", category = "Connectors", timeoutSeconds = 300, capabilities = {"network", "filesystem"},
             description = "Call an operation of a custom connector. Checks required parameters, encodes path and query values, signs the request and returns status, headers and the parsed body, or saves a file.",
             panel = "connector, operation, parameters, body, credential, auth | output_file, base_url, headers, timeout_seconds, fail_on_error")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")

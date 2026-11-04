@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ConnectorDef, ConnectorOperation, ConnectorSummary, FlowStep, PackageManifest, SavedConnection, StudioApi } from "../api/client";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Menu, Select, TextInput } from "../components";
 import { connectionInputs } from "./stepKinds";
 
 /**
@@ -61,14 +61,17 @@ export function SavedConnectionsDialog({ api, packages, pkgId, onClose, onChange
   } else {
     body = (
       <div className="st-conn-list">
+        {deleting && <div className="st-ask" role="alert"><span>Delete the connection {deleting}? Steps that use it fail until another is chosen.</span>
+          <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <p className="st-muted">A connection keeps a connector's address and settings once, with vault references for its secrets. Steps choose it by name.
           Local runs read these from connections.json in this workspace.</p>
         {list === null ? <p className="st-muted">Loading…</p> : !list.length ? <p className="st-muted">No saved connections yet.</p>
           : <table className="st-table" aria-label="Saved connections"><thead><tr><th scope="col">Name</th><th scope="col">Toolkit</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>{list.map((c) => <tr key={c.name}><td>{c.name}</td><td>{nameOf(c.package)}</td>
-              <td className="st-row-tight">{deleting === c.name
-                ? <><span>Delete it? Steps that use it fail until another is chosen.</span><Button kind="danger" onClick={() => remove(c.name)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Keep</Button></>
-                : <><Button kind="plain" onClick={() => setEditing(structuredClone(c))}>Edit</Button><Button kind="plain" aria-label={"Delete " + c.name} onClick={() => setDeleting(c.name)}>Delete</Button></>}</td></tr>)}</tbody></table>}
+              <td className="st-row-actions"><Menu label={c.name + " menu"} align="end" items={[
+                { key: "edit", label: "Edit", onSelect: () => setEditing(structuredClone(c)) },
+                { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(c.name) },
+              ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for " + c.name} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} /></td></tr>)}</tbody></table>}
       </div>
     );
   }
@@ -150,6 +153,8 @@ export function ConnectorsDialog({ api, onInsert, onClose, onNotice, onError }:
   } else {
     body = (
       <div className="st-conn-list">
+        {deleting && <div className="st-ask" role="alert"><span>Delete the connector {deleting}? Steps that use it stop working.</span>
+          <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <p className="st-muted">Import an OpenAPI 3.x or Swagger 2.0 file (JSON or YAML) or a Postman v2.1 collection. Each request becomes an operation an agent
           calls with Call operation; secrets come from a Credential variable. Connectors are kept in the workspace's connectors folder.</p>
         <div className="st-conn-import" role="group" aria-label="Import a connector">
@@ -163,12 +168,12 @@ export function ConnectorsDialog({ api, onInsert, onClose, onNotice, onError }:
         </div>
         {list === null ? <p className="st-muted">Loading…</p> : !list.length ? <p className="st-muted">No connectors yet.</p>
           : <table className="st-table" aria-label="Custom connectors"><thead><tr><th scope="col">Connector</th><th scope="col">Operations</th><th scope="col">Server</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
-            <tbody>{list.map((c) => <tr key={c.name}><td><strong>{c.name}</strong>{c.title && <div className="st-muted">{c.title}</div>}</td><td>{c.operations ?? 0}</td>
+            <tbody>{list.map((c) => <tr key={c.name}><td title={c.title || undefined}><strong>{c.name}</strong></td><td>{c.operations ?? 0}</td>
               <td>{c.error ? <span className="st-check">{c.error}</span> : c.server || <span className="st-muted">No server set</span>}</td>
-              <td className="st-row-tight">{deleting === c.name
-                ? <><span>Delete it? Steps that use it stop working.</span><Button kind="danger" onClick={() => remove(c.name)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Keep</Button></>
-                : <><Button kind="plain" onClick={async () => { try { setShown(await api.customConnector(c.name)); setFilter(""); } catch (e) { onError(e); } }}>Operations</Button>
-                  <Button kind="plain" aria-label={"Delete " + c.name} onClick={() => setDeleting(c.name)}>Delete</Button></>}</td></tr>)}</tbody></table>}
+              <td className="st-row-actions"><Menu label={c.name + " menu"} align="end" items={[
+                { key: "ops", label: "Operations", onSelect: async () => { try { setShown(await api.customConnector(c.name)); setFilter(""); } catch (e) { onError(e); } } },
+                { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(c.name) },
+              ]} trigger={<button type="button" className="st-tool" aria-label={"Actions for " + c.name} title="Actions"><Icon name="more" size={16} stroke={3} /></button>} /></td></tr>)}</tbody></table>}
       </div>
     );
   }

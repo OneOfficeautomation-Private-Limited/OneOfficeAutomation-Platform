@@ -37,7 +37,7 @@ Compare a text with every entry of a list and return the closest entry when it s
 | `score` | Number | Score of the closest entry (0 to 100), even when below the threshold. |
 | `index` | Number | Zero-based position of the match in the list, -1 when none. |
 
-*Time limit 60 s; safe to repeat.*
+*Time limit 60 s; safe to repeat; needs: filesystem.*
 
 ### Fuzzy join tables
 

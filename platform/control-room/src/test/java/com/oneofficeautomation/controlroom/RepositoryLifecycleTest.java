@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Repository folders and folder permissions, delete and recover, version labels, dependencies; agent lifecycle (export,
- * import, promote to a second Command Center); run-as users and deploy to several targets; work queues with work item
+ * import, promote to a second One CommandCenter); run-as users and deploy to several targets; work queues with work item
  * models, members, single items and CSV.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -132,7 +132,7 @@ class RepositoryLifecycleTest {
         List<Map<String, Object>> agents = (List<Map<String, Object>>) bundle.get("agents");
         assertEquals(List.of("Finance/Parent.flow.json", "Finance/Child.flow.json"), agents.stream().map(a -> a.get("path")).toList());
         assertEquals("dependency", agents.get(1).get("included_as"));
-        // import into the second Command Center, under a folder, live
+        // import into the second One CommandCenter, under a folder, live
         Map<String, Object> r = cr2.lifecycle.importBundle(admin2, bundle, "skip", true, "Imported", null);
         assertEquals(true, r.get("ok"));
         assertEquals(List.of("created", "created"), ((List<Map<String, Object>>) r.get("results")).stream().map(x -> x.get("status")).toList());
@@ -156,9 +156,9 @@ class RepositoryLifecycleTest {
         // nothing is imported unless every agent passes
         assertTrue(cr2.repoList(admin2, null).stream().noneMatch(b -> String.valueOf(b.get("path")).startsWith("Other/")));
 
-        // promote: the key for the second Command Center comes from the vault
+        // promote: the key for the second One CommandCenter comes from the vault
         String key = (String) cr2.platform.createApiKey(admin2, "promotion", 1, null).get("key");
-        cr.createLocker(admin, "envs", "Other Command Centers", "user:admin", null);
+        cr.createLocker(admin, "envs", "Other One CommandCenter installations", "user:admin", null);
         cr.setCredential(admin, "envs", "prod", "api_key", key, null);
         Map<String, Object> req = new LinkedHashMap<>(Map.of("paths", List.of("Sales/Report.flow.json"), "version", "UAT", "target_url", "http://127.0.0.1:" + server2.port(),
                 "api_key_ref", "envs/prod/api_key", "production", true));
