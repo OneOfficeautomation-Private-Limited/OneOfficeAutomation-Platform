@@ -8,6 +8,27 @@ import java.util.Map;
 public final class Steps {
     private Steps() {}
 
+    /** The agent's error handler (flow "onError"), or null when it has none. */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> onError(Map<String, Object> flow) {
+        return flow != null && flow.get("onError") instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
+    }
+
+    /** The steps of the agent's error handler; empty when it has none. */
+    @SuppressWarnings("unchecked")
+    public static List<Object> onErrorSteps(Map<String, Object> flow) {
+        Map<String, Object> h = onError(flow);
+        return h != null && h.get("steps") instanceof List<?> l ? (List<Object>) l : List.of();
+    }
+
+    /** Every step of the agent: the main steps, then the error handler's steps (the order One AgentStudio numbers them in). */
+    @SuppressWarnings("unchecked")
+    public static List<Map<String, Object>> walkFlow(Map<String, Object> flow) {
+        List<Map<String, Object>> out = walk(flow.get("steps") instanceof List<?> l ? (List<Object>) l : List.of());
+        out.addAll(walk(onErrorSteps(flow)));
+        return out;
+    }
+
     @SuppressWarnings("unchecked")
     public static List<Map<String, Object>> walk(List<Object> steps) {
         List<Map<String, Object>> out = new ArrayList<>();

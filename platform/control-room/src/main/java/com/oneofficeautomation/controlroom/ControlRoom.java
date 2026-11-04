@@ -1152,7 +1152,7 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     static List<String> childBotIds(Map<String, Object> flow) {
         List<String> ids = new ArrayList<>();
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             Map<String, Object> a = s.get("args") instanceof Map ? (Map<String, Object>) s.get("args") : Map.of();
             if ("core/run_bot".equals(s.get("action")) && a.get("automation") instanceof String b && !ids.contains(b)) ids.add(b);
             if ("core/run_bot".equals(s.get("action")) && a.get("bot") instanceof String b && !ids.contains(b)) ids.add(b);
@@ -1166,7 +1166,7 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     static List<String> toolkitsOf(Map<String, Object> flow) {
         TreeSet<String> ids = new TreeSet<>();
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             String a = String.valueOf(s.get("action"));
             int i = a.indexOf('/');
             if (i > 0 && !a.startsWith("core/")) ids.add(a.substring(0, i));
@@ -1714,7 +1714,7 @@ public final class ControlRoom {
         List<Map<String, Object>> flows = new ArrayList<>(List.of(main));
         for (Object b : bundle.values()) if (b instanceof Map<?, ?> m) flows.add((Map<String, Object>) m);
         for (Map<String, Object> f : flows)
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(f)) {
                 String a = String.valueOf(s.get("action"));
                 if (!a.contains("/")) continue;
                 String pid = a.substring(0, a.indexOf('/'));

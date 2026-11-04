@@ -652,6 +652,30 @@ describe("new Studio", () => {
     expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Close workbook"]);
   });
 
+  it("adds On error after END: its steps are numbered on, it has its own settings, and it is saved as the agent's onError", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.keyDown(steps, { key: "Escape" });
+    fireEvent.click(await screen.findByRole("button", { name: "Add error steps (On error)" }));
+    expect(within(steps).getByText("ON ERROR")).toBeTruthy();
+    expect(screen.getByText(/Runs once when an error no Try block catches/)).toBeTruthy();
+    // ON ERROR is selected, so an action clicked in the library goes into it, numbered on from the agent's last line
+    addFromLibrary(/^Core/, "Write to log");
+    const lines = () => within(steps).getAllByRole("button").filter((b) => b.classList.contains("st-step")).map((b) => b.querySelector(".st-step-n")?.textContent + " " + b.querySelector("strong")?.textContent);
+    expect(lines()).toEqual(["1 Open workbook", "2 Loop", "3 Write to log", "4 Write to log"]);
+    fireEvent.click(within(steps).getByText("ON ERROR"));
+    fireEvent.click(screen.getByRole("radio", { name: "Succeed with a warning" }));
+    expect(within(steps).getByText("1 step, then the run succeeds")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.steps).toHaveLength(2);
+    expect(saved.onError).toMatchObject({ then: "succeed", steps: [{ action: "core/log" }] });
+    // removing it takes its steps with it
+    fireEvent.click(screen.getByRole("button", { name: "Remove On error and its 1 step" }));
+    expect(within(steps).queryByText("ON ERROR")).toBeNull();
+    expect(lines()).toEqual(["1 Open workbook", "2 Loop", "3 Write to log"]);
+  });
+
   it("selects several steps with Ctrl and Shift, then switches them off and deletes them together", async () => {
     render(<App api={fakeServer().api} />);
     const steps = await openIntake();

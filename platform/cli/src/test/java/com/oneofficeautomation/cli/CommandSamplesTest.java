@@ -286,6 +286,10 @@ class CommandSamplesTest {
         Set<String> names = new LinkedHashSet<>(vars.keySet());
         int[] id = {0};
         collect(steps, names, id);
+        // "onError": the agent's error handler {"as", "steps", "then"}; its variable and steps are declared like the others
+        Map<String, Object> onError = cs.get("onError") instanceof Map<?, ?> h ? (Map<String, Object>) h : null;
+        List<Map<String, Object>> handlerSteps = onError == null ? List.of() : (List<Map<String, Object>>) onError.getOrDefault("steps", List.of());
+        if (onError != null) { collect(handlerSteps, names, id); if (onError.get("as") instanceof String v) names.add(v); }
         names.addAll(((Map<String, Object>) cs.getOrDefault("expect", Map.of())).keySet());
         List<Map<String, Object>> decl = new ArrayList<>();
         for (String name : names) {
@@ -297,6 +301,7 @@ class CommandSamplesTest {
         Map<String, Object> flow = new LinkedHashMap<>();
         flow.put("kind", "TaskBot"); flow.put("id", "sample"); flow.put("name", label.length() > 190 ? label.substring(0, 190) : label);
         flow.put("variables", decl); flow.put("steps", steps);
+        if (onError != null) flow.put("onError", onError);
         // "credentials": {variable: "locker/credential/attribute"} become Credential inputs read from a test vault
         Map<String, Object> inputs = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("credentials", Map.of())).entrySet()) {
@@ -320,6 +325,7 @@ class CommandSamplesTest {
         result.put("command", cs.get("command")); result.put("name", cs.getOrDefault("name", ""));
         Set<String> uses = new TreeSet<>();
         usedActions(steps, uses);
+        usedActions(handlerSteps, uses);
         result.put("uses", new ArrayList<>(uses));
         result.put("status", r.status());
         if (r.error() != null) result.put("error", r.error().get("code"));
@@ -328,6 +334,10 @@ class CommandSamplesTest {
             if (cs.containsKey("error")) {
                 assertFalse(r.ok(), label + ": expected error " + cs.get("error"));
                 assertEquals(cs.get("error"), r.error().get("code"), label + ": " + r.error().get("message"));
+                // with an error handler, what it did is checked too (the run still fails with the original error)
+                if (onError != null) for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("expect", Map.of())).entrySet())
+                    assertTrue(same(e.getValue(), ((Map<String, Object>) Values.toJsonable(r.outputs())).get(e.getKey())),
+                            label + ": $" + e.getKey() + " expected " + JsonLite.write(e.getValue()) + " but was " + JsonLite.write(((Map<String, Object>) Values.toJsonable(r.outputs())).get(e.getKey())));
             } else {
                 assertTrue(r.ok(), label + ": " + r.error());
                 Object actual = Values.toJsonable(r.outputs());

@@ -2,7 +2,7 @@ import { useEffect, useState, type DragEvent, type ReactNode } from "react";
 import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, PackageManifest, Proposal, StudioApi } from "../api/client";
 import { ApiFailure } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
-import { type Place } from "./flowEdit";
+import { ON_ERROR, type Place } from "./flowEdit";
 import { conditionText, describeAction, plainValue, summarize } from "./toolkits";
 import { isInput, isOutput } from "./variables";
 
@@ -32,6 +32,11 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
   });
   const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
   walk(flow.steps, 0);
+  if (flow.onError) {
+    lines.push("If an error ends the agent" + (flow.onError.as ? " (kept in $" + flow.onError.as + ")" : "") + ", then the run "
+      + (flow.onError.then === "succeed" ? "succeeds" : "fails") + ":");
+    walk(flow.onError.steps, 1);
+  }
   return [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
     ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
     outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:",
@@ -144,6 +149,11 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
       <div className="st-fterm is-start">Start</div>
       <div className="st-fseq">{flow.steps.length ? seq(flow.steps, "top") : line("top:empty", null, "after")}</div>
       <div className="st-fterm is-end">End</div>
+      {flow.onError && <>
+        {/* the agent's error handler: runs only when an error ends the agent */}
+        <div className="st-fterm is-onerror">On error</div>
+        <div className="st-fseq">{flow.onError.steps?.length ? seq(flow.onError.steps, "onerror") : line("onerror:empty", ON_ERROR, "inside")}</div>
+      </>}
     </div>
   );
 }

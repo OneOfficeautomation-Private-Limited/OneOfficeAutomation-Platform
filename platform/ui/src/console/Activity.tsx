@@ -542,8 +542,10 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, n
       : e.type === "variable.set" ? d.name + " = " + d.value
       : e.type === "run.started" ? "Run started" + (d.automation ? " " + d.automation : "")
       : e.type === "run.finished" ? "Run " + d.status + (d.durationMs != null ? " (" + duration(Number(d.durationMs)) + ")" : "")
+      : e.type === "error_handler.started" ? "Error handler (On error) started for " + d.code
+      : e.type === "error_handler.finished" ? "Error handler (On error) " + (d.status === "failed" ? "failed; the run keeps the original error" : "finished")
       : e.type;
-    const kind = e.type === "step.failed" || e.type === "step.retry" ? "errors" : e.type === "log" ? "logs" : e.type === "variable.set" ? "vars" : "other";
+    const kind = e.type === "step.failed" || e.type === "step.retry" || e.type.startsWith("error_handler.") ? "errors" : e.type === "log" ? "logs" : e.type === "variable.set" ? "vars" : "other";
     return { seq: e.seq, t: e.ts != null ? "+" + (seconds(e.ts) - x.t0).toFixed(2) + "s" : "", step: e.stepId ?? "", text, kind };
   }), [events, names, x.t0]);
 

@@ -167,7 +167,7 @@ public final class CustomToolkits {
         Set<String> wanted = new LinkedHashSet<>();
         for (Map<String, Object> f : flows) {
             Map<String, Object> req = f.get("requires") instanceof Map<?, ?> r && r.get("packages") instanceof Map<?, ?> pk ? (Map<String, Object>) pk : Map.of();
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(f)) {
                 String a = String.valueOf(s.get("action"));
                 if (!a.contains("/")) continue;
                 String pid = a.substring(0, a.indexOf('/'));

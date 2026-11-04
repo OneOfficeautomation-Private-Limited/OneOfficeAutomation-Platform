@@ -155,3 +155,50 @@ def test_validation_reports_all_problems_with_fixes(reg):
     msgs = " | ".join(p["message"] for p in probs)
     for frag in ("Duplicate step id", "Unknown input 'nope'", "not declared", "does not match", "not installed"):
         assert frag in msgs, frag
+
+
+# ----- the agent's error handler (flow "onError") -----
+
+def _with_handler(steps, then="fail", handler=None):
+    return bot(steps, [{"name": "err", "type": "Dictionary"}, {"name": "seen", "type": "String", "direction": "output", "default": "no"}],
+               onError={"as": "err", "then": then, "steps": handler if handler is not None else [
+                   {"id": "h1", "action": "core/set", "args": {"variable": "seen", "value": "${err.code}|${err.stepId}|${err.action}|${err.line}"}}]})
+
+
+_THROW = [{"id": "x", "action": "core/throw", "args": {"code": "A.B", "message": "m"}}]
+
+
+def test_error_handler_runs_then_fails_with_the_original_error(reg):
+    sink = ListSink()
+    res = Runner(reg, sink=sink).run(_with_handler(_THROW))
+    assert res.status == "failed" and res.error["code"] == "A.B" and res.error["stepId"] == "x"
+    assert res.outputs["seen"] == "A.B|x|core/throw|1"
+    types = [e.type for e in sink.events]
+    assert "error_handler.started" in types and "error_handler.finished" in types
+
+
+def test_error_handler_then_succeed(reg):
+    res = Runner(reg).run(_with_handler(_THROW, "succeed"))
+    assert res.status == "success" and res.error is None
+
+
+def test_error_inside_the_handler_keeps_the_original_error(reg):
+    res = Runner(reg).run(_with_handler(_THROW, "succeed", [{"id": "h", "action": "core/throw", "args": {"code": "MAIL.DOWN", "message": "x"}}]))
+    assert res.status == "failed" and res.error["code"] == "A.B"
+
+
+def test_caught_errors_and_cancel_do_not_start_the_handler(reg):
+    res = Runner(reg).run(_with_handler([{"id": "t", "action": "core/try", "children": _THROW, "catch": [{"children": []}]}]))
+    assert res.status == "success" and res.outputs["seen"] == "no"
+    cancel = threading.Event()
+    threading.Timer(0.1, cancel.set).start()
+    res = Runner(reg).run(_with_handler([{"id": "d", "action": "core/delay", "args": {"seconds": 3}}], "succeed"), cancel_event=cancel)
+    assert res.status == "stopped" and res.outputs["seen"] == "no"
+
+
+def test_validator_checks_the_error_handler(reg):
+    from ooa.runner import validate_flow
+    probs = validate_flow({**_with_handler(_THROW), "onError": {"as": "seen", "steps": []}}, reg, raise_on_error=False)
+    assert any(p["path"] == "onError/as" for p in probs)
+    probs = validate_flow({**_with_handler(_THROW), "onError": {"steps": _THROW}}, reg, raise_on_error=False)
+    assert any("Duplicate step id" in p["message"] for p in probs)

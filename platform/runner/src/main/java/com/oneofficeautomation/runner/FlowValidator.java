@@ -67,8 +67,25 @@ public final class FlowValidator {
         if ("ApiTask".equals(kind) && caps.contains("desktop"))
             p.add(null, "requires/capabilities", "ApiTask flows cannot require the desktop capability", "Use kind TaskBot for agents that drive a desktop.");
 
+        // the agent's error handler: its variable, what happens after it, and (below) its steps like any others
+        if (flow.containsKey("onError")) {
+            Map<String, Object> h = Steps.onError(flow);
+            if (h == null || (h.containsKey("steps") && !(h.get("steps") instanceof List)))
+                p.add(null, "onError", "onError must be {\"as\": variable, \"steps\": [...], \"then\": \"fail\" or \"succeed\"}", null);
+            else {
+                if (h.get("as") instanceof String as && !as.isBlank()) {
+                    if (Runner.RESERVED.contains(as)) p.add(null, "onError/as", "Cannot store the error in the built-in variable '" + as + "'", "Choose one of your own variables.");
+                    else if (!declared.containsKey(as)) p.add(null, "onError/as", "Error handler variable '" + as + "' is not declared", "Declare a Dictionary variable '" + as + "'.");
+                    else if (!List.of("Dictionary", "Any").contains(String.valueOf(declared.get(as).get("type"))))
+                        p.add(null, "onError/as", "Error handler variable '" + as + "' must be a Dictionary, not " + declared.get(as).get("type"), "Make '" + as + "' a Dictionary variable.");
+                }
+                if (h.get("then") != null && !List.of("fail", "succeed").contains(String.valueOf(h.get("then"))))
+                    p.add(null, "onError/then", "onError.then must be 'fail' or 'succeed', got '" + h.get("then") + "'", "Use fail (the default) to end the run failed with the original error.");
+            }
+        }
+
         Set<String> seen = new HashSet<>();
-        for (Map<String, Object> step : Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> step : Steps.walkFlow(flow)) {
             String sid = String.valueOf(step.get("id"));
             String act = String.valueOf(step.get("action"));
             if (!seen.add(sid)) p.add(sid, null, "Duplicate step id '" + sid + "'", "Step ids must be unique; One AgentStudio regenerates them on paste.");

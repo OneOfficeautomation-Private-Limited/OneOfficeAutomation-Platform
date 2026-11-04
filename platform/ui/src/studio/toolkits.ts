@@ -1,5 +1,5 @@
 import type { IconName } from "../components";
-import type { FlowStep, PackageManifest } from "../api/client";
+import type { Flow, FlowStep, PackageManifest } from "../api/client";
 import { innerLists, type Part } from "./flowEdit";
 
 /** Colour and icon of a toolkit, so steps and the action library share one mark per toolkit (approved look). */
@@ -82,9 +82,9 @@ export type StepRow = { kind: "step"; n: number; depth: number; step: FlowStep; 
 const countSteps = (s: FlowStep): number => innerLists(s).reduce((n, l) => n + l.reduce((m, x) => m + 1 + countSteps(x), 0), 0);
 
 /** Flattens the steps for the numbered view, in the order they run. Line numbers count the steps of folded blocks too. */
-export function stepRows(steps: FlowStep[], folded: Set<string> = new Set()): StepRow[] {
+export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), first = 0): StepRow[] {
   const rows: StepRow[] = [];
-  let n = 0;
+  let n = first;
   const walk = (list: FlowStep[] | undefined, depth: number) => {
     for (const s of list ?? []) {
       const fold = folded.has(s.id) && innerLists(s).length > 0;
@@ -101,6 +101,17 @@ export function stepRows(steps: FlowStep[], folded: Set<string> = new Set()): St
   };
   walk(steps, 0);
   return rows;
+}
+
+/**
+ * The rows of the whole agent: its steps, then its error handler's (On error), numbered on from the last line as the
+ * runner numbers them; handlerFrom is where the handler's rows start.
+ */
+export function agentRows(flow: Flow, folded: Set<string> = new Set()): { rows: StepRow[]; handlerFrom: number } {
+  const main = stepRows(flow.steps, folded);
+  if (!flow.onError) return { rows: main, handlerFrom: main.length };
+  const lines = flow.steps.reduce((n, s) => n + 1 + countSteps(s), 0);
+  return { rows: [...main, ...stepRows(flow.onError.steps ?? [], folded, lines)], handlerFrom: main.length };
 }
 
 // Comparisons in words, as Classic Studio wrote them, so a step reads the same as before.

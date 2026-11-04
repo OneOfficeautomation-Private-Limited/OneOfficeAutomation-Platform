@@ -47,6 +47,7 @@ final class RunWindow {
         numbers = new LinkedHashMap<>();
         number(list(flow, "steps"), "");
         total = numbers.size();
+        number(com.oneofficeautomation.runner.Steps.onErrorSteps(flow), "");   // the error handler's lines follow; they run only after an error
         win = new JWindow();
         win.setAlwaysOnTop(true);
         win.setFocusableWindowState(false);   // the agent's own windows keep the keyboard

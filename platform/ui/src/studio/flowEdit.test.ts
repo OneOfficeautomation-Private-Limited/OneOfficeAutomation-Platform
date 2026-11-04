@@ -4,8 +4,9 @@ import {
   addStep, duplicateStep, fieldOrder, locate, moveStep, newStep, nextId, parseLoose, putVariable, removeStep, removeVariable,
   setArg, setOut, toggleDisabled, insertAt, moveTo, removeSteps, toggleDisabledMany, duplicateSteps,
   addBranch, copySteps, moveManyTo, moveSelection, pasteSteps, readClip, removeBranch, sectionKey, setFolded, spotFor, START, topSteps,
+  addOnError, findStep, inHandler, ON_ERROR, removeOnError, setOnError,
 } from "./flowEdit";
-import { stepRows } from "./toolkits";
+import { agentRows, stepRows } from "./toolkits";
 import { replaceInSteps } from "./flowEdit";
 
 const packages: PackageManifest[] = [
@@ -193,5 +194,52 @@ describe("find and replace (Ctrl+H)", () => {
     expect(only.flow.steps[0].args!.message).toBe("Invoice from Acme");
     expect(replaceInSteps(f, "a.c", "x", false).count).toBe(0);   // the words, not a pattern
     expect(replaceInSteps(f, "nothing", "x", false).flow).toBe(f);
+  });
+});
+
+describe("the agent's error handler (On error)", () => {
+  const withHandler = (): Flow => ({ ...flow(), variables: [{ name: "err", type: "Dictionary" }],
+    onError: { as: "err", steps: [{ id: "s5", action: "core/log", args: { message: "${err.message}" } }] } });
+
+  it("is found, numbered after the steps and given fresh ids", () => {
+    const f = withHandler();
+    expect(findStep(f, "s5")?.step.action).toBe("core/log");
+    expect(inHandler(f, "s5")).toBe(true);
+    expect(inHandler(f, "s4")).toBe(false);
+    expect(nextId(f)).toBe("s6");   // ids are unique across the steps and the handler
+    const { rows, handlerFrom } = agentRows(f);
+    expect(rows.slice(handlerFrom).map((r) => r.kind === "step" ? r.n + " " + r.step.id : "")).toEqual(["5 s5"]);
+    expect(agentRows(flow()).handlerFrom).toBe(agentRows(flow()).rows.length);
+  });
+
+  it("takes clicked, dropped, moved and pasted steps at its heading, and edits them like any step", () => {
+    const f = addOnError(flow());
+    expect(f.onError).toEqual({ steps: [] });
+    expect(addOnError(f)).toBe(f);
+    const added = addStep(f, [ON_ERROR], { id: "s9", action: "core/log" });
+    expect(added.onError!.steps.map((s) => s.id)).toEqual(["s9"]);
+    expect(added.steps).toHaveLength(3);
+    const dropped = insertAt(added, { id: "s10", action: "core/log" }, ON_ERROR, "inside");
+    expect(dropped.onError!.steps.map((s) => s.id)).toEqual(["s9", "s10"]);
+    const moved = moveManyTo(dropped, ["s4"], "s9", "before");
+    expect(moved.steps.map((s) => s.id)).toEqual(["s1", "s2"]);
+    expect(moved.onError!.steps.map((s) => s.id)).toEqual(["s4", "s9", "s10"]);
+    expect(setArg(moved, "s10", "message", "failed").onError!.steps[2].args).toEqual({ message: "failed" });
+    expect(removeSteps(moved, ["s9"]).onError!.steps.map((s) => s.id)).toEqual(["s4", "s10"]);
+    const pasted = pasteSteps(moved, { steps: [{ id: "x", action: "core/log" }], variables: [] }, spotFor(moved, [ON_ERROR]));
+    expect(pasted.flow.onError!.steps).toHaveLength(4);
+    expect(topSteps(moved, ["s1", "s4"]).map((s) => s.id)).toEqual(["s1", "s4"]);
+    expect(replaceInSteps(withHandler(), "err.message", "err.code", false).flow.onError!.steps[0].args).toEqual({ message: "${err.code}" });
+  });
+
+  it("keeps fail as the default and drops empty settings", () => {
+    const f = withHandler();
+    expect(setOnError(f, { then: "succeed" }).onError!.then).toBe("succeed");
+    expect("then" in setOnError(setOnError(f, { then: "succeed" }), { then: "fail" }).onError!).toBe(false);
+    expect("as" in setOnError(f, { as: "" }).onError!).toBe(false);
+    expect(setOnError(f, { as: "$problem" }).onError!.as).toBe("problem");
+    expect(setOnError(f, { screenshot: true }).onError!.screenshot).toBe(true);
+    expect(removeOnError(f).onError).toBeUndefined();
+    expect(setOnError(flow(), { then: "succeed" }).onError).toBeUndefined();
   });
 });

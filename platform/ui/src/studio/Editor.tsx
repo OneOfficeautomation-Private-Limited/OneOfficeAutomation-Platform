@@ -3,12 +3,12 @@ import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, 
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
-  addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
-  pasteSteps, readClip, removeBranch, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded,
+  addBranch, addOnError, blockIds, CLIP_KEY, copySteps, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
+  pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
@@ -26,7 +26,7 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
-import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
+import { agentRows, describeAction, summarize, toolkitMark, type StepRow } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -173,7 +173,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     wrapRef.current?.requestFullscreen?.().catch(() => {});   // refused or not offered: the page area is used
   };
   const folded = useMemo(() => foldedSet(flow), [flow]);
-  const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
+  const { rows, handlerFrom } = useMemo(() => agentRows(flow, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
   useEffect(() => { if (askTrigger) { setRightTab("triggers"); setRightHidden(false); } }, [askTrigger]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
@@ -321,7 +321,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       const after = ids.slice(ids.indexOf(chosen[chosen.length - 1]) + 1).find((id) => !chosen.includes(id));
       const before = ids.slice(0, ids.indexOf(chosen[0])).reverse()[0];
       const next = removeSteps(flow, chosen);
-      const survivor = [after, before].find((id) => id && locate(next.steps, id));
+      const survivor = [after, before].find((id) => id && findStep(next, id));
       onEdit(next, survivor ? [survivor] : []);
     },
     up: () => { if (chosen.length) onEdit(moveSelection(flow, chosen, -1)); },
@@ -464,13 +464,62 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
       items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
-    if (!running && chosen.length === 1) items.push(
+    if (!running && chosen.length === 1 && !inHandler(flow, step.id)) items.push(   // the error handler's steps run only after an error
       { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
       { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true) },
       { key: "only", label: "Run this step only", onSelect: () => onRunFrom(step.id, true, false) },
     );
     if (innerLists(step).length) items.push({ key: "fold", label: folded.has(step.id) ? "Unfold" : "Fold", onSelect: () => act.fold([step.id], !folded.has(step.id)) });
     return items;
+  };
+
+  /** One line of the steps list: a step, or the heading of a block's part. */
+  const rowItem = (r: StepRow) => {
+    if (r.kind === "section") {
+      const key = sectionKey(r.stepId, r.part);
+      const isSel = selected.includes(key);
+      return (
+        <li key={key}>
+          <button type="button" data-key={key} className={`st-section${isSel ? " is-selected" : ""}${drop?.key === key ? " drop-inside" : ""}`}
+            style={{ paddingLeft: 46 + r.depth * 22 }} aria-pressed={isSel} onClick={() => onSelect([key])}
+            onDragOver={(e) => over(e, key, "inside")} onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.stepId, "inside", r.part)}>
+            {r.label}
+          </button>
+        </li>
+      );
+    }
+    const info = describeAction(r.step.action, packages);
+    const isSel = selected.includes(r.step.id);
+    const hint = (drop?.key === r.step.id ? " drop-" + drop.where : "") + (at === r.step.id ? " is-running" : "");
+    const bp = breakpoints.includes(r.step.id);
+    const hasParts = innerLists(r.step).length > 0;
+    return (
+      <li key={r.step.id} className="st-step-row"
+        onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuFor(r.step.id); }}>
+        <button type="button" data-key={r.step.id} className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
+          draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, JSON.stringify(dragIds(r.step.id))); e.dataTransfer.effectAllowed = "move"; }}
+          onDragOver={(e) => over(e, r.step.id, placeFor(e, r.step))}
+          onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
+          onClick={(e) => click(e, r.step.id)}>
+          <span className="st-step-n">{bp && <span className="st-bp" title="Breakpoint" aria-label="breakpoint" />}{r.n}</span>
+          <span className="st-guides" style={{ width: r.depth * 22 }} />
+          <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
+          <strong>{info.name}</strong>
+          {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
+            return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
+          {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
+          {r.step.disabled && <span className="st-badge">OFF</span>}
+          {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
+        </button>
+        <span className="st-step-tools">
+          {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
+            aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
+          <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
+            onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); setMenuFor(o ? r.step.id : null); }}
+            trigger={<button type="button" className="ui-icon-btn" aria-label={"Line " + r.n + " actions"} title="Step menu (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
+        </span>
+      </li>
+    );
   };
 
   return (
@@ -509,6 +558,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               { key: "replace", label: "Find and replace…", shortcut: keyOf("steps.replace"), onSelect: () => setReplacing(true) },
               ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", shortcut: keyOf("steps.foldAll"), separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
               ...(folded.size ? [{ key: "unfold", label: "Unfold all", shortcut: keyOf("steps.unfoldAll"), onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
+              flow.onError ? { key: "onerror", label: "Go to On error", description: "The steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onSelect([ON_ERROR]) }
+                : { key: "onerror", label: "Add error steps (On error)", description: "Steps that run when an error ends the agent", separatorBefore: true, onSelect: () => onEdit(addOnError(flow), [ON_ERROR]) },
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
@@ -558,53 +609,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <span className="st-marker st-start">START</span>
               </button>
             </li>
-            {rows.map((r) => {
-              if (r.kind === "section") {
-                const key = sectionKey(r.stepId, r.part);
-                const isSel = selected.includes(key);
-                return (
-                  <li key={key}>
-                    <button type="button" data-key={key} className={`st-section${isSel ? " is-selected" : ""}${drop?.key === key ? " drop-inside" : ""}`}
-                      style={{ paddingLeft: 46 + r.depth * 22 }} aria-pressed={isSel} onClick={() => onSelect([key])}
-                      onDragOver={(e) => over(e, key, "inside")} onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.stepId, "inside", r.part)}>
-                      {r.label}
-                    </button>
-                  </li>
-                );
-              }
-              const info = describeAction(r.step.action, packages);
-              const isSel = selected.includes(r.step.id);
-              const hint = (drop?.key === r.step.id ? " drop-" + drop.where : "") + (at === r.step.id ? " is-running" : "");
-              const bp = breakpoints.includes(r.step.id);
-              const hasParts = innerLists(r.step).length > 0;
-              return (
-                <li key={r.step.id} className="st-step-row"
-                  onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuFor(r.step.id); }}>
-                  <button type="button" data-key={r.step.id} className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
-                    draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, JSON.stringify(dragIds(r.step.id))); e.dataTransfer.effectAllowed = "move"; }}
-                    onDragOver={(e) => over(e, r.step.id, placeFor(e, r.step))}
-                    onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
-                    onClick={(e) => click(e, r.step.id)}>
-                    <span className="st-step-n">{bp && <span className="st-bp" title="Breakpoint" aria-label="breakpoint" />}{r.n}</span>
-                    <span className="st-guides" style={{ width: r.depth * 22 }} />
-                    <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
-                    <strong>{info.name}</strong>
-                    {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
-                      return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
-                    {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
-                    {r.step.disabled && <span className="st-badge">OFF</span>}
-                    {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
-                  </button>
-                  <span className="st-step-tools">
-                    {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
-                      aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
-                    <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
-                      onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); setMenuFor(o ? r.step.id : null); }}
-                      trigger={<button type="button" className="ui-icon-btn" aria-label={"Line " + r.n + " actions"} title="Step menu (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
-                  </span>
-                </li>
-              );
-            })}
+            {rows.slice(0, handlerFrom).map(rowItem)}
             {!ids.length && <li><p className="st-empty-steps">No steps yet. Pick an action in the Actions panel on the left, or drag one here.</p></li>}
             <li>
               <div className={`st-marker-row${drop?.key === null ? " drop-inside" : ""}`}
@@ -612,6 +617,19 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <span className="st-marker st-end">END</span>
               </div>
             </li>
+            {flow.onError && <>
+              {/* the agent's error handler: its own heading, then its steps, numbered on from the last line */}
+              <li>
+                <button type="button" data-key={ON_ERROR} className={`st-marker-row st-onerror-row${selected.includes(ON_ERROR) ? " is-selected" : ""}${drop?.key === ON_ERROR ? " drop-inside" : ""}`}
+                  aria-pressed={selected.includes(ON_ERROR)} onClick={() => onSelect([ON_ERROR])}
+                  onDragOver={(e) => over(e, ON_ERROR, "inside")} onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, ON_ERROR, "inside")}>
+                  <span className="st-marker st-onerror">ON ERROR</span>
+                  <span className="st-onerror-sum">{onErrorSummary(flow)}</span>
+                </button>
+              </li>
+              {rows.slice(handlerFrom).map(rowItem)}
+              {handlerFrom === rows.length && <li><p className="st-empty-steps">No error steps yet. Select ON ERROR, then pick actions: they run when an error ends the agent.</p></li>}
+            </>}
           </ol>}
           <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
         </section>
@@ -633,10 +651,18 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <BlockParts step={selStep.step} onAdd={(kind) => { const b = addBranch(flow, selStep.step.id, kind); if (b.part) onEdit(b.flow, [sectionKey(selStep.step.id, b.part)]); }} />
               </> : selSection && sectionRow?.kind === "section" ? (
                 <PartProperties flow={flow} label={sectionRow.label} id={selSection.id} part={selSection.part} onEdit={onEdit} />
-              ) : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
+              ) : selected.includes(ON_ERROR) && flow.onError ? <OnErrorProperties flow={flow} onEdit={onEdit} />
+              : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
                 : chosen.length > 1
                 ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
                 : <AgentProperties flow={flow} onEdit={onEdit} />}
+              {!selected.length && <div className="st-pad">
+                <h3 className="st-prop-section">If an error ends the agent</h3>
+                {flow.onError
+                  ? <p>{onErrorSummary(flow)}. <Button kind="plain" onClick={() => onSelect([ON_ERROR])}>Change</Button></p>
+                  : <><p className="st-muted">Steps that run once when an error no Try block catches ends the agent, before its windows and files close: take a screenshot, close applications, send a mail.</p>
+                    <Button kind="secondary" icon="plus" onClick={() => onEdit(addOnError(flow), [ON_ERROR])}>Add error steps (On error)</Button></>}
+              </div>}
             </TabPanel>
             <TabPanel value="variables"><VariablesPanel flow={flow} builtins={builtins} last={last} onEdit={onEdit} onRefresh={loadBuiltins} /></TabPanel>
             <TabPanel value="triggers">
@@ -758,9 +784,49 @@ function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | 
   </>;
 }
 
+/** The error handler in a few words: what it keeps the error in and how the run ends after it. */
+function onErrorSummary(flow: Flow): string {
+  const h = flow.onError;
+  if (!h) return "";
+  const n = (h.steps ?? []).length;
+  return (n ? n + (n === 1 ? " step" : " steps") : "No steps") + (h.as ? ", error in $" + h.as : "")
+    + (h.then === "succeed" ? ", then the run succeeds" : ", then the run fails");
+}
+
+/**
+ * Settings of the agent's error handler (On error): the variable that gets the error, whether the run fails (the
+ * default, with the original error) or succeeds after the handler, a screenshot first; and removing it.
+ */
+function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, select?: string[]) => void }) {
+  const h = flow.onError!;
+  const dicts = (flow.variables ?? []).filter((v) => v.type === "Dictionary" || v.type === "Any");
+  const n = (h.steps ?? []).length;
+  return (
+    <div>
+      <div className="st-prop-head"><div><strong>On error</strong><div>Runs once when an error no Try block catches ends the agent, while its windows and files are still open. Steps you click in the library go at its end{n ? ` (${n} now)` : ""}.</div></div></div>
+      <div className="st-prop-fields">
+        <Field label="Keep the error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{(fid) =>
+          <Select id={fid} value={h.as ?? ""} onChange={(e) => onEdit(setOnError(flow, { as: e.target.value }))}
+            options={[{ value: "", label: "(not kept)" }, ...dicts.map((v) => ({ value: v.name, label: "$" + v.name })),
+              ...(h.as && !dicts.some((v) => v.name === h.as) ? [{ value: h.as, label: "$" + h.as + " (not a Dictionary variable)" }] : [])]} />}</Field>
+        <Field label="Then" hint="Fail keeps the original error, so One CommandCenter, retries and parent agents see the real cause." layout="beside">{() =>
+          <div className="st-seg" role="radiogroup" aria-label="After the error steps">
+            {([["fail", "Fail the run"], ["succeed", "Succeed with a warning"]] as const).map(([k, t]) =>
+              <button key={k} type="button" role="radio" aria-checked={(h.then ?? "fail") === k} className="st-seg-btn"
+                onClick={() => onEdit(setOnError(flow, { then: k }))}>{t}</button>)}
+          </div>}</Field>
+        <label className="st-check-line"><input type="checkbox" checked={!!h.screenshot} onChange={(e) => onEdit(setOnError(flow, { screenshot: e.target.checked }))} /> Take a screenshot first (saved under screenshots/)</label>
+      </div>
+      <div className="st-pad">
+        <Button kind="secondary" icon="trash" onClick={() => onEdit(removeOnError(flow), [])}>Remove On error{n ? ` and its ${n} step${n > 1 ? "s" : ""}` : ""}</Button>
+      </div>
+    </div>
+  );
+}
+
 /** Settings of a selected block part: an Else if's condition, the errors a Catch takes; and removing the part. */
 function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: string; id: string; part: Part; onEdit: (next: Flow, select?: string[]) => void }) {
-  const step = locate(flow.steps, id)?.step;
+  const step = findStep(flow, id)?.step;
   if (!step) return null;
   const [kind, k] = part.split(":");
   const removed = removeBranch(flow, id, part);

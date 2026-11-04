@@ -100,8 +100,20 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
         add("ApiTask flows cannot require the desktop capability", path="requires/capabilities",
             fix="Use kind TaskBot for bots that drive a desktop.")
 
+    # the agent's error handler: its variable here, its steps below like any others
+    handler = flow.get("onError") or {}
+    if handler.get("as"):
+        var = handler["as"]
+        if var in ("sys", "global"):
+            add(f"Cannot store the error in the built-in variable '{var}'", path="onError/as", fix="Choose one of your own variables.")
+        elif var not in declared:
+            add(f"Error handler variable '{var}' is not declared", path="onError/as", fix=f"Declare a Dictionary variable '{var}'.")
+        elif declared[var]["type"] not in ("Dictionary", "Any"):
+            add(f"Error handler variable '{var}' must be a Dictionary, not {declared[var]['type']}", path="onError/as",
+                fix=f"Make '{var}' a Dictionary variable.")
+
     seen: set[str] = set()
-    for step, parent in walk_steps(flow.get("steps")):
+    for step, parent in [*walk_steps(flow.get("steps")), *walk_steps(handler.get("steps"))]:
         sid = step["id"]
         if sid in seen:
             add(f"Duplicate step id '{sid}'", sid, fix="Step ids must be unique; Studio regenerates them on paste.")

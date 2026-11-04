@@ -61,6 +61,7 @@ An agent is one JSON document (format "OOA Flow v1"). The parts that carry behav
 | `steps` | The ordered list of steps; block steps hold further lists (`children`, `else`, `elseIf`, `catch`, `finally`). |
 | `requires` | Toolkit version ranges, capabilities (for example `desktop`) and repository files (section 8). |
 | `errorHandling` | Agent-wide default retry policy for action steps that have none of their own ([document 02](02-toolkits-and-actions.md)). |
+| `onError` | The agent's error handler ("On error"): steps that run once when an error no Try caught ends the agent, then fail the run with that error or let it succeed ([architecture 03](../architecture/03-agent-model-and-runner.md), section 9). |
 | `ui` | Designer-only data such as breakpoints; it has no effect on runs. |
 
 Each step has a unique `id`, an `action` address `toolkit/action` (for example `ooa.excel/open`), `args` (the input

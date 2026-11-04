@@ -95,6 +95,10 @@
 .st-marker { margin: 4px 0 6px 46px; display: inline-block; padding: 2px 9px; border-radius: 4px; color: #ffffff; font-weight: 700; font-size: 11px; }
 .st-start { background: var(--ui-success); }
 .st-end { background: #353e4c; }
+/* the agent's error handler (On error) after END: white on #b91c1c is 6.4:1 */
+.st-onerror { background: #b91c1c; }
+.st-onerror-row { margin-top: 8px; border-top: 1px dashed var(--ui-border); }
+.st-onerror-sum { margin-left: 8px; font-size: 12px; color: var(--ui-text-2); }
 .st-step-list { list-style: none; margin: 0; padding: 0; }
 .st-step { width: 100%; display: flex; align-items: center; gap: 8px; height: var(--ui-step); padding: 0 12px 0 4px; border: 0; border-bottom: 1px solid var(--ui-divider);
   border-top: 1px solid transparent; background: var(--ui-bg); text-align: left; cursor: pointer; }
@@ -431,6 +435,7 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-fterm { padding: 3px 14px; border-radius: 12px; color: #ffffff; font-weight: 700; font-size: 11px; }
 .st-fterm.is-start { background: var(--ui-success); }
 .st-fterm.is-end { background: #353e4c; }
+.st-fterm.is-onerror { background: #b91c1c; margin-top: 18px; }
 .st-fline { width: 40px; height: 22px; position: relative; flex: none; }
 .st-fline::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--ui-guide); }
 .st-fline.is-drop::before { border-left: 3px dashed var(--ui-accent); }

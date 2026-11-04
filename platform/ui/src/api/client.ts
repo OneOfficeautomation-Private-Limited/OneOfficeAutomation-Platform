@@ -52,7 +52,13 @@ export type FlowStep = {
 };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
-export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; ui?: FlowUi };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; onError?: FlowOnError; ui?: FlowUi };
+
+/**
+ * The agent's error handler: steps that run once when an error no Try block caught ends the run, while its windows and
+ * files are still open; then the run fails with that error (fail, the default) or ends as succeeded with a warning.
+ */
+export type FlowOnError = { as?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
