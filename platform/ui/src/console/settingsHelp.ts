@@ -80,6 +80,8 @@ export const SETTING_HELP: Record<string, string> = {
   git_remote_url: "A Git repository that keeps a copy of every agent version, written as its https address. Use it for a second copy or for review in your Git tools. Leave it empty for no Git copy.",
   git_branch: "The branch the copies go to, for example main.",
   git_username: "The user name for the Git server. With a personal access token most servers accept any name.",
+  docflow_url: "Where the DocFlow service answers (it reads the documents). It usually runs next to One CommandCenter. In the SaaS service the region sets it, not the tenant.",
+  docflow_token_ref: "Where DocFlow's service token is kept in the Credential vault, written as folder/credential/attribute. Put the same token in DocFlow's DOCAUTO_API_TOKEN.",
   git_token_ref: "Where the Git access token is kept in the Credential vault, written as folder/credential/attribute.",
   git_auto_push: "Pushes to Git after every check-in, live-version change and deletion. Switched off, use Sync Git now below when you want a copy.",
   repo_files_folder: "Where repository files (such as Excel templates) are kept. Leave it empty for one server; with several servers, give a shared folder that all of them can reach.",

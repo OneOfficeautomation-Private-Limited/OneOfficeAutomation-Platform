@@ -137,6 +137,11 @@ const SECTIONS: Section[] = [
       { key: "mcp_oauth_audience", label: "Token audience", hint: "Empty: API keys only.", kind: "text", placeholder: "api://ooa-mcp" },
       { key: "mcp_oauth_scope", label: "Scope the token must carry", hint: "Optional.", kind: "text", placeholder: "mcp.use" }] },
   ] },
+  { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "AI > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
+    { title: "DocFlow service", settings: [
+      { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085.", kind: "text", placeholder: "http://127.0.0.1:8085" },
+      { key: "docflow_token_ref", label: "Service token", hint: VAULT_REF, kind: "text", placeholder: "docflow/service/token" }] },
+  ] },
   { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "One CommandCenter's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
     { title: "E-mail", settings: [
       { key: "mail_smtp_host", label: "Outgoing mail server", kind: "text", placeholder: "smtp.office365.com" },
