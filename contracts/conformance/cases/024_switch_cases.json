@@ -1,5 +1,5 @@
 {
-  "name": "019_switch_cases",
+  "name": "024_switch_cases",
   "description": "Switch: equals compares like == (number 2 matches text \"2\"), a case may list several values, the first matching case runs, no fall-through; default runs when nothing matches; break inside a case leaves the loop; expression cases are conditions.",
   "flow": {
     "kind": "TaskBot",
