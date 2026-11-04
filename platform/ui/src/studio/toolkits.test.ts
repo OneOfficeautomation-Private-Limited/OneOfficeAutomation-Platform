@@ -21,6 +21,7 @@ describe("steps view", () => {
     expect(describeAction("core/if", packages)).toMatchObject({ name: "If", toolkit: "Flow" });
     expect(describeAction("ooa.unknown/do_thing", packages).name).toBe("do thing");
     expect(toolkitMark("ooa.outlook").icon).toBe("mail");
+    expect(toolkitMark("ooa.exchange").icon).toBe("mail");
     expect(toolkitMark("ooa.genai").icon).toBe("spark");
     expect(toolkitMark("ooa.datatable")).toEqual({ color: "#1e40af", icon: "code" });
     expect(toolkitMark("ooa.something_new").color).toBe("#334155");

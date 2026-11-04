@@ -9,7 +9,7 @@ export type Mark = { color: string; icon: IconName };
 // icons at 3:1 or more. The first match wins, so the specific families come before the broad ones.
 const BY_TOOLKIT: [RegExp, Mark][] = [
   [/excel|csv/, { color: "#1d7a46", icon: "grid" }],
-  [/outlook|email|microsoft365|slack/, { color: "#0f6cbd", icon: "mail" }],
+  [/outlook|email|microsoft365|exchange|slack/, { color: "#0f6cbd", icon: "mail" }],
   [/ai_agent|ai_skills|genai|knowledge|web_agent|insights/, { color: "#7c3aed", icon: "spark" }],
   [/pdf|ocr|word|powerpoint|docusign|image/, { color: "#6d28d9", icon: "doc" }],
   [/browser|rest|soap|connector|network|kafka/, { color: "#c2410c", icon: "globe" }],

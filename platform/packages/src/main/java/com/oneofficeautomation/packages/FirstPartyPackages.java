@@ -22,7 +22,8 @@ public final class FirstPartyPackages {
             WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, SapBapiPackage.class, ConnectorPackage.class,
             FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class,
             GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
-            OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class, FormsPackage.class, Ec2Package.class);
+            OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class, FormsPackage.class, Ec2Package.class,
+            ExchangePackage.class);
 
     /** Optional packages in other modules, installed when their module is on the classpath. */
     public static final List<String> OPTIONAL = List.of(

@@ -38,6 +38,7 @@ In the **Actions** panel these toolkits sit under **Office documents**, **Files 
 | Files, folders, zip | **Files**, **Folders** | No |
 | Mail through any mail server | **Email** | No |
 | Outlook mail, OneDrive, SharePoint, Teams, Excel online | **Microsoft 365** | No (cloud) |
+| Mail on your own Exchange Server (on premises) | **Exchange on-premises (EWS)** | No |
 | The Outlook program on the desktop | **Outlook desktop** | Yes (Windows) |
 | Gmail, Google Drive, Sheets, Calendar | **Google Workspace** | No (cloud) |
 
@@ -220,6 +221,19 @@ are marked "(Outlook)": **Send email (Outlook)**, **Find emails (Outlook)**, **R
 application permission). The same toolkit has OneDrive/SharePoint files, Excel online, calendar and Teams (see
 [Cloud and business apps](12-cloud-and-business-apps.md)).
 
+**Exchange on-premises (EWS)** works with a mailbox on your own Exchange Server (2013, 2016, 2019 or Subscription
+Edition) through Exchange Web Services, without Outlook and without opening IMAP on the server. **Connect to Exchange
+mailbox** takes the **Exchange web services address (URL)**, usually `https://<mail server>/EWS/Exchange.asmx`, a
+**User** (`DOMAIN\user` or `user@domain`), a **Password** from the vault and **Sign in** (*ntlm*, the usual Windows
+sign-in, or *basic*). Under **Open another person's or a shared mailbox** you can work in a shared mailbox the user has
+full access to, or act as its owner with **Impersonate** (the user needs the ApplicationImpersonation role). The other
+actions match the Email toolkit, so a bot moves between them easily: **Find emails** (same columns), **Read email**,
+**Save attachments**, **Send email**, **Reply to email**, **Reply to all**, **Forward email**, **Move email**,
+**Mark read or unread**, **Delete email** (to Deleted Items unless **Permanent**), **Get folders** and **Disconnect**.
+Folders are well-known names such as `inbox` or `sentitems`, or paths such as `Inbox/Invoices`. Email ids are Exchange
+item ids; a moved email gets a new id, which **Move email** returns. Microsoft is retiring EWS in Exchange Online, so
+use the Microsoft 365 toolkit for Microsoft 365 mailboxes.
+
 **Outlook desktop** drives the Outlook program on Windows with its mail profile: **Find emails**, **Read email**,
 **Send email**, **Reply to email**, **Forward email**, **Save attachments**, **Move email**, **Mark read or unread**,
 **Delete email**, **Get folders**, including shared mailboxes. It needs a signed-in Windows desktop.
@@ -271,6 +285,7 @@ The sample agent `O3-pdf-to-word-letters` in `examples/use-cases` shows a comple
 | "The file is in use" kinds of errors | Another program (or an earlier failed run) still has the file open. Close it; put **Close** in a **Finally**. |
 | Numbers from CSV compare as text | Tick **Detect numbers and dates**, or convert with the Number toolkit. |
 | SMTP refuses to sign in (`EMAIL.` error) | Check port and **Security** (587 STARTTLS, 465 SSL), and that the account may send through SMTP; Microsoft 365 often needs an access token instead of a password. |
+| Exchange on-premises stops with `EXCHANGE.AUTH_FAILED` or `EXCHANGE.BAD_URL` | Check the user is written `DOMAIN\user`, the password in the vault, **Sign in** (NTLM or Basic, as the server's EWS site allows) and that the address ends in `/EWS/Exchange.asmx`. |
 | Microsoft 365 or Google steps fail with an authorisation error | The access token has expired or lacks the permission (scope). Renew the token in the vault. |
 | Excel desktop or Outlook desktop steps fail on a runner | The runner needs Windows, Office installed and (for Outlook) a mail profile, in a signed-in session. |
 
