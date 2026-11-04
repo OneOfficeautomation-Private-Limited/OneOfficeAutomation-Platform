@@ -40,6 +40,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 70 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 68 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [PowerPoint (desktop, needs PowerPoint)](ooa-powerpoint_desktop.md) | `ooa.powerpoint_desktop` | 4 | 0 | 0 | Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint. |
+| [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 63 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [File](ooa-file.md) | `ooa.file` | 16 | 4 | 1 | Read, write, copy, move and delete files. |
 | [Folder](ooa-folder.md) | `ooa.folder` | 8 | 2 | 1 | Create, list, copy and delete folders. |
@@ -110,4 +111,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 79 toolkits, 1065 actions, 47 conditions and 12 loop types.
+In all: 80 toolkits, 1074 actions, 47 conditions and 12 loop types.

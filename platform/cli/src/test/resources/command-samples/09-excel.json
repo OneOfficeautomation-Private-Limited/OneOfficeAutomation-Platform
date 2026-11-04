@@ -295,5 +295,7 @@
      {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/tc.xlsx"}},
      {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "Acme;12;Paid"}},
      {"action": "ooa.excel/text_to_columns", "args": {"column": "A", "delimiter": ";"}, "out": {"columns": "k"}},
-     {"action": "ooa.excel/get_cell", "args": {"cell": "B1"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"k": 3, "v": 12}}
+     {"action": "ooa.excel/get_cell", "args": {"cell": "B1"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"k": 3, "v": 12}},
+ {"command": "ooa.office_attach/excel_read_range", "name": "a range that is not an address is refused before Excel is asked", "steps": [{"action": "ooa.office_attach/excel_read_range", "args": {"workbook": "Sales.xlsx", "range": "first rows"}}], "error": "EXCEL_OPEN.BAD_RANGE"},
+ {"command": "ooa.office_attach/excel_write_range", "name": "a start that is not a cell is refused", "steps": [{"action": "ooa.office_attach/excel_write_range", "args": {"workbook": "Sales.xlsx", "start_cell": "B", "values": "x"}}], "error": "EXCEL_OPEN.BAD_RANGE"}
 ]
