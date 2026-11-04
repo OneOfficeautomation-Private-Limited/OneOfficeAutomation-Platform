@@ -14,6 +14,16 @@
   border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font-weight: 600; text-decoration: none; }
 .df-tab:hover { border-color: var(--ui-accent); color: var(--ui-accent-text); background: var(--ui-tint); }
 .df-tab[aria-current="page"] { background: var(--ui-accent); border-color: var(--ui-accent); color: #ffffff; }
+.df-tab { gap: 6px; }
+.df-tab-group { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.df-tab-group + .df-tab-group { padding-left: 12px; border-left: 1px solid var(--ui-divider); }
+.df-tab-group.is-menu { flex: 0 1 auto; }
+.df-tab-group.is-menu .df-tab { flex: none; }
+.df-tab-group-label { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-text-2); }
+.df-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.df-steps { display: flex; gap: 8px; flex-wrap: wrap; }
+.df-steps .df-stage { min-width: 132px; }
+.df-step-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ui-text-2); }
 .df-page { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
 .df-page-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .df-page-head h2 { margin: 0; font-size: 16px; font-weight: 600; }

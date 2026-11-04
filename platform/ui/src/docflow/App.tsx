@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Icon, usePersistent } from "../components";
+import { Icon, Menu, usePersistent } from "../components";
 import { CommandMenu } from "../studio/CommandMenu";
 import type { DocFlowApi } from "./api";
 import { Builder } from "./Builder";
@@ -32,10 +32,22 @@ export function parseRoute(hash: string): Route {
   return { tab: (TAB_IDS as readonly string[]).includes(first) ? first as typeof TAB_IDS[number] : "overview" };
 }
 
-const TABS: { tab: Route["tab"]; label: string }[] = [
-  { tab: "overview", label: "Overview" }, { tab: "inbox", label: "Inbox" }, { tab: "processes", label: "Processes" },
-  { tab: "types", label: "Document types" }, { tab: "refdata", label: "Reference data" }, { tab: "engines", label: "Engines" }, { tab: "testlab", label: "Test lab" },
+type Tab = { tab: Route["tab"]; label: string; about?: string };
+/**
+ * The tabs in the order a developer works: Build (a process, step by step from where documents come in), Run (the
+ * documents day to day) and the Libraries the build steps use, in a small menu.
+ */
+export const TAB_GROUPS: { label: string; tabs: Tab[]; menu?: boolean }[] = [
+  { label: "Build", tabs: [{ tab: "processes", label: "Processes" }] },
+  { label: "Run", tabs: [{ tab: "inbox", label: "Inbox" }, { tab: "overview", label: "Overview" }] },
+  { label: "Libraries", menu: true, tabs: [
+    { tab: "types", label: "Document types", about: "What to read from each kind of document" },
+    { tab: "refdata", label: "Reference data", about: "Lists that checks look values up in" },
+    { tab: "engines", label: "Engines", about: "Which engines read the pages; cloud opt-in; cost" },
+    { tab: "testlab", label: "Test lab", about: "Try any document on one engine or two" },
+  ] },
 ];
+const TABS = TAB_GROUPS.flatMap((g) => g.tabs);
 
 export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], user = "Sara Khan" }:
   { api: DocFlowApi; controlRoom?: string | null; tenants?: string[]; user?: string }) {
@@ -97,8 +109,13 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
                 <HelpButton open={helpOpen} onToggle={toggleHelp} />
               </div>
               <nav className="df-tabs" aria-label="Document Automation">
-                {TABS.map((t) => (
-                  <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
+                {TAB_GROUPS.map((g) => (
+                  <div key={g.label} className={`df-tab-group${g.menu ? " is-menu" : ""}`} role="group" aria-label={g.label}>
+                    <span className="df-tab-group-label" aria-hidden="true">{g.label}</span>
+                    {g.menu ? <LibraryMenu tabs={g.tabs} current={route.tab} /> : g.tabs.map((t) => (
+                      <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
+                    ))}
+                  </div>
                 ))}
               </nav>
             </div>
@@ -116,6 +133,16 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
         </main>
       </div>
     </div>
+  );
+}
+
+/** Libraries: one button that names the library open now, and a menu of all of them. */
+function LibraryMenu({ tabs, current }: { tabs: Tab[]; current: Route["tab"] }) {
+  const open = tabs.find((t) => t.tab === current);
+  return (
+    <Menu label="Libraries" align="start"
+      trigger={<button type="button" className="df-tab" aria-current={open ? "page" : undefined}>{open ? open.label : "Libraries"}<Icon name="chevronDown" size={12} stroke={2.4} /></button>}
+      items={tabs.map((t) => ({ key: t.tab, label: t.label, description: t.about, onSelect: () => { location.hash = "#/" + t.tab; } }))} />
   );
 }
 

@@ -43,12 +43,12 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     ],
   },
   processes: {
-    summary: "Decide how a process reads, checks and delivers documents.",
+    summary: "Build a process step by step, from where documents come in to going live.",
     steps: [
-      "Click a stage at the top to set it up, left to right.",
-      "Under Checks, switch each check on or off and choose what happens if it fails.",
-      "Click Save draft. On a live process, Save changes applies at once.",
-      "Click Go live: new documents then use this version.",
+      "Work through the steps left to right: 1 Input, where documents come from, to 7 Test & go live.",
+      "Each step links to what it uses: Document types, Reference data or Engines.",
+      "Click Save draft as you go. On a live process, Save changes applies at once.",
+      "In step 7, try 1–3 sample documents, then click Go live.",
     ],
   },
   types: {

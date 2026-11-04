@@ -145,7 +145,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
         <div className={`df-way${mail ? " is-on" : ""}`}>
           <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} /><span><b>Email inbox</b>
             <span className="df-small" style={{ display: "block" }}>Suppliers email their invoices</span></span></label>
-          {mail && <p className="df-small" style={{ margin: "8px 0 0 24px" }}>Next, in the process's Intake stage: the mailbox (Microsoft 365 or IMAP) and its password from the Vault. Only new emails are read.</p>}
+          {mail && <p className="df-small" style={{ margin: "8px 0 0 24px" }}>Next, in the process's step 1, Input: the mailbox (Microsoft 365 or IMAP) and its password from the Vault. Only new emails are read.</p>}
         </div>
         <div className={`df-way${bot ? " is-on" : ""}`}>
           <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={bot} onChange={(e) => setBot(e.target.checked)} /><span><b>From a bot</b>

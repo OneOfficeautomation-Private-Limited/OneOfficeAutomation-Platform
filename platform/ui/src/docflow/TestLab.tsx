@@ -3,8 +3,11 @@ import { Button, Field, Select } from "../components";
 import type { DocFlowApi, DocType, TestRun } from "./api";
 import { FilterBar, FilterSelect, Kpi, reportError, useLoad } from "./ui";
 
-/** Test lab: try a document on one engine, or two side by side, before it goes live. Nothing is saved or sent to review. */
-export function TestLab({ api }: { api: DocFlowApi }) {
+/**
+ * Test lab: try a document on one engine, or two side by side, before it goes live. Nothing is saved or sent to review.
+ * In the builder's last step it opens on the process's document type (by id or name), without its own title.
+ */
+export function TestLab({ api, initialType = "", embedded = false }: { api: DocFlowApi; initialType?: string; embedded?: boolean }) {
   const [setup] = useLoad(() => Promise.all([api.docTypes(), api.engines()]), [api]);
   const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -16,7 +19,7 @@ export function TestLab({ api }: { api: DocFlowApi }) {
   const [running, setRunning] = useState(false);
   const [show, setShow] = useState<"all" | "diff" | "failed">("all");
   const types: DocType[] = setup?.[0] ?? [];
-  const typeId = docType || types[0]?.id || "";
+  const typeId = docType || types.find((t) => t.id === initialType || t.name === initialType)?.id || types[0]?.id || "";
   // engines that read pages and can run now, plus "as live" (the routing on the Engines page)
   const engines = [{ value: "auto", label: "Routing (as live)" }, ...(setup?.[1].options ?? []).flatMap((o) => o.engines)
     .filter((e) => e.status === "ready" && !["builtin-rules", "llm-local", "llm-cloud", "claude"].includes(e.id)).map((e) => ({ value: e.id, label: e.name }))];
@@ -34,9 +37,9 @@ export function TestLab({ api }: { api: DocFlowApi }) {
   const both = (fn: (x: NonNullable<typeof ra>) => string) => compare && rb ? `A ${ra ? fn(ra) : "—"} · B ${fn(rb)}` : ra ? fn(ra) : "—";
 
   return (
-    <div className="df-page">
+    <div className={embedded ? "df-stack" : "df-page"}>
       <div className="df-page-head">
-        <div><h2>Test lab</h2><p>Try a document before it goes live. Nothing is saved to a process or sent to review.</p></div>
+        {!embedded && <div><h2>Test lab</h2><p>Try a document before it goes live. Nothing is saved to a process or sent to review.</p></div>}
         <span className="df-grow" />
         <div className="df-seg" role="group" aria-label="Mode">
           <button type="button" aria-pressed={!compare} onClick={() => { setCompare(false); setResult(null); }}>One engine</button>

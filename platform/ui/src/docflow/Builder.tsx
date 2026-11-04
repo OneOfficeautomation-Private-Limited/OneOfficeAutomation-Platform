@@ -2,23 +2,28 @@ import { useEffect, useState } from "react";
 import { Button, Icon } from "../components";
 import { stagesOf, type Check, type Delivery, type DocFlowApi, type InboxStatus, type ProcessDesign, type ProcessSettings, type ProcessSummary, type RefTable } from "./api";
 import { HINTS } from "./help";
-import { folderLabel } from "./dialogs";
+import { NewProcessDialog, folderLabel } from "./dialogs";
 import { CheckDialog, ClassifyStage, DeliverStage, DeliveryDialog, ExtractStage, IF_FAILS, IntakeStage, ReviewStage } from "./stages";
+import { TestLab } from "./TestLab";
 import { Chip, Empty, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError } from "./ui";
 
 /**
- * The process builder: six stages, each with its settings; Checks and lookups holds the rules, each with what happens
- * when it fails. Changes stay on this page until saved. A draft only reads uploads; Go live also starts its watched folder.
- * DocFlow keeps one version of a process, so saving a live process applies to new documents straight away.
+ * The process builder: the path a developer follows, one numbered step at a time, from where documents come in
+ * (1 Input) to trying samples and going live (7 Test & go live). Each step links to the library it uses: document
+ * types, reference data, engines. Checks holds the rules, each with what happens when it fails. Changes stay on this
+ * page until saved. A draft only reads uploads; Go live also starts its watched folder. DocFlow keeps one version of
+ * a process, so saving a live process applies to new documents straight away.
  */
-const STAGE_IDS = ["intake", "classify", "extract", "checks", "review", "deliver"];
+const STAGE_IDS = ["intake", "classify", "extract", "checks", "review", "deliver", "test"];
+const CHECKS = 3, TEST = 6;
 
 export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi; processId?: string; stage?: string }) {
   const [processes, setProcesses] = useState<ProcessSummary[] | null>(null);
   const [design, setDesign] = useState<ProcessDesign | null>(null);
   const [saved, setSaved] = useState<ProcessDesign | null>(null);
   const [tables, setTables] = useState<RefTable[]>([]);
-  const [stage, setStage] = useState(STAGE_IDS.includes(firstStage ?? "") ? STAGE_IDS.indexOf(firstStage!) : 3);
+  const [stage, setStage] = useState(STAGE_IDS.includes(firstStage ?? "") ? STAGE_IDS.indexOf(firstStage!) : 0);
+  const [creating, setCreating] = useState(false);
   const [inbox, setInbox] = useState<InboxStatus | null>(null);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("all");
@@ -43,8 +48,16 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
     return () => { live = false; };
   }, [api, processId]);
 
+  const newProcess = <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
+    onCreated={(id) => { setCreating(false); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/") + "/intake"; }} />;
   if (processes && !design && !processes.some((p) => p.id !== "smart-inbox") && !processId)
-    return <Empty>No process yet. Create one from the Inbox with New process, then design it here.</Empty>;
+    return (
+      <div className="df-page">
+        <Empty>No process yet. Click New process: step 1 is where the documents come from.</Empty>
+        <div><Button kind="primary" icon="plus" onClick={() => setCreating(true)}>New process</Button></div>
+        {newProcess}
+      </div>
+    );
   if (!design || !saved) return <Loading />;
 
   const dirty = JSON.stringify({ ...design, stages: [] }) !== JSON.stringify({ ...saved, stages: [] });
@@ -72,7 +85,8 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
     && (onOff === "all" || c.on === (onOff === "on")) && (fails === "all" || c.ifFails === fails));
   const onCount = design.checks.filter((c) => c.on).length;
   const live = design.state === "live";
-  const current = design.stages[stage];
+  const steps = [...design.stages, { name: "Test & go live", summary: live ? "Live: new documents use this version" : "Try 1–3 samples, then Go live", done: live }];
+  const current = steps[stage];
   const choices = (processes ?? []).some((p) => p.id === design.id) ? processes ?? [] : [{ id: design.id, name: design.name }, ...(processes ?? [])];
 
   return (
@@ -87,27 +101,40 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
         <span className="df-muted">{folderLabel(design.folder)}{design.folder ? " · " : ""}{design.docType}</span>
         <span className="df-grow" />
         {dirty && <span className="df-text-warn" role="status">{live ? "Unsaved changes: new documents use them once saved" : "Unsaved changes"}</span>}
-        <a className="ui-btn ui-btn-secondary" href="#/testlab">Test with a sample</a>
+        <Button icon="plus" onClick={() => setCreating(true)}>New process</Button>
         <Button disabled={!dirty || busy} onClick={saveDraft}>{!dirty ? "Saved" : live ? "Save changes" : "Save draft"}</Button>
         {live
           ? <Button disabled={busy} onClick={() => goLive(false)}>Take offline</Button>
           : <Button kind="run" disabled={busy} onClick={() => goLive(true)}>Go live</Button>}
       </div>
 
-      <div role="tablist" aria-label="Stages" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {design.stages.map((s, i) => (
+      <div role="tablist" aria-label="Steps" className="df-steps">
+        {steps.map((s, i) => (
           <button key={s.name} type="button" role="tab" className="df-stage" aria-selected={i === stage} onClick={() => setStage(i)}>
             <span className={`df-stage-n${s.done ? " is-done" : i === stage ? " is-current" : ""}`}>{s.done ? "✓" : i + 1}</span>
-            <span style={{ minWidth: 0 }}><b style={{ display: "block" }}>{s.name}</b><span className="df-small">{i === 3 ? `${design.checks.length} checks` : s.summary.split(";")[0]}</span></span>
+            <span style={{ minWidth: 0 }}><span className="df-step-label">Step {i + 1}</span><b style={{ display: "block" }}>{s.name}</b>
+              <span className="df-small">{i === CHECKS ? `${design.checks.length} checks` : s.summary.split(";")[0]}</span></span>
           </button>
         ))}
       </div>
 
       <div className="df-grid df-g3">
-        {stage === 3 ? (
-          <section className="df-card df-span2" aria-label="Checks and lookups" style={{ overflow: "hidden" }}>
+        {stage === TEST ? (
+          <section className="df-card df-pad df-span2" aria-label="Test & go live" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+            <div><b style={{ fontSize: 15 }}>7 · Test & go live</b><div className="df-muted">Try 1–3 sample documents. Nothing is saved or sent to review. When the results are right, go live.</div></div>
+            <TestLab api={api} initialType={design.docType} embedded />
+            <div className={`df-note ${live ? "df-ok" : "df-info"}`} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ flex: 1, minWidth: 200 }}>{live ? "This process is live: new documents use this version." : "Results look right? Go live: new documents then use this version."}</span>
+              {live
+                ? <Button disabled={busy} onClick={() => goLive(false)}>Take offline</Button>
+                : <Button kind="run" disabled={busy} onClick={() => goLive(true)}>Go live</Button>}
+            </div>
+          </section>
+        ) : stage === CHECKS ? (
+          <section className="df-card df-span2" aria-label="Checks" style={{ overflow: "hidden" }}>
             <div className="df-head-row df-pad">
-              <div><b style={{ fontSize: 15 }}>4 · Checks and lookups</b><div className="df-muted">Run on every document after its fields are read. Each check decides what happens when it fails.</div></div>
+              <div><b style={{ fontSize: 15 }}>4 · Checks</b><div className="df-muted">Run on every document after its fields are read. Each check decides what happens when it fails.
+                Lists to look values up in are kept in <a href="#/refdata">Reference data</a>.</div></div>
               <span className="df-grow" /><Button kind="primary" icon="plus" onClick={() => setEditCheck("new")}>Add check</Button>
             </div>
             <FilterBar onClear={() => { setQ(""); setKind("all"); setOnOff("all"); setFails("all"); }} count={`${rows.length} of ${design.checks.length} checks`}>
@@ -147,8 +174,15 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
           <section className="df-card df-pad df-span2" aria-label={current.name} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
             {stage === 0 && <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} />}
-            {stage === 1 && <ClassifyStage s={design.settings} set={setSettings} />}
-            {stage === 2 && <ExtractStage s={design.settings} set={setSettings} />}
+            {stage === 1 && <>
+              <div className="df-way"><b>{design.docType || "No document type yet"}</b>
+                <span className="df-small" style={{ display: "block" }}>Its fields and labels are in <a href="#/types">Document types</a>. A new kind of document? Open Document types and click Teach from samples.</span></div>
+              <ClassifyStage s={design.settings} set={setSettings} />
+            </>}
+            {stage === 2 && <>
+              <ExtractStage s={design.settings} set={setSettings} />
+              <p className="df-small" style={{ margin: 0 }}>How pages are read (OCR, and when the cloud may be used) is set once for every process on <a href="#/engines/routing">Engines</a>.</p>
+            </>}
             {stage === 4 && <ReviewStage s={design.settings} set={setSettings} />}
             {stage === 5 && <DeliverStage deliveries={design.deliveries} onAdd={() => setEditDelivery("new")} onEdit={setEditDelivery}
               onRemove={(id) => change({ deliveries: design.deliveries.filter((d) => d.id !== id) })} />}
@@ -158,13 +192,14 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
         <section className="df-card df-pad" aria-label="Process summary" style={{ alignSelf: "start" }}>
           <b style={{ fontSize: 15 }}>Process summary</b>
           <div className="df-muted" style={{ margin: "2px 0 6px" }}>What this process does, stage by stage.</div>
-          {design.stages.map((s, i) => (
+          {steps.map((s, i) => (
             <div key={s.name} style={{ display: "grid", gridTemplateColumns: "24px minmax(0, 1fr)", gap: "2px 10px", padding: "10px 0", borderBottom: "1px solid var(--ui-divider)" }}>
               <span className={`df-stage-n${s.done ? " is-done" : i === stage ? " is-current" : ""}`} style={{ width: 22, height: 22, fontSize: 11 }}>{s.done ? "✓" : i + 1}</span>
-              <b>{s.name}</b><span /><span className="df-muted">{i === 3 ? `${onCount} of ${design.checks.length} checks on` : s.summary}</span>
+              <b>{s.name}</b><span /><span className="df-muted">{i === CHECKS ? `${onCount} of ${design.checks.length} checks on` : s.summary}</span>
             </div>
           ))}
-          <div className="df-note df-warn" style={{ marginTop: 12 }}>Before going live: run a test with 1–3 sample documents to see what each stage would do.</div>
+          {stage !== TEST && !live && <div className="df-note df-warn" style={{ marginTop: 12 }}>Before going live: try 1–3 sample documents in{" "}
+            <button type="button" className="df-link" onClick={() => setStage(TEST)}>step 7, Test & go live</button>.</div>}
         </section>
       </div>
 
@@ -174,6 +209,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
       {editDelivery && <DeliveryDialog key={editDelivery === "new" ? "new" : editDelivery.id} open value={editDelivery === "new" ? null : editDelivery}
         onClose={() => setEditDelivery(null)}
         onSave={(d) => { change({ deliveries: design.deliveries.some((x) => x.id === d.id) ? design.deliveries.map((x) => x.id === d.id ? d : x) : [...design.deliveries, d] }); setEditDelivery(null); }} />}
+      {newProcess}
     </div>
   );
 }

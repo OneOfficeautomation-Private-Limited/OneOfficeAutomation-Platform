@@ -79,15 +79,18 @@ export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
   }
 }
 
-/** The stage summaries of a process, from its settings (the builder and both clients share them). */
+/**
+ * The stage summaries of a process, from its settings (the builder and both clients share them), in the order a
+ * developer thinks: where documents come from, what they are, how they are read, checked, reviewed and delivered.
+ */
 export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "checks" | "docType">, engineName: (id: string) => string) {
   const s = d.settings;
   const on = d.checks.filter((c) => c.on).length;
   return [
-    { name: "Intake", summary: ["Upload", s.inputFolder ? `${s.inputFolder} every ${s.pollSeconds} s` : ""].filter(Boolean).join(", "), done: true },
-    { name: "Classify & split", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Every file is read as ${d.docType || "the process's type"}`, done: true },
-    { name: "Extract", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
-    { name: "Checks & lookups", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
+    { name: "Input", summary: ["Upload", s.inputFolder ? `${s.inputFolder} every ${s.pollSeconds} s` : "", s.email?.enabled ? "email inbox" : ""].filter(Boolean).join(", "), done: true },
+    { name: "Document type", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Every file is read as ${d.docType || "the process's type"}`, done: true },
+    { name: "Reading", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
+    { name: "Checks", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
     { name: "Review", summary: `Fields under ${Math.round(s.fieldConfidence * 100)}% go to the Task inbox; ${s.slaHours} h target`, done: true },
     { name: "Deliver", summary: d.deliveries.length ? d.deliveries.map((x) => x.name || x.type).join(", ") : "Choose: Excel register, folder, webhook or start a bot", done: d.deliveries.length > 0 },
   ];
@@ -117,7 +120,7 @@ export interface TestResult { field: string; a: string; aConf: string; b: string
 export interface TestRun { rows: TestResult[]; runs: { engine: string; seconds: number; confidence: number | null; review: boolean; readBy: string; error?: string }[] }
 
 /** docType is a document type id (DocType.id). */
-/** email: the person will set up the inbox next (in the builder's Intake stage). */
+/** email: the person will set up the inbox next (in the builder's step 1, Input). */
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
