@@ -2,7 +2,7 @@ import {
   RULE_KIND, ruleTest, stagesOf,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EngineField, type EngineOption, type NewProcess, type Overview, type ProcessDesign, type ProcessSummary, type RefTable, type ReviewTask, type Routing,
-  type RefRow, type RuleType, type Source, type TestResult,
+  type RefRow, type RuleType, type Source, type TestRun,
 } from "./api";
 
 /**
@@ -84,8 +84,23 @@ function sourceOf(r: DfDocRow): { source: Source; label: string } {
   }
 }
 
-function fieldType(t: string): DocTypeField["type"] {
-  return t === "date" ? "Date" : t === "currency" || t === "number" ? "Amount" : t === "table" ? "Table" : "Text";
+/** DocFlow's field types and the screens' names for them. */
+const FIELD_TYPES: Record<string, DocTypeField["type"]> = { string: "Text", date: "Date", currency: "Amount", number: "Number", table: "Table", enum: "Choice" };
+const fieldType = (t: string): DocTypeField["type"] => FIELD_TYPES[t] ?? "Text";
+const dfFieldType = (t: DocTypeField["type"]) => Object.keys(FIELD_TYPES).find((k) => FIELD_TYPES[k] === t) ?? "string";
+
+/** A DocFlow document type as the screens show it. */
+function docTypeOf(t: DfDocType, builtIn: Set<string | undefined>, flows: DfFlow[]): DocType {
+  const usedBy = flows.filter((fl) => fl.docTypes.includes(t.id)).map((fl) => fl.name);
+  const origin = builtIn.has(t.id) ? "built-in" as const : "made-here" as const;
+  return {
+    id: t.id, name: t.name, origin, usedBy, keywords: t.keywords, languages: t.languages,
+    meta: `${origin === "built-in" ? "Built in" : "Made here"} · ${usedBy.length ? usedBy.length + " process" + (usedBy.length > 1 ? "es" : "") : "not used"}`,
+    fields: t.fields.map((x) => ({
+      key: x.name, label: (x.label ?? x.name).split(" / ")[0], aliases: [...((x.label ?? "").split(" / ").slice(1)), ...x.aliases],
+      type: fieldType(x.type), required: x.required, regex: x.regex ?? "", learned: t.learning?.aliases?.[x.name] ?? [],
+    })),
+  };
 }
 
 /** Where a delivery points, by kind: the bot to start, the webhook address, or the folder / Excel path. */
@@ -367,23 +382,36 @@ export class HttpDocFlowApi implements DocFlowApi {
       this.call<DfDocType[]>("GET", "/df/doctypes"), this.call<{ id?: string; category?: string }[]>("GET", "/df/library").catch(() => []), this.flows(),
     ]);
     const builtIn = new Set(library.map((l) => l.id ?? l.category));
-    return types.map((t) => {
-      const usedBy = flows.filter((f) => f.docTypes.includes(t.id)).map((f) => f.name);
-      const origin = builtIn.has(t.id) ? "built-in" as const : "made-here" as const;
-      return {
-        id: t.id, name: t.name, origin, usedBy,
-        meta: `${origin === "built-in" ? "Built in" : "Made here"} · ${usedBy.length ? usedBy.length + " process" + (usedBy.length > 1 ? "es" : "") : "not used"}`,
-        keywords: t.keywords.map((k) => `"${k}"`).join(", "), languages: t.languages.map((l) => ({ en: "English", ar: "Arabic" } as Record<string, string>)[l] ?? l).join(", "),
-        fields: t.fields.map((f) => {
-          const learned = t.learning.aliases[f.name] ?? [];
-          return {
-            name: (f.label ?? f.name).split(" / ")[0], labels: [f.label, ...f.aliases].filter(Boolean).join(", "), type: fieldType(f.type), required: f.required,
-            check: f.regex ?? f.format ?? (f.type === "table" ? `${f.columns.length} columns` : "—"),
-            learned: learned.length ? learned.map((a) => `"${a}"`).join(", ") : "—",
-          };
-        }),
-      };
+    return types.map((t) => docTypeOf(t, builtIn, flows));
+  }
+
+  async saveDocType(t: DocType): Promise<DocType> {
+    // DocFlow keeps more per field (table columns, choices, formats) than the screens edit: start from what it holds
+    const cur = t.id ? await this.call<DfDocType>("GET", `/df/doctypes/${encodeURIComponent(t.id)}`) : null;
+    const fields = t.fields.map((x) => {
+      const old = cur?.fields.find((o) => o.name === x.key);
+      return { ...(old ?? {}), name: x.key, label: x.label, aliases: x.aliases, type: dfFieldType(x.type), required: x.required, regex: x.regex || null };
     });
+    const learning = cur ? { ...cur.learning, aliases: Object.fromEntries(t.fields.map((x) => [x.key, x.learned])) } : undefined;
+    const body = { name: t.name, keywords: t.keywords, languages: t.languages, fields, ...(learning ? { learning } : {}) };
+    const saved = t.id
+      ? await this.call<DfDocType>("PUT", `/df/doctypes/${encodeURIComponent(t.id)}`, body)
+      : await this.call<DfDocType>("POST", "/df/doctypes", { ...body, category: "custom" });
+    this.flowsCache = null;
+    return docTypeOf(saved, new Set(), await this.flows());
+  }
+
+  async deleteDocType(id: string): Promise<void> {
+    await this.call("DELETE", `/df/doctypes/${encodeURIComponent(id)}`);
+  }
+
+  async suggestDocType(files: File[]): Promise<DocType> {
+    const form = new FormData();
+    files.forEach((x) => form.append("files", x, x.name));
+    const p = await this.call<{ name: string; languages: string[]; keywords: string[]; fields: (DfFieldDef & { suggestOff?: boolean })[] }>("POST", "/df/doctypes/suggest", form);
+    return docTypeOf({ id: "", name: p.name, description: "", category: "custom", languages: p.languages, keywords: p.keywords, checks: [], version: 0, createdAt: "",
+      learning: { enabled: true, aliases: {} }, fields: p.fields.filter((x) => !x.suggestOff).map((x) => ({ ...x, aliases: x.aliases ?? [], columns: x.columns ?? [] })) },
+    new Set(), []);
   }
 
   async refTables(): Promise<RefTable[]> {
@@ -414,8 +442,32 @@ export class HttpDocFlowApi implements DocFlowApi {
     await this.call("DELETE", `/df/reftables/${encodeURIComponent(id)}`);
   }
 
-  async runTest(): Promise<TestResult[]> {
-    // DocFlow has no side-by-side engine comparison yet; the Test lab says so instead of showing made-up numbers
-    throw new Error("Test lab is not connected to DocFlow yet: compare engines from the process's documents for now.");
+  async runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun> {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("docType", docTypeId);
+    form.append("engines", [engineA, engineB].filter(Boolean).join(","));
+    type Run = { engine: string; ms?: number; confidence?: number | null; review?: boolean; readBy?: string[]; error?: string;
+      fields?: Record<string, { value: unknown; confidence: number | null; passed: boolean; errors: string[] }> };
+    const r = await this.call<{ fields: { name: string; label: string; required: boolean }[]; runs: Run[] }>("POST", "/df/test", form);
+    const [a, b] = r.runs;
+    const value = (run: Run | undefined, k: string) => { const v = run?.fields?.[k]?.value; return v === null || v === undefined || v === "" ? "—" : String(v); };
+    const conf = (run: Run | undefined, k: string) => { const c = run?.fields?.[k]?.confidence; return run?.fields?.[k] ? (c === null || c === undefined ? "" : Math.round(c * 100) + "%") : "not found"; };
+    const check = (f: { name: string; required: boolean }) => {
+      const out: string[] = [];
+      for (const [label, run] of [["A", a], ["B", b]] as const) {
+        if (!run || run.error) continue;
+        const x = run.fields?.[f.name];
+        if (f.required && (!x || x.value === null || x.value === "")) out.push(`Required: missing${b ? " in " + label : ""}`);
+        else if (x && !x.passed) out.push(`${x.errors[0] ?? "fails a check"}${b ? " in " + label : ""}`);
+      }
+      return out.join("; ") || "—";
+    };
+    return {
+      rows: r.fields.map((f) => ({ field: f.label, a: value(a, f.name), aConf: conf(a, f.name), b: b ? value(b, f.name) : "", bConf: b ? conf(b, f.name) : "",
+        check: check(f), differs: !!b && value(a, f.name) !== value(b, f.name) })),
+      runs: r.runs.map((x) => ({ engine: x.engine, seconds: (x.ms ?? 0) / 1000, confidence: pct(x.confidence), review: !!x.review,
+        readBy: (x.readBy ?? []).map((e) => ENGINE_NAMES[e] ?? e).join(", then ") || "—", error: x.error })),
+    };
   }
 }

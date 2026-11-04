@@ -1,26 +1,37 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Field, Select } from "../components";
-import type { DocFlowApi, TestResult } from "./api";
-import { FilterBar, FilterSelect, Kpi, reportError } from "./ui";
-
-const ENGINES = [{ value: "tesseract", label: "Tesseract 5" }, { value: "paddleocr", label: "PaddleOCR" }, { value: "routing", label: "Routing (as live)" }];
+import type { DocFlowApi, DocType, TestRun } from "./api";
+import { FilterBar, FilterSelect, Kpi, reportError, useLoad } from "./ui";
 
 /** Test lab: try a document on one engine, or two side by side, before it goes live. Nothing is saved or sent to review. */
 export function TestLab({ api }: { api: DocFlowApi }) {
+  const [setup] = useLoad(() => Promise.all([api.docTypes(), api.engines()]), [api]);
+  const picker = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState("");
   const [compare, setCompare] = useState(true);
-  const [a, setA] = useState("tesseract");
-  const [b, setB] = useState("paddleocr");
-  const [results, setResults] = useState<TestResult[] | null>(null);
+  const [a, setA] = useState("auto");
+  const [b, setB] = useState("tesseract");
+  const [result, setResult] = useState<TestRun | null>(null);
   const [running, setRunning] = useState(false);
   const [show, setShow] = useState<"all" | "diff" | "failed">("all");
-  const name = (v: string) => ENGINES.find((e) => e.value === v)?.label ?? v;
+  const types: DocType[] = setup?.[0] ?? [];
+  const typeId = docType || types[0]?.id || "";
+  // engines that read pages and can run now, plus "as live" (the routing on the Engines page)
+  const engines = [{ value: "auto", label: "Routing (as live)" }, ...(setup?.[1].options ?? []).flatMap((o) => o.engines)
+    .filter((e) => e.status === "ready" && !["builtin-rules", "llm-local", "llm-cloud", "claude"].includes(e.id)).map((e) => ({ value: e.id, label: e.name }))];
+  const name = (v: string) => engines.find((e) => e.value === v)?.label ?? v;
 
   const run = async () => {
+    if (!file) return;
     setRunning(true);
-    try { setResults(await api.runTest("fax_0931.png", a, compare ? b : null)); } catch (e) { reportError(e); } finally { setRunning(false); }
+    try { setResult(await api.runTest(file, typeId, a, compare ? b : null)); } catch (e) { reportError(e); } finally { setRunning(false); }
   };
-  const rows = (results ?? []).filter((r) => show === "all" || (show === "diff" ? r.differs : /fail|missing/.test(r.check)));
-  const right = (side: "a" | "b") => (results ?? []).filter((r) => !(side === "a" ? r.differs : false) && (side === "a" ? r.a !== "—" : r.b)).length;
+  const results = result?.rows ?? [];
+  const rows = results.filter((r) => show === "all" || (show === "diff" ? r.differs : /fail|missing|must|invalid/i.test(r.check)));
+  const found = (side: "a" | "b") => results.filter((r) => (side === "a" ? r.a : r.b) !== "—" && !(side === "a" ? r.a : r.b).startsWith("not")).length;
+  const [ra, rb] = result?.runs ?? [];
+  const both = (fn: (x: NonNullable<typeof ra>) => string) => compare && rb ? `A ${ra ? fn(ra) : "—"} · B ${fn(rb)}` : ra ? fn(ra) : "—";
 
   return (
     <div className="df-page">
@@ -28,31 +39,37 @@ export function TestLab({ api }: { api: DocFlowApi }) {
         <div><h2>Test lab</h2><p>Try a document before it goes live. Nothing is saved to a process or sent to review.</p></div>
         <span className="df-grow" />
         <div className="df-seg" role="group" aria-label="Mode">
-          <button type="button" aria-pressed={!compare} onClick={() => { setCompare(false); setResults(null); }}>One engine</button>
-          <button type="button" aria-pressed={compare} onClick={() => { setCompare(true); setResults(null); }}>Compare two</button>
+          <button type="button" aria-pressed={!compare} onClick={() => { setCompare(false); setResult(null); }}>One engine</button>
+          <button type="button" aria-pressed={compare} onClick={() => { setCompare(true); setResult(null); }}>Compare two</button>
         </div>
       </div>
 
       <section className="df-card df-pad" aria-label="Set up the test">
         <div className="df-grid" style={{ gridTemplateColumns: `minmax(0, 1.4fr) repeat(${compare ? 3 : 2}, minmax(0, 1fr)) auto`, alignItems: "end", gap: 12 }}>
-          <Field label="Sample document">{(id) => <Select id={id} options={[{ value: "fax", label: "fax_0931.png · 1 page" }, { value: "scan", label: "scan_0457.jpg · 1 page" }]} />}</Field>
-          <Field label="Document type">{(id) => <Select id={id} options={[{ value: "inv", label: "Supplier invoice" }, { value: "rec", label: "Receipt" }]} />}</Field>
-          <Field label={compare ? "Engine A" : "Engine"}>{(id) => <Select id={id} value={a} onChange={(e) => setA(e.target.value)} options={ENGINES} />}</Field>
-          {compare && <Field label="Engine B">{(id) => <Select id={id} value={b} onChange={(e) => setB(e.target.value)} options={ENGINES} />}</Field>}
-          <Button kind="primary" disabled={running} onClick={run}>{running ? "Running…" : "Run test"}</Button>
+          <div className="ui-field">
+            <span className="ui-field-label">Document</span>
+            <input ref={picker} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" aria-label="Choose a document"
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }} />
+            <Button onClick={() => picker.current?.click()}>{file ? file.name : "Choose a document…"}</Button>
+          </div>
+          <Field label="Document type">{(id) => <Select id={id} value={typeId} onChange={(e) => setDocType(e.target.value)} options={types.map((t) => ({ value: t.id, label: t.name }))} />}</Field>
+          <Field label={compare ? "Engine A" : "Engine"}>{(id) => <Select id={id} value={a} onChange={(e) => setA(e.target.value)} options={engines} />}</Field>
+          {compare && <Field label="Engine B">{(id) => <Select id={id} value={b} onChange={(e) => setB(e.target.value)} options={engines} />}</Field>}
+          <Button kind="primary" disabled={running || !file || !typeId} onClick={run}>{running ? "Reading…" : "Run test"}</Button>
         </div>
       </section>
 
-      {results && (
+      {result && (
         <>
+          {result.runs.filter((x) => x.error).map((x) => <div key={x.engine} className="df-alert" role="alert"><b>{name(x.engine)} could not read it.</b> {x.error}</div>)}
           <div className="df-grid df-g4">
-            <Kpi label="Fields correct" value={compare ? `A ${right("a")} of ${results.length} · B ${right("b")} of ${results.length}` : `${right("a")} of ${results.length}`} />
-            <Kpi label="Page confidence" value={compare ? "A 78% · B 98%" : "78%"} />
-            <Kpi label="Time" value={compare ? "A 0.6 s · B 7.3 s" : "0.6 s"} />
-            <Kpi label="Would go to" value={<span style={{ fontSize: 16 }}>{compare ? "A: review · B: straight through" : "Review (2 issues)"}</span>} />
+            <Kpi label="Fields found" value={compare && rb ? `A ${found("a")} of ${results.length} · B ${found("b")} of ${results.length}` : `${found("a")} of ${results.length}`} />
+            <Kpi label="Page confidence" value={both((x) => (x.confidence === null ? "—" : x.confidence + "%"))} />
+            <Kpi label="Time" value={both((x) => x.seconds.toFixed(1) + " s")} />
+            <Kpi label="Would go to" value={<span style={{ fontSize: 16 }}>{both((x) => (x.error ? "—" : x.review ? "review" : "straight through"))}</span>} />
           </div>
           <section className="df-card" aria-label="Field results" style={{ overflow: "hidden" }}>
-            <FilterBar count={`${rows.length} of ${results.length} fields`} actions={<Button>Save as test case</Button>}>
+            <FilterBar count={`${rows.length} of ${results.length} fields`}>
               <b>Field results</b>
               <FilterSelect label="Show" value={show} onChange={setShow} options={[{ value: "all", label: "All fields" },
                 ...(compare ? [{ value: "diff" as const, label: "Only differences" }] : []), { value: "failed", label: "Only failed checks" }]} />
@@ -72,10 +89,11 @@ export function TestLab({ api }: { api: DocFlowApi }) {
                 </tbody>
               </table>
             </div>
+            <p className="df-small df-pad" style={{ margin: 0 }}>Read by: {result.runs.map((x) => `${compare && rb ? (x === ra ? "A " : "B ") : ""}${x.readBy}`).join(" · ")}</p>
           </section>
         </>
       )}
-      {!results && <div className="df-card df-empty">Choose a sample and {compare ? "two engines" : "an engine"}, then Run test.</div>}
+      {!result && <div className="df-card df-empty">Choose a document, its type and {compare ? "two engines" : "an engine"}, then Run test.</div>}
     </div>
   );
 }

@@ -162,3 +162,4 @@
 .df-help-row .df-help { align-self: stretch; margin: 0; }
 .df-hint-bubble.is-left { left: auto; right: -8px; }
 .df-title-select { height: 34px; max-width: 360px; font-size: 18px; font-weight: 600; }
+.df-learned { display: inline-flex; gap: 2px; align-items: center; margin-right: 8px; }
