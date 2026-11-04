@@ -8,10 +8,10 @@ Toolkit `ooa.excel`, version 1.0.0. Read and write .xlsx workbooks without Micro
 
 - **Sheets**: Create worksheet, Append worksheet, Copy worksheet, Delete worksheet, Get current sheet name, Get sheet names, Hide sheet, Rename worksheet, Get sheet count, Switch to sheet, Unhide all sheets, Unhide sheet
 - **Workbook**: Append workbook, Close, Create workbook, Open workbook, Save, Save as
+- **Rows and columns**: Autofit columns, Delete columns, Delete rows, Hide columns, Hide rows, Insert columns, Insert rows, Remove blank rows, Get number of rows, Set column width, Set row height, Unhide columns, Unhide rows
 - **Links**: Break workbook links, Change workbook link, Get workbook links
 - **Addresses**: Get cell address, Get column name, Get row and column number
-- **Cells**: Delete cells, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Replace, Select range, Set cell, Set formula, Sort, Write from Data Table
-- **Rows and columns**: Delete columns, Delete rows, Hide columns, Hide rows, Insert columns, Insert rows, Remove blank rows, Get number of rows, Unhide columns, Unhide rows
+- **Cells**: Clear range, Copy range, Delete cells, Fill down or right, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Remove duplicate rows, Replace, Select range, Set cell, Set formula, Sort, Write from Data Table
 - **Tables**: Delete table column, Insert table column
 - **Formatting**: Get cell colour, Set cell colour
 - **Sensitivity**: Get sensitivity label, Set sensitivity label
@@ -327,7 +327,7 @@ Open an .xlsx or .xls workbook, or create a new one, as a named session; can ope
 | Session | `session` | Text | No | `excel` | More options | Session name used by later steps. |
 | Graph address (URL) | `graph_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Microsoft Graph address (national clouds, tests). |
 
-*Time limit 60 s; needs: filesystem.*
+*Time limit 60 s; needs: filesystem, network.*
 
 ### Save
 
@@ -363,6 +363,249 @@ Save the workbook to a new file as xlsx, xls or csv, optionally password-protect
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
 *Time limit 60 s; needs: filesystem.*
+
+## Rows and columns
+
+### Autofit columns
+
+`ooa.excel/autofit_columns` (action)
+
+Make columns just wide enough for their contents, like double-clicking a column border in Excel.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | No |  | Main; choice Columns = Chosen columns | Letter or 1-based number of the first column; every used column when empty. Example: `A` |
+| Count | `count` | Number | No | `1` | Main; choice Columns = Chosen columns | How many columns from the first one. Range: 1 to ; Shown when: `{"column": ["!", ""]}` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of columns resized. |
+
+*Time limit 60 s.*
+
+### Delete columns
+
+`ooa.excel/delete_columns` (action)
+
+Delete whole columns and move the columns to the right leftwards.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column to delete. Example: `C` |
+| Count | `count` | Number | No | `1` | Main | How many columns to delete. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Delete rows
+
+`ooa.excel/delete_rows` (action)
+
+Delete whole rows and move the rows below up.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Row | `row` | Number | Yes |  | Main | 1-based number of the first row to delete. Example: `3`; Range: 1 to  |
+| Count | `count` | Number | No | `1` | Main | How many rows to delete. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Hide columns
+
+`ooa.excel/hide_columns` (action)
+
+Hide one or more columns.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column. Example: `B` |
+| Count | `count` | Number | No | `1` | Main | How many columns. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Hide rows
+
+`ooa.excel/hide_rows` (action)
+
+Hide one or more rows.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Row | `row` | Number | Yes |  | Main | 1-based number of the first row. Range: 1 to  |
+| Count | `count` | Number | No | `1` | Main | How many rows. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Insert columns
+
+`ooa.excel/insert_columns` (action)
+
+Insert empty columns before a column, moving the columns to the right.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number the new columns go before. Example: `C` |
+| Count | `count` | Number | No | `1` | Main | How many columns to insert. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Insert rows
+
+`ooa.excel/insert_rows` (action)
+
+Insert empty rows before a row number, moving the rows below down.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Row | `row` | Number | Yes |  | Main | 1-based row number the new rows go before. Example: `3`; Range: 1 to  |
+| Count | `count` | Number | No | `1` | Main | How many rows to insert. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Remove blank rows
+
+`ooa.excel/remove_blank_rows` (action)
+
+Delete every empty row inside the used area, or between two rows, and close the gaps.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Start row | `start_row` | Number | No |  | Main; choice From = A specific row | First row to check (1 = first row); the first row when empty. Range: 1 to  |
+| End row | `end_row` | Number | No |  | Main; choice To = A specific row | Last row to check; the last row with data when empty. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of rows removed. |
+
+*Time limit 60 s.*
+
+### Get number of rows
+
+`ooa.excel/row_count` (action)
+
+Count the rows that hold data, or all rows of the used area, and report the number of the last used row.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Mode | `mode` | Text | No | `non_empty` | Main | non_empty counts rows holding data; all counts every row from the first to the last used row, empty ones included. One of: `non_empty`, `all` |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Rows with at least one non-empty cell, or all rows of the used area. |
+| `last_row` | Number | 1-based number of the last row with data; 0 when the sheet is empty. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Set column width
+
+`ooa.excel/set_column_width` (action)
+
+Set the width of one or more columns, in characters as Excel shows it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column. Example: `B` |
+| Count | `count` | Number | No | `1` | Main | How many columns. Range: 1 to  |
+| Width | `width` | Number | Yes |  | Main | Width in characters (Excel's default is 8.43); 0 hides the columns. Example: `20`; Range: 0 to 255 |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Set row height
+
+`ooa.excel/set_row_height` (action)
+
+Set the height of one or more rows, in points as Excel shows it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Row | `row` | Number | Yes |  | Main | 1-based number of the first row. Range: 1 to  |
+| Count | `count` | Number | No | `1` | Main | How many rows. Range: 1 to  |
+| Height | `height` | Number | Yes |  | Main | Height in points (Excel's default is 15); 0 hides the rows. Example: `30`; Range: 0 to 409 |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Unhide columns
+
+`ooa.excel/unhide_columns` (action)
+
+Show hidden columns again.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column. Example: `B` |
+| Count | `count` | Number | No | `1` | Main | How many columns. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Unhide rows
+
+`ooa.excel/unhide_rows` (action)
+
+Show hidden rows again.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Row | `row` | Number | Yes |  | Main | 1-based number of the first row. Range: 1 to  |
+| Count | `count` | Number | No | `1` | Main | How many rows. Range: 1 to  |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
 
 ## Links
 
@@ -497,6 +740,54 @@ Split a cell address such as B7 into its row and column numbers.
 
 ## Cells
 
+### Clear range
+
+`ooa.excel/clear_range` (action)
+
+Clear the contents, the formats or both of a range, or of the current selection; the cells stay where they are (Delete cells moves the cells around them).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Range | `range` | Text | No |  | Main; choice Cells = A specific range | Cell or range to clear; when empty, the range chosen by select_range or the cell chosen by go_to_cell. Example: `B2:D20` |
+| Clear | `clear` | Text | No | `contents` | Main | contents empties the cells and keeps their formats (as the Delete key does); formats resets the formats and keeps the contents; all does both. One of: `contents`, `formats`, `all` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of cells that held contents or formats and were cleared. |
+
+*Time limit 60 s.*
+
+### Copy range
+
+`ooa.excel/copy_range` (action)
+
+Copy a range to another place on the same sheet or another sheet of the workbook, like copy and paste in Excel: everything, values only, formulas only or formats only. Relative cell references in formulas move with the copy.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Range | `range` | Text | Yes |  | Main | Cells to copy. Example: `A1:C10` |
+| Destination | `destination` | Text | Yes |  | Main | Top-left cell to paste to. Example: `E1` |
+| Paste | `paste` | Text | No | `all` | Main | all copies contents and formats; values pastes the calculated values (no formulas, destination formats kept); formulas copies contents without formats; formats copies only the formats. One of: `all`, `values`, `formulas`, `formats` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet to copy from; active sheet when empty. |
+| Destination sheet | `destination_sheet` | Text | No |  | More options | Sheet to paste to; the sheet copied from when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `range` | Text | Address of the cells written, e.g. E2:G10. |
+
+*Time limit 60 s.*
+
 ### Delete cells
 
 `ooa.excel/delete_cells` (action)
@@ -511,6 +802,29 @@ Delete the cells of a range, or of the current selection, and close the gap by m
 | Shift | `shift` | Text | No | `up` | Main | up or left moves the remaining cells into the gap; entire_row or entire_column deletes the whole rows or columns the range touches. One of: `up`, `left`, `entire_row`, `entire_column` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+*Time limit 60 s.*
+
+### Fill down or right
+
+`ooa.excel/fill_range` (action)
+
+Copy the first row of a range down to its other rows, or its first column right to its other columns, like Excel's Fill Down and Fill Right: values, formulas (with relative references moved) and formats.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Range | `range` | Text | Yes |  | Main | Range to fill, including the first row (or column) that is copied. Example: `D2:D50` |
+| Direction | `direction` | Text | No | `down` | Main | down copies the top row to the rows below it; right copies the left column to the columns right of it. One of: `down`, `right` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of cells filled. |
 
 *Time limit 60 s.*
 
@@ -676,14 +990,15 @@ Read a rectangular range such as A1:D20 as a table.
 
 `ooa.excel/get_table_range` (action)
 
-Return the address of the smallest rectangle holding all data on the sheet, or of a named Excel table, e.g. A1:D20.
+Return the address of the smallest rectangle holding all data on the sheet (including pivot tables), or of a named Excel table or pivot table, e.g. A1:D20.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Table | `table` | Text | No |  | Main | Excel table name, e.g. Table1; the sheet's used area when empty. |
+| Table | `table` | Text | No |  | Main | Excel table or pivot table name, e.g. Table1 or PivotTable1; the sheet's used area when empty. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | For an Excel table, include its header row in the range. |
+| Include pivot tables | `include_pivot_tables` | Yes/No | No | Yes | Main | Count the whole area of the sheet's pivot tables (with their filter fields) as data, even cells Excel has not filled in yet. |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -753,10 +1068,11 @@ Read the values of one column, from a start row down to an end row or the last u
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number. Example: `B` |
+| Column | `column` | Any | Yes |  | Main | Column letter, 1-based number or header name (looked up in header_row). Example: `B` |
 | Start row | `start_row` | Number | No | `1` | Main | 1-based row to start from, e.g. 2 to skip a header. Range: 1 to  |
 | End row | `end_row` | Number | No |  | Main | 1-based last row to read; the last used row when empty. Range: 1 to  |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
+| Header row | `header_row` | Number | No |  | More options | Row with the column names. A column given by name is looked up here (row 1 when empty), and reading starts below this row. Range: 1 to  |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -815,6 +1131,32 @@ Read the values of one row, from a start column to an end column or the last use
 | `values` | List | Cell values from left to right; empty cells are null. |
 
 *Time limit 60 s; safe to repeat.*
+
+### Remove duplicate rows
+
+`ooa.excel/remove_duplicates` (action)
+
+Remove the rows of a range (or of the used area) that repeat an earlier row, comparing all columns or only the chosen ones, like Excel's Remove Duplicates; the first of each set is kept and the rows below move up inside the range.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Range | `range` | Text | No |  | Main | Range to check; the used area when empty. Example: `A1:F200` |
+| First row is the header | `header` | Yes/No | No |  | Main | The first row is a header and is kept as it is; the workbook's open setting (true by default) when empty. |
+| Columns | `columns` | List | No |  | Main | Columns that make a row a duplicate: header names, letters or 1-based sheet column numbers; all columns of the range when empty. Example: `["Invoice", "Vendor"]` |
+| Match case | `match_case` | Yes/No | No | No | More options | Treat "ACME" and "acme" as different; Excel treats them as the same. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of rows removed. |
+| `remaining` | Number | Number of rows left in the range, the header row not counted. |
+
+*Time limit 60 s.*
 
 ### Replace
 
@@ -935,190 +1277,6 @@ Write a table (with column names) starting at a cell.
 
 *Time limit 60 s.*
 
-## Rows and columns
-
-### Delete columns
-
-`ooa.excel/delete_columns` (action)
-
-Delete whole columns and move the columns to the right leftwards.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column to delete. Example: `C` |
-| Count | `count` | Number | No | `1` | Main | How many columns to delete. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Delete rows
-
-`ooa.excel/delete_rows` (action)
-
-Delete whole rows and move the rows below up.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Row | `row` | Number | Yes |  | Main | 1-based number of the first row to delete. Example: `3`; Range: 1 to  |
-| Count | `count` | Number | No | `1` | Main | How many rows to delete. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Hide columns
-
-`ooa.excel/hide_columns` (action)
-
-Hide one or more columns.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column. Example: `B` |
-| Count | `count` | Number | No | `1` | Main | How many columns. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Hide rows
-
-`ooa.excel/hide_rows` (action)
-
-Hide one or more rows.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Row | `row` | Number | Yes |  | Main | 1-based number of the first row. Range: 1 to  |
-| Count | `count` | Number | No | `1` | Main | How many rows. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Insert columns
-
-`ooa.excel/insert_columns` (action)
-
-Insert empty columns before a column, moving the columns to the right.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number the new columns go before. Example: `C` |
-| Count | `count` | Number | No | `1` | Main | How many columns to insert. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Insert rows
-
-`ooa.excel/insert_rows` (action)
-
-Insert empty rows before a row number, moving the rows below down.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Row | `row` | Number | Yes |  | Main | 1-based row number the new rows go before. Example: `3`; Range: 1 to  |
-| Count | `count` | Number | No | `1` | Main | How many rows to insert. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Remove blank rows
-
-`ooa.excel/remove_blank_rows` (action)
-
-Delete every empty row inside the used area, or between two rows, and close the gaps.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Start row | `start_row` | Number | No |  | Main; choice From = A specific row | First row to check (1 = first row); the first row when empty. Range: 1 to  |
-| End row | `end_row` | Number | No |  | Main; choice To = A specific row | Last row to check; the last row with data when empty. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-**Results**
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `count` | Number | Number of rows removed. |
-
-*Time limit 60 s.*
-
-### Get number of rows
-
-`ooa.excel/row_count` (action)
-
-Count the rows that hold data, or all rows of the used area, and report the number of the last used row.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
-| Mode | `mode` | Text | No | `non_empty` | Main | non_empty counts rows holding data; all counts every row from the first to the last used row, empty ones included. One of: `non_empty`, `all` |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-**Results**
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `count` | Number | Rows with at least one non-empty cell, or all rows of the used area. |
-| `last_row` | Number | 1-based number of the last row with data; 0 when the sheet is empty. |
-
-*Time limit 60 s; safe to repeat.*
-
-### Unhide columns
-
-`ooa.excel/unhide_columns` (action)
-
-Show hidden columns again.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter or 1-based number of the first column. Example: `B` |
-| Count | `count` | Number | No | `1` | Main | How many columns. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
-### Unhide rows
-
-`ooa.excel/unhide_rows` (action)
-
-Show hidden rows again.
-
-**Settings**
-
-| Field | Name | Type | Required | Default | Where | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| Row | `row` | Number | Yes |  | Main | 1-based number of the first row. Range: 1 to  |
-| Count | `count` | Number | No | `1` | Main | How many rows. Range: 1 to  |
-| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
-| Session | `session` | Text | No | `excel` | More options | Workbook session. |
-
-*Time limit 60 s.*
-
 ## Tables
 
 ### Delete table column
@@ -1193,7 +1351,7 @@ Give a cell or range a solid fill colour or a font colour.
 | --- | --- | --- | --- | --- | --- | --- |
 | Range | `range` | Text | Yes |  | Main | Cell or range to colour. Example: `A1:D1` |
 | Target | `target` | Text | No | `fill` | Main | fill for the background, font for the text colour. One of: `fill`, `font` |
-| Color | `color` | Text | Yes |  | Main | Hex colour. Example: `#FFC000` |
+| Color | `color` | Text | Yes |  | Main | Hex colour (#FFC000), red,green,blue numbers (255,192,0) or a colour name such as yellow or light blue. Example: `#FFC000` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -1303,6 +1461,12 @@ Remove protection from a worksheet; for .xlsx files the password is checked firs
 | Password | `password` | Credential (vault) | No |  | Main | Sheet password; a credential from the vault or text. |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `was_protected` | Yes/No | False when the sheet was not protected (nothing to do). |
 
 *Time limit 60 s.*
 

@@ -86,6 +86,17 @@ The **Excel** group works on workbook files directly, so it runs on servers and 
 **Delete rows**, **Insert columns**, **Delete columns**, **Replace**, **Sort**, **Filter**, **Remove blank rows**,
 **Set cell colour**.
 
+**Ranges, columns and rows**
+
+| Action | What it does |
+| --- | --- |
+| **Copy range** | Copies a range to a **Destination** cell, on the same or another sheet. **Paste**: everything, values only, formulas only or formats only. Relative references in formulas move with the copy, as in Excel. |
+| **Clear range** | Clears the **contents** (keeps the formats, like the Delete key), the **formats**, or **all** of a range or the selection. The cells do not move. |
+| **Fill down or right** | Copies the first row of a range down to the other rows (or the first column right), with formulas adjusted, like Excel's Fill Down. |
+| **Remove duplicate rows** | Removes rows that repeat an earlier row, comparing all columns or only the chosen **Columns**; the first of each set stays. Upper and lower case count as the same unless **Match case** is ticked. Gives how many were removed. |
+| **Autofit columns** | Makes every used column, or chosen columns, just wide enough for their contents. |
+| **Set column width**, **Set row height** | Width in characters (Excel's default is 8.43) or height in points (default 15). |
+
 **Worksheets and workbooks**
 
 **Create workbook**, **Create worksheet**, **Delete worksheet**, **Rename worksheet**, **Copy worksheet**,
