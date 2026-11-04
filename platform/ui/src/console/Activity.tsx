@@ -3,6 +3,7 @@ import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { repeats } from "./Schedules";
+import { logFields } from "../studio/flowEdit";
 
 /**
  * Manage > Agent Activity, built as AA's Activity (In progress, Scheduled, Historical), with UiPath Jobs' job details
@@ -538,7 +539,7 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, n
       : e.type === "step.finished" ? "Finished " + a + (d.durationMs != null ? " (" + duration(Number(d.durationMs)) + ")" : "")
       : e.type === "step.failed" ? "Failed " + a + ": " + (d.code ? d.code + " " : "") + String(d.message ?? "")
       : e.type === "step.retry" ? "Retry " + d.attempt + " after " + d.code
-      : e.type === "log" ? String(d.message ?? "")
+      : e.type === "log" ? String(d.message ?? "") + logFields(d.fields)
       : e.type === "variable.set" ? d.name + " = " + d.value
       : e.type === "run.started" ? "Run started" + (d.automation ? " " + d.automation : "")
       : e.type === "run.finished" ? "Run " + d.status + (d.durationMs != null ? " (" + duration(Number(d.durationMs)) + ")" : "")

@@ -63,6 +63,9 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 20 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 15 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
+| [List](ooa-list.md) | `ooa.list` | 12 | 2 | 0 | Add, read, remove, sort and join list items. |
+| [Log to file](ooa-log.md) | `ooa.log` | 5 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
+| [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 16 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
 | [OCR](ooa-ocr.md) | `ooa.ocr` | 5 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract). |

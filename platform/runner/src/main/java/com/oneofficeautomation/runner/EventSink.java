@@ -23,7 +23,7 @@ public interface EventSink {
             String detail = switch (e.type()) {
                 case "step.finished" -> e.data().get("action") + " (" + e.data().get("durationMs") + " ms)";
                 case "step.failed" -> e.data().get("code") + ": " + e.data().get("message");
-                case "log" -> String.valueOf(e.data().get("message"));
+                case "log" -> e.data().get("message") + (e.data().get("fields") instanceof java.util.Map<?, ?> f && !f.isEmpty() ? "  " + Values.safeRepr(f) : "");
                 case "run.finished" -> e.data().get("status") + " in " + e.data().get("durationMs") + " ms";
                 case "run.started" -> String.valueOf(e.data().get("automation"));
                 default -> Values.safeRepr(e.data());

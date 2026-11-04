@@ -130,6 +130,9 @@ Pause until the person at the runner presses a chosen key, any key, or clicks th
 | `y` | Number | Pointer position (physical screen pixels) when it happened. |
 
 *Time limit 3700 s; needs: desktop.*
+- **Dialogs**: Message box, Prompt for file, Prompt for folder, Prompt for password, Prompt for value, Prompt for yes/no, Show callout
+- **Mouse**: Mouse click, Mouse move, Mouse scroll
+- **Keyboard**: Press keys, Type text
 
 ## Screen
 
@@ -446,3 +449,69 @@ Ask the user a yes/no question.
 | `timed_out` | Yes/No | True when nobody answered before the timeout (or the window was closed). |
 
 *Time limit 3600 s; needs: desktop.*
+
+### Show callout
+`ooa.desktop/show_callout` (action)
+Show a small note pointing at a place on the screen for a few seconds, e.g. to tell the person in an attended run which field the agent is about to fill. It takes no clicks and does not take the focus.
+**Settings**
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text of the note; a few words work best. Example: `Filling in the invoice number here` |
+| X | `x` | Number | No |  | Main; choice Point at = A point | Point the note at: pixels from the left; the mouse pointer when x and y are empty. |
+| Y | `y` | Number | No |  | Main; choice Point at = A point | Point the note at: pixels from the top. |
+| Relative to | `relative_to` | Text | No | `screen` | Main; choice Point at = A point | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
+| Window | `window` | Text | No |  | Main; choice Point at = A point | Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front. Shown when: `{"relative_to": ["window"]}` |
+| Seconds | `seconds` | Number | No | `3` | Main | How long the note shows. Range: 1 to 60 |
+| Wait | `wait` | Yes/No | No | No | More options | Wait until the note has gone before the next step; by default the agent carries on while it shows. |
+| Color | `color` | Text | No | `yellow` | More options | Colour of the note. One of: `yellow`, `blue`, `green`, `red` |
+*Time limit 120 s; needs: desktop.*
+## Mouse
+### Mouse click
+`ooa.desktop/mouse_click` (action)
+Click, double-click, or press or release a mouse button at a point on the screen or in a window.
+| Window | `window` | Text | No |  | Main | Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front. |
+| X | `x` | Number | Yes |  | Main | Horizontal position in pixels from the left. |
+| Y | `y` | Number | Yes |  | Main | Vertical position in pixels from the top. |
+| Button | `button` | Text | No | `left` | Main | Mouse button. One of: `left`, `right`, `middle` |
+| Button action | `button_action` | Text | No | `click` | Main | click presses and releases; down only presses (hold, e.g. to start a drag); up only releases. One of: `click`, `down`, `up` |
+| Double-click | `double_click` | Yes/No | No | No | Main | Double-click. |
+| Relative to | `relative_to` | Text | No | `screen` | More options | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
+| Modifier keys | `modifier_keys` | Text | No |  | More options | Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT. Example: `CTRL` |
+*Time limit 60 s; needs: desktop.*
+### Mouse move
+`ooa.desktop/mouse_move` (action)
+Move the pointer to a point on the screen or in a window, at once or gradually.
+| Relative to | `relative_to` | Text | No | `screen` | Main | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
+| X | `x` | Number | Yes |  | Main | Horizontal position. |
+| Y | `y` | Number | Yes |  | Main | Vertical position. |
+| Duration (milliseconds) | `duration_ms` | Number | No | `0` | Main | Glide to the point over this many milliseconds; 0 jumps there at once. Range: 0 to  |
+| From x | `from_x` | Number | No |  | More options; tick Start from another point | Put the pointer at this point first (with from_y, measured like x and y), then move to x, y; e.g. after pressing a button down, for a drag. |
+| From y | `from_y` | Number | No |  | More options; tick Start from another point | Vertical position of the starting point (with from_x). |
+### Mouse scroll
+`ooa.desktop/mouse_scroll` (action)
+Scroll the mouse wheel up, down, left or right, optionally over a chosen point or window.
+| Direction | `direction` | Text | No |  | Main | Scroll direction; when empty the sign of amount decides (positive scrolls down). Left and right hold SHIFT while scrolling. One of: `up`, `down`, `left`, `right` |
+| Amount | `amount` | Number | Yes |  | Main | Wheel notches; negative scrolls up (or left) when direction is empty. |
+| Delay (milliseconds) | `delay_ms` | Number | No | `0` | Main | Pause between notches; 0 scrolls all notches at once. Range: 0 to  |
+| X | `x` | Number | No |  | More options | Move the pointer here before scrolling (with y). |
+| Y | `y` | Number | No |  | More options | Vertical position to scroll at (with x). |
+| Window | `window` | Text | No |  | More options | Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front. |
+## Keyboard
+### Press keys
+`ooa.desktop/press_keys` (action)
+Press, hold down or release a key or key combination, e.g. ENTER, CTRL+S or ALT+F4, in the active or a chosen window; repeat if needed.
+| Keys | `keys` | Text | Yes |  | Main | Key or combination joined with +. Example: `CTRL+S` |
+| Times | `times` | Number | No | `1` | Main | How many times to press. Range: 1 to  |
+| Key action | `key_action` | Text | No | `press` | Main | press presses and releases; down holds the keys; up releases keys held by an earlier step. One of: `press`, `down`, `up` |
+| Delay (milliseconds) | `delay_ms` | Number | No | `40` | More options | Pause after each press. Range: 0 to  |
+| Hold keys down for (milliseconds) | `hold_ms` | Number | No | `0` | More options | How long to keep the keys down on each press. Range: 0 to  |
+### Type text
+`ooa.desktop/type_text` (action)
+Type text, or a credential from the vault, into the active or a chosen window (text is pasted via the clipboard by default, which handles any language; a credential is always typed key by key and never logged); can include special keys such as [ENTER].
+| Text | `text` | Text | No |  | Main; choice Type = Text | Text to type; used when no credential is given. |
+| Special keys | `special_keys` | Yes/No | No | No | Main; choice Type = Text | Read keys in square brackets: [ENTER], [TAB 3], [CTRL+S], [SHIFT DOWN] ... [SHIFT UP]; [[ types a [. |
+| Credential | `credential` | Credential (vault) | No |  | Main; choice Type = A credential from the vault | Credential attribute from the vault, e.g. a password; typed key by key (never through the clipboard) instead of text. |
+| Method | `method` | Text | No | `paste` | Main | paste uses the clipboard (restored afterwards); keystrokes types letters and digits one by one. One of: `paste`, `keystrokes` |
+| Delay (milliseconds) | `delay_ms` | Number | No | `20` | Main | Delay between keystrokes. Range: 0 to ; Shown when: `{"method": ["keystrokes"]}` |
+| Restore clipboard | `restore_clipboard` | Yes/No | No | Yes | More options | With paste, put the previous clipboard content back afterwards. Shown when: `{"method": ["paste"]}` |
+| Delay before (milliseconds) | `delay_before_ms` | Number | No | `0` | More options | Wait this long after bringing the window to the front, before typing. Range: 0 to  |
