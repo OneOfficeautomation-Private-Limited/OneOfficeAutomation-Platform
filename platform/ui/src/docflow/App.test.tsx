@@ -202,6 +202,15 @@ describe("Document Automation", () => {
     expect(within(card).getByText("$51.00", { selector: "[aria-live]" })).toBeTruthy();
   });
 
+  it("shows the saved retry threshold, also one set in DocFlow that the list does not offer", async () => {
+    const api = new SampleApi();
+    await api.saveRouting({ ...(await api.engines()).routing, retryBelow: 0.65 });
+    start(api); await go("#/engines/routing");
+    const retry = await screen.findByRole("combobox", { name: "Retry pages below" }) as HTMLSelectElement;
+    expect(retry.value).toBe("0.65");                                           // not the first choice, which Save would then store
+    expect(screen.getByText("Retry pages under 65%")).toBeTruthy();
+  });
+
   it("builds a process: checks switch on and off and say what happens when they fail", async () => {
     start(); await go("#/processes/supplier-invoices-ksa/checks");
     const checks = await screen.findByRole("region", { name: "Validation" });

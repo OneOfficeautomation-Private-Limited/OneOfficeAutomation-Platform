@@ -3,6 +3,14 @@ import type { Engine, Routing } from "../api";
 import { HINTS } from "../help";
 import { Chip } from "../ui";
 
+/** The retry thresholds offered, and the saved one when it is another (set in DocFlow), so the list shows what is saved. */
+const RETRY = [0.9, 0.85, 0.8, 0.75, 0.7];
+const retryOptions = (saved: number) => [
+  ...[...new Set([...RETRY, ...(saved > 0 ? [saved] : [])])].sort((a, b) => b - a)
+    .map((v) => ({ value: String(v), label: `${Math.round(v * 100)}% confidence${v === 0.85 ? " (recommended)" : ""}` })),
+  { value: "0", label: "Never retry" },
+];
+
 /** How a page is routed (the strategy plan): free local engines first, paid cloud engines only for weak pages. */
 export function RoutingSection({ routing, cloudEngines, saved, onChange, onSave }:
   { routing: Routing; cloudEngines: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void }) {
@@ -34,7 +42,7 @@ export function RoutingSection({ routing, cloudEngines, saved, onChange, onSave 
       </ol>
       <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
         <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => onChange({ ...routing, retryBelow: Number(e.target.value) })}
-          options={[{ value: "0.85", label: "85% confidence (plan)" }, { value: "0.8", label: "80%" }, { value: "0.9", label: "90%" }, { value: "0", label: "Never retry" }]} />}</Field>
+          options={retryOptions(routing.retryBelow)} />}</Field>
         <Field label="Local retry engine" info={HINTS.localRetry}>{(id) => <Select id={id} value={routing.localRetry} onChange={(e) => onChange({ ...routing, localRetry: e.target.value })}
           options={[{ value: "paddleocr", label: "PaddleOCR" }, { value: "", label: "None" }]} />}</Field>
         <Field label="Cloud engine for pages still weak" info={HINTS.cloudEngine}>{(id) => <Select id={id} value={routing.cloudEngine} onChange={(e) => onChange({ ...routing, cloudEngine: e.target.value })}
