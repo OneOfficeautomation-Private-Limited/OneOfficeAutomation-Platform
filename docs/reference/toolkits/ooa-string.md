@@ -6,7 +6,7 @@ Toolkit `ooa.string`, version 1.0.0. Text manipulation: extract, replace, split,
 
 ## Contents
 
-- **Text**: Change case, Compare, Extract text, Find, Get length, Random text, Replace, Reverse, Split, Get part of text, Number to locale text, Text to number, Trim
+- **Text**: Change case, Compare, Count occurrences, Escape for regex, Extract text, Find, Get length, Pad text, Random text, Replace, Reverse, Split, Get part of text, Number to locale text, Text to number, Trim
 - **Conditions**: Text is an email address, Text is a number
 
 ## Text
@@ -53,6 +53,49 @@ Compare two texts exactly, ignoring case, or in natural order where numbers insi
 | --- | --- | --- |
 | `result` | Number | -1 when the first text comes first, 0 when they are equal, 1 when it comes after. |
 | `equal` | Yes/No | True when the texts are equal under the chosen mode. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Count occurrences
+
+`ooa.string/count_occurrences` (action)
+
+Count how many times a piece of text appears in a text (matches do not overlap).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to search in. |
+| Find | `find` | Text | Yes |  | Main | Text to count. Example: `,` |
+| Match case | `match_case` | Yes/No | No | Yes | Main | Count only matches with the same upper and lower case. |
+| Whole word | `whole_word` | Yes/No | No | No | Main | Count only matches that are whole words, not parts of longer words (cat in cat food, not in catalogue). |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | Number of times it appears; 0 when it does not. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Escape for regex
+
+`ooa.string/escape_regex` (action)
+
+Put a backslash before every character that has a meaning in regular expressions, so the text is matched exactly, e.g. 1+1=2? to 1\+1=2\?.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to escape. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The text, safe to use inside a regular expression. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -136,6 +179,29 @@ Count the characters in a text.
 | Name | Type | Description |
 | --- | --- | --- |
 | `length` | Number | Number of characters. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Pad text
+
+`ooa.string/pad` (action)
+
+Fill a text up to a length with a character on the left or the right, e.g. 42 to 00042; longer text is left as it is.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Source text; a number is used as it is written, e.g. 42. |
+| Length | `length` | Number | Yes |  | Main | Length the result should have, in characters. Example: `5`; Range: 0 to 100000 |
+| Character | `character` | Text | No | ` ` | Main | One character to fill with; a space when empty. Example: `0` |
+| Side | `side` | Text | No | `left` | Main | left puts the fill before the text (numbers, codes); right puts it after (fixed-width columns). One of: `left`, `right` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The padded text. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -293,10 +359,11 @@ Read a number from text written for a locale, or with the decimal and grouping s
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Text | `text` | Text | Yes |  | Main | Text such as 1,234.56 or 1.234,56. Example: `1.234,56` |
+| Text | `text` | Text | Yes |  | Main | Text such as 1,234.56, 1.234,56, $ 1,200.50, (1,234.00) or 1,234.00- (negative). Example: `1.234,56` |
 | Locale | `locale` | Text | No | `en-US` | More options | Locale the text is written in, e.g. en-US, de-DE, fr-FR. |
 | Decimal separator | `decimal_separator` | Text | No |  | More options | Decimal separator; overrides the locale. |
 | Grouping separator | `grouping_separator` | Text | No |  | More options | Thousands separator; overrides the locale. |
+| Ignore currency | `ignore_currency` | Yes/No | No | Yes | More options | Ignore a currency symbol or code before or after the number ($, �, ?, USD, EUR, Rs.); when off such text is not a number. |
 
 **Results**
 

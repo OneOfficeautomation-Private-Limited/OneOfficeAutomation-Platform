@@ -346,6 +346,56 @@ public final class StringPackage {
         return Out.of("result", new StringBuilder(text).reverse().toString());
     }
 
+    @Action(id = "pad", name = "Pad text", category = "Text", idempotent = true,
+            description = "Fill a text up to a length with a character on the left or the right, e.g. 42 to 00042; longer text is left as it is.",
+            panel = "text, length, character, side")
+    @Output(name = "result", type = OoaType.STRING, description = "The padded text.")
+    public Map<String, Object> pad(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Source text; a number is used as it is written, e.g. 42.") String text,
+            @Input(name = "length", type = OoaType.NUMBER, min = 0, max = 100000, example = "5", description = "Length the result should have, in characters.") int length,
+            @Input(name = "character", type = OoaType.STRING, required = false, defaultValue = "\" \"", example = "0", description = "One character to fill with; a space when empty.") String character,
+            @Input(name = "side", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right"},
+                    description = "left puts the fill before the text (numbers, codes); right puts it after (fixed-width columns).") String side) {
+        String fill = character == null || character.isEmpty() ? " " : character;
+        if (fill.codePointCount(0, fill.length()) != 1)
+            throw new ActionException("STRING.BAD_CHARACTER", "Pad with one character, not '" + fill + "'", "Give a single character such as 0 or a space.");
+        if (length < 0 || length > 100000) throw new ActionException("STRING.BAD_LENGTH", "Length " + length + " is out of range", "Use a length from 0 to 100000.");
+        String t = text == null ? "" : text;
+        int have = t.codePointCount(0, t.length());
+        if (have >= length) return Out.of("result", t);
+        String padding = fill.repeat(length - have);
+        return Out.of("result", "right".equals(side) ? t + padding : padding + t);
+    }
+
+    @Action(id = "count_occurrences", name = "Count occurrences", category = "Text", idempotent = true,
+            description = "Count how many times a piece of text appears in a text (matches do not overlap).",
+            panel = "text, find, match_case, whole_word")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of times it appears; 0 when it does not.")
+    public Map<String, Object> countOccurrences(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to search in.") String text,
+            @Input(name = "find", type = OoaType.STRING, example = ",", description = "Text to count.") String find,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Count only matches with the same upper and lower case.") boolean matchCase,
+            @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Count only matches that are whole words, not parts of longer words (cat in cat food, not in catalogue).") boolean wholeWord) {
+        if (find == null || find.isEmpty()) throw new ActionException("STRING.EMPTY_FIND", "Nothing to count", "Fill in the text to count.");
+        String t = text == null ? "" : text;
+        int flags = matchCase ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE;
+        String q = java.util.regex.Pattern.quote(find);
+        if (wholeWord) q = "(?<![\\p{L}\\p{N}_])" + q + "(?![\\p{L}\\p{N}_])";
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(q, flags).matcher(t);
+        int n = 0;
+        while (m.find()) n++;
+        return Out.of("count", java.math.BigDecimal.valueOf(n));
+    }
+
+    @Action(id = "escape_regex", name = "Escape for regex", category = "Text", idempotent = true,
+            description = "Put a backslash before every character that has a meaning in regular expressions, so the text is matched exactly, e.g. 1+1=2? to 1\\+1=2\\?.",
+            panel = "text")
+    @Output(name = "result", type = OoaType.STRING, description = "The text, safe to use inside a regular expression.")
+    public Map<String, Object> escapeRegex(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to escape.") String text) {
+        return Out.of("result", (text == null ? "" : text).replaceAll("[\\\\^$.|?*+()\\[\\]{}\\-/]", "\\\\$0"));
+    }
+
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     @Action(id = "random_string", name = "Random text", category = "Text",
