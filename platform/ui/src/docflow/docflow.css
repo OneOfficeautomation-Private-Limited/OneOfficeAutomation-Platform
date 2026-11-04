@@ -105,6 +105,7 @@
   border: 1px solid var(--ui-border); border-top-width: 4px; background: var(--ui-bg); font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-option[aria-selected="true"] { border-color: var(--ui-accent); border-top-color: inherit; background: var(--ui-tint); box-shadow: 0 0 0 1px var(--ui-accent); }
 .df-list { display: flex; flex-direction: column; gap: 6px; padding: 10px; align-self: start; }
+.df-list > * { flex: none; }   /* the search box grows along a row (filter bars), not down this column */
 .df-list-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--ui-radius); border: 1px solid transparent;
   background: transparent; text-align: left; font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-list-item:hover { background: var(--ui-row-hover); }

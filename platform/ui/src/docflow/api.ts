@@ -55,6 +55,8 @@ export interface ProcessSettings {
 export interface InboxStatus { lastCheck: string | null; error: string | null; documents: number }
 export interface ProcessDesign {
   id: string; name: string; state: "live" | "draft"; version: number; folder: string; docType: string; checks: Check[];
+  /** The document types it reads (ids); docType is their names. */
+  docTypeIds: string[];
   stages: { name: string; summary: string; done: boolean }[];
   settings: ProcessSettings; deliveries: Delivery[];
   /** The fields its document types read, for checks to test. */
@@ -86,13 +88,14 @@ export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
 export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "checks" | "docType">, engineName: (id: string) => string) {
   const s = d.settings;
   const on = d.checks.filter((c) => c.on).length;
+  const sources = ["upload", s.inputFolder ? "watched folder" : "", s.email?.enabled ? "email inbox" : ""].filter(Boolean).join(", ");
   return [
-    { name: "Input", summary: ["Upload", s.inputFolder ? `${s.inputFolder} every ${s.pollSeconds} s` : "", s.email?.enabled ? "email inbox" : ""].filter(Boolean).join(", "), done: true },
-    { name: "Document type", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Every file is read as ${d.docType || "the process's type"}`, done: true },
-    { name: "Reading", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
-    { name: "Checks", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
-    { name: "Review", summary: `Fields under ${Math.round(s.fieldConfidence * 100)}% go to the Task inbox; ${s.slaHours} h target`, done: true },
-    { name: "Deliver", summary: d.deliveries.length ? d.deliveries.map((x) => x.name || x.type).join(", ") : "Choose: Excel register, folder, webhook or start a bot", done: d.deliveries.length > 0 },
+    { name: "Document ingestion", summary: `Sources: ${sources}${s.inputFolder ? `; ${s.inputFolder} every ${s.pollSeconds} s` : ""}`, done: true },
+    { name: "Document classification", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Type: ${d.docType || "not chosen"}${s.split ? "; batches are split" : ""}`, done: !!d.docType },
+    { name: "Data extraction", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
+    { name: "Validation", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
+    { name: "Human review", summary: `Under ${Math.round(s.fieldConfidence * 100)}% confidence; to the Task inbox, ${s.slaHours} h target`, done: true },
+    { name: "Export & integration", summary: d.deliveries.length ? d.deliveries.map((x) => x.name || x.type).join(", ") : "Not set: Excel, folder, webhook or a bot", done: d.deliveries.length > 0 },
   ];
 }
 
@@ -120,7 +123,7 @@ export interface TestResult { field: string; a: string; aConf: string; b: string
 export interface TestRun { rows: TestResult[]; runs: { engine: string; seconds: number; confidence: number | null; review: boolean; readBy: string; error?: string }[] }
 
 /** docType is a document type id (DocType.id). */
-/** email: the person will set up the inbox next (in the builder's step 1, Input). */
+/** email: the person will set up the inbox next (in the builder's step 1, Document ingestion). */
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
@@ -267,7 +270,7 @@ const DESIGN_CHECKS: Check[] = [
 
 const DESIGN_BASE = {
   id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft" as const, version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
-  checks: DESIGN_CHECKS,
+  docTypeIds: ["supplier-invoice"], checks: DESIGN_CHECKS,
   settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24,
     email: null as EmailInbox | null },
   deliveries: [] as Delivery[],
@@ -398,12 +401,19 @@ export class SampleApi implements DocFlowApi {
   private designs: Record<string, ProcessDesign> = {};
   async processDesign(id: string) {
     const p = this.processesData.find((x) => x.id === id);
-    return copy(this.designs[id] ?? (p ? { ...DESIGN, id: p.id, name: p.name, folder: p.folder, docType: p.docType, state: p.state, version: p.version } : DESIGN));
+    return copy(this.designs[id] ?? (p ? { ...DESIGN, id: p.id, name: p.name, folder: p.folder, docType: p.docType, state: p.state, version: p.version,
+      docTypeIds: this.types.filter((t) => t.name === p.docType).map((t) => t.id) } : DESIGN));
   }
   async saveProcess(d: ProcessDesign) {
     const before = this.designs[d.id] ?? await this.processDesign(d.id);
     const changed = JSON.stringify({ ...before, stages: [] }) !== JSON.stringify({ ...d, stages: [] });
-    this.designs[d.id] = { ...copy(d), version: changed ? d.version + 1 : d.version, stages: stagesOf(d, (id) => id) };
+    // another document type: its name and fields come from the types now chosen
+    const types = JSON.stringify(before.docTypeIds) === JSON.stringify(d.docTypeIds) ? [] : this.types.filter((t) => d.docTypeIds.includes(t.id));
+    const docType = types.map((t) => t.name).join(", ") || d.docType;
+    const fields = types.length ? types.flatMap((t) => t.fields).filter((x) => x.type !== "Table").map((x) => ({ name: x.key, label: x.label })) : d.fields;
+    this.designs[d.id] = { ...copy(d), docType, fields, version: changed ? d.version + 1 : d.version, stages: stagesOf({ ...d, docType }, (id) => id) };
+    const p = this.processesData.find((x) => x.id === d.id);
+    if (p) p.docType = docType;
     return copy(this.designs[d.id]);
   }
   async inboxStatus(): Promise<InboxStatus | null> { return null; }

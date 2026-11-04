@@ -34,12 +34,11 @@ export function parseRoute(hash: string): Route {
 
 type Tab = { tab: Route["tab"]; label: string; about?: string };
 /**
- * The tabs in the order a developer works: Build (a process, step by step from where documents come in), Run (the
- * documents day to day) and the Libraries the build steps use, in a small menu.
+ * The tabs: Overview first (where things stand), then the Inbox (the documents) and Processes (each built step by
+ * step, from where documents come in); the Libraries the process steps use are in a small menu.
  */
 export const TAB_GROUPS: { label: string; tabs: Tab[]; menu?: boolean }[] = [
-  { label: "Build", tabs: [{ tab: "processes", label: "Processes" }] },
-  { label: "Run", tabs: [{ tab: "inbox", label: "Inbox" }, { tab: "overview", label: "Overview" }] },
+  { label: "Pages", tabs: [{ tab: "overview", label: "Overview" }, { tab: "inbox", label: "Inbox" }, { tab: "processes", label: "Processes" }] },
   { label: "Libraries", menu: true, tabs: [
     { tab: "types", label: "Document types", about: "What to read from each kind of document" },
     { tab: "refdata", label: "Reference data", about: "Lists that checks look values up in" },
@@ -111,7 +110,6 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
               <nav className="df-tabs" aria-label="Document Automation">
                 {TAB_GROUPS.map((g) => (
                   <div key={g.label} className={`df-tab-group${g.menu ? " is-menu" : ""}`} role="group" aria-label={g.label}>
-                    <span className="df-tab-group-label" aria-hidden="true">{g.label}</span>
                     {g.menu ? <LibraryMenu tabs={g.tabs} current={route.tab} /> : g.tabs.map((t) => (
                       <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
                     ))}
@@ -136,14 +134,15 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   );
 }
 
-/** Libraries: one button that names the library open now, and a menu of all of them. */
+/** Libraries: one button that names the library open now (with "Libraries" beside it), and a menu of all of them. */
 function LibraryMenu({ tabs, current }: { tabs: Tab[]; current: Route["tab"] }) {
   const open = tabs.find((t) => t.tab === current);
-  return (
+  return (<>
+    {open && <span className="df-tab-group-label" aria-hidden="true">Libraries</span>}
     <Menu label="Libraries" align="start"
       trigger={<button type="button" className="df-tab" aria-current={open ? "page" : undefined}>{open ? open.label : "Libraries"}<Icon name="chevronDown" size={12} stroke={2.4} /></button>}
       items={tabs.map((t) => ({ key: t.tab, label: t.label, description: t.about, onSelect: () => { location.hash = "#/" + t.tab; } }))} />
-  );
+  </>);
 }
 
 function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptIn: (on: boolean) => void }) {

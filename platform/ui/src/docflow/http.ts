@@ -344,6 +344,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const mine = f.docTypes.map((t) => types.find((x) => x.id === t)).filter((t): t is DfDocType => !!t);
     const base = {
       docType: f.isInbox ? "Any" : (mine.map((t) => t.name).join(", ") || f.docTypes.join(", ")),
+      docTypeIds: f.docTypes,
       checks: f.rules.map(checkOf),
       settings: {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
@@ -365,6 +366,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const cur = await this.call<DfFlow>("GET", `/df/flows/${encodeURIComponent(d.id)}`);
     const s = d.settings;
     const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
+      ...(cur.isInbox || !d.docTypeIds.length ? {} : { docTypes: d.docTypeIds }),
       intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {} },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split },
       engine: { ...cur.engine, extractionProvider: s.extraction },

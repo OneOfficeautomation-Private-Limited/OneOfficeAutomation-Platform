@@ -45,8 +45,8 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
   processes: {
     summary: "Build a process step by step, from where documents come in to going live.",
     steps: [
-      "Work through the steps left to right: 1 Input, where documents come from, to 7 Test & go live.",
-      "Each step links to what it uses: Document types, Reference data or Engines.",
+      "Work through the steps left to right, from 1 Document ingestion to 7 Testing & go-live.",
+      "In step 2, choose the document type and check its fields on the same screen.",
       "Click Save draft as you go. On a live process, Save changes applies at once.",
       "In step 7, try 1–3 sample documents, then click Go live.",
     ],

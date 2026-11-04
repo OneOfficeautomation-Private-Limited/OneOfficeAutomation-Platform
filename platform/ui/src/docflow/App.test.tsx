@@ -11,15 +11,14 @@ const start = (api = new SampleApi()) => { render(<App api={api} />); return api
 const table = (name: string) => screen.findByRole("region", { name });
 
 describe("Document Automation", () => {
-  it("sits under AI in the Command Center menu, with its tabs in the order a developer works: Build, Run, Libraries", async () => {
+  it("sits under AI in the Command Center menu: Overview, Inbox and Processes, then the Libraries", async () => {
     start();
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("href")).toBe("/documents/");
     const tabs = screen.getByRole("navigation", { name: "Document Automation" });
-    expect(within(tabs).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["Build", "Run", "Libraries"]);
-    expect(within(within(tabs).getByRole("group", { name: "Build" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Processes"]);
-    expect(within(within(tabs).getByRole("group", { name: "Run" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Inbox", "Overview"]);
+    expect(within(tabs).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["Pages", "Libraries"]);
+    expect(within(within(tabs).getByRole("group", { name: "Pages" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Overview", "Inbox", "Processes"]);
     expect(within(tabs).getByRole("link", { name: "Overview" }).getAttribute("aria-current")).toBe("page");
     expect(await screen.findByText("Documents today")).toBeTruthy();
     expect(screen.getByText("Local-only: nothing leaves this server")).toBeTruthy();
@@ -39,22 +38,50 @@ describe("Document Automation", () => {
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Libraries" })).getByRole("button").textContent).toBe("Engines"));
   });
 
-  it("builds a process in seven numbered steps, input first, and tests it before going live", async () => {
+  it("builds a process in seven numbered steps, documents in first, and tests it before going live", async () => {
     start(); await go("#/processes/supplier-invoices-ksa");
     const steps = await screen.findByRole("tablist", { name: "Steps" });
     expect(within(steps).getAllByRole("tab").map((t) => t.querySelector("b")!.textContent))
-      .toEqual(["Input", "Document type", "Reading", "Checks", "Review", "Deliver", "Test & go live"]);
-    expect(screen.getByRole("region", { name: "Input" })).toBeTruthy();             // step 1 first: where documents come from
-    fireEvent.click(within(steps).getByRole("tab", { name: /Document type/ }));
-    expect(within(screen.getByRole("region", { name: "Document type" })).getByRole("link", { name: "Document types" }).getAttribute("href")).toBe("#/types");
-    fireEvent.click(within(steps).getByRole("tab", { name: /Reading/ }));
-    expect(within(screen.getByRole("region", { name: "Reading" })).getByRole("link", { name: "Engines" }).getAttribute("href")).toBe("#/engines/routing");
-    fireEvent.click(screen.getByRole("button", { name: "step 7, Test & go live" }));
-    const test = screen.getByRole("region", { name: "Test & go live" });
+      .toEqual(["Document ingestion", "Document classification", "Data extraction", "Validation", "Human review", "Export & integration", "Testing & go-live"]);
+    expect(screen.getByRole("region", { name: "Document ingestion" })).toBeTruthy();  // step 1 first: where documents come from
+    fireEvent.click(within(steps).getByRole("tab", { name: /Data extraction/ }));
+    expect(within(screen.getByRole("region", { name: "Data extraction" })).getByRole("link", { name: "Engines" }).getAttribute("href")).toBe("#/engines/routing");
+    fireEvent.click(screen.getByRole("button", { name: "step 7, Testing & go-live" }));
+    const test = screen.getByRole("region", { name: "Testing & go-live" });
     expect(await within(test).findByRole("button", { name: "Run test" })).toBeTruthy();
     fireEvent.click(within(test).getByRole("button", { name: "Go live" }));
     expect(await screen.findByText("Live · version 1")).toBeTruthy();
     expect(within(test).getByText("This process is live: new documents use this version.")).toBeTruthy();
+  });
+
+  it("chooses and edits the document type in step 2, on the same screen", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/classify");
+    const step = await screen.findByRole("region", { name: "Document classification" });
+    expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice");
+    expect(await screen.findByRole("region", { name: "Fields to read" })).toBeTruthy();      // its fields, here: no other page
+    expect(location.hash).toBe("#/processes/supplier-invoices-ksa/classify");
+    fireEvent.change(within(step).getByLabelText("Document type"), { target: { value: "receipt" } });
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Receipt" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect(await api.processDesign("supplier-invoices-ksa")).toMatchObject({ docTypeIds: ["receipt"], docType: "Receipt" });
+  });
+
+  it("makes a new document type in step 2, and the process reads it", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/classify");
+    fireEvent.click(await screen.findByRole("button", { name: "New document type" }));
+    const naming = await screen.findByRole("dialog", { name: "New document type" });
+    fireEvent.change(within(naming).getByLabelText("Name"), { target: { value: "Customs declaration" } });
+    fireEvent.click(within(naming).getByRole("button", { name: "Next: add fields" }));
+    const field = await screen.findByRole("dialog", { name: "Add field" });
+    fireEvent.change(within(field).getByLabelText("Name"), { target: { value: "Declaration number" } });
+    fireEvent.click(within(field).getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create type" }));
+    await waitFor(() => expect((screen.getByLabelText("Document type") as HTMLSelectElement).value).toBe("customs-declaration"));
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect(await api.processDesign("supplier-invoices-ksa")).toMatchObject({ docTypeIds: ["customs-declaration"], fields: [{ name: "declaration_number", label: "Declaration number" }] });
   });
 
   it("reads routes from the hash", () => {
@@ -177,7 +204,7 @@ describe("Document Automation", () => {
 
   it("builds a process: checks switch on and off and say what happens when they fail", async () => {
     start(); await go("#/processes/supplier-invoices-ksa/checks");
-    const checks = await screen.findByRole("region", { name: "Checks" });
+    const checks = await screen.findByRole("region", { name: "Validation" });
     expect(within(checks).getByText("6 of 6 checks")).toBeTruthy();
     expect(screen.getByText("5 of 6 checks on")).toBeTruthy();
     fireEvent.click(within(checks).getByRole("checkbox", { name: "Check on: Large invoice" }));
@@ -192,7 +219,7 @@ describe("Document Automation", () => {
 
   it("adds a check and a delivery, and saves the draft", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/checks");
-    const checks = await screen.findByRole("region", { name: "Checks" });
+    const checks = await screen.findByRole("region", { name: "Validation" });
     fireEvent.click(within(checks).getByRole("button", { name: "Add check" }));
     const dialog = await screen.findByRole("dialog", { name: "Add check" });
     fireEvent.change(within(dialog).getByLabelText("Kind of check"), { target: { value: "required" } });
@@ -200,7 +227,7 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Has a date" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(within(checks).getByText("Has a date")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Deliver/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Export & integration/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add delivery" }));
     const d = await screen.findByRole("dialog", { name: "Add delivery" });
     fireEvent.change(within(d).getByLabelText("Excel file"), { target: { value: "D:\\AP\\register.xlsx" } });
@@ -298,9 +325,9 @@ describe("Document Automation", () => {
     await waitFor(async () => expect((await api.docTypes()).some((t) => t.id === "pro-forma-invoice" && t.fields.length === 3)).toBe(true));
   });
 
-  it("sets up a process's email inbox in step 1, Input", async () => {
+  it("sets up a process's email inbox in step 1, Document ingestion", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
-    const intake = await screen.findByRole("region", { name: "Input" });
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
     fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "email" } });
     fireEvent.change(within(intake).getByLabelText("Mail server"), { target: { value: "imap.example.com" } });
