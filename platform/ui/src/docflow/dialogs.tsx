@@ -108,15 +108,14 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   const [path, setPath] = useState("");
   const [every, setEvery] = useState("30");
   const [mail, setMail] = useState(false);
-  const [mailbox, setMailbox] = useState("invoices@acme-trading.com");
   const [bot, setBot] = useState(false);
   const valid = name.trim() && docType && (!watch || path.trim());
 
   const create = async () => {
     const r = await api.createProcess({ name: name.trim(), docType, folder, watchedFolder: watch ? path.trim() : undefined,
-      pollSeconds: Number(every), mailbox: mail ? mailbox : undefined, fromBot: bot });
+      pollSeconds: Number(every), email: mail, fromBot: bot });
     setName(""); setWatch(false); setMail(false); setBot(false); setPath("");
-    onCreated(r.id);
+    onCreated(r.id + (mail ? "/intake" : ""));
   };
 
   return (
@@ -157,18 +156,11 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
         <div className={`df-way${mail ? " is-on" : ""}`}>
           <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} /><span><b>Email inbox</b>
             <span className="df-small" style={{ display: "block" }}>Suppliers email their invoices</span></span></label>
-          {mail && (
-            <div style={{ margin: "10px 0 0 24px" }}>
-              <Field label="Mailbox" hint="The mailbox sign-in is kept in the Vault. Only new emails are read.">
-                {(id) => <Select id={id} value={mailbox} onChange={(e) => setMailbox(e.target.value)}
-                  options={[{ value: "invoices@acme-trading.com", label: "invoices@acme-trading.com (Vault)" }]} />}
-              </Field>
-            </div>
-          )}
+          {mail && <p className="df-small" style={{ margin: "8px 0 0 24px" }}>Next, in the process's Intake stage: the mailbox (Microsoft 365 or IMAP) and its password from the Vault. Only new emails are read.</p>}
         </div>
         <div className={`df-way${bot ? " is-on" : ""}`}>
           <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={bot} onChange={(e) => setBot(e.target.checked)} /><span><b>From a bot</b>
-            <span className="df-small" style={{ display: "block" }}>Agents use the "Send document to process" action in Studio</span></span></label>
+            <span className="df-small" style={{ display: "block" }}>Agents use the "Send document to process" action (Document Automation) in Studio</span></span></label>
         </div>
       </fieldset>
     </Dialog>

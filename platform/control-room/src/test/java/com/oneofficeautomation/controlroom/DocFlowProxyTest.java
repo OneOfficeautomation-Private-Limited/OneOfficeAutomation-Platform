@@ -20,10 +20,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class DocFlowProxyTest {
     static final HttpClient HTTP = HttpClient.newHttpClient();
     Db db; ControlRoom cr; ControlRoomServer server; HttpServer docflow;
-    String base, token, deviceId;
+    String base, token, deviceId, deviceSecret;
     final List<Map<String, String>> seen = Collections.synchronizedList(new ArrayList<>());
     /** What the fake DocFlow's review queue holds. */
     volatile String reviewQueue = "[]";
+    /** What the fake DocFlow lists as processes. */
+    volatile String flowsJson = "[]";
 
     @BeforeAll void start() throws Exception {
         Path data = Files.createTempDirectory("ooa-docflow-proxy");
@@ -49,7 +51,9 @@ class DocFlowProxyTest {
             m.put("body", new String(in, StandardCharsets.UTF_8));
             seen.add(m);
             String path = ex.getRequestURI().getPath();
-            byte[] b = (path.endsWith("/df/review") ? reviewQueue : path.contains("/df/flows") && in.length > 0 ? new String(in, StandardCharsets.UTF_8)
+            byte[] b = (path.endsWith("/documents") && ex.getRequestMethod().equals("POST") ? "{\"documents\":[{\"documentId\":\"d7\",\"status\":\"processing\"}]}"
+                    : path.endsWith("/df/documents/d7") ? "{\"id\":\"d7\",\"status\":\"validation\",\"fields\":{\"total\":115}}"
+                    : path.endsWith("/df/review") ? reviewQueue : path.endsWith("/df/flows") && ex.getRequestMethod().equals("GET") && ex.getRequestURI().getQuery() == null ? flowsJson : path.contains("/df/flows") && in.length > 0 ? new String(in, StandardCharsets.UTF_8)
                     : "{\"ok\":true}").getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().set("Content-Type", "application/json");
             ex.sendResponseHeaders(200, b.length);
@@ -62,7 +66,9 @@ class DocFlowProxyTest {
                 + "\"variables\":[{\"name\":\"document_id\",\"type\":\"String\",\"direction\":\"input\"},{\"name\":\"invoice_number\",\"type\":\"String\",\"direction\":\"input\"}],"
                 + "\"steps\":[{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"invoice_number\",\"value\":\"x\"}}]}");
         cr.checkin(admin, "Finance/Post invoice.flow.json", agent, "first", true, null);
-        deviceId = (String) cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null).get("device_id");
+        Map<String, Object> dev = cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null);
+        deviceId = (String) dev.get("device_id");
+        deviceSecret = (String) dev.get("secret");
         cr.setDefaultDevice(admin, "admin", deviceId, null);
         server = new ControlRoomServer(cr, "127.0.0.1", 0);
         server.start();
@@ -205,5 +211,99 @@ class DocFlowProxyTest {
         assertEquals(deviceId, run.get("device_id"));
         assertEquals("docflow:ap", run.get("source"));
         assertEquals(Map.of("document_id", "doc9", "invoice_number", "INV-9"), JsonLite.parse((String) run.get("inputs")));
+    }
+
+    @Test void attachmentsAreReadFromARawMessage() {
+        String raw = "From: a@example.com\r\nSubject: Invoices\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n"
+                + "--outer\r\nContent-Type: multipart/alternative; boundary=\"inner\"\r\n\r\n"
+                + "--inner\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nPlease find attached.\r\n--inner--\r\n"
+                + "--outer\r\nContent-Type: application/pdf; name=\"INV-1.pdf\"\r\nContent-Disposition: attachment; filename=\"INV-1.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+                + Base64.getMimeEncoder().encodeToString("%PDF-1.4 test".getBytes(StandardCharsets.UTF_8)) + "\r\n"
+                + "--outer\r\nContent-Type: text/plain\r\nContent-Disposition: attachment; filename*=UTF-8''%D9%81%D8%A7%D8%AA%D9%88%D8%B1%D8%A9.txt\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nTotal =3D 10\r\n"
+                + "--outer--\r\n";
+        List<MailSource.Attachment> a = ImapMailSource.attachmentsOf(raw.getBytes(StandardCharsets.ISO_8859_1));
+        assertEquals(2, a.size());
+        assertEquals("INV-1.pdf", a.get(0).name());
+        assertEquals("application/pdf", a.get(0).contentType());
+        assertEquals("%PDF-1.4 test", new String(a.get(0).data(), StandardCharsets.UTF_8));
+        assertEquals("فاتورة.txt", a.get(1).name());
+        assertEquals("Total = 10", new String(a.get(1).data(), StandardCharsets.UTF_8).trim());
+    }
+
+    @Test void aLiveProcessReadsItsEmailInbox() {
+        flowsJson = "[{\"id\":\"ap\",\"status\":\"live\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"email\",\"host\":\"mail.example\",\"subject_contains\":\"invoice\",\"requestedBy\":\"admin\"}}},"
+                + "{\"id\":\"draft\",\"status\":\"draft\",\"intake\":{\"email\":{\"enabled\":true}}}]";
+        List<String> cursors = new ArrayList<>();
+        DocFlowProxy p = new DocFlowProxy(cr);
+        p.mails = email -> new MailSource() {
+            @Override public Batch fetch(String cursor, boolean fireExisting) {
+                cursors.add(String.valueOf(cursor));
+                return new Batch("c" + cursors.size(), List.of(Map.of("id", "1", "from", "Supplier <s@example.com>", "subject", "Invoice 42"),
+                        Map.of("id", "2", "from", "x@example.com", "subject", "Lunch")));
+            }
+            @Override public List<Attachment> attachments(Map<String, Object> m) {
+                return List.of(new Attachment("INV-42.pdf", "application/pdf", "%PDF".getBytes(StandardCharsets.UTF_8)), new Attachment("notes.docx", "application/msword", new byte[] {1}));
+            }
+        };
+        seen.clear();
+        assertEquals(1, p.pollMail());                       // one message passes the subject filter; the .docx is not read
+        Map<String, String> up = seen.stream().filter(m -> m.get("method").equals("POST")).findFirst().orElseThrow();
+        assertEquals("/api/docs/v1/df/flows/ap/documents?source=email&requireLive=true", up.get("uri"));
+        assertTrue(up.get("body").contains("filename=\"INV-42.pdf\""));
+        assertTrue(java.net.URLDecoder.decode(up.get("user"), StandardCharsets.UTF_8).startsWith("Email from Supplier"));
+        assertEquals(0, p.pollMail());                       // not again before its interval
+        Map<String, Object> row = cr.db.one("SELECT mail_cursor, documents, last_error FROM docflow_mail WHERE process_id = 'ap'");
+        assertEquals("c1", row.get("mail_cursor"));
+        assertEquals(1, ((Number) row.get("documents")).intValue());
+        assertNull(row.get("last_error"));
+        assertEquals(List.of("null"), cursors);              // the draft process's inbox is not read
+        flowsJson = "[]";
+    }
+
+    @Test void anInboxUsesAVaultSecretItsAuthorMayUse() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        cr.createLocker(admin, "others", "Not for admin", "role:viewer", null);
+        seen.clear();
+        String ok = "{\"name\":\"AP\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"email\",\"host\":\"mail.example\",\"password_ref\":\"docflow/service/token\"}}}";
+        assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", ok).statusCode());
+        assertTrue(seen.get(0).get("body").contains("\"requestedBy\":\"admin\""));
+        String denied = ok.replace("docflow/service/token", "others/mailbox/password");
+        HttpResponse<String> r = call("PUT", "/api/docflow/df/flows/ap", denied);
+        assertEquals(403, r.statusCode(), r.body());
+        assertTrue(r.body().contains("VAULT.DENIED"));
+    }
+
+    @Test void aRunningAgentSendsADocumentToAProcessByName() throws Exception {
+        Map<String, Object> run = cr.startRun("admin", "admin", "Finance/Post invoice.flow.json", deviceId, Map.of(), "test", null);
+        String runId = String.valueOf(run.get("run_id"));
+        flowsJson = "[{\"id\":\"ap-invoices\",\"name\":\"AP invoices\",\"status\":\"live\"}]";
+        String boundary = "b1";
+        String body = "--b1\r\nContent-Disposition: form-data; name=\"files\"; filename=\"INV-7.pdf\"\r\nContent-Type: application/octet-stream\r\n\r\n%PDF\r\n--b1--\r\n";
+        java.util.function.Function<String, HttpResponse<String>> send = q -> {
+            try {
+                return HTTP.send(HttpRequest.newBuilder(URI.create(base + "/api/agent/docflow/documents?" + q)).header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", deviceSecret)
+                        .header("Content-Type", "multipart/form-data; boundary=" + boundary).POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) { throw new RuntimeException(e); }
+        };
+        assertEquals(403, send.apply("run_id=" + runId + "&process=AP%20invoices").statusCode());   // queued, not running yet
+        cr.db.update("UPDATE runs SET status = 'running' WHERE id = ?", runId);
+        seen.clear();
+        HttpResponse<String> r = send.apply("run_id=" + runId + "&process=ap%20INVOICES&wait=true");
+        assertEquals(200, r.statusCode(), r.body());
+        Map<?, ?> out = (Map<?, ?>) JsonLite.parse(r.body());
+        assertEquals(List.of("d7", "AP invoices", "validation", true, "115"),
+                List.of(out.get("document_id"), out.get("process"), out.get("status"), out.get("needs_review"), String.valueOf(((Map<?, ?>) out.get("fields")).get("total"))));
+        Map<String, String> up = seen.stream().filter(m -> m.get("method").equals("POST")).findFirst().orElseThrow();
+        assertEquals("/api/docs/v1/df/flows/ap-invoices/documents?source=bot&requireLive=true&wait=true", up.get("uri"));
+        assertTrue(java.net.URLDecoder.decode(up.get("user"), StandardCharsets.UTF_8).startsWith("Agent Finance/Post invoice (admin)"));
+        assertEquals(404, send.apply("run_id=" + runId + "&process=Nope").statusCode());
+        flowsJson = "[]";
+    }
+
+    @Test void inboxProblemsAreSaidPlainly() {
+        Map<String, Object> email = Map.of("host", "imap.example.com", "port", 993);
+        assertEquals("The mail server imap.example.com is not known: check its name", DocFlowProxy.problem(new java.net.UnknownHostException("imap.example.com"), email));
+        assertEquals("The mail server imap.example.com does not answer on port 993", DocFlowProxy.problem(new java.net.ConnectException("refused"), email));
+        assertEquals("Sign-in to the mailbox failed: NO", DocFlowProxy.problem(new java.io.IOException("Sign-in to the mailbox failed: NO"), email));
     }
 }

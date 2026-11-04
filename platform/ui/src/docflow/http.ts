@@ -1,7 +1,7 @@
 import {
   RULE_KIND, ruleTest, stagesOf,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EngineField, type EngineOption, type NewProcess, type Overview, type ProcessDesign, type ProcessSummary, type RefTable, type ReviewTask, type Routing,
+  type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type NewProcess, type Overview, type ProcessDesign, type ProcessSummary, type RefTable, type ReviewTask, type Routing,
   type RefRow, type RuleType, type Source, type TestRun,
 } from "./api";
 
@@ -28,7 +28,7 @@ interface DfFlow {
   classify: { mode: "single" | "auto"; split: boolean; minScore?: number }; engine: { option: string; ocrProvider: string; extractionProvider: string };
   review: { fieldConfidence: number; slaHours: number }; rules: DfRule[];
   deliveries: DfDelivery[];
-  intake: { inputFolder: string; pollSeconds: number }; updatedAt: string;
+  intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown> }; updatedAt: string;
   stats?: Stats; docTypeNames?: string[];
 }
 interface DfFlag { rule: string; type: string; action: string; message: string; field?: string | null }
@@ -79,6 +79,7 @@ function sourceOf(r: DfDocRow): { source: Source; label: string } {
   if (r.parent_id) return { source: "split", label: "Split from batch" };
   switch (r.source) {
     case "folder": return { source: "folder", label: "Folder" };
+    case "email": return { source: "email", label: "Email" };
     case "bot": case "api": return { source: "bot", label: "Bot" };
     default: return { source: "upload", label: "Upload" };
   }
@@ -186,7 +187,7 @@ export class HttpDocFlowApi implements DocFlowApi {
         review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: (by.failed ?? 0) + (by.invalid ?? 0),
         done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0,
         lastDocument: last?.file_name ?? "—", lastTime: last ? clock(last.created_at) : "",
-        sources: ["upload", ...(f.intake.inputFolder ? ["folder" as const] : [])],
+        sources: ["upload", ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
         deliversTo: f.deliveries.filter((d) => d.enabled).map((d) => d.name || d.type),
       };
     });
@@ -339,6 +340,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       settings: {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
         extraction: f.engine.extractionProvider, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
+        email: f.intake.email && Object.keys(f.intake.email).length ? (f.intake.email as unknown as EmailInbox) : null,
       },
       deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
         ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}) })),
@@ -355,7 +357,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const cur = await this.call<DfFlow>("GET", `/df/flows/${encodeURIComponent(d.id)}`);
     const s = d.settings;
     const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
-      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds },
+      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {} },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split },
       engine: { ...cur.engine, extractionProvider: s.extraction },
       review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours },
@@ -370,6 +372,12 @@ export class HttpDocFlowApi implements DocFlowApi {
     });
     this.flowsCache = null;
     return this.design(saved, await this.call<DfDocType[]>("GET", "/df/doctypes"));
+  }
+
+  async inboxStatus(processId: string): Promise<InboxStatus | null> {
+    const r = await this.call<{ inboxes: { process_id: string; last_check: string | null; last_error: string | null; documents: number | null }[] }>("GET", "/mail-status");
+    const x = r.inboxes.find((i) => i.process_id === processId);
+    return x ? { lastCheck: x.last_check, error: x.last_error, documents: x.documents ?? 0 } : null;
   }
 
   async setLive(id: string, live: boolean): Promise<void> {

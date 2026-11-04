@@ -17,6 +17,12 @@ interface MailSource {
 
     record Batch(String cursor, List<Map<String, Object>> messages) {}
 
+    /** A file attached to a message. */
+    record Attachment(String name, String contentType, byte[] data) {}
+
+    /** The files attached to a message from {@link #fetch} (Document Automation's email inbox reads them). */
+    default List<Attachment> attachments(Map<String, Object> message) throws IOException { return List.of(); }
+
     /** True when the message passes the trigger's from and subject filters (case-insensitive "contains"). */
     static boolean matches(Map<String, Object> msg, Map<String, Object> config) {
         return contains(msg.get("from"), config.get("from_contains")) && contains(msg.get("subject"), config.get("subject_contains"));

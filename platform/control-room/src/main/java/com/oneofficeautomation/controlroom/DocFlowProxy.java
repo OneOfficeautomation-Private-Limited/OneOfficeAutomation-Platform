@@ -34,6 +34,9 @@ import java.util.regex.Pattern;
  * Two ways back from DocFlow: documents waiting for review become Task inbox tasks (kind document_review, for everyone
  * with docs.review; {@link #syncReviews}), and a process's "Start a bot" delivery calls
  * /api/docflow-callback/start-bot with the service token, which starts the bot as the person who set the delivery up.
+ * And one more way in: a live process's email inbox (intake.email, IMAP or Microsoft 365) is read here, with the
+ * mailbox's vault secret as the person who set it up, and new PDF and image attachments go to the process
+ * ({@link #pollMail}); /api/docflow/mail-status says how each inbox's last check went.
  */
 final class DocFlowProxy {
     static final String DEFAULT_URL = "http://127.0.0.1:8085";
@@ -65,6 +68,11 @@ final class DocFlowProxy {
     }
 
     void forward(HttpExchange ex, ControlRoom.User u, String method, String route) throws IOException {
+        if (route.equals("mail-status") && method.equals("GET")) {
+            cr.require(u, "docs.view", "see Document Automation");
+            ControlRoomServer.sendJson(ex, 200, Map.of("inboxes", cr.db.query("SELECT process_id, last_check, last_error, documents FROM docflow_mail ORDER BY process_id")));
+            return;
+        }
         if (!ROUTES.matcher(route).matches() || route.contains("..")) throw new OoaException("CR.NOT_FOUND", "Not found");
         String perm = permission(method, route);
         cr.require(u, perm, switch (perm) {
@@ -76,7 +84,9 @@ final class DocFlowProxy {
         byte[] in = method.equals("GET") || method.equals("DELETE") ? null : body(ex);
         String type = ex.getRequestHeaders().getFirst("Content-Type");
         if (in != null && FLOW_WRITE.matcher(route).matches() && type != null && type.startsWith("application/json")) in = stampBotDeliveries(u, in);
-        HttpResponse<byte[]> r = send(method, route, ex.getRequestURI().getRawQuery(), in, ex.getRequestHeaders(), person(u));
+        Map<String, String> headers = new HashMap<>();
+        for (String h : REQUEST_HEADERS) { String v = ex.getRequestHeaders().getFirst(h); if (v != null) headers.put(h, v); }
+        HttpResponse<byte[]> r = send(method, route, ex.getRequestURI().getRawQuery(), in, headers, person(u));
         if (r.statusCode() < 300) afterReview(u, method, route, in);
 
         var h = ex.getResponseHeaders();
@@ -93,12 +103,14 @@ final class DocFlowProxy {
     private static String person(ControlRoom.User u) { return u.displayName() == null || u.displayName().isBlank() ? u.username() : u.displayName(); }
 
     /** One request to DocFlow with the token, tenant and person. */
-    private HttpResponse<byte[]> send(String method, String route, String rawQuery, byte[] body, com.sun.net.httpserver.Headers headers, String person) {
+    private HttpResponse<byte[]> send(String method, String route, String rawQuery, byte[] body, Map<String, String> headers, String person) {
         HttpRequest.Builder rq = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/docs/v1/" + route + (rawQuery == null ? "" : "?" + rawQuery)))
-                .timeout(Duration.ofMinutes(5)).header("X-OOA-Tenant", tenant()).header("X-OOA-User", person);
+                .timeout(Duration.ofMinutes(5)).header("X-OOA-Tenant", tenant())
+                // URL-encoded (UTF-8): display names may be Arabic, and header values must stay plain text
+                .header("X-OOA-User", java.net.URLEncoder.encode(person, StandardCharsets.UTF_8).replace("+", "%20"));
         String token = token();
         if (!token.isEmpty()) rq.header("Authorization", "Bearer " + token);
-        if (headers != null) for (String h : REQUEST_HEADERS) { String v = headers.getFirst(h); if (v != null) rq.header(h, v); }
+        if (headers != null) headers.forEach(rq::header);
         rq.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(body));
         HttpResponse<byte[]> r;
         try { r = http.send(rq.build(), HttpResponse.BodyHandlers.ofByteArray()); }
@@ -121,8 +133,18 @@ final class DocFlowProxy {
     private byte[] stampBotDeliveries(ControlRoom.User u, byte[] in) {
         Object parsed;
         try { parsed = JsonLite.parse(new String(in, StandardCharsets.UTF_8)); } catch (IllegalArgumentException e) { return in; }
-        if (!(parsed instanceof Map<?, ?> flow) || !(flow.get("deliveries") instanceof List<?> list)) return in;
+        if (!(parsed instanceof Map<?, ?> flow)) return in;
         boolean changed = false;
+        // an email inbox reads the mailbox's vault secret as the person who sets it up (who must be its consumer)
+        if (flow.get("intake") instanceof Map<?, ?> intake && intake.get("email") instanceof Map<?, ?> raw && !raw.isEmpty()) {
+            Map<String, Object> email = (Map<String, Object>) raw;
+            if ("email".equals(email.get("kind")) && email.get("host") instanceof String host && !host.isBlank()) NetGuard.check(cr, host, "The mail server");
+            String ref = String.valueOf(email.getOrDefault("kind", "").equals("outlook") ? email.getOrDefault("client_secret_ref", "") : email.getOrDefault("password_ref", ""));
+            if (Boolean.TRUE.equals(email.get("enabled")) && !ref.isBlank()) vaultAccess(u.username(), u.role(), ref);
+            email.put("requestedBy", u.username());
+            changed = true;
+        }
+        if (!(flow.get("deliveries") instanceof List<?> list)) return changed ? JsonLite.write(flow).getBytes(StandardCharsets.UTF_8) : in;
         for (Object o : list) {
             if (!(o instanceof Map<?, ?> raw) || !"start_bot".equals(raw.get("type"))) continue;
             Map<String, Object> d = (Map<String, Object>) raw;
@@ -216,6 +238,153 @@ final class DocFlowProxy {
     private void close(String taskId, String outcome, String by) {
         cr.db.update("UPDATE human_tasks SET status = 'completed', outcome = ?, completed = ?, completed_by = ?, claimed_by = COALESCE(claimed_by, ?) WHERE id = ? AND status IN ('open', 'claimed')",
                 outcome, ControlRoom.now(), by, by, taskId);
+    }
+
+    // ------------------------------------------------------------------ email inbox
+
+    /** The attachment types a process reads from email (as Add documents accepts). */
+    private static final Pattern READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?)$");
+
+    /**
+     * Reads the email inbox of every live process that has one, at most every interval_seconds (60 by default): new
+     * messages passing its from / subject filters, and their PDF and image attachments go to the process. The first
+     * check only marks where the inbox is (older mail is not read). Returns how many documents it sent.
+     */
+    @SuppressWarnings("unchecked")
+    int pollMail() {
+        if (!configured()) return 0;
+        HttpResponse<byte[]> r = send("GET", "df/flows", null, null, null, "Command Center");
+        if (r.statusCode() != 200) return 0;
+        int sent = 0;
+        for (Object o : (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8))) {
+            Map<String, Object> flow = (Map<String, Object>) o;
+            Map<String, Object> email = flow.get("intake") instanceof Map<?, ?> in && in.get("email") instanceof Map<?, ?> e ? (Map<String, Object>) e : Map.of();
+            if (!Boolean.TRUE.equals(email.get("enabled")) || !"live".equals(flow.get("status"))) continue;
+            String id = String.valueOf(flow.get("id"));
+            Map<String, Object> row = cr.db.one("SELECT * FROM docflow_mail WHERE process_id = ?", id);
+            long every = Math.max(60, email.get("interval_seconds") instanceof Number n ? n.longValue() : 60);
+            if (row != null && row.get("last_check") != null && Instant.parse(String.valueOf(row.get("last_check"))).plusSeconds(every).isAfter(Instant.now())) continue;
+            String cursor = row == null ? null : (String) row.get("mail_cursor"), error = null;
+            int docs = 0;
+            try {
+                MailSource src = mails.open(email);
+                MailSource.Batch b = src.fetch(cursor, false);
+                for (Map<String, Object> msg : b.messages()) {
+                    if (!MailSource.matches(msg, email)) continue;
+                    for (MailSource.Attachment a : src.attachments(msg)) if (READABLE.matcher(a.name()).matches()) { upload(id, a, msg); docs++; }
+                }
+                cursor = b.cursor();
+            } catch (IOException | RuntimeException e) { error = problem(e, email); }
+            Instant now = ControlRoom.now();
+            String err = error == null ? null : error.length() > 1000 ? error.substring(0, 1000) : error;
+            if (row == null) cr.db.update("INSERT INTO docflow_mail (process_id, mail_cursor, last_check, last_error, documents) VALUES (?,?,?,?,?)", id, cursor, now, err, docs);
+            else cr.db.update("UPDATE docflow_mail SET mail_cursor = ?, last_check = ?, last_error = ?, documents = COALESCE(documents, 0) + ? WHERE process_id = ?", cursor, now, err, docs, id);
+            sent += docs;
+        }
+        return sent;
+    }
+
+    interface Mailboxes { MailSource open(Map<String, Object> email) throws IOException; }
+    /** Opens an inbox's mailbox (tests replace it). */
+    Mailboxes mails = this::mailSource;
+
+    /** What went wrong with an inbox, in words a person can act on. */
+    static String problem(Exception e, Map<String, Object> email) {
+        String host = String.valueOf(email.getOrDefault("host", ""));
+        if (e instanceof java.net.UnknownHostException) return "The mail server " + host + " is not known: check its name";
+        if (e instanceof java.net.ConnectException || e instanceof java.net.SocketTimeoutException) return "The mail server " + host + " does not answer on port " + email.getOrDefault("port", 993);
+        if (e instanceof javax.net.ssl.SSLException) return "A secure connection to " + host + " failed: " + e.getMessage();
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    /** The mailbox of an email inbox, as an email trigger's (IMAP, or Microsoft 365 through Graph). */
+    MailSource mailSource(Map<String, Object> email) throws IOException {
+        String by = String.valueOf(email.getOrDefault("requestedBy", ""));
+        if ("outlook".equals(email.get("kind"))) {
+            String token = GraphMailSource.clientCredentialsToken(null, String.valueOf(email.get("tenant_id")), String.valueOf(email.get("client_id")),
+                    secret(by, String.valueOf(email.get("client_secret_ref"))));
+            return new GraphMailSource(null, (String) email.get("mailbox"), (String) email.getOrDefault("mail_folder", "inbox"), token);
+        }
+        String host = String.valueOf(email.getOrDefault("host", ""));
+        NetGuard.check(cr, host, "The mail server");
+        return new ImapMailSource(host, email.get("port") instanceof Number p ? p.intValue() : 993, !Boolean.FALSE.equals(email.get("ssl")),
+                String.valueOf(email.get("username")), secret(by, String.valueOf(email.get("password_ref"))), String.valueOf(email.getOrDefault("mail_folder", "INBOX")), 30_000);
+    }
+
+    /** A mailbox secret, as the person who set the inbox up: they must still be active and a consumer of its vault folder. */
+    private String secret(String by, String ref) {
+        Map<String, Object> u = cr.db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", by);
+        if (u == null) throw new OoaException("VAULT.DENIED", "The person who set up this inbox (" + by + ") is not an active user", "Open the process and save its email inbox again.");
+        vaultAccess(by, (String) u.get("role"), ref);
+        return cr.systemCredential(ref);
+    }
+
+    private void vaultAccess(String by, String role, String ref) {
+        String[] p = ref.split("/");
+        Map<String, Object> l = p.length == 3 ? cr.db.one("SELECT * FROM lockers WHERE name = ?", p[0]) : null;
+        if (l == null || !cr.consumes(by, role, l))
+            throw new OoaException("VAULT.DENIED", "'" + by + "' may not use vault folder '" + (p.length > 0 ? p[0] : ref) + "'", "Ask the vault folder's owner to add you as a consumer.");
+    }
+
+    private void upload(String processId, MailSource.Attachment a, Map<String, Object> msg) {
+        String boundary = "ooa" + UUID.randomUUID().toString().replace("-", "");
+        String name = a.name().replaceAll("[\\r\\n\"]", "_");
+        byte[] head = ("--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + name + "\"\r\nContent-Type: " + a.contentType() + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+        byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+        byte[] body = new byte[head.length + a.data().length + tail.length];
+        System.arraycopy(head, 0, body, 0, head.length);
+        System.arraycopy(a.data(), 0, body, head.length, a.data().length);
+        System.arraycopy(tail, 0, body, head.length + a.data().length, tail.length);
+        HttpResponse<byte[]> r = send("POST", "df/flows/" + java.net.URLEncoder.encode(processId, StandardCharsets.UTF_8) + "/documents", "source=email&requireLive=true", body,
+                Map.of("Content-Type", "multipart/form-data; boundary=" + boundary), "Email from " + String.valueOf(msg.getOrDefault("from", "")).replaceAll("[\\r\\n]", " "));
+        if (r.statusCode() >= 300) throw new OoaException("DOCS.EMAIL", "DocFlow refused " + a.name() + " (HTTP " + r.statusCode() + ")");
+    }
+
+    // ------------------------------------------------------------------ from a bot
+
+    /**
+     * An agent's "Send document to process": the runner sends the file for one of its running runs; it goes to the
+     * process (by id or name, which must be live) as the person the run belongs to, who must be able to see Document
+     * Automation. With wait=true the answer has the document's status and fields.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> fromBot(HttpExchange ex, Map<String, Object> device, Map<String, String> q) throws IOException {
+        Map<String, Object> run = cr.runOnDevice(device, q.get("run_id"));
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can send documents");
+        String by = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
+        Map<String, Object> user = cr.db.one("SELECT id, username, role, display_name FROM users WHERE username = ? AND enabled = TRUE", by);
+        if (user == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + by + " is not active");
+        cr.require(new ControlRoom.User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false), "docs.view", "send documents to Document Automation");
+        String process = String.valueOf(q.getOrDefault("process", "")).trim();
+        HttpResponse<byte[]> flows = send("GET", "df/flows", null, null, null, "Command Center");
+        Map<String, Object> flow = flows.statusCode() != 200 ? null : ((List<Object>) JsonLite.parse(new String(flows.body(), StandardCharsets.UTF_8))).stream()
+                .map(o -> (Map<String, Object>) o).filter(f -> process.equals(f.get("id")) || process.equalsIgnoreCase(String.valueOf(f.get("name")))).findFirst().orElse(null);
+        if (flow == null) throw new OoaException("CR.NOT_FOUND", "No Document Automation process '" + process + "'", "Use the process's name or id as shown in Document Automation.");
+        boolean wait = "true".equals(q.get("wait"));
+        String id = String.valueOf(flow.get("id"));
+        Map<String, String> headers = Map.of("Content-Type", String.valueOf(ex.getRequestHeaders().getFirst("Content-Type")));
+        String person = "Agent " + String.valueOf(run.get("bot_path")).replace(".flow.json", "") + " (" + by + ")";
+        HttpResponse<byte[]> r = send("POST", "df/flows/" + java.net.URLEncoder.encode(id, StandardCharsets.UTF_8) + "/documents", "source=bot&requireLive=true&wait=" + wait, body(ex), headers, person);
+        Object parsed = JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
+        if (r.statusCode() >= 300) {
+            Object msg = parsed instanceof Map<?, ?> m ? (m.get("message") != null ? m.get("message") : m.get("detail")) : null;
+            throw new OoaException("DOCS.REFUSED", "Document Automation refused the document: " + (msg == null ? "HTTP " + r.statusCode() : msg));
+        }
+        List<Object> docs = (List<Object>) ((Map<String, Object>) parsed).get("documents");
+        Map<String, Object> d = docs.isEmpty() ? Map.of() : (Map<String, Object>) docs.get(0);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("document_id", d.get("documentId"));
+        out.put("process", flow.get("name"));
+        out.put("status", d.get("status"));
+        if (wait && d.get("documentId") != null) {
+            HttpResponse<byte[]> full = send("GET", "df/documents/" + d.get("documentId"), null, null, null, person);
+            if (full.statusCode() == 200 && JsonLite.parse(new String(full.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> fd) {
+                out.put("status", fd.get("status"));
+                out.put("fields", fd.get("fields"));
+            }
+        }
+        out.put("needs_review", "validation".equals(out.get("status")));
+        return out;
     }
 
     // ------------------------------------------------------------------ Start a bot

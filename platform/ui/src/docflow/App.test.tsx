@@ -71,7 +71,7 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Folder path"), { target: { value: "\\\\scan01\\ksa" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Email inbox/ }));
     fireEvent.click(create);
-    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-ksa"));
+    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-ksa/intake"));   // email ticked: set the inbox up next
     const made = (await api.processes()).find((p) => p.name === "Supplier invoices KSA")!;
     expect(made.sources).toEqual(["upload", "folder", "email"]);
     expect(made.state).toBe("draft");
@@ -254,5 +254,20 @@ describe("Document Automation", () => {
     fireEvent.change(screen.getByLabelText("Type name"), { target: { value: "Pro forma invoice" } });
     fireEvent.click(screen.getByRole("button", { name: "Create type" }));
     await waitFor(async () => expect((await api.docTypes()).some((t) => t.id === "pro-forma-invoice" && t.fields.length === 3)).toBe(true));
+  });
+
+  it("sets up a process's email inbox in the Intake stage", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Intake" });
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "email" } });
+    fireEvent.change(within(intake).getByLabelText("Mail server"), { target: { value: "imap.example.com" } });
+    fireEvent.change(within(intake).getByLabelText("User name"), { target: { value: "invoices@example.com" } });
+    fireEvent.change(within(intake).getByLabelText("Password (vault reference)"), { target: { value: "mail/invoices/password" } });
+    fireEvent.change(within(intake).getByLabelText("Subject contains (optional)"), { target: { value: "invoice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect((await api.processDesign("supplier-invoices-ksa")).settings.email).toEqual({ enabled: true, kind: "email", host: "imap.example.com",
+      username: "invoices@example.com", password_ref: "mail/invoices/password", subject_contains: "invoice" });
   });
 });

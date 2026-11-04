@@ -144,6 +144,8 @@ public final class ControlRoomServer {
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
         // documents waiting for review in Document Automation become Task inbox tasks
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.syncReviews(); } catch (RuntimeException ignored) { } }, 10, 20, TimeUnit.SECONDS);
+        // and their email inboxes
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.pollMail(); } catch (RuntimeException ignored) { } }, 15, 30, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -439,6 +441,7 @@ public final class ControlRoomServer {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
+            else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;

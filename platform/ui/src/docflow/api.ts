@@ -38,10 +38,21 @@ export interface Check { id: string; on: boolean; name: string; kind: string; te
 export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
 export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string }
+/**
+ * A process's email inbox, read by the Command Center: IMAP (kind "email") or Microsoft 365 (kind "outlook"), as email
+ * triggers. Secrets are vault references (folder/credential/attribute). Keys are DocFlow's, as stored.
+ */
+export interface EmailInbox {
+  enabled: boolean; kind: "email" | "outlook"; host?: string; port?: number; ssl?: boolean; username?: string; password_ref?: string;
+  mailbox?: string; tenant_id?: string; client_id?: string; client_secret_ref?: string; mail_folder?: string;
+  from_contains?: string; subject_contains?: string; interval_seconds?: number;
+}
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
-  fieldConfidence: number; slaHours: number;
+  fieldConfidence: number; slaHours: number; email: EmailInbox | null;
 }
+/** How an email inbox's last check went (the Command Center reads the mail). */
+export interface InboxStatus { lastCheck: string | null; error: string | null; documents: number }
 export interface ProcessDesign {
   id: string; name: string; state: "live" | "draft"; version: number; folder: string; docType: string; checks: Check[];
   stages: { name: string; summary: string; done: boolean }[];
@@ -106,7 +117,8 @@ export interface TestResult { field: string; a: string; aConf: string; b: string
 export interface TestRun { rows: TestResult[]; runs: { engine: string; seconds: number; confidence: number | null; review: boolean; readBy: string; error?: string }[] }
 
 /** docType is a document type id (DocType.id). */
-export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; mailbox?: string; fromBot: boolean }
+/** email: the person will set up the inbox next (in the builder's Intake stage). */
+export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
   overview(): Promise<Overview>;
@@ -132,6 +144,7 @@ export interface DocFlowApi {
   /** Saves stages, checks and deliveries; DocFlow counts a new version when anything changed. */
   saveProcess(d: ProcessDesign): Promise<ProcessDesign>;
   setLive(id: string, live: boolean): Promise<void>;
+  inboxStatus(processId: string): Promise<InboxStatus | null>;
   docTypes(): Promise<DocType[]>;
   refTables(): Promise<RefTable[]>;
   /** A table's rows (up to `limit`), for the preview and for downloading it. */
@@ -250,7 +263,8 @@ const DESIGN_CHECKS: Check[] = [
 const DESIGN_BASE = {
   id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft" as const, version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
   checks: DESIGN_CHECKS,
-  settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24 },
+  settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24,
+    email: null as EmailInbox | null },
   deliveries: [] as Delivery[],
   fields: [["invoice_number", "Invoice number"], ["invoice_date", "Invoice date"], ["supplier_name", "Supplier"], ["supplier_vat", "Supplier VAT no."],
     ["subtotal", "Subtotal"], ["vat_amount", "VAT amount"], ["total", "Total"]].map(([name, label]) => ({ name, label })),
@@ -345,7 +359,7 @@ export class SampleApi implements DocFlowApi {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,
       failed: 0, done: 0, straightThrough: 0, lastDocument: "—", lastTime: "", deliversTo: [],
-      sources: ["upload", ...(n.watchedFolder ? ["folder" as const] : []), ...(n.mailbox ? ["email" as const] : []), ...(n.fromBot ? ["bot" as const] : [])] });
+      sources: ["upload", ...(n.watchedFolder ? ["folder" as const] : []), ...(n.email ? ["email" as const] : []), ...(n.fromBot ? ["bot" as const] : [])] });
     return { id };
   }
   async reviewTask(documentId: string) {
@@ -386,6 +400,7 @@ export class SampleApi implements DocFlowApi {
     this.designs[d.id] = { ...copy(d), version: changed ? d.version + 1 : d.version, stages: stagesOf(d, (id) => id) };
     return copy(this.designs[d.id]);
   }
+  async inboxStatus(): Promise<InboxStatus | null> { return null; }
   async setLive(id: string, live: boolean) {
     const d = await this.processDesign(id);
     this.designs[id] = { ...d, state: live ? "live" : "draft" };
