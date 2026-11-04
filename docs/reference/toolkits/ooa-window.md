@@ -371,7 +371,7 @@ Type text and keys such as {ENTER} or {TAB} into a window without bringing it to
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
-| Text | `text` | Any | Yes |  | Main | Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; {{} types {). A Credential is typed without being logged. |
+| Text | `text` | Any | Yes |  | Main | Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; a { inside braces types a {). A Credential is typed without being logged. |
 | Control class | `control_class` | Text | No |  | Main; choice Into = A control of a class | Window class of the control to type into, or a pattern with * and ?; the window's focused control when empty. Example: `Edit` |
 | Control index | `control_index` | Number | No | `0` | Main; choice Into = A control of a class | Which control of that class (0 is the first). Range: 0 to  |
 | Method | `method` | Text | No | `type` | Main | type sends each character and key to the control; replace sets the control's whole text (edit boxes); append adds the text at the end of it. One of: `type`, `replace`, `append` |
