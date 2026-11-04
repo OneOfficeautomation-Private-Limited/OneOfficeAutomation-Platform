@@ -33,6 +33,7 @@ In the **Actions** panel these toolkits sit under **Office documents**, **Files 
 | Run macros, refresh data, export to PDF in real Excel | **Excel desktop** | Yes (Windows) |
 | Read and write .docx letters and reports | **Word** | No |
 | Read and write .pptx decks | **PowerPoint** | No |
+| Insert videos and files, paste, run macros in real PowerPoint | **PowerPoint desktop** | Yes (Windows) |
 | Read, split, merge, fill and protect PDFs | **PDF** | No |
 | CSV and delimited text files | **CSV / Text files** | No |
 | Files, folders, zip | **Files**, **Folders** | No |
@@ -148,6 +149,13 @@ These need Windows with Excel installed on the runner. Leave **Visible** off for
 
 A common pattern: keep a template deck with placeholders such as `{{month}}`, open it, **Find and replace text**, insert
 this month's chart picture and table, and **Save as** a new file.
+
+**PowerPoint desktop** drives the installed PowerPoint (Windows) for what needs it: **Insert video** (embedded, at a
+position and size), **Insert file** (an embedded file shown as an icon that opens it), **Paste into slide** (the
+clipboard as PowerPoint pastes it, as a picture or as text; a minimised PowerPoint window shows while it works) and
+**Run macro** (in a .pptm, with up to five text arguments; a Function's result comes back, and a macro that stops with
+an error is reported straight away with VBA's message). Each step opens the file, works on the slide you choose, saves
+(or **Save as**) and closes it. When you have PowerPoint open yourself, it closes only the file it opened.
 
 ## 7. PDF
 

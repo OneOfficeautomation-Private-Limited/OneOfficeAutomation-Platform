@@ -2817,7 +2817,7 @@ public final class ControlRoom {
         for (Map<String, Object> m : registry.allManifests()) {
             String id = String.valueOf(m.get("id"));
             List<Map<String, Object>> actions = m.get("actions") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
-            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.pdf", "ooa.rest", "ooa.genai").contains(id)) continue;
+            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.rest", "ooa.genai").contains(id)) continue;
             Map<String, Integer> count = new LinkedHashMap<>();
             Map<String, Map<String, Object>> prop = new HashMap<>();
             for (Map<String, Object> a : actions) {

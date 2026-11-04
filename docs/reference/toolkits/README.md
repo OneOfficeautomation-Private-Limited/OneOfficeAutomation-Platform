@@ -35,6 +35,8 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Excel (desktop, needs Excel)](ooa-excel_desktop.md) | `ooa.excel_desktop` | 5 | 0 | 0 | Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 70 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 68 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
+| [PowerPoint (desktop, needs PowerPoint)](ooa-powerpoint_desktop.md) | `ooa.powerpoint_desktop` | 4 | 0 | 0 | Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint. |
+| [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 63 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [File](ooa-file.md) | `ooa.file` | 16 | 4 | 1 | Read, write, copy, move and delete files. |
 | [Folder](ooa-folder.md) | `ooa.folder` | 8 | 2 | 1 | Create, list, copy and delete folders. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 63 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
