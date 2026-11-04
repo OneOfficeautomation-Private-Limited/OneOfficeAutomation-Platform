@@ -13,7 +13,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Core](core.md) | `core` | 16 | 0 | 0 | Control flow, variables and runtime built-ins. |
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 38 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
-| [Application](ooa-application.md) | `ooa.application` | 4 | 1 | 0 | Open files, start, run and stop programs on the runner. |
+| [Application](ooa-application.md) | `ooa.application` | 8 | 1 | 0 | Open files, start, run and stop programs on the runner. |
 | [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
 | [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 19 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes. |
 | [Azure VMs](ooa-azure_vm.md) | `ooa.azure_vm` | 8 | 0 | 0 | List Azure virtual machines, read their power state, start, stop (deallocate or power off) and restart them, and snapshot their disks. |
