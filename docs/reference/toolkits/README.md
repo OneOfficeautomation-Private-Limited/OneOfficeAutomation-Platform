@@ -17,6 +17,9 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
 | [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 19 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes. |
 | [Azure VMs](ooa-azure_vm.md) | `ooa.azure_vm` | 8 | 0 | 0 | List Azure virtual machines, read their power state, start, stop (deallocate or power off) and restart them, and snapshot their disks. |
+| [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 10 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
+| [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 13 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, and switch detailed monitoring on or off. |
+| [Azure AI services](ooa-azure_ai.md) | `ooa.azure_ai` | 8 | 0 | 0 | Read sentiment, entities and personal data in text with Azure AI Language, text, fields and tables from documents with Document Intelligence, and tags, captions and text in pictures with Image Analysis. |
 | [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 44 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
@@ -49,6 +52,8 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Generative AI](ooa-genai.md) | `ooa.genai` | 14 | 0 | 0 | Prompt large language models (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI, self-hosted) to answer, read pictures, draw pictures and analyse text. |
 | [GitHub](ooa-github.md) | `ooa.github` | 21 | 1 | 0 | Work with GitHub repositories: issues, pull requests, branches, files, releases and Actions workflows. Works with github.com and GitHub Enterprise Server. |
 | [Google Workspace](ooa-google.md) | `ooa.google` | 72 | 0 | 0 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
+| [Google Cloud AI](ooa-google_ai.md) | `ooa.google_ai` | 7 | 0 | 0 | Read sentiment and entities in text with Cloud Natural Language, labels and text in pictures with Cloud Vision, and text, entities, form fields and tables from documents with Document AI. |
+| [Google Workspace](ooa-google.md) | `ooa.google` | 68 | 0 | 0 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
 | [Hash, encryption and encoding](ooa-crypto.md) | `ooa.crypto` | 14 | 0 | 0 | Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding. |
 | [Image recognition](ooa-image.md) | `ooa.image` | 6 | 2 | 0 | Find, wait for and click images on the screen or inside image files. |
 | [Insights](ooa-insights.md) | `ooa.insights` | 4 | 0 | 0 | Record business values and timed transactions from agents for dashboards and ROI reports, and read them back. |
