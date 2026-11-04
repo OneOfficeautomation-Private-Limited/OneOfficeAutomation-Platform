@@ -260,6 +260,112 @@ public final class WindowPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) { return show(ctx, title, processId, alternatives, wait, SW_RESTORE); }
 
+    // ---------- hide and show (gap G03, 3 Nov 2026) ----------
+    private static final int SW_HIDE = 0, SW_SHOWNA = 8;
+    private static final String HIDDEN_SESSION = "ooa.window.hidden";
+
+    /** Windows this run hid with show_at_end; shown again when the run ends, however it ends. */
+    static final class HiddenWindows implements AutoCloseable {
+        final Map<WinDef.HWND, String> windows = new LinkedHashMap<>();
+        @Override public void close() {
+            for (WinDef.HWND h : windows.keySet()) if (User32.INSTANCE.IsWindow(h) && !User32.INSTANCE.IsWindowVisible(h)) User32.INSTANCE.ShowWindow(h, SW_SHOWNA);
+            windows.clear();
+        }
+    }
+
+    private static HiddenWindows hiddenByRun(ActionContext ctx, boolean create) {
+        Object o = ctx.sessions().get(HIDDEN_SESSION);
+        if (o instanceof HiddenWindows h) return h;
+        if (!create) return null;
+        HiddenWindows h = new HiddenWindows();
+        ctx.sessions().put(HIDDEN_SESSION, h);
+        return h;
+    }
+
+    /** Top-level hidden windows without an owner whose title contains the text (hidden program windows, not system ones). */
+    static List<Win> hidden(String titleContains, Long processId) {
+        Set<Long> pids = new HashSet<>();
+        if (processId != null && processId > 0) {
+            pids.add(processId);
+            ProcessHandle.of(processId).ifPresent(p -> p.descendants().forEach(d -> pids.add(d.pid())));
+        }
+        String q = titleContains == null || titleContains.isBlank() ? null : titleContains.toLowerCase(Locale.ROOT);
+        List<Win> out = new ArrayList<>();
+        User32.INSTANCE.EnumWindows((hwnd, data) -> {
+            if (!User32.INSTANCE.IsWindowVisible(hwnd) && User32.INSTANCE.GetWindow(hwnd, new WinDef.DWORD(GW_OWNER)) == null) {
+                char[] buf = new char[512];
+                User32.INSTANCE.GetWindowText(hwnd, buf, buf.length);
+                String t = Native.toString(buf);
+                IntByReference pid = new IntByReference();
+                User32.INSTANCE.GetWindowThreadProcessId(hwnd, pid);
+                if (!t.isBlank() && (q == null || t.toLowerCase(Locale.ROOT).contains(q)) && (pids.isEmpty() || pids.contains((long) pid.getValue())))
+                    out.add(new Win(hwnd, t));
+            }
+            return true;
+        }, null);
+        return out;
+    }
+
+    @Action(id = "hide", name = "Hide window", category = "Window", capabilities = "desktop",
+            description = "Hide a window completely: unlike Minimise it also leaves the taskbar. The program keeps running, and Show window brings it back.",
+            panel = "title, show_at_end | alternatives, timeout_seconds, process_id")
+    @Output(name = "title", type = OoaType.STRING, description = "Full title of the hidden window.")
+    public Map<String, Object> hide(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
+            @Input(name = "show_at_end", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Show the window again when the run ends (also when it fails), so no invisible windows are left behind. Turn off to keep it hidden after the run.") boolean showAtEnd,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
+            @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) {
+        Win w = target(ctx, title, processId, alternatives, wait);
+        User32.INSTANCE.ShowWindow(w.hwnd(), SW_HIDE);
+        if (User32.INSTANCE.IsWindowVisible(w.hwnd()))
+            throw new ActionException("WINDOW.NOT_HIDDEN", "Windows did not let '" + w.title() + "' be hidden",
+                    "The window may belong to a program running as administrator; run the agent with the same rights.", true);
+        if (showAtEnd) hiddenByRun(ctx, true).windows.put(w.hwnd(), w.title());
+        else { HiddenWindows h = hiddenByRun(ctx, false); if (h != null) h.windows.remove(w.hwnd()); }
+        return Map.of("title", w.title());
+    }
+
+    @Action(id = "show", name = "Show window", category = "Window", capabilities = "desktop",
+            description = "Show a window that was hidden (by Hide window or by its program), optionally bringing it to the front.",
+            panel = "title, activate | timeout_seconds, process_id")
+    @Output(name = "title", type = OoaType.STRING, description = "Full title of the window shown.")
+    public Map<String, Object> show(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE_TEXT + " Hidden windows are searched first, then visible ones. May be empty when process_id is given.") String title,
+            @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also bring the window to the front.") boolean activate,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
+            @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) {
+        windows();
+        UiGuard.before(ctx);
+        if ((title == null || title.isBlank()) && (processId == null || processId <= 0))
+            throw new ActionException("WINDOW.NO_TARGET", "Give the window title or a process id", "Fill in title, or process_id from Start program.");
+        String q = title == null ? "" : title.toLowerCase(Locale.ROOT);
+        long end = System.nanoTime() + (long) (Math.max(0, wait) * 1e9);
+        while (true) {
+            Win w = null;
+            HiddenWindows mine = hiddenByRun(ctx, false);
+            if (mine != null && (processId == null || processId <= 0))  // the windows this run hid come first
+                for (Map.Entry<WinDef.HWND, String> e : mine.windows.entrySet())
+                    if (User32.INSTANCE.IsWindow(e.getKey()) && e.getValue().toLowerCase(Locale.ROOT).contains(q)) { w = new Win(e.getKey(), e.getValue()); break; }
+            if (w == null) w = hidden(title, processId).stream().findFirst().orElse(null);
+            if (w == null) {   // already visible: nothing to show, but bring it to the front when asked
+                Optional<Win> v = processId != null && processId > 0 ? mainWindow(processId, title)
+                        : all().stream().filter(x -> x.title().toLowerCase(Locale.ROOT).contains(q)).findFirst();
+                if (v.isPresent()) w = v.get();
+            }
+            if (w != null) {
+                User32.INSTANCE.ShowWindow(w.hwnd(), WinUser.SW_SHOW);
+                if (mine != null) mine.windows.remove(w.hwnd());
+                if (activate) bringToFront(w.hwnd());
+                return Map.of("title", w.title());
+            }
+            if (System.nanoTime() >= end)
+                throw new ActionException("WINDOW.NOT_FOUND", "No hidden or visible window " + (title == null || title.isBlank() ? "of process " + processId : "title contains '" + title + "'"),
+                        "Check the title; Hide window reports the full title of the window it hid.", true);
+            ctx.checkCancelled();
+            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+        }
+    }
+
     @Action(id = "move_resize", name = "Move and resize window", category = "Window", capabilities = "desktop",
             description = "Set a window's position and/or size in pixels; values left empty keep the window's current ones.",
             panel = "title, x, y, width, height | alternatives, timeout_seconds, process_id")

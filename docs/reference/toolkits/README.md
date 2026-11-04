@@ -82,7 +82,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 18 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. |
 | [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 3 | Wait for events (new files, timer ticks, process starts) and run the loop's nested steps once per event. |
 | [Web goal agent](ooa-web_agent.md) | `ooa.web_agent` | 3 | 0 | 0 | Reach a goal on a web page described in plain words: an AI model reads the page and clicks, types and selects until done. |
-| [Window](ooa-window.md) | `ooa.window` | 13 | 2 | 0 | Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows. |
+| [Window](ooa-window.md) | `ooa.window` | 16 | 2 | 0 | Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows. |
 | [Windows Credential Manager](ooa-credential_manager.md) | `ooa.credential_manager` | 4 | 1 | 0 | Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account. |
 | [Windows services](ooa-services.md) | `ooa.services` | 6 | 1 | 0 | Get the status of, start, stop and restart Windows services. |
 | [Word (no Office needed)](ooa-word.md) | `ooa.word` | 15 | 0 | 0 | Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save. |
