@@ -136,6 +136,54 @@ public final class Functions {
         });
         def("jsonStringify", 1, 1, a -> JsonLite.write(Values.toJsonable(a.get(0))));
         def("if", 3, 3, a -> Expressions.truthy(a.get(0)) ? a.get(1) : a.get(2));
+        // gap G05 (3 Nov 2026): Power Automate's guid, first, last, union, intersection, base64 and URI functions
+        def("guid", 0, 0, a -> UUID.randomUUID().toString());
+        def("first", 1, 1, a -> edge(a.get(0), true));
+        def("last", 1, 1, a -> edge(a.get(0), false));
+        def("union", 2, 2, a -> {
+            List<Object> out = new ArrayList<>();
+            for (Object list : a) for (Object x : items(list)) if (out.stream().noneMatch(y -> Values.looseEquals(x, y))) out.add(x);
+            return out;
+        });
+        def("intersection", 2, 2, a -> {
+            List<Object> out = new ArrayList<>(), other = items(a.get(1));
+            for (Object x : items(a.get(0)))
+                if (other.stream().anyMatch(y -> Values.looseEquals(x, y)) && out.stream().noneMatch(y -> Values.looseEquals(x, y))) out.add(x);
+            return out;
+        });
+        def("base64Encode", 1, 1, a -> Base64.getEncoder().encodeToString(s(a, 0).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        def("base64Decode", 1, 1, a -> {
+            try { return new String(Base64.getDecoder().decode(s(a, 0).replaceAll("\\s", "")), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (IllegalArgumentException e) { throw new OoaException("EXPR.INVALID", "base64Decode(): the text is not Base64", "Pass text made by base64Encode or another Base64 encoder."); }
+        });
+        // as JavaScript's encodeURIComponent: a space is %20, and only A-Z a-z 0-9 - _ . ! ~ * ' ( ) stay as they are
+        def("uriEncode", 1, 1, a -> java.net.URLEncoder.encode(s(a, 0), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20").replace("%21", "!").replace("%27", "'").replace("%28", "(").replace("%29", ")").replace("%7E", "~"));
+        def("uriDecode", 1, 1, a -> {
+            try { return java.net.URLDecoder.decode(s(a, 0).replace("+", "%2B"), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (IllegalArgumentException e) { throw new OoaException("EXPR.INVALID", "uriDecode(): " + e.getMessage(), "Check every % is followed by two hex digits."); }
+        });
+    }
+
+    /** The items of a list, the rows of a Data Table, or nothing; one text or number is a list of one. */
+    @SuppressWarnings("unchecked")
+    private static List<Object> items(Object v) {
+        if (v == null) return List.of();
+        if (v instanceof Map<?, ?> m && m.containsKey("rows") && m.containsKey("columns") && m.get("rows") instanceof List<?> rows) return (List<Object>) rows;
+        if (v instanceof Collection<?> c) return new ArrayList<>(c);
+        return List.of(v);
+    }
+
+    /** The first or last item of a list (or row of a Data Table), or character of a text; null when there is none. */
+    private static Object edge(Object v, boolean first) {
+        if (v == null) return null;
+        if (v instanceof CharSequence cs) {
+            String t = cs.toString();
+            if (t.isEmpty()) return null;
+            return first ? t.substring(0, Character.charCount(t.codePointAt(0))) : t.substring(t.offsetByCodePoints(t.length(), -1));
+        }
+        List<Object> l = items(v);
+        return l.isEmpty() ? null : l.get(first ? 0 : l.size() - 1);
     }
 
     static Object call(String fn, List<Object> args) {

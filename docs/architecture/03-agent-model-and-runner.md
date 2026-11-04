@@ -192,9 +192,11 @@ and no method call on objects. The functions (`Functions`) are:
 
 `upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean
 round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch
-regexExtract jsonParse jsonStringify if`
+regexExtract jsonParse jsonStringify if guid first last union intersection base64Encode base64Decode uriEncode uriDecode`
 
-Date units are seconds, minutes, hours, days and weeks. Bad syntax raises `EXPR.INVALID`.
+`first`/`last` take a list, a Data Table (its rows) or a text (its characters); `union`/`intersection` keep the first
+list's order without repeats; `uriEncode` encodes as JavaScript's `encodeURIComponent` (a space is `%20`) and
+`uriDecode` leaves `+` as it is. Date units are seconds, minutes, hours, days and weeks. Bad syntax raises `EXPR.INVALID`.
 
 ## 7. Conditions
 
