@@ -169,12 +169,20 @@ Toolkits that are not in the standard groups (for example new or custom toolkits
 **Send request** (group **REST web service**) calls any web API:
 
 1. **Address (URL)** and **Method** (GET, POST, PUT, PATCH, DELETE …).
-2. **Sign in**: *No sign-in*, *User name and password*, or *Bearer token* (a Credential).
+2. **Sign in**: *No sign-in*, *User name and password*, *Bearer token* (a Credential), *OAuth 2.0*, *OAuth 1.0a* or
+   *Windows user name and password, NTLM*. OAuth 2.0 takes the token address, client id and client secret (client
+   credentials), or a refresh token instead of the secret; the token is fetched once, kept for the run, renewed shortly
+   before it expires and once more if the API answers 401. When the server issues a new refresh token, the **refresh
+   token** output returns it so you can save it in the vault. OAuth 1.0a signs each request with the consumer key and
+   secret and, when given, the token and token secret (HMAC-SHA1 or HMAC-SHA256). NTLM signs in with a Windows user,
+   domain and password for intranet sites, IIS, SharePoint on premises and Exchange. Every secret comes from the vault
+   and never appears in logs or errors.
 3. **Headers** as a Dictionary, for example `{"Accept": "application/json"}`.
 4. **Body**: *None*, *JSON* (a Dictionary or List), *Form fields*, *Multipart form*, *Text* or *A file*.
 5. Optional: **Use a specific proxy**, **Send a client certificate**, **Timeout seconds**; More options **Query**,
    **Fail on error**, **Allow untrusted certificates** (tests only), cookies and redirects.
-6. Outputs: **status** (the HTTP code), **body** (text), **json** (the parsed answer) and **headers**.
+6. Outputs: **status** (the HTTP code), **body** (text), **json** (the parsed answer), **headers** and, with an OAuth
+   2.0 refresh token, **refresh token**.
 
 Read values from the answer with `$response.items[0].id`. **Download file** and **Upload file** handle files.
 
