@@ -258,7 +258,8 @@ export function App({ api: given }: { api?: StudioApi }) {
     const childId = agent?.flow.id;
     const flow = tabsRef.current.find((t) => t.path === path && t.kind === "agent")?.kind === "agent" ? (tabsRef.current.find((t) => t.path === path) as AgentTab).flow : await api.bot(path).catch(() => null);
     const walk = (list: FlowStep[]): FlowStep | undefined => { for (const s of list) { if (s.action === "core/run_bot" && s.args?.automation === childId) return s;
-      const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? [])]); if (inner) return inner; } return undefined; };
+      const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? []),
+        ...(s.cases ?? []).flatMap((c) => c.children ?? []), ...(s.default ?? [])]); if (inner) return inner; } return undefined; };
     const step = flow ? walk(flow.steps) : undefined;
     open({ name: path.split("/").pop()!, path, type: "bot" }, step ? { select: step.id } : undefined);
   };

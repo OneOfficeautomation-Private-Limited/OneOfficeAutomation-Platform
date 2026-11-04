@@ -267,8 +267,8 @@ class CommandSamplesTest {
         int n = 0;
         for (Map<String, Object> s : steps == null ? List.<Map<String, Object>>of() : steps) {
             n++;
-            for (String k : List.of("children", "else", "finally")) n += countSteps((List<Map<String, Object>>) s.get(k));
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) n += countSteps((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"));
+            for (String k : List.of("children", "else", "finally", "default")) n += countSteps((List<Map<String, Object>>) s.get(k));
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) n += countSteps((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"));
         }
         return n;
     }
@@ -362,8 +362,8 @@ class CommandSamplesTest {
             if ("core/set_many".equals(s.get("action")) && a.get("assignments") instanceof List<?> rows)
                 for (Object r : rows) if (r instanceof Map<?, ?> rm && rm.get("variable") instanceof String v) names.add(v);
             for (String k : List.of("as", "index")) if ("core/loop".equals(s.get("action")) && a.get(k) instanceof String v) names.add(v);
-            for (String k : List.of("children", "else", "finally")) collect((List<Map<String, Object>>) s.get(k), names, id);
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) {
+            for (String k : List.of("children", "else", "finally", "default")) collect((List<Map<String, Object>>) s.get(k), names, id);
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) {
                 Map<String, Object> bm = (Map<String, Object>) b;
                 if (bm.get("as") instanceof String v) names.add(v);
                 if (bm.get("message_to") instanceof String v) names.add(v);
@@ -380,8 +380,8 @@ class CommandSamplesTest {
             Map<String, Object> a = (Map<String, Object>) s.getOrDefault("args", Map.of());
             if (a.get("iterator") instanceof String it && it.contains("/")) uses.add(it + " (iterator)");
             if (a.get("condition") instanceof Map<?, ?> c && c.get("condition") instanceof String cid) uses.add(cid + " (condition)");
-            for (String k : List.of("children", "else", "finally")) usedActions((List<Map<String, Object>>) s.get(k), uses);
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l)
+            for (String k : List.of("children", "else", "finally", "default")) usedActions((List<Map<String, Object>>) s.get(k), uses);
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l)
                 for (Object b : l) usedActions((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"), uses);
         }
     }

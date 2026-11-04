@@ -154,7 +154,7 @@ Rules enforced by the engine (`Runner.Scope`):
 | `action` | `<toolkit id>/<action id>`, for example `ooa.excel/open`, or `core/<action>` |
 | `args` | Inputs (see section 6 for value forms) |
 | `out` | Map from the action's output name to a variable name |
-| `children`, `else`, `elseIf`, `catch`, `finally` | Nested step lists for blocks |
+| `children`, `else`, `elseIf`, `catch`, `finally`, `cases`, `default` | Nested step lists for blocks |
 | `retry` | Step retry policy (overrides `errorHandling.retry`) |
 | `timeoutSeconds` | Overrides the action's own timeout (`@Action(timeoutSeconds)`, default 60) |
 | `connection` | Name of a saved connection that fills empty inputs (section 8) |
@@ -173,6 +173,7 @@ All control flow is expressed with `core/*` actions:
 | Action | Behaviour |
 | --- | --- |
 | `core/if` | `args.condition`; `children` when true, then each `elseIf` entry `{condition, children}`, then `else` |
+| `core/switch` | `args.value` is compared with each `cases` entry `{values, children}` in order; the first case with a matching value runs (no fall-through), otherwise `default`. `args.match`: `equals` (the `==` rules, so `5` matches `"5"`), `contains`, `starts_with`, `ends_with`, `regex`, or `expression` (each case value is a condition and `value` is unused); `ignore_case` for text. The log says which case ran. Break and Continue inside a case reach the enclosing loop. The validator wants at least one case, each with values, a `value` unless `match` is `expression`, and literal regex patterns that compile (`SWITCH.BAD_REGEX` at run time otherwise) |
 | `core/loop` | `args.iterator`: `times` (`count`, start and step), `while` (`condition`), `list`, `dictionary`, `dictionary_keys`, `dictionary_values`, `table_rows` (`over`), or a toolkit iterator `pkg/iterator` with `iterator_args`. Options: `from_index`, `to_index`, `step`, `reverse`, `label`, `max_iterations` (default 100,000) |
 | `core/break`, `core/continue` | Leave or skip the current (or labelled) loop; outside a loop the run fails with `FLOW.BAD_BREAK` |
 | `core/try` | `children`, then `catch` entries `{codes, as, message_to, line_to, screenshot, continueOnError, rethrow, children}`, then `finally` (always runs) |
@@ -354,7 +355,8 @@ by blocking in `beforeStep`. The runner itself has no Studio code; only this int
 
 - `startAt(stepId)` – **Run from here**. Steps before the start step (in document order) are skipped and emit no
   events. Blocks that contain the start step are entered without being evaluated: an If does not check its condition,
-  a Loop runs one pass without setting its item or index, a Parallel runs only the branch with the start step, and a
+  a Switch goes into the case (or default) holding the start step without comparing values, a Loop runs one pass
+  without setting its item or index, a Parallel runs only the branch with the start step, and a
   Try keeps its Catch and Finally when the start step is in the Try part. After those blocks the run continues
   normally. An unknown step gives `RUN.START_NOT_FOUND`.
 - `onlyStep(stepId)` – **Run this step only**. As above, then the run ends successfully after that step (for a block,

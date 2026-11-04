@@ -6,7 +6,7 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 
 ## Contents
 
-- **Logic**: Exit loop, Comment, Continue loop, If, Loop, Parallel, Step
+- **Logic**: Exit loop, Comment, Continue loop, If, Loop, Parallel, Step, Switch
 - **Runtime**: Delay, Log message, Wait for condition
 - **Agent**: Pause agent, Run Agent, Stop agent
 - **Variables**: Assign variable, Assign several variables
@@ -124,6 +124,24 @@ Named group of steps for readability; no runtime effect.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Title | `title` | Text | No |  | Main | Group title shown in One AgentStudio. |
+
+*Time limit 60 s.*
+
+### Switch
+
+`core/switch` (action)
+
+Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.
+
+The cases are kept on the step as `"cases": [{"values": [...], "children": [...]}]` and the steps for no match as `"default": [...]`.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | Any | No |  | Main | Value to compare with each case's values: text, a number, a $reference or an expression. Shown when: `{"match": ["!", "expression"]}` |
+| Match | `match` | Text | No | `equals` | Main | How a case value matches: equals (like ==, so 5 and "5" match), contains, starts_with, ends_with, regex (the case value is a pattern), or expression (each case value is a condition and the value is not used). One of: `equals`, `contains`, `starts_with`, `ends_with`, `regex`, `expression` |
+| Ignore case | `ignore_case` | Yes/No | No | No | Main | Compare text without upper/lower case. Shown when: `{"match": ["!", "expression"]}` |
 
 *Time limit 60 s.*
 

@@ -4,6 +4,7 @@ import {
   addStep, duplicateStep, fieldOrder, locate, moveStep, newStep, nextId, parseLoose, putVariable, removeStep, removeVariable,
   setArg, setOut, toggleDisabled, insertAt, moveTo, removeSteps, toggleDisabledMany, duplicateSteps,
   addBranch, copySteps, moveManyTo, moveSelection, pasteSteps, readClip, removeBranch, sectionKey, setFolded, spotFor, START, topSteps,
+  moveCase, setCaseValues,
 } from "./flowEdit";
 import { stepRows } from "./toolkits";
 import { replaceInSteps } from "./flowEdit";
@@ -193,5 +194,62 @@ describe("find and replace (Ctrl+H)", () => {
     expect(only.flow.steps[0].args!.message).toBe("Invoice from Acme");
     expect(replaceInSteps(f, "a.c", "x", false).count).toBe(0);   // the words, not a pattern
     expect(replaceInSteps(f, "nothing", "x", false).flow).toBe(f);
+  });
+});
+
+describe("Switch", () => {
+  const sw = (): Flow => ({ kind: "TaskBot", id: "w", name: "W", steps: [
+    { id: "s1", action: "core/switch", args: { value: "$status" }, cases: [
+      { values: ["new", 1], children: [{ id: "s2", action: "core/log", args: { message: "new" } }] },
+      { values: ["done"], children: [] }],
+      default: [{ id: "s3", action: "core/log", args: { message: "other" } }] },
+    { id: "s4", action: "core/log", args: { message: "end" } }] });
+
+  it("starts with one case and a default, and holds no children", () => {
+    const s = newStep("core/switch", sw(), packages);
+    expect(s.cases).toEqual([{ values: [], children: [] }]);
+    expect(s.default).toEqual([]);
+    expect(s.children).toBeUndefined();
+  });
+
+  it("finds, numbers and shows the steps in cases and default", () => {
+    const f = sw();
+    expect(locate(f.steps, "s3")?.step.args).toEqual({ message: "other" });
+    expect(stepRows(f.steps).map((r) => r.kind === "step" ? String(r.n) : r.label))
+      .toEqual(["1", "Case “new”, 1", "2", "Case “done”", "Default (no case matched)", "3", "4"]);
+    expect(nextId(f)).toBe("s5");
+  });
+
+  it("puts a step clicked on a selected Switch in its first case, and a drop inside it there too", () => {
+    const f = sw();
+    expect(spotFor(f, ["s1"])).toEqual({ id: "s1", where: "inside", part: "cases:0" });
+    expect(addStep(f, ["s1"], { id: "s9", action: "core/log" }).steps[0].cases![0].children!.map((s) => s.id)).toEqual(["s2", "s9"]);
+    expect(moveTo(f, "s4", "s1", "inside").steps[0].cases![0].children!.map((s) => s.id)).toEqual(["s2", "s4"]);
+    expect(addStep(f, [sectionKey("s1", "default")], { id: "s9", action: "core/log" }).steps[0].default!.map((s) => s.id)).toEqual(["s3", "s9"]);
+  });
+
+  it("adds, removes and reorders cases; keeps at least one; sets values", () => {
+    const f = sw();
+    const added = addBranch(f, "s1", "cases");
+    expect(added.part).toBe("cases:2");
+    expect(added.flow.steps[0].cases![2]).toEqual({ values: [], children: [] });
+    const one = removeBranch(removeBranch(f, "s1", "cases:0"), "s1", "default");
+    expect(one.steps[0].cases!.map((c) => c.values)).toEqual([["done"]]);
+    expect(one.steps[0].default).toBeUndefined();
+    expect(removeBranch(one, "s1", "cases:0")).toBe(one);   // the last case stays
+    expect(addBranch(one, "s1", "default").part).toBe("default");
+    const moved = moveCase(f, "s1", 0, 1);
+    expect(moved.part).toBe("cases:1");
+    expect(moved.flow.steps[0].cases!.map((c) => c.values)).toEqual([["done"], ["new", 1]]);
+    expect(moveCase(f, "s1", 0, -1).flow).toBe(f);
+    expect(setCaseValues(f, "s1", 1, ["done", "", "closed"]).steps[0].cases![1].values).toEqual(["done", "closed"]);
+  });
+
+  it("copies with new ids and replaces text in case values and their steps, not in the structure", () => {
+    const f = sw();
+    expect(duplicateStep(f, "s1").flow.steps[1].cases![0].children![0].id).toBe("s6");
+    const r = replaceInSteps(f, "new", "fresh", true);
+    expect(r.count).toBe(2);
+    expect(r.flow.steps[0].cases![0]).toMatchObject({ values: ["fresh", 1], children: [{ args: { message: "fresh" } }] });
   });
 });

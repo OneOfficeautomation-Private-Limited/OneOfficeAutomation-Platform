@@ -389,7 +389,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
           <div className="cc-pane-tools cc-agent-tools">
             <span className="cc-list-search"><TextInput type="search" aria-label="Find in the steps" placeholder="Find in the steps" value={find} onChange={(e) => setFind(e.target.value)} /></span>
             <Button kind="plain" onClick={() => setFolded(new Set())}>Open all</Button>
-            <Button kind="plain" onClick={() => setFolded(new Set(rows.filter((r) => r.kind === "step" && (r.step.children || r.step.else || r.step.elseIf || r.step.catch)).map((r) => r.kind === "step" ? r.step.id : "")))}>Close all</Button>
+            <Button kind="plain" onClick={() => setFolded(new Set(rows.filter((r) => r.kind === "step" && (r.step.children || r.step.else || r.step.elseIf || r.step.catch || r.step.cases || r.step.default)).map((r) => r.kind === "step" ? r.step.id : "")))}>Close all</Button>
             <span className="ov-fill" />
             <span className="cc-chip"><Select aria-label="Version shown" value={shownVersion} onChange={(e) => { setShownVersion(e.target.value); setPicked(null); }}
               options={[{ value: "latest", label: "Latest (v" + a.latest_version + ")" }, ...(a.production_version ? [{ value: "production", label: "Live (v" + a.production_version + ")" }] : []),
@@ -401,7 +401,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
               <li aria-hidden="true"><span className="st-marker-row"><span className="st-marker st-start">START</span></span></li>
               {rows.map((r, i) => {
               if (r.kind === "section") return <li key={"s" + i}><div className="st-section cc-agent-section" style={{ paddingLeft: 46 + r.depth * 22 }}>{r.label}</div></li>;
-              const st = r.step, d = describeAction(st.action ?? "", []), hasParts = !!(st.children || st.else || st.elseIf || st.catch || st.finally);
+              const st = r.step, d = describeAction(st.action ?? "", []), hasParts = !!(st.children || st.else || st.elseIf || st.catch || st.finally || st.cases || st.default);
               return <li key={st.id} className="st-step-row">
                 <button type="button" className={"st-step" + (picked === st.id ? " is-selected" : "") + (st.disabled ? " is-disabled" : "") + (hit(st) ? " is-hit" : "")}
                   aria-pressed={picked === st.id} onClick={() => setPicked(st.id)}>

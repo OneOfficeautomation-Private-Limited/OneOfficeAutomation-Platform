@@ -235,8 +235,8 @@ public final class CodeAnalysis {
             if (!(o instanceof Map<?, ?> m)) continue;
             Map<String, Object> s = (Map<String, Object>) m;
             List<List<Object>> inner = new ArrayList<>();
-            for (String k : List.of("children", "else", "finally")) if (s.get(k) instanceof List<?> l) inner.add((List<Object>) l);
-            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) inner.add((List<Object>) c);
+            for (String k : List.of("children", "else", "finally", "default")) if (s.get(k) instanceof List<?> l) inner.add((List<Object>) l);
+            for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) inner.add((List<Object>) c);
             for (List<Object> l : inner) if (!l.isEmpty()) max = Math.max(max, depth(l, d + 1));
         }
         return max;

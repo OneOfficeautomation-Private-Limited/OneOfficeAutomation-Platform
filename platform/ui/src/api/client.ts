@@ -49,6 +49,8 @@ export type FlowStep = {
   /** A saved connection that supplies the connector's address and sign-in. */
   connection?: string;
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
+  /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
+  cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
 };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };

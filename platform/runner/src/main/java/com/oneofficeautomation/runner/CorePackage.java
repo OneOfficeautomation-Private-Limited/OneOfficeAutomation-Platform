@@ -2,6 +2,7 @@ package com.oneofficeautomation.runner;
 
 import com.oneofficeautomation.sdk.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,11 +16,31 @@ public final class CorePackage {
     public static final Set<String> CONTAINERS = Set.of("if", "loop", "try", "step", "parallel");
     public static final Set<String> BUILTIN_ITERATORS = Set.of("times", "while", "list", "dictionary", "dictionary_keys", "dictionary_values", "table_rows");
 
+    /** How core/switch compares its value with a case's values; "expression" makes each case value a condition. */
+    public static final List<String> SWITCH_MATCHES = List.of("equals", "contains", "starts_with", "ends_with", "regex", "expression");
+
+    /** The condition operator a switch match kind compares with (the same rules as If's equals, contains ...). */
+    static String switchOperator(String match) {
+        return switch (match) { case "contains" -> "contains"; case "starts_with" -> "startsWith"; case "ends_with" -> "endsWith"; case "regex" -> "matches"; default -> "eq"; };
+    }
+
     private static Map<String, Object> interp() { throw new IllegalStateException("core actions are executed by the interpreter"); }
 
     @Action(id = "if", name = "If", category = "Logic", description = "Run the children when the condition is true; otherwise evaluate elseIf branches, then else.")
     public Map<String, Object> ifAction(ActionContext c,
             @Input(name = "condition", description = "Condition object, expression string or $reference.") Object condition) { return interp(); }
+
+    @Action(id = "switch", name = "Switch", category = "Logic",
+            description = "Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.")
+    public Map<String, Object> switchAction(ActionContext c,
+            @Input(name = "value", required = false, visibleWhen = "match!=expression",
+                    description = "Value to compare with each case's values: text, a number, a $reference or an expression.") Object value,
+            @Input(name = "match", type = OoaType.STRING, required = false, defaultValue = "\"equals\"",
+                    enumValues = {"equals", "contains", "starts_with", "ends_with", "regex", "expression"},
+                    description = "How a case value matches: equals (like ==, so 5 and \"5\" match), contains, starts_with, ends_with, regex (the case value is a pattern), "
+                            + "or expression (each case value is a condition and the value is not used).") String match,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "match!=expression",
+                    description = "Compare text without upper/lower case.") Object ignoreCase) { return interp(); }
 
     @Action(id = "loop", name = "Loop", category = "Logic",
             description = "Repeat the children using an iterator: times, while, list, dictionary, dictionary_keys, dictionary_values, table_rows or a toolkit iterator (package/iterator).")

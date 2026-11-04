@@ -137,7 +137,19 @@
           }
         },
         "finally": {"$ref": "#/$defs/stepList"},
-        "retry": {"$ref": "#/$defs/retry"},
+        "cases": {
+          "type": "array",
+          "description": "Cases of core/switch, tried in order; the first one with a matching value runs (no fall-through).",
+          "items": {
+            "type": "object", "required": ["values", "children"], "additionalProperties": false,
+            "properties": {
+              "values": {"type": "array", "minItems": 1, "description": "Values that select this case; with match = expression, each one is a condition."},
+              "children": {"$ref": "#/$defs/stepList"}
+            }
+          }
+        },
+        "default": {"$ref": "#/$defs/stepList", "description": "Steps of core/switch that run when no case matches."},
+        "retry":{"$ref": "#/$defs/retry"},
         "timeoutSeconds": {"type": "number", "exclusiveMinimum": 0, "description": "Overrides the action's manifest timeout."},
         "connection": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$", "description": "Name of a saved connection (One CommandCenter or connections.json) that supplies this step's address and sign-in inputs."},
         "continueOnError": {"type": "boolean", "default": false}

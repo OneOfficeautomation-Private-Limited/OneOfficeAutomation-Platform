@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Walks the step tree: children, else, elseIf branches, catch blocks and finally. */
+/** Walks the step tree: children, else, elseIf branches, catch blocks, finally, switch cases and default. */
 public final class Steps {
     private Steps() {}
 
@@ -16,7 +16,7 @@ public final class Steps {
             Map<String, Object> s = (Map<String, Object>) o;
             out.add(s);
             // in the order One AgentStudio shows them, so a step's place in this list is its line number:
-            // children, else-if branches, else, catch blocks, finally
+            // children, else-if branches, else, catch blocks, finally, switch cases, default
             if (s.get("children") instanceof List<?> l) out.addAll(walk((List<Object>) l));
             if (s.get("elseIf") instanceof List<?> l)
                 for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
@@ -24,6 +24,9 @@ public final class Steps {
             if (s.get("catch") instanceof List<?> l)
                 for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
             if (s.get("finally") instanceof List<?> l) out.addAll(walk((List<Object>) l));
+            if (s.get("cases") instanceof List<?> l)
+                for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
+            if (s.get("default") instanceof List<?> l) out.addAll(walk((List<Object>) l));
         }
         return out;
     }

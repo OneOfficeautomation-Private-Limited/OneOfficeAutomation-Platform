@@ -250,7 +250,8 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
     const walk = (list: FlowStep[]) => { for (const s of list) {
       const o = s.args?.object as Captured | undefined;
       if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) s.args = { ...s.args, object: { ...o, window: "$" + name } };
-      for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children)]) if (l) walk(l);
+      for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children),
+        ...(s.cases ?? []).map((c) => c.children), s.default]) if (l) walk(l);
     } };
     walk(f.steps);
     vars.edit(f);

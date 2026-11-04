@@ -178,10 +178,14 @@ def _num(v):
 
 
 def _cmp_pair(a, b):
-    if isinstance(a, (Decimal, int)) and not isinstance(a, bool) and isinstance(b, str):
-        b = to_number(b)
-    if isinstance(b, (Decimal, int)) and not isinstance(b, bool) and isinstance(a, str):
-        a = to_number(a)
+    # text that is not a number stays text, as in the Java runner: 1 == "one" is false, not an error
+    try:
+        if isinstance(a, (Decimal, int)) and not isinstance(a, bool) and isinstance(b, str):
+            return a, to_number(b)
+        if isinstance(b, (Decimal, int)) and not isinstance(b, bool) and isinstance(a, str):
+            return to_number(a), b
+    except VariableError:
+        pass
     try:
         if isinstance(a, _dt.time) and isinstance(b, str):
             b = to_time(b)

@@ -58,7 +58,7 @@ An agent is one JSON document (format "OOA Flow v1"). The parts that carry behav
 | `id`, `name`, `description` | Identity. The id is what other agents call; the description is read by AI agents that decide when to call it. Both id and name are required. |
 | `kind` | `TaskBot`, `ApiTask`, `Process`, `Form` or `Agent`. |
 | `variables` | Declared variables (section 3). |
-| `steps` | The ordered list of steps; block steps hold further lists (`children`, `else`, `elseIf`, `catch`, `finally`). |
+| `steps` | The ordered list of steps; block steps hold further lists (`children`, `else`, `elseIf`, `catch`, `finally`, `cases`, `default`). |
 | `requires` | Toolkit version ranges, capabilities (for example `desktop`) and repository files (section 8). |
 | `errorHandling` | Agent-wide default retry policy for action steps that have none of their own ([document 02](02-toolkits-and-actions.md)). |
 | `ui` | Designer-only data such as breakpoints; it has no effect on runs. |
@@ -146,6 +146,7 @@ The core toolkit is always present and cannot be switched off.
 | Action | Name | Behaviour |
 | --- | --- | --- |
 | `core/if` | If | Runs its children when the condition holds; otherwise the first matching Else if branch, then Else |
+| `core/switch` | Switch | Compares one value with each case's values in turn and runs only the first case that matches, or Default when none does; matching by equals, contains, starts with, ends with, regular expression, or a condition per case |
 | `core/loop` | Loop | Iterators `times`, `while`, `list`, `dictionary`, `dictionary_keys`, `dictionary_values`, `table_rows`, or a toolkit iterator; options for item and index variables, columns to variables, from/to index, step, reverse, check at end (while), a label, and `max_iterations` (default 100,000) |
 | `core/try` | Try | Runs its children; on an error runs the first Catch whose codes match, then always Finally |
 | `core/step` | Step | A named group of steps; no effect on the run |

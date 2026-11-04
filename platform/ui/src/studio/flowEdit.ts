@@ -7,7 +7,7 @@ import type { ActionManifest, Flow, FlowStep, FlowVariable, PackageManifest } fr
 
 type Lists = { list: FlowStep[]; index: number; step: FlowStep };
 
-/** The lists of steps inside a step: Then/Repeat/Try (children), Else if, Else, Catch, Finally. */
+/** The lists of steps inside a step: Then/Repeat/Try (children), Else if, Else, Catch, Finally, a Switch's cases, Default. */
 export function innerLists(s: FlowStep): FlowStep[][] {
   const out: FlowStep[][] = [];
   if (s.children) out.push(s.children);
@@ -15,6 +15,8 @@ export function innerLists(s: FlowStep): FlowStep[][] {
   if (s.else) out.push(s.else);
   for (const c of s.catch ?? []) if (c.children) out.push(c.children);
   if (s.finally) out.push(s.finally);
+  for (const c of s.cases ?? []) if (c.children) out.push(c.children);
+  if (s.default) out.push(s.default);
   return out;
 }
 
@@ -44,7 +46,7 @@ export function findAction(action: string, packages: PackageManifest[]): ActionM
   return packages.find((x) => x.id === p)?.actions.find((a) => a.id === id);
 }
 
-const BLOCKS = new Set(["core/if", "core/loop", "core/try", "core/step", "core/parallel"]);
+const BLOCKS = new Set(["core/if", "core/loop", "core/try", "core/step", "core/parallel", "core/switch"]);
 export const isBlock = (action: string) => BLOCKS.has(action);
 
 /** A new step for an action, with the starting values Classic Studio gives it. */
@@ -61,6 +63,7 @@ export function newStep(action: string, flow: Flow, packages: PackageManifest[])
   if (Object.keys(args).length) step.args = args;
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally only when wanted
+  else if (action === "core/switch") { step.cases = [{ values: [], children: [] }]; step.default = []; }   // a Switch holds cases, not children
   else if (isBlock(action)) step.children = [];
   return step;
 }
@@ -85,18 +88,22 @@ export function holds(step: FlowStep, id: string): boolean {
 
 export type Place = "before" | "after" | "inside";
 
-/** A block's part: its first steps (Then, Repeat, Try), an Else if or Catch by number, Else or Finally. */
-export type Part = "children" | "else" | "finally" | `elseIf:${number}` | `catch:${number}`;
+/** A block's part: its first steps (Then, Repeat, Try), an Else if, Catch or Switch case by number, Else, Finally or Default. */
+export type Part = "children" | "else" | "finally" | "default" | `elseIf:${number}` | `catch:${number}` | `cases:${number}`;
 
 /** The list of steps of a block's part, or undefined when the block has no such part. */
 export function partList(step: FlowStep, part: Part = "children"): FlowStep[] | undefined {
-  if (part === "children") return isBlock(step.action) ? (step.children ??= []) : undefined;
+  if (part === "children") return isBlock(step.action) && step.action !== "core/switch" ? (step.children ??= []) : undefined;
   if (part === "else") return step.else;
   if (part === "finally") return step.finally;
+  if (part === "default") return step.default;
   const [kind, k] = part.split(":");
-  const b = kind === "elseIf" ? step.elseIf?.[+k] : step.catch?.[+k];
+  const b = kind === "elseIf" ? step.elseIf?.[+k] : kind === "cases" ? step.cases?.[+k] : step.catch?.[+k];
   return b ? (b.children ??= []) : undefined;
 }
+
+/** Where a new step goes inside a block: its first steps, or for a Switch its first case. */
+const firstPart = (step: FlowStep): Part => step.action === "core/switch" ? "cases:0" : "children";
 
 /**
  * Where steps go: before or after a step, at the end of a block's part, or with no step at the start ("before") or
@@ -110,7 +117,7 @@ function put(f: Flow, steps: FlowStep[], spot: Spot): boolean {
   const at = locate(f.steps, spot.id);
   if (!at) return false;
   if (spot.where === "inside") {
-    const list = partList(at.step, spot.part);
+    const list = partList(at.step, spot.part ?? firstPart(at.step));
     if (!list) return false;
     list.push(...steps);
   } else at.list.splice(at.index + (spot.where === "after" ? 1 : 0), 0, ...steps);
@@ -171,7 +178,7 @@ export function spotFor(flow: Flow, selected: string[], intoBlock = true): Spot 
   const real = topSteps(flow, selected.filter((x) => !x.startsWith("@")));
   const at = real.length ? real[real.length - 1] : null;
   if (!at) return { id: null, where: "after" };
-  return intoBlock && real.length === 1 && isBlock(at.action) ? { id: at.id, where: "inside", part: "children" } : { id: at.id, where: "after" };
+  return intoBlock && real.length === 1 && isBlock(at.action) && (at.action !== "core/switch" || !!at.cases?.length) ?{ id: at.id, where: "inside", part: firstPart(at) } : { id: at.id, where: "after" };
 }
 
 /** Removes several steps; a step inside another removed step goes with it. */
@@ -379,31 +386,55 @@ export function pasteSteps(flow: Flow, clip: Clip, spot: Spot): { flow: Flow; id
   return { flow: f, ids: steps.map((s) => s.id) };
 }
 
-/** Adds a part to an If (Else if, Else) or a Try (Catch, Finally); returns the part, so the editor can select it. */
-export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally"): { flow: Flow; part: Part | null } {
+/** Adds a part to an If (Else if, Else), a Try (Catch, Finally) or a Switch (Case, Default); returns the part, so the editor can select it. */
+export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default"): { flow: Flow; part: Part | null } {
   const f = copy(flow);
   const s = locate(f.steps, id)?.step;
   if (!s) return { flow, part: null };
   if (kind === "elseIf") { (s.elseIf ??= []).push({ condition: undefined, children: [] }); return { flow: f, part: `elseIf:${s.elseIf.length - 1}` }; }
   if (kind === "catch") { (s.catch ??= []).push({ codes: [], children: [] }); return { flow: f, part: `catch:${s.catch.length - 1}` }; }
+  if (kind === "cases") { (s.cases ??= []).push({ values: [], children: [] }); return { flow: f, part: `cases:${s.cases.length - 1}` }; }
   if (s[kind]) return { flow, part: null };
   s[kind] = [];
   return { flow: f, part: kind };
 }
 
-/** Removes an Else if, Else, Catch or Finally with the steps in it (a Try keeps at least one Catch or a Finally). */
+/**
+ * Removes an Else if, Else, Catch, Finally, Case or Default with the steps in it (a Try keeps at least one Catch or a
+ * Finally, a Switch at least one Case).
+ */
 export function removeBranch(flow: Flow, id: string, part: Part): Flow {
   const f = copy(flow);
   const s = locate(f.steps, id)?.step;
   if (!s || part === "children") return flow;
-  if (part === "else" || part === "finally") delete s[part];
+  if (part === "else" || part === "finally" || part === "default") delete s[part];
   else {
-    const [kind, k] = part.split(":") as ["elseIf" | "catch", string];
+    const [kind, k] = part.split(":") as ["elseIf" | "catch" | "cases", string];
     const list = s[kind];
     list?.splice(+k, 1);
     if (list && !list.length) delete s[kind];
   }
   if (s.action === "core/try" && !s.catch?.length && !s.finally) return flow;
+  if (s.action === "core/switch" && !s.cases?.length) return flow;
+  return f;
+}
+
+/** Moves a Switch case one place up (-1) or down (+1), with its steps; returns the case's new part, or null at either end. */
+export function moveCase(flow: Flow, id: string, k: number, by: -1 | 1): { flow: Flow; part: Part | null } {
+  const f = copy(flow);
+  const cases = locate(f.steps, id)?.step.cases;
+  const to = k + by;
+  if (!cases || k < 0 || k >= cases.length || to < 0 || to >= cases.length) return { flow, part: null };
+  [cases[k], cases[to]] = [cases[to], cases[k]];
+  return { flow: f, part: `cases:${to}` };
+}
+
+/** Sets the values that select a Switch case (empty entries are left out). */
+export function setCaseValues(flow: Flow, id: string, k: number, values: unknown[]): Flow {
+  const f = copy(flow);
+  const c = locate(f.steps, id)?.step.cases?.[k];
+  if (!c) return flow;
+  c.values = values.filter((v) => v !== undefined && v !== "");
   return f;
 }
 
@@ -442,7 +473,7 @@ export function setFolded(flow: Flow, ids: string[], folded: boolean): Flow {
 export function blockIds(flow: Flow): string[] { return [...every(flow.steps)].filter((s) => isBlock(s.action)).map((s) => s.id); }
 
 /** The keys of a step that are not its settings: never changed by find and replace. */
-const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "disabled", "connection"]);
+const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "cases", "default", "disabled", "connection"]);
 
 /**
  * Find and replace (AA's Ctrl+H) in the steps' settings and names: every text in their settings (args, outputs, notes,
@@ -460,8 +491,8 @@ export function replaceInSteps(flow: Flow, find: string, replace: string, matchC
     const on = inScope || ids.includes(st.id);
     const out: FlowStep = { ...st };
     for (const [k, v] of Object.entries(st)) {
-      if (k === "children" || k === "else" || k === "finally") (out as Record<string, unknown>)[k] = (v as FlowStep[]).map((c) => step(c, on));
-      else if (k === "elseIf" || k === "catch") (out as Record<string, unknown>)[k] = (v as { children?: FlowStep[] }[]).map((b) => {
+      if (k === "children" || k === "else" || k === "finally" || k === "default") (out as Record<string, unknown>)[k] = (v as FlowStep[]).map((c) => step(c, on));
+      else if (k === "elseIf" || k === "catch" || k === "cases") (out as Record<string, unknown>)[k] = (v as { children?: FlowStep[] }[]).map((b) => {
         const nb: Record<string, unknown> = { ...b };
         for (const [bk, bv] of Object.entries(b)) nb[bk] = bk === "children" ? (bv as FlowStep[]).map((c) => step(c, on)) : on && bk !== "codes" ? deep(bv) : bv;
         return nb;

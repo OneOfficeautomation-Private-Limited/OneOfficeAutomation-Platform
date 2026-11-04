@@ -571,8 +571,8 @@ public final class Runner {
                 String sid = String.valueOf(s.get("id"));
                 if (sid.equals(id)) return new ArrayList<>(List.of(sid));
                 List<List<Object>> sections = new ArrayList<>();
-                for (String k : List.of("children", "else", "finally")) sections.add(list(s, k));
-                for (String k : List.of("elseIf", "catch"))
+                for (String k : List.of("children", "else", "finally", "default")) sections.add(list(s, k));
+                for (String k : List.of("elseIf", "catch", "cases"))
                     for (Object b : list(s, k)) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) sections.add((List<Object>) c);
                 for (List<Object> sec : sections) {
                     List<String> p = pathTo(sec, id);
@@ -586,7 +586,8 @@ public final class Runner {
 
         /**
          * Run from here: goes into a block that holds the start step without evaluating it (no If condition, one Loop pass
-         * without item variables, only the Parallel branch that holds the step). A Try keeps its Catch and Finally.
+         * without item variables, only the Parallel branch that holds the step, a Switch case without comparing its
+         * values). A Try keeps its Catch and Finally.
          */
         @SuppressWarnings("unchecked")
         void enterTowards(Map<String, Object> step) {
@@ -608,8 +609,8 @@ public final class Runner {
                 }
                 return;
             }
-            for (String k : List.of("else", "finally")) if (holdsStart(list(step, k))) { execSteps(list(step, k), false); return; }
-            for (String k : List.of("elseIf", "catch"))
+            for (String k : List.of("else", "finally", "default")) if (holdsStart(list(step, k))) { execSteps(list(step, k), false); return; }
+            for (String k : List.of("elseIf", "catch", "cases"))
                 for (Object b : list(step, k))
                     if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c && holdsStart((List<Object>) c)) { execSteps((List<Object>) c, false); return; }
         }
@@ -697,6 +698,7 @@ public final class Runner {
                     }
                     execSteps(list(step, "else"), false);
                 }
+                case "switch" -> switchStep(step, a, sid);
                 case "loop" -> loop(step, a);
                 case "try" -> tryBlock(step);
                 case "step" -> execSteps(list(step, "children"), false);
@@ -764,6 +766,43 @@ public final class Runner {
         }
 
         Object resolve(Object v) { return Expressions.resolve(v, this::lookup); }
+
+        /**
+         * core/switch: the value is compared with each case's values in order and the first case with a match runs; when
+         * none matches, the default steps run. No fall-through. Exit loop and Continue loop inside a case reach the loop.
+         */
+        @SuppressWarnings("unchecked")
+        void switchStep(Map<String, Object> step, Map<String, Object> a, String sid) {
+            String match = Objects.requireNonNullElse(optText(a.get("match")), "equals");
+            if (!CorePackage.SWITCH_MATCHES.contains(match))
+                throw new OoaException("SWITCH.BAD_MATCH", "Unknown match '" + match + "'", "Use one of " + String.join(", ", CorePackage.SWITCH_MATCHES) + ".");
+            boolean byCondition = match.equals("expression");
+            Object value = byCondition ? null : resolve(a.get("value"));
+            Map<String, Object> opts = !byCondition && flag(a, "ignore_case", false) ? Map.of("ignoreCase", true) : Map.of();
+            String shown = byCondition ? "" : " (value " + Values.safeRepr(value) + ")";
+            List<Object> cases = list(step, "cases");
+            for (int i = 0; i < cases.size(); i++) {
+                Map<String, Object> c = cases.get(i) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+                for (Object raw : list(c, "values")) {
+                    boolean hit;
+                    if (byCondition) hit = condition(raw, sid);
+                    else {
+                        try { hit = Conditions.compare(CorePackage.switchOperator(match), value, resolve(raw), opts); }
+                        catch (java.util.regex.PatternSyntaxException e) {
+                            throw new OoaException("SWITCH.BAD_REGEX", "Case " + (i + 1) + " has an invalid pattern: " + e.getDescription(), "Fix the regular expression.");
+                        }
+                    }
+                    if (hit) {
+                        log("info", "Switch: case " + (i + 1) + " matched" + shown, sid);
+                        execSteps(list(c, "children"), false);
+                        return;
+                    }
+                }
+            }
+            boolean hasDefault = step.get("default") instanceof List<?>;
+            log("info", "Switch: no case matched" + shown + (hasDefault ? "; running the default steps" : "; nothing to run"), sid);
+            execSteps(list(step, "default"), false);
+        }
 
         String optText(Object raw) {
             Object v = resolve(raw);

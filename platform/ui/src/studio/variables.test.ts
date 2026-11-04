@@ -38,6 +38,13 @@ describe("variables", () => {
     expect(r.steps[0].args!.assignments).toEqual([{ variable: "sum", value: 1 }, { variable: "row", value: { expr: "$sum * 2" } }, { variable: "totals", value: "$sum" }]);
   });
 
+  it("counts and renames uses in Switch case values", () => {
+    const f: Flow = { kind: "TaskBot", id: "w", name: "W", variables: [{ name: "limit", type: "Number" }],
+      steps: [{ id: "s1", action: "core/switch", args: { match: "expression" }, cases: [{ values: ["$x > $limit", "${limit} == 0"], children: [] }] }] };
+    expect(usageCount(f, "limit")).toBe(2);
+    expect(renameRefs(f, "limit", "cap").steps[0].cases![0].values).toEqual(["$x > $cap", "${cap} == 0"]);
+  });
+
   it("saves a variable: refuses bad and taken names, renames its uses, drops what does not apply", () => {
     expect(() => saveVariable(flow(), { name: "2x", type: "String" })).toThrow(/starts with a letter/);
     expect(() => saveVariable(flow(), { name: "row", type: "String" })).toThrow(/already a variable/);

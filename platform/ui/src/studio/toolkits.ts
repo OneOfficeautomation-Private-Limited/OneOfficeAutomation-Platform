@@ -25,6 +25,7 @@ const BY_TOOLKIT: [RegExp, Mark][] = [
 
 const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/if": { name: "If", mark: { color: "#b45309", icon: "branch" } },
+  "core/switch": { name: "Switch", mark: { color: "#b45309", icon: "branch" } },
   "core/loop": { name: "Loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/try": { name: "Try", mark: { color: "#b91c1c", icon: "bug" } },
   "core/parallel": { name: "Run at the same time", mark: { color: "#0e7490", icon: "process" } },
@@ -63,8 +64,8 @@ export function describeAction(action: string, packages: PackageManifest[]): { n
 export function actionsUsed(steps: FlowStep[] | undefined, out = new Set<string>()): Set<string> {
   for (const s of steps ?? []) {
     out.add(s.action);
-    actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out);
-    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? [])]) actionsUsed(b.children, out);
+    actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out); actionsUsed(s.default, out);
+    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? []), ...(s.cases ?? [])]) actionsUsed(b.children, out);
   }
   return out;
 }
@@ -99,6 +100,8 @@ export function stepRows(steps: FlowStep[], folded: Set<string> = new Set()): St
       if (s.else) sec("Else", "else", s.else);
       (s.catch ?? []).forEach((c, k) => sec(c.codes?.length ? "Catch " + c.codes.join(", ") : "Catch (any error)", `catch:${k}`, c.children));
       if (s.finally) sec("Finally (always)", "finally", s.finally);
+      (s.cases ?? []).forEach((c, k) => sec(caseText(c.values, s.args?.match), `cases:${k}`, c.children));
+      if (s.default) sec("Default (no case matched)", "default", s.default);
     }
   };
   walk(steps, 0);
@@ -155,7 +158,18 @@ export function conditionText(c: unknown, packages: PackageManifest[] = []): str
   return plainValue(c);
 }
 
-/** A short, readable summary of a step's settings: conditions as sentences, then the first values, then the outputs. */
+// How a Switch compares, in words for its case headings.
+const MATCH_WORDS: Record<string, string> = { contains: "contains", starts_with: "starts with", ends_with: "ends with", regex: "matches" };
+
+/** A Switch case's heading: "Case “a”, “b”", "Case contains “x”", "Case when $n > 5"; "Case (no values)" until it has one. */
+export function caseText(values: unknown[] | undefined, match: unknown, packages: PackageManifest[] = []): string {
+  if (!values?.length) return "Case (no values)";
+  if (match === "expression") return "Case when " + values.map((v) => conditionText(v, packages)).join(" or ");
+  const words = typeof match === "string" ? MATCH_WORDS[match] : undefined;
+  return "Case " + (words ? words + " " : "") + values.map(quoteIfText).join(", ");
+}
+
+/** A short, readable summary of a step's settings:conditions as sentences, then the first values, then the outputs. */
 export function summarize(step: FlowStep, packages: PackageManifest[] = []): string {
   if (step.note) return step.note;
   if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))

@@ -88,7 +88,8 @@ Select a step to see its settings on the right. From top to bottom:
 1. **Title**: the action's icon, name, toolkit and address (for example `ooa.excel/open`), then its description.
 2. **Inputs**: the fields the action needs.
 3. **Outputs**: where to keep what the action returns.
-4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try).
+4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try), **Case** and
+   **Default** (Switch).
 5. **Error handling** (folded): **Disabled (skip this step)**, **Continue the agent if this step fails**, and for toolkit
    actions **Retries on temporary errors** and **Timeout (seconds)**.
 6. **General** (folded): **Step id** and **Note**.
@@ -264,6 +265,22 @@ than 1000"). Click it to open the test:
 2. Type sample values and click **Test**.
 3. The answer is **True: the steps inside If run.** or **False: the Else steps run.**, or the reason it could not be
    checked.
+
+**Switch: one value, many cases.** When one value decides between several paths (a status, a country, a file type),
+a **Switch** reads better than a chain of Else ifs:
+
+1. Add **Switch** (Logic) and fill in **Value**, for example `$status`.
+2. Select the **Case** row under it and type the values that select it, one per field (an empty field at the end adds
+   another). Any one of them selects the case. Values can be text, numbers or `$variables`.
+3. Click **+ Case** in the Switch's settings for each further case, and **+ Default** for steps to run when no case
+   matches. **Move case up** and **Move case down** change the order.
+4. Click actions in the library with a case selected to put them in it.
+
+Cases are tried from the top and only the first match runs. **Match** sets the comparison: **equals**
+(numbers and the same number written as text are equal, so `5` matches `"5"`), **contains**, **starts with**, **ends
+with**, **regex** (each case value is a pattern), or **expression**, where each case value is its own condition and
+Value is not used. **Ignore case** compares text without upper and lower case. **Exit loop** and **Continue loop**
+inside a case act on the loop around the Switch. The run log says which case ran.
 
 ## 8. Loops
 

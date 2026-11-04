@@ -3,13 +3,14 @@ import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, 
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
   addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
   pasteSteps, readClip, removeBranch, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
+  moveCase, parseLoose, setCaseValues, showValue,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
@@ -741,8 +742,8 @@ function ReplaceDialog({ flow, selected, onClose, onReplace }: { flow: Flow; sel
   );
 }
 
-function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally") => void }) {
-  if (step.action !== "core/if" && step.action !== "core/try") return null;
+function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default") => void }) {
+  if (step.action !== "core/if" && step.action !== "core/try" && step.action !== "core/switch") return null;
   return <>
     <h3 className="st-prop-section">Parts</h3>
     <div className="st-row st-pad">
@@ -754,8 +755,38 @@ function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | 
         <Button kind="secondary" icon="plus" onClick={() => onAdd("catch")}>Catch</Button>
         {!step.finally && <Button kind="secondary" icon="plus" onClick={() => onAdd("finally")}>Finally</Button>}
       </>}
+      {step.action === "core/switch" && <>
+        <Button kind="secondary" icon="plus" onClick={() => onAdd("cases")}>Case</Button>
+        {!step.default && <Button kind="secondary" icon="plus" onClick={() => onAdd("default")}>Default</Button>}
+      </>}
     </div>
   </>;
+}
+
+/**
+ * The values that select a Switch case, one field each: a value to compare (text, number, $variable), or a condition
+ * when the Switch matches by expression. An empty last field adds a value.
+ */
+function CaseValues({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const step = locate(flow.steps, id)?.step;
+  const values = step?.cases?.[k]?.values ?? [];
+  const byCondition = step?.args?.match === "expression";
+  const put = (i: number, v: unknown) => { const next = [...values]; next[i] = v; onEdit(setCaseValues(flow, id, k, next)); };
+  const drop = (i: number) => onEdit(setCaseValues(flow, id, k, values.filter((_, j) => j !== i)));
+  return (
+    <div className="st-case-values">
+      {[...values, undefined].map((v, i) => (
+        <div key={id + ":" + k + ":" + i + ":" + values.length + ":" + JSON.stringify(v ?? null)} className="st-row-tight">
+          <span className="st-bar-fill">{byCondition
+            ? <ConditionEditor value={v} onCommit={(c) => put(i, c)} />
+            : <CommitInput initial={showValue(v)} mono want="Any" label={i < values.length ? "Value " + (i + 1) : "New value"}
+                placeholder={i < values.length ? "" : i ? "Another value" : "A value, e.g. Approved or $status"}
+                onCommit={(t) => { const p = parseLoose(t); if (p === undefined) { if (i < values.length) drop(i); } else put(i, p); }} />}</span>
+          {i < values.length && <IconButton icon="trash" label={"Remove value " + (i + 1)} onClick={() => drop(i)} />}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /** Settings of a selected block part: an Else if's condition, the errors a Catch takes; and removing the part. */
@@ -774,6 +805,12 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
         {kind === "catch" && <Field label="Errors it catches" hint="Error codes, separated by commas. Empty catches every error." layout="beside">{(fid) =>
           <CommitInput key={id + part + (step.catch?.[+k]?.codes ?? []).join(",")} id={fid} mono initial={(step.catch?.[+k]?.codes ?? []).join(", ")} placeholder="Any error"
             onCommit={(t) => onEdit(setCatchCodes(flow, id, +k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>}
+        {kind === "cases" && <Field label={step.args?.match === "expression" ? "Conditions (any one selects this case)" : "Values (any one selects this case)"}
+          hint="Cases are tried from the top; only the first that matches runs.">{() => <CaseValues flow={flow} id={id} k={+k} onEdit={onEdit} />}</Field>}
+        {kind === "cases" && (step.cases?.length ?? 0) > 1 && <div className="st-row">
+          <Button kind="secondary" icon="up" disabled={+k === 0} onClick={() => { const m = moveCase(flow, id, +k, -1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case up</Button>
+          <Button kind="secondary" icon="down" disabled={+k === (step.cases?.length ?? 0) - 1} onClick={() => { const m = moveCase(flow, id, +k, 1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case down</Button>
+        </div>}
       </div>
       {part !== "children" && removed !== flow && <div className="st-pad">
         <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>Remove this part{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>
