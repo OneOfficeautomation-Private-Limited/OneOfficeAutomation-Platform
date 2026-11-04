@@ -1939,6 +1939,394 @@ public final class ExcelPackage {
         return Map.of();
     }
 
+    @Action(id = "format_cells", name = "Format cells", category = "Formatting",
+            description = "Set the number format, font, fill, alignment, wrapping and borders of a range or the selection; only the options given change, the rest of each cell's format stays.",
+            panel = "(Cells: The selection or active cell = / A specific range = range), number_format, bold, italic, underline, font_name, font_size, font_color, fill_color, horizontal, vertical, wrap_text, borders | sheet, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells formatted.")
+    public Map<String, Object> formatCells(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "B2:D20",
+                    description = "Cell or range to format; when empty, the range chosen by select_range or the cell chosen by go_to_cell.") String range,
+            @Input(name = "number_format", type = OoaType.STRING, required = false, example = "#,##0.00",
+                    description = "Excel number format, e.g. #,##0.00, 0%, dd/mm/yyyy, @ for text or General.") String numberFormat,
+            @Input(name = "bold", type = OoaType.BOOLEAN, required = false, description = "Bold on or off; unchanged when empty.") Boolean bold,
+            @Input(name = "italic", type = OoaType.BOOLEAN, required = false, description = "Italic on or off; unchanged when empty.") Boolean italic,
+            @Input(name = "underline", type = OoaType.BOOLEAN, required = false, description = "Single underline on or off; unchanged when empty.") Boolean underline,
+            @Input(name = "font_name", type = OoaType.STRING, required = false, example = "Calibri", description = "Font name; unchanged when empty.") String fontName,
+            @Input(name = "font_size", type = OoaType.NUMBER, required = false, min = 1, max = 409, example = "12", description = "Font size in points; unchanged when empty.") Double fontSize,
+            @Input(name = "font_color", type = OoaType.STRING, required = false, example = "#C00000",
+                    description = "Text colour: hex (#C00000), red,green,blue numbers or a name such as dark red; unchanged when empty. .xlsx only.") String fontColor,
+            @Input(name = "fill_color", type = OoaType.STRING, required = false, example = "light yellow",
+                    description = "Solid background colour, as for font_color; none removes the fill; unchanged when empty. .xlsx only.") String fillColor,
+            @Input(name = "horizontal", type = OoaType.STRING, required = false, enumValues = {"general", "left", "center", "right", "justify"},
+                    description = "Horizontal alignment; unchanged when empty.") String horizontal,
+            @Input(name = "vertical", type = OoaType.STRING, required = false, enumValues = {"top", "center", "bottom"}, description = "Vertical alignment; unchanged when empty.") String vertical,
+            @Input(name = "wrap_text", type = OoaType.BOOLEAN, required = false, description = "Wrap long text onto several lines; unchanged when empty.") Boolean wrapText,
+            @Input(name = "borders", type = OoaType.STRING, required = false, enumValues = {"all", "outline", "none"},
+                    description = "all draws thin lines around every cell; outline only around the range; none removes the lines; unchanged when empty.") String borders,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Workbook wb = s.wb;
+        Sheet sh = sheet(s, sheet);
+        boolean hasFontColor = fontColor != null && !fontColor.isBlank(), hasFill = fillColor != null && !fillColor.isBlank();
+        if ((hasFontColor || hasFill) && !(wb instanceof XSSFWorkbook)) xlsx(s, "Font and fill colours");
+        XSSFColor fc = hasFontColor ? parseColor(fontColor) : null;
+        boolean noFill = hasFill && fillColor.trim().equalsIgnoreCase("none");
+        XSSFColor bg = hasFill && !noFill ? parseColor(fillColor) : null;
+        boolean fontChange = bold != null || italic != null || underline != null || (fontName != null && !fontName.isBlank()) || fontSize != null || fc != null;
+        String bd = borders == null || borders.isBlank() ? null : borders.toLowerCase(Locale.ROOT);
+        HorizontalAlignment ha = horizontal == null || horizontal.isBlank() ? null : HorizontalAlignment.valueOf(horizontal.toUpperCase(Locale.ROOT));
+        VerticalAlignment va = vertical == null || vertical.isBlank() ? null : VerticalAlignment.valueOf(vertical.toUpperCase(Locale.ROOT));
+        short fmt = numberFormat == null || numberFormat.isBlank() ? -1 : wb.createDataFormat().getFormat(numberFormat);
+        AreaReference a = area(s, range == null || range.isBlank() ? selectionOf(s, sh) : range);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        Map<Integer, Font> fonts = new HashMap<>();
+        Map<String, CellStyle> styles = new HashMap<>();
+        int count = 0;
+        for (int r = r0; r <= r1; r++) {
+            Row row = row(sh, r);
+            for (int c = c0; c <= c1; c++) {
+                Cell cell = row.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                CellStyle old = cell.getCellStyle();
+                // with an outline, the cell's place in the range decides its lines
+                String edges = "outline".equals(bd) ? "" + (r == r0 ? 'T' : '-') + (r == r1 ? 'B' : '-') + (c == c0 ? 'L' : '-') + (c == c1 ? 'R' : '-') : "";
+                final int rr = r, cc = c;
+                CellStyle st = styles.computeIfAbsent(old.getIndex() + "|" + edges, k -> {
+                    CellStyle ns = wb.createCellStyle();
+                    ns.cloneStyleFrom(old);
+                    if (fmt >= 0) ns.setDataFormat(fmt);
+                    if (fontChange) ns.setFont(fonts.computeIfAbsent(old.getFontIndex(), fi -> {
+                        Font of = wb.getFontAt(fi);
+                        Font nf = wb.createFont();
+                        nf.setFontName(fontName != null && !fontName.isBlank() ? fontName : of.getFontName());
+                        nf.setFontHeight(fontSize != null ? (short) Math.round(fontSize * 20) : of.getFontHeight());
+                        nf.setBold(bold != null ? bold : of.getBold());
+                        nf.setItalic(italic != null ? italic : of.getItalic());
+                        nf.setUnderline(underline != null ? (underline ? Font.U_SINGLE : Font.U_NONE) : of.getUnderline());
+                        nf.setStrikeout(of.getStrikeout());
+                        if (fc != null) ((XSSFFont) nf).setColor(fc);
+                        else if (nf instanceof XSSFFont x && of instanceof XSSFFont ox && ox.getXSSFColor() != null) x.setColor(ox.getXSSFColor());
+                        else nf.setColor(of.getColor());
+                        return nf;
+                    }));
+                    if (bg != null) { ((XSSFCellStyle) ns).setFillForegroundColor(bg); ns.setFillPattern(FillPatternType.SOLID_FOREGROUND); }
+                    else if (noFill) ns.setFillPattern(FillPatternType.NO_FILL);
+                    if (ha != null) ns.setAlignment(ha);
+                    if (va != null) ns.setVerticalAlignment(va);
+                    if (wrapText != null) ns.setWrapText(wrapText);
+                    if (bd != null) {
+                        boolean all = bd.equals("all"), none = bd.equals("none");
+                        if (all || none) {
+                            BorderStyle b = all ? BorderStyle.THIN : BorderStyle.NONE;
+                            ns.setBorderTop(b); ns.setBorderBottom(b); ns.setBorderLeft(b); ns.setBorderRight(b);
+                        } else {
+                            if (rr == r0) ns.setBorderTop(BorderStyle.THIN);
+                            if (rr == r1) ns.setBorderBottom(BorderStyle.THIN);
+                            if (cc == c0) ns.setBorderLeft(BorderStyle.THIN);
+                            if (cc == c1) ns.setBorderRight(BorderStyle.THIN);
+                        }
+                    }
+                    return ns;
+                });
+                cell.setCellStyle(st);
+                count++;
+            }
+        }
+        return out("count", n(count));
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Pivot tables, charts, Excel tables and text to columns (gap G02, 3 Nov 2026)
+    // ------------------------------------------------------------------------------------------------
+
+    /** Zero-based column of a field inside the source area, from its header name, letter or sheet column number. */
+    private static int fieldColumn(Object field, Row header, FormulaEvaluator ev, int c0, int c1, String what) {
+        int k = resolveColumn(field, header, ev);
+        if (k < c0 || k > c1)
+            throw new ActionException("EXCEL.BAD_COLUMN", what + " '" + Values.text(field) + "' is not a column of the source range", "Use a header name of the source range.");
+        return k - c0;
+    }
+
+    private static List<Object> listOf(List<Object> l) { return l == null ? List.of() : l; }
+
+    @Action(id = "create_pivot_table", name = "Create pivot table", category = "Pivot tables and charts",
+            description = "Create a pivot table from a range with a header row: fields as rows, columns, values (Sum, Count, Average, Max or Min) and filters. Excel fills in the figures when the workbook is opened.",
+            panel = "sheet, range, destination_sheet, destination, name, rows, columns, values, filters | session")
+    @Output(name = "name", type = OoaType.STRING, description = "Name of the pivot table.")
+    @Output(name = "sheet", type = OoaType.STRING, description = "Sheet the pivot table is on.")
+    public Map<String, Object> createPivotTable(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "A1:F200",
+                    description = "Source range including its header row; the used area of the sheet when empty.") String range,
+            @Input(name = "destination", type = OoaType.STRING, required = false, pattern = CELL, defaultValue = "\"A3\"", description = "Top-left cell of the pivot table.") String destination,
+            @Input(name = "name", type = OoaType.STRING, required = false, example = "SalesByRegion", description = "Pivot table name; PivotTable1, PivotTable2 … when empty.") String name,
+            @Input(name = "rows", type = OoaType.LIST, required = false, example = "[\"Region\"]", description = "Fields shown down the side (header names).") List<Object> rows,
+            @Input(name = "columns", type = OoaType.LIST, required = false, example = "[\"Quarter\"]", description = "Fields shown across the top.") List<Object> columns,
+            @Input(name = "values", type = OoaType.LIST, example = "[\"Amount\", \"Amount:count\"]",
+                    description = "Fields to summarise, each as Field or Field:function, function sum (the default), count, average, max or min.") List<Object> values,
+            @Input(name = "filters", type = OoaType.LIST, required = false, example = "[\"Year\"]", description = "Fields offered as report filters above the table.") List<Object> filters,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet with the source data; active sheet when empty.") String sheet,
+            @Input(name = "destination_sheet", type = OoaType.STRING, required = false, example = "Pivot",
+                    description = "Sheet to put the pivot table on; created when it does not exist; a new sheet named Pivot when empty.") String destinationSheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        XSSFWorkbook wb = xlsx(s, "Pivot tables");
+        XSSFSheet src = (XSSFSheet) sheet(s, sheet);
+        String rg = range;
+        if (rg == null || rg.isBlank()) rg = (String) getTableRange(ctx, src.getSheetName(), session).get("range");
+        if (rg == null || rg.isEmpty()) throw new ActionException("EXCEL.EMPTY", "The source sheet has no data", "Write the data first or give a range.");
+        AreaReference a = area(s, rg);
+        int hr = a.getFirstCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        if (a.getLastCell().getRow() <= hr) throw new ActionException("EXCEL.BAD_RANGE", "The source range needs a header row and at least one data row", "Give a range such as A1:F200.");
+        Row header = src.getRow(hr);
+        FormulaEvaluator ev = evaluator(s);
+        Set<String> heads = new HashSet<>();
+        for (int c = c0; c <= c1; c++) {
+            Object h = header == null ? null : read(header.getCell(c), ev);
+            if (h == null || Values.text(h).isBlank())
+                throw new ActionException("EXCEL.BAD_HEADER", "Column " + CellReference.convertNumToColString(c) + " of the source range has no header", "Every source column needs a name in the header row.");
+            if (!heads.add(Values.text(h).trim().toLowerCase(Locale.ROOT)))
+                throw new ActionException("EXCEL.BAD_HEADER", "Two source columns are both called '" + Values.text(h) + "'", "Give every source column its own name.");
+        }
+        if (values == null || values.isEmpty()) throw new ActionException("EXCEL.NO_VALUES", "No value fields given", "Name at least one field to summarise, e.g. [\"Amount\"].");
+        String dn = destinationSheet == null || destinationSheet.isBlank() ? uniqueSheetName(wb, "Pivot") : destinationSheet;
+        XSSFSheet dst = wb.getSheet(dn) != null ? wb.getSheet(dn) : wb.createSheet(dn);
+        CellReference at = new CellReference((destination == null || destination.isBlank() ? "A3" : destination).toUpperCase(Locale.ROOT));
+        if (dst == src && at.getRow() >= hr && at.getRow() <= a.getLastCell().getRow() && at.getCol() >= c0 && at.getCol() <= c1)
+            throw new ActionException("EXCEL.BAD_RANGE", "The pivot table would start inside its own source range", "Put it on another sheet or outside the source range.");
+        if (name != null && !name.isBlank())
+            for (XSSFPivotTable p : wb.getPivotTables())
+                if (name.equalsIgnoreCase(p.getCTPivotTableDefinition().getName()))
+                    throw new ActionException("EXCEL.EXISTS", "A pivot table called '" + name + "' already exists", "Choose another name.");
+        // check every field before anything is added to the workbook
+        List<Integer> rowIdx = new ArrayList<>(), colIdx = new ArrayList<>(), filterIdx = new ArrayList<>();
+        for (Object f : listOf(rows)) rowIdx.add(fieldColumn(f, header, ev, c0, c1, "Row field"));
+        for (Object f : listOf(columns)) colIdx.add(fieldColumn(f, header, ev, c0, c1, "Column field"));
+        for (Object f : listOf(filters)) filterIdx.add(fieldColumn(f, header, ev, c0, c1, "Filter field"));
+        List<Object[]> valueIdx = new ArrayList<>();
+        for (Object v : values) {
+            String t = Values.text(v).trim();
+            int colon = t.lastIndexOf(':');
+            String field = colon > 0 ? t.substring(0, colon).trim() : t, fn = colon > 0 ? t.substring(colon + 1).trim().toLowerCase(Locale.ROOT) : "sum";
+            DataConsolidateFunction f = switch (fn) {
+                case "sum" -> DataConsolidateFunction.SUM;
+                case "count" -> DataConsolidateFunction.COUNT;
+                case "average", "avg" -> DataConsolidateFunction.AVERAGE;
+                case "max" -> DataConsolidateFunction.MAX;
+                case "min" -> DataConsolidateFunction.MIN;
+                default -> throw new ActionException("EXCEL.BAD_FUNCTION", "'" + fn + "' is not a summary function", "Use sum, count, average, max or min, e.g. Amount:average.");
+            };
+            int k = fieldColumn(field, header, ev, c0, c1, "Value field");
+            String label = switch (f) { case SUM -> "Sum"; case COUNT -> "Count"; case AVERAGE -> "Average"; case MAX -> "Max"; default -> "Min"; }
+                    + " of " + Values.text(read(header.getCell(c0 + k), ev)).trim();
+            valueIdx.add(new Object[]{f, k, label});
+        }
+        XSSFPivotTable pt = dst.createPivotTable(new AreaReference(a.getFirstCell(), a.getLastCell(), wb.getSpreadsheetVersion()), at, src);
+        for (int k : rowIdx) pt.addRowLabel(k);
+        for (int k : colIdx) pt.addColLabel(k);
+        for (Object[] v : valueIdx) pt.addColumnLabel((DataConsolidateFunction) v[0], (Integer) v[1], (String) v[2]);
+        for (int k : filterIdx) pt.addReportFilter(k);
+        String pn = name;
+        if (pn == null || pn.isBlank()) {  // the next free PivotTableN, as Excel names them
+            Set<String> used = new HashSet<>();
+            for (XSSFPivotTable o : wb.getPivotTables()) if (o != pt) used.add(o.getCTPivotTableDefinition().getName().toLowerCase(Locale.ROOT));
+            int k = 1;
+            while (used.contains("pivottable" + k)) k++;
+            pn = "PivotTable" + k;
+        }
+        pt.getCTPivotTableDefinition().setName(pn);
+        pt.getPivotCacheDefinition().getCTPivotCacheDefinition().setRefreshOnLoad(true);
+        return out("name", pt.getCTPivotTableDefinition().getName(), "sheet", dst.getSheetName());
+    }
+
+    @Action(id = "create_chart", name = "Create chart", category = "Pivot tables and charts",
+            description = "Add a column, bar, line or pie chart of a range: the first column gives the categories, the header row the series names and each further column one series.",
+            panel = "sheet, range, chart_type, title, destination_sheet, position, width, height | legend, session")
+    @Output(name = "range", type = OoaType.STRING, description = "Cells the chart covers, e.g. H2:O17.")
+    public Map<String, Object> createChart(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:C13", description = "Data with a header row: categories in the first column, one series per further column.") String range,
+            @Input(name = "chart_type", type = OoaType.STRING, required = false, defaultValue = "\"column\"", enumValues = {"column", "bar", "line", "pie"},
+                    description = "column (vertical bars), bar (horizontal bars), line, or pie (the first series only).") String chartType,
+            @Input(name = "title", type = OoaType.STRING, required = false, example = "Sales by month", description = "Chart title; none when empty.") String title,
+            @Input(name = "position", type = OoaType.STRING, required = false, pattern = CELL, description = "Top-left cell of the chart; two columns right of the data when empty.") String position,
+            @Input(name = "width", type = OoaType.NUMBER, required = false, defaultValue = "8", min = 1, max = 100, description = "Width in columns.") int width,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, defaultValue = "15", min = 1, max = 500, description = "Height in rows.") int height,
+            @Input(name = "legend", type = OoaType.STRING, required = false, defaultValue = "\"right\"", enumValues = {"right", "bottom", "top", "left", "none"}, description = "Where the legend goes.") String legend,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet with the data; active sheet when empty.") String sheet,
+            @Input(name = "destination_sheet", type = OoaType.STRING, required = false, description = "Sheet to put the chart on; the data sheet when empty; created when it does not exist.") String destinationSheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        XSSFWorkbook wb = xlsx(s, "Charts");
+        XSSFSheet src = (XSSFSheet) sheet(s, sheet);
+        XSSFSheet dst = destinationSheet == null || destinationSheet.isBlank() ? src
+                : wb.getSheet(destinationSheet) != null ? wb.getSheet(destinationSheet) : wb.createSheet(destinationSheet);
+        AreaReference a = area(s, range);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        if (r1 <= r0 || c1 <= c0) throw new ActionException("EXCEL.BAD_RANGE", "A chart needs a header row, a category column and at least one value column",
+                "Give a range such as A1:C13: names in the first row, categories in the first column.");
+        String type = chartType == null || chartType.isBlank() ? "column" : chartType.toLowerCase(Locale.ROOT);
+        if (width < 1 || height < 1) throw new ActionException("EXCEL.BAD_SIZE", "Width and height must be at least 1", "Give the size in columns and rows.");
+        CellReference p = position == null || position.isBlank() ? new CellReference(r0, c1 + 2) : new CellReference(position.toUpperCase(Locale.ROOT));
+        XSSFDrawing drawing = dst.createDrawingPatriarch();
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, p.getCol(), p.getRow(), p.getCol() + width, p.getRow() + height);
+        XSSFChart chart = drawing.createChart(anchor);
+        if (title != null && !title.isBlank()) { chart.setTitleText(title); chart.setTitleOverlay(false); }
+        String lg = legend == null || legend.isBlank() ? "right" : legend.toLowerCase(Locale.ROOT);
+        if (!lg.equals("none")) chart.getOrAddLegend().setPosition(switch (lg) {
+            case "bottom" -> org.apache.poi.xddf.usermodel.chart.LegendPosition.BOTTOM;
+            case "top" -> org.apache.poi.xddf.usermodel.chart.LegendPosition.TOP;
+            case "left" -> org.apache.poi.xddf.usermodel.chart.LegendPosition.LEFT;
+            default -> org.apache.poi.xddf.usermodel.chart.LegendPosition.RIGHT;
+        });
+        var cats = org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromStringCellRange(src,
+                new org.apache.poi.ss.util.CellRangeAddress(r0 + 1, r1, c0, c0));
+        org.apache.poi.xddf.usermodel.chart.XDDFChartData data;
+        if (type.equals("pie")) {
+            data = chart.createData(org.apache.poi.xddf.usermodel.chart.ChartTypes.PIE, null, null);
+            data.setVaryColors(true);
+        } else {
+            var bottom = chart.createCategoryAxis(org.apache.poi.xddf.usermodel.chart.AxisPosition.BOTTOM);
+            var left = chart.createValueAxis(org.apache.poi.xddf.usermodel.chart.AxisPosition.LEFT);
+            left.setCrosses(org.apache.poi.xddf.usermodel.chart.AxisCrosses.AUTO_ZERO);
+            data = chart.createData(type.equals("line") ? org.apache.poi.xddf.usermodel.chart.ChartTypes.LINE : org.apache.poi.xddf.usermodel.chart.ChartTypes.BAR, bottom, left);
+            if (data instanceof org.apache.poi.xddf.usermodel.chart.XDDFBarChartData bar) {
+                bar.setBarDirection(type.equals("bar") ? org.apache.poi.xddf.usermodel.chart.BarDirection.BAR : org.apache.poi.xddf.usermodel.chart.BarDirection.COL);
+                left.setCrossBetween(org.apache.poi.xddf.usermodel.chart.AxisCrossBetween.BETWEEN);
+            }
+            data.setVaryColors(false);
+        }
+        for (int c = c0 + 1; c <= (type.equals("pie") ? c0 + 1 : c1); c++) {
+            var vals = org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromNumericCellRange(src,
+                    new org.apache.poi.ss.util.CellRangeAddress(r0 + 1, r1, c, c));
+            var series = data.addSeries(cats, vals);
+            Row h = src.getRow(r0);
+            series.setTitle(h == null || h.getCell(c) == null ? "Series " + (c - c0) : Values.text(read(h.getCell(c), evaluator(s))),
+                    new CellReference(src.getSheetName(), r0, c, true, true));
+            if (series instanceof org.apache.poi.xddf.usermodel.chart.XDDFLineChartData.Series ls) ls.setSmooth(false);
+        }
+        chart.plot(data);
+        return out("range", addr(p.getRow(), p.getCol()) + ":" + addr(p.getRow() + height - 1, p.getCol() + width - 1));
+    }
+
+    @Action(id = "create_table", name = "Create Excel table", category = "Pivot tables and charts",
+            description = "Turn a range with a header row into a named Excel table with a table style, like Ctrl+T in Excel.",
+            panel = "sheet, range, name, style, banded_rows | session")
+    @Output(name = "name", type = OoaType.STRING, description = "Name of the new table.")
+    public Map<String, Object> createTable(ActionContext ctx,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "A1:F200", description = "Range including its header row; the used area when empty.") String range,
+            @Input(name = "name", type = OoaType.STRING, required = false, example = "Invoices", description = "Table name: letters, digits, _ and ., starting with a letter; Table1, Table2 … when empty.") String name,
+            @Input(name = "style", type = OoaType.STRING, required = false, defaultValue = "\"TableStyleMedium2\"", example = "TableStyleLight9",
+                    description = "Excel table style: TableStyleLight1–21, TableStyleMedium1–28 or TableStyleDark1–11.") String style,
+            @Input(name = "banded_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Shade every other row.") boolean bandedRows,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        XSSFWorkbook wb = xlsx(s, "Excel tables");
+        XSSFSheet sh = (XSSFSheet) sheet(s, sheet);
+        String rg = range;
+        if (rg == null || rg.isBlank()) rg = (String) getTableRange(ctx, sh.getSheetName(), session).get("range");
+        if (rg == null || rg.isEmpty()) throw new ActionException("EXCEL.EMPTY", "The sheet has no data", "Write the data first or give a range.");
+        AreaReference a = area(s, rg);
+        int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
+        String st = style == null || style.isBlank() ? "TableStyleMedium2" : style.trim();
+        if (!st.matches("TableStyle(Light([1-9]|1[0-9]|2[01])|Medium([1-9]|1[0-9]|2[0-8])|Dark([1-9]|1[01]))"))
+            throw new ActionException("EXCEL.BAD_STYLE", "'" + style + "' is not an Excel table style", "Use TableStyleLight1–21, TableStyleMedium1–28 or TableStyleDark1–11.");
+        for (XSSFTable t : sh.getTables()) {
+            AreaReference o = t.getArea();
+            if (o.getFirstCell().getRow() <= r1 && o.getLastCell().getRow() >= r0 && o.getFirstCell().getCol() <= c1 && o.getLastCell().getCol() >= c0)
+                throw new ActionException("EXCEL.OVERLAP", "The range overlaps the table " + t.getName(), "Pick a range outside existing tables.");
+        }
+        if (name != null && !name.isBlank()) {
+            if (!name.matches("[A-Za-z_\\\\][A-Za-z0-9_.]{0,254}") || name.matches("(?i)[A-Z]{1,3}[0-9]+|R[0-9]*C[0-9]*|[RC]"))
+                throw new ActionException("EXCEL.BAD_NAME", "'" + name + "' cannot be a table name", "Start with a letter; use letters, digits, _ and .; it must not look like a cell address.");
+            if (wb.getTable(name) != null) throw new ActionException("EXCEL.EXISTS", "A table called '" + name + "' already exists", "Choose another name.");
+        }
+        // Excel needs one unique text heading per column
+        FormulaEvaluator ev = evaluator(s);
+        Row h = row(sh, r0);
+        Set<String> seen = new HashSet<>();
+        for (int c = c0; c <= c1; c++) {
+            Cell x = h.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            Object v = read(x, ev);
+            String t = v == null || Values.text(v).isBlank() ? "Column" + (c - c0 + 1) : Values.text(v).trim();
+            String u = t;
+            for (int i = 2; !seen.add(u.toLowerCase(Locale.ROOT)); i++) u = t + i;
+            if (x.getCellType() != CellType.STRING || !u.equals(x.getStringCellValue())) x.setCellValue(u);
+        }
+        XSSFTable t = sh.createTable(new AreaReference(a.getFirstCell(), a.getLastCell(), wb.getSpreadsheetVersion()));
+        if (name != null && !name.isBlank()) { t.setName(name); t.setDisplayName(name); }
+        var info = t.getCTTable().isSetTableStyleInfo() ? t.getCTTable().getTableStyleInfo() : t.getCTTable().addNewTableStyleInfo();
+        info.setName(st);
+        info.setShowRowStripes(bandedRows);
+        info.setShowColumnStripes(false);
+        info.setShowFirstColumn(false);
+        info.setShowLastColumn(false);
+        if (r1 == r0) t.getCTTable().setInsertRow(true);
+        return out("name", t.getName());
+    }
+
+    @Action(id = "text_to_columns", name = "Text to columns", category = "Cells",
+            description = "Split the text of a column into several columns at a delimiter, like Excel's Text to Columns; the parts overwrite the cells to the right.",
+            panel = "column, delimiter, (Rows: Every used row = / From a row = start_row, end_row), destination, trim, convert_numbers | sheet, session")
+    @Output(name = "rows", type = OoaType.NUMBER, description = "Number of cells split.")
+    @Output(name = "columns", type = OoaType.NUMBER, description = "Most parts any cell was split into.")
+    public Map<String, Object> textToColumns(ActionContext ctx,
+            @Input(name = "column", example = "A", description = "Column holding the text: letter or 1-based number.") Object column,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", example = ";",
+                    description = "Text between the parts: a character such as , ; | or the words tab or space. Parts inside double quotes are kept whole.") String delimiter,
+            @Input(name = "start_row", type = OoaType.NUMBER, required = false, min = 1, description = "First row to split; the first used row when empty.") Integer startRow,
+            @Input(name = "end_row", type = OoaType.NUMBER, required = false, min = 1, description = "Last row to split; the last used row when empty.") Integer endRow,
+            @Input(name = "destination", required = false, example = "B", description = "Column to write the first part to; the column itself when empty.") Object destination,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces around each part.") boolean trim,
+            @Input(name = "convert_numbers", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Store parts that are plain numbers, such as 12.5, as numbers, as Excel does.") boolean convertNumbers,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        Sheet sh = sheet(s, sheet);
+        int col = columnIndex(column);
+        int to = destination == null || Values.text(destination).isBlank() ? col : columnIndex(destination);
+        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equalsIgnoreCase("tab") ? "\t" : delimiter.equalsIgnoreCase("space") ? " " : delimiter;
+        if (startRow != null && endRow != null && endRow < startRow)
+            throw new ActionException("EXCEL.BAD_RANGE", "End row " + endRow + " is before start row " + startRow, "Give an end row at or after the start row.");
+        int first = startRow != null ? startRow - 1 : Math.max(0, sh.getFirstRowNum()), last = endRow != null ? endRow - 1 : sh.getLastRowNum();
+        FormulaEvaluator ev = evaluator(s);
+        int rowsSplit = 0, most = 0;
+        for (int r = first; r <= last; r++) {
+            Row row = sh.getRow(r);
+            if (row == null) continue;
+            Object v = read(row.getCell(col), ev);
+            if (v == null) continue;
+            List<String> parts = splitQuoted(Values.text(v), d);
+            for (int i = 0; i < parts.size(); i++) {
+                String p = trim ? parts.get(i).trim() : parts.get(i);
+                Cell c = row.getCell(to + i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                if (p.isEmpty()) c.setBlank();
+                else if (convertNumbers && p.matches("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?") && !(p.length() > 1 && p.startsWith("0") && !p.startsWith("0.")))
+                    c.setCellValue(Double.parseDouble(p));  // 0123 stays text, as a code or account number
+                else c.setCellValue(p);
+            }
+            rowsSplit++;
+            most = Math.max(most, parts.size());
+        }
+        return out("rows", n(rowsSplit), "columns", n(most));
+    }
+
+    /** Splits at the delimiter; a part in double quotes keeps its delimiters, and "" inside quotes is one quote. */
+    private static List<String> splitQuoted(String text, String d) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < text.length() && text.charAt(i + 1) == '"') { cur.append('"'); i++; }
+                else quoted = !quoted;
+            } else if (!quoted && text.startsWith(d, i)) { out.add(cur.toString()); cur.setLength(0); i += d.length() - 1; }
+            else cur.append(ch);
+        }
+        out.add(cur.toString());
+        return out;
+    }
+
     // ------------------------------------------------------------------------------------------------
     // Protection
     // ------------------------------------------------------------------------------------------------

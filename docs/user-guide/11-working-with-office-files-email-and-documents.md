@@ -96,6 +96,12 @@ The **Excel** group works on workbook files directly, so it runs on servers and 
 | **Remove duplicate rows** | Removes rows that repeat an earlier row, comparing all columns or only the chosen **Columns**; the first of each set stays. Upper and lower case count as the same unless **Match case** is ticked. Gives how many were removed. |
 | **Autofit columns** | Makes every used column, or chosen columns, just wide enough for their contents. |
 | **Set column width**, **Set row height** | Width in characters (Excel's default is 8.43) or height in points (default 15). |
+**Reports: pivot tables, charts, tables and formats** (.xlsx)
+| **Create pivot table** | From a range with a header row: **Rows**, **Columns**, **Values** (each `Amount` or `Amount:average`; sum, count, average, max or min) and **Filters**, on a new sheet called Pivot or one you name. Excel fills in the figures when the workbook is opened, so read them back with Excel open (Excel desktop) rather than with Get range. |
+| **Create chart** | Column, bar, line or pie chart of a range: categories in the first column, one series per further column, names from the header row. **Title**, **Position**, size in columns and rows, **Legend**. |
+| **Create Excel table** | Turns a range into a named Excel table with a style (like Ctrl+T), e.g. `TableStyleMedium2`. |
+| **Format cells** | Number format (`#,##0.00`, `0%`, `dd/mm/yyyy`), bold, italic, underline, font, size, font and fill colours, alignment, wrap text and borders (all, outline or none). Only what you set changes. |
+| **Text to columns** | Splits a column at a delimiter (`,` `;` `|` tab or space) into the next columns; text in double quotes stays whole, numbers become numbers, codes with a leading 0 stay text. |
 
 **Worksheets and workbooks**
 
