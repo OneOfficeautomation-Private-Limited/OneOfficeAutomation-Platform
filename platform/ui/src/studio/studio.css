@@ -342,6 +342,13 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-seg-btn[aria-checked="true"], .st-seg-btn[aria-selected="true"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
 .st-row-tight { display: flex; gap: 6px; align-items: center; }
 .st-run-agent { display: flex; flex-direction: column; gap: 6px; }
+.st-assignments { display: flex; flex-direction: column; gap: 8px; }
+/* the variable and the row's buttons on one line, the value under them: readable in the narrow details pane */
+.st-assignment { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "var tools" "value value"; gap: 4px 6px; align-items: center;
+  padding-bottom: 8px; border-bottom: 1px solid var(--ui-divider); }
+.st-assignment > :nth-child(1) { grid-area: var; }
+.st-assignment > :nth-child(2) { grid-area: value; }
+.st-assignment > .st-assignment-tools { grid-area: tools; display: flex; gap: 2px; }
 .st-sub { margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; color: var(--ui-text-2); }
 
 /* E3 settings by kind: the time-out box, the window editor, links in hints */

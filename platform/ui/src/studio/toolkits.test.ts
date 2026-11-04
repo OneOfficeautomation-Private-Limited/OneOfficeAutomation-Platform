@@ -29,6 +29,8 @@ describe("steps view", () => {
   it("summarises a step's settings and outputs", () => {
     expect(summarize({ id: "x", action: "ooa.excel/open", args: { path: "$workbook", sheet: "" }, out: { table: "invoices" } })).toBe("path: $workbook · → $invoices");
     expect(summarize({ id: "x", action: "core/log", note: "Say hello" })).toBe("Say hello");
+    expect(summarize({ id: "x", action: "core/set_many", args: { assignments: [{ variable: "n", value: 0 }, { variable: "t", value: { expr: "$n + 1" } }] } }))
+      .toBe("$n = 0 · $t = $n + 1");
   });
 
   it("writes conditions and values in plain words, as Classic Studio does", () => {

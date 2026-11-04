@@ -112,13 +112,14 @@ public final class FlowValidator {
                     if (var instanceof String v && !declared.containsKey(v) && !v.contains("$"))
                         p.add(sid, "args/output_map/" + o, "Output target '" + v + "' is not declared", "Declare variable '" + v + "'.");
                 });
-            if (act.equals("core/set") && args.get("variable") instanceof String v && !declared.containsKey(v))
-                p.add(sid, "args/variable", "Variable '" + v + "' is not declared", null);
-            if (act.equals("core/set") && args.get("variable") instanceof String v && declared.containsKey(v) && containsVaultReference(args.get("value"), 0)) {
-                boolean cred = "Credential".equals(declared.get(v).get("type"));
-                if (!cred || !(args.get("value") instanceof Map<?, ?> vm && vm.size() == 1 && vm.get("$credential") instanceof String))
-                    p.add(sid, "args/value", cred ? "A Credential variable is set from one vault reference {\"$credential\": \"locker/credential/attribute\"}"
-                            : "Only a Credential variable can hold a vault reference; '" + v + "' is " + declared.get(v).get("type"), "Make '" + v + "' a Credential variable.");
+            if (act.equals("core/set")) checkAssign(p, sid, "args/", args.get("variable"), args.get("value"), declared);
+            if (act.equals("core/set_many") && args.get("assignments") instanceof List<?> rows) {
+                if (rows.isEmpty()) p.add(sid, "args/assignments", "No assignments", "Add at least one variable and value.");
+                for (int i = 0; i < rows.size(); i++) {
+                    if (rows.get(i) instanceof Map<?, ?> row && row.get("variable") instanceof String v && !v.isBlank())
+                        checkAssign(p, sid, "args/assignments/" + i + "/", v, row.get("value"), declared);
+                    else p.add(sid, "args/assignments/" + i, "Assignment " + (i + 1) + " has no variable", "Give each row a declared variable and a value.");
+                }
             }
             for (Object c : (List<Object>) step.getOrDefault("catch", List.of()))
                 for (String k : List.of("as", "message_to", "line_to"))
@@ -242,6 +243,18 @@ public final class FlowValidator {
             p.add(sid, path, "Input '" + in.name() + "': " + n.toPlainString() + " is outside the allowed range "
                     + (Double.isNaN(in.min()) ? "" : "from " + BigDecimal.valueOf(in.min()).stripTrailingZeros().toPlainString() + " ")
                     + (Double.isNaN(in.max()) ? "" : "to " + BigDecimal.valueOf(in.max()).stripTrailingZeros().toPlainString()), in.description());
+    }
+
+    /** Assign variable, and each row of Assign several variables: a declared variable; a vault reference only into a Credential. */
+    private static void checkAssign(P p, String sid, String prefix, Object variable, Object value, Map<String, Map<String, Object>> declared) {
+        if (!(variable instanceof String v)) return;
+        if (!declared.containsKey(v)) { p.add(sid, prefix + "variable", "Variable '" + v + "' is not declared", null); return; }
+        if (containsVaultReference(value, 0)) {
+            boolean cred = "Credential".equals(declared.get(v).get("type"));
+            if (!cred || !(value instanceof Map<?, ?> vm && vm.size() == 1 && vm.get("$credential") instanceof String))
+                p.add(sid, prefix + "value", cred ? "A Credential variable is set from one vault reference {\"$credential\": \"locker/credential/attribute\"}"
+                        : "Only a Credential variable can hold a vault reference; '" + v + "' is " + declared.get(v).get("type"), "Make '" + v + "' a Credential variable.");
+        }
     }
 
     private static boolean containsVaultReference(Object v, int depth) {

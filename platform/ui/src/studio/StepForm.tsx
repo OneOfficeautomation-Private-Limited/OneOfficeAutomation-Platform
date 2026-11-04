@@ -9,7 +9,7 @@ import {
   connectionInputs, EACH_KINDS, elementFields, helpText, isElementAction, LOOP_LABELS, loopIsMore, loopMode, outcomeOf, shownWhen, TIMEOUT_FIELDS,
   TIMEOUT_LABELS, valueLabel, type LoopMode,
 } from "./stepKinds";
-import { AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
+import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
 import { pickerFor } from "./Pickers";
 
@@ -82,6 +82,8 @@ export function StepForm({ step, packages, onArg, onNote }:
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
       <AssignValue step={step} />}</Field>;
+    if (step.action === "core/set_many" && name === "assignments") return <Field key={step.id + ":assignments"} label={"Assignments" + (req(name) ? " *" : "")}
+      info={props[name]?.description}>{() => <AssignmentsEditor step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
     if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map")) return null;   // with the agent to run
     if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"

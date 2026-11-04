@@ -910,5 +910,13 @@
     "$type": "object"
    }
   }
- }
+ },
+ {"command": "core/set_many", "name": "assign several variables in order (a row sees the rows above it)", "steps": [
+    {"action": "core/set_many", "args": {"assignments": [{"variable": "price", "value": 2.5}, {"variable": "qty", "value": 4},
+       {"variable": "total", "value": {"expr": "$price * $qty"}}, {"variable": "label", "value": "Total ${total}"}]}}],
+  "expect": {"total": 10, "label": "Total 10"}},
+ {"command": "core/set_many", "name": "a row without a variable is refused before the run", "steps": [
+    {"action": "core/set_many", "args": {"assignments": [{"value": 1}]}}], "error": "FLOW.INVALID"},
+ {"command": "core/set_many", "name": "no assignments is refused before the run", "steps": [
+    {"action": "core/set_many", "args": {"assignments": []}}], "error": "FLOW.INVALID"}
 ]

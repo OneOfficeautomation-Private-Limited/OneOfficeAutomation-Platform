@@ -9,7 +9,7 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 - **Logic**: Exit loop, Comment, Continue loop, If, Loop, Parallel, Step
 - **Runtime**: Delay, Log message, Wait for condition
 - **Agent**: Pause agent, Run Agent, Stop agent
-- **Variables**: Assign variable
+- **Variables**: Assign variable, Assign several variables
 - **Error handling**: Throw error, Try
 
 ## Logic
@@ -260,6 +260,20 @@ Assign a value or expression result to a declared variable.
 | --- | --- | --- | --- | --- | --- | --- |
 | Variable | `variable` | Text | Yes |  | Main | Name of a declared variable. |
 | Value | `value` | Any | No |  | Main | Value, $reference or {"expr": ...}. |
+
+*Time limit 60 s.*
+
+### Assign several variables
+
+`core/set_many` (action)
+
+Assign values to several declared variables in one step, in order: a later value can use a variable set above it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Assignments | `assignments` | List | Yes |  | Main | Records with variable (a declared variable's name) and value (a value, $reference or {"expr": ...}). Example: `[{"variable": "total", "value": 0}, {"variable": "status", "value": "new"}]` |
 
 *Time limit 60 s.*
 

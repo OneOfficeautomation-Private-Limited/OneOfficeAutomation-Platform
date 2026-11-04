@@ -19,6 +19,8 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
       : "for each item of " + plainValue(a.over) + (a.as ? " (as $" + a.as + ")" : "")) + ":";
     else if (s.action === "core/try") text = "Try the following, and handle errors:";
     else if (s.action === "core/set") text = "Set $" + a.variable + " to " + plainValue(a.value);
+    else if (s.action === "core/set_many") text = "Set " + (Array.isArray(a.assignments) ? a.assignments : [])
+      .map((r: { variable?: string; value?: unknown }) => "$" + r.variable + " to " + plainValue(r.value)).join(", then ");
     else if (s.action === "core/comment") text = "Note: " + plainValue(a.text);
     else text = describeAction(s.action, packages).name + (s.note ? " (" + s.note + ")" : "")
       + (Object.keys(a).length ? " with " + Object.entries(a).slice(0, 3).map(([k, v]) => k.replace(/_/g, " ") + " " + plainValue(v, 40)).join(", ") : "")

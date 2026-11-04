@@ -162,6 +162,7 @@ All control flow is expressed with `core/*` actions:
 | `core/parallel` | Each child is a branch run on a virtual thread; `max_concurrency` default 4; the first error is raised after all branches end |
 | `core/step` | A named group of steps (for structure and folding) |
 | `core/set` | Assign a value to a variable |
+| `core/set_many` | Assign several variables in one step, in order (`assignments`: records with `variable` and `value`); each row follows the rules of `core/set` |
 | `core/log` | Log a message at a level |
 | `core/delay` | Wait `seconds` (optionally random up to `random_max`; unit seconds, milliseconds or minutes) |
 | `core/wait_until` | Poll a condition (`timeout_seconds` default 30, `poll_seconds` default 1, `fail_on_timeout`); output `met` |
