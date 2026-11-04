@@ -55,8 +55,9 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
         onClick={() => { setFind(""); onLocal(it.id); }}>{it.label}{extra && <span className="st-menu-where">{extra}</span>}</button>;
     }
     const href = hrefFor(it.id);
+    const isCurrent = current === it.id;   // a page served apart (Document Automation) marks its own entry
     return href
-      ? <a className="st-menu-item" href={href}>{it.label}{extra && <span className="st-menu-where">{extra}</span>}</a>
+      ? <a className={`st-menu-item${isCurrent ? " is-current" : ""}`} href={href} aria-current={isCurrent ? "page" : undefined}>{it.label}{extra && <span className="st-menu-where">{extra}</span>}</a>
       : <span className="st-menu-item is-off" aria-disabled="true" title={offTitle}>{it.label}</span>;
   };
   const found = query ? shown.flatMap((s) => s.pages.filter((p) => p.label.toLowerCase().includes(query)).map((p) => ({ p, sec: s.label }))) : [];
