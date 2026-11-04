@@ -7,6 +7,9 @@ import com.oneofficeautomation.sdk.SecureString;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -210,7 +213,7 @@ public final class Expressions {
         }
         if (n instanceof Unary u) {
             Object v = eval(u.arg(), lookup);
-            if (u.op().equals("-")) return num(v, "arithmetic").negate();
+            if (u.op().equals("-")) return v instanceof Duration d ? d.negated() : num(v, "arithmetic").negate();
             return !truthy(v);
         }
         if (n instanceof Bin b) {
@@ -232,10 +235,12 @@ public final class Expressions {
     public static Object binary(String op, Object a, Object b) {
         guard(a, "operator " + op);
         guard(b, "operator " + op);
+        if (Set.of("-", "*", "/", "%").contains(op) && (timeLike(a) || timeLike(b))) return timeArithmetic(op, a, b);
         switch (op) {
             case "+":
                 if (a instanceof String || b instanceof String) return Values.text(a) + Values.text(b);
                 if (a instanceof List<?> la && b instanceof List<?> lb) { List<Object> o = new ArrayList<>(la); o.addAll(lb); return o; }
+                if (timeLike(a) || timeLike(b)) return timeArithmetic(op, a, b);
                 return num(a, "arithmetic").add(num(b, "arithmetic"), MC);
             case "-": return num(a, "arithmetic").subtract(num(b, "arithmetic"), MC);
             case "*": return num(a, "arithmetic").multiply(num(b, "arithmetic"), MC);
@@ -252,6 +257,8 @@ public final class Expressions {
                 if (p[0] instanceof BigDecimal x && p[1] instanceof BigDecimal y) r = x.compareTo(y);
                 else if (p[0] instanceof String x && p[1] instanceof String y) r = x.compareTo(y);
                 else if (p[0] instanceof java.time.LocalDateTime x && p[1] instanceof java.time.LocalDateTime y) r = x.compareTo(y);
+                else if (p[0] instanceof LocalTime x && p[1] instanceof LocalTime y) r = x.compareTo(y);
+                else if (p[0] instanceof Duration x && p[1] instanceof Duration y) r = x.compareTo(y);
                 else throw new OoaException("EXPR.INVALID", "Cannot compare " + Values.typeName(a) + " with " + Values.typeName(b) + " using " + op);
                 return switch (op) { case "<" -> r < 0; case "<=" -> r <= 0; case ">" -> r > 0; default -> r >= 0; };
             }
@@ -269,8 +276,68 @@ public final class Expressions {
             if (b instanceof java.time.LocalDateTime && a instanceof String s) return new Object[]{Values.toDateTime(s), b};
             if (a instanceof BigDecimal && b instanceof String s) return new Object[]{a, Values.toNumber(s)};
             if (b instanceof BigDecimal && a instanceof String s) return new Object[]{Values.toNumber(s), b};
+            if (a instanceof LocalTime && b instanceof String s) return new Object[]{a, Values.toTime(s)};
+            if (b instanceof LocalTime && a instanceof String s) return new Object[]{Values.toTime(s), b};
+            if (a instanceof Duration && b instanceof String s) return new Object[]{a, Values.toTimeSpan(s)};
+            if (b instanceof Duration && a instanceof String s) return new Object[]{Values.toTimeSpan(s), b};
         } catch (OoaException ignored) { }
         return new Object[]{a, b};
+    }
+
+    static boolean timeLike(Object v) { return v instanceof Duration || v instanceof LocalTime; }
+
+    /**
+     * Arithmetic with a Time or TimeSpan: DateTime or Time plus or minus a TimeSpan, TimeSpan plus or minus a TimeSpan,
+     * a TimeSpan times or divided by a Number, and a TimeSpan divided by a TimeSpan (a Number). The time between two
+     * DateTimes is timeBetween(), not "-".
+     */
+    static Object timeArithmetic(String op, Object a, Object b) {
+        switch (op) {
+            case "+":
+                if (b instanceof Duration d) {
+                    if (a instanceof LocalDateTime t) return t.plus(d);
+                    if (a instanceof LocalTime t) return t.plus(d);
+                    if (a instanceof Duration x) return x.plus(d);
+                }
+                if (a instanceof Duration d) {
+                    if (b instanceof LocalDateTime t) return t.plus(d);
+                    if (b instanceof LocalTime t) return t.plus(d);
+                }
+                break;
+            case "-":
+                if (b instanceof Duration d) {
+                    if (a instanceof LocalDateTime t) return t.minus(d);
+                    if (a instanceof LocalTime t) return t.minus(d);
+                    if (a instanceof Duration x) return x.minus(d);
+                }
+                if (a instanceof LocalTime && b instanceof LocalTime)
+                    throw new OoaException("EXPR.INVALID", "Cannot subtract a Time from a Time with '-'", "Use timeBetween(start, end) for the TimeSpan between two times.");
+                break;
+            case "*":
+                if (a instanceof Duration d && !timeLike(b)) return scale(d, num(b, "arithmetic"));
+                if (b instanceof Duration d && !timeLike(a)) return scale(d, num(a, "arithmetic"));
+                break;
+            case "/":
+                if (a instanceof Duration d) {
+                    if (b instanceof Duration y) {
+                        if (y.isZero()) throw new OoaException("EXPR.DIV_ZERO", "Division by zero", "Check the divisor before dividing.");
+                        return Values.totalSeconds(d).divide(Values.totalSeconds(y), MC);
+                    }
+                    if (!timeLike(b)) {
+                        BigDecimal n = num(b, "arithmetic");
+                        if (n.signum() == 0) throw new OoaException("EXPR.DIV_ZERO", "Division by zero", "Check the divisor before dividing.");
+                        return Duration.ofNanos(Values.totalSeconds(d).movePointRight(9).divide(n, 0, RoundingMode.HALF_UP).longValueExact());
+                    }
+                }
+                break;
+            default:
+        }
+        throw new OoaException("EXPR.INVALID", "Cannot use " + op + " with " + Values.typeName(a) + " and " + Values.typeName(b),
+                "Add or subtract a TimeSpan to a DateTime or Time, e.g. $start + timeSpan('2h'); use timeBetween(a, b) for the time between two values.");
+    }
+
+    private static Duration scale(Duration d, BigDecimal n) {
+        return Duration.ofNanos(Values.totalSeconds(d).movePointRight(9).multiply(n, MC).setScale(0, RoundingMode.HALF_UP).longValueExact());
     }
 
     public static boolean truthy(Object v) {
@@ -281,6 +348,8 @@ public final class Expressions {
         if (v instanceof Collection<?> c) return !c.isEmpty();
         if (v instanceof Map<?, ?> m) return !m.isEmpty();
         if (v instanceof SecureString s) return !s.reveal().isEmpty();
+        if (v instanceof Duration d) return !d.isZero();
+        if (v instanceof com.oneofficeautomation.sdk.BinaryValue b) return b.length() > 0;
         return true;
     }
 

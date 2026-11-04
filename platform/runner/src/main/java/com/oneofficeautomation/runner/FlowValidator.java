@@ -57,7 +57,7 @@ public final class FlowValidator {
             if ("Credential".equals(v.get("type")) && v.containsKey("default"))
                 p.add(null, "variables/" + name, "Credential variable '" + name + "' must not have a default value",
                         "Remove the default; supply a vault reference at run time.");
-            try { OoaType.fromFlowName(String.valueOf(v.get("type"))); }
+            try { checkDefault(p, name, OoaType.fromFlowName(String.valueOf(v.get("type"))), v); }
             catch (IllegalArgumentException e) { p.add(null, "variables/" + name, "Unknown type '" + v.get("type") + "'", null); }
         }
 
@@ -206,6 +206,32 @@ public final class FlowValidator {
         return v instanceof String || (v instanceof Map<?, ?> m && m.size() == 1 && m.containsKey("expr"));
     }
 
+    /**
+     * The default of a Time or TimeSpan variable must read as one (14:30, 2h 15m); an Image or Binary default is a file
+     * path (read when the run starts) or {"$binary": Base64}. Defaults of the other types are not checked here.
+     */
+    private static void checkDefault(P p, String name, OoaType t, Map<String, Object> v) {
+        Object d = v.get("default");
+        if (d == null) return;
+        String path = "variables/" + name;
+        try {
+            switch (t) {
+                case TIME -> Values.toTime(d);
+                case TIMESPAN -> Values.toTimeSpan(d);
+                case IMAGE, BINARY -> {
+                    if (d instanceof Map<?, ?> m) {
+                        if (!(m.get("$binary") instanceof String b64) || Values.base64(b64) == null)
+                            p.add(null, path, "The default of " + t.flowName() + " variable '" + name + "' must be a file path or {\"$binary\": \"<Base64>\"}", null);
+                    } else if (!(d instanceof String) && !(t == OoaType.BINARY && d instanceof List))
+                        p.add(null, path, "The default of " + t.flowName() + " variable '" + name + "' must be a file path or {\"$binary\": \"<Base64>\"}, got " + Values.typeName(d), null);
+                }
+                default -> { }
+            }
+        } catch (OoaException e) {
+            p.add(null, path, "The default of variable '" + name + "' is not a " + t.flowName() + ": " + e.getMessage(), e.suggestedFix());
+        }
+    }
+
     /** Literal (non-reference) argument values are checked against the manifest's type, enum and pattern. */
     private static void checkLiteral(P p, String sid, String path, ActionSpec.InputSpec in, Object v, boolean toolkit) {
         if (in.type() == OoaType.CREDENTIAL) {
@@ -231,6 +257,8 @@ public final class FlowValidator {
             case BOOLEAN -> v instanceof Boolean;
             case LIST -> v instanceof List;
             case DICTIONARY, RECORD -> v instanceof Map;
+            case TIME -> readsAs(() -> Values.toTime(v));
+            case TIMESPAN -> readsAs(() -> Values.toTimeSpan(v));
             default -> true;
         };
         if (!ok) { p.add(sid, path, "Input '" + in.name() + "' expects " + in.type().flowName() + ", got " + Values.typeName(v), in.description()); return; }
@@ -242,6 +270,10 @@ public final class FlowValidator {
             p.add(sid, path, "Input '" + in.name() + "': " + n.toPlainString() + " is outside the allowed range "
                     + (Double.isNaN(in.min()) ? "" : "from " + BigDecimal.valueOf(in.min()).stripTrailingZeros().toPlainString() + " ")
                     + (Double.isNaN(in.max()) ? "" : "to " + BigDecimal.valueOf(in.max()).stripTrailingZeros().toPlainString()), in.description());
+    }
+
+    private static boolean readsAs(Runnable read) {
+        try { read.run(); return true; } catch (OoaException e) { return false; }
     }
 
     private static boolean containsVaultReference(Object v, int depth) {

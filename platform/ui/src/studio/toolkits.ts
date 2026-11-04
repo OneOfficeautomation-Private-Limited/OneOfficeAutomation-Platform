@@ -1,6 +1,7 @@
 import type { IconName } from "../components";
 import type { FlowStep, PackageManifest } from "../api/client";
 import { innerLists, type Part } from "./flowEdit";
+import { binarySummary } from "./variables";
 
 /** Colour and icon of a toolkit, so steps and the action library share one mark per toolkit (approved look). */
 export type Mark = { color: string; icon: IconName };
@@ -124,6 +125,7 @@ export function plainValue(v: unknown, max = 60): string {
   else if (isObj(v) && typeof v.expr === "string") t = v.expr.replace(/^toString\((.*)\)$/s, "$1");
   else if (isObj(v) && (v.source === "credential" || v.credential)) t = "credential " + String(v.name ?? v.credential ?? "");
   else if (isObj(v) && v.source === "variable" && typeof v.variable === "string") t = v.variable;
+  else if (binarySummary(v)) t = binarySummary(v)!;   // an Image or Binary value: its size, never its bytes
   else { const keys = Object.keys(v as Obj); t = keys.length ? "{" + keys.slice(0, 3).join(", ") + (keys.length > 3 ? ", …" : "") + "}" : "{}"; }
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
 }

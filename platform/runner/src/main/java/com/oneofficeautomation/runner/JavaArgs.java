@@ -30,6 +30,11 @@ final class JavaArgs {
         if (t == Path.class) return Path.of(Values.text(v));
         if (t == List.class) return Values.coerce(v, "List", name);
         if (t == Map.class) return Values.coerce(v, "Dictionary", name);
+        if (t == java.time.LocalTime.class) return Values.toTime(v);
+        if (t == java.time.Duration.class) return Values.toTimeSpan(v);
+        if (t == com.oneofficeautomation.sdk.ImageValue.class) return Values.toImage(v, null);
+        if (t == com.oneofficeautomation.sdk.BinaryValue.class) return Values.toBinary(v, null);
+        if (t == byte[].class) return Values.toBinary(v, null).bytes();
         if (t == SecureString.class)
             throw new ActionException("VAR.SECURE_REQUIRED", "Input '" + name + "' needs a Credential, not plain text",
                     "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");

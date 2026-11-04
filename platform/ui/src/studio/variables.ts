@@ -7,7 +7,8 @@ import { innerLists } from "./flowEdit";
  * used, so the same choices are offered as before.
  */
 
-export const TYPES = ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"] as const;
+export const TYPES = ["String", "Number", "Boolean", "DateTime", "Time", "TimeSpan", "List", "Dictionary", "Table", "Record", "File", "Image", "Binary",
+  "Window", "UIElement", "Credential", "Any"] as const;
 
 /** A colour (white letters at 4.5:1 or more) and a plain description for each type. */
 export const TYPE_STYLE: Record<string, { color: string; short: string; hint: string }> = {
@@ -18,7 +19,70 @@ export const TYPE_STYLE: Record<string, { color: string; short: string; hint: st
   File: { color: "#475569", short: "File", hint: "File or folder path" }, Window: { color: "#c2410c", short: "Win", hint: "An application window" },
   UIElement: { color: "#9a3412", short: "UI", hint: "An element on screen or in a web page" }, Credential: { color: "#b91c1c", short: "Key", hint: "Secret from the vault" },
   Any: { color: "#475569", short: "Any", hint: "Any kind of value" },
+  Time: { color: "#0f766e", short: "Time", hint: "Time of day, e.g. 14:30:05" }, TimeSpan: { color: "#9d174d", short: "Dur", hint: "Length of time, e.g. 2h 15m" },
+  Image: { color: "#4338ca", short: "Img", hint: "A picture held in memory" }, Binary: { color: "#334155", short: "Bin", hint: "Bytes held in memory, e.g. a file's contents" },
 };
+
+/** "14:30" or "2:30 PM" as 14:30:00; undefined when the text is not a time of day. */
+export function parseTime(text: string): string | undefined {
+  const t = text.trim();
+  let m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(t);
+  let h: number, min: number, s: number;
+  if (m) { h = +m[1]; min = +m[2]; s = +(m[3] ?? 0); }
+  else {
+    m = /^(\d{1,2})(?::(\d{2}))?(?::(\d{2}))?\s*([ap])\.?\s*m\.?$/i.exec(t);
+    if (!m || +m[1] < 1 || +m[1] > 12) return undefined;
+    h = (+m[1] % 12) + (m[4].toLowerCase() === "p" ? 12 : 0); min = +(m[2] ?? 0); s = +(m[3] ?? 0);
+  }
+  if (h > 23 || min > 59 || s > 59) return undefined;
+  const two = (n: number) => String(n).padStart(2, "0");
+  return two(h) + ":" + two(min) + ":" + two(s);
+}
+
+const SPAN_UNITS: Record<string, number> = { w: 604800, wk: 604800, wks: 604800, week: 604800, weeks: 604800, d: 86400, day: 86400, days: 86400,
+  h: 3600, hr: 3600, hrs: 3600, hour: 3600, hours: 3600, m: 60, min: 60, mins: 60, minute: 60, minutes: 60,
+  s: 1, sec: 1, secs: 1, second: 1, seconds: 1, ms: 0.001, millisecond: 0.001, milliseconds: 0.001 };
+
+/** Seconds as ISO 8601, the way the runner writes a TimeSpan: PT2H15M, PT0S, -PT30M. */
+export function isoSpan(seconds: number): string {
+  if (seconds < 0) return "-" + isoSpan(-seconds);
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = Math.round((seconds % 60) * 1000) / 1000;
+  return seconds === 0 ? "PT0S" : "PT" + (h ? h + "H" : "") + (m ? m + "M" : "") + (s ? s + "S" : "");
+}
+
+/** "2h 15m", "1d 3h", "01:30:00", "PT2H15M" or a number of seconds as ISO 8601 (PT2H15M); undefined when it is not a length of time. */
+export function parseTimeSpan(text: string): string | undefined {
+  let t = text.trim().toLowerCase();
+  const neg = t.startsWith("-");
+  if (neg || t.startsWith("+")) t = t.slice(1).trim();
+  let secs: number | undefined;
+  const iso = /^p(?:(\d+(?:\.\d+)?)d)?(?:t(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?)?$/.exec(t);
+  const clock = /^(?:(\d+)\.)?(\d+):(\d{1,2})(?::(\d{1,2})(?:\.(\d+))?)?$/.exec(t);
+  if (iso && t !== "p" && t !== "pt") secs = +(iso[1] ?? 0) * 86400 + +(iso[2] ?? 0) * 3600 + +(iso[3] ?? 0) * 60 + +(iso[4] ?? 0);
+  else if (/^\d+(\.\d+)?$/.test(t)) secs = +t;
+  else if (clock) { if (+clock[3] < 60 && +(clock[4] ?? 0) < 60) secs = +(clock[1] ?? 0) * 86400 + +clock[2] * 3600 + +clock[3] * 60 + +(clock[4] ?? 0) + +("0." + (clock[5] ?? "0")); }
+  else {
+    const rest = t.replace(/,/g, " ").replace(/\band\b/g, " ");
+    const parts = [...rest.matchAll(/(\d+(?:\.\d+)?)\s*([a-z]+)/g)];
+    let at = 0, total = 0;
+    for (const p of parts) {
+      if (rest.slice(at, p.index).trim() || !(p[2] in SPAN_UNITS)) return undefined;
+      total += +p[1] * SPAN_UNITS[p[2]]; at = p.index! + p[0].length;
+    }
+    if (parts.length && !rest.slice(at).trim()) secs = total;
+  }
+  return secs === undefined || !Number.isFinite(secs) ? undefined : isoSpan(neg ? -secs : secs);
+}
+
+/** An Image or Binary value in its JSON form ({"$binary": Base64, ...}) as people read it: "Image 640x480", "Binary 1.2 KB". */
+export function binarySummary(v: unknown): string | undefined {
+  if (!v || typeof v !== "object" || typeof (v as { $binary?: unknown }).$binary !== "string") return undefined;
+  const o = v as { $binary: string; width?: number; height?: number };
+  if (typeof o.width === "number" && typeof o.height === "number") return "Image " + o.width + "x" + o.height;
+  const b64 = o.$binary.replace(/\s+/g, "");
+  const n = Math.max(0, Math.floor(b64.length * 3 / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0));
+  return "Binary " + (n < 1024 ? n + (n === 1 ? " byte" : " bytes") : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB");
+}
 
 export type Direction = NonNullable<FlowVariable["direction"]>;
 export const isInput = (v: FlowVariable) => v.direction === "input" || v.direction === "in_out";
@@ -36,7 +100,7 @@ export const GROUPS: { dir: Direction; label: string; hint: string }[] = [
 /** Can a variable of type `have` be used where a field expects `want`? Text takes most values (they are written out). */
 export function compatible(want: string | undefined, have: string | undefined): boolean {
   if (!want || want === "Any" || !have || have === "Any" || want === have) return true;
-  if (want === "String") return ["Number", "Boolean", "DateTime", "File"].includes(have);
+  if (want === "String") return ["Number", "Boolean", "DateTime", "File", "Time", "TimeSpan"].includes(have);
   if (want === "File") return have === "String";
   return (want === "Record" && have === "Dictionary") || (want === "Dictionary" && have === "Record");
 }
@@ -52,6 +116,8 @@ export function guessType(v: unknown): string {
   if (typeof v === "number") return "Number";
   if (typeof v === "boolean") return "Boolean";
   if (Array.isArray(v)) return "List";
+  const bin = binarySummary(v);
+  if (bin) return bin.startsWith("Image") ? "Image" : "Binary";
   if (v && typeof v === "object") return Array.isArray((v as { columns?: unknown }).columns) ? "Table" : "Dictionary";
   return "String";
 }

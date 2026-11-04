@@ -17,6 +17,9 @@ public final class SchemaTypes {
             case TABLE -> Map.of("type", "object", "required", java.util.List.of("columns", "rows"));
             case FILE -> Map.of("type", "string");
             case CREDENTIAL -> Map.of("type", "string");
+            case TIME -> Map.of("type", "string", "format", "time");
+            case TIMESPAN -> Map.of("type", "string", "format", "duration");
+            case IMAGE, BINARY -> Map.of("type", "object", "required", java.util.List.of("$binary"));
             default -> Map.of();
         };
     }

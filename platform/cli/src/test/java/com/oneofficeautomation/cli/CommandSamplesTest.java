@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Runs in the cli module because its test classpath has every toolkit, including the optional Office, Email, PDF,
  * Browser, Transfer and Windows modules. Cases live in {@code src/test/resources/command-samples/*.json} as a list of
- * {@code {"command", "name"?, "vars"?: {name: value}, "files"?: {relative path: text}, "agents"?: {id: child flow}, "steps": [...],
+ * {@code {"command", "name"?, "vars"?: {name: value}, "types"?: {name: type}, "files"?: {relative path: text}, "agents"?: {id: child flow}, "steps": [...],
  * "expect"?: {variable: value}, "expectFiles"?: {relative path: text | true | false}, "error"?: "CODE"}}.
  * Every variable named in vars or in a step's out map is declared (type Any). The text {@code {tmp}} anywhere in a
  * case is replaced by the case's temporary folder (with forward slashes). Results are written to
@@ -282,6 +282,8 @@ class CommandSamplesTest {
             Files.writeString(p, String.valueOf(e.getValue()), StandardCharsets.UTF_8);
         }
         Map<String, Object> vars = (Map<String, Object>) cs.getOrDefault("vars", Map.of());
+        // "types": {variable: "Time"} declares those variables with that type instead of Any
+        Map<String, Object> types = (Map<String, Object>) cs.getOrDefault("types", Map.of());
         List<Map<String, Object>> steps = (List<Map<String, Object>>) cs.get("steps");
         Set<String> names = new LinkedHashSet<>(vars.keySet());
         int[] id = {0};
@@ -290,7 +292,7 @@ class CommandSamplesTest {
         List<Map<String, Object>> decl = new ArrayList<>();
         for (String name : names) {
             Map<String, Object> v = new LinkedHashMap<>();
-            v.put("name", name); v.put("type", "Any"); v.put("direction", "output");
+            v.put("name", name); v.put("type", String.valueOf(types.getOrDefault(name, "Any"))); v.put("direction", "output");
             if (vars.containsKey(name)) v.put("default", vars.get(name));
             decl.add(v);
         }

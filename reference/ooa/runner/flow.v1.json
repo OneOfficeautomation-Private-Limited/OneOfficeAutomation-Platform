@@ -67,7 +67,7 @@
   "$defs": {
     "type": {
       "description": "OOA data type.",
-      "enum": ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"]
+      "enum": ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any", "Time", "TimeSpan", "Image", "Binary"]
     },
     "variable": {
       "type": "object",

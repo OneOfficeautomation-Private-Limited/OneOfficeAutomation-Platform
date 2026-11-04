@@ -740,7 +740,7 @@ public final class StudioServer {
                 + "core/loop has \"args\": {\"iterator\": \"list|times|table_rows|dictionary|while\", \"over\" or \"count\", \"as\"} and \"children\"; "
                 + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
                 + "Reference variables as $name, or inside text as ${name}. Declare every variable you use. Types: String, Number, Boolean, DateTime, List, "
-                + "Dictionary, Table, Record, File, Credential, Any. Secrets are Credential inputs. Use only actions from this catalog "
+                + "Dictionary, Table, Record, File, Credential, Any, Time, TimeSpan, Image, Binary. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
         String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
         Map<String, Object> run = new LinkedHashMap<>();
