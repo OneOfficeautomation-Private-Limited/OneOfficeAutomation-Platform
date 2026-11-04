@@ -359,6 +359,8 @@ class CommandSamplesTest {
             if (s.get("out") instanceof Map<?, ?> out) for (Object v : out.values()) names.add(String.valueOf(v));
             Map<String, Object> a = (Map<String, Object>) s.getOrDefault("args", Map.of());
             if ("core/set".equals(s.get("action")) && a.get("variable") instanceof String v) names.add(v);
+            if ("core/set_many".equals(s.get("action")) && a.get("assignments") instanceof List<?> rows)
+                for (Object r : rows) if (r instanceof Map<?, ?> rm && rm.get("variable") instanceof String v) names.add(v);
             for (String k : List.of("as", "index")) if ("core/loop".equals(s.get("action")) && a.get(k) instanceof String v) names.add(v);
             for (String k : List.of("children", "else", "finally")) collect((List<Map<String, Object>>) s.get(k), names, id);
             for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) {

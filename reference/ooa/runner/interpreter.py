@@ -335,6 +335,12 @@ class _Run:
             stored = self.scope.set(a["variable"], value)
             self.emit("variable.set", sid, name=a["variable"], value=safe_repr(stored))
             return
+        if aid == "set_many":
+            # in order, so a later value can use a variable assigned above it
+            for row in a.get("assignments") or []:
+                stored = self.scope.set(row["variable"], resolve(row.get("value"), self.lookup))
+                self.emit("variable.set", sid, name=row["variable"], value=safe_repr(stored))
+            return
         if aid == "log":
             return self._log(a.get("level", "info"), str(resolve(a["message"], self.lookup)), sid)
         if aid == "delay":

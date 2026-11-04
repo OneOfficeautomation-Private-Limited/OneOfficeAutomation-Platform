@@ -224,6 +224,8 @@ Calculations are worked out when the step runs.
 
 - **Assign variable** has two modes: **Text or value** (saved as typed) and **Calculation**. Text that looks like a
   calculation, such as `$i + 1`, is saved as one automatically ("Saved as a calculation: …").
+- **Assign several variables** sets many variables in one step, one row each. Rows run from the top, so a row can use a
+  variable set above it; reorder them with the arrows. Start a value with `=` for a calculation: `=$price * $qty`.
 - Number fields accept a calculation directly: `$count - 1`.
 - **Set text** fields have a **Calculation** mode too: `upper($row.Name)` or `$qty * 2`.
 

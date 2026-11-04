@@ -31,6 +31,7 @@ const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/step": { name: "Step group", mark: { color: "#334155", icon: "folder" } },
   "core/run_bot": { name: "Run agent", mark: { color: "#2f6fde", icon: "play" } },
   "core/set": { name: "Set value", mark: { color: "#334155", icon: "code" } },
+  "core/set_many": { name: "Set several values", mark: { color: "#334155", icon: "code" } },
   "core/log": { name: "Write to log", mark: { color: "#334155", icon: "doc" } },
   "core/comment": { name: "Comment", mark: { color: "#475569", icon: "doc" } },
   "core/delay": { name: "Wait", mark: { color: "#475569", icon: "pulse" } },
@@ -157,6 +158,8 @@ export function conditionText(c: unknown, packages: PackageManifest[] = []): str
 /** A short, readable summary of a step's settings: conditions as sentences, then the first values, then the outputs. */
 export function summarize(step: FlowStep, packages: PackageManifest[] = []): string {
   if (step.note) return step.note;
+  if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))
+    return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => "$" + (r.variable ?? "?") + " = " + plainValue(r.value)).join(" · ");
   const parts = Object.entries(step.args ?? {}).filter(([, v]) => v !== "" && v != null).slice(0, 3)
     .map(([k, v]) => k === "condition" ? conditionText(v, packages) : `${k.replace(/_/g, " ")}: ${plainValue(v)}`);
   const out = Object.values(step.out ?? {});

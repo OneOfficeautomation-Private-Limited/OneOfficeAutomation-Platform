@@ -129,6 +129,9 @@ function* every(steps: FlowStep[]): Generator<FlowStep> {
 /** $name and the start of ${name ...}; group 1 keeps the "{" so a rename puts it back. */
 const refRegex = (name: string) => new RegExp("\\$(\\{\\s*)?" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9_])", "g");
 const NAME_ARGS = ["variable", "as", "index"];
+/** The rows of Assign several variables, each naming its variable without a $. */
+const assignments = (s: FlowStep) => s.action === "core/set_many" && Array.isArray(s.args?.assignments)
+  ? (s.args!.assignments as { variable?: unknown }[]).filter((r) => r && typeof r === "object") : [];
 
 /** How many times a variable is used: in settings, Else if conditions, outputs, and as a loop's or catch's name. */
 export function usageCount(flow: Flow, name: string): number {
@@ -138,6 +141,7 @@ export function usageCount(flow: Flow, name: string): number {
     n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition)]).match(re) ?? []).length;
     n += Object.values(s.out ?? {}).filter((v) => v === name).length;
     n += NAME_ARGS.filter((k) => s.args?.[k] === name).length;
+    n += assignments(s).filter((r) => r.variable === name).length;
     n += (s.catch ?? []).filter((c) => c.as === name).length;
   }
   return n;
@@ -151,6 +155,7 @@ export function renameRefs(flow: Flow, oldName: string, newName: string): Flow {
     : Array.isArray(v) ? v.map(map) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, map(x)])) : v;
   for (const s of every(f.steps)) {
     if (s.args) { s.args = map(s.args) as Record<string, unknown>; for (const k of NAME_ARGS) if (s.args[k] === oldName) s.args[k] = newName; }
+    for (const r of assignments(s)) if (r.variable === oldName) r.variable = newName;
     for (const b of s.elseIf ?? []) b.condition = map(b.condition);
     for (const [k, v] of Object.entries(s.out ?? {})) if (v === oldName) s.out![k] = newName;
     for (const c of s.catch ?? []) if (c.as === oldName) c.as = newName;

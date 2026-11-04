@@ -701,13 +701,16 @@ public final class Runner {
                 case "try" -> tryBlock(step);
                 case "step" -> execSteps(list(step, "children"), false);
                 case "parallel" -> parallel(step, a);
-                case "set" -> {
-                    Object value = resolve(a.get("value"));
-                    // a Credential variable set from a vault reference gets the secret, fetched just in time
-                    if ("Credential".equals(scope.types.get(String.valueOf(a.get("variable")))) && value instanceof Map<?, ?> m && m.containsKey("$credential"))
-                        value = credentialArg(String.valueOf(a.get("variable")), value);
-                    Object stored = scope.set((String) a.get("variable"), value);
-                    emit("variable.set", sid, data("name", a.get("variable"), "value", Values.safeRepr(stored)));
+                case "set" -> assign((String) a.get("variable"), a.get("value"), sid);
+                case "set_many" -> {
+                    // in order, so a later value can use a variable assigned above it
+                    if (!(a.get("assignments") instanceof List<?> l))
+                        throw new OoaException("FLOW.INVALID", "Assign several variables needs a list of assignments", "Add records with variable and value.", false, null);
+                    for (Object o : l) {
+                        if (!(o instanceof Map<?, ?> m) || !(m.get("variable") instanceof String v) || v.isBlank())
+                            throw new OoaException("FLOW.INVALID", "Each assignment needs a variable name", "Give every row a declared variable.", false, null);
+                        assign(v, m.get("value"), sid);
+                    }
                 }
                 case "log" -> log(String.valueOf(a.getOrDefault("level", "info")), Values.text(resolve(a.get("message"))), sid);
                 case "delay" -> delay(a);
@@ -748,6 +751,16 @@ public final class Runner {
                 case "run_bot" -> runChild(step, a);
                 default -> throw new OoaException("FLOW.UNKNOWN_ACTION", "Unknown core action '" + aid + "'");
             }
+        }
+
+        /** Assign variable, and each row of Assign several variables. */
+        void assign(String variable, Object raw, String sid) {
+            Object value = resolve(raw);
+            // a Credential variable set from a vault reference gets the secret, fetched just in time
+            if ("Credential".equals(scope.types.get(variable)) && value instanceof Map<?, ?> m && m.containsKey("$credential"))
+                value = credentialArg(variable, value);
+            Object stored = scope.set(variable, value);
+            emit("variable.set", sid, data("name", variable, "value", Values.safeRepr(stored)));
         }
 
         Object resolve(Object v) { return Expressions.resolve(v, this::lookup); }

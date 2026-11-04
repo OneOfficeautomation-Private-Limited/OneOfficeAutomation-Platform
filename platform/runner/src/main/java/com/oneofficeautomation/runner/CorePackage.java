@@ -67,6 +67,12 @@ public final class CorePackage {
             @Input(name = "variable", type = OoaType.STRING, description = "Name of a declared variable.") String variable,
             @Input(name = "value", required = false, description = "Value, $reference or {\"expr\": ...}.") Object value) { return interp(); }
 
+    @Action(id = "set_many", name = "Assign several variables", category = "Variables",
+            description = "Assign values to several declared variables in one step, in order: a later value can use a variable set above it.")
+    public Map<String, Object> setMany(ActionContext c,
+            @Input(name = "assignments", type = OoaType.LIST, example = "[{\"variable\": \"total\", \"value\": 0}, {\"variable\": \"status\", \"value\": \"new\"}]",
+                    description = "Records with variable (a declared variable's name) and value (a value, $reference or {\"expr\": ...}).") Object assignments) { return interp(); }
+
     @Action(id = "log", name = "Log message", category = "Runtime", description = "Write a message to the run log.")
     public Map<String, Object> log(ActionContext c,
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,

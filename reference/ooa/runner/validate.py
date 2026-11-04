@@ -142,6 +142,15 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
                     add(f"Loop variable '{args[k]}' is not declared", sid, f"args/{k}")
         if step["action"] == "core/set" and isinstance(args.get("variable"), str) and args["variable"] not in declared:
             add(f"Variable '{args['variable']}' is not declared", sid, "args/variable")
+        if step["action"] == "core/set_many" and isinstance(args.get("assignments"), list):
+            if not args["assignments"]:
+                add("No assignments", sid, "args/assignments", "Add at least one variable and value.")
+            for i, row in enumerate(args["assignments"]):
+                v = row.get("variable") if isinstance(row, dict) else None
+                if not isinstance(v, str) or not v.strip():
+                    add(f"Assignment {i + 1} has no variable", sid, f"args/assignments/{i}", "Give each row a declared variable and a value.")
+                elif v not in declared:
+                    add(f"Variable '{v}' is not declared", sid, f"args/assignments/{i}/variable")
         for c in step.get("catch", []) or []:
             if c.get("as") and c["as"] not in declared:
                 add(f"Catch variable '{c['as']}' is not declared", sid, "catch/as")

@@ -30,6 +30,14 @@ describe("variables", () => {
     expect(renameRefs(flow(), "row", "line").steps[3].catch![0].as).toBe("line");
   });
 
+  it("counts and renames the variables of Assign several variables", () => {
+    const f: Flow = { ...flow(), steps: [{ id: "m", action: "core/set_many", args: { assignments: [
+      { variable: "total", value: 1 }, { variable: "row", value: { expr: "$total * 2" } }, { variable: "totals", value: "$total" }] } }] };
+    expect(usageCount(f, "total")).toBe(3);   // its row, and $total in two values
+    const r = renameRefs(f, "total", "sum");
+    expect(r.steps[0].args!.assignments).toEqual([{ variable: "sum", value: 1 }, { variable: "row", value: { expr: "$sum * 2" } }, { variable: "totals", value: "$sum" }]);
+  });
+
   it("saves a variable: refuses bad and taken names, renames its uses, drops what does not apply", () => {
     expect(() => saveVariable(flow(), { name: "2x", type: "String" })).toThrow(/starts with a letter/);
     expect(() => saveVariable(flow(), { name: "row", type: "String" })).toThrow(/already a variable/);

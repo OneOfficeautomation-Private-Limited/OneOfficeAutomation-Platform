@@ -52,6 +52,11 @@ class CorePackage:
                     Input("value", "Any", required=False, description="Value, $reference or {\"expr\": ...}.")])
     def set(self, ctx, **a): _interp()
 
+    @action("set_many", "Assign several variables", category="Variables",
+            description="Assign values to several declared variables in one step, in order: a later value can use a variable set above it.",
+            inputs=[Input("assignments", "List", description="Records with variable (a declared variable's name) and value (a value, $reference or {\"expr\": ...}).")])
+    def set_many(self, ctx, **a): _interp()
+
     @action("log", "Log message", category="Runtime", description="Write a message to the run log.",
             inputs=[Input("message", "String", description="Text to log; ${...} interpolation allowed."),
                     Input("level", "String", required=False, default="info", enum=("debug", "info", "warning", "error"), description="Log level.")])
