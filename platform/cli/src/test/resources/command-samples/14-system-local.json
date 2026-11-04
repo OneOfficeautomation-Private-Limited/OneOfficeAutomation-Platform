@@ -1945,5 +1945,25 @@
   "expect": {
    "n": 2
   }
- }
+ },
+ {"command": "ooa.system/list_processes", "name": "this computer's java (G08)", "vars": {"ok": false},
+  "steps": [{"action": "ooa.system/list_processes", "args": {"name_contains": "java"}, "out": {"processes": "p", "count": "n"}},
+            {"action": "core/set", "args": {"variable": "ok", "value": {"expr": "$n > 0"}}}],
+  "expect": {"ok": true, "n": {"$type": "number"}}},
+ {"command": "ooa.system/set_screen_resolution", "name": "needs confirm", "steps": [
+   {"action": "ooa.system/set_screen_resolution", "args": {"width": 1920, "height": 1080, "confirm": false}}], "error": "SYSTEM.CONFIRM_REQUIRED"},
+ {"command": "ooa.system/empty_recycle_bin", "name": "needs confirm", "steps": [
+   {"action": "ooa.system/empty_recycle_bin", "args": {"confirm": false}}], "error": "SYSTEM.CONFIRM_REQUIRED"},
+ {"command": "ooa.system/empty_recycle_bin", "name": "drive letter checked before anything is deleted", "steps": [
+   {"action": "ooa.system/empty_recycle_bin", "args": {"confirm": true, "drive": "12"}}], "error": "SYSTEM.BAD_DRIVE"},
+ {"command": "ooa.system/delete_environment_variable", "name": "process scope", "steps": [
+   {"action": "ooa.system/set_environment_variable", "args": {"name": "OOA_G08_SAMPLE", "value": "x"}},
+   {"action": "ooa.system/get_environment_variable", "args": {"name": "OOA_G08_SAMPLE"}, "out": {"value": "before"}},
+   {"action": "ooa.system/delete_environment_variable", "args": {"name": "OOA_G08_SAMPLE"}},
+   {"action": "ooa.system/get_environment_variable", "args": {"name": "OOA_G08_SAMPLE", "default": "gone"}, "out": {"value": "after"}}],
+  "expect": {"before": "x", "after": "gone"}},
+ {"command": "ooa.system/notify", "name": "needs a title", "steps": [
+   {"action": "ooa.system/notify", "args": {"title": " "}}], "error": "SYSTEM.NO_TITLE"},
+ {"command": "ooa.system/get_screen_resolution", "name": "main screen", "requires": "desktop", "steps": [
+   {"action": "ooa.system/get_screen_resolution", "out": {"width": "w", "screens": "s"}}], "expect": {"w": {"$type": "number"}, "s": {"$type": "array"}}}
 ]
