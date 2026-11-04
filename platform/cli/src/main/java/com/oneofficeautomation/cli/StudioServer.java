@@ -739,6 +739,9 @@ public final class StudioServer {
                 + "Containers: core/if has \"args\": {\"condition\": {\"op\": \"eq|ne|gt|ge|lt|le|contains|empty|notEmpty\", \"left\", \"right\"}}, \"children\" and \"else\"; "
                 + "core/loop has \"args\": {\"iterator\": \"list|times|table_rows|dictionary|while\", \"over\" or \"count\", \"as\"} and \"children\"; "
                 + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
+                + "core/run_subflow {\"subflow\": name} runs one of the agent's subflows (named step lists sharing its variables"
+                + (Steps.subflows(flow).isEmpty() ? "; this agent has none" : "; this agent's: " + String.join(", ", Steps.subflows(flow).keySet())) + "). "
+                + "core/label {\"name\"} marks a place; core/goto {\"label\"} carries on from a label in the same step list or a list around it (prefer core/loop). "
                 + "Reference variables as $name, or inside text as ${name}. Declare every variable you use. Types: String, Number, Boolean, DateTime, List, "
                 + "Dictionary, Table, Record, File, Credential, Any. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
@@ -768,6 +771,9 @@ public final class StudioServer {
         check.putIfAbsent("kind", "TaskBot"); check.putIfAbsent("id", "check"); check.putIfAbsent("name", "check");
         check.put("variables", vars);
         check.put("steps", answer.getOrDefault("steps", List.of()));
+        // the agent's subflows by name only, so Run subflow steps check but their steps' ids do not clash with new ones
+        if (flow.containsKey("subflows"))
+            check.put("subflows", Steps.subflows(flow).keySet().stream().map(n -> (Object) Map.of("name", n, "steps", List.of())).toList());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("variables", answer.getOrDefault("variables", List.of()));
         out.put("steps", answer.getOrDefault("steps", List.of()));
@@ -791,13 +797,13 @@ public final class StudioServer {
                 try {
                     Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
                     botsById.putIfAbsent(String.valueOf(f.get("id")), r);
-                    stepsByBot.put(r, com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of())));
+                    stepsByBot.put(r, com.oneofficeautomation.runner.Steps.walkFlow(f));
                 } catch (RuntimeException ignored) { /* unreadable bot */ }
             }
         }
         List<Map<String, Object>> bots = new ArrayList<>(), scripts = new ArrayList<>(), skills = new ArrayList<>(), files = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             String action = String.valueOf(step.get("action"));
             Map<String, Object> args = step.get("args") instanceof Map ? (Map<String, Object>) step.get("args") : Map.of();
             List<String> botIds = new ArrayList<>();
@@ -859,7 +865,7 @@ public final class StudioServer {
                     Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
                     if (String.valueOf(f.getOrDefault("description", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("description");
                     if (String.valueOf(f.getOrDefault("id", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("agent id");
-                    for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+                    for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walkFlow(f)) {
                         String a = String.valueOf(step.get("action"));
                         String name = names.getOrDefault(a, "");
                         if ((a + " " + name + " " + step.getOrDefault("description", "")).toLowerCase(Locale.ROOT).contains(needle)) { why.add("uses " + a); break; }

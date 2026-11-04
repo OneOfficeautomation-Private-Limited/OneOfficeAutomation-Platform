@@ -9,7 +9,7 @@ import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } f
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
-import { addStep, insertAt, locate, newStep, parseLoose, type Part, type Place } from "./flowEdit";
+import { addStep, insertAt, locateAny, newStep, parseLoose, swapSubflow, type Part, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
@@ -24,6 +24,8 @@ import { oneStep, runOnce } from "./runOnce";
 type AgentTab = {
   kind: "agent"; path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean;
   run: LiveRun | null; breakpoints: string[];
+  /** The subflow whose steps are shown and edited; none (the default) for the main steps. */
+  list?: string | null;
   /** Opened from a Run agent step: the way back, parent by parent (breadcrumb). */
   trail?: Trail[];
 };
@@ -133,16 +135,20 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (agent?.future.length) patch(agent.path, (t) => ({ ...t, flow: t.future[0], future: t.future.slice(1), past: [...t.past, t.flow] }));
     if (item?.future.length) patchItem(item.path, (t) => ({ ...t, text: t.future[0], future: t.future.slice(1), past: [...t.past, t.text] }));
   };
+  // a new step goes into the list shown: the main steps, or a subflow (edited as a view with its steps in front, swapped back)
   const add = (action: string) => {
     if (!agent) return;
-    const step = newStep(action, agent.flow, packages);
-    edit(addStep(agent.flow, agent.selected, step), [step.id]);
+    const list = agent.list ?? null, view = swapSubflow(agent.flow, list);
+    const step = newStep(action, view, packages);
+    edit(swapSubflow(addStep(view, agent.selected, step), list), [step.id]);
   };
   // an action dragged from the library onto a place in the steps
   const insert = (action: string, targetId: string | null, where: Place, part?: Part) => {
     if (!agent) return;
-    const step = newStep(action, agent.flow, packages);
-    edit(insertAt(agent.flow, step, targetId, where, part), [step.id]);
+    const list = agent.list ?? null, view = swapSubflow(agent.flow, list);
+    const step = newStep(action, view, packages);
+    const next = insertAt(view, step, targetId, where, part);
+    if (next !== view) edit(swapSubflow(next, list), [step.id]);
   };
   const save = async (path: string) => {
     // a field still being typed in (Ctrl+S without leaving it) commits first, then the latest flow is saved
@@ -239,7 +245,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   /** Run agent step: opens the agent it runs, remembering the way back to this step. */
   const openChild = (stepId: string) => {
     if (!agent) return;
-    const step = locate(agent.flow.steps, stepId)?.step;
+    const step = locateAny(agent.flow, stepId)?.step;   // main steps or a subflow
     const id = String(step?.args?.automation ?? "");
     const child = agents.find((a) => a.id === id);
     if (!child) { setError(id ? "Agent " + id + " is not in this workspace." : "Choose the agent to run first."); return; }
@@ -259,7 +265,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     const flow = tabsRef.current.find((t) => t.path === path && t.kind === "agent")?.kind === "agent" ? (tabsRef.current.find((t) => t.path === path) as AgentTab).flow : await api.bot(path).catch(() => null);
     const walk = (list: FlowStep[]): FlowStep | undefined => { for (const s of list) { if (s.action === "core/run_bot" && s.args?.automation === childId) return s;
       const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? [])]); if (inner) return inner; } return undefined; };
-    const step = flow ? walk(flow.steps) : undefined;
+    const step = flow ? walk([...flow.steps, ...(flow.subflows ?? []).flatMap((s) => s.steps ?? [])]) : undefined;
     open({ name: path.split("/").pop()!, path, type: "bot" }, step ? { select: step.id } : undefined);
   };
   /** A document type's extraction agent: read the document (PDF text when it can), then extract its fields with AI. */
@@ -507,6 +513,7 @@ export function App({ api: given }: { api?: StudioApi }) {
             ? <>{isAiAgent(agent.flow) && <div className="st-ai-note"><span>This is an AI agent, shown as its steps.</span>
                 <Button kind="secondary" icon="spark" onClick={() => setAsSteps(asSteps.filter((p) => p !== agent.path))}>Open in the AI agent editor</Button></div>}
               <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected} askTrigger={askTrigger}
+                list={agent.list ?? null} onList={(l) => patch(agent.path, (t) => ({ ...t, list: l }))}
                 onSelect={(ids) => patch(agent.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}

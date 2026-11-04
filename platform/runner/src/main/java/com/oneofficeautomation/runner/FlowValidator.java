@@ -67,8 +67,19 @@ public final class FlowValidator {
         if ("ApiTask".equals(kind) && caps.contains("desktop"))
             p.add(null, "requires/capabilities", "ApiTask flows cannot require the desktop capability", "Use kind TaskBot for agents that drive a desktop.");
 
+        // subflows: named step lists run by core/run_subflow; Go to and loop exits are checked per step tree
+        Set<String> subNames = new LinkedHashSet<>();
+        if (flow.get("subflows") instanceof List<?> subs)
+            for (int i = 0; i < subs.size(); i++) {
+                Object n = subs.get(i) instanceof Map<?, ?> m ? m.get("name") : null;
+                if (!(n instanceof String s) || s.isBlank()) p.add(null, "subflows/" + i + "/name", "Subflow " + (i + 1) + " has no name", "Give every subflow a name.");
+                else if (!subNames.add(s)) p.add(null, "subflows/" + i + "/name", "Duplicate subflow name '" + s + "'", "Give every subflow a unique name.");
+            }
+        checkTree(p, (List<Object>) flow.getOrDefault("steps", List.of()), null);
+        for (var sub : Steps.subflows(flow).entrySet()) checkTree(p, sub.getValue(), sub.getKey());
+
         Set<String> seen = new HashSet<>();
-        for (Map<String, Object> step : Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> step : Steps.walkFlow(flow)) {
             String sid = String.valueOf(step.get("id"));
             String act = String.valueOf(step.get("action"));
             if (!seen.add(sid)) p.add(sid, null, "Duplicate step id '" + sid + "'", "Step ids must be unique; One AgentStudio regenerates them on paste.");
@@ -112,6 +123,9 @@ public final class FlowValidator {
                     if (var instanceof String v && !declared.containsKey(v) && !v.contains("$"))
                         p.add(sid, "args/output_map/" + o, "Output target '" + v + "' is not declared", "Declare variable '" + v + "'.");
                 });
+            if (act.equals("core/run_subflow") && args.get("subflow") instanceof String sf && !sf.contains("$") && !sf.isBlank() && !subNames.contains(sf.strip()))
+                p.add(sid, "args/subflow", "There is no subflow named '" + sf + "'",
+                        subNames.isEmpty() ? "Add the subflow to the agent, or remove the step." : "Subflows: " + String.join(", ", subNames) + ".");
             if (act.equals("core/set") && args.get("variable") instanceof String v && !declared.containsKey(v))
                 p.add(sid, "args/variable", "Variable '" + v + "' is not declared", null);
             if (act.equals("core/set") && args.get("variable") instanceof String v && declared.containsKey(v) && containsVaultReference(args.get("value"), 0)) {
@@ -157,6 +171,77 @@ public final class FlowValidator {
                     "Outputs: " + (outputs.isEmpty() ? "none" : String.join(", ", new TreeSet<>(outputs))) + ".");
         }
         return problems;
+    }
+
+    /**
+     * One step tree (the main steps, or a subflow's when `subflow` is not null): Go to targets a Label in its own list or a
+     * list around it, never into a block, out of a Parallel branch or out of the tree; a label name is used once among the
+     * labels a Go to can see. In a subflow, Exit loop and Continue loop need a loop of the subflow around them. Exit
+     * subflow is only for subflows. (Loop exits in the main steps keep failing at run time, as before.)
+     */
+    private static void checkTree(P p, List<Object> steps, String subflow) {
+        Set<String> all = new HashSet<>();
+        for (Map<String, Object> s : Steps.walk(steps)) if ("core/label".equals(s.get("action")) && labelName(s) != null) all.add(labelName(s));
+        checkList(p, steps, Set.of(), List.of(), subflow, all, true);
+    }
+
+    private static String labelName(Map<String, Object> step) {
+        Object v = step.get("args") instanceof Map<?, ?> a ? a.get("core/goto".equals(step.get("action")) ? "label" : "name") : null;
+        return v instanceof String s && !s.isBlank() ? s.strip() : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void checkList(P p, List<Object> list, Set<String> outer, List<String> loops, String subflow, Set<String> all, boolean ownsLabels) {
+        Set<String> scope = new HashSet<>(outer);
+        if (ownsLabels) {
+            Set<String> own = new HashSet<>();
+            for (Object o : list)
+                if (o instanceof Map<?, ?> m && "core/label".equals(m.get("action"))) {
+                    String n = labelName((Map<String, Object>) m), sid = String.valueOf(m.get("id"));
+                    if (n == null) p.add(sid, "args/name", "The Label has no name", "Give the label a name for Go to steps.");
+                    else if (!own.add(n) || outer.contains(n)) p.add(sid, "args/name", "Duplicate label '" + n + "'" + (outer.contains(n) ? " (a list around it has one too)" : ""),
+                            "Give each label a name of its own, so Go to knows where to carry on.");
+                }
+            scope.addAll(own);
+        }
+        String where = subflow == null ? "" : " of subflow '" + subflow + "'";
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> m)) continue;
+            Map<String, Object> s = (Map<String, Object>) m;
+            String act = String.valueOf(s.get("action")), sid = String.valueOf(s.get("id"));
+            Map<String, Object> args = s.get("args") instanceof Map<?, ?> a ? (Map<String, Object>) a : Map.of();
+            switch (act) {
+                case "core/goto" -> {
+                    String n = labelName(s);
+                    if (n == null) p.add(sid, "args/label", "Go to has no label", "Choose the label to carry on from.");
+                    else if (!scope.contains(n)) p.add(sid, "args/label", all.contains(n)
+                            ? "Go to label '" + n + "' cannot be reached from here: it would jump into a block or out of a Parallel branch"
+                            : "There is no label '" + n + "' in the steps" + where,
+                            "Go to can jump to a label in its own step list or a list around it" + (subflow == null ? "" : ", in the same subflow") + ".");
+                }
+                case "core/exit_subflow" -> { if (subflow == null) p.add(sid, null, "Exit subflow is only for subflows", "Use Stop agent to end the main steps."); }
+                case "core/break", "core/continue" -> {
+                    if (subflow == null) break;
+                    String lb = args.get("label") instanceof String l && !l.isBlank() && !l.contains("$") ? l.strip() : null;
+                    if (loops.isEmpty() || (lb != null && !loops.contains(lb)))
+                        p.add(sid, lb == null ? null : "args/label", (act.equals("core/break") ? "Exit loop" : "Continue loop") + " is not inside a loop" + (lb == null ? "" : " labelled '" + lb + "'") + where,
+                                "A subflow can only leave or continue its own loops.");
+                }
+                default -> { }
+            }
+            if (act.equals("core/parallel")) {
+                // every branch runs apart: no Go to or loop exit leaves it
+                for (Object b : s.get("children") instanceof List<?> l ? (List<Object>) l : List.of()) checkList(p, List.of(b), Set.of(), List.of(), subflow, all, false);
+                continue;
+            }
+            List<String> inner = loops;
+            if (act.equals("core/loop")) { inner = new ArrayList<>(loops); inner.add(args.get("label") instanceof String l ? l.strip() : ""); }
+            for (String k : List.of("children", "else", "finally"))
+                if (s.get(k) instanceof List<?> l) checkList(p, (List<Object>) l, scope, inner, subflow, all, true);
+            for (String k : List.of("elseIf", "catch"))
+                if (s.get(k) instanceof List<?> l) for (Object b : l)
+                    if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) checkList(p, (List<Object>) c, scope, inner, subflow, all, true);
+        }
     }
 
     /** Unknown, missing and literal values of an action, condition or loop type, against its manifest. */

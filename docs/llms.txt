@@ -15,6 +15,8 @@ The production platform is Java 21; it must pass the same conformance suite.
 - Argument values: literal; `"$a.b[0]"` reference (keeps type); `"text ${name} ${len($xs)}"` interpolation; `{"expr": "$a * 2"}` expression; `{"literal": "$x"}` escape
 - Conditions: expression string, `{"op": "gt", "left": ..., "right": ...}`, `{"all": [...]}`, `{"any": [...]}`, `{"not": ...}`, or `{"condition": "package/condition", "args": {...}}`
 - Containers: `core/if` (children, elseIf, else), `core/loop` (iterator times|while|list|dictionary|table_rows|package/iterator, `as`, `index`), `core/try` (children, catch[codes, as], finally), `core/step`, `core/parallel`
+- Subflows: `"subflows": [{"name": "Login", "steps": [...]}]` beside `steps`; `core/run_subflow` (`subflow`) runs one with the same variables, `core/exit_subflow` leaves it; break/continue/goto cannot leave a subflow
+- Labels: `core/label` (`name`) and `core/goto` (`label`) jump within the same step list or a list around it, never into a block; GOTO.LIMIT after 10000 jumps per run
 - Action outputs map to variables with `"out": {"outputName": "variableName"}`
 - Credentials are passed as `{"$credential": "locker/credential/attribute"}`; they can never be interpolated or copied to text
 - Expression functions: upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch regexExtract jsonParse jsonStringify if

@@ -145,6 +145,9 @@ button.st-marker-row { cursor: pointer; }
 .st-edit-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 40px; padding: 0 8px;
   margin-bottom: 8px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
 .st-edit-bar .st-steps-meta { margin-left: auto; padding: 0 6px; }
+/* G27: the step lists of an agent with subflows (Main, then each subflow), under the edit bar */
+.st-subflow-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 12px 8px; }
+.st-subflow-bar .st-seg-btn { height: 26px; }
 .st-bar-gap { width: 1px; height: 20px; margin: 0 6px; background: var(--ui-border); }
 .st-panel-hint { margin: 0; padding: 6px 10px; color: var(--ui-text-2); font-size: 12px; border-bottom: 1px solid var(--ui-divider); }
 .st-action { width: 100%; border: 0; background: transparent; padding: 5px 10px 5px 50px; text-align: left; cursor: pointer; color: var(--ui-text); }

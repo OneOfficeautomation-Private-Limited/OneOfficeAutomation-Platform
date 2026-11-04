@@ -46,6 +46,7 @@ final class RunWindow {
                       java.util.function.BooleanSupplier done, Function<String, String> names) {
         numbers = new LinkedHashMap<>();
         number(list(flow, "steps"), "");
+        for (var sub : com.oneofficeautomation.runner.Steps.subflows(flow).entrySet()) number(sub.getValue(), " of subflow " + sub.getKey());
         total = numbers.size();
         win = new JWindow();
         win.setAlwaysOnTop(true);
@@ -107,10 +108,11 @@ final class RunWindow {
         } else status.setText(pause.get() ? "Paused" : "Running");
     }
 
-    /** Line numbers as on the canvas: every step counted from the top (1, 2, 3 ...), nested steps included. */
+    /** Line numbers as on the canvas: every step counted from the top (1, 2, 3 ...), nested steps included; a subflow's steps from 1 again, with its name after. */
     @SuppressWarnings("unchecked")
-    private void number(List<Object> steps, String unused) {
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk(steps)) numbers.put(String.valueOf(s.get("id")), String.valueOf(numbers.size() + 1));
+    private void number(List<Object> steps, String suffix) {
+        int n = 0;
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk(steps)) numbers.put(String.valueOf(s.get("id")), ++n + suffix);
     }
 
     @SuppressWarnings("unchecked")

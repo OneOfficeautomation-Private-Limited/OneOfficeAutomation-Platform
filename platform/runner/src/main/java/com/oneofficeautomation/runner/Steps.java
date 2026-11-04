@@ -1,10 +1,11 @@
 package com.oneofficeautomation.runner;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Walks the step tree: children, else, elseIf branches, catch blocks and finally. */
+/** Walks the step tree: children, else, elseIf branches, catch blocks and finally (with walkFlow, the subflows too). */
 public final class Steps {
     private Steps() {}
 
@@ -25,6 +26,26 @@ public final class Steps {
                 for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
             if (s.get("finally") instanceof List<?> l) out.addAll(walk((List<Object>) l));
         }
+        return out;
+    }
+
+    /** Every step of a flow: its main steps (as walk), then each subflow's steps in order. Without subflows, the same as walk(steps). */
+    @SuppressWarnings("unchecked")
+    public static List<Map<String, Object>> walkFlow(Map<String, Object> flow) {
+        List<Map<String, Object>> out = walk(flow.get("steps") instanceof List<?> l ? (List<Object>) l : List.of());
+        if (flow.get("subflows") instanceof List<?> subs)
+            for (Object o : subs) if (o instanceof Map<?, ?> m && m.get("steps") instanceof List<?> st) out.addAll(walk((List<Object>) st));
+        return out;
+    }
+
+    /** The flow's subflows by name, in order: name to its step list (entries without a name, and repeated names, are left out). */
+    @SuppressWarnings("unchecked")
+    public static Map<String, List<Object>> subflows(Map<String, Object> flow) {
+        Map<String, List<Object>> out = new LinkedHashMap<>();
+        if (flow != null && flow.get("subflows") instanceof List<?> l)
+            for (Object o : l)
+                if (o instanceof Map<?, ?> m && m.get("name") instanceof String n)
+                    out.putIfAbsent(n, m.get("steps") instanceof List<?> st ? (List<Object>) st : List.of());
         return out;
     }
 }

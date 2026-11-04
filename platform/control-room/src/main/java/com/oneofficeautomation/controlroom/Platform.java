@@ -1272,7 +1272,7 @@ public final class Platform {
             if (!path.endsWith(".flow.json")) continue;
             Map<String, Object> flow = (Map<String, Object>) cr.content(path, "latest").get("flow");
             Map<String, Object> req = flow.get("requires") instanceof Map<?, ?> r && r.get("packages") instanceof Map<?, ?> pk ? (Map<String, Object>) pk : Map.of();
-            boolean uses = com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())).stream()
+            boolean uses = com.oneofficeautomation.runner.Steps.walkFlow(flow).stream()
                     .anyMatch(st -> String.valueOf(st.get("action")).startsWith(pid + "/"));
             Object range = req.get(pid);
             if (!uses && range == null) continue;
@@ -1697,7 +1697,7 @@ public final class Platform {
             Map<String, Object> flow;
             try { flow = (Map<String, Object>) cr.content((String) b.get("path"), "latest").get("flow"); } catch (OoaException e) { continue; }
             Set<String> pkgs = new HashSet<>();
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())))
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow))
                 pkgs.add(String.valueOf(s.get("action")).split("/")[0]);
             for (String p : pkgs) used.merge(p, 1, Integer::sum);
         }
@@ -1727,7 +1727,7 @@ public final class Platform {
         for (Map<String, Object> b : db.query("SELECT path FROM bots ORDER BY path")) {
             Map<String, Object> flow;
             try { flow = (Map<String, Object>) cr.content((String) b.get("path"), "latest").get("flow"); } catch (OoaException e) { continue; }
-            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())))
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow))
                 if (String.valueOf(s.get("action")).startsWith(pid + "/")) { out.add((String) b.get("path")); break; }
         }
         return out;
@@ -1748,7 +1748,7 @@ public final class Platform {
         Set<String> off = new HashSet<>();
         for (Map<String, Object> r : db.query("SELECT id FROM toolkit_settings WHERE enabled = FALSE")) off.add((String) r.get("id"));
         if (off.isEmpty()) return;
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             String pid = String.valueOf(s.get("action")).split("/")[0];
             if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this One CommandCenter (step " + s.get("id") + ")",
                     "Ask an administrator to switch it on under Toolkits, or remove the step.");

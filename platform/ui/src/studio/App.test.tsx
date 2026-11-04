@@ -652,6 +652,29 @@ describe("new Studio", () => {
     expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Close workbook"]);
   });
 
+  it("adds a subflow, edits its steps apart from the main steps and saves both (G27)", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    expect(within(steps).queryByRole("radiogroup", { name: "Steps shown" })).toBeNull();   // no subflows: no list switcher
+    fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Add a subflow/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Add a subflow" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Close up" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    const lists = await within(steps).findByRole("radiogroup", { name: "Steps shown" });
+    await waitFor(() => expect(within(lists).getByRole("radio", { name: "Close up" }).getAttribute("aria-checked")).toBe("true"));
+    expect(stepNames(steps)).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: /^Excel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Close workbook" }));
+    expect(stepNames(steps)).toEqual(["Close workbook"]);
+    fireEvent.click(within(lists).getByRole("radio", { name: "Main" }));
+    expect(stepNames(steps)).toEqual(["Open workbook", "Loop", "Write to log"]);
+    const saved = await saveAndGet(created);
+    expect(saved.steps.map((s: any) => s.id)).toEqual(["open", "loop"]);
+    expect(saved.subflows).toMatchObject([{ name: "Close up", steps: [{ action: "ooa.excel/close" }] }]);
+  });
+
   it("selects several steps with Ctrl and Shift, then switches them off and deletes them together", async () => {
     render(<App api={fakeServer().api} />);
     const steps = await openIntake();

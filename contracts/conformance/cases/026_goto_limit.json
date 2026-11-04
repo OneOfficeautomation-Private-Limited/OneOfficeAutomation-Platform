@@ -1,0 +1,22 @@
+{
+  "name": "026_goto_limit",
+  "description": "Go to that jumps round without end fails the run with GOTO.LIMIT once the run's jump allowance (10000 by default) is used.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c20",
+    "name": "c20",
+    "variables": [{"name": "n", "type": "Number", "direction": "output", "default": 0}],
+    "steps": [
+      {"id": "l", "action": "core/label", "args": {"name": "spin"}},
+      {"id": "inc", "action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}},
+      {"id": "g", "action": "core/goto", "args": {"label": "spin"}}
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "GOTO.LIMIT",
+    "errorStepId": "g",
+    "outputs": {"n": 10001}
+  }
+}

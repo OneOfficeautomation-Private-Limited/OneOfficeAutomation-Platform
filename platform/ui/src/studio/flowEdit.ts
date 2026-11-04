@@ -31,10 +31,16 @@ function* every(steps: FlowStep[]): Generator<FlowStep> {
   for (const s of steps) { yield s; for (const inner of innerLists(s)) yield* every(inner); }
 }
 
-/** The next free step id (s1, s2 ...), as Classic Studio numbers them. */
+/** Every step of an agent: its main steps and those of its subflows, nested steps included. */
+export function* allSteps(flow: Flow): Generator<FlowStep> {
+  yield* every(flow.steps);
+  for (const sub of flow.subflows ?? []) yield* every(sub.steps ?? []);
+}
+
+/** The next free step id (s1, s2 ...), as Classic Studio numbers them; ids are unique across the main steps and subflows. */
 export function nextId(flow: Flow, taken = new Set<string>()): string {
   let n = 0;
-  for (const s of every(flow.steps)) { const m = /^s(\d+)$/.exec(s.id); if (m) n = Math.max(n, +m[1]); }
+  for (const s of allSteps(flow)) { const m = /^s(\d+)$/.exec(s.id); if (m) n = Math.max(n, +m[1]); }
   for (const t of taken) { const m = /^s(\d+)$/.exec(t); if (m) n = Math.max(n, +m[1]); }
   return "s" + (n + 1);
 }
@@ -465,4 +471,88 @@ export function replaceInSteps(flow: Flow, find: string, replace: string, matchC
   };
   const steps = flow.steps.map((st) => step(st, ids.length === 0));
   return { flow: count ? { ...flow, steps } : flow, count };
+}
+
+// ------------------------------------------------------------------ subflows
+
+/**
+ * The agent with a subflow's steps in place of its main steps, and the main steps kept in that subflow's entry. The
+ * editor shows and edits this view with the same functions as the main steps (ids, variable renames and the like still
+ * see every step); swapping again with the same name gives the agent back. An unknown name swaps nothing.
+ */
+export function swapSubflow(flow: Flow, name: string | null): Flow {
+  const sub = name === null ? undefined : flow.subflows?.find((s) => s.name === name);
+  if (!sub) return flow;
+  return { ...flow, steps: sub.steps ?? [], subflows: flow.subflows!.map((s) => s === sub ? { ...s, steps: flow.steps } : s) };
+}
+
+export const SUBFLOW_NAME = /^[A-Za-z0-9_][A-Za-z0-9_ -]*$/;
+
+function checkSubflowName(flow: Flow, name: string, previous?: string): string {
+  const n = name.trim();
+  if (!SUBFLOW_NAME.test(n)) throw new Error("A subflow name has letters, digits, spaces, _ and - only.");
+  if (n !== previous && (flow.subflows ?? []).some((s) => s.name === n)) throw new Error("There is already a subflow called " + n + ".");
+  return n;
+}
+
+/** Adds an empty subflow (the name must be new). */
+export function addSubflow(flow: Flow, name: string): Flow {
+  const n = checkSubflowName(flow, name);
+  return { ...flow, subflows: [...(flow.subflows ?? []), { name: n, steps: [] }] };
+}
+
+/** Renames a subflow, and the Run subflow steps that run it. */
+export function renameSubflow(flow: Flow, from: string, to: string): Flow {
+  const n = checkSubflowName(flow, to, from);
+  if (n === from) return flow;
+  const f = copy(flow);
+  f.subflows = (f.subflows ?? []).map((s) => s.name === from ? { ...s, name: n } : s);
+  for (const s of allSteps(f)) if (s.action === "core/run_subflow" && s.args?.subflow === from) s.args = { ...s.args, subflow: n };
+  return f;
+}
+
+/** Removes a subflow with its steps (Run subflow steps that run it stay, and the check reports them). */
+export function removeSubflow(flow: Flow, name: string): Flow {
+  const subflows = (flow.subflows ?? []).filter((s) => s.name !== name);
+  const f: Flow = { ...flow, subflows };
+  if (!subflows.length) delete f.subflows;
+  return f;
+}
+
+/** Where a step is: null for the main steps, a subflow's name, or undefined when the agent has no such step. */
+export function listOf(flow: Flow, id: string): string | null | undefined {
+  if (locate(flow.steps, id)) return null;
+  return flow.subflows?.find((s) => locate(s.steps ?? [], id))?.name;
+}
+
+/** Finds a step in the main steps or any subflow. */
+export function locateAny(flow: Flow, id: string): Lists | null {
+  const sub = listOf(flow, id);
+  return sub === undefined ? null : locate(sub === null ? flow.steps : flow.subflows!.find((s) => s.name === sub)!.steps, id);
+}
+
+/**
+ * The labels a Go to step can jump to: those in its own step list and in the lists around it (not inside blocks, and
+ * not across a Parallel branch), nearest first.
+ */
+export function labelsInScope(steps: FlowStep[], id: string): string[] {
+  const labelsOf = (list: FlowStep[]) => list.filter((s) => s.action === "core/label" && typeof s.args?.name === "string" && s.args.name.trim())
+    .map((s) => String(s.args!.name).trim());
+  const find = (list: FlowStep[], seen: string[]): string[] | null => {
+    const here = [...labelsOf(list), ...seen.filter((n) => !labelsOf(list).includes(n))];
+    for (const s of list) {
+      if (s.id === id) return here;
+      if (s.action === "core/parallel") {
+        // each branch runs on its own: inside it only its own labels count
+        for (const b of s.children ?? []) {
+          if (b.id === id) return [];
+          for (const inner of innerLists(b)) { const r = find(inner, []); if (r) return r; }
+        }
+        continue;
+      }
+      for (const inner of innerLists(s)) { const r = find(inner, here); if (r) return r; }
+    }
+    return null;
+  };
+  return find(steps, []) ?? [];
 }

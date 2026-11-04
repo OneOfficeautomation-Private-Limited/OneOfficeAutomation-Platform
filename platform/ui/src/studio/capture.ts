@@ -204,7 +204,7 @@ export function shortenRecordedNames(flow: Flow): Flow {
 export function freshIds(flow: Flow, steps: FlowStep[]): void {
   let n = 0;
   const walk = (list: FlowStep[]) => { for (const s of list) { const m = /^s(\d+)$/.exec(s.id ?? ""); if (m) n = Math.max(n, +m[1]); innerLists(s).forEach(walk); } };
-  walk(flow.steps);
+  walk(flow.steps); for (const sub of flow.subflows ?? []) walk(sub.steps ?? []);
   const give = (list: FlowStep[]) => { for (const s of list) { s.id = "s" + ++n; innerLists(s).forEach(give); } };
   give(steps);
 }

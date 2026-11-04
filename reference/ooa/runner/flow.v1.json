@@ -42,6 +42,18 @@
       "items": {"$ref": "#/$defs/variable"}
     },
     "steps": {"$ref": "#/$defs/stepList"},
+    "subflows": {
+      "type": "array",
+      "description": "Named step lists inside this automation, run by core/run_subflow. They share the automation's variables and run in the same run (no inputs or outputs of their own).",
+      "items": {
+        "type": "object", "required": ["name", "steps"], "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "description": "Unique name, chosen in core/run_subflow."},
+          "description": {"type": "string"},
+          "steps": {"$ref": "#/$defs/stepList"}
+        }
+      }
+    },
     "errorHandling": {
       "type": "object",
       "additionalProperties": false,

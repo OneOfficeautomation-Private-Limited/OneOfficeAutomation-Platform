@@ -37,6 +37,10 @@ const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/throw": { name: "Raise an error", mark: { color: "#b91c1c", icon: "bug" } },
   "core/break": { name: "Leave the loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/continue": { name: "Next round of the loop", mark: { color: "#0e7490", icon: "loop" } },
+  "core/run_subflow": { name: "Run subflow", mark: { color: "#2f6fde", icon: "play" } },
+  "core/exit_subflow": { name: "Exit subflow", mark: { color: "#2f6fde", icon: "up" } },
+  "core/label": { name: "Label", mark: { color: "#b45309", icon: "star" } },
+  "core/goto": { name: "Go to", mark: { color: "#b45309", icon: "branch" } },
 };
 
 const OTHER: Mark = { color: "#334155", icon: "code" };

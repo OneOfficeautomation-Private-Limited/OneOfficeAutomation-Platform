@@ -83,6 +83,24 @@ class CorePackage:
     @action("continue", "Continue loop", category="Logic", description="Skip to the next pass of the innermost loop.")
     def continue_(self, ctx, **a): _interp()
 
+    @action("run_subflow", "Run subflow", category="Task Bot",
+            description="Run one of this automation's subflows (a named step list kept beside the main steps); it uses the same variables.",
+            inputs=[Input("subflow", "String", description="Name of the subflow to run.")])
+    def run_subflow(self, ctx, **a): _interp()
+
+    @action("exit_subflow", "Exit subflow", category="Task Bot",
+            description="Leave the subflow being run; the automation carries on after the Run subflow step.")
+    def exit_subflow(self, ctx, **a): _interp()
+
+    @action("label", "Label", category="Logic", description="A named place that Go to can jump to; does nothing itself.",
+            inputs=[Input("name", "String", description="Name of the place.")])
+    def label(self, ctx, **a): _interp()
+
+    @action("goto", "Go to", category="Logic",
+            description="Carry on from a Label in the same step list or a list around it (GOTO.LIMIT after too many jumps).",
+            inputs=[Input("label", "String", description="Name of the Label to carry on from.")])
+    def goto(self, ctx, **a): _interp()
+
     @action("run_bot", "Run Task Bot", category="Task Bot",
             description="Run a published child automation with mapped inputs and receive its outputs.",
             inputs=[Input("automation", "String", description="Id of the published automation."),

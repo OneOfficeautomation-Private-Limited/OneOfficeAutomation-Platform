@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
-import { fieldOrder, findAction, parseLoose, setArg, showValue } from "./flowEdit";
+import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
@@ -83,6 +83,16 @@ export function StepForm({ step, packages, onArg, onNote }:
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
       <AssignValue step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
+    // Run subflow: one of this agent's subflows; Go to: a label it can reach (its own list or one around it)
+    if ((step.action === "core/run_subflow" && name === "subflow") || (step.action === "core/goto" && name === "label")) {
+      const choices = step.action === "core/goto" ? labelsInScope(vars?.flow.steps ?? [], step.id) : (vars?.flow.subflows ?? []).map((s) => s.name);
+      const value = typeof step.args?.[name] === "string" ? String(step.args[name]) : "";
+      const none = step.action === "core/goto" ? "No label it can reach: add a Label step first" : "No subflows: add one from More (⋯)";
+      return <Field key={step.id + ":" + name} label={labelOf(name) + " *"} layout="beside" info={props[name]?.description}>{(id) =>
+        <Select id={id} value={value} onChange={(e) => onArg(name, e.target.value || undefined)}
+          options={[{ value: "", label: choices.length ? "Choose…" : none }, ...choices.map((c) => ({ value: c, label: c })),
+            ...(value && !choices.includes(value) ? [{ value, label: value + " (not found)" }] : [])]} />}</Field>;
+    }
     if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map")) return null;   // with the agent to run
     if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"
       label="Action" info="The actions that suit the captured control come first; the rest are under Other actions.">{(id) =>

@@ -333,6 +333,31 @@ In a step's **Error handling** section:
   the step** (under **Comment** in its settings, the step's note): type what the card should say.
 - **Comment** is a step that does nothing; use it for longer explanations.
 
+### 10.1 Subflows
+
+A subflow is a named list of steps kept inside the agent, beside its main steps: for example **Login**, used at the
+start and again after a time-out. It uses the agent's own variables, so there is nothing to pass in or out.
+
+- **Add one**: **More (⋯) > Add a subflow…** in the steps toolbar, then give it a name. The agent then shows a row of
+  lists above the steps, **Main** first and then each subflow; click one to show and edit its steps. Actions you click
+  or drag from the library go into the list shown.
+- **Rename or delete it**: show it and use the **⋯** beside the lists. Renaming also changes the **Run subflow** steps
+  that run it. Deleting removes its steps too (**Ctrl+Z** brings it back).
+- **Run it**: add **Run subflow** (Agent) and choose the subflow. **Open the subflow it runs** in the step menu shows it.
+  A subflow may run other subflows, and itself, up to 100 deep.
+- **Leave it early**: **Exit subflow** ends the subflow; the agent carries on after the Run subflow step.
+- An error in a subflow goes to the **Try** around the Run subflow step. **Exit loop** and **Continue loop** in a
+  subflow only work on loops inside it.
+- **Run from here** on a step in a subflow runs the rest of that subflow only. When debugging, the steps list follows
+  the run into the subflow where it stops.
+
+### 10.2 Labels and Go to
+
+**Label** (Logic) marks a place; **Go to** carries on from a label, forward or back. Choose the label from the list:
+it offers only labels Go to can reach, those in the same list of steps and in the blocks around it, never inside
+another block or across subflows. Blocks it leaves end, and their **Finally** parts still run. A run that jumps more
+than 10,000 times stops with **GOTO.LIMIT**. A Loop is usually clearer; use Go to for a retry from an earlier point.
+
 ## 11. Disable steps
 
 Select steps and press **Ctrl+/** (or **Disable** in the toolbar or step menu). Disabled steps are greyed, marked

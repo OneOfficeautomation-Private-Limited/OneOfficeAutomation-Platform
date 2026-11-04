@@ -100,8 +100,24 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
         add("ApiTask flows cannot require the desktop capability", path="requires/capabilities",
             fix="Use kind TaskBot for bots that drive a desktop.")
 
+    # subflows: named step lists run by core/run_subflow; Go to and loop exits are checked per step tree
+    sub_names: list[str] = []
+    for i, sub in enumerate(flow.get("subflows") or []):
+        name = sub.get("name")
+        if not isinstance(name, str) or not name.strip():
+            add(f"Subflow {i + 1} has no name", path=f"subflows/{i}/name", fix="Give every subflow a name.")
+        elif name in sub_names:
+            add(f"Duplicate subflow name '{name}'", path=f"subflows/{i}/name", fix="Give every subflow a unique name.")
+        else:
+            sub_names.append(name)
+    _check_tree(add, flow.get("steps") or [], None)
+    for sub in flow.get("subflows") or []:
+        if sub.get("name") in sub_names:
+            _check_tree(add, sub.get("steps") or [], sub["name"])
+    every = [*(flow.get("steps") or []), *(st for sub in flow.get("subflows") or [] for st in sub.get("steps") or [])]
+
     seen: set[str] = set()
-    for step, parent in walk_steps(flow.get("steps")):
+    for step, parent in walk_steps(every):
         sid = step["id"]
         if sid in seen:
             add(f"Duplicate step id '{sid}'", sid, fix="Step ids must be unique; Studio regenerates them on paste.")
@@ -140,6 +156,10 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
             for k in ("as", "index"):
                 if k in args and args[k] not in declared:
                     add(f"Loop variable '{args[k]}' is not declared", sid, f"args/{k}")
+        if step["action"] == "core/run_subflow" and isinstance(args.get("subflow"), str) and "$" not in args["subflow"] \
+                and args["subflow"].strip() and args["subflow"].strip() not in sub_names:
+            add(f"There is no subflow named '{args['subflow']}'", sid, "args/subflow",
+                f"Subflows: {', '.join(sub_names)}." if sub_names else "Add the subflow to the automation, or remove the step.")
         if step["action"] == "core/set" and isinstance(args.get("variable"), str) and args["variable"] not in declared:
             add(f"Variable '{args['variable']}' is not declared", sid, "args/variable")
         for c in step.get("catch", []) or []:
@@ -187,6 +207,67 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
                     f"Outputs: {', '.join(outputs) or 'none'}.")
 
     return _finish(problems, raise_on_error)
+
+
+def _label_name(step):
+    v = (step.get("args") or {}).get("label" if step.get("action") == "core/goto" else "name")
+    return v.strip() if isinstance(v, str) and v.strip() else None
+
+
+def _check_tree(add, steps, subflow):
+    """One step tree (main steps, or a subflow's): Go to reaches a Label in its own list or a list around it, never into
+    a block, out of a Parallel branch or out of the tree; label names are used once among those a Go to can see. In a
+    subflow, Exit loop and Continue loop need a loop of the subflow around them. Exit subflow is only for subflows."""
+    all_labels = {_label_name(s) for s, _ in walk_steps(steps) if s.get("action") == "core/label"} - {None}
+    where = "" if subflow is None else f" of subflow '{subflow}'"
+
+    def visit(lst, outer, loops, owns):
+        scope = set(outer)
+        if owns:
+            own = set()
+            for s in lst:
+                if s.get("action") == "core/label":
+                    n = _label_name(s)
+                    if n is None:
+                        add("The Label has no name", s.get("id"), "args/name", "Give the label a name for Go to steps.")
+                    elif n in own or n in outer:
+                        add(f"Duplicate label '{n}'" + (" (a list around it has one too)" if n in outer else ""), s.get("id"), "args/name",
+                            "Give each label a name of its own, so Go to knows where to carry on.")
+                    if n:
+                        own.add(n)
+            scope |= own
+        for s in lst:
+            act, sid, args = s.get("action"), s.get("id"), s.get("args") or {}
+            if act == "core/goto":
+                n = _label_name(s)
+                if n is None:
+                    add("Go to has no label", sid, "args/label", "Choose the label to carry on from.")
+                elif n not in scope:
+                    add(f"Go to label '{n}' cannot be reached from here: it would jump into a block or out of a Parallel branch"
+                        if n in all_labels else f"There is no label '{n}' in the steps{where}", sid, "args/label",
+                        "Go to can jump to a label in its own step list or a list around it.")
+            elif act == "core/exit_subflow" and subflow is None:
+                add("Exit subflow is only for subflows", sid, fix="Use Stop agent to end the main steps.")
+            elif act in ("core/break", "core/continue") and subflow is not None:
+                lb = args.get("label")
+                lb = lb.strip() if isinstance(lb, str) and lb.strip() and "$" not in lb else None
+                if not loops or (lb is not None and lb not in loops):
+                    add(("Exit loop" if act == "core/break" else "Continue loop") + " is not inside a loop"
+                        + ("" if lb is None else f" labelled '{lb}'") + where, sid, None if lb is None else "args/label",
+                        "A subflow can only leave or continue its own loops.")
+            if act == "core/parallel":
+                for b in s.get("children") or []:
+                    visit([b], set(), [], False)
+                continue
+            inner = loops + [str(args.get("label") or "").strip()] if act == "core/loop" else loops
+            for k in ("children", "else", "finally"):
+                if s.get(k):
+                    visit(s[k], scope, inner, True)
+            for k in ("elseIf", "catch"):
+                for b in s.get(k) or []:
+                    visit(b.get("children") or [], scope, inner, True)
+
+    visit(steps, set(), [], True)
 
 
 def _finish(problems, raise_on_error):

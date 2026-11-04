@@ -52,7 +52,9 @@ export type FlowStep = {
 };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
-export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; ui?: FlowUi };
+/** A named list of steps inside an agent, run by a Run subflow step; it shares the agent's variables. */
+export type Subflow = { name: string; description?: string; steps: FlowStep[] };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; ui?: FlowUi };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };

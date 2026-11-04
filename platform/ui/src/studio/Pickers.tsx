@@ -117,7 +117,7 @@ function connectArgs(flow: Flow): Args | null {
     for (const b of s.elseIf ?? []) walk(b.children);
     for (const c of s.catch ?? []) walk(c.children);
   } };
-  walk(flow.steps);
+  walk(flow.steps); for (const sub of flow.subflows ?? []) walk(sub.steps ?? []);
   return found;
 }
 

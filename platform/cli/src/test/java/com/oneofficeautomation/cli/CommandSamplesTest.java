@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Runs in the cli module because its test classpath has every toolkit, including the optional Office, Email, PDF,
  * Browser, Transfer and Windows modules. Cases live in {@code src/test/resources/command-samples/*.json} as a list of
- * {@code {"command", "name"?, "vars"?: {name: value}, "files"?: {relative path: text}, "agents"?: {id: child flow}, "steps": [...],
+ * {@code {"command", "name"?, "vars"?: {name: value}, "files"?: {relative path: text}, "agents"?: {id: child flow}, "steps": [...], "subflows"?: [{name, steps}],
  * "expect"?: {variable: value}, "expectFiles"?: {relative path: text | true | false}, "error"?: "CODE"}}.
  * Every variable named in vars or in a step's out map is declared (type Any). The text {@code {tmp}} anywhere in a
  * case is replaced by the case's temporary folder (with forward slashes). Results are written to
@@ -286,6 +286,9 @@ class CommandSamplesTest {
         Set<String> names = new LinkedHashSet<>(vars.keySet());
         int[] id = {0};
         collect(steps, names, id);
+        // "subflows": [{"name", "steps"}] are the agent's subflows (core/run_subflow), ids and variables collected the same way
+        List<Map<String, Object>> subflows = (List<Map<String, Object>>) cs.getOrDefault("subflows", List.of());
+        for (Map<String, Object> sub : subflows) collect((List<Map<String, Object>>) sub.get("steps"), names, id);
         names.addAll(((Map<String, Object>) cs.getOrDefault("expect", Map.of())).keySet());
         List<Map<String, Object>> decl = new ArrayList<>();
         for (String name : names) {
@@ -297,6 +300,7 @@ class CommandSamplesTest {
         Map<String, Object> flow = new LinkedHashMap<>();
         flow.put("kind", "TaskBot"); flow.put("id", "sample"); flow.put("name", label.length() > 190 ? label.substring(0, 190) : label);
         flow.put("variables", decl); flow.put("steps", steps);
+        if (cs.get("subflows") instanceof List<?>) flow.put("subflows", subflows);
         // "credentials": {variable: "locker/credential/attribute"} become Credential inputs read from a test vault
         Map<String, Object> inputs = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("credentials", Map.of())).entrySet()) {
@@ -320,6 +324,7 @@ class CommandSamplesTest {
         result.put("command", cs.get("command")); result.put("name", cs.getOrDefault("name", ""));
         Set<String> uses = new TreeSet<>();
         usedActions(steps, uses);
+        for (Map<String, Object> sub : subflows) usedActions((List<Map<String, Object>>) sub.get("steps"), uses);
         result.put("uses", new ArrayList<>(uses));
         result.put("status", r.status());
         if (r.error() != null) result.put("error", r.error().get("code"));
