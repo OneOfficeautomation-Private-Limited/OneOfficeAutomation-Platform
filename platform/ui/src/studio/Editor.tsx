@@ -27,7 +27,7 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
-import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
+import { describeAction, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -311,7 +311,16 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
-  const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
+  // a step of the list on screen by its line; one in another list (a subflow, or the main steps) by its line there and the list's name
+  const lineOf = (id: string) => {
+    const name = (r: StepRow | undefined, where?: string) => r?.kind === "step" ? `Line ${r.n}${where ? " of " + where : ""} ${describeAction(r.step.action, packages).name}` : undefined;
+    const here = name(rows.find((x) => x.kind === "step" && x.step.id === id));
+    if (here) return here;
+    const list = listOf(whole, id);
+    if (list === undefined) return id;
+    const steps = list === null ? whole.steps : whole.subflows?.find((s) => s.name === list)?.steps ?? [];
+    return name(stepRows(steps).find((x) => x.kind === "step" && x.step.id === id), list === null ? "Main" : list) ?? id;
+  };
   const ids = rows.flatMap((r) => r.kind === "step" ? [r.step.id] : []);
   const chosen = ids.filter((id) => selected.includes(id));   // in the agent's order
   const one = chosen.length === 1 ? rows.find((r) => r.kind === "step" && r.step.id === chosen[0]) : undefined;
