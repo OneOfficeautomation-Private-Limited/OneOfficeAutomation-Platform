@@ -26,7 +26,7 @@ The **AI** section of the Actions panel has four groups:
 
 | Group | Use it to |
 | --- | --- |
-| **Generative AI** | Prompt a model; chat; work with pictures; summarise, classify, translate, extract fields, sentiment, language, key phrases, named entities; generate pictures |
+| **Generative AI** | Prompt a model; chat; work with pictures; summarise, classify, translate, extract fields, sentiment, language, key phrases, named entities, personal data; generate pictures |
 | **Prompt Skills** | Run a reviewed, reusable prompt by name |
 | **Knowledge Q&A** | Answer questions from your own documents, with citations |
 | **AI agents** | Let a model reach a goal by calling your agents as tools |
@@ -72,6 +72,7 @@ here* (**Provider**, **Model**, **API key**, **Endpoint address**, and for Bedro
 | **Extract fields** | **Text**, **Fields** (name to description) | A Dictionary of values (see section 8) |
 | **Translate** | **Text**, **Target language** | The translation |
 | **Sentiment**, **Detect language**, **Key phrases**, **Named entities** | **Text** | The result |
+| **Detect personal data** | **Text**, **Kinds**, **Mask style**, **Use AI** | Each email, phone, card, IBAN, IP address, SSN, PAN or Aadhaar number found (checked by its check digit where it has one) and a masked copy of the text; needs no model unless **Use AI** also looks for names and addresses |
 | **Generate picture** | **Prompt**, **Output folder**, **Number of images** | Picture files |
 
 More options include **Temperature** (0 is the most predictable), **Max tokens**, **Hide personal data** and

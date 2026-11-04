@@ -521,4 +521,75 @@ public final class GenAiPackage {
                                          boolean mask, Object awsKeyId, String awsRegion) {
         return sentiment(ctx, text, provider, connection, model, key, base, mask, awsKeyId, awsRegion, null);
     }
+
+    @Action(id = "detect_pii", name = "Detect personal data", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
+            description = "Find personal data in text (emails, phone, card and ID numbers, IBANs, IP addresses; with a model also names and addresses) and give a masked copy. "
+                    + "Patterns work without a model; numbers with a check digit must pass it.",
+            panel = "text, kinds, mask_style, mask_char, use_ai, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when any personal data was found.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many pieces were found.")
+    @Output(name = "items", type = OoaType.LIST, description = "Each piece as {kind, text, start, end}, in text order and never overlapping; start counts from 0 and end is just past the last character.")
+    @Output(name = "masked_text", type = OoaType.STRING, description = "The text with every piece found masked.")
+    @Output(name = "kinds_found", type = OoaType.LIST, description = "Each kind found, once, e.g. [\"email\", \"phone\"].")
+    public Map<String, Object> detectPii(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to check, e.g. an email body or a document's text.") String text,
+            @Input(name = "kinds", type = OoaType.LIST, required = false, description = "Only these kinds: email, phone, credit_card, iban, ip_address, us_ssn, in_pan, in_aadhaar, "
+                    + "person_name, address (the last two need use_ai). Every kind when empty (names and addresses only with use_ai).") List<Object> kinds,
+            @Input(name = "use_ai", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also ask the model for people's names and postal addresses; "
+                    + "the patterns still find the rest without it.") boolean useAi,
+            @Input(name = "mask_char", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "The one character that replaces masked characters.") String maskChar,
+            @Input(name = "mask_style", type = OoaType.STRING, required = false, defaultValue = "\"partial\"", enumValues = {"partial", "full"},
+                    description = "partial keeps a little so values can be told apart (j***@acme.com, last 4 digits of numbers); full masks every character.") String maskStyle,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker", "aws_bedrock", "google_vertex"}, description = D_PROVIDER) String provider,
+            @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
+            @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
+            @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK + " Only used with use_ai; the model then sees the patterns' finds as placeholders.") boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+        String t = text == null ? "" : text;
+        String mc = maskChar == null || maskChar.isEmpty() ? "*" : maskChar;
+        if (mc.codePointCount(0, mc.length()) != 1) throw new ActionException("AI.BAD_OPTION", "mask_char must be exactly one character, not '" + mc + "'");
+        String style = maskStyle == null || maskStyle.isBlank() ? "partial" : maskStyle.strip().toLowerCase(Locale.ROOT);
+        if (!style.equals("partial") && !style.equals("full")) throw new ActionException("AI.BAD_OPTION", "Unknown mask_style '" + maskStyle + "'", "Use partial or full.");
+        List<String> wanted = new ArrayList<>();
+        if (kinds != null) for (Object k : kinds) {
+            String s = Values.text(k).toLowerCase(Locale.ROOT).strip();
+            if (s.isEmpty()) continue;
+            if (!PiiDetector.ALL_KINDS.contains(s)) throw new ActionException("AI.BAD_OPTION", "Unknown kind '" + k + "'", "Use " + String.join(", ", PiiDetector.ALL_KINDS) + ".");
+            if (PiiDetector.AI_KINDS.contains(s) && !useAi) throw new ActionException("AI.BAD_OPTION", "Finding " + s + " needs a model", "Turn on use_ai and choose a model, or leave " + s + " out of kinds.");
+            if (!wanted.contains(s)) wanted.add(s);
+        }
+        List<String> allowed = wanted.isEmpty() ? (useAi ? PiiDetector.ALL_KINDS : PiiDetector.PATTERN_KINDS) : wanted;
+        // every pattern runs, so a number is labelled by its best kind even when that kind is not wanted, then filtered
+        List<PiiDetector.Item> pattern = PiiDetector.find(t);
+        List<PiiDetector.Item> fromModel = new ArrayList<>();
+        List<String> aiWanted = PiiDetector.AI_KINDS.stream().filter(allowed::contains).toList();
+        if (useAi && !aiWanted.isEmpty() && !t.isBlank()) {
+            Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2000, mask, awsKeyId, awsRegion),
+                    "Find personal data of these kinds in the user's text: " + JsonLite.write(aiWanted) + " (person_name: a person's name; address: a postal or street address). "
+                            + "Copy each exactly as written; list each once. Reply with JSON {\"items\": [{\"kind\": \"...\", \"text\": \"...\"}]}.", t, true, "detect_pii"));
+            if (j instanceof Map<?, ?> m && m.get("items") instanceof List<?> l) for (Object o : l) {
+                if (!(o instanceof Map<?, ?> e) || e.get("text") == null) continue;
+                String kind = String.valueOf(e.get("kind")).toLowerCase(Locale.ROOT).strip();
+                if (!aiWanted.contains(kind)) continue;
+                fromModel.addAll(PiiDetector.locate(t, kind, String.valueOf(e.get("text"))));
+            }
+        }
+        List<PiiDetector.Item> items = new ArrayList<>();
+        for (PiiDetector.Item i : PiiDetector.settle(pattern, fromModel)) if (allowed.contains(i.kind())) items.add(i);
+        List<Object> rows = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (PiiDetector.Item i : items) { rows.add(i.toMap()); seen.add(i.kind()); }
+        List<Object> kindsFound = new ArrayList<>();
+        for (String k : PiiDetector.ALL_KINDS) if (seen.contains(k)) kindsFound.add(k);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("found", !items.isEmpty());
+        r.put("count", BigDecimal.valueOf(items.size()));
+        r.put("items", rows);
+        r.put("masked_text", PiiDetector.mask(t, items, mc, style.equals("partial")));
+        r.put("kinds_found", kindsFound);
+        return r;
+    }
 }

@@ -6,7 +6,7 @@ Toolkit `ooa.genai`, version 1.1.0. Prompt large language models (OpenAI, Azure 
 
 ## Contents
 
-- **Generative AI**: Chat, Classify, Detect language, End chat, Named entities, Extract fields, Generate picture, Key phrases, Prompt, Prompt with pictures, Sentiment, Summarise, Translate
+- **Generative AI**: Chat, Classify, Detect language, Detect personal data, End chat, Named entities, Extract fields, Generate picture, Key phrases, Prompt, Prompt with pictures, Sentiment, Summarise, Translate
 
 ## Generative AI
 
@@ -109,6 +109,42 @@ Tell which language a text is written in.
 | `language` | Text | Language name in English, e.g. German. |
 | `code` | Text | Two-letter ISO 639-1 code, e.g. de. |
 | `confidence` | Number | From 0 to 1. |
+
+*Time limit 300 s; needs: network, ai.*
+
+### Detect personal data
+
+`ooa.genai/detect_pii` (action)
+
+Find personal data in text (emails, phone, card and ID numbers, IBANs, IP addresses; with a model also names and addresses) and give a masked copy. Patterns work without a model; numbers with a check digit must pass it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to check, e.g. an email body or a document's text. |
+| Kinds | `kinds` | List | No |  | Main | Only these kinds: email, phone, credit_card, iban, ip_address, us_ssn, in_pan, in_aadhaar, person_name, address (the last two need use_ai). Every kind when empty (names and addresses only with use_ai). |
+| Mask style | `mask_style` | Text | No | `partial` | Main | partial keeps a little so values can be told apart (j***@acme.com, last 4 digits of numbers); full masks every character. One of: `partial`, `full` |
+| Mask char | `mask_char` | Text | No | `*` | Main | The one character that replaces masked characters. |
+| Use AI | `use_ai` | Yes/No | No | No | Main | Also ask the model for people's names and postal addresses; the patterns still find the rest without it. |
+| Connection | `connection` | Text | No |  | Main; choice Model to use = A saved connection | Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action. |
+| Provider | `provider` | Text | No | `openai` | Main; choice Model to use = Set up here | openai, azure_openai, anthropic, openai_compatible (LiteLLM, vLLM, Ollama), huggingface (Hugging Face router or your own TGI server), aws_bedrock_sagemaker (a model on an Amazon SageMaker endpoint), aws_bedrock (Amazon Bedrock) or google_vertex (Gemini on Google Vertex AI). One of: `openai`, `azure_openai`, `anthropic`, `openai_compatible`, `huggingface`, `aws_bedrock_sagemaker`, `aws_bedrock`, `google_vertex` |
+| Model | `model` | Text | No |  | Main; choice Model to use = Set up here | Model name; the deployment name for Azure OpenAI; the endpoint name for aws_bedrock_sagemaker; the model or inference profile id for aws_bedrock. |
+| API key | `api_key` | Credential (vault) | No |  | Main; choice Model to use = Set up here | API key or access token from the vault (not needed for some self-hosted endpoints). For aws_bedrock and aws_bedrock_sagemaker: the AWS secret access key (or ACCESS_KEY_ID:SECRET). For google_vertex: a service-account JSON key or an access token. |
+| Endpoint address | `base_url` | Text | No |  | Main; choice Model to use = Set up here | Endpoint; required for Azure OpenAI, Vertex AI (https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION) and self-hosted models (for a TGI server, e.g. http://tgi-host:8080/v1). |
+| AWS access key ID | `aws_access_key_id` | Credential (vault) | No |  | Main; choice Model to use = Set up here | aws_bedrock and aws_bedrock_sagemaker only: AWS access key id from the vault (api_key then holds the secret access key). |
+| AWS region | `aws_region` | Text | No |  | Main; choice Model to use = Set up here | aws_bedrock and aws_bedrock_sagemaker only: AWS region, e.g. eu-west-1. |
+| Hide personal data | `mask_pii` | Yes/No | No | Yes | More options | Replace emails, phone and card numbers, IBANs and similar before sending; restored in the answer. Only used with use_ai; the model then sees the patterns' finds as placeholders. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `found` | Yes/No | True when any personal data was found. |
+| `count` | Number | How many pieces were found. |
+| `items` | List | Each piece as {kind, text, start, end}, in text order and never overlapping; start counts from 0 and end is just past the last character. |
+| `masked_text` | Text | The text with every piece found masked. |
+| `kinds_found` | List | Each kind found, once, e.g. ["email", "phone"]. |
 
 *Time limit 300 s; needs: network, ai.*
 
