@@ -737,6 +737,8 @@ public final class StudioServer {
                 + "{\"variables\": [{\"name\", \"type\", \"direction\"?: \"input\"|\"output\", \"default\"?}], \"steps\": [step...], \"notes\": \"short explanation\"}. "
                 + "A step is {\"id\": \"a1\", \"action\": \"package/action\", \"args\": {input: value}, \"out\": {output: variableName}}. "
                 + "Containers: core/if has \"args\": {\"condition\": {\"op\": \"eq|ne|gt|ge|lt|le|contains|empty|notEmpty\", \"left\", \"right\"}}, \"children\" and \"else\"; "
+                + "core/switch has \"args\": {\"value\": \"$status\", \"match\"?: \"equals|contains|starts_with|ends_with|regex|expression\"}, "
+                + "\"cases\": [{\"values\": [v1, v2], \"children\": []}] (only the first matching case runs) and \"default\": []; "
                 + "core/loop has \"args\": {\"iterator\": \"list|times|table_rows|dictionary|while\", \"over\" or \"count\", \"as\"} and \"children\"; "
                 + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
                 + "Reference variables as $name, or inside text as ${name}. Declare every variable you use. Types: String, Number, Boolean, DateTime, List, "

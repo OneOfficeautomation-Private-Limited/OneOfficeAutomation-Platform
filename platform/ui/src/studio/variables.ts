@@ -64,12 +64,12 @@ function* every(steps: FlowStep[]): Generator<FlowStep> {
 const refRegex = (name: string) => new RegExp("\\$(\\{\\s*)?" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9_])", "g");
 const NAME_ARGS = ["variable", "as", "index"];
 
-/** How many times a variable is used: in settings, Else if conditions, outputs, and as a loop's or catch's name. */
+/** How many times a variable is used: in settings, Else if conditions, Switch case values, outputs, and as a loop's or catch's name. */
 export function usageCount(flow: Flow, name: string): number {
   const re = refRegex(name);
   let n = 0;
   for (const s of every(flow.steps)) {
-    n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition)]).match(re) ?? []).length;
+    n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition), (s.cases ?? []).map((c) => c.values)]).match(re) ?? []).length;
     n += Object.values(s.out ?? {}).filter((v) => v === name).length;
     n += NAME_ARGS.filter((k) => s.args?.[k] === name).length;
     n += (s.catch ?? []).filter((c) => c.as === name).length;
@@ -86,6 +86,7 @@ export function renameRefs(flow: Flow, oldName: string, newName: string): Flow {
   for (const s of every(f.steps)) {
     if (s.args) { s.args = map(s.args) as Record<string, unknown>; for (const k of NAME_ARGS) if (s.args[k] === oldName) s.args[k] = newName; }
     for (const b of s.elseIf ?? []) b.condition = map(b.condition);
+    for (const c of s.cases ?? []) if (c.values) c.values = map(c.values) as unknown[];
     for (const [k, v] of Object.entries(s.out ?? {})) if (v === oldName) s.out![k] = newName;
     for (const c of s.catch ?? []) if (c.as === oldName) c.as = newName;
   }

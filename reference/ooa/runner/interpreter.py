@@ -25,7 +25,7 @@ from ..sdk.errors import (ActionException, OoaError, RunCancelled, StepTimeoutEr
 from ..sdk.package import ActionContext
 from ..sdk.registry import PackageRegistry, canonical
 from ..sdk.types import SecureString, coerce, safe_repr, to_jsonable
-from .core_package import CONTAINERS
+from .core_package import CONTAINERS, SWITCH_MATCHES, SWITCH_OPS
 from .error_codes import any_matches
 from .events import EventSink, ListSink, RunEvent
 from .expressions import binary, evaluate, resolve, truthy
@@ -322,6 +322,8 @@ class _Run:
                 if self.condition(b["condition"], sid):
                     return self._exec_steps(b["children"])
             return self._exec_steps(step.get("else"))
+        if aid == "switch":
+            return self._switch(step, a)
         if aid == "loop":
             return self._loop(step, a)
         if aid == "try":
@@ -360,6 +362,32 @@ class _Run:
         if aid == "run_bot":
             return self._run_child(step, a)
         raise OoaError(f"Unknown core action '{aid}'", code="FLOW.UNKNOWN_ACTION")
+
+    def _switch(self, step: dict, a: dict) -> None:
+        """core/switch: the first case with a value that matches runs (no fall-through); otherwise the default steps."""
+        sid = step["id"]
+        match = resolve(a.get("match"), self.lookup) or "equals"
+        if match not in SWITCH_MATCHES:
+            raise OoaError(f"Unknown match '{match}'", code="SWITCH.BAD_MATCH", suggested_fix="Use one of " + ", ".join(SWITCH_MATCHES) + ".")
+        by_condition = match == "expression"
+        value = None if by_condition else resolve(a.get("value"), self.lookup)
+        lower = not by_condition and bool(coerce(resolve(a.get("ignore_case", False), self.lookup), "Boolean"))
+        fold = lambda v: v.lower() if lower and isinstance(v, str) else v  # noqa: E731
+        shown = "" if by_condition else f" (value {safe_repr(value)})"
+        for i, case in enumerate(step.get("cases") or []):
+            for raw in case.get("values") or []:
+                if by_condition:
+                    hit = self.condition(raw, sid)
+                else:
+                    try:
+                        hit = _compare(SWITCH_OPS[match], fold(value), fold(resolve(raw, self.lookup)))
+                    except re.error as e:
+                        raise OoaError(f"Case {i + 1} has an invalid pattern: {e}", code="SWITCH.BAD_REGEX", suggested_fix="Fix the regular expression.")
+                if hit:
+                    self._log("info", f"Switch: case {i + 1} matched{shown}", sid)
+                    return self._exec_steps(case.get("children"))
+        self._log("info", f"Switch: no case matched{shown}" + ("; running the default steps" if "default" in step else "; nothing to run"), sid)
+        return self._exec_steps(step.get("default"))
 
     def _sleep(self, seconds: float) -> None:
         end = time.monotonic() + seconds
@@ -613,11 +641,13 @@ def _while(check):
 def _all_actions(steps):
     for s in steps or []:
         yield s["action"]
-        for k in ("children", "else", "finally"):
+        for k in ("children", "else", "finally", "default"):
             yield from _all_actions(s.get(k))
         for b in s.get("elseIf", []) or []:
             yield from _all_actions(b.get("children"))
         for c in s.get("catch", []) or []:
+            yield from _all_actions(c.get("children"))
+        for c in s.get("cases", []) or []:
             yield from _all_actions(c.get("children"))
 
 

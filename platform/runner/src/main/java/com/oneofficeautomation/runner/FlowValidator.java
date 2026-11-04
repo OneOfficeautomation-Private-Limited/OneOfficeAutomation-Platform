@@ -81,6 +81,10 @@ public final class FlowValidator {
                 Set<String> r = new TreeSet<>(Expressions.references(normConditionArgs(args)));
                 for (Object b : (List<Object>) step.getOrDefault("elseIf", List.of()))
                     r.addAll(Expressions.references(normCondition(((Map<String, Object>) b).get("condition"))));
+                boolean byCondition = "expression".equals(args.get("match"));
+                for (Object c : step.get("cases") instanceof List<?> cl ? cl : List.of())
+                    if (c instanceof Map<?, ?> cm && cm.get("values") instanceof List<?> vs)
+                        for (Object v : vs) r.addAll(Expressions.references(byCondition ? normCondition(v) : v));
                 refs = r;
             } catch (OoaException e) { p.add(sid, "args", e.getMessage(), e.suggestedFix()); }
             for (String n : refs) if (!declared.containsKey(n) && !Runner.RESERVED.contains(n)) p.add(sid, "args", "Variable '$" + n + "' is not declared", "Declare '" + n + "' in variables or fix the spelling.");
@@ -95,6 +99,8 @@ public final class FlowValidator {
                 p.add(sid, null, "'" + act + "' cannot have children", "Only if, loop, try, step and parallel hold children.");
             if ((step.containsKey("catch") || step.containsKey("finally")) && !act.equals("core/try")) p.add(sid, null, "catch/finally are only allowed on core/try", null);
             if ((step.containsKey("else") || step.containsKey("elseIf")) && !act.equals("core/if")) p.add(sid, null, "else/elseIf are only allowed on core/if", null);
+            if ((step.containsKey("cases") || step.containsKey("default")) && !act.equals("core/switch")) p.add(sid, null, "cases/default are only allowed on core/switch", null);
+            if (act.equals("core/switch")) checkSwitch(p, sid, step, args, requires, kind);
             if (act.equals("core/loop")) {
                 Object it = args.get("iterator");
                 if (it instanceof String s && !CorePackage.BUILTIN_ITERATORS.contains(s) && !s.contains("/"))
@@ -169,6 +175,40 @@ public final class FlowValidator {
                 p.add(sid, prefix + in.name(), "Missing required input '" + in.name() + "' for " + what, in.description());
             if (args.containsKey(in.name())) checkLiteral(p, sid, prefix + in.name(), in, args.get(in.name()), !what.startsWith("core/"));
         }
+    }
+
+    /**
+     * core/switch: at least one case, each with at least one value; a value to compare unless the cases are conditions;
+     * literal regex patterns that compile; toolkit conditions in expression cases checked like If's.
+     */
+    @SuppressWarnings("unchecked")
+    private void checkSwitch(P p, String sid, Map<String, Object> step, Map<String, Object> args, Map<String, Object> requires, Object kind) {
+        Object match = args.getOrDefault("match", "equals");
+        if (!"expression".equals(match) && !args.containsKey("value"))
+            p.add(sid, "args/value", "Switch has no value to compare", "Give the value (for example $status), or set match to expression.");
+        if (!(step.get("cases") instanceof List<?> cases) || cases.isEmpty()) {
+            p.add(sid, "cases", "Switch needs at least one case", "Add a case with the values that select it.");
+            return;
+        }
+        for (int i = 0; i < cases.size(); i++) {
+            List<?> values = cases.get(i) instanceof Map<?, ?> c && c.get("values") instanceof List<?> vs ? vs : List.of();
+            if (values.isEmpty()) p.add(sid, "cases/" + i + "/values", "Case " + (i + 1) + " has no values", "Give at least one value that selects this case.");
+            for (int j = 0; j < values.size(); j++) {
+                Object v = values.get(j);
+                if ("expression".equals(match)) checkCondition(p, sid, "cases/" + i + "/values/" + j, v, requires, kind, 0);
+                else if ("regex".equals(match) && v instanceof String s && isLiteralText(s)) {
+                    try { Pattern.compile(s); }
+                    catch (java.util.regex.PatternSyntaxException e) {
+                        p.add(sid, "cases/" + i + "/values/" + j, "Case " + (i + 1) + ": '" + s + "' is not a valid pattern: " + e.getDescription(), "Fix the regular expression.");
+                    }
+                }
+            }
+        }
+    }
+
+    /** Text with no $reference or ${...} in it, so its value is known before the run. */
+    private static boolean isLiteralText(String s) {
+        try { return !s.contains("${") && Expressions.references(s).isEmpty(); } catch (OoaException e) { return false; }
     }
 
     /** The manifest of a toolkit condition or loop type named "package/id", or null after reporting why there is none. */

@@ -3,7 +3,7 @@ import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, Packag
 import { ApiFailure } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
 import { type Place } from "./flowEdit";
-import { conditionText, describeAction, plainValue, summarize } from "./toolkits";
+import { caseText, conditionText, describeAction, plainValue, summarize } from "./toolkits";
 import { isInput, isOutput } from "./variables";
 
 /** The agent in plain words: what it needs and returns, then its steps, blocks indented (Classic's Explain this agent). */
@@ -15,6 +15,7 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
     const a = s.args ?? {};
     let text: string;
     if (s.action === "core/if") text = "If " + conditionText(a.condition, packages) + ":";
+    else if (s.action === "core/switch") text = a.match === "expression" ? "Choose the first case that holds:" : "Depending on " + plainValue(a.value) + ":";
     else if (s.action === "core/loop") text = "Repeat " + (a.iterator === "times" ? plainValue(a.count) + " times" : a.iterator === "while" ? "while " + conditionText(a.condition, packages)
       : "for each item of " + plainValue(a.over) + (a.as ? " (as $" + a.as + ")" : "")) + ":";
     else if (s.action === "core/try") text = "Try the following, and handle errors:";
@@ -29,6 +30,8 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
     if (s.action === "core/if" && s.else?.length) { lines.push("  ".repeat(depth + 1) + "Otherwise:"); walk(s.else, depth + 2); }
     for (const c of s.catch ?? []) if (c.children?.length) { lines.push("  ".repeat(depth + 1) + "If an error happens" + (c.as ? " (kept in $" + c.as + ")" : "") + ":"); walk(c.children, depth + 2); }
     if (s.finally?.length) { lines.push("  ".repeat(depth + 1) + "Always, at the end:"); walk(s.finally, depth + 2); }
+    for (const c of s.cases ?? []) { lines.push("  ".repeat(depth + 1) + caseText(c.values, a.match, packages) + ":"); walk(c.children, depth + 2); }
+    if (s.default?.length) { lines.push("  ".repeat(depth + 1) + "When no case matches:"); walk(s.default, depth + 2); }
   });
   const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
   walk(flow.steps, 0);
@@ -129,6 +132,13 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
           {s.else && branch("Else", s.else, s.id + ":else")}
         </div></div>
     );
+    if (s.action === "core/switch") return (
+      <div key={s.id} className="st-fblock">{box}
+        <div className="st-fbranches">
+          {(s.cases ?? []).map((c, k) => branch(caseText(c.values, s.args?.match, packages), c.children, s.id + ":case" + k))}
+          {s.default && branch("Default", s.default, s.id + ":default")}
+        </div></div>
+    );
     if (s.children || s.catch || s.finally) return (
       <div key={s.id} className="st-fblock">{box}
         <div className="st-fframe">
@@ -170,7 +180,8 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
     catch (e) { setError(e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e)); }
     finally { setBusy(false); }
   };
-  const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else)]);
+  const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else),
+    ...(s.cases ?? []).flatMap((c) => flat(c.children)), ...flat(s.default)]);
   return (
     <Dialog open onClose={onClose} title="Agent assistant" width={720}
       footer={<><Button kind="secondary" onClick={onClose}>Close</Button><span className="st-bar-fill" />

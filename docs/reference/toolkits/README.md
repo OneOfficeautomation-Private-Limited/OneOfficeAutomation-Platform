@@ -10,7 +10,7 @@ values and `$variable` references; Credential fields take a credential from the 
 
 | Toolkit | Id | Actions | Conditions | Loop types | What it does |
 | --- | --- | --- | --- | --- | --- |
-| [Core](core.md) | `core` | 16 | 0 | 0 | Control flow, variables and runtime built-ins. |
+| [Core](core.md) | `core` | 17 | 0 | 0 | Control flow, variables and runtime built-ins. |
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 38 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
 | [Application](ooa-application.md) | `ooa.application` | 4 | 1 | 0 | Open files, start, run and stop programs on the runner. |

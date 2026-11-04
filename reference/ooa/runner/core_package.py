@@ -8,6 +8,9 @@ from ..sdk.package import Input, Output, action, package
 
 CONTAINERS = {"if", "loop", "try", "step", "parallel"}
 BUILTIN_ITERATORS = ("times", "while", "list", "dictionary", "table_rows")
+# how core/switch compares its value with a case's values, and the condition operator that compares the same way
+SWITCH_MATCHES = ("equals", "contains", "starts_with", "ends_with", "regex", "expression")
+SWITCH_OPS = {"equals": "eq", "contains": "contains", "starts_with": "startsWith", "ends_with": "endsWith", "regex": "matches"}
 
 
 def _interp(*_a, **_k):  # pragma: no cover - never called; interpreter dispatches core actions
@@ -19,6 +22,16 @@ class CorePackage:
     @action("if", "If", category="Logic", description="Run the children when the condition is true; otherwise evaluate elseIf branches, then else.",
             inputs=[Input("condition", "Any", description="Condition object, expression string or $reference.")])
     def if_(self, ctx, **a): _interp()
+
+    @action("switch", "Switch", category="Logic",
+            description="Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.",
+            inputs=[Input("value", "Any", required=False, visible_when="match!=expression",
+                          description="Value to compare with each case's values: text, a number, a $reference or an expression."),
+                    Input("match", "String", required=False, default="equals", enum=SWITCH_MATCHES,
+                          description="How a case value matches: equals (like ==), contains, starts_with, ends_with, regex, or expression (each case value is a condition)."),
+                    Input("ignore_case", "Boolean", required=False, default=False, visible_when="match!=expression",
+                          description="Compare text without upper/lower case.")])
+    def switch(self, ctx, **a): _interp()
 
     @action("loop", "Loop", category="Logic",
             description="Repeat the children using an iterator: times, while, list, dictionary, table_rows or a package iterator (package/iterator).",

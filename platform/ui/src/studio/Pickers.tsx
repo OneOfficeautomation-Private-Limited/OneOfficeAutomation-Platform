@@ -116,6 +116,8 @@ function connectArgs(flow: Flow): Args | null {
     walk(s.children); walk(s.else); walk(s.finally);
     for (const b of s.elseIf ?? []) walk(b.children);
     for (const c of s.catch ?? []) walk(c.children);
+    for (const c of s.cases ?? []) walk(c.children);
+    walk(s.default);
   } };
   walk(flow.steps);
   return found;

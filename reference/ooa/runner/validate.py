@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -70,6 +71,29 @@ def walk_steps(steps, parent=None):
             yield from walk_steps(b.get("children"), s)
         for c in s.get("catch", []) or []:
             yield from walk_steps(c.get("children"), s)
+        for c in s.get("cases", []) or []:
+            yield from walk_steps(c.get("children"), s)
+        yield from walk_steps(s.get("default"), s)
+
+
+def _switch_problems(step: dict, args: dict, add) -> None:
+    """core/switch: a value unless the cases are conditions, at least one case with values, literal patterns that compile."""
+    sid, match = step["id"], args.get("match", "equals")
+    if match != "expression" and "value" not in args:
+        add("Switch has no value to compare", sid, "args/value", "Give the value (for example $status), or set match to expression.")
+    cases = step.get("cases") or []
+    if not cases:
+        add("Switch needs at least one case", sid, "cases", "Add a case with the values that select it.")
+    for i, case in enumerate(cases):
+        values = case.get("values") or []
+        if not values:
+            add(f"Case {i + 1} has no values", sid, f"cases/{i}/values", "Give at least one value that selects this case.")
+        for j, v in enumerate(values):
+            if match == "regex" and isinstance(v, str) and "${" not in v and not _has_refs(v):
+                try:
+                    re.compile(v)
+                except re.error as e:
+                    add(f"Case {i + 1}: '{v}' is not a valid pattern: {e}", sid, f"cases/{i}/values/{j}", "Fix the regular expression.")
 
 
 def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_on_error: bool = True) -> list[dict]:
@@ -113,6 +137,10 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
         try:
             refs = references(_cond(args)) | references([_cond({"condition": b.get("condition")})
                                                          for b in step.get("elseIf", []) or []])
+            by_condition = args.get("match") == "expression"
+            for case in step.get("cases", []) or []:
+                for v in case.get("values") or []:
+                    refs |= references(_norm_condition(v) if by_condition else v)
         except OoaError as e:
             add(e.message, sid, "args", e.suggested_fix)
             refs = set()
@@ -132,6 +160,10 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
             add("catch/finally are only allowed on core/try", sid)
         if (step.get("else") or step.get("elseIf")) and step["action"] != "core/if":
             add("else/elseIf are only allowed on core/if", sid)
+        if ("cases" in step or "default" in step) and step["action"] != "core/switch":
+            add("cases/default are only allowed on core/switch", sid)
+        if step["action"] == "core/switch":
+            _switch_problems(step, args, add)
         if step["action"] == "core/loop":
             it = args.get("iterator")
             if isinstance(it, str) and it not in BUILTIN_ITERATORS and "/" not in it:

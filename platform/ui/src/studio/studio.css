@@ -219,6 +219,8 @@ button.st-marker-row { cursor: pointer; }
 .st-run { display: flex; flex-direction: column; min-height: 0; }
 .st-run-head { position: sticky; top: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
 .st-bar-fill { flex: 1; }
+.st-case-values { display: flex; flex-direction: column; gap: 6px; }
+.st-case-values .st-bar-fill { min-width: 0; }
 .st-run-state { padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 12px; color: #ffffff; background: #2f6fde; }
 .st-run-state.is-success { background: var(--ui-run); }
 .st-run-state.is-failed, .st-run-state.is-timeout { background: #b91c1c; }
