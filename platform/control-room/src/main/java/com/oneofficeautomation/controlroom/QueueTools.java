@@ -431,8 +431,8 @@ final class QueueTools {
         for (int guard = 0; guard < 10; guard++) {
             Instant t = now();
             List<Object> params = new ArrayList<>(List.of(qid, t));
-            String filter = tagFilter("tags", tags, params);
-            Map<String, Object> i = db.one("SELECT id FROM queue_items WHERE queue_id = ? AND (status IN ('new', 'retry') OR (status = 'deferred' AND defer_until <= ?))" + filter
+            String where = tagFilter("tags", tags, params);
+            Map<String, Object> i = db.one("SELECT id FROM queue_items WHERE queue_id = ? AND (status IN ('new', 'retry') OR (status = 'deferred' AND defer_until <= ?))" + where
                     + " ORDER BY priority DESC, created LIMIT 1", params.toArray());
             if (i == null) return Map.of("found", false);
             if (db.update("UPDATE queue_items SET status = 'in_progress', attempts = attempts + 1, run_id = ?, device_id = ?, defer_until = NULL, updated = ? WHERE id = ? "

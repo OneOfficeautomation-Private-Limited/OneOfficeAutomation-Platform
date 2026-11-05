@@ -76,7 +76,8 @@ class OoaCliTest {
         assertEquals(0, capture(() -> cli.execute("db", "configure", "--help"), out));
         assertTrue(out[0].contains("--setup-user=NAME") && out[0].contains("--windows-auth"), out[0]);
         assertEquals(0, capture(() -> cli.execute("--version"), out));
-        assertTrue(out[0].startsWith("ONEOFFICEAUTOMATION "), out[0]);
+        // a runner another test left running may log a warning into the same console, so look for the version's own line
+        assertTrue(out[0].lines().anyMatch(l -> l.startsWith("ONEOFFICEAUTOMATION ")), out[0]);
         assertEquals(0, capture(() -> cli.execute("completion"), out));
         assertTrue(out[0].contains("complete -F") && out[0].contains("set-password"), "a bash completion script");
     }
