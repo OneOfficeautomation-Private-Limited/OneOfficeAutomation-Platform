@@ -189,7 +189,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                 <ExtractStage s={design.settings} set={setSettings} />
                 <p className="df-small" style={{ margin: 0 }}>How pages are read (OCR, and when the cloud may be used) is set once for every process on <a href="#/engines/routing">Engines</a>.</p>
               </>}
-              {stage === 4 && <ReviewStage s={design.settings} set={setSettings} />}
+              {stage === 4 && <ReviewStage s={design.settings} set={setSettings} fields={design.fields} />}
               {stage === 5 && <DeliverStage deliveries={design.deliveries} onAdd={() => setEditDelivery("new")} onEdit={setEditDelivery}
                 onRemove={(id) => change({ deliveries: design.deliveries.filter((d) => d.id !== id) })} />}
             </section>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
+import { DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 
 /**
  * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
@@ -28,12 +28,13 @@ function details(t: Trigger) {
   if (t.kind === "outlook") return (c.mailbox || "the token's mailbox") + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
   if (t.kind === "servicenow") return c.instance_url + " " + c.table + (c.query ? " where " + c.query : "") + " every " + c.interval_seconds + " s";
   if (t.kind === "http_poll") return String(c.url ?? "") + " every " + c.interval_seconds + " s";
+  if (DOCUMENT_KINDS.includes(t.kind)) return (c.process ? "Process " + c.process : "Any process") + (c.doc_type ? ", " + c.doc_type : "");
   return "";
 }
 
 const HELP: HelpTopic = { title: "Triggers",
   about: "Start an agent when something happens: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and web data "
-    + "checked by One CommandCenter; or a webhook call. The list refreshes every 30 seconds.",
+    + "checked by One CommandCenter; a webhook call; or a document event in Document Automation. The list refreshes every 30 seconds.",
   items: [
     { name: "Create trigger", text: "Pick the event and fill in its settings, then the agent (its live version runs) and the runner it runs on. Runner "
       + "events are watched on that runner. Needs permission to manage triggers." },
@@ -46,6 +47,8 @@ const HELP: HelpTopic = { title: "Triggers",
     { name: "Last problem", text: "The latest error the trigger met, for example a mailbox it could not open. Hover to read it in full." },
     { name: "Open", text: "Shows the trigger's event and settings; you can change its name, owner and run-as person, pause it or delete it. "
       + "To change the event or its settings, create a new trigger and delete this one." },
+    { name: "On Document Automation", text: "Document processed, needs review, review approved or rejected, delivery failed, review overdue: Document "
+      + "Automation tells One CommandCenter at once. Leave Process empty for any process. The trigger's owner must be able to see the process's folder." },
     { name: "Check now", text: "For triggers One CommandCenter checks: looks for new mail, records or items straight away instead of waiting for the next "
       + "check." },
     { name: "Pause and Resume", text: "A paused trigger keeps its settings but does not start the agent until you resume it." },
@@ -83,7 +86,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const checkNow = (t: Trigger) => api.pollTrigger(t.id).then((x) => { onNotice(x.error ? x.error : "Checked " + t.name + ": " + (x.fired ?? 0) + " new."); load(); }, (e) => setError(message(e)));
   const rowMenu = (t: Trigger) => [
     { key: "open", label: "Open", onSelect: () => setDialog({ kind: "edit", t }) },
-    ...(manage && t.evaluated_on === "server" && t.enabled ? [{ key: "check", label: "Check now", onSelect: () => { checkNow(t); } }] : []),
+    ...(manage && t.evaluated_on === "server" && t.enabled && !DOCUMENT_KINDS.includes(t.kind) ? [{ key: "check", label: "Check now", onSelect: () => { checkNow(t); } }] : []),
     ...(manage ? [{ key: "pause", label: t.enabled ? "Pause" : "Resume", onSelect: () => { act(() => api.pauseTrigger(t.id, t.enabled), (t.enabled ? "Paused " : "Resumed ") + t.name + "."); } }] : []),
   ];
 

@@ -146,6 +146,30 @@
 .df-seg button { height: 30px; padding: 0 16px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-weight: 600; color: var(--ui-text-2); cursor: pointer; }
 .df-seg button[aria-pressed="true"] { background: var(--ui-bg); color: var(--ui-accent-text); box-shadow: 0 1px 2px rgba(23, 32, 43, .12); }
 .df-row-flag { background: #fffaf1; }
+/* Review: the page image with a box over each value; the chosen field and its box stand out */
+.df-page-view { flex: 1; min-height: 0; overflow: auto; padding: 20px; }
+/* the page and the fields each scroll on their own, so a chosen box and the field typed in are both in view */
+@media (min-width: 861px) {
+  .df-review { height: calc(100vh - 110px); min-height: 520px; flex: none; flex-wrap: nowrap; }
+  .df-review-page, .df-review-fields { height: 100%; min-height: 0; }
+  .df-review-fields > div:nth-child(2) { min-height: 0; }
+}
+.df-sheet { position: relative; margin: 0 auto; max-width: none; min-height: 200px; background: #ffffff; box-shadow: 0 2px 10px rgba(15, 20, 29, .18); }
+.df-sheet img { display: block; width: 100%; height: auto; }
+.df-sheet-wait { position: absolute; inset: 0; display: grid; place-items: center; color: #5b6472; }
+.df-box { position: absolute; padding: 0; border: 2px solid rgba(47, 111, 222, .55); border-radius: 2px; background: rgba(47, 111, 222, .07); cursor: pointer; }
+.df-box:hover { background: rgba(47, 111, 222, .16); }
+.df-box:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.df-box.is-flag { border-color: #b86e00; background: rgba(245, 179, 61, .2); }
+.df-box.is-row { border-style: dashed; }
+.df-box.is-selected { z-index: 2; border: 3px solid var(--ui-accent); border-style: solid; background: rgba(47, 111, 222, .18); box-shadow: 0 0 0 4px rgba(47, 111, 222, .25); }
+.df-tool-sep { width: 1px; height: 20px; margin: 0 4px; background: var(--ui-divider); }
+.df-flag.is-selected, .df-field-row.is-selected, .df-review-tablefield.is-selected { outline: 2px solid var(--ui-accent); outline-offset: 3px; border-radius: 6px; }
+.df-review-tablefield { display: flex; flex-direction: column; gap: 8px; }
+.df-review-table td { padding: 4px 6px; }
+.df-review-table input { min-width: 64px; }
+.df-review-table tr.is-selected { background: var(--ui-tint); }
+.df-thresholds td { padding: 6px 8px; }
 
 /* Engines: sections, engine cards, cost */
 .df-section-title { margin: 0; font-size: 16px; font-weight: 600; }
@@ -162,6 +186,12 @@
 .df-cost { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .df-row-current { background: var(--ui-tint); }
 @media (max-width: 1100px) { .df-cost { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* Test lab: test sets (right values, results, best per column) */
+.df-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.df-pair { display: inline-flex; gap: 4px; margin-right: 10px; white-space: nowrap; }
+.df-best { display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.df-wrong { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 860px) { .df-cost, .df-option-row { grid-template-columns: minmax(0, 1fr); } }
 
 /* 5. Narrow screens: grids stack, the review page and its fields stack */

@@ -20,7 +20,7 @@ import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
  */
 const TAB_IDS = ["overview", "inbox", "processes", "types", "refdata", "engines", "testlab"] as const;
 /** process: a process page; design: a process open in the builder (#/processes/<id>); document: a review. */
-/** section / item: a part of a page and what is open in it, e.g. #/engines/catalog/onemind. */
+/** section / item: a part of a page and what is open in it, e.g. #/engines/catalog/onemind, #/testlab/sets/<set>. */
 export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; stage?: string; document?: string; section?: string; item?: string };
 
 export function parseRoute(hash: string): Route {
@@ -29,6 +29,7 @@ export function parseRoute(hash: string): Route {
   if (first === "review" && second) return { tab: "review", document: second };
   if (first === "processes" && second) return { tab: "processes", design: second, ...(third ? { stage: third } : {}) };
   if (first === "engines" && second) return { tab: "engines", section: second, ...(third ? { item: third } : {}) };
+  if (first === "testlab" && second) return { tab: "testlab", section: second, ...(third ? { item: third } : {}) };
   return { tab: (TAB_IDS as readonly string[]).includes(first) ? first as typeof TAB_IDS[number] : "overview" };
 }
 
@@ -43,7 +44,7 @@ export const TAB_GROUPS: { label: string; tabs: Tab[]; menu?: boolean }[] = [
     { tab: "types", label: "Document types", about: "What to read from each kind of document" },
     { tab: "refdata", label: "Reference data", about: "Lists that checks look values up in" },
     { tab: "engines", label: "Engines", about: "Which engines read the pages; cloud opt-in; cost" },
-    { tab: "testlab", label: "Test lab", about: "Try any document on one engine or two" },
+    { tab: "testlab", label: "Test lab", about: "Try a document, or compare engines on test sets" },
   ] },
 ];
 const TABS = TAB_GROUPS.flatMap((g) => g.tabs);
@@ -65,7 +66,7 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route]);
 
   const reviewing = route.tab === "review";
-  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab as HelpPage;
+  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab === "testlab" && route.section === "sets" ? "testsets" : route.tab as HelpPage;
   const helpOpen = !helpHidden[helpPage];
   const toggleHelp = () => setHelpHidden({ ...helpHidden, [helpPage]: helpOpen });
   const help = helpOpen && <HelpPanel {...HELP[helpPage]} onHide={toggleHelp} />;
@@ -154,7 +155,7 @@ function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptI
     case "types": return <DocTypes api={api} />;
     case "refdata": return <RefData api={api} />;
     case "engines": return <Engines api={api} onOptIn={onOptIn} section={route.section} option={route.item} />;
-    case "testlab": return <TestLab api={api} />;
+    case "testlab": return <TestLab api={api} section={route.section} item={route.item} />;
     default: return <OverviewPage api={api} />;
   }
 }

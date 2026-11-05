@@ -31,7 +31,7 @@ describe("Document Automation", () => {
     await act(async () => { libraries.focus(); fireEvent.keyDown(libraries, { key: "ArrowDown" }); });
     const items = within(await screen.findByRole("menu")).getAllByRole("menuitem").map((i) => i.textContent);
     expect(items).toEqual(["Document typesWhat to read from each kind of document", "Reference dataLists that checks look values up in",
-      "EnginesWhich engines read the pages; cloud opt-in; cost", "Test labTry any document on one engine or two"]);
+      "EnginesWhich engines read the pages; cloud opt-in; cost", "Test labTry a document, or compare engines on test sets"]);
     await act(async () => { fireEvent.click(screen.getByRole("menuitem", { name: /^Engines/ })); });
     await waitFor(() => expect(location.hash).toBe("#/engines"));
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -89,6 +89,7 @@ describe("Document Automation", () => {
     expect(parseRoute("#/review/scan_0457")).toEqual({ tab: "review", document: "scan_0457" });
     expect(parseRoute("#/engines")).toEqual({ tab: "engines" });
     expect(parseRoute("#/engines/catalog/onemind")).toEqual({ tab: "engines", section: "catalog", item: "onemind" });
+    expect(parseRoute("#/testlab/sets/ap-reviewed")).toEqual({ tab: "testlab", section: "sets", item: "ap-reviewed" });
     expect(parseRoute("#/nowhere")).toEqual({ tab: "overview" });
   });
 
@@ -161,8 +162,108 @@ describe("Document Automation", () => {
     fireEvent.click(within(fields).getByRole("button", { name: /Approve and next/ }));
     await waitFor(() => expect(api.reviews).toHaveLength(1));
     expect(api.reviews[0]).toMatchObject({ documentId: "scan_0457", decision: "approve", fields: { vat_amount: "6,257.13" } });
+    expect(api.reviews[0].fields.line_items).toBeUndefined();                   // an unchanged table is not sent back as a correction
     const menu = screen.queryByRole("navigation", { name: "One CommandCenter" });
     expect(menu).toBeTruthy();
+  });
+
+  it("shows the page itself, with pages, zoom and a box over each value; a field and its box find each other", async () => {
+    start(); await go("#/review/scan_0457");
+    const page = await screen.findByRole("region", { name: "Document page" });
+    const fields = screen.getByRole("region", { name: "Fields" });
+    expect(within(page).getByRole("img", { name: "Page 1 of scan_0457.jpg" }).getAttribute("loading")).toBe("lazy");
+    expect(within(page).getByText("Page 1 of 2")).toBeTruthy();
+    expect((within(page).getByRole("button", { name: "Previous page" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(page).getByRole("button", { name: "Zoom in" }));
+    expect(within(page).getByText("110%")).toBeTruthy();
+    expect(within(page).getByRole("button", { name: "Invoice number on the page" })).toBeTruthy();
+    expect(within(page).queryByRole("button", { name: "Total on the page" })).toBeNull();     // on page 2
+
+    fireEvent.focus(within(fields).getByLabelText("Total"));                       // a field on page 2: the page turns to it
+    expect(within(page).getByText("Page 2 of 2")).toBeTruthy();
+    expect(within(page).getByRole("button", { name: "Total on the page" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(page).getByRole("button", { name: "Previous page" }));
+    expect(within(page).getByText("Page 1 of 2")).toBeTruthy();
+    fireEvent.click(within(page).getByRole("button", { name: "Invoice number on the page" }));   // a box: its field is chosen
+    expect(document.activeElement).toBe(within(fields).getByLabelText("Invoice number"));
+    expect(within(page).getByRole("button", { name: "Invoice number on the page" }).getAttribute("aria-pressed")).toBe("true");
+
+    expect(within(fields).getByText("Not found on the page")).toBeTruthy();        // VAT amount was read as a value the page does not have
+    const customer = within(fields).getByLabelText("Customer") as HTMLInputElement;
+    expect(customer.value).toBe("شركة النور القابضة");
+    expect(customer.getAttribute("dir")).toBe("auto");                              // Arabic reads right to left
+  });
+
+  it("edits a table field row by row, shows the row on the page, and sends the changed table", async () => {
+    const api = start(); await go("#/review/scan_0457");
+    const items = await screen.findByRole("region", { name: "Line items" });
+    expect(within(items).getAllByRole("row")).toHaveLength(5);                      // header + 4 rows read
+    const qty = within(items).getByLabelText("Qty, row 2") as HTMLInputElement;
+    fireEvent.focus(qty);
+    const page = screen.getByRole("region", { name: "Document page" });
+    expect(within(page).getByRole("button", { name: "Line items, row 2 on the page" }).getAttribute("aria-pressed")).toBe("true");
+    expect(qty.closest("tr")!.getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(within(page).getByRole("button", { name: "Line items, row 4 on the page" }));
+    expect(document.activeElement).toBe(within(items).getByLabelText("Description, row 4"));
+    fireEvent.change(qty, { target: { value: "11" } });
+    fireEvent.click(within(items).getByRole("button", { name: "Add row" }));
+    fireEvent.change(within(items).getByLabelText("Description, row 5"), { target: { value: "Delivery" } });
+    fireEvent.click(within(items).getByRole("button", { name: "Remove row 1" }));
+    expect(within(items).getAllByRole("row")).toHaveLength(5);
+    fireEvent.click(screen.getByRole("button", { name: /Approve and next/ }));
+    await waitFor(() => expect(api.reviews).toHaveLength(1));
+    const sent = api.reviews[0].fields.line_items as Record<string, string>[];
+    expect(sent.map((r) => r.quantity)).toEqual(["11", "9", "2", ""]);
+    expect(sent.at(-1)).toEqual({ description: "Delivery", quantity: "", amount: "" });
+  });
+
+  it("shows the e-invoice QR code's values against what was read", async () => {
+    start(); await go("#/review/scan_0457");
+    const e = await screen.findByRole("region", { name: "E-invoice" });
+    expect(within(e).getByText("ZATCA QR code on the page")).toBeTruthy();
+    expect(within(e).getByText("1 mismatch")).toBeTruthy();
+    const vat = within(e).getByText("VAT amount").closest("tr")!;
+    expect(within(vat).getByText("Mismatch")).toBeTruthy();
+    expect(within(vat).getByText("6257.13")).toBeTruthy();
+    expect(within(e).getAllByText("Match")).toHaveLength(3);
+  });
+
+  it("reads e-invoice data first in step 1 and gives fields their own review threshold in step 5", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    const einvoice = within(intake).getByRole("switch", { name: "Read e-invoice data first (ZATCA XML, QR codes)" });
+    expect(einvoice.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(einvoice);
+    expect(einvoice.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByRole("tab", { name: /Human review/ }));
+    const levels = screen.getByRole("region", { name: "Field thresholds" });
+    fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
+    fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
+    fireEvent.change(within(levels).getByLabelText("Field 2"), { target: { value: "total" } });
+    fireEvent.change(within(levels).getByLabelText("Threshold for Total"), { target: { value: "0.99" } });
+    fireEvent.click(within(levels).getByRole("button", { name: "Remove threshold for Invoice number" }));
+    expect(within(levels).getAllByRole("row")).toHaveLength(2);
+    expect(within(screen.getByRole("region", { name: "Process summary" })).getByText(/1 field with its own threshold/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect((await api.processDesign("supplier-invoices-ksa")).settings).toMatchObject({ einvoiceFirst: false, fieldThresholds: { total: 0.99 } });
+  });
+
+  it("names Claude's models where Claude is set up: Haiku reads the fields, Sonnet re-reads for review", async () => {
+    start(); await go("#/engines/routing");
+    const note = await screen.findByLabelText("Claude models");
+    expect(note.textContent).toContain("Claude Haiku 5.5 reads them; Claude Sonnet 5.5 re-reads a document that would otherwise go to review");
+    await go("#/engines/catalog/onemind");
+    const claude = await screen.findByRole("article", { name: "Claude (Anthropic)" });
+    expect(within(claude).getByText(/Claude Haiku 5.5 reads the fields/)).toBeTruthy();
+    fireEvent.click(within(claude).getByRole("button", { name: "Configure Claude (Anthropic)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Configure Claude (Anthropic)" });
+    expect((within(dialog).getByLabelText("Model") as HTMLSelectElement).value).toBe("claude-haiku-5-5");
+    expect((within(dialog).getByLabelText("Escalation model") as HTMLSelectElement).value).toBe("claude-sonnet-5-5");
+    await go("#/engines/cost");
+    const card = await screen.findByRole("region", { name: "Monthly cost estimate" });
+    fireEvent.click(within(card).getByRole("button", { name: "Claude Haiku 5.5 (Claude default)" }));
+    expect(within(card).getByText(/read again by Claude Sonnet 5.5/)).toBeTruthy();
   });
 
   it("shows Engines in sections: routing first, then engines by option, each option across the page", async () => {
@@ -278,6 +379,138 @@ describe("Document Automation", () => {
     fireEvent.click(screen.getByRole("button", { name: "One engine" }));
     expect(screen.queryByRole("region", { name: "Field results" })).toBeNull();
     expect(screen.queryByLabelText("Engine B")).toBeNull();
+  });
+
+  it("has two Test lab sections: try one document, as before, and test sets", async () => {
+    start(); await go("#/testlab");
+    const sections = await screen.findByRole("navigation", { name: "Test lab sections" });
+    expect(within(sections).getAllByRole("link").map((a) => a.textContent)).toEqual(["Try one document", "Test sets"]);
+    expect(within(sections).getByRole("link", { name: "Try one document" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("region", { name: "Set up the test" })).toBeTruthy();
+    await go("#/testlab/sets");
+    expect(await screen.findByRole("region", { name: "Test sets" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Test sets" }).getAttribute("aria-current")).toBe("page");
+    expect(within(screen.getByRole("region", { name: "How to use this page" })).getByText(/Add our sample set/)).toBeTruthy();
+  });
+
+  it("lists test sets with the last run's best result, filtered by document type", async () => {
+    start(); await go("#/testlab/sets");
+    const sets = await table("Test sets");
+    expect(within(sets).getAllByRole("row")).toHaveLength(3);                     // header + 2 sets
+    const ap = within(sets).getByRole("link", { name: "AP invoices, reviewed" }).closest("tr")!;
+    expect(within(ap).getByText("4")).toBeTruthy();
+    expect(within(ap).getByText("Supplier invoice")).toBeTruthy();
+    expect(within(ap).getAllByText(/%$/)).toHaveLength(2);                         // field accuracy, straight through
+    const receipts = within(sets).getByRole("link", { name: "Receipts" }).closest("tr")!;
+    expect(within(receipts).getByText("Never run")).toBeTruthy();
+    fireEvent.change(within(sets).getByLabelText("Document type"), { target: { value: "receipt" } });
+    expect(within(sets).getByText("1 of 2 sets")).toBeTruthy();
+    expect(within(sets).queryByRole("link", { name: "AP invoices, reviewed" })).toBeNull();
+  });
+
+  it("creates a test set and adds a document with its right values", async () => {
+    const api = start(); await go("#/testlab/sets");
+    fireEvent.click(await screen.findByRole("button", { name: "New test set" }));
+    const dialog = await screen.findByRole("dialog", { name: "New test set" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Hard receipts" } });
+    fireEvent.change(within(dialog).getByLabelText("Document type"), { target: { value: "receipt" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create set" }));
+    await waitFor(() => expect(location.hash).toBe("#/testlab/sets/hard-receipts"));
+    await go("#/testlab/sets/hard-receipts");
+    const items = await table("Documents in the set");
+    expect(within(items).getByText(/No documents yet/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Run test" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(items).getByRole("button", { name: "Add a document" }));
+    const add = await screen.findByRole("dialog", { name: "Add a document" });
+    const save = within(add).getByRole("button", { name: "Add document" }) as HTMLButtonElement;
+    fireEvent.change(within(add).getByLabelText("Choose a document"), { target: { files: [new File(["x"], "taxi.jpg")] } });
+    expect(save.disabled).toBe(true);                                             // a right value first
+    fireEvent.change(within(add).getByLabelText("Merchant"), { target: { value: "Careem" } });
+    fireEvent.change(within(add).getByLabelText("Total"), { target: { value: "42.50" } });
+    fireEvent.change(within(add).getByLabelText("Tags (optional)"), { target: { value: "photo, faded" } });
+    fireEvent.click(save);
+    expect(await within(items).findByRole("link", { name: "taxi.jpg" })).toBeTruthy();
+    expect((await api.testSet("hard-receipts")).items).toMatchObject([{ fileName: "taxi.jpg", expected: { merchant_name: "Careem", total: "42.50" }, tags: ["photo", "faded"], source: "upload" }]);
+
+    fireEvent.click(within(items).getByRole("button", { name: "Edit right values of taxi.jpg" }));
+    const edit = await screen.findByRole("dialog", { name: "Right values of taxi.jpg" });
+    fireEvent.change(within(edit).getByLabelText("Total"), { target: { value: "45.00" } });
+    fireEvent.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(async () => expect((await api.testSet("hard-receipts")).items![0].expected).toEqual({ merchant_name: "Careem", total: "45.00" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(within(items).getByRole("button", { name: "Remove taxi.jpg" }));
+    await waitFor(async () => expect((await api.testSet("hard-receipts")).itemCount).toBe(0));
+  });
+
+  it("adds our sample set of generated invoices, with Arabic/English ones", async () => {
+    const api = start(); await go("#/testlab/sets");
+    fireEvent.click(await screen.findByRole("button", { name: "Add our sample set" }));
+    await waitFor(() => expect(location.hash).toBe("#/testlab/sets/synthetic-invoices-seed"));
+    const seed = await api.testSet("synthetic-invoices-seed");
+    expect(seed.itemCount).toBe(15);
+    expect(seed.items!.some((i) => i.tags.includes("bilingual"))).toBe(true);
+    await api.seedTestSet();                                                      // again: topped up, not doubled
+    expect((await api.testSet("synthetic-invoices-seed")).itemCount).toBe(15);
+  });
+
+  it("runs a test set on engine combinations, waits for it, and marks the best per column", async () => {
+    const api = start(); await go("#/testlab/sets/ap-reviewed");
+    expect(await table("Results by combination")).toBeTruthy();                  // the last run shows first
+    fireEvent.click(screen.getByRole("button", { name: "Run test" }));
+    const dialog = await screen.findByRole("dialog", { name: "Run test" });
+    const ocr1 = within(dialog).getByLabelText("OCR engine, combination 1") as HTMLSelectElement;
+    expect((within(ocr1).getByRole("option", { name: "Azure Document Intelligence (not ready)" }) as HTMLOptionElement).disabled).toBe(true);
+    const fields1 = within(dialog).getByLabelText("Extraction engine, combination 1") as HTMLSelectElement;
+    expect(fields1.value).toBe("builtin-rules");
+    expect((within(fields1).getByRole("option", { name: "Claude (Anthropic) (not ready)" }) as HTMLOptionElement).disabled).toBe(true);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add combination" }));
+    fireEvent.change(within(dialog).getByLabelText("OCR engine, combination 2"), { target: { value: "tesseract" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add combination" }));
+    fireEvent.change(within(dialog).getByLabelText("OCR engine, combination 3"), { target: { value: "paddleocr" } });
+    expect(within(dialog).getByText("3 combinations")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Run test" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Run test" })).toBeNull());
+    const results = await table("Results by combination");
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Results by combination" })).getAllByRole("row")).toHaveLength(4));   // header + 3: the run finished
+    const done = screen.getByRole("region", { name: "Results by combination" });
+    expect(results).toBeTruthy();
+    expect(within(done).getByText("As live + Rules extractor")).toBeTruthy();
+    expect(within(done).getByText("Tesseract 5 + Rules extractor")).toBeTruthy();
+    expect(within(done).getAllByText("Best").length).toBeGreaterThanOrEqual(5);    // one or more per column
+    const runs = await api.setRuns("ap-reviewed");
+    expect(runs).toHaveLength(2);
+    expect(runs[0]).toMatchObject({ status: "completed", combos: [{ ocr: "auto", extraction: "builtin-rules" }, { ocr: "tesseract", extraction: "builtin-rules" }, { ocr: "paddleocr", extraction: "builtin-rules" }] });
+    const past = screen.getByRole("region", { name: "Past runs" });
+    await waitFor(() => expect(within(past).getAllByRole("row")).toHaveLength(3));
+    expect(within(past).getAllByText("Done")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Accuracy per field" })).toBeTruthy();
+    const docs = screen.getByRole("region", { name: "Documents read" });
+    expect(within(docs).getByText(/of 12 readings/)).toBeTruthy();               // 4 documents x 3 combinations
+    fireEvent.change(within(docs).getByLabelText("Show"), { target: { value: "all" } });
+    expect(within(docs).getByText("12 of 12 readings")).toBeTruthy();
+  });
+
+  it("adds an approved document to a test set of its type, from Review", async () => {
+    const api = start(); await go("#/review/scan_0457");
+    await screen.findByRole("region", { name: "Fields" });
+    expect(screen.queryByRole("button", { name: "Add to test set" })).toBeNull();   // not approved yet
+    fireEvent.click(screen.getByRole("button", { name: "Use 6,257.13" }));
+    fireEvent.click(screen.getByRole("button", { name: /Approve and next/ }));
+    await waitFor(() => expect(api.reviews).toHaveLength(1));
+    await go("#/review/scan_0457");
+    expect(await screen.findByText("Approved by you")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Add to test set" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add to test set" });
+    expect((within(dialog).getByLabelText("Test set") as HTMLSelectElement).value).toBe("ap-reviewed");   // only sets of a Supplier invoice
+    expect(within(dialog).queryByRole("option", { name: /Receipts/ })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    expect(await screen.findByRole("link", { name: "AP invoices, reviewed" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "AP invoices, reviewed" }).getAttribute("href")).toBe("#/testlab/sets/ap-reviewed");
+    const set = await api.testSet("ap-reviewed");
+    expect(set.itemCount).toBe(5);
+    expect(set.items!.at(-1)).toMatchObject({ fileName: "scan_0457.jpg", source: "document", sourceDocumentId: "scan_0457", tags: ["reviewed"],
+      expected: { vat_amount: "6,257.13", invoice_number: "INV-2026-3944", total: "47,971.34" } });
   });
 
   it("shows how to use each page on the first visit, and remembers when it is hidden", async () => {

@@ -80,6 +80,46 @@ describe("HttpDocFlowApi", () => {
     expect(e.options[1].engines[0]).toMatchObject({ id: "azure-di", status: "optin", runs: "cloud", price: "$1.5 · $10" });
   });
 
+  it("shows Claude's models: the one that reads the fields and the one that re-reads documents for review", async () => {
+    const { api } = fake({
+      "/providers": { providers: [{ id: "claude", displayName: "Claude", kind: "extraction", runsLocally: false, optionPack: "tier3_ai", available: true, reason: null, allowedByPolicy: true, policyReason: null, languages: [] }] },
+      "/costs": { prices: { claude: { ocr: null, extract: 0.8 } }, claudeModel: "claude-haiku-5-5", claudeEscalationModel: "claude-sonnet-5-5", cloudOptIn: true },
+      "/admin/settings": { defaults: [] },
+    });
+    const e = await api.engines();
+    expect(e.claude).toEqual({ model: "claude-haiku-5-5", escalationModel: "claude-sonnet-5-5" });
+    expect(e.options[2].engines[0].does).toBe("Claude Haiku 5.5 reads the fields; Claude Sonnet 5.5 re-reads documents that would go to review");
+  });
+
+  it("maps a review: page images, where each value is, table rows and the e-invoice QR checks", async () => {
+    const box = { x: 0.1, y: 0.2, w: 0.3, h: 0.04 };
+    const doc = { ...row, flowId: "ap", flags: [], confidence: { total: 0.97, line_items: 0.9 }, error: null,
+      fields: { total: 115, supplier_name: "شركة النور", line_items: [{ qty: 2, amount: 50 }, { qty: 1, amount: 15 }] },
+      locations: {
+        total: { page: 2, bbox: box, grounded: true, groundedBy: "qr" }, supplier_name: { page: null, bbox: null, grounded: false, groundedBy: null },
+        line_items: { page: 1, bbox: box, grounded: true, groundedBy: "ocr", rows: [{ row: 0, page: 1, bbox: box, grounded: true, cells: { qty: { page: 1, bbox: box, grounded: true } } },
+          { row: 1, page: null, bbox: null, grounded: false, cells: {} }] } },
+      einvoice: { source: "zatca-qr", values: { total: 115, seller_name: "ACME" }, checks: [{ field: "total", qr: 115, read: 115, result: "match" }, { field: "supplier_name", qr: "ACME", read: null, result: "filled" }] } };
+    const type = { id: "invoice", name: "Invoice", fields: [{ name: "supplier_name", type: "string", label: "Supplier", required: true, aliases: [], columns: [] },
+      { name: "total", type: "currency", label: "Total / الإجمالي", required: true, aliases: [], columns: [] },
+      { name: "line_items", type: "table", label: "Line items", required: false, aliases: [], columns: [{ name: "qty", type: "number", label: "Qty", required: false, aliases: [], columns: [] },
+        { name: "amount", type: "currency", label: "Amount", required: false, aliases: [], columns: [] }] }], learning: { aliases: {} } };
+    const { api } = fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [type], "/df/review": [],
+      "/documents/d1/result": { pages: [{ pageNumber: 1, width: 1240, height: 1754, lines: [] }, { pageNumber: 2, width: 1240, height: 1754, lines: [] }], provenance: { steps: [] }, confidence: 0.9 } });
+    const t = await api.reviewTask("d1");
+    expect(t.pages).toEqual([{ number: 1, image: "/api/docflow/documents/d1/page/1.png", width: 1240, height: 1754 },
+      { number: 2, image: "/api/docflow/documents/d1/page/2.png", width: 1240, height: 1754 }]);
+    expect(t.fields.find((f) => f.id === "total")).toMatchObject({ label: "Total", value: "115", place: { page: 2, bbox: box, grounded: true, groundedBy: "qr" } });
+    expect(t.fields.find((f) => f.id === "supplier_name")!.place).toMatchObject({ grounded: false });
+    expect(t.fields.some((f) => f.id === "line_items")).toBe(false);
+    expect(t.tables[0]).toMatchObject({ id: "line_items", label: "Line items", confidence: 90, columns: [{ name: "qty", label: "Qty" }, { name: "amount", label: "Amount" }],
+      rows: [{ qty: "2", amount: "50" }, { qty: "1", amount: "15" }] });
+    expect(t.tables[0].rowPlaces![0]).toMatchObject({ page: 1, bbox: box, grounded: true, cells: { qty: { page: 1, grounded: true } } });
+    expect(t.tables[0].rowPlaces![1].grounded).toBe(false);
+    expect(t.einvoice).toEqual({ source: "zatca-qr", values: { total: "115", seller_name: "ACME" }, checks: [
+      { field: "total", label: "Total", qr: "115", read: "115", result: "match" }, { field: "supplier_name", label: "Supplier", qr: "ACME", read: "—", result: "filled" }] });
+  });
+
   it("reports the Command Center's error message", async () => {
     const { api } = fake({ "/df/overview": new Response(JSON.stringify({ error: { code: "DOCS.UNAVAILABLE", message: "The Document Automation service is not reachable" } }), { status: 502 }) });
     await expect(api.overview()).rejects.toThrow("not reachable");
@@ -90,12 +130,16 @@ describe("HttpDocFlowApi", () => {
     const { api, calls } = fake({ "PUT /df/flows/ap": stored, "/df/flows/ap": stored, "/df/doctypes": [{ id: "invoice", name: "Invoice", fields: [], learning: { aliases: {} } }] });
     const d = await api.processDesign("ap");
     expect(d.deliveries[0]).toMatchObject({ type: "excel", target: "D:\\r.xlsx" });
+    expect(d.settings).toMatchObject({ einvoiceFirst: true, fieldThresholds: {} });       // DocFlow's defaults when the flow has none
     d.settings.fieldConfidence = 0.9;
+    d.settings.fieldThresholds = { total: 0.97 };
+    d.settings.einvoiceFirst = false;
     d.checks[0].on = false;
     d.deliveries[0].target = "E:\\new.xlsx";
     await api.saveProcess(d);
     const put = JSON.parse(String(calls.find((c) => c.method === "PUT")!.body));
-    expect(put.review).toEqual({ fieldConfidence: 0.9, slaHours: 24, documentConfidence: 0.7, slaWebhook: "https://x" });
+    expect(put.review).toEqual({ fieldConfidence: 0.9, slaHours: 24, documentConfidence: 0.7, slaWebhook: "https://x", fieldThresholds: { total: 0.97 } });
+    expect(put.intake).toMatchObject({ inputFolder: flow.intake.inputFolder, einvoiceFirst: false });
     expect(put.rules[0]).toMatchObject({ id: "r1", type: "expression", enabled: false, action: "review" });
     expect(put.deliveries[0].params).toEqual({ path: "E:\\new.xlsx", sheet: "AP" });
   });
@@ -138,5 +182,34 @@ describe("HttpDocFlowApi", () => {
     expect(r.rows[1].check).toBe("Required: missing in A");
     expect(r.runs[0]).toMatchObject({ seconds: 0.6, confidence: 78, review: true, readBy: "Tesseract" });
     expect(r.runs[1].error).toContain("opt-in");
+  });
+
+  it("calls DocFlow's test-set routes: list by type, seed, add an approved document, upload with right values, run and poll", async () => {
+    const set = { id: "ap", name: "AP", docType: "invoice", description: "", itemCount: 1, createdAt: "", updatedAt: "", lastRun: null };
+    const run = { id: "r1", setId: "ap", status: "running", combos: [{ ocr: "auto", extraction: "claude" }], results: [], error: null, createdAt: "", finishedAt: null };
+    const { api, calls } = fake({
+      "GET /df/testsets": [set], "POST /df/testsets/seed": { ...set, items: [] }, "POST /df/testsets/ap/documents": { id: "i1" },
+      "POST /df/testsets/ap/items": { id: "i2" }, "POST /df/testsets/ap/runs": run, "GET /df/testsets/ap/runs/r1": { ...run, status: "completed", rows: [] },
+    });
+    expect(await api.testSets("invoice")).toEqual([set]);
+    expect(calls[0].url).toBe("/api/docflow/df/testsets?docType=invoice");
+    await api.seedTestSet();
+    expect(calls[1].url).toBe("/api/docflow/df/testsets/seed?count=3&bilingual=true");
+    await api.addToTestSet("ap", "d1");
+    expect(JSON.parse(String(calls[2].body))).toEqual({ documentId: "d1", tags: [] });
+    await api.addTestItem("ap", new File(["%PDF"], "a.pdf"), { total: "115.00" }, ["scan"]);
+    const form = calls[3].body as FormData;
+    expect([form.get("expected"), form.get("tags"), (form.get("file") as File).name]).toEqual(['{"total":"115.00"}', "scan", "a.pdf"]);
+    expect((await api.startSetRun("ap", run.combos)).status).toBe("running");
+    expect(calls[4]).toMatchObject({ method: "POST", url: "/api/docflow/df/testsets/ap/runs?wait=false" });
+    expect(JSON.parse(String(calls[4].body))).toEqual({ combos: [{ ocr: "auto", extraction: "claude" }] });
+    expect((await api.setRun("ap", "r1")).status).toBe("completed");
+    expect(api.testItemFileUrl("ap", "i 1")).toBe("/api/docflow/df/testsets/ap/items/i%201/file");
+  });
+
+  it("gives a review task its document type id, for Add to test set", async () => {
+    const doc = { ...row, flowId: "ap", status: "validated", validated_by: "Sara", flags: [], fields: { total: 115 }, confidence: { total: 0.9 }, error: null };
+    const { api } = fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [], "/df/review": [] });
+    expect(await api.reviewTask("d1")).toMatchObject({ docTypeId: "invoice", status: "done", reviewedBy: "Sara" });
   });
 });

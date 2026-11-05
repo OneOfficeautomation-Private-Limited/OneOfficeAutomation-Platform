@@ -1,12 +1,27 @@
 /**
- * The events that start an agent (Manage > Triggers, built as AA's event triggers): their settings and help, in two
- * groups: on the runner, and checked by One CommandCenter. Shared by the console's Triggers page and the command list
- * of One AgentStudio's agent editor, so both offer the same triggers.
+ * The events that start an agent (Manage > Triggers, built as AA's event triggers): their settings and help, in three
+ * groups: on the runner, checked by One CommandCenter, and reported by Document Automation. Shared by the console's
+ * Triggers page and the command list of One AgentStudio's agent editor, so both offer the same triggers.
  */
 export type F = [key: string, label: string, placeholder?: string, value?: string, type?: "number" | "check", checked?: boolean];
 const FOLDER: F[] = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
 const INTERVAL: F = ["interval_seconds", "Check every (seconds, 15 or more)", "60", "60", "number"];
 const MAIL_FILTERS: F[] = [["from_contains", "From contains (optional)", "billing@"], ["subject_contains", "Subject contains (optional)", "Invoice"]];
+/** Document Automation's events: DocFlow tells One CommandCenter as each happens, so nothing is checked on an interval. */
+const DOCUMENT: [kind: string, label: string, when: string][] = [
+  ["doc_processed", "Document processed", "a document has been read and checked"],
+  ["doc_needs_review", "Document needs review", "a document waits for a person's review"],
+  ["doc_approved", "Review approved", "a reviewer approves a document"],
+  ["doc_rejected", "Review rejected", "a reviewer rejects a document"],
+  ["doc_delivery_failed", "Delivery failed", "a process could not deliver a document's results"],
+  ["doc_review_overdue", "Review overdue", "a review is past its process's review target"]];
+export const DOCUMENT_KINDS = DOCUMENT.map(([k]) => k);
+function documentKinds() {
+  const fields: F[] = [["process", "Process (name or id; empty: any process)", "AP invoices"], ["doc_type", "Document type (empty: any type)", "Invoice"]];
+  return Object.fromEntries(DOCUMENT.map(([k, label, when]) => [k, { label, fields, help: "Starts the agent when " + when + ". The trigger's owner must be able to see "
+    + "the process's folder. Inputs, if the agent has them: document_id, process, process_id, status, event, file_name, doc_type, each field by its name "
+    + "(invoice_number, total…) and trigger_event." }]));
+}
 export const KINDS: Record<string, { label: string; fields: F[]; help: string }> = {
   file: { label: "File arrives in a folder", fields: FOLDER, help: "Watched on the runner. The agent gets the path in trigger_file and all details in trigger_event." },
   file_changed: { label: "File changed", fields: FOLDER, help: "Fires when a matching file's size or time changes, once it stops changing. Input: trigger_file." },
@@ -35,6 +50,9 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
     ["id_field", "Id field of each item", "id", "id"], ["auth_ref", "Bearer token (vault reference, optional)"], INTERVAL],
     help: "Checked by One CommandCenter. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
   webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the address and secret after creating it." },
+  ...documentKinds(),
 };
+
 export const TRIGGER_GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey"]],
-  ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
+  ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]],
+  ["On Document Automation", DOCUMENT_KINDS]];

@@ -128,11 +128,12 @@ const SECTIONS: Section[] = [
     { title: "Files", settings: [
       { key: "repo_files_folder", label: "Shared folder for repository files", hint: "For several nodes. Empty: the data folder.", kind: "text" }] },
   ] },
-  { id: "mcp", title: "AI assistants (MCP)", mark: "AI", colour: "#6d28d9", about: "Assistants connect to /api/mcp with a person's API key, or an OAuth token from your identity provider, and run the agents listed here as tools.", groups: [
+  { id: "mcp", title: "AI assistants (MCP)", mark: "AI", colour: "#6d28d9", about: "Assistants connect to /api/mcp with a person's API key, or an OAuth token from your identity provider, and run the agents listed here as tools, and Document Automation's tools.", groups: [
     { title: "Tools", settings: [
       { key: "mcp_agents", label: "Agents offered as tools", hint: "Paths, separated by commas; * for all.", kind: "text", placeholder: "Finance/Invoice lookup.flow.json" },
       { key: "mcp_runner", label: "Runner or runner pool id", hint: "Empty: any online runner.", kind: "text" },
-      { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 }] },
+      { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 },
+      { key: "mcp_documents", label: "Document Automation tools", hint: "Send documents, read results, review: as the person, with their permissions.", kind: "check" }] },
     { title: "OAuth", settings: [
       { key: "mcp_oauth_audience", label: "Token audience", hint: "Empty: API keys only.", kind: "text", placeholder: "api://ooa-mcp" },
       { key: "mcp_oauth_scope", label: "Scope the token must carry", hint: "Optional.", kind: "text", placeholder: "mcp.use" }] },

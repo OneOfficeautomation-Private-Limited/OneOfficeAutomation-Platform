@@ -47,6 +47,7 @@ public final class Platform {
         DEFAULTS.put("mcp_agents", "");
         DEFAULTS.put("mcp_runner", "");
         DEFAULTS.put("mcp_timeout_seconds", 120);
+        DEFAULTS.put("mcp_documents", 1);         // Document Automation's tools for AI assistants (McpDocuments)
         DEFAULTS.put("run_retention_days", 0);
         DEFAULTS.put("run_log_retention_days", 0);
         DEFAULTS.put("syslog_target", "");
@@ -151,6 +152,7 @@ public final class Platform {
         Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
         Map.entry("hourly_cost", new long[] { 0, 100000 }),
         Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),
+        Map.entry("mcp_documents", new long[] { 0, 1 }),
         Map.entry("run_retention_days", new long[] { 0, 36500 }),
         Map.entry("run_log_retention_days", new long[] { 0, 36500 }),
         Map.entry("max_sessions_per_user", new long[] { 1, 50 }),

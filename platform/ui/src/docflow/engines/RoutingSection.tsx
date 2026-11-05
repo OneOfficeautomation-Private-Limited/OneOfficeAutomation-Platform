@@ -1,5 +1,5 @@
 import { Button, Field, Select } from "../../components";
-import type { Engine, Routing } from "../api";
+import { modelName, type ClaudeModels, type Engine, type Routing } from "../api";
 import { HINTS } from "../help";
 import { Chip } from "../ui";
 
@@ -12,8 +12,8 @@ const retryOptions = (saved: number) => [
 ];
 
 /** How a page is routed (the strategy plan): free local engines first, paid cloud engines only for weak pages. */
-export function RoutingSection({ routing, cloudEngines, saved, onChange, onSave }:
-  { routing: Routing; cloudEngines: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void }) {
+export function RoutingSection({ routing, cloudEngines, saved, onChange, onSave, claude }:
+  { routing: Routing; cloudEngines: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void; claude?: ClaudeModels }) {
   const pct = Math.round(routing.retryBelow * 100);
   const cloud = cloudEngines.find((e) => e.id === routing.cloudEngine);
   const steps = [
@@ -40,6 +40,10 @@ export function RoutingSection({ routing, cloudEngines, saved, onChange, onSave 
           </li>
         ))}
       </ol>
+      {claude && <p className="df-small" style={{ margin: 0 }} aria-label="Claude models">
+        Processes that read fields with Claude: <b>{modelName(claude.model)}</b> reads them{claude.escalationModel
+          ? <>; <b>{modelName(claude.escalationModel)}</b> re-reads a document that would otherwise go to review</> : "; no second model"}.
+        {" "}Change the models in <a href="#/engines/catalog/onemind">Engines, OneMind</a>, Claude, Configure.</p>}
       <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
         <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => onChange({ ...routing, retryBelow: Number(e.target.value) })}
           options={retryOptions(routing.retryBelow)} />}</Field>

@@ -67,6 +67,8 @@ public final class TriggerPollers {
         Map<String, Object> t = cr.db.one("SELECT * FROM triggers WHERE id = ?", id);
         if (t == null) throw ControlRoom.notFound("Trigger");
         String kind = (String) t.get("kind");
+        if (TriggerKinds.DOCUMENT_EVENTS.containsValue(kind))
+            throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " starts when Document Automation reports the event: there is nothing to check");
         Map<String, Object> cfg = config(t);
         Ctx c = new Ctx(t, cfg);
         String cursor = (String) t.get("last_hash");

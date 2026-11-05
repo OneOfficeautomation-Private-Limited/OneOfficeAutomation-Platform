@@ -89,6 +89,7 @@ export const SETTING_HELP: Record<string, string> = {
   mcp_agents: "Which agents AI assistants (such as Claude or Copilot) may run as tools, as repository paths separated by commas, or * for all. Each person can still run only the agents their roles allow.",
   mcp_runner: "The runner or runner pool that runs agents asked for by AI assistants. Leave it empty to use any free runner.",
   mcp_timeout_seconds: "How long an AI assistant waits for an agent's result before it is told the run is still going.",
+  mcp_documents: "Offers AI assistants Document Automation's tools: list processes, send a document (answered at once with its id), ask its status and result, list the reviews waiting and approve or reject one. Each person can do only what their permissions and the processes' folders allow; every call is in the Audit Trail.",
   mcp_oauth_audience: "To let assistants sign in with tokens from your identity provider instead of API keys, type the audience the tokens are issued for, such as api://ooa-mcp. Empty allows API keys only.",
   mcp_oauth_scope: "A scope the token must carry, such as mcp.use, so only apps you allowed can call. Optional.",
   // E-mail, proxy and SIEM

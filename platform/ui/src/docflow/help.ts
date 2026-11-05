@@ -2,7 +2,7 @@
  * "How to use this page": a few short steps for every Document Automation screen, and one-line hints for the options
  * people ask about. Plain words, one action per step, so anyone can follow them. Kept in one place for translation.
  */
-export type HelpPage = "overview" | "inbox" | "process" | "review" | "processes" | "types" | "refdata" | "engines" | "testlab";
+export type HelpPage = "overview" | "inbox" | "process" | "review" | "processes" | "types" | "refdata" | "engines" | "testlab" | "testsets";
 
 export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
   overview: {
@@ -37,7 +37,9 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     summary: "Check the values DocFlow was not sure about.",
     steps: [
       "Start with the highlighted field. The reason is shown under it.",
-      "Compare it with the page on the left and type the right value.",
+      "Click a field to see its box on the page. Click a box to find its field.",
+      "Not found on the page? Look for the value yourself and type the right one.",
+      "Tables: fix a cell, or add and remove rows.",
       "Click Approve and next (Ctrl+Enter) to save and open the next one.",
       "Wrong document? Click Reject or Change document type.",
     ],
@@ -46,7 +48,9 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     summary: "Build a process step by step, from where documents come in to going live.",
     steps: [
       "Work through the steps left to right, from 1 Document ingestion to 7 Testing & go-live.",
+      "In step 1, keep Read e-invoice data first on for ZATCA and GST invoices.",
       "In step 2, choose the document type and check its fields on the same screen.",
+      "In step 5, give important fields, such as the total, a stricter threshold.",
       "Click Save draft as you go. On a live process, Save changes applies at once.",
       "In step 7, try 1–3 sample documents, then click Go live.",
     ],
@@ -85,6 +89,18 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
       "Pick an engine, or switch on Compare two.",
       "Click Run test.",
       "Fix the process where a row differs or fails a check, then test again.",
+      "Many documents to check? Open Test sets.",
+    ],
+  },
+  testsets: {
+    summary: "Compare engines on documents whose right values you know.",
+    steps: [
+      "Click New test set, or Add our sample set to start with generated invoices.",
+      "Open a set. Click Add a document and type its right values.",
+      "Or, in Review, open an approved document and click Add to test set.",
+      "Click Run test and choose the engines to compare.",
+      "Compare the results. The best in each column is marked.",
+      "Check the documents with a wrong field, fix the process, then run again.",
     ],
   },
 };
@@ -100,4 +116,8 @@ export const HINTS = {
   recognise: "DocFlow finds out what each document is and sends it to the matching process.",
   reviewReject: "The document is marked as rejected and nothing is delivered.",
   changeType: "Read the document again as another document type.",
+  einvoiceFirst: "Uses the invoice's own XML instead of OCR, and checks the values read against its QR code.",
+  fieldThresholds: "A field listed here goes to review under its own confidence, not the one above.",
+  wronglyAutoApproved: "Went straight through with a wrong value, so no one checked it. Keep this at 0.",
+  addToTestSet: "Copies this document and its approved values into a test set, to test engines on it later.",
 };

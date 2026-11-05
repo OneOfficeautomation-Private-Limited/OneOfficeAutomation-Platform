@@ -118,6 +118,7 @@ public final class Tenants implements AutoCloseable {
             List<Object> agents = new ArrayList<>();
             if (b.get("agents") instanceof List<?> l) for (Object a : l) if (a instanceof Map<?, ?> am) agents.add(am.get("path"));
             m.put("agents", agents);
+            m.put("processes", Templates.processNames(b));   // Document Automation processes that go with it
             m.put("created", String.valueOf(r.get("submitted")));
             out.add(m);
         }

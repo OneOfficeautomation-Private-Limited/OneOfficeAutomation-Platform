@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 
 /**
  * The kinds of trigger, where each is evaluated and what each needs. Runner kinds are watched by the OneRunner on
- * the trigger's runner (local machine events); server kinds are polled by One CommandCenter (remote systems).
+ * the trigger's runner (local machine events); server kinds are polled by One CommandCenter (remote systems), except
+ * the Document Automation kinds, which DocFlow reports to it as they happen.
  * Validation turns a request body into the stored config; secrets are never stored, only vault references.
  */
 final class TriggerKinds {
@@ -37,8 +38,37 @@ final class TriggerKinds {
                 new Kind("outlook", Where.SERVER, "New email (Microsoft 365 Outlook)", false),
                 new Kind("servicenow", Where.SERVER, "ServiceNow record", false),
                 new Kind("http_poll", Where.SERVER, "Universal poller (HTTP)", false),
-                new Kind("webhook", Where.WEBHOOK, "Webhook", false)))
+                new Kind("webhook", Where.WEBHOOK, "Webhook", false),
+                // On Document Automation: DocFlow reports each event to One CommandCenter (DocFlowProxy.onEvent), nothing is polled
+                // (kind ids have at most 20 characters: the triggers table's kind column)
+                new Kind("doc_processed", Where.SERVER, "Document processed", false),
+                new Kind("doc_needs_review", Where.SERVER, "Document needs review", false),
+                new Kind("doc_approved", Where.SERVER, "Review approved", false),
+                new Kind("doc_rejected", Where.SERVER, "Review rejected", false),
+                new Kind("doc_delivery_failed", Where.SERVER, "Delivery failed", false),
+                new Kind("doc_review_overdue", Where.SERVER, "Review overdue", false)))
             KINDS.put(k.id(), k);
+    }
+
+    /** DocFlow's event names (POST /api/docflow-callback/events) and the trigger kind each starts. */
+    static final Map<String, String> DOCUMENT_EVENTS = new LinkedHashMap<>();
+    static {
+        DOCUMENT_EVENTS.put("processed", "doc_processed");
+        DOCUMENT_EVENTS.put("needs_review", "doc_needs_review");
+        DOCUMENT_EVENTS.put("approved", "doc_approved");
+        DOCUMENT_EVENTS.put("rejected", "doc_rejected");
+        DOCUMENT_EVENTS.put("delivery_failed", "doc_delivery_failed");
+        DOCUMENT_EVENTS.put("review_overdue", "doc_review_overdue");
+    }
+
+    /**
+     * Whether a document event is one a Document Automation trigger waits for: its process (by id, or name in any case;
+     * none = any process) and its document type (by name or id, in any case; none = any type).
+     */
+    static boolean documentMatches(Map<String, Object> config, Map<String, Object> event) {
+        String process = str(config, "process"), type = str(config, "doc_type");
+        if (process != null && !process.equals(String.valueOf(event.get("process_id"))) && !process.equalsIgnoreCase(String.valueOf(event.get("process")))) return false;
+        return type == null || event.get("doc_type") != null && type.equalsIgnoreCase(String.valueOf(event.get("doc_type")).trim());
     }
 
     static final Set<String> FOLDER_KINDS = Set.of("file", "file_changed", "file_deleted", "folder_created", "folder_deleted");
@@ -184,9 +214,16 @@ final class TriggerKinds {
                 out.put("interval_seconds", interval(in));
             }
             case "webhook" -> { }
+            case "doc_processed", "doc_needs_review", "doc_approved", "doc_rejected", "doc_delivery_failed", "doc_review_overdue" -> {
+                for (String k : List.of("process", "doc_type")) {
+                    String v = str(in, k);
+                    if (v != null && v.length() > 200) throw bad(k + " has at most 200 characters");
+                    if (v != null) out.put(k, v);
+                }
+            }
             default -> throw bad("Unknown trigger kind '" + kind + "'");
         }
-        if (KINDS.get(kind).where() == Where.SERVER && in.get("fire_existing") != null)
+        if (KINDS.get(kind).where() == Where.SERVER && !DOCUMENT_EVENTS.containsValue(kind) && in.get("fire_existing") != null)
             out.put("fire_existing", Boolean.parseBoolean(String.valueOf(in.get("fire_existing"))));
         return out;
     }

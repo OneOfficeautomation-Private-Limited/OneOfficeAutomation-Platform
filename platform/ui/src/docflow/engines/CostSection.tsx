@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Field, Select, TextInput } from "../../components";
-import { estimate } from "../api";
+import { estimate, modelName, type ClaudeModels } from "../api";
 import { Chip } from "../ui";
 
 const money = (v: number) => "$" + v.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -8,7 +8,7 @@ const money = (v: number) => "$" + v.toLocaleString("en", { minimumFractionDigit
 const CLOUD_OCR = [{ value: "azure-di", label: "Azure Document Intelligence" }, { value: "google-docai", label: "Google Document AI" }, { value: "aws-textract", label: "AWS Textract" }];
 const EXTRACTION = [
   { value: "azure-di", label: "Azure prebuilt invoice" }, { value: "aws-textract", label: "AWS AnalyzeExpense" }, { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
-  { value: "claude-opus-5-5", label: "Claude Opus 5.5" }, { value: "claude-haiku-5-5", label: "Claude Haiku 5.5" }, { value: "builtin-rules", label: "Local rules (free)" },
+  { value: "claude-opus-5-5", label: "Claude Opus 5.5" }, { value: "claude-haiku-5-5", label: "Claude Haiku 5.5 (Claude default)" }, { value: "builtin-rules", label: "Local rules (free)" },
 ];
 
 /**
@@ -16,7 +16,7 @@ const EXTRACTION = [
  * would cost with each way of reading the fields. The plan's example: 10,000 pages, 20% weak pages to cloud OCR, 30%
  * with fields read by Azure gives $33 a month.
  */
-export function CostSection({ optIn }: { optIn: boolean }) {
+export function CostSection({ optIn, claude }: { optIn: boolean; claude?: ClaudeModels }) {
   const [pages, setPages] = useState("10000");
   const [cloud, setCloud] = useState("20");
   const [fields, setFields] = useState("30");
@@ -52,6 +52,8 @@ export function CostSection({ optIn }: { optIn: boolean }) {
           {optIn
             ? <div className="df-note df-info">Cloud opt-in is on, so this is what the current routing would cost.</div>
             : <div className="df-note df-ok">Today this costs <b>$0</b>: cloud opt-in is off, so every page stays on this server.</div>}
+          {extract.startsWith("claude-") && claude?.escalationModel && <div className="df-small">
+            Documents that would go to review are read again by {modelName(claude.escalationModel)}, at its price, on top of this.</div>}
           <div className="df-small">Plus the server for local engines. Approximate list prices; check vendor pricing before quoting a client.</div>
         </div>
 

@@ -4,6 +4,8 @@
  * signed-in user) with the same shapes, so the screens do not change when it is wired.
  */
 
+import { SAMPLE_REVIEW } from "./sampleReview";
+
 export type DocStatus = "processing" | "done" | "review" | "failed" | "split";
 export type Source = "upload" | "folder" | "email" | "bot" | "split";
 
@@ -18,12 +20,38 @@ export interface DocumentRow {
   time: string; source: Source; sourceLabel: string; status: DocStatus; note: string; engine: string; confidence: number | null;
 }
 
-export interface ReviewField { id: string; label: string; value: string; confidence: number; flagged?: { reason: string; suggestion?: string } }
-export interface ReviewCheck { text: string; passed: boolean; detail: string }
-export interface ReviewTask {
-  documentId: string; processId?: string; status: DocStatus; reviewedBy?: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; targetHours: number; position: number; of: number;
-  engineTrail: string; pageLines: { text: string; mark?: "flag" | "ok"; bold?: boolean }[]; fields: ReviewField[]; checks: ReviewCheck[];
+/** A box on a page: 0–1 of the page's width and height, from its top-left corner. */
+export interface Box { x: number; y: number; w: number; h: number }
+/**
+ * Where a value is printed (DocFlow's grounding). grounded: false = the value was not found on the page; null = not
+ * checked (empty). groundedBy: "ocr" (the page's words), "qr" (the e-invoice QR code), "einvoice-xml" (no place on a page).
+ */
+export interface Place { page: number | null; bbox: Box | null; grounded: boolean | null; groundedBy?: "ocr" | "qr" | "einvoice-xml" | null }
+export interface RowPlace extends Place { cells: Record<string, Place> }
+export interface ReviewField { id: string; label: string; value: string; confidence: number; flagged?: { reason: string; suggestion?: string }; place?: Place }
+export type TableRow = Record<string, string>;
+/** A table field (line items): its columns, the rows read, and where the table and each row are on the pages. */
+export interface ReviewTable {
+  id: string; label: string; columns: { name: string; label: string }[]; rows: TableRow[]; confidence: number | null;
+  flagged?: { reason: string }; place?: Place; rowPlaces?: RowPlace[];
 }
+export interface ReviewCheck { text: string; passed: boolean; detail: string }
+/** One value of the e-invoice QR code compared with what was read from the page. */
+export interface EInvoiceCheck { field: string; label: string; qr: string; read: string; result: "match" | "mismatch" | "differs" | "filled" }
+/** E-invoice data DocFlow read: the invoice's own XML (ZATCA), or a QR code on the page (ZATCA or India GST). */
+export interface EInvoice { source: "einvoice-xml" | "zatca-qr" | "gst-qr" | string; values: Record<string, string>; checks: EInvoiceCheck[] }
+/** A page of the document: its number (as places name it), its image and its size in pixels when known. */
+export interface ReviewPage { number: number; image: string; width?: number; height?: number }
+export interface ReviewTask {
+  /** docTypeId: the document type's id (DocType.id), when the document has one. */
+  documentId: string; processId?: string; docTypeId?: string; status: DocStatus; reviewedBy?: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; targetHours: number; position: number; of: number;
+  engineTrail: string; pages: ReviewPage[];
+  /** The page's text, shown only when there is no page image (an e-invoice XML on its own). */
+  pageLines: { text: string; mark?: "flag" | "ok"; bold?: boolean }[];
+  fields: ReviewField[]; tables: ReviewTable[]; checks: ReviewCheck[]; einvoice: EInvoice | null;
+}
+/** What a reviewer sends back: text fields as typed, and table fields (only those changed) as rows. */
+export type ReviewValues = Record<string, string | TableRow[]>;
 
 export type EngineStatus = "ready" | "optin" | "setup";
 export interface Engine { id: string; name: string; does: string; status: EngineStatus; runs: "server" | "cloud"; price: string; free: boolean; key: string }
@@ -31,6 +59,13 @@ export interface EngineOption { id: "onecore" | "oneconnect" | "onemind"; name: 
 /** One setting of an engine (its address, key, model…), as DocFlow's settings describe it. Secrets come back masked. */
 export interface EngineField { key: string; label: string; type: string; value: string; help?: string; options?: string[]; placeholder?: string }
 export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string }
+/** Claude's models: the one that reads the fields, and the one that re-reads a document that would go to review (null: off). */
+export interface ClaudeModels { model: string; escalationModel: string | null }
+/** "claude-haiku-5-5" → "Claude Haiku 5.5". */
+export function modelName(id: string): string {
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)$/.exec(id);
+  return m ? `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}.${m[3]}` : id;
+}
 
 /** DocFlow's kinds of check (rules); `params` are DocFlow's own settings for that kind. */
 export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "threshold" | "required" | "expression";
@@ -50,6 +85,10 @@ export interface EmailInbox {
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
   fieldConfidence: number; slaHours: number; email: EmailInbox | null;
+  /** Read e-invoice data (ZATCA XML, QR codes) before OCR; on by default. */
+  einvoiceFirst: boolean;
+  /** Stricter (or looser) review thresholds for single fields: {field name: 0–1}, over fieldConfidence. */
+  fieldThresholds: Record<string, number>;
 }
 /** How an email inbox's last check went (the Command Center reads the mail). */
 export interface InboxStatus { lastCheck: string | null; error: string | null; documents: number }
@@ -85,6 +124,11 @@ export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
  * The stage summaries of a process, from its settings (the builder and both clients share them), in the order a
  * developer thinks: where documents come from, what they are, how they are read, checked, reviewed and delivered.
  */
+const thresholds = (s: ProcessSettings) => {
+  const n = Object.keys(s.fieldThresholds ?? {}).length;
+  return n ? `; ${n} field${n > 1 ? "s" : ""} with ${n > 1 ? "their" : "its"} own threshold` : "";
+};
+
 export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "checks" | "docType">, engineName: (id: string) => string) {
   const s = d.settings;
   const on = d.checks.filter((c) => c.on).length;
@@ -94,7 +138,7 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
     { name: "Document classification", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Type: ${d.docType || "not chosen"}${s.split ? "; batches are split" : ""}`, done: !!d.docType },
     { name: "Data extraction", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
     { name: "Validation", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
-    { name: "Human review", summary: `Under ${Math.round(s.fieldConfidence * 100)}% confidence; to the Task inbox, ${s.slaHours} h target`, done: true },
+    { name: "Human review", summary: `Under ${Math.round(s.fieldConfidence * 100)}% confidence; to the Task inbox, ${s.slaHours} h target${thresholds(s)}`, done: true },
     { name: "Export & integration", summary: d.deliveries.length ? d.deliveries.map((x) => x.name || x.type).join(", ") : "Not set: Excel, folder, webhook or a bot", done: d.deliveries.length > 0 },
   ];
 }
@@ -122,6 +166,39 @@ export interface TestResult { field: string; a: string; aConf: string; b: string
 /** A Test lab run: the field rows, and per engine its time, page confidence, whether it would go to review (or why it could not run). */
 export interface TestRun { rows: TestResult[]; runs: { engine: string; seconds: number; confidence: number | null; review: boolean; readBy: string; error?: string }[] }
 
+/* ------------------------------------------------------------------ test sets (DocFlow's docauto/testsets.py, same shapes) */
+
+/** One document of a test set with its right values. source: "document" (a reviewed one), "upload" or "seed". */
+export interface TestSetItem {
+  id: string; setId: string; fileName: string; mimeType: string; expected: Record<string, unknown>; tags: string[];
+  source: string; sourceDocumentId: string | null; createdAt: string;
+}
+/** An OCR engine and an extraction engine, tested together ("auto": as routed live). */
+export interface Combo { ocr: string; extraction: string }
+/** One combination's result over the set; rates are 0–1. skipped: why it did not run. */
+export interface ComboResult extends Combo {
+  label: string; skipped: string | null; documents?: number; pages?: number; errors?: number;
+  fieldAccuracy?: number | null; byField?: Record<string, number>; straightThrough?: number | null; reviewRate?: number | null;
+  wronglyAutoApproved?: number; wronglyAutoApprovedRate?: number | null; charAccuracy?: number | null; credits?: number;
+  costUsd?: number; costPer1000PagesUsd?: number | null; costKnown?: boolean; secondsPerPage?: number | null; p95Seconds?: number | null;
+}
+/** One document read by one combination: each field's right value (want), what was read (got) and whether it matches. */
+export interface SetRunRow extends Combo {
+  itemId: string; fileName: string; label: string; tags: string[]; seconds: number; pages: number; error?: string | null;
+  charAccuracy?: number | null; ocrConfidence?: number | null; fields: Record<string, { want: unknown; got: unknown; ok: boolean }>;
+  reviewRequired?: boolean; reviewReasons?: string[]; straightThrough: boolean; wronglyAutoApproved: boolean;
+}
+/** A run of a test set: running until every combination is done (rows only on a single run). */
+export interface SetRun {
+  id: string; setId: string; status: "running" | "completed" | "failed" | string; combos: Combo[]; results: ComboResult[];
+  error: string | null; createdAt: string; finishedAt: string | null; rows?: SetRunRow[];
+}
+/** docType: the document type's id. items only on a single set. */
+export interface TestSet {
+  id: string; name: string; docType: string; description: string; itemCount: number; createdAt: string; updatedAt: string;
+  lastRun: SetRun | null; items?: TestSetItem[];
+}
+
 /** docType is a document type id (DocType.id). */
 /** email: the person will set up the inbox next (in the builder's step 1, Document ingestion). */
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
@@ -136,12 +213,13 @@ export interface DocFlowApi {
   folders(): Promise<string[]>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
-  completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject"): Promise<{ next?: string }>;
+  completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }>;
   /** Reads the document again as another type; it may then need review again. */
   changeDocType(documentId: string, docTypeId: string): Promise<{ documentId: string; needsReview: boolean }>;
   /** Where Export downloads a process's results (done and approved documents). */
   exportUrl(processId: string, format: "xlsx" | "csv"): string;
-  engines(): Promise<{ routing: Routing; options: EngineOption[] }>;
+  /** claude: the models Claude uses, when DocFlow says (shown where Claude is set up). */
+  engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: ClaudeModels }>;
   saveRouting(r: Routing): Promise<void>;
   /** Runs a tiny real request through one engine. */
   testEngine(id: string): Promise<{ ok: boolean; message: string }>;
@@ -166,6 +244,29 @@ export interface DocFlowApi {
   deleteDocType(id: string): Promise<void>;
   /** Proposes a document type (not saved) from 1 to 3 sample files. */
   suggestDocType(files: File[]): Promise<DocType>;
+
+  /** Test sets, of one document type (id) or all. */
+  testSets(docType?: string): Promise<TestSet[]>;
+  /** A test set with its items. */
+  testSet(id: string): Promise<TestSet>;
+  createTestSet(name: string, docType: string, description?: string): Promise<TestSet>;
+  updateTestSet(id: string, name: string, description: string): Promise<TestSet>;
+  deleteTestSet(id: string): Promise<void>;
+  /** Our sample set: generated invoices (no real data), with Arabic/English ones; made or topped up. */
+  seedTestSet(): Promise<TestSet>;
+  /** Copies an approved document (its file and the values approved) into a set of the same document type. */
+  addToTestSet(setId: string, documentId: string, tags?: string[]): Promise<TestSetItem>;
+  /** Adds a file with its right values ({field: value}). */
+  addTestItem(setId: string, file: File, expected: Record<string, unknown>, tags: string[]): Promise<TestSetItem>;
+  updateTestItem(setId: string, itemId: string, expected: Record<string, unknown>, tags: string[]): Promise<TestSetItem>;
+  deleteTestItem(setId: string, itemId: string): Promise<void>;
+  /** Where the item's file opens. */
+  testItemFileUrl(setId: string, itemId: string): string;
+  /** Starts a run of engine combinations (at most 6); it runs in the background. */
+  startSetRun(setId: string, combos: Combo[]): Promise<SetRun>;
+  setRuns(setId: string, limit?: number): Promise<SetRun[]>;
+  /** A run with its rows; poll it while it is running. */
+  setRun(setId: string, runId: string): Promise<SetRun>;
 }
 
 /* ------------------------------------------------------------------ sample data (from the approved designs) */
@@ -217,30 +318,7 @@ const DOCUMENTS: DocumentRow[] = [
     sourceLabel: "Split from batch", confidence: 93 }),
 ];
 
-const REVIEW: ReviewTask = {
-  documentId: "scan_0457", processId: "ap-invoices", status: "review", name: "scan_0457.jpg", processName: "AP invoices", docType: "Supplier invoice", cameIn: "10:40 from \\\\scan01\\invoices",
-  dueIn: "3 h", targetHours: 24, position: 1, of: 9, engineTrail: "read by Tesseract, re-read by PaddleOCR (78%)",
-  pageLines: [
-    { text: "Red Sea Print House", bold: true }, { text: "Tax Invoice", bold: true }, { text: "Invoice Number: INV-2026-3944" },
-    { text: "Invoice Date: 05/02/2026" }, { text: "Supplier VAT No: 318609139099603" }, { text: "Customer: Al Noor Holdings" },
-    { text: "Printer toner   9   2,382.93" }, { text: "Cloud backup (1 yr)   10   6,613.20" }, { text: "RPA licence   9   29,837.52" },
-    { text: "On-site training   2   2,880.56" }, { text: "Subtotal: 41,714.21", mark: "ok" }, { text: "VAT 15%: 6,257.13", mark: "flag" },
-    { text: "Total: 47,971.34 SAR", mark: "ok", bold: true }],
-  fields: [
-    { id: "vat_amount", label: "VAT amount", value: "6,287.13", confidence: 61,
-      flagged: { reason: "Fails 2 checks: subtotal + VAT does not equal the total, and it is not 15% of the subtotal.", suggestion: "6,257.13" } },
-    { id: "supplier", label: "Supplier", value: "Red Sea Print House", confidence: 96 },
-    { id: "invoice_number", label: "Invoice number", value: "INV-2026-3944", confidence: 92 },
-    { id: "invoice_date", label: "Invoice date", value: "05/02/2026", confidence: 95 },
-    { id: "supplier_vat", label: "Supplier VAT no.", value: "318609139099603", confidence: 93 },
-    { id: "subtotal", label: "Subtotal", value: "41,714.21", confidence: 97 },
-    { id: "total", label: "Total", value: "47,971.34", confidence: 97 }],
-  checks: [
-    { text: "Subtotal + VAT = total", passed: false, detail: "41,714.21 + 6,287.13 ≠ 47,971.34" },
-    { text: "VAT is 15% of subtotal", passed: false, detail: "expected 6,257.13" },
-    { text: "Supplier is in reference data", passed: true, detail: "Suppliers list" },
-    { text: "Not a duplicate", passed: true, detail: "no earlier INV-2026-3944" }],
-};
+const REVIEW = SAMPLE_REVIEW;
 
 const ENGINES: EngineOption[] = [
   { id: "onecore", name: "OneCore", description: "Open source, runs on this server, free", color: "#2f6fde", engines: [
@@ -254,7 +332,7 @@ const ENGINES: EngineOption[] = [
     { id: "aws-textract", name: "AWS Textract", does: "Text, tables, expenses", status: "optin", runs: "cloud", price: "$1.50 · $10 expenses", free: false, key: "Vault: not set" },
     { id: "abbyy", name: "ABBYY", does: "Depends on your ABBYY product", status: "setup", runs: "cloud", price: "Contract", free: false, key: "—" }] },
   { id: "onemind", name: "OneMind", description: "AI reads the fields of any document", color: "#b0307e", engines: [
-    { id: "claude", name: "Claude (Anthropic)", does: "Model: Sonnet 5.5 · reads page images", status: "optin", runs: "cloud", price: "≈ $16", free: false, key: "Model connection: not set" },
+    { id: "claude", name: "Claude (Anthropic)", does: "Claude Haiku 5.5 reads the fields; Claude Sonnet 5.5 re-reads documents that would go to review", status: "optin", runs: "cloud", price: "$0.8", free: false, key: "Model connection: not set" },
     { id: "llm-cloud", name: "Cloud AI API", does: "Any OpenAI-compatible service", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Model connection: not set" },
     { id: "llm-local", name: "Self-hosted model", does: "Your own server, nothing leaves", status: "setup", runs: "server", price: "Free", free: true, key: "—" }] },
 ];
@@ -272,7 +350,7 @@ const DESIGN_BASE = {
   id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft" as const, version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
   docTypeIds: ["supplier-invoice"], checks: DESIGN_CHECKS,
   settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24,
-    email: null as EmailInbox | null },
+    email: null as EmailInbox | null, einvoiceFirst: true, fieldThresholds: {} as Record<string, number> },
   deliveries: [] as Delivery[],
   fields: [["invoice_number", "Invoice number"], ["invoice_date", "Invoice date"], ["supplier_name", "Supplier"], ["supplier_vat", "Supplier VAT no."],
     ["subtotal", "Subtotal"], ["vat_amount", "VAT amount"], ["total", "Total"]].map(([name, label]) => ({ name, label })),
@@ -345,12 +423,70 @@ const TEST_RUN = (engine: string, seconds: number, confidence: number, review: b
 
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
+/* sample test sets: one of reviewed AP invoices with a past run, one empty; runs are worked out from the engines */
+const AP_FIELDS = (n: string, date: string, supplier: string, vat: string, subtotal: number): Record<string, unknown> =>
+  ({ invoice_number: n, invoice_date: date, supplier_name: supplier, supplier_vat: vat, subtotal: subtotal.toFixed(2),
+    vat_amount: (subtotal * 0.15).toFixed(2), total: (subtotal * 1.15).toFixed(2) });
+const item = (setId: string, id: string, fileName: string, expected: Record<string, unknown>, tags: string[], source = "document", sourceDocumentId: string | null = null): TestSetItem =>
+  ({ id, setId, fileName, mimeType: fileName.endsWith(".pdf") ? "application/pdf" : "image/png", expected, tags, source, sourceDocumentId, createdAt: "2026-11-02T09:00:00Z" });
+const SAMPLE_ITEMS: TestSetItem[] = [
+  item("ap-reviewed", "i1", "INV-2026-0931.pdf", AP_FIELDS("INV-2026-0931", "2026-02-13", "Falcon IT Services", "302117745900003", 7884.71), ["reviewed"], "document", "fax_0931"),
+  item("ap-reviewed", "i2", "scan_0452.jpg", AP_FIELDS("INV-2026-0452", "2026-03-02", "Oasis Catering Co.", "305561239800003", 1500), ["reviewed", "scan"], "document", "scan_0452"),
+  item("ap-reviewed", "i3", "GOS-INV-0412.pdf", AP_FIELDS("INV-2026-0412", "2026-03-09", "Gulf Office Supplies", "310482766100003", 2050.83), ["reviewed"], "document", "gos_0412"),
+  item("ap-reviewed", "i4", "delta_bilingual.png", AP_FIELDS("INV-2026-0187", "2026-03-11", "Delta Industrial Parts", "311290874400003", 7315.22), ["bilingual"], "upload"),
+];
+const QUALITY: Record<string, number> = { auto: 0.93, tesseract: 0.86, paddleocr: 0.9, "pdf-text": 0.95, "azure-di": 0.97, "google-docai": 0.96, "aws-textract": 0.96,
+  "builtin-rules": 0, claude: 0.05, "llm-local": 0.02, "llm-cloud": 0.04 };
+const SPEED: Record<string, number> = { auto: 1.1, tesseract: 0.9, paddleocr: 2.4, "azure-di": 1.6, "google-docai": 1.5, "aws-textract": 1.7,
+  "builtin-rules": 0.05, claude: 2.2, "llm-local": 3.5, "llm-cloud": 1.8 };
+
+/** A finished run worked out from the engines' sample quality: the same set and engines always give the same numbers. */
+function sampleRun(id: string, setId: string, items: TestSetItem[], combos: Combo[], ready: (id: string) => boolean, at: string): SetRun {
+  const rows: SetRunRow[] = [];
+  const results: ComboResult[] = combos.map((c, ci) => {
+    const label = `${c.ocr} × ${c.extraction}`;
+    const notReady = [c.ocr, c.extraction].find((e) => e !== "auto" && !ready(e));
+    if (notReady) return { ...c, label, skipped: `${notReady}: not ready (set it up on the Engines page)` };
+    const acc = Math.min(0.995, (QUALITY[c.ocr] ?? 0.85) + (QUALITY[c.extraction] ?? 0));
+    const mine: SetRunRow[] = items.map((it, i) => {
+      const names = Object.keys(it.expected);
+      const fields = Object.fromEntries(names.map((n, j) => {
+        const ok = ((i * 7 + j * 3 + ci * 5) % 20) / 20 < acc;
+        const want = it.expected[n];
+        return [n, { want, got: ok ? want : String(want).replace(/\d(?=\D*$)/, (d) => String((Number(d) + 1) % 10)), ok }];
+      }));
+      const allOk = Object.values(fields).every((f) => f.ok);
+      const review = !allOk && (i + ci) % 3 !== 0;
+      const pages = it.fileName.endsWith(".pdf") ? 2 : 1;
+      return { itemId: it.id, fileName: it.fileName, label, ocr: c.ocr, extraction: c.extraction, tags: it.tags, pages,
+        seconds: Math.round(((SPEED[c.ocr] ?? 1) + (SPEED[c.extraction] ?? 0)) * pages * 100) / 100, error: null, fields,
+        reviewRequired: review, reviewReasons: review ? ["a field under its confidence threshold"] : [], straightThrough: allOk && !review, wronglyAutoApproved: !allOk && !review };
+    });
+    rows.push(...mine);
+    const all = mine.flatMap((r) => Object.values(r.fields));
+    const pages = mine.reduce((n, r) => n + r.pages, 0);
+    const names = [...new Set(mine.flatMap((r) => Object.keys(r.fields)))];
+    const per1000 = (CLOUD_OCR_PER_1000[c.ocr] ?? 0) + (EXTRACT_PER_1000[c.extraction === "claude" ? "claude-haiku-5-5" : c.extraction] ?? (c.extraction === "llm-cloud" ? 2 : 0));
+    const wrong = mine.filter((r) => r.wronglyAutoApproved).length;
+    const n = Math.max(1, mine.length);
+    return { ...c, label, skipped: null, documents: mine.length, pages, errors: 0,
+      fieldAccuracy: all.length ? all.filter((f) => f.ok).length / all.length : null,
+      byField: Object.fromEntries(names.map((k) => { const fs = mine.map((r) => r.fields[k]).filter(Boolean); return [k, fs.filter((f) => f.ok).length / Math.max(1, fs.length)]; })),
+      straightThrough: mine.filter((r) => r.straightThrough).length / n, reviewRate: mine.filter((r) => r.reviewRequired).length / n,
+      wronglyAutoApproved: wrong, wronglyAutoApprovedRate: wrong / n, charAccuracy: acc, credits: 0,
+      costUsd: Math.round(per1000 * pages / 10) / 100, costPer1000PagesUsd: per1000, costKnown: true,
+      secondsPerPage: Math.round(mine.reduce((x, r) => x + r.seconds, 0) / Math.max(1, pages) * 1000) / 1000, p95Seconds: Math.max(0, ...mine.map((r) => r.seconds)) };
+  });
+  return { id, setId, status: "completed", combos, results, error: null, createdAt: at, finishedAt: at, rows };
+}
+
 /** Sample data in memory. Writes change it, so the screens behave as they will against the service. */
 export class SampleApi implements DocFlowApi {
   private processesData = copy(PROCESSES);
   private documentsData = copy(DOCUMENTS);
   private routing: Routing = { cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" };
-  readonly reviews: { documentId: string; fields: Record<string, string>; decision: string }[] = [];
+  readonly reviews: { documentId: string; fields: ReviewValues; decision: string }[] = [];
+  private claude: ClaudeModels = { model: "claude-haiku-5-5", escalationModel: "claude-sonnet-5-5" };
 
   async overview() { return copy(OVERVIEW); }
   async processes() { return copy(this.processesData); }
@@ -371,11 +507,13 @@ export class SampleApi implements DocFlowApi {
       sources: ["upload", ...(n.watchedFolder ? ["folder" as const] : []), ...(n.email ? ["email" as const] : []), ...(n.fromBot ? ["bot" as const] : [])] });
     return { id };
   }
-  async reviewTask(documentId: string) {
+  async reviewTask(documentId: string): Promise<ReviewTask> {
     const d = this.documentsData.find((x) => x.id === documentId);
-    return { ...copy(REVIEW), documentId, name: d?.name ?? REVIEW.name };
+    const approved = this.reviews.some((r) => r.documentId === documentId && r.decision === "approve") && d?.status === "done";
+    return { ...copy(REVIEW), documentId, name: d?.name ?? REVIEW.name, docTypeId: "supplier-invoice",
+      ...(approved ? { status: "done" as const, reviewedBy: "you" } : {}) };
   }
-  async completeReview(documentId: string, fields: Record<string, string>, decision: "approve" | "reject") {
+  async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject") {
     this.reviews.push({ documentId, fields, decision });
     const d = this.documentsData.find((x) => x.id === documentId);
     if (d) { d.status = decision === "approve" ? "done" : "failed"; d.note = decision === "approve" ? "Approved by you" : "Rejected by you"; }
@@ -388,14 +526,21 @@ export class SampleApi implements DocFlowApi {
   }
   async testEngine(id: string) { return { ok: true, message: `${id}: the engine read the test page` }; }
   async engineSettings(id: string): Promise<EngineField[]> {
+    if (id === "claude") return [{ key: "CLAUDE_API_KEY", label: "Anthropic API key", type: "secret", value: "" },
+      { key: "CLAUDE_MODEL", label: "Model", type: "select", value: this.claude.model, options: ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
+        help: "Haiku 5.5: cheapest, the default. Sonnet 5.5: mid-tier. Opus 5.5: most accurate, most expensive." },
+      { key: "CLAUDE_ESCALATION_MODEL", label: "Escalation model", type: "select", value: this.claude.escalationModel ?? "none",
+        options: ["claude-sonnet-5-5", "claude-opus-5-5", "none"], help: "Re-reads a document whose fields would go to review, and keeps the better result. none = off." }];
     return id === "azure-di" ? [{ key: "AZURE_DI_ENDPOINT", label: "Endpoint", type: "text", value: "" }, { key: "AZURE_DI_KEY", label: "Key", type: "secret", value: "" },
       { key: "AZURE_DI_REGION", label: "Region", type: "text", value: "westeurope", help: "Used by the residency policy, e.g. uaenorth." }] : [];
   }
-  async saveEngineSettings() { /* sample: nothing to save */ }
+  async saveEngineSettings(values: Record<string, string>) {
+    if (values.CLAUDE_MODEL) this.claude = { model: values.CLAUDE_MODEL, escalationModel: values.CLAUDE_ESCALATION_MODEL === "none" ? null : values.CLAUDE_ESCALATION_MODEL ?? this.claude.escalationModel };
+  }
   async engines() {
     const options = copy(ENGINES);
     if (this.routing.cloudOptIn) options.forEach((o) => o.engines.forEach((e) => { if (e.status === "optin") e.status = "setup"; }));
-    return { routing: { ...this.routing }, options };
+    return { routing: { ...this.routing }, options, claude: { ...this.claude } };
   }
   async saveRouting(r: Routing) { this.routing = { ...r }; }
   private designs: Record<string, ProcessDesign> = {};
@@ -450,7 +595,121 @@ export class SampleApi implements DocFlowApi {
     return { rows: copy(TEST).map((r) => (b ? r : { ...r, b: "", bConf: "", differs: false })),
       runs: [TEST_RUN(a, 0.6, 78, true), ...(b ? [TEST_RUN(b, 7.3, 98, false)] : [])] };
   }
+
+  /* test sets: in memory; a run is "running" when started and done when next looked at, as a quick DocFlow would be */
+  private sets: SetHead[] = [
+    { id: "ap-reviewed", name: "AP invoices, reviewed", docType: "supplier-invoice", description: "Approved invoices from AP invoices, incl. a fax and a scan.",
+      createdAt: "2026-11-02T09:00:00Z", updatedAt: "2026-11-02T09:00:00Z" },
+    { id: "receipts", name: "Receipts", docType: "receipt", description: "", createdAt: "2026-11-03T09:00:00Z", updatedAt: "2026-11-03T09:00:00Z" },
+  ];
+  private items: TestSetItem[] = copy(SAMPLE_ITEMS);
+  private runsData: (SetRun & { pending?: boolean })[] = [
+    sampleRun("r1", "ap-reviewed", SAMPLE_ITEMS, [{ ocr: "auto", extraction: "builtin-rules" }, { ocr: "paddleocr", extraction: "builtin-rules" }], () => true, "2026-11-03T15:20:00Z"),
+  ];
+  private nextId = 1;
+  private async readyEngine() {
+    const ready = new Set((await this.engines()).options.flatMap((o) => o.engines).filter((e) => e.status === "ready").map((e) => e.id));
+    return (id: string) => ready.has(id);
+  }
+  private setOut(s: SetHead, withItems = false): TestSet {
+    const items = this.items.filter((i) => i.setId === s.id);
+    const last = this.runsData.filter((r) => r.setId === s.id).at(-1);
+    const lastRun = last ? { ...last, rows: undefined, pending: undefined } : null;
+    return copy({ ...s, itemCount: items.length, lastRun, ...(withItems ? { items } : {}) });
+  }
+  private findSet(id: string): SetHead {
+    const s = this.sets.find((x) => x.id === id);
+    if (!s) throw new Error(`unknown test set '${id}'`);
+    return s;
+  }
+  async testSets(docType?: string) { return this.sets.filter((s) => !docType || s.docType === docType).map((s) => this.setOut(s)); }
+  async testSet(id: string) { return this.setOut(this.findSet(id), true); }
+  async createTestSet(name: string, docType: string, description = "") {
+    if (!name.trim()) throw new Error("name is required");
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "testset";
+    let id = base;
+    for (let n = 2; this.sets.some((s) => s.id === id); n++) id = `${base}-${n}`;
+    const now = new Date().toISOString();
+    this.sets.push({ id, name: name.trim(), docType, description, createdAt: now, updatedAt: now });
+    return this.testSet(id);
+  }
+  async updateTestSet(id: string, name: string, description: string) {
+    const s = this.findSet(id);
+    Object.assign(s, { name: name.trim() || s.name, description, updatedAt: new Date().toISOString() });
+    return this.testSet(id);
+  }
+  async deleteTestSet(id: string) {
+    this.sets = this.sets.filter((s) => s.id !== id);
+    this.items = this.items.filter((i) => i.setId !== id);
+    this.runsData = this.runsData.filter((r) => r.setId !== id);
+  }
+  async seedTestSet() {
+    const name = "Synthetic invoices (seed)";
+    const s = this.sets.find((x) => x.name === name)
+      ?? await this.createTestSet(name, "supplier-invoice", "Generated invoices (no real data): clean, scan, fax, PDF and Arabic/English bilingual pages.");
+    const have = new Set(this.items.filter((i) => i.setId === s.id).map((i) => i.fileName));
+    ["clean", "scan", "fax", "pdf", "bilingual"].forEach((v, k) => [1, 2, 3].forEach((n) => {
+      const fileName = `invoice_${String(n).padStart(2, "0")}_${v}.${v === "pdf" ? "pdf" : "png"}`;
+      if (!have.has(fileName)) this.items.push(item(s.id, `seed${k}${n}`, fileName,
+        AP_FIELDS(`INV-2026-${7000 + k * 10 + n}`, `2026-0${n}-1${k}`, "Seeded Supplier Co.", "300000000000003", 1000 * n + 125 * k), [v], "seed"));
+    }));
+    return this.testSet(s.id);
+  }
+  async addToTestSet(setId: string, documentId: string, tags: string[] = []) {
+    const s = this.findSet(setId);
+    const approved = this.reviews.filter((r) => r.documentId === documentId && r.decision === "approve").at(-1);
+    const d = this.documentsData.find((x) => x.id === documentId);
+    if (!d || d.status !== "done" || !approved) throw new Error("only reviewed documents can be added");
+    const t = await this.reviewTask(documentId);
+    if (t.docTypeId && t.docTypeId !== s.docType) throw new Error(`the document is a '${t.docTypeId}', the set is for '${s.docType}'`);
+    const fields = this.types.find((x) => x.id === s.docType)?.fields.filter((f) => f.type !== "Table").map((f) => f.key) ?? [];
+    const expected = Object.fromEntries(fields.map((k) => [k, approved.fields[k] ?? t.fields.find((f) => f.id === k)?.value]).filter(([, v]) => v !== undefined && v !== ""));
+    const it = item(setId, `d${this.nextId++}`, d.name, expected, tags.length ? tags : ["reviewed"], "document", documentId);
+    this.items.push(it);
+    return copy(it);
+  }
+  async addTestItem(setId: string, file: File, expected: Record<string, unknown>, tags: string[]) {
+    this.findSet(setId);
+    const values = Object.fromEntries(Object.entries(expected).filter(([, v]) => v !== "" && v !== null && v !== undefined));
+    if (!Object.keys(values).length) throw new Error("give at least one expected value");
+    const it = item(setId, `u${this.nextId++}`, file.name, values, tags, "upload");
+    this.items.push(it);
+    return copy(it);
+  }
+  async updateTestItem(setId: string, itemId: string, expected: Record<string, unknown>, tags: string[]) {
+    const it = this.items.find((i) => i.setId === setId && i.id === itemId);
+    if (!it) throw new Error(`unknown item '${itemId}'`);
+    it.expected = Object.fromEntries(Object.entries(expected).filter(([, v]) => v !== "" && v !== null && v !== undefined));
+    it.tags = tags;
+    return copy(it);
+  }
+  async deleteTestItem(setId: string, itemId: string) { this.items = this.items.filter((i) => !(i.setId === setId && i.id === itemId)); }
+  testItemFileUrl(_setId: string, itemId: string) {
+    return "data:text/plain;charset=utf-8," + encodeURIComponent(`Sample data: the file of ${this.items.find((i) => i.id === itemId)?.fileName ?? itemId} is not kept here.`);
+  }
+  async startSetRun(setId: string, combos: Combo[]) {
+    this.findSet(setId);
+    if (!this.items.some((i) => i.setId === setId)) throw new Error("the test set has no documents yet");
+    if (combos.length > 6) throw new Error("at most 6 engine combinations per run");
+    const run = { id: `run${this.nextId++}`, setId, status: "running", combos: copy(combos), results: [], error: null,
+      createdAt: new Date().toISOString(), finishedAt: null, rows: [], pending: true };
+    this.runsData.push(run);
+    return copy({ ...run, pending: undefined });
+  }
+  async setRuns(setId: string, limit = 50) {
+    return this.runsData.filter((r) => r.setId === setId).reverse().slice(0, limit).map((r) => copy({ ...r, rows: undefined, pending: undefined }));
+  }
+  async setRun(setId: string, runId: string) {
+    const at = this.runsData.findIndex((r) => r.setId === setId && r.id === runId);
+    if (at < 0) throw new Error(`unknown run '${runId}'`);
+    const r = this.runsData[at];
+    if (r.pending) this.runsData[at] = sampleRun(r.id, setId, this.items.filter((i) => i.setId === setId), r.combos, await this.readyEngine(), r.createdAt);
+    return copy(this.runsData[at]);
+  }
 }
+
+/** A test set as SampleApi keeps it (counts and the last run are worked out). */
+type SetHead = Omit<TestSet, "itemCount" | "lastRun" | "items">;
 
 /* ------------------------------------------------------------------ cost estimate (DocFlow's docauto/costs.py) */
 
