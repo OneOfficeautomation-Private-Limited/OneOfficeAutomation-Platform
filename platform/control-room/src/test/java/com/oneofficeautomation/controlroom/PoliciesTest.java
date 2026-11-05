@@ -63,6 +63,10 @@ class PoliciesTest {
         assertNull(cr.policies.guardrailsFor("Sales/Report.flow.json"));
         assertEquals("CR.BAD_INPUT", code(() -> cr.policies.save(admin, null, Map.of("name", "Bad models", "kind", "ai", "rules", Map.of("models", List.of("nope"))), null)));
         assertEquals("CR.BAD_INPUT", code(() -> cr.policies.save(admin, null, Map.of("name", "Bad check", "kind", "ai", "rules", Map.of("content", "loud")), null)));
+        // the toxicity check (gap round 2): off by default; log or block from a level, with the team's own blocked terms
+        assertEquals(Map.of("action", "off", "level", "medium", "terms", List.of()), g.get("toxicity"));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.policies.save(admin, null, Map.of("name", "Bad level", "kind", "ai", "rules", Map.of("toxicity", Map.of("action", "block", "level", "extreme"))), null)));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.policies.save(admin, null, Map.of("name", "Bad action", "kind", "ai", "rules", Map.of("toxicity", Map.of("action", "shout"))), null)));
 
         // taking the folder out lets the check-in through; deleting the policy is recorded
         cr.policies.save(admin, (String) strict.get("id"), Map.of("name", "Finance: strict", "folders", List.of(), "rules", strict.get("rules")), null);

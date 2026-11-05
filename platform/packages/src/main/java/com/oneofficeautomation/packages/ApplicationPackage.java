@@ -13,6 +13,29 @@ import java.util.*;
 @OoaPackage(id = "ooa.application", name = "Application", version = "1.0.0", description = "Open files, start, run and stop programs on the runner.")
 public final class ApplicationPackage {
 
+    /**
+     * cmd.exe re-reads the whole command line of cmd.exe and of .bat/.cmd files, so a data argument such as a file name
+     * "a & del x" would run a second command ("BatBadBut"). Unless the agent says it means shell operators, arguments with
+     * & | < > ^ or quotes, and line breaks always, are refused for those programs.
+     */
+    static void checkShellArguments(String program, List<Object> args, boolean allowOperators) {
+        if (program == null || args == null) return;
+        String exe = program.strip().replace("\"", "");
+        String base = exe.substring(Math.max(exe.lastIndexOf('/'), exe.lastIndexOf('\\')) + 1).toLowerCase(Locale.ROOT);
+        boolean viaCmd = base.equals("cmd") || base.equals("cmd.exe") || base.endsWith(".bat") || base.endsWith(".cmd");
+        if (!viaCmd) return;
+        for (int i = 0; i < args.size(); i++) {
+            String a = Values.text(args.get(i));
+            if (a.indexOf('\n') >= 0 || a.indexOf('\r') >= 0 || a.indexOf('\0') >= 0)
+                throw new ActionException("APPLICATION.UNSAFE_ARGUMENT", "Argument " + (i + 1) + " has a line break, which " + base + " would run as a new command",
+                        "Pass multi-line data through input or a file.");
+            if (!allowOperators && a.matches("(?s).*[&|<>^\"].*"))
+                throw new ActionException("APPLICATION.UNSAFE_ARGUMENT", "Argument " + (i + 1) + " ('" + (a.length() > 60 ? a.substring(0, 60) + "..." : a)
+                        + "') contains & | < > ^ or a quote, which " + base + " reads as a command operator, so it could run another command",
+                        "Pass data through input or environment variables (read them as %NAME% in the script), or set allow_shell_operators to true when the operator is intended.");
+        }
+    }
+
     private static List<String> command(String program, List<Object> args) {
         List<String> cmd = new ArrayList<>();
         cmd.add(program);
@@ -34,7 +57,7 @@ public final class ApplicationPackage {
 
     @Action(id = "start_program", name = "Start program", category = "Application", capabilities = "desktop",
             description = "Start a program and continue without waiting; returns its process id.",
-            panel = "program, working_folder, arguments, wait_seconds | window_state, environment")
+            panel = "program, working_folder, arguments, wait_seconds | window_state, environment, allow_shell_operators")
     @Output(name = "process_id", type = OoaType.NUMBER, description = "Process id, used by Stop program.")
     public Map<String, Object> startProgram(ActionContext ctx,
             @Input(name = "program", type = OoaType.STRING, example = "notepad.exe", description = "Program name or full path.") String program,
@@ -43,7 +66,9 @@ public final class ApplicationPackage {
             @Input(name = "window_state", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "minimized", "maximized", "hidden"},
                     description = "How the program's main window opens (Windows); other systems always use normal.") String windowState,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the program; an empty value removes one.") Map<String, Object> environment,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Pause this long after starting so the program can open its window; 0 continues at once.") double waitSeconds) {
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Pause this long after starting so the program can open its window; 0 continues at once.") double waitSeconds,
+            @Input(name = "allow_shell_operators", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = ALLOW_OPS) boolean allowOperators) {
+        checkShellArguments(program, args, allowOperators);
         String state = windowState == null || windowState.isBlank() ? "normal" : windowState.strip().toLowerCase(Locale.ROOT);
         if (!List.of("normal", "minimized", "maximized", "hidden").contains(state))
             throw new ActionException("APPLICATION.BAD_WINDOW_STATE", "Unknown window_state '" + windowState + "'", "Use normal, minimized, maximized or hidden.");
@@ -110,7 +135,7 @@ public final class ApplicationPackage {
 
     @Action(id = "run_program", name = "Run program and wait", category = "Application", timeoutSeconds = 3600,
             description = "Run a program, wait for it to finish and return its exit code and output.",
-            panel = "program, arguments, working_folder | input, timeout_seconds, fail_on_error, environment, output_encoding")
+            panel = "program, arguments, working_folder | input, timeout_seconds, fail_on_error, environment, output_encoding, allow_shell_operators")
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code; 0 usually means success.")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
@@ -122,7 +147,9 @@ public final class ApplicationPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 0, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the program.") Map<String, Object> environment,
-            @Input(name = "output_encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", example = "cp850", description = "Text encoding of the program's input and output, e.g. utf-8, cp850, windows-1252.") String encoding) {
+            @Input(name = "output_encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", example = "cp850", description = "Text encoding of the program's input and output, e.g. utf-8, cp850, windows-1252.") String encoding,
+            @Input(name = "allow_shell_operators", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = ALLOW_OPS) boolean allowOperators) {
+        checkShellArguments(program, args, allowOperators);
         java.nio.charset.Charset cs = FilePackage.charset(encoding);
         Map<String, String> env = env(environment);
         ProcessRunner.Result r = ProcessRunner.run(ctx, command(program, args), dir == null ? ctx.workDir() : ctx.resolvePath(dir), input, timeout, env.isEmpty() ? null : env, cs);
@@ -131,6 +158,9 @@ public final class ApplicationPackage {
                     "Check the arguments, or set fail_on_error to false to handle the exit code yourself.", false, Map.of("exit_code", BigDecimal.valueOf(r.exitCode())));
         return r.toMap();
     }
+
+    private static final String ALLOW_OPS = "For cmd.exe and .bat/.cmd files only: let arguments contain & | < > ^ or quotes, which cmd reads as command operators. "
+            + "Leave off when arguments carry data (file names, e-mail subjects): such characters are then refused, so data can never run a command.";
 
     static String tail(String s) { String t = s.strip(); return t.length() > 400 ? "..." + t.substring(t.length() - 400) : t; }
 

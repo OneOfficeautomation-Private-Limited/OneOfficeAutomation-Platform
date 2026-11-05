@@ -38,7 +38,7 @@ public final class AzureDevOpsPackage {
 
     /** Sends; a 203 answer or an HTML page means the token was not accepted (Azure DevOps redirects to its sign-in page). */
     static HttpJson.Response send(HttpJson.Req r, ActionContext ctx) {
-        HttpJson.Response resp = r.send(ctx);
+        HttpJson.Response resp = r.allowText().send(ctx);   // an HTML answer is its sign-in page: checked below as AUTH_FAILED
         if (resp.status() == 203 || (!r.binary && !resp.text().isBlank() && resp.json() == null && resp.text().stripLeading().startsWith("<")))
             throw new ActionException(P + ".AUTH_FAILED", "Azure DevOps did not accept the personal access token",
                     "Check the token in the vault is valid, not expired, and has the needed scopes.", false, Map.of("status", BigDecimal.valueOf(resp.status())));
@@ -1128,7 +1128,7 @@ public final class AzureDevOpsPackage {
                 "result", r.get("result"), "created", r.get("createdDate"), "finished", r.get("finishedDate"), "url", HttpJson.path(r, "_links.web.href")));
     }
 
-    @Condition(id = "pipeline_run_finished", name = "Pipeline run finished", description = "True when the pipeline run has completed, whatever its result.")
+    @Condition(id = "pipeline_run_finished", capabilities = "network", name = "Pipeline run finished", description = "True when the pipeline run has completed, whatever its result.")
     public boolean runFinished(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,

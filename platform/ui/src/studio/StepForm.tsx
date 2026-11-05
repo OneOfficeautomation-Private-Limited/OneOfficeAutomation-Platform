@@ -11,6 +11,7 @@ import {
 } from "./stepKinds";
 import { AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
+import { pickerFor } from "./Pickers";
 
 export { CommitInput };
 
@@ -97,8 +98,11 @@ export function StepForm({ step, packages, onArg, onNote }:
       label="Window" info="The browser tab or application window the action works in.">{() => <WindowEditor step={step} />}</Field>;
     if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")}
       info="A credential from the vault for passwords (never shown or logged), a variable, plain text or a calculation.">{() => <TextSource step={step} name={name} />}</Field>;
-    return <InputField key={step.id + ":" + name} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
+    const input = <InputField key={step.id + ":" + name} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
       value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
+    // a picker beside the field: SOAP operation from the WSDL, directory browser, PDF area, formatted email body
+    const picker = pickerFor(step, name, props as Record<string, unknown>);
+    return picker ? <div key={step.id + ":" + name + ":with-picker"} className="st-field-with-picker">{input}{picker}</div> : input;
   };
   // inputs the agent sets that the catalogue does not list (an older toolkit, a hand-edited file) stay editable
   const extra = Object.keys(step.args ?? {}).filter((n) => !(n in props));
@@ -178,7 +182,8 @@ function InputField({ name, label, spec, required, value, onCommit, apply }:
   return (
     <Field label={label + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
       if (spec.enum?.length) {
-        return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : e.target.value)}
+        // a Number field with choices (e.g. key length 128/256) keeps the number type when a choice is picked
+        return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : isNumber(spec) ? Number(e.target.value) : e.target.value)}
           options={[{ value: "", label: fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: String(v).replace(/_/g, " ") }))]} />;
       }
       if (spec.type === "boolean") {

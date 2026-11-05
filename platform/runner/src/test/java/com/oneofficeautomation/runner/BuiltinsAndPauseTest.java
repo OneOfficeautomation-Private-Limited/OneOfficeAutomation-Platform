@@ -66,7 +66,10 @@ class BuiltinsAndPauseTest {
         RunResult[] out = new RunResult[1];
         Thread t = new Thread(() -> out[0] = Runner.builder(reg()).sink(sink).build().run(f, Map.of(), new Runner.RunOptions().pause(pause)));
         t.start();
-        Thread.sleep(600);
+        // wait for the run to report the pause (a fixed 600 ms was too short on a busy runner), then check it is still waiting
+        for (long end = System.currentTimeMillis() + 10_000; System.currentTimeMillis() < end
+                && sink.events().stream().noneMatch(e -> e.type().equals("run.paused")); ) Thread.sleep(20);
+        Thread.sleep(200);
         assertNull(out[0], "run waits while paused");
         assertTrue(sink.events().stream().anyMatch(e -> e.type().equals("run.paused")));
         pause.set(false);

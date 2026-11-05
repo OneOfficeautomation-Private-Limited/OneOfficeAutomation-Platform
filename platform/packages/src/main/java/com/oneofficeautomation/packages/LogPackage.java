@@ -64,24 +64,51 @@ public final class LogPackage {
 
     @Action(id = "log_variables", name = "Log variables to file", category = "Logging", capabilities = "filesystem",
             description = "Write one name=value line per variable to a log file, to record the state of a run; credentials are written as ****.",
-            panel = "path, overwrite, timestamp, variables | title, encoding, timestamp_format")
+            panel = "path, overwrite, timestamp, variables, [Also log every variable of a type: all_of_type] | title, encoding, timestamp_format")
     @Output(name = "lines", type = OoaType.NUMBER, description = "Number of variable lines written.")
     public Map<String, Object> logVariables(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Log file path, e.g. logs/state.log.") String path,
-            @Input(name = "variables", type = OoaType.DICTIONARY, description = "Names and values to write, e.g. {\"invoice\": \"$invoice\", \"total\": \"$total\"}.") Map<String, Object> variables,
+            @Input(name = "variables", type = OoaType.DICTIONARY, required = false, description = "Names and values to write, e.g. {\"invoice\": \"$invoice\", \"total\": \"$total\"}; may be empty when all_of_type is set.") Map<String, Object> variables,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "Heading line written before the variables.") String title,
             @Input(name = "timestamp", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Start the heading with the date and time.") boolean ts,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", enumValues = {"utf-8", "utf-16le", "ansi"},
                     description = "File encoding: utf-8, utf-16le (Unicode, written with a byte-order mark) or ansi (the runner's code page). Match the existing file when appending.") String encoding,
-            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", visibleWhen = "timestamp=true", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
+            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", visibleWhen = "timestamp=true", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat,
+            @Input(name = "all_of_type", type = OoaType.STRING, required = false,
+                    enumValues = {"", "all", "String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"},
+                    description = "Also write every variable of the bot declared with this type (all = every variable), in declaration order, after the ones listed in variables. Credentials are written as ****.") String allOfType) {
+        String type = allOfType == null || allOfType.isBlank() ? null : allOfType.trim();
+        if ((variables == null || variables.isEmpty()) && type == null)
+            throw new ActionException("LOG.NOTHING_TO_LOG", "No variables to log", "Fill in variables, or choose a type in all_of_type.");
+        Map<String, Object> rows = new LinkedHashMap<>();
+        if (variables != null) rows.putAll(variables);
+        if (type != null) {
+            com.oneofficeautomation.runner.FlowVariables fv;
+            try { fv = ctx.service(com.oneofficeautomation.runner.FlowVariables.SERVICE, com.oneofficeautomation.runner.FlowVariables.class); }
+            catch (OoaException e) {
+                throw new ActionException("LOG.NO_VARIABLES", "This run cannot list its variables", "List the variables in the variables input instead.");
+            }
+            String want = null;
+            if (!type.equalsIgnoreCase("all")) {
+                for (OoaType t : OoaType.values()) if (t.flowName().equalsIgnoreCase(type)) want = t.flowName();
+                if (want == null) throw new ActionException("LOG.BAD_TYPE", "Unknown variable type '" + allOfType + "'",
+                        "Use all, String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential or Any.");
+            }
+            for (var e : fv.declared().entrySet()) {
+                if (rows.containsKey(e.getKey())) continue;
+                if (want != null && !want.equalsIgnoreCase(e.getValue())) continue;
+                Object v = fv.value(e.getKey());
+                rows.put(e.getKey(), "Credential".equalsIgnoreCase(e.getValue()) && v != null ? new SecureString("****", "masked") : v);
+            }
+        }
         Path p = ctx.resolvePath(path);
         String nl = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
         String head = (ts ? now(tsFormat) : "") + (title == null || title.isBlank() ? "" : (ts ? " " : "") + title);
         if (!head.isBlank()) sb.append(ctx.redact(head)).append(nl);
         int n = 0;
-        if (variables != null) for (var e : variables.entrySet()) {
+        for (var e : rows.entrySet()) {
             String value = render(e.getValue()).replace("\r", "\\r").replace("\n", "\\n");
             sb.append(e.getKey()).append('=').append(ctx.redact(value)).append(nl);
             n++;
@@ -93,6 +120,10 @@ public final class LogPackage {
             } catch (IOException e) { throw new ActionException("LOG.IO_ERROR", "Cannot write log " + p + ": " + e.getMessage(), "Check the folder exists and is writable.", true); }
         }
         return Map.of("lines", java.math.BigDecimal.valueOf(n));
+    }
+
+    public Map<String, Object> logVariables(ActionContext ctx, String path, Map<String, Object> variables, String title, boolean ts, boolean overwrite, String encoding, String tsFormat) {
+        return logVariables(ctx, path, variables, title, ts, overwrite, encoding, tsFormat, null);
     }
 
     static String level(String level) {

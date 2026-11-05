@@ -192,7 +192,11 @@ export type WorkflowRun = { id: string; path: string; version: number; status: s
   updated?: string; finished?: string | null; error?: { code?: string; message?: string } | null; data?: Record<string, unknown>;
   history?: { event: string; stage?: string; ts: string; detail?: Record<string, unknown> | null }[];
   tasks?: { id: string; stage?: string; kind: string; title: string; assignee?: string; status: string; claimed_by?: string | null; outcome?: string | null; created?: string; completed?: string | null }[] };
-export type GlobalValue = { name: string; value: unknown; changeable: boolean; my_value?: unknown; updated?: string; updated_by?: string };
+export type GlobalValue = { name: string; value: unknown; changeable: boolean; my_value?: unknown; updated?: string; updated_by?: string;
+  /** Checked by the server: text, number, boolean, date, list, record, or any (values made before types). */
+  type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
+  /** Values per team (user group): runs of the team's members use them unless the person set their own. */
+  team_values?: { team_id: string; team_name: string; value: unknown }[] };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
 export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
@@ -202,7 +206,8 @@ export type ModelConnection = { name: string; provider: string; model?: string |
   description?: string | null; allowed_roles?: string[]; monthly_tokens?: number | null; tokens_this_month?: number; calls_per_minute?: number | null; calls_per_run?: number | null;
   pii_analyzer_url?: string | null; content_check?: string | null; updated?: string; updated_by?: string };
 export type PromptSkill = { name: string; description?: string | null; owner: string; shared: boolean; template?: boolean; version: number; updated?: string; updated_by?: string };
-export type SkillDefinition = { prompt: string; system?: string; output: "text" | "json"; temperature: number; connection?: string; inputs: { name: string; description?: string }[] };
+export type SkillDefinition = { prompt: string; system?: string; output: "text" | "json"; temperature: number; connection?: string; inputs: { name: string; description?: string }[];
+  knowledge?: { index: string; top_k?: number; query?: string } };
 export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; output_tokens?: number; masked_calls?: number; tool_calls?: number; avg_latency_ms?: number | null };
   by_model?: { provider: string; model?: string; calls: number; input_tokens: number; output_tokens: number }[]; by_agent?: { bot_path: string; calls: number; tokens: number }[];
   recent?: { ts: string; bot_path: string; requested_by?: string; purpose?: string; provider?: string; model?: string; input_tokens?: number; output_tokens?: number; masked?: string; tool_calls?: string; prompt_sha256?: string; run_id?: string }[] };
@@ -449,7 +454,9 @@ export class CrApi {
   async cancelWorkflow(id: string) { await this.call("POST", "workflows/runs/" + encodeURIComponent(id) + "/cancel"); }
   // ---- Shared Global values ($global.name), and each person's own value where people may change them ----
   async globals() { return (await this.call<{ globals?: GlobalValue[] }>("GET", "globals")).globals ?? []; }
-  async saveGlobal(name: string, value: unknown, changeable: boolean) { await this.call("PUT", "globals/" + encodeURIComponent(name), { value, changeable }); }
+  async saveGlobal(name: string, value: unknown, changeable: boolean, type?: string) { await this.call("PUT", "globals/" + encodeURIComponent(name), { value, changeable, ...(type ? { type } : {}) }); }
+  async setTeamGlobal(name: string, teamId: string, value: unknown) { await this.call("PUT", "globals/" + encodeURIComponent(name) + "/teams/" + encodeURIComponent(teamId), { value }); }
+  async clearTeamGlobal(name: string, teamId: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name) + "/teams/" + encodeURIComponent(teamId)); }
   async deleteGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name)); }
   async setMyGlobal(name: string, value: unknown) { await this.call("PUT", "globals/" + encodeURIComponent(name) + "/mine", { value }); }
   async clearMyGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name) + "/mine"); }

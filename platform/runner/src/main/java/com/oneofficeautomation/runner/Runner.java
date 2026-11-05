@@ -209,7 +209,7 @@ public final class Runner {
         final Map<String, Object> flow;
         final String runId;
         final AtomicBoolean cancel;
-        final long deadlineNanos;
+        long deadlineNanos;
         final int depth;
         final Scope scope = new Scope();
         final Map<String, Object> requires;
@@ -683,7 +683,11 @@ public final class Runner {
                 case "step" -> execSteps(list(step, "children"), false);
                 case "parallel" -> parallel(step, a);
                 case "set" -> {
-                    Object stored = scope.set((String) a.get("variable"), resolve(a.get("value")));
+                    Object value = resolve(a.get("value"));
+                    // a Credential variable set from a vault reference gets the secret, fetched just in time
+                    if ("Credential".equals(scope.types.get(String.valueOf(a.get("variable")))) && value instanceof Map<?, ?> m && m.containsKey("$credential"))
+                        value = credentialArg(String.valueOf(a.get("variable")), value);
+                    Object stored = scope.set((String) a.get("variable"), value);
                     emit("variable.set", sid, data("name", a.get("variable"), "value", Values.safeRepr(stored)));
                 }
                 case "log" -> log(String.valueOf(a.getOrDefault("level", "info")), Values.text(resolve(a.get("message"))), sid);
@@ -1149,12 +1153,28 @@ public final class Runner {
 
         RunResult executeAsChild(Map<String, Object> inputs, long parentDeadline, List<String> parentSecrets) {
             secrets.addAll(parentSecrets);
+            deadlineNanos = Math.min(deadlineNanos, parentDeadline);  // a child agent cannot outlive the run that started it
             return execute(inputs, true);
         }
 
         // ----- leaf actions -----
+        /** Platform services plus this run's read-only variable view. */
+        private Map<String, Object> stepServices;
+
+        Map<String, Object> stepServices() {
+            if (stepServices == null) {
+                Map<String, Object> m = new HashMap<>(services);
+                m.putIfAbsent(FlowVariables.SERVICE, new FlowVariables() {
+                    public Map<String, String> declared() { synchronized (scope) { return new LinkedHashMap<>(scope.types); } }
+                    public Object value(String name) { synchronized (scope) { return scope.values.get(name); } }
+                });
+                stepServices = java.util.Collections.unmodifiableMap(m);
+            }
+            return stepServices;
+        }
+
         ActionContext ctx(String stepId) {
-            return new ActionContext(runId, stepId, tenantId, workDir, sessions, services, cancel, () -> List.copyOf(secrets),
+            return new ActionContext(runId, stepId, tenantId, workDir, sessions, stepServices(), cancel, () -> List.copyOf(secrets),
                     (lvl, msg) -> emit("log", stepId, data("level", lvl, "message", msg)));
         }
 
@@ -1162,6 +1182,8 @@ public final class Runner {
             Map<String, Object> out = new LinkedHashMap<>();
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
+                if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
+                else if (v != null) refuseVaultReference(in.name(), v, 0);
                 if (v != null) {
                     if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {
                         try { v = Values.coerce(v, in.type().flowName(), in.name()); }
@@ -1182,6 +1204,46 @@ public final class Runner {
                 }
             }
             return out;
+        }
+
+        /**
+         * A Credential field of a step: a vault reference {"$credential": "locker/credential/attribute"} written in the step
+         * is fetched from the vault just in time (as for run inputs and connections) and masked in logs; a Credential
+         * variable is passed as it is. Plain text is passed on (Office passwords accept it; connectors refuse it) but masked
+         * in logs. Any other dictionary or list is refused, so a reference can never be used as the secret itself.
+         */
+        Object credentialArg(String name, Object v) {
+            if (v == null || v instanceof SecureString) return v;
+            if (v instanceof String s && s.isEmpty()) return null;
+            if (v instanceof Map<?, ?> m && m.containsKey("$credential")) {
+                Object ref = m.get("$credential");
+                if (m.size() != 1 || !(ref instanceof String r) || r.isBlank())
+                    throw new ActionException("VAULT.BAD_REF", "Input '" + name + "' has a malformed vault reference",
+                            "Write it as {\"$credential\": \"locker/credential/attribute\"}.");
+                CredentialVault vault = (CredentialVault) services.get("vault");
+                if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault is configured, so the credential for input '" + name + "' cannot be read",
+                        "Run the agent where a vault is set up (One CommandCenter, or OOA_SECRET_... variables for local runs).");
+                SecureString sec = vault.getSecret(r.strip(), principal);
+                secrets.add(sec.reveal()); secureValues.add(sec);
+                return sec;
+            }
+            if (v instanceof Map<?, ?> || v instanceof List<?>)
+                throw new ActionException("VAR.SECURE_REQUIRED", "Input '" + name + "' needs a Credential, got " + Values.typeName(v),
+                        "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
+            String plain = Values.text(v);
+            if (plain.length() >= 4) secrets.add(plain);
+            return v;
+        }
+
+        /** A vault reference is only resolved in Credential fields; anywhere else it would be sent as text, so it is refused. */
+        void refuseVaultReference(String name, Object v, int depth) {
+            if (depth > 6 || v == null) return;
+            if (v instanceof Map<?, ?> m) {
+                if (m.containsKey("$credential"))
+                    throw new ActionException("VAULT.REFERENCE_NOT_ALLOWED", "Input '" + name + "' is not a Credential field, so the vault reference in it would be sent as plain text",
+                            "Use the command's Credential field for the secret (for example password, bearer_token or access_token).");
+                for (Object x : m.values()) refuseVaultReference(name, x, depth + 1);
+            } else if (v instanceof List<?> l) for (Object x : l) refuseVaultReference(name, x, depth + 1);
         }
 
         Object invoke(PackageRegistry.LoadedPackage pkg, ActionSpec spec, Map<String, Object> args, ActionContext ctx) {
@@ -1216,13 +1278,32 @@ public final class Runner {
                 worker.set(ex);
                 workers.add(ex);
             }
+            long start = System.nanoTime();
+            long stepEnd = start + (long) Math.min(timeoutSeconds * 1e9, Long.MAX_VALUE / 4.0);
+            if (deadlineNanos != Long.MAX_VALUE && start >= deadlineNanos)
+                throw new OoaException("RUN.TIMEOUT", "Run exceeded its maximum duration", "Raise the run time limit or split the bot.");
             Future<Object> f = ex.submit(fn);
             try {
-                return f.get((long) (timeoutSeconds * 1000), TimeUnit.MILLISECONDS);
+                // the step's own timeout, the run's time limit and Stop all end a running step (a long Databricks wait used to
+                // run far past the run limit, and Stop waited for the step to finish)
+                while (true) {
+                    long now = System.nanoTime(), end = Math.min(stepEnd, deadlineNanos);
+                    if (now >= end) throw new TimeoutException();
+                    try { return f.get(Math.min(TimeUnit.NANOSECONDS.toMillis(end - now) + 1, 200), TimeUnit.MILLISECONDS); }
+                    catch (TimeoutException slice) {
+                        if (cancel.get()) {
+                            f.cancel(true); ex.shutdownNow(); worker.remove();
+                            throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter while a step was running");
+                        }
+                    }
+                }
             } catch (TimeoutException e) {
                 f.cancel(true);
                 ex.shutdownNow();
                 worker.remove();
+                if (System.nanoTime() >= deadlineNanos && deadlineNanos < stepEnd)
+                    throw new OoaException("RUN.TIMEOUT", "Run exceeded its maximum duration while a step was running; the step was stopped",
+                            "Raise the run time limit or split the bot.");
                 throw new OoaException("STEP.TIMEOUT", "Action did not finish within " + timeoutSeconds + " s",
                         "Raise timeoutSeconds on the step or check the target application.", true, null);
             } catch (ExecutionException e) {

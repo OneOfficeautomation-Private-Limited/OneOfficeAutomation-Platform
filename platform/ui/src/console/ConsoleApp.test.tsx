@@ -1779,7 +1779,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(c).getByText("The value is not a number.")).toBeTruthy();
     fireEvent.change(within(c).getByLabelText("Value"), { target: { value: "3" } });
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create value" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "globals/retries", body: { value: 3, changeable: false } }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "globals/retries", body: { value: 3, changeable: false, type: "number" } }));  // the server checks the type too
   });
 
   it("shows Connections with settings and vault references, and creates one by its toolkit's inputs", async () => {

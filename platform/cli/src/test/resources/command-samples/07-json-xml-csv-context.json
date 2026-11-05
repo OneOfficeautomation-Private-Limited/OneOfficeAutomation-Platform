@@ -28,7 +28,7 @@
   {"command": "ooa.xml/to_dictionary", "name": "converts", "steps": [{"action": "ooa.xml/to_dictionary", "args": {"xml": "<r><a>1</a></r>"}, "out": {"value": "v"}}], "expect": {"v": {"$type": "object"}}},
   {"command": "ooa.xml/validate", "name": "well-formed only", "steps": [{"action": "ooa.xml/validate", "args": {"xml": "<r><a></r>"}, "out": {"valid": "ok"}}], "expect": {"ok": false}},
   {"command": "ooa.xml/save_file", "name": "indent", "steps": [{"action": "ooa.xml/save_file", "args": {"xml": "<r><a>1</a></r>", "path": "{tmp}/o.xml", "indent": true}, "out": {"path": "p"}}], "expectFiles": {"o.xml": true}},
-  {"command": "ooa.xml/get_value", "name": "XXE refused", "steps": [{"action": "ooa.xml/get_value", "args": {"xml": "<!DOCTYPE r [<!ENTITY x SYSTEM 'file:///c:/windows/win.ini'>]><r>&x;</r>", "xpath": "/r"}}], "error": "XML.DTD_NOT_ALLOWED"},
+  {"command": "ooa.xml/get_value", "name": "XXE refused", "steps": [{"action": "ooa.xml/get_value", "args": {"xml": "<!DOCTYPE r [<!ENTITY x SYSTEM 'file:///c:/windows/win.ini'>]><r>&x;</r>", "xpath": "/r"}}], "error": "XML.EXTERNAL_ENTITY_NOT_ALLOWED"},
   {"command": "ooa.csv/write", "name": "quote all", "vars": {"t": {"columns": ["a"], "rows": [["x"]]}},
    "steps": [{"action": "ooa.csv/write", "args": {"table": "$t", "path": "{tmp}/o.csv", "quote_all": true, "line_ending": "lf"}}], "expectFiles": {"o.csv": "\"a\"\n\"x\"\n"}},
   {"command": "ooa.csv/read", "name": "skip lines, trim", "files": {"in.csv": "title line\nname;qty\n  pen ;2\n\ncup;3\n"},

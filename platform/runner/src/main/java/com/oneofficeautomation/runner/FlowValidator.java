@@ -114,9 +114,32 @@ public final class FlowValidator {
                 });
             if (act.equals("core/set") && args.get("variable") instanceof String v && !declared.containsKey(v))
                 p.add(sid, "args/variable", "Variable '" + v + "' is not declared", null);
+            if (act.equals("core/set") && args.get("variable") instanceof String v && declared.containsKey(v) && containsVaultReference(args.get("value"), 0)) {
+                boolean cred = "Credential".equals(declared.get(v).get("type"));
+                if (!cred || !(args.get("value") instanceof Map<?, ?> vm && vm.size() == 1 && vm.get("$credential") instanceof String))
+                    p.add(sid, "args/value", cred ? "A Credential variable is set from one vault reference {\"$credential\": \"locker/credential/attribute\"}"
+                            : "Only a Credential variable can hold a vault reference; '" + v + "' is " + declared.get(v).get("type"), "Make '" + v + "' a Credential variable.");
+            }
             for (Object c : (List<Object>) step.getOrDefault("catch", List.of()))
                 for (String k : List.of("as", "message_to", "line_to"))
                     if (((Map<String, Object>) c).get(k) instanceof String v && !declared.containsKey(v)) p.add(sid, "catch/" + k, "Catch variable '" + v + "' is not declared", null);
+
+            // toolkit conditions (If, Else if, While, Wait until) and toolkit loop types are checked like actions
+            if (pid.equals("core") && args.containsKey("condition")) checkCondition(p, sid, "args/condition", args.get("condition"), requires, kind, 0);
+            for (int i = 0; step.get("elseIf") instanceof List<?> ei && i < ei.size(); i++)
+                if (ei.get(i) instanceof Map<?, ?> br) checkCondition(p, sid, "elseIf/" + i + "/condition", br.get("condition"), requires, kind, 0);
+            if (act.equals("core/loop") && args.get("iterator") instanceof String it && it.contains("/")) {
+                ActionSpec ispec = toolkitSpec(p, sid, "args/iterator", it, "iterator", "loop type", requires);
+                Object ia = args.get("iterator_args");
+                if (ispec != null) {
+                    if (ia != null && !(ia instanceof Map<?, ?>) && !isDynamic(ia))
+                        p.add(sid, "args/iterator_args", "iterator_args must be a Dictionary of the loop type's fields", null);
+                    else checkArgs(p, sid, "args/iterator_args/", it + " (loop type)", ispec, ia instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of(), false, isDynamic(ia));
+                    if ("ApiTask".equals(kind) && ispec.capabilities().contains("desktop"))
+                        p.add(sid, "args/iterator", "'" + it + "' needs a desktop and cannot run in an ApiTask", null);
+                }
+            } else if (act.equals("core/loop") && args.containsKey("iterator_args") && args.get("iterator") instanceof String it && !it.contains("/"))
+                p.add(sid, "args/iterator_args", "iterator_args only applies to toolkit loop types, not '" + it + "'", "Remove iterator_args or choose a toolkit loop type.");
 
             // manifest checks
             PackageRegistry.LoadedPackage pkg;
@@ -126,15 +149,8 @@ public final class FlowValidator {
             if (spec == null) { p.add(sid, "action", "Toolkit " + pid + "@" + pkg.version() + " has no action '" + aid + "'", "Pick the action from the command library."); continue; }
             if ("ApiTask".equals(kind) && spec.capabilities().contains("desktop"))
                 p.add(sid, "action", "'" + act + "' needs a desktop and cannot run in an ApiTask", null);
-            for (String k : args.keySet())
-                if (spec.input(k).isEmpty()) p.add(sid, "args/" + k, "Unknown input '" + k + "' for " + act,
-                        "Valid inputs: " + (spec.inputs().isEmpty() ? "none" : String.join(", ", spec.inputs().stream().map(ActionSpec.InputSpec::name).toList())) + ".");
-            for (ActionSpec.InputSpec in : spec.inputs()) {
-                // a step with a saved connection gets its address and sign-in inputs from it at run time
-                if (in.required() && in.defaultValue() == null && !args.containsKey(in.name()) && !(step.get("connection") instanceof String))
-                    p.add(sid, "args/" + in.name(), "Missing required input '" + in.name() + "' for " + act, in.description());
-                if (args.containsKey(in.name())) checkLiteral(p, sid, in, args.get(in.name()));
-            }
+            // a step with a saved connection gets its address and sign-in inputs from it at run time
+            checkArgs(p, sid, "args/", act, spec, args, step.get("connection") instanceof String, false);
             Set<String> outputs = new HashSet<>();
             for (ActionSpec.OutputSpec o : spec.outputs()) outputs.add(o.name());
             for (String o : out.keySet()) if (!outputs.contains(o)) p.add(sid, "out/" + o, act + " has no output '" + o + "'",
@@ -143,13 +159,72 @@ public final class FlowValidator {
         return problems;
     }
 
+    /** Unknown, missing and literal values of an action, condition or loop type, against its manifest. */
+    private static void checkArgs(P p, String sid, String prefix, String what, ActionSpec spec, Map<String, Object> args, boolean connection, boolean dynamicArgs) {
+        for (String k : args.keySet())
+            if (spec.input(k).isEmpty()) p.add(sid, prefix + k, "Unknown input '" + k + "' for " + what,
+                    "Valid inputs: " + (spec.inputs().isEmpty() ? "none" : String.join(", ", spec.inputs().stream().map(ActionSpec.InputSpec::name).toList())) + ".");
+        for (ActionSpec.InputSpec in : spec.inputs()) {
+            if (in.required() && in.defaultValue() == null && !args.containsKey(in.name()) && !connection && !dynamicArgs)
+                p.add(sid, prefix + in.name(), "Missing required input '" + in.name() + "' for " + what, in.description());
+            if (args.containsKey(in.name())) checkLiteral(p, sid, prefix + in.name(), in, args.get(in.name()), !what.startsWith("core/"));
+        }
+    }
+
+    /** The manifest of a toolkit condition or loop type named "package/id", or null after reporting why there is none. */
+    private ActionSpec toolkitSpec(P p, String sid, String path, String addr, String kindOf, String label, Map<String, Object> requires) {
+        if (!ACTION.matcher(addr).matches()) { p.add(sid, path, "Invalid " + label + " address '" + addr + "'", "Use package/" + kindOf + ", e.g. ooa.file/file_exists."); return null; }
+        String pid = addr.substring(0, addr.indexOf('/')), id = addr.substring(addr.indexOf('/') + 1);
+        PackageRegistry.LoadedPackage pkg;
+        try { pkg = registry.resolve(pid, (String) requires.get(pid)); }
+        catch (OoaException e) { p.add(sid, path, e.getMessage(), e.suggestedFix()); return null; }
+        ActionSpec spec = pkg.spec(kindOf, id);
+        if (spec == null) p.add(sid, path, "Toolkit " + pid + "@" + pkg.version() + " has no " + label + " '" + id + "'", "Pick the " + label + " from the command library.");
+        return spec;
+    }
+
+    /** Walks all/any/not and wait wrappers down to toolkit conditions {"condition": "pkg/id", "args": {...}}. */
+    @SuppressWarnings("unchecked")
+    private void checkCondition(P p, String sid, String path, Object c, Map<String, Object> requires, Object kind, int depth) {
+        if (!(c instanceof Map<?, ?> raw) || depth > 20) return;
+        Map<String, Object> m = (Map<String, Object>) raw;
+        for (String k : List.of("all", "any"))
+            if (m.get(k) instanceof List<?> l) { for (int i = 0; i < l.size(); i++) checkCondition(p, sid, path + "/" + k + "/" + i, l.get(i), requires, kind, depth + 1); return; }
+        if (m.containsKey("not")) { checkCondition(p, sid, path + "/not", m.get("not"), requires, kind, depth + 1); return; }
+        if (!(m.get("condition") instanceof String addr)) return;
+        ActionSpec spec = toolkitSpec(p, sid, path, addr, "condition", "condition", requires);
+        if (spec == null) return;
+        Object a = m.get("args");
+        if (a != null && !(a instanceof Map<?, ?>) && !isDynamic(a)) { p.add(sid, path + "/args", "The fields of condition " + addr + " must be a Dictionary", null); return; }
+        checkArgs(p, sid, path + "/args/", addr + " (condition)", spec, a instanceof Map<?, ?> am ? (Map<String, Object>) am : Map.of(), false, isDynamic(a));
+        if ("ApiTask".equals(kind) && spec.capabilities().contains("desktop"))
+            p.add(sid, path, "Condition '" + addr + "' needs a desktop and cannot run in an ApiTask", null);
+    }
+
+    /** A whole field list given as a variable or expression ("$opts", {"expr": ...}) can only be checked when it runs. */
+    private static boolean isDynamic(Object v) {
+        return v instanceof String || (v instanceof Map<?, ?> m && m.size() == 1 && m.containsKey("expr"));
+    }
+
     /** Literal (non-reference) argument values are checked against the manifest's type, enum and pattern. */
-    private static void checkLiteral(P p, String sid, ActionSpec.InputSpec in, Object v) {
+    private static void checkLiteral(P p, String sid, String path, ActionSpec.InputSpec in, Object v, boolean toolkit) {
+        if (in.type() == OoaType.CREDENTIAL) {
+            if (v instanceof Map<?, ?> m && m.containsKey("$credential")) {
+                if (m.size() != 1 || !(m.get("$credential") instanceof String ref) || !ref.strip().matches("[^/\\s][^/]*/[^/]+/[^/]*[^/\\s]"))
+                    p.add(sid, path, "Input '" + in.name() + "': the vault reference must be {\"$credential\": \"locker/credential/attribute\"}", in.description());
+                return;
+            }
+            if ((v instanceof Map<?, ?> m2 && !(m2.size() == 1 && (m2.containsKey("expr") || m2.containsKey("literal")))) || v instanceof List<?>)
+                p.add(sid, path, "Input '" + in.name() + "' needs a Credential (a vault reference or a Credential variable), got " + Values.typeName(v), in.description());
+            return;
+        }
+        if (toolkit && containsVaultReference(v, 0))
+            p.add(sid, path, "Input '" + in.name() + "' is not a Credential field: a vault reference here would be sent as plain text",
+                    "Put the secret in the command's Credential field (for example password, bearer_token or access_token).");
         boolean dynamic;
         try { dynamic = !Expressions.references(v).isEmpty() || (v instanceof Map<?, ?> m && m.size() == 1 && (m.containsKey("expr") || m.containsKey("literal"))); }
         catch (OoaException e) { return; }
         if (dynamic || v == null) return;
-        String path = "args/" + in.name();
         boolean ok = switch (in.type()) {
             case STRING, FILE -> v instanceof String;
             case NUMBER -> v instanceof BigDecimal;
@@ -167,6 +242,13 @@ public final class FlowValidator {
             p.add(sid, path, "Input '" + in.name() + "': " + n.toPlainString() + " is outside the allowed range "
                     + (Double.isNaN(in.min()) ? "" : "from " + BigDecimal.valueOf(in.min()).stripTrailingZeros().toPlainString() + " ")
                     + (Double.isNaN(in.max()) ? "" : "to " + BigDecimal.valueOf(in.max()).stripTrailingZeros().toPlainString()), in.description());
+    }
+
+    private static boolean containsVaultReference(Object v, int depth) {
+        if (depth > 6) return false;
+        if (v instanceof Map<?, ?> m) { if (m.containsKey("$credential")) return true; for (Object x : m.values()) if (containsVaultReference(x, depth + 1)) return true; }
+        if (v instanceof List<?> l) for (Object x : l) if (containsVaultReference(x, depth + 1)) return true;
+        return false;
     }
 
     /** Condition strings are expressions, so they are scanned as {"expr": ...}. */

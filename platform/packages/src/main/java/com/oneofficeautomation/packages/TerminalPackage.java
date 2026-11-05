@@ -30,6 +30,8 @@ public final class TerminalPackage {
         final Process proc; final BufferedWriter in; final BufferedReader out;
         /** Friendly key names set with Set key mapping (upper-case name to key). */
         final Map<String, String> keyAliases = new java.util.concurrent.ConcurrentHashMap<>();
+        /** True for VT100/ANSI (SSH) hosts, which take escape sequences instead of 3270 keys. */
+        boolean isVt() { return this instanceof VtSshSession; }
         /** For engines that answer the commands themselves instead of through a process ({@link VtSshSession}). */
         Session() { proc = null; in = null; out = null; }
         Session(Process p) { this(p, new OutputStreamWriter(p.getOutputStream(), StandardCharsets.UTF_8), new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8)); }
@@ -175,7 +177,7 @@ public final class TerminalPackage {
 
     /** Presses a key (alias, Enter, PF3...) and, for keys that go to the host, waits for the keyboard to unlock (VT: for the host to answer). */
     private static void press(Session t, String key, boolean waitForHost, int timeout) {
-        boolean vt = t instanceof VtSshSession;
+        boolean vt = t.isVt();
         String action = keyAction(t.keyAliases.getOrDefault(key.trim().toUpperCase(Locale.ROOT), key), t);
         t.cmd(action);
         if (waitForHost && (vt || !LOCAL_KEYS.contains(action))) t.cmd("Wait(" + Math.max(1, timeout) + ",InputField)");
@@ -382,17 +384,20 @@ public final class TerminalPackage {
 
     /** As above, for the kind of host the session talks to. */
     static String keyAction(String key, Session t) {
-        return t instanceof Tn5250Session ? Tn5250Session.keyAction(key) : keyAction(key, t instanceof VtSshSession);
+        return t instanceof Tn5250Session ? Tn5250Session.keyAction(key) : keyAction(key, t.isVt());
     }
 
     /** As above; VT hosts also take Escape, End, PageUp, PageDown and Ctrl+letter (e.g. Ctrl+C), but not the 3270-only keys. */
     static String keyAction(String key, boolean vt) {
         String k = key.trim().toUpperCase(Locale.ROOT);
         if (vt) {
+            if (k.startsWith("SEQ:")) return "Seq(" + HexFormat.of().formatHex(escapeSequence(key.trim().substring(4)).getBytes(StandardCharsets.UTF_8)) + ")";
+            if (k.matches("ALT\\s*[+-]\\s*\\S")) return "Seq(" + HexFormat.of().formatHex(("\033" + key.trim().substring(key.trim().length() - 1)).getBytes(StandardCharsets.UTF_8)) + ")";
+            if (k.matches("F([1-9]|1[0-9]|20)")) return "PF(" + k.substring(1) + ")";
             if (k.matches("CTRL\\s*[+-]\\s*[A-Z]")) return "Ctrl(" + k.charAt(k.length() - 1) + ")";
             if (k.matches("PF(2[1-4])|PA[1-3]") || Set.of("CLEAR", "ERASEINPUT", "DUP", "FIELDMARK", "ATTN", "SYSREQ").contains(k))
                 throw new ActionException("TERMINAL.KEY_NOT_ON_VT", "The key '" + key + "' exists only on 3270 terminals",
-                        "On VT hosts use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C or PF1-PF20.");
+                        "On VT hosts use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20 or SEQ:\\e[24~ for any escape sequence.");
             switch (k) {
                 case "ESCAPE", "ESC" -> { return "Escape"; }
                 case "END" -> { return "End"; }
@@ -411,9 +416,80 @@ public final class TerminalPackage {
             case "INSERT" -> "Insert"; case "FIELDEND" -> "FieldEnd"; case "DUP" -> "Dup"; case "FIELDMARK" -> "FieldMark";
             case "ATTN" -> "Attn"; case "SYSREQ" -> "SysReq";
             default -> throw new ActionException("TERMINAL.BAD_KEY", "Unknown key '" + key + "'", vt
-                    ? "Use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C or PF1-PF20, or a name set with Set key mapping."
+                    ? "Use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20, SEQ:\\e[24~ for any escape sequence, or a name set with Set key mapping."
                     : "Use Enter, Tab, Clear, PF1-PF24 or PA1-PA3, or a name set with Set key mapping.");
         };
+    }
+
+    /**
+     * Characters for an escape sequence written as text: \\e or ^[ is Escape, \\xNN a byte in hex, ^A to ^Z control keys,
+     * \\r \\n \\t \\b as usual and \\\\ a backslash; e.g. "\\e[24~" is F12 on a VT220 and "\\eOP" is PF1.
+     */
+    static String escapeSequence(String s) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char n = s.charAt(++i);
+                switch (n) {
+                    case 'e', 'E' -> b.append('\033');
+                    case 'r' -> b.append('\r'); case 'n' -> b.append('\n'); case 't' -> b.append('\t'); case 'b' -> b.append('\b');
+                    case '\\' -> b.append('\\'); case '^' -> b.append('^');
+                    case 'x', 'X' -> {
+                        try { b.append((char) Integer.parseInt(s.substring(i + 1, i + 3), 16)); i += 2; }
+                        catch (RuntimeException e) { throw badSequence(s); }
+                    }
+                    default -> throw badSequence(s);
+                }
+            } else if (c == '^' && i + 1 < s.length() && (s.charAt(i + 1) == '[' || Character.isLetter(s.charAt(i + 1)))) {
+                char n = Character.toUpperCase(s.charAt(++i));
+                b.append(n == '[' ? '\033' : (char) (n - '@'));
+            } else b.append(c);
+        }
+        if (b.isEmpty()) throw badSequence(s);
+        return b.toString();
+    }
+
+    private static ActionException badSequence(String s) {
+        return new ActionException("TERMINAL.BAD_KEY", "Cannot read the escape sequence '" + s + "'", "Write Escape as \\e or ^[, bytes as \\x1b, control keys as ^C, e.g. SEQ:\\e[24~.");
+    }
+
+    @Action(id = "wait_for_prompt", name = "Wait for prompt", category = "Terminal", timeoutSeconds = 600,
+            description = "On VT (SSH) hosts: wait until the host has finished writing and the cursor sits after a prompt such as $, # or >, e.g. after a command.",
+            panel = "session, prompt, timeout_seconds | quiet_ms, fail_on_timeout")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the prompt appeared in time (false only when fail_on_timeout is off).")
+    @Output(name = "prompt_line", type = OoaType.STRING, description = "The line with the prompt, as shown.")
+    public Map<String, Object> waitForPrompt(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "prompt", type = OoaType.STRING, required = false, defaultValue = "\"[$#>%]\\\\s*$\"", example = "[$#>]\\s*$",
+                    description = "Regular expression the text before the cursor must end with; a shell prompt ($, #, >, %) when empty.") String prompt,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 1, max = 3600, description = "Maximum wait.") double timeout,
+            @Input(name = "quiet_ms", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 0, max = 10000, description = "The screen must stay unchanged this long, so a prompt-like character in the middle of output does not count.") int quietMs,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop with an error on timeout; when off, found is false instead.") boolean failOnTimeout) {
+        Session t = s(ctx, session);
+        java.util.regex.Pattern p;
+        try { p = java.util.regex.Pattern.compile(prompt == null || prompt.isBlank() ? "[$#>%]\\s*$" : prompt); }
+        catch (java.util.regex.PatternSyntaxException e) { throw new ActionException("TERMINAL.BAD_PATTERN", "Invalid prompt pattern: " + e.getDescription(), "Use a regular expression such as [$#>]\\s*$."); }
+        if (timeout <= 0 || timeout > 3600) throw new ActionException("TERMINAL.BAD_TIMEOUT", "The timeout must be between 1 and 3600 seconds");
+        long end = System.nanoTime() + (long) (timeout * 1e9);
+        String last = null;
+        long stableSince = System.nanoTime();
+        while (true) {
+            List<String> lines = t.cmd("Ascii()");
+            String screen = String.join("\n", lines);
+            if (!screen.equals(last)) { last = screen; stableSince = System.nanoTime(); }
+            int[] cur = cursor(t);
+            String line = cur[0] >= 1 && cur[0] <= lines.size() ? lines.get(cur[0] - 1) : "";
+            String before = line.substring(0, Math.min(line.length(), Math.max(0, cur[1] - 1)));
+            boolean quiet = (System.nanoTime() - stableSince) / 1_000_000 >= quietMs;
+            if (quiet && p.matcher(before).find()) return Map.of("found", true, "prompt_line", line.stripTrailing());
+            if (System.nanoTime() > end) {
+                if (!failOnTimeout) return Map.of("found", false, "prompt_line", "");
+                throw new ActionException("TERMINAL.NO_PROMPT", "No prompt matching " + p.pattern() + " within " + timeout + " s; the cursor line shows '" + before.strip() + "'",
+                        "Check the command finished, or change the prompt pattern.", true);
+            }
+            HttpJson.pause(ctx, 100);
+        }
     }
 
     /** Keys handled by the terminal itself; nothing is sent to the host, so there is nothing to wait for. */

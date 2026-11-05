@@ -416,7 +416,7 @@ public final class DesktopPackage {
 
     @Action(id = "capture_screen", name = "Capture screen", category = "Screen", capabilities = "desktop",
             description = "Save a screenshot of the whole screen, all screens, a region or a window as a PNG, JPEG or BMP file.",
-            panel = "[Capture one window only: window], [Capture part of the screen: x, y, width, height], path, overwrite | format, all_screens")
+            panel = "[Capture one window only: window], [Capture part of the screen: x, y, width, height], path, overwrite | format, jpeg_quality, all_screens")
     @Output(name = "path", type = OoaType.FILE, description = "Saved image path.")
     public Map<String, Object> capture(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Image file to save.") String path,
@@ -427,8 +427,11 @@ public final class DesktopPackage {
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp"}, description = "Image format.") String format,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
             @Input(name = "all_screens", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Capture every monitor together instead of the main one (when no region or window is given).") boolean allScreens,
-            @Input(name = "window", type = OoaType.STRING, required = false, description = "Capture only this window (title text, pattern with * or ?, or re:regex); x and y are then measured from the window and default to its whole area.") String window) {
+            @Input(name = "window", type = OoaType.STRING, required = false, description = "Capture only this window (title text, pattern with * or ?, or re:regex); x and y are then measured from the window and default to its whole area.") String window,
+            @Input(name = "jpeg_quality", type = OoaType.NUMBER, required = false, defaultValue = "90", min = 1, max = 100, visibleWhen = "format=jpg",
+                    description = "JPEG quality from 1 (smallest file) to 100 (best picture).") Integer quality) {
         String fmt = choice("format", format, "png", "png", "jpg", "bmp");
+        if (quality != null && (quality < 1 || quality > 100)) throw new ActionException("IMAGE.BAD_QUALITY", "JPEG quality must be between 1 and 100, not " + quality, "Use 90 for good quality, or lower for smaller files.");
         Path p = ctx.resolvePath(path);
         if (!overwrite && Files.exists(p)) throw new ActionException("FILE.EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
         Robot r = DesktopSupport.robot();
@@ -438,14 +441,13 @@ public final class DesktopPackage {
         try {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
             BufferedImage img = r.createScreenCapture(area);
-            if (!"png".equals(fmt)) {  // JPEG and BMP writers need an image without alpha
-                BufferedImage rgb = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
-                rgb.getGraphics().drawImage(img, 0, 0, null);
-                img = rgb;
-            }
-            if (!ImageIO.write(img, "jpg".equals(fmt) ? "jpeg" : fmt, p.toFile())) throw new IOException("No writer for " + fmt);
+            ImageFiles.write(img, fmt, p.toFile(), "jpg".equals(fmt) ? (quality == null ? 90 : quality) : null, null);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
         return Map.of("path", p.toString());
+    }
+
+    public Map<String, Object> capture(ActionContext ctx, String path, Integer x, Integer y, Integer w, Integer h, String format, boolean overwrite, boolean allScreens, String window) {
+        return capture(ctx, path, x, y, w, h, format, overwrite, allScreens, window, null);
     }
 
     /** Capture rectangle: a region (relative to the window when one is given), the window, or the whole screen area. */

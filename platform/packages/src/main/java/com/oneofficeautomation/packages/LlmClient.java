@@ -212,6 +212,9 @@ final class LlmClient {
     @SuppressWarnings("unchecked")
     static Reply chat(ActionContext ctx, Config cfg, List<Map<String, Object>> messages, List<Map<String, Object>> tools, boolean jsonMode, String purpose) {
         ModelConnections.beforeCall(ctx, cfg);
+        Toxicity.Setting toxic = Toxicity.policy(ctx);
+        if (toxic != null) for (int i = messages.size() - 1; i >= 0; i--)  // the latest prompt, before it reaches the model
+            if ("user".equals(messages.get(i).get("role"))) { Toxicity.check(ctx, toxic, String.valueOf(messages.get(i).get("content")), "prompt", "AI.TOXIC_PROMPT", false); break; }
         Map<String, String> mapping = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
         Set<String> kinds = ModelConnections.maskKinds(ctx);   // the guardrails' chosen kinds; null: all
@@ -257,6 +260,8 @@ final class LlmClient {
         // the connection's content check: the answer goes to the provider's moderation endpoint before anyone uses it
         String check = ModelConnections.contentCheck(ctx, cfg);
         if (check != null && out.text() != null && !out.text().isBlank()) moderate(ctx, cfg, provider, out.text(), check.equals("block"));
+        // the AI guardrails policy's toxicity check, for every provider
+        Toxicity.check(ctx, Toxicity.policy(ctx), out.text(), "model's answer", "AI.TOXIC_ANSWER", false);
         govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs);
         return out;
     }

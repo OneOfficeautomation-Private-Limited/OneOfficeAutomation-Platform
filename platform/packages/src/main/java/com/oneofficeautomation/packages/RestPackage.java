@@ -18,7 +18,7 @@ public final class RestPackage {
 
     @Action(id = "request", name = "Send request", category = "HTTP", timeoutSeconds = 120, capabilities = "network",
             description = "Send an HTTP request and return status, headers and body (parsed as JSON when possible).",
-            panel = "url, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | content_type, query, fail_on_error, insecure_tls, accept_cookies, follow_redirects")
+            panel = "url, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, content_type, query, fail_on_error, insecure_tls, accept_cookies, follow_redirects")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "body", type = OoaType.STRING, description = "Response text.")
     @Output(name = "json", description = "Parsed JSON body, or empty.")
@@ -48,7 +48,10 @@ public final class RestPackage {
             @Input(name = "multipart", type = OoaType.DICTIONARY, required = false, visibleWhen = "method!=GET",
                     description = "Multipart form (multipart/form-data): field name to text, or to {\"file\": path, \"content_type\": type} for a file part.") Map<String, Object> multipart,
             @Input(name = "body_file", type = OoaType.FILE, required = false, visibleWhen = "method!=GET",
-                    description = "File sent as the raw body, byte for byte; content_type gives its type.") String bodyFile) {
+                    description = "File sent as the raw body, byte for byte; content_type gives its type.") String bodyFile,
+            @Input(name = "windows_auth", type = OoaType.STRING, required = false, enumValues = {"current_user", "user_password"},
+                    description = "Windows sign-in (NTLM or Kerberos) for intranet sites, SharePoint on premises, IIS and Exchange: current_user signs in as the runner's Windows account (Windows runners); user_password uses basic_user (DOMAIN\\user) and basic_password.") String windowsAuth) {
+        IntegratedAuthHttp.check(windowsAuth);
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects);
         long bodies = java.util.stream.Stream.of(json, form, multipart, body, bodyFile).filter(Objects::nonNull).count();
         if (bodies > 1) throw new ActionException("REST.BAD_BODY", "More than one body was given", "Give only one of json, form, multipart, body or body_file.");
@@ -79,33 +82,69 @@ public final class RestPackage {
                 b.header("Content-Type", contentType.strip());
             }
         }
-        if (basicUser != null && basicPassword instanceof SecureString pw)
+        if (windowsAuth != null && !windowsAuth.isBlank()) {
+            if (bearer != null || insecure || (proxy != null && !proxy.isBlank()) || (clientCert != null && !clientCert.isBlank()) || cookies)
+                throw new ActionException("REST.BAD_AUTH", "windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls or accept_cookies",
+                        "Use Windows sign-in alone (the runner's proxy settings apply).");
+            HttpRequest built = b.method(method, pub).build();
+            Map<String, String> hs = new LinkedHashMap<>();
+            built.headers().map().forEach((k, v) -> hs.put(k, String.join(", ", v)));
+            byte[] bytes = bodyBytes(ctx, json, form, multipart, body, bodyFile, hs);
+            ctx.info(method + " " + masked(url) + " (Windows sign-in: " + windowsAuth.replace('_', ' ') + ")");
+            IntegratedAuthHttp.Response r = IntegratedAuthHttp.send(ctx, windowsAuth, method, u.toString(), hs, bytes, basicUser, basicPassword, timeout, redirects, null);
+            return result(method, url, r.status(), r.text(), new LinkedHashMap<>(r.headers()), failOnError);
+        }
+        if (basicUser != null && vaultSecret(basicPassword, "basic_password") instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((basicUser + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
-        if (bearer instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
+        if (vaultSecret(bearer, "bearer_token") instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
         b.method(method, pub);
         ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"));
-        HttpResponse<String> resp;
-        try { resp = opts.client(ctx, CLIENT).send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (HttpTimeoutException e) { throw new ActionException("REST.TIMEOUT", "No response from " + url + " within " + timeout + " s", "Raise timeout_seconds or check the service.", true); }
-        catch (IOException e) { throw new ActionException("REST.UNREACHABLE", "Cannot reach " + url + ": " + e.getMessage(), "Check the URL, proxy settings and network access.", true); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted"); }
-        int status = resp.statusCode();
+        HttpResponse<String> resp = sendHonouringRateLimit(ctx, opts.client(ctx, CLIENT), b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+        Map<String, Object> hdrs = new LinkedHashMap<>();
+        resp.headers().map().forEach((k, v) -> hdrs.put(k, String.join(", ", v)));
+        return result(method, url, resp.statusCode(), resp.body(), hdrs, failOnError);
+    }
+
+    private static Map<String, Object> result(String method, String url, int status, String text, Map<String, Object> hdrs, boolean failOnError) {
         Object parsed = null;
-        try { if (!resp.body().isBlank()) parsed = JsonLite.parse(resp.body()); } catch (IllegalArgumentException ignored) { }
+        try { if (!text.isBlank()) parsed = JsonLite.parse(text); } catch (IllegalArgumentException ignored) { }
         if (failOnError && status >= 400)
             throw new ActionException("REST.HTTP_ERROR", method + " " + url + " returned HTTP " + status,
                     status == 401 || status == 403 ? "Check the credentials and permissions." : null,
-                    status == 429 || status >= 500, Map.of("status", BigDecimal.valueOf(status), "body", resp.body().length() > 500 ? resp.body().substring(0, 500) : resp.body()));
-        Map<String, Object> hdrs = new LinkedHashMap<>();
-        resp.headers().map().forEach((k, v) -> hdrs.put(k, String.join(", ", v)));
-        return Out.of("status", BigDecimal.valueOf(status), "body", resp.body(), "json", parsed, "headers", hdrs);
+                    status == 429 || status >= 500, Map.of("status", BigDecimal.valueOf(status), "body", text.length() > 500 ? text.substring(0, 500) : text));
+        return Out.of("status", BigDecimal.valueOf(status), "body", text, "json", parsed, "headers", hdrs);
+    }
+
+    /** The request body as bytes, for the Windows sign-in path (which sends it itself); sets Content-Type for a multipart body. */
+    private static byte[] bodyBytes(ActionContext ctx, Object json, Map<String, Object> form, Map<String, Object> multipart, String body, String bodyFile, Map<String, String> headers) {
+        if (json != null) return JsonLite.write(json).getBytes(StandardCharsets.UTF_8);
+        if (form != null) return encode(form).getBytes(StandardCharsets.UTF_8);
+        if (multipart != null) {
+            Object[] mp = HttpJson.multipart("form-data", multipartParts(ctx, multipart));
+            headers.put("Content-Type", (String) mp[1]);
+            return (byte[]) mp[0];
+        }
+        if (body != null) return body.getBytes(StandardCharsets.UTF_8);
+        if (bodyFile != null) {
+            try { return java.nio.file.Files.readAllBytes(ctx.resolvePath(bodyFile)); }
+            catch (IOException e) { throw new ActionException("REST.FILE_ERROR", "Cannot read " + bodyFile + ": " + e.getMessage(), "Check the file is not locked."); }
+        }
+        return null;
     }
 
     public Map<String, Object> request(ActionContext ctx, String url, String method, Map<String, Object> query, Map<String, Object> headers, Object json,
             Map<String, Object> form, String body, String basicUser, Object basicPassword, Object bearer, int timeout, boolean failOnError, String contentType,
             boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, boolean cookies, boolean redirects) {
         return request(ctx, url, method, query, headers, json, form, body, basicUser, basicPassword, bearer, timeout, failOnError, contentType, insecure, proxy,
-                proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, null, null);
+                proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, null, null, null);
+    }
+
+    public Map<String, Object> request(ActionContext ctx, String url, String method, Map<String, Object> query, Map<String, Object> headers, Object json,
+            Map<String, Object> form, String body, String basicUser, Object basicPassword, Object bearer, int timeout, boolean failOnError, String contentType,
+            boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, boolean cookies, boolean redirects,
+            Map<String, Object> multipart, String bodyFile) {
+        return request(ctx, url, method, query, headers, json, form, body, basicUser, basicPassword, bearer, timeout, failOnError, contentType, insecure, proxy,
+                proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, multipart, bodyFile, null);
     }
 
     /** Multipart parts from {field: text | {"file": path, "content_type": type}}. */
@@ -140,18 +179,36 @@ public final class RestPackage {
         try { b = HttpRequest.newBuilder(URI.create(u.toString())).timeout(Duration.ofSeconds(Math.max(1, timeout))); }
         catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + url, "Check the address, e.g. https://api.example.com/orders."); }
         if (headers != null) headers.forEach((k, v) -> b.header(k, String.valueOf(v)));
-        if (basicUser != null && basicPassword instanceof SecureString pw)
+        if (basicUser != null && vaultSecret(basicPassword, "basic_password") instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((basicUser + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
-        if (bearer instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
+        if (vaultSecret(bearer, "bearer_token") instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
         return b;
+    }
+
+    /** A sign-in secret must be a Credential; anything else used to be skipped silently, sending the request without sign-in. */
+    static Object vaultSecret(Object v, String input) {
+        if (v == null || v instanceof SecureString || (v instanceof String s && s.isEmpty())) return v;
+        throw new ActionException("REST.NO_SECRET", "Input '" + input + "' must come from the vault (a Credential), so the request was not sent",
+                "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
     }
 
     private static String masked(String url) { return url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"); }
 
+    /** HTTP 429 with Retry-After of up to a minute: wait as asked and send again (at most 3 times), as the cloud connectors do. */
+    static <T> HttpResponse<T> sendHonouringRateLimit(ActionContext ctx, HttpClient client, HttpRequest req, HttpResponse.BodyHandler<T> handler, String url, int timeout) {
+        for (int attempt = 0; ; attempt++) {
+            HttpResponse<T> r = send(client, req, handler, url, timeout);
+            long wait = r.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
+            if (wait < 0) return r;
+            ctx.warn(HttpJson.host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s (" + (attempt + 1) + " of " + HttpJson.MAX_RATE_RETRIES + ")");
+            HttpJson.pause(ctx, wait);
+        }
+    }
+
     private static <T> HttpResponse<T> send(HttpClient client, HttpRequest req, HttpResponse.BodyHandler<T> handler, String url, int timeout) {
         try { return client.send(req, handler); }
         catch (HttpTimeoutException e) { throw new ActionException("REST.TIMEOUT", "No response from " + url + " within " + timeout + " s", "Raise timeout_seconds or check the service.", true); }
-        catch (IOException e) { throw new ActionException("REST.UNREACHABLE", "Cannot reach " + url + ": " + e.getMessage(), "Check the URL, proxy settings and network access.", true); }
+        catch (IOException e) { throw new ActionException("REST.UNREACHABLE", "Cannot reach " + masked(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy settings and network access.", true); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted"); }
     }
 
@@ -163,7 +220,7 @@ public final class RestPackage {
 
     @Action(id = "download_file", name = "Download file", category = "HTTP", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
             description = "Download a URL straight to a file (any file type, including large binaries), with the same headers and authentication as Send request.",
-            panel = "url, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, path, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | query, overwrite, insecure_tls")
+            panel = "url, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, path, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, query, overwrite, insecure_tls")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "size_bytes", type = OoaType.NUMBER, description = "File size in bytes.")
@@ -183,9 +240,13 @@ public final class RestPackage {
             @Input(name = "proxy_user", type = OoaType.STRING, required = false, visibleWhen = "proxy!=", description = "Proxy user name, when the proxy needs a sign-in.") String proxyUser,
             @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "proxy!=", description = "Proxy password from the vault.") Object proxyPassword,
             @Input(name = "client_certificate", type = OoaType.FILE, required = false, description = "Client certificate (.p12 or .pfx) for servers that require mutual TLS.") String clientCert,
-            @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword) {
+            @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword,
+            @Input(name = "windows_auth", type = OoaType.STRING, required = false, enumValues = {"current_user", "user_password"},
+                    description = "Windows sign-in (NTLM or Kerberos) for intranet sites, SharePoint on premises, IIS and Exchange: current_user signs in as the runner's Windows account (Windows runners); user_password uses basic_user (DOMAIN\\user) and basic_password.") String windowsAuth) {
+        IntegratedAuthHttp.check(windowsAuth);
+        boolean windows = windowsAuth != null && !windowsAuth.isBlank();
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, false, true);
-        HttpRequest req = builder(url, query, headers, basicUser, basicPassword, bearer, timeout).GET().build();
+        HttpRequest req = builder(url, query, headers, windows ? null : basicUser, windows ? null : basicPassword, bearer, timeout).GET().build();
         ctx.info("GET " + masked(url) + " (download)");
         java.nio.file.Path target = ctx.resolvePath(path);
         java.nio.file.Path folder = java.nio.file.Files.isDirectory(target) ? target : target.getParent();
@@ -195,28 +256,52 @@ public final class RestPackage {
             temp = java.nio.file.Files.createTempFile(folder == null ? java.nio.file.Path.of(".") : folder, ".ooa-download-", ".part");
         } catch (IOException e) { throw new ActionException("REST.FILE_ERROR", "Cannot write into " + folder + ": " + e.getMessage(), "Check the folder exists and is writable."); }
         try {
-            HttpResponse<java.nio.file.Path> resp = send(opts.client(ctx, CLIENT), req, HttpResponse.BodyHandlers.ofFile(temp), url, timeout);
-            int status = resp.statusCode();
-            if (status >= 400) {
-                String body;
-                try { byte[] b = java.nio.file.Files.readAllBytes(temp); body = new String(b, 0, Math.min(b.length, 2000), StandardCharsets.UTF_8); } catch (IOException e) { body = ""; }
-                throw httpError("GET", url, status, body);
+            int status; String disposition, finalPath, type;
+            if (windows) {
+                if (bearer != null || insecure || (proxy != null && !proxy.isBlank()) || (clientCert != null && !clientCert.isBlank()))
+                    throw new ActionException("REST.BAD_AUTH", "windows_auth cannot be combined with bearer_token, a proxy, a client certificate or insecure_tls",
+                            "Use Windows sign-in alone (the runner's proxy settings apply).");
+                Map<String, String> hs = new LinkedHashMap<>();
+                req.headers().map().forEach((k, v) -> hs.put(k, String.join(", ", v)));
+                IntegratedAuthHttp.Response r = IntegratedAuthHttp.send(ctx, windowsAuth, "GET", req.uri().toString(), hs, null, basicUser, basicPassword, timeout, true, temp);
+                status = r.status();
+                if (status >= 400) throw httpError("GET", url, status, r.text().length() > 2000 ? r.text().substring(0, 2000) : r.text());
+                disposition = r.headers().get("content-disposition");
+                finalPath = URI.create(r.finalUrl()).getPath();
+                type = r.headers().getOrDefault("content-type", "");
+            } else {
+                HttpResponse<java.nio.file.Path> resp = sendHonouringRateLimit(ctx, opts.client(ctx, CLIENT), req, HttpResponse.BodyHandlers.ofFile(temp), url, timeout);
+                status = resp.statusCode();
+                if (status >= 400) {
+                    String body;
+                    try { byte[] b = java.nio.file.Files.readAllBytes(temp); body = new String(b, 0, Math.min(b.length, 2000), StandardCharsets.UTF_8); } catch (IOException e) { body = ""; }
+                    throw httpError("GET", url, status, body);
+                }
+                disposition = resp.headers().firstValue("Content-Disposition").orElse(null);
+                finalPath = resp.uri().getPath();
+                type = resp.headers().firstValue("Content-Type").orElse("");
             }
             if (java.nio.file.Files.isDirectory(target)) {
-                String name = resp.headers().firstValue("Content-Disposition").map(RestPackage::dispositionName)
-                        .orElseGet(() -> { String p = resp.uri().getPath(); return p == null ? "" : p.substring(p.lastIndexOf('/') + 1); });
+                String name = disposition != null ? dispositionName(disposition) : finalPath == null ? "" : finalPath.substring(finalPath.lastIndexOf('/') + 1);
                 target = target.resolve(HttpJson.safeName(java.net.URLDecoder.decode(name.isBlank() ? "download" : name, StandardCharsets.UTF_8)));
             }
             if (java.nio.file.Files.exists(target) && !overwrite)
                 throw new ActionException("REST.FILE_EXISTS", "File already exists: " + target, "Set overwrite to true or choose another path.");
             java.nio.file.Files.move(temp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             return Out.of("path", target.toString(), "status", BigDecimal.valueOf(status), "size_bytes", BigDecimal.valueOf(java.nio.file.Files.size(target)),
-                    "content_type", resp.headers().firstValue("Content-Type").orElse(""));
+                    "content_type", type);
         } catch (IOException e) {
             throw new ActionException("REST.FILE_ERROR", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open and check the folder is writable.", true);
         } finally {
             try { java.nio.file.Files.deleteIfExists(temp); } catch (IOException ignored) { }
         }
+    }
+
+    public Map<String, Object> downloadFile(ActionContext ctx, String url, String path, Map<String, Object> query, Map<String, Object> headers, String basicUser,
+            Object basicPassword, Object bearer, boolean overwrite, int timeout, boolean insecure, String proxy, String proxyUser, Object proxyPassword,
+            String clientCert, Object clientCertPassword) {
+        return downloadFile(ctx, url, path, query, headers, basicUser, basicPassword, bearer, overwrite, timeout, insecure, proxy, proxyUser, proxyPassword,
+                clientCert, clientCertPassword, null);
     }
 
     static String dispositionName(String header) {
@@ -273,7 +358,7 @@ public final class RestPackage {
         String m = "PUT".equalsIgnoreCase(method) ? "PUT" : "POST";
         b.method(m, HttpRequest.BodyPublishers.ofByteArray((byte[]) mp[0]));
         ctx.info(m + " " + masked(url) + " (upload " + fileName + ", " + data.length + " bytes)");
-        HttpResponse<String> resp = send(opts.client(ctx, CLIENT), b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+        HttpResponse<String> resp = sendHonouringRateLimit(ctx, opts.client(ctx, CLIENT), b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
         int status = resp.statusCode();
         if (failOnError && status >= 400) throw httpError(m, url, status, resp.body());
         Object parsed = null;

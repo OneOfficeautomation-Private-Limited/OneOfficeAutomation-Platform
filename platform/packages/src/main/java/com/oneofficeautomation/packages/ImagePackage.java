@@ -60,34 +60,76 @@ public final class ImagePackage {
         return find(gray(image), image.getWidth(), image.getHeight(), gray(template), template.getWidth(), template.getHeight());
     }
 
+    /** How many of the closest places (by pixel difference) are scored by correlation. */
+    private static final int CANDIDATES = 16;
+
+    /**
+     * The best place of the template in the image. Places are first ranked by mean pixel difference (fast, on a reduced
+     * image for larger templates), then each candidate is scored by zero-mean normalised cross-correlation as well. The
+     * pixel difference alone rated a mostly white template 90-99 % similar to any light, empty area (Click image could
+     * click the wrong place); correlation compares the picture's structure, so such areas now score low.
+     */
     static Match find(int[] gi, int iw, int ih, int[] gt, int tw, int th) {
         if (tw > iw || th > ih) return null;
         int f = Math.max(1, Math.min(4, Math.min(tw, th) / 8));
         List<int[]> candidates = new ArrayList<>();
-        if (f > 1) {
-            int[] si = shrink(gi, iw, ih, f), st = shrink(gt, tw, th, f);
-            int siw = iw / f, sih = ih / f, stw = tw / f, sth = th / f;
-            PriorityQueue<double[]> best = new PriorityQueue<>((a, b) -> Double.compare(b[0], a[0]));
-            for (int y = 0; y <= sih - sth; y++) for (int x = 0; x <= siw - stw; x++) {
-                double limit = best.size() < 8 ? 256 : best.peek()[0];
-                double d = mad(si, siw, st, stw, sth, x, y, limit);
-                if (d < limit) { best.add(new double[]{d, x, y}); if (best.size() > 8) best.poll(); }
-            }
-            for (double[] b : best) candidates.add(new int[]{(int) b[1] * f, (int) b[2] * f});
-        } else candidates.add(null);
+        int[] si = f > 1 ? shrink(gi, iw, ih, f) : gi, st = f > 1 ? shrink(gt, tw, th, f) : gt;
+        int siw = iw / f, sih = ih / f, stw = tw / f, sth = th / f;
+        PriorityQueue<double[]> best = new PriorityQueue<>((a, b) -> Double.compare(b[0], a[0]));
+        for (int y = 0; y <= sih - sth; y++) for (int x = 0; x <= siw - stw; x++) {
+            double limit = best.size() < CANDIDATES ? 256 : best.peek()[0];
+            double d = mad(si, siw, st, stw, sth, x, y, limit);
+            if (d < limit) { best.add(new double[]{d, x, y}); if (best.size() > CANDIDATES) best.poll(); }
+        }
+        for (double[] b : best) candidates.add(new int[]{(int) b[1] * f, (int) b[2] * f});
+        double[] tStats = stats(gt, tw, 0, 0, tw, th);
         Match bestMatch = null;
         for (int[] c : candidates) {
-            int x0 = c == null ? 0 : Math.max(0, c[0] - f), x1 = c == null ? iw - tw : Math.min(iw - tw, c[0] + f);
-            int y0 = c == null ? 0 : Math.max(0, c[1] - f), y1 = c == null ? ih - th : Math.min(ih - th, c[1] + f);
+            // the exact place near a coarse candidate is where the pixel difference is smallest
+            int x0 = Math.max(0, c[0] - f), x1 = Math.min(iw - tw, c[0] + f), y0 = Math.max(0, c[1] - f), y1 = Math.min(ih - th, c[1] + f);
+            int bx = c[0], by = c[1];
+            double bd = 256;
             for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) {
-                double limit = bestMatch == null ? 256 : (1 - bestMatch.score()) * 255;
-                double d = mad(gi, iw, gt, tw, th, x, y, limit);
-                double score = 1 - d / 255;
-                if (bestMatch == null || score > bestMatch.score()) bestMatch = new Match(x, y, score);
+                double d = mad(gi, iw, gt, tw, th, x, y, bd);
+                if (d < bd) { bd = d; bx = x; by = y; }
             }
+            double score = Math.min(1 - Math.min(bd, 255) / 255, correlation(gi, iw, gt, tw, th, bx, by, tStats));
+            // equal scores go to the place first in reading order (top, then left), as the full scan used to
+            if (bestMatch == null || score > bestMatch.score() + 1e-9
+                    || (Math.abs(score - bestMatch.score()) <= 1e-9 && (by < bestMatch.y() || (by == bestMatch.y() && bx < bestMatch.x()))))
+                bestMatch = new Match(bx, by, score);
         }
         return bestMatch;
     }
+
+    /** Mean and standard deviation of a window (0..255). */
+    static double[] stats(int[] g, int w, int ox, int oy, int tw, int th) {
+        double sum = 0, sq = 0;
+        for (int y = 0; y < th; y++) for (int x = 0; x < tw; x++) { double v = g[(oy + y) * w + ox + x]; sum += v; sq += v * v; }
+        double n = (double) tw * th, mean = sum / n;
+        return new double[]{mean, Math.sqrt(Math.max(0, sq / n - mean * mean))};
+    }
+
+    /**
+     * Zero-mean normalised cross-correlation of the template with the window at (ox, oy), from 0 (unrelated or opposite)
+     * to 1 (same picture, whatever the brightness). A flat, single-colour template has no structure to correlate, so it
+     * matches only flat windows.
+     */
+    static double correlation(int[] img, int iw, int[] t, int tw, int th, int ox, int oy, double[] tStats) {
+        double[] w = stats(img, iw, ox, oy, tw, th);
+        if (tStats[1] < 2) return w[1] < 2 ? 1 : Math.max(0, 1 - w[1] / 32);
+        if (w[1] < 1e-6) return 0;
+        double cov = 0;
+        for (int y = 0; y < th; y++) {
+            int ib = (oy + y) * iw + ox, tb = y * tw;
+            for (int x = 0; x < tw; x++) cov += (img[ib + x] - w[0]) * (t[tb + x] - tStats[0]);
+        }
+        cov /= (double) tw * th;
+        return Math.max(0, Math.min(1, cov / (w[1] * tStats[1])));
+    }
+
+    /** Most matches looked for when a later occurrence is asked for. */
+    static final int MAX_MATCHES = 100;
 
     /** Value written over an accepted match so the next search cannot find the same place again. */
     private static final int MASK = 100_000;
@@ -128,6 +170,10 @@ public final class ImagePackage {
         out.put("x", found ? BigDecimal.valueOf(m.x() + t.getWidth() / 2) : null);
         out.put("y", found ? BigDecimal.valueOf(m.y() + t.getHeight() / 2) : null);
         out.put("similarity", m == null ? BigDecimal.ZERO : BigDecimal.valueOf(m.score() * 100).setScale(1, RoundingMode.HALF_UP));
+        // every declared output is always there (empty when not found): a template larger than the image used to fail with
+        // "Action did not return output left" when the step stored left or top
+        out.put("left", found ? BigDecimal.valueOf(m.x()) : null);
+        out.put("top", found ? BigDecimal.valueOf(m.y()) : null);
         return out;
     }
 
@@ -170,8 +216,9 @@ public final class ImagePackage {
             count = Boolean.TRUE.equals(out.get("found")) ? 1 : 0;
             if (count == 1) out = place(out, m, t, dx, dy, position, offsetX, offsetY);
         } else {
-            List<Match> all = findAll(haystack, t, tol, Math.max(occurrence, 1));
-            count = all.size();
+            // every match first, then reading order: finding only "occurrence" matches could pick the wrong ones among equals
+            List<Match> all = findAll(haystack, t, tol, Math.max(occurrence, MAX_MATCHES));
+            count = Math.min(all.size(), occurrence);
             Match m = all.size() >= occurrence ? all.get(occurrence - 1) : null;
             out = result(m, t, m == null ? -1 : tol);
             if (m != null) out = place(out, m, t, dx, dy, position, offsetX, offsetY);

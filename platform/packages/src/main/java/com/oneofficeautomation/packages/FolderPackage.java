@@ -23,7 +23,7 @@ public final class FolderPackage {
     private static final String D_LARGER = "Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes).";
     private static final String D_SMALLER = "Only when the folder holds less than this many KB in all its files, at any depth.";
     private static final String D_AFTER = "Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it.";
-    private static final String D_BEFORE = "Only when the folder itself was last changed before this date and time (local time).";
+    private static final String D_BEFORE = "Only when the folder itself was last changed before this date and time (UTC, like every DateTime; Text to date converts local times).";
 
     /**
      * The optional conditions of Delete folder and Rename folder. Every limit given must hold; size is the total of all
@@ -121,8 +121,8 @@ public final class FolderPackage {
             @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "overwrite=true", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer,
             @Input(name = "larger_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files larger than this many KB (1 KB = 1024 bytes).") java.math.BigDecimal largerKb,
             @Input(name = "smaller_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files smaller than this many KB.") java.math.BigDecimal smallerKb,
-            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only copy files last changed after this date and time (local time).") java.time.LocalDateTime after,
-            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only copy files last changed before this date and time (local time).") java.time.LocalDateTime before) {
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only copy files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") java.time.LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only copy files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") java.time.LocalDateTime before) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
         if (!Files.isDirectory(s)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + s, "Check the source path.");
         PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));

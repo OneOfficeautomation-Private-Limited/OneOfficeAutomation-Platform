@@ -237,14 +237,14 @@ class PropertyGapsTest {
         ActionContext c = ctx(w);
         ApplicationPackage a = new ApplicationPackage();
         assertEquals("APPLICATION.BAD_VARIABLE_NAME", code(() -> ApplicationPackage.env(Map.of("A=B", "x"))));
-        assertEquals("APPLICATION.BAD_WINDOW_STATE", code(() -> a.startProgram(c, "x", null, null, "tiny", null, 0)));
+        assertEquals("APPLICATION.BAD_WINDOW_STATE", code(() -> a.startProgram(c, "x", null, null, "tiny", null, 0, false)));
         assertEquals("Minimized", ApplicationPackage.windowStyle("minimized"));
         assertTrue(ApplicationPackage.START_SCRIPT.contains("$env:OOA_APP_PROGRAM"), "values travel in environment variables");
         List<Object> echo = ProcessRunner.WINDOWS ? List.of("/c", "echo %OOA_APP_TEST%") : List.of("-c", "echo $OOA_APP_TEST");
-        Map<String, Object> r = a.runProgram(c, ProcessRunner.WINDOWS ? "cmd.exe" : "sh", echo, null, null, 30, true, Map.of("OOA_APP_TEST", "from-env"), "utf-8");
+        Map<String, Object> r = a.runProgram(c, ProcessRunner.WINDOWS ? "cmd.exe" : "sh", echo, null, null, 30, true, Map.of("OOA_APP_TEST", "from-env"), "utf-8", false);
         assertEquals("from-env", String.valueOf(r.get("output")).strip());
         if (ProcessRunner.WINDOWS) {
-            long pid = ((BigDecimal) a.startProgram(c, "ping.exe", List.of("-n", "3", "127.0.0.1"), null, "hidden", null, 0).get("process_id")).longValue();
+            long pid = ((BigDecimal) a.startProgram(c, "ping.exe", List.of("-n", "3", "127.0.0.1"), null, "hidden", null, 0, false).get("process_id")).longValue();
             assertTrue(pid > 0);
             ProcessHandle.of(pid).ifPresent(ProcessHandle::destroy);
         }

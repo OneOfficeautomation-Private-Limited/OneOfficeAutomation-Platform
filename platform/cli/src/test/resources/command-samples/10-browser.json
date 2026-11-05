@@ -53,7 +53,7 @@
   {"command": "ooa.browser/download", "name": "click a download link", "requires": "browser",
    "files": {"d.html": "<title>D</title><a id='dl' href='report.csv' download>get</a>", "report.csv": "a,b\n1,2\n"},
    "steps": [{"action": "ooa.browser/open", "args": {"url": "{web}/d.html", "headless": true, "engine": "playwright", "keep_open": false}},
-     {"action": "ooa.browser/download", "args": {"selector": "#dl", "folder": "{tmp}/dl", "timeout_ms": 15000}, "out": {"path": "p"}},
+     {"action": "ooa.browser/download", "args": {"selector": "#dl", "folder": "{tmp}/dl", "timeout_ms": 60000, "start_timeout_ms": 45000}, "out": {"path": "p"}},
      {"action": "ooa.browser/close"}], "expect": {"p": {"$contains": "report.csv"}}},
   {"command": "ooa.browser/download_url", "name": "download by address, no browser", "files": {"f.txt": "hello"},
    "steps": [{"action": "ooa.browser/download_url", "args": {"url": "{web}/f.txt", "save_to": "{tmp}/out/f.txt"}, "out": {"size": "n"}}], "expect": {"n": 5}, "expectFiles": {"out/f.txt": "hello"}},

@@ -260,6 +260,42 @@ class CommunityEditionGapsTest {
         // turning it off removes people's own values
         cr.setGlobal(admin, "report_folder", "D:/Reports", false, null);
         assertEquals(0, cr.count("SELECT COUNT(*) AS n FROM user_global_values"));
+
+        // gap round 2: values per team (user group), and types the server checks
+        String sales = (String) cr.teams.save(admin, null, "sales_team", "Sales", null).get("id");
+        cr.teams.setMembers(admin, sales, List.of(Map.of("username", "bob")), null);
+        cr.setGlobal(admin, "report_folder", "D:/Reports", true, "text", null);
+        cr.setTeamGlobal(admin, "report_folder", sales, "D:/Sales", null);
+        assertEquals("CR.FORBIDDEN", code(() -> cr.setTeamGlobal(bob, "report_folder", sales, "D:/X", null)), "only managers set team values");
+        Map<String, Object> listed = cr.globals(bob).stream().filter(x -> x.get("name").equals("report_folder")).findFirst().orElseThrow();
+        assertEquals("text", listed.get("type"));
+        assertEquals(List.of(Map.of("team_id", sales, "team_name", "sales_team", "value", "D:/Sales")), listed.get("team_values"));
+        cr.startRun("bob", "bot_runner", "Sales/Report.flow.json", device, Map.of(), "manual", null);
+        assertEquals("D:/Sales", ((Map<String, Object>) claim().get("global_values")).get("report_folder"), "a member's runs use the team's value");
+        finishAll();
+        cr.setMyGlobal(bob, "report_folder", "D:/Bob", null);
+        cr.startRun("bob", "bot_runner", "Sales/Report.flow.json", device, Map.of(), "manual", null);
+        assertEquals("D:/Bob", ((Map<String, Object>) claim().get("global_values")).get("report_folder"), "a person's own value wins over the team's");
+        finishAll();
+        cr.startRun("jane", "bot_creator", "Sales/Report.flow.json", device, Map.of(), "manual", null);
+        assertEquals("D:/Reports", ((Map<String, Object>) claim().get("global_values")).get("report_folder"), "others use the shared value");
+        finishAll();
+        // types: values that do not fit are refused; changing the type drops team and personal values that no longer fit
+        cr.setGlobal(admin, "batch_size", 50, false, "number", null);
+        assertEquals("CR.BAD_INPUT", code(() -> cr.setGlobal(admin, "batch_size", "many", null, null, null)));
+        cr.setGlobal(admin, "batch_size", "75", null, null, null);
+        assertEquals(new java.math.BigDecimal("75"), cr.globals(admin).stream().filter(x -> x.get("name").equals("batch_size")).findFirst().orElseThrow().get("value"));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.setTeamGlobal(admin, "batch_size", sales, "lots", null)));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.setGlobal(admin, "x", 1, null, "colour", null)));
+        cr.setGlobal(admin, "report_folder", 7, null, "number", null);
+        assertEquals(0, cr.count("SELECT COUNT(*) AS n FROM team_global_values WHERE name = 'report_folder'"), "the text team value no longer fits a number");
+        assertEquals(0, cr.count("SELECT COUNT(*) AS n FROM user_global_values WHERE name = 'report_folder'"));
+        cr.setGlobal(admin, "cutoff", "2026-12-31", null, "date", null);
+        assertEquals("CR.BAD_INPUT", code(() -> cr.setGlobal(admin, "cutoff", "31/12/2026", null, null, null)));
+        cr.setGlobal(admin, "report_folder", "D:/Reports", null, "text", null);
+        cr.setTeamGlobal(admin, "report_folder", sales, "D:/Sales", null);
+        cr.teams.delete(admin, sales, null);
+        assertEquals(0, cr.count("SELECT COUNT(*) AS n FROM team_global_values"), "a deleted team's values go with it");
     }
 
     @Test @Order(7)

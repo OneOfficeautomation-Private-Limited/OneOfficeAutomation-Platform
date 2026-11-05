@@ -139,7 +139,11 @@ class Q8PanelOptionsTest {
             try {
                 Thread.sleep(300);
                 ImageIO.write(screen, "png", tmp.resolve("screen.tmp.png").toFile());
-                Files.move(tmp.resolve("screen.tmp.png"), tmp.resolve("screen.png"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                // on Windows the move fails while the step happens to be reading the old file; a real writer retries too
+                for (int attempt = 1; ; attempt++) {
+                    try { Files.move(tmp.resolve("screen.tmp.png"), tmp.resolve("screen.png"), java.nio.file.StandardCopyOption.REPLACE_EXISTING); break; }
+                    catch (java.nio.file.FileSystemException busy) { if (attempt == 50) throw busy; Thread.sleep(10); }
+                }
             } catch (Exception e) { throw new RuntimeException(e); }
         });
         writer.start();

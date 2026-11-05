@@ -61,7 +61,7 @@ public final class WordPackage {
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
     @Action(id = "open", name = "Open document", category = "Document", capabilities = "filesystem",
-            description = "Open a .docx document, or create a new one, as a named session; can open password-protected files and open read-only.",
+            description = "Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named session; can open password-protected .docx files and open read-only. .doc, .rtf and .odt files are converted with Word or LibreOffice on the runner and saved back in their own format.",
             panel = "path, read_only, [The file has a password: password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Document path.") String path,
@@ -74,7 +74,11 @@ public final class WordPackage {
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         XWPFDocument doc;
-        if (Files.exists(p)) {
+        String ext = com.oneofficeautomation.packages.OfficeConvert.extension(p);
+        if (Files.exists(p) && com.oneofficeautomation.packages.OfficeConvert.needsConversion("word", ext)) {
+            if (pw != null) throw new ActionException("WORD.PASSWORD_NOT_SUPPORTED", "Password-protected ." + ext + " files cannot be opened", "Remove the password in Word, or save the file as .docx.");
+            doc = readConverted(ctx, p);
+        } else if (Files.exists(p)) {
             try (InputStream in = OfficeCrypto.open(p, pw, "WORD")) { doc = new XWPFDocument(in); }
             catch (ActionException e) { throw e; }
             catch (IOException | RuntimeException e) { throw new ActionException("WORD.OPEN_FAILED", "Cannot open " + p + ": " + e.getMessage(), "Close it in Word and check it is a .docx file.", true); }
@@ -94,6 +98,13 @@ public final class WordPackage {
         return readText(ctx, session, includeTables, includeHf, from, to, null, null);
     }
 
+    public Map<String, Object> readText(ActionContext ctx, String session, boolean includeTables, boolean includeHf, Integer from, Integer to, String bookmark, Integer page) {
+        return readText(ctx, session, includeTables, includeHf, from, to, bookmark, page, "auto");
+    }
+
+    static final String D_PAGE_BREAKS = "How pages are counted: auto uses the page layout Word saved in the file when there is one, else the page and section breaks stored in it; "
+            + "layout uses only Word's saved layout; breaks uses only the stored breaks (pages Word fills up on its own are then not counted).";
+
     @Action(id = "extract_text", name = "Extract text from a file", category = "Text", idempotent = true, capabilities = "filesystem",
             description = "Return the whole text of a .doc, .docx or .rtf file without opening it as a session; old .doc and .rtf files included.",
             panel = "path")
@@ -104,7 +115,7 @@ public final class WordPackage {
 
     @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true,
             description = "Return the paragraph text, one paragraph per line, of the whole body, a range of paragraphs, the text inside a bookmark or one page, optionally with tables, headers and footers.",
-            panel = "(Read: The whole document = / A paragraph range = from_paragraph, to_paragraph / A bookmark = bookmark / A page = page), include_tables, include_headers_footers | session")
+            panel = "(Read: The whole document = / A paragraph range = from_paragraph, to_paragraph / A bookmark = bookmark / A page = page, page_breaks), include_tables, include_headers_footers | session")
     @Output(name = "text", type = OoaType.STRING, description = "Document text.")
     @Output(name = "paragraphs", type = OoaType.LIST, description = "Each body paragraph's text.")
     public Map<String, Object> readText(ActionContext ctx,
@@ -118,11 +129,12 @@ public final class WordPackage {
             @Input(name = "bookmark", type = OoaType.STRING, required = false,
                     description = "Read only the text between the start and end of this bookmark (tables inside it included); overrides the paragraph range and page.") String bookmark,
             @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1,
-                    description = "Read only this 1-based page, counted from page breaks, 'page break before' paragraphs and section breaks stored in the file "
-                            + "(pages Word fills up on its own are not counted); overrides the paragraph range.") Integer page) {
+                    description = "Read only this 1-based page (see page_breaks for how pages are counted); overrides the paragraph range.") Integer page,
+            @Input(name = "page_breaks", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "layout", "breaks"}, visibleWhen = "page!=",
+                    description = D_PAGE_BREAKS) String pageBreaks) {
         XWPFDocument doc = s(ctx, session).doc;
         if (bookmark != null && !bookmark.isBlank()) return textResult(bookmarkText(doc, bookmark));
-        if (page != null) return textResult(pageText(doc, page));
+        if (page != null) return textResult(pageText(doc, page, pageBreaks));
         List<Object> paras = new ArrayList<>();
         if (includeHf) for (XWPFHeader h : doc.getHeaderList()) for (XWPFParagraph p : h.getParagraphs()) paras.add(p.getText());
         int idx = 0;
@@ -201,12 +213,105 @@ public final class WordPackage {
      * Text of one page, counting pages from breaks stored in the file: page breaks, paragraphs with 'page break before'
      * and section breaks that start a new page.
      */
-    static String pageText(XWPFDocument d, int page) {
+    static String pageText(XWPFDocument d, int page) { return pageText(d, page, "breaks"); }
+
+    /** Whether the file holds Word's last page layout (w:lastRenderedPageBreak markers), for page counting. */
+    static boolean hasLayout(XWPFDocument d) {
+        boolean[] found = {false};
+        walkBody(d, (local, c) -> { if ("lastRenderedPageBreak".equals(local)) { found[0] = true; return false; } return true; });
+        return found[0];
+    }
+
+    /** layout or breaks for a page_breaks choice. */
+    static boolean useLayout(XWPFDocument d, String mode) {
+        String m = mode == null || mode.isBlank() ? "auto" : mode.trim().toLowerCase(Locale.ROOT);
+        return switch (m) {
+            case "auto" -> hasLayout(d);
+            case "layout" -> {
+                if (!hasLayout(d)) throw new ActionException("WORD.NO_LAYOUT", "The file holds no page layout from Word", "Open and save it in Word once, or use page_breaks auto or breaks.");
+                yield true;
+            }
+            case "breaks" -> false;
+            default -> throw new ActionException("WORD.BAD_OPTION", "page_breaks must be auto, layout or breaks, not '" + mode + "'", null);
+        };
+    }
+
+    /** Page (1-based) of every run in the body, and the number of pages. */
+    record PageMap(Map<Object, Integer> runs, int count) {
+        Integer of(XWPFRun r) { return runs.get(r.getCTR()); }
+
+        /** Page of the run holding the character at offset in the paragraph's run text. */
+        Integer at(XWPFParagraph p, int offset) {
+            int pos = 0;
+            for (XWPFRun r : p.getRuns()) {
+                int len = runText(r).length();
+                if (offset < pos + len || len == 0 && offset == pos) { Integer pg = of(r); if (pg != null) return pg; }
+                pos += len;
+            }
+            return p.getRuns().isEmpty() ? null : of(p.getRuns().get(p.getRuns().size() - 1));
+        }
+    }
+
+    static PageMap pages(XWPFDocument d, String mode) {
+        boolean layout = useLayout(d, mode);
+        Map<Object, Integer> runs = new IdentityHashMap<>();
+        int[] current = {1}, paragraphs = {0};
+        boolean[] sectionBreak = {false};
+        walkBody(d, (local, c) -> {
+            if (layout) {
+                if ("r".equals(local)) runs.put(c.getObject(), current[0]);
+                else if ("lastRenderedPageBreak".equals(local)) {
+                    current[0]++;
+                    org.apache.xmlbeans.XmlCursor k = c.newCursor();
+                    try { if (k.toParent()) runs.put(k.getObject(), current[0]); } finally { k.close(); }
+                }
+                return true;
+            }
+            switch (local) {
+                case "p", "tbl" -> {
+                    if (sectionBreak[0]) { current[0]++; sectionBreak[0] = false; }
+                    if ("p".equals(local)) paragraphs[0]++;
+                }
+                case "pageBreakBefore" -> {
+                    String v = wAttr(c, "val");
+                    if (paragraphs[0] > 1 && (v == null || !(v.equals("0") || v.equalsIgnoreCase("false") || v.equalsIgnoreCase("off")))) current[0]++;
+                }
+                case "r" -> runs.put(c.getObject(), current[0]);
+                case "br" -> { if ("page".equals(wAttr(c, "type"))) current[0]++; }
+                case "sectPr" -> {
+                    org.apache.xmlbeans.XmlCursor k = c.newCursor();
+                    try {
+                        String type = k.toChild(new javax.xml.namespace.QName(W_NS, "type")) ? wAttr(k, "val") : null;
+                        if (!"continuous".equals(type) && !"nextColumn".equals(type)) sectionBreak[0] = true;
+                    } finally { k.close(); }
+                }
+                default -> { }
+            }
+            return true;
+        });
+        return new PageMap(runs, current[0]);
+    }
+
+    /** The page number of the step's page input, checked against the document. */
+    static int checkPage(PageMap m, int page) {
         if (page < 1) throw new ActionException("WORD.NO_PAGE", "Page must be 1 or more, not " + page, "Use a 1-based page number.");
+        if (page > m.count()) throw new ActionException("WORD.NO_PAGE", "There is no page " + page + " (the document has " + m.count() + ")", "Use a page from 1 to " + m.count() + ".");
+        return page;
+    }
+
+    static String pageText(XWPFDocument d, int page, String mode) {
+        if (page < 1) throw new ActionException("WORD.NO_PAGE", "Page must be 1 or more, not " + page, "Use a 1-based page number.");
+        boolean layout = useLayout(d, mode);
         StringBuilder sb = new StringBuilder();
         int[] current = {1}, paragraphs = {0};
         boolean[] sectionBreak = {false};
         walkBody(d, (local, c) -> {
+            if (layout) {
+                if ("p".equals(local)) { paragraphs[0]++; if (current[0] == page && sb.length() > 0) sb.append('\n'); }
+                else if ("lastRenderedPageBreak".equals(local)) current[0]++;
+                if (current[0] == page) { String piece = pieceText(local, c); if (piece != null) sb.append(piece); }
+                return current[0] <= page;
+            }
             switch (local) {
                 case "p", "tbl" -> {
                     if (sectionBreak[0]) { current[0]++; sectionBreak[0] = false; }
@@ -230,9 +335,22 @@ public final class WordPackage {
             return current[0] <= page;
         });
         if (current[0] < page)
-            throw new ActionException("WORD.NO_PAGE", "There is no page " + page + " (the document has " + current[0] + " counted from its page and section breaks)",
+            throw new ActionException("WORD.NO_PAGE", "There is no page " + page + " (the document has " + current[0] + (layout ? " in Word's saved layout)" : " counted from its page and section breaks)"),
                     "Use a page from 1 to " + current[0] + ".");
         return sb.toString().strip();
+    }
+
+    @Action(id = "get_page_count", name = "Get page count", category = "Document", idempotent = true,
+            description = "Count the document's pages, from the page layout Word saved in the file or from its page and section breaks.",
+            panel = "page_breaks | session")
+    @Output(name = "pages", type = OoaType.NUMBER, description = "Number of pages.")
+    @Output(name = "counted_from", type = OoaType.STRING, description = "layout (Word's saved layout) or breaks (stored page and section breaks).")
+    public Map<String, Object> pageCount(ActionContext ctx,
+            @Input(name = "page_breaks", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "layout", "breaks"}, description = D_PAGE_BREAKS) String pageBreaks,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session) {
+        XWPFDocument doc = s(ctx, session).doc;
+        boolean layout = useLayout(doc, pageBreaks);
+        return Map.of("pages", BigDecimal.valueOf(pages(doc, layout ? "layout" : "breaks").count()), "counted_from", layout ? "layout" : "breaks");
     }
 
     /** One occurrence of a search text: the paragraph and the character range inside its runs' text. */
@@ -286,12 +404,16 @@ public final class WordPackage {
         return replaceText(ctx, find, with, session, matchCase, wholeWord, occurrence, null, null);
     }
 
+    public Map<String, Object> replaceText(ActionContext ctx, String find, String with, String session, boolean matchCase, boolean wholeWord, String occurrence, Integer from, Integer to) {
+        return replaceText(ctx, find, with, session, matchCase, wholeWord, occurrence, from, to, null);
+    }
+
     private static final String D_FROM = "1-based first body paragraph to search; the whole document (with tables, headers and footers) when both are empty.";
     private static final String D_TO = "1-based last body paragraph to search, included; to the end when empty.";
 
     @Action(id = "replace_text", name = "Replace text", category = "Text",
             description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template; can ignore case, match whole words or change only the first or last occurrence.",
-            panel = "find, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph), replace_with, occurrence | session")
+            panel = "find, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph / A page = page), replace_with, occurrence | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
     public Map<String, Object> replaceText(ActionContext ctx,
             @Input(name = "find", type = OoaType.STRING, example = "{{customer}}", description = "Text to find.") String find,
@@ -301,11 +423,21 @@ public final class WordPackage {
             @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_WHOLE_WORD) boolean wholeWord,
             @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence,
             @Input(name = "from_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_FROM) Integer from,
-            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to) {
+            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "Only replace text on this 1-based page of the body (from Word's saved page layout, else the stored page breaks).") Integer page) {
         if (find.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to find is empty");
         String rep = with == null ? "" : with;
-        if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence) || from != null || to != null) {
-            List<Hit> hs = hits(s(ctx, session).doc, searchPattern(find, matchCase, wholeWord), occurrence, from, to);
+        if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence) || from != null || to != null || page != null) {
+            XWPFDocument doc = s(ctx, session).doc;
+            List<Hit> hs;
+            if (page != null) {
+                PageMap pm = pages(doc, "auto");
+                checkPage(pm, page);
+                List<Hit> all = new ArrayList<>();
+                for (Hit h : hits(doc, searchPattern(find, matchCase, wholeWord), "all", from, to)) if (Objects.equals(pm.at(h.p(), h.start()), page)) all.add(h);
+                hs = pickOccurrence(all, occurrence, "WORD");
+            } else hs = hits(doc, searchPattern(find, matchCase, wholeWord), occurrence, from, to);
             for (int i = hs.size() - 1; i >= 0; i--) {  // back to front keeps earlier offsets valid
                 Hit h = hs.get(i);
                 List<XWPFRun> runs = isolate(h.p(), h.start(), h.end());
@@ -341,15 +473,69 @@ public final class WordPackage {
     public Map<String, Object> addParagraph(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Paragraph text.") String text,
             @Input(name = "bold", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Bold text.") boolean bold,
-            @Input(name = "style", type = OoaType.STRING, required = false, description = "Style id from the document, e.g. Heading1.") String style,
+            @Input(name = "style", type = OoaType.STRING, required = false, description = "Style of the document by id or name, e.g. Heading1 or Heading 1; Heading1-6, Title, Subtitle and Quote are added to documents that lack them.") String style,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session) {
-        XWPFParagraph p = appendParagraph(s(ctx, session).doc);
-        if (style != null && !style.isBlank()) p.setStyle(style);
+        XWPFDocument doc = s(ctx, session).doc;
+        String styleId = style == null || style.isBlank() ? null : paragraphStyle(doc, style.strip());
+        XWPFParagraph p = appendParagraph(doc);
+        if (styleId != null) p.setStyle(styleId);
         String[] lines = text.split("\n", -1);
         XWPFRun r = p.createRun();
         r.setBold(bold);
         for (int i = 0; i < lines.length; i++) { if (i > 0) r.addBreak(); r.setText(lines[i], i); }
         return Map.of();
+    }
+
+    /** Built-in paragraph styles created on demand: id, name, size in points, outline level (-1 = none), italic. */
+    private static final Object[][] BUILT_IN_STYLES = {
+            {"Title", "Title", 28, -1, false}, {"Subtitle", "Subtitle", 15, -1, true}, {"Quote", "Quote", 11, -1, true},
+            {"Heading1", "heading 1", 16, 0, false}, {"Heading2", "heading 2", 13, 1, false}, {"Heading3", "heading 3", 12, 2, false},
+            {"Heading4", "heading 4", 11, 3, true}, {"Heading5", "heading 5", 11, 4, false}, {"Heading6", "heading 6", 11, 5, true}};
+
+    /**
+     * The id of a paragraph style given by id or name. An unknown style used to be accepted silently (the paragraph kept
+     * the default look); now the common built-in styles are added when missing and anything else is refused with the list.
+     */
+    static String paragraphStyle(XWPFDocument doc, String style) {
+        XWPFStyles styles = doc.getStyles();
+        String compact = style.replace(" ", "");
+        if (styles != null) {
+            if (styles.styleExist(style)) return style;
+            XWPFStyle byName = styles.getStyleWithName(style);
+            if (byName == null) byName = styles.getStyleWithName(style.toLowerCase(Locale.ROOT));
+            if (byName != null) return byName.getStyleId();
+            if (styles.styleExist(compact)) return compact;
+        }
+        for (Object[] b : BUILT_IN_STYLES) {
+            if (!((String) b[0]).equalsIgnoreCase(compact)) continue;
+            if (styles == null) styles = doc.createStyles();
+            String id = (String) b[0];
+            if (styles.styleExist(id)) return id;
+            var ct = org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle.Factory.newInstance();
+            ct.setStyleId(id);
+            ct.setType(org.openxmlformats.schemas.wordprocessingml.x2006.main.STStyleType.PARAGRAPH);
+            ct.addNewName().setVal((String) b[1]);
+            ct.addNewQFormat();
+            var rpr = ct.addNewRPr();
+            rpr.addNewB();
+            if ((Boolean) b[4]) rpr.addNewI();
+            rpr.addNewSz().setVal(java.math.BigInteger.valueOf((Integer) b[2] * 2L));
+            if ((Integer) b[3] >= 0) {
+                var ppr = ct.addNewPPr();
+                ppr.addNewKeepNext();
+                ppr.addNewOutlineLvl().setVal(java.math.BigInteger.valueOf((Integer) b[3]));
+            }
+            styles.addStyle(new XWPFStyle(ct, styles));
+            return id;
+        }
+        List<String> have = new ArrayList<>();
+        if (styles != null) try {
+            for (var st : doc.getStyle().getStyleList())
+                if (st.getType() == org.openxmlformats.schemas.wordprocessingml.x2006.main.STStyleType.PARAGRAPH) have.add(st.getStyleId());
+        } catch (IOException | org.apache.xmlbeans.XmlException | RuntimeException ignored) { /* list stays empty */ }
+        throw new ActionException("WORD.BAD_STYLE", "The document has no paragraph style '" + style + "'",
+                (have.isEmpty() ? "The document defines no paragraph styles; use " : "Styles in this document: " + String.join(", ", have) + "; or use ")
+                        + "Heading1-6, Title, Subtitle or Quote, which are added when missing.");
     }
 
     public Map<String, Object> addTable(ActionContext ctx, Map<String, Object> table, String session) { return addTable(ctx, table, session, true, null, null, null); }
@@ -530,7 +716,7 @@ public final class WordPackage {
         Path target = path == null || path.isBlank() ? d.path : ctx.resolvePath(path);
         refuseReadOnly(d, target);
         String pw = OfficeCrypto.secret(password);
-        writeTo(d, target, pw != null ? pw : d.password);
+        writeTo(ctx, d, target, pw != null ? pw : d.password);
         return Map.of();
     }
 
@@ -542,7 +728,7 @@ public final class WordPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
         session = ctx.sessionNameOrOnly(session, "word", DocSession.class);
-        if (save && ctx.sessions().get(session) instanceof DocSession d) { refuseReadOnly(d, d.path); writeTo(d, d.path, d.password); }
+        if (save && ctx.sessions().get(session) instanceof DocSession d) { refuseReadOnly(d, d.path); writeTo(ctx, d, d.path, d.password); }
         Object o = ctx.sessions().remove(session);
         if (o instanceof DocSession d) try { d.close(); } catch (IOException ignored) { }
         return Map.of();
@@ -559,7 +745,7 @@ public final class WordPackage {
     }
 
     @Action(id = "create_document", name = "Create document", category = "Document", capabilities = "filesystem",
-            description = "Create a new .docx file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.",
+            description = "Create a new .docx (or .doc, .rtf or .odt) file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.",
             panel = "path, [Require a password to open the file: password], [Require a password to edit the file: edit_password] | overwrite, template, session")
     public Map<String, Object> createDocument(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new document.") String path,
@@ -575,7 +761,8 @@ public final class WordPackage {
         if (template != null && !template.isBlank()) {
             Path t = ctx.resolvePath(template);
             if (!Files.isRegularFile(t)) throw new ActionException("WORD.NOT_FOUND", "Template not found: " + t, "Fix the template path.");
-            try (InputStream in = Files.newInputStream(t)) { doc = new XWPFDocument(in); }
+            if (com.oneofficeautomation.packages.OfficeConvert.needsConversion("word", com.oneofficeautomation.packages.OfficeConvert.extension(t))) doc = readConverted(ctx, t);
+            else try (InputStream in = Files.newInputStream(t)) { doc = new XWPFDocument(in); }
             catch (IOException | RuntimeException e) { throw new ActionException("WORD.OPEN_FAILED", "Cannot open template " + t + ": " + e.getMessage(), "Use a .docx template.", true); }
         } else {
             doc = new XWPFDocument();
@@ -587,16 +774,47 @@ public final class WordPackage {
         d.password = OfficeCrypto.secret(password);
         Object old = ctx.sessions().put(session, d);
         if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
-        writeTo(d, p, d.password);
+        writeTo(ctx, d, p, d.password);
         return Map.of();
     }
 
-    private static void writeTo(DocSession d, Path target) { writeTo(d, target, null); }
+    private static void writeTo(DocSession d, Path target) { writeTo(null, d, target, null); }
 
-    /** Writes the document atomically, encrypted when a password is given. */
-    private static void writeTo(DocSession d, Path target, String password) {
+    private static void writeTo(DocSession d, Path target, String password) { writeTo(null, d, target, password); }
+
+    /**
+     * Writes the document atomically, encrypted when a password is given. A .doc, .rtf or .odt target is written as
+     * .docx first and converted with Word or LibreOffice (passwords are kept in .docx files only).
+     */
+    private static void writeTo(ActionContext ctx, DocSession d, Path target, String password) {
+        String ext = com.oneofficeautomation.packages.OfficeConvert.extension(target);
+        if (com.oneofficeautomation.packages.OfficeConvert.needsConversion("word", ext)) {
+            if (password != null) throw new ActionException("WORD.PASSWORD_NOT_SUPPORTED", "Passwords can be kept in .docx files only, not ." + ext, "Save as .docx, or clear the password.");
+            if (ctx == null) throw new ActionException("WORD.SAVE_FAILED", "Cannot save ." + ext + " here", "Save as .docx.");
+            Path tmp = null;
+            try {
+                tmp = Files.createTempFile("ooa-word-", ".docx");
+                OfficeCrypto.write(tmp, OfficeCrypto.bytes(d.doc::write), null);
+                com.oneofficeautomation.packages.OfficeConvert.convert(ctx, tmp, target, "word", "WORD", 600);
+            } catch (IOException e) { throw new ActionException("WORD.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open in Word.", true);
+            } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
+            return;
+        }
         try { OfficeCrypto.write(target, OfficeCrypto.bytes(d.doc::write), password); }
         catch (IOException e) { throw new ActionException("WORD.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open in Word.", true); }
+    }
+
+    /** Opens a .doc, .rtf or .odt file by converting a copy to .docx with Word or LibreOffice. */
+    static XWPFDocument readConverted(ActionContext ctx, Path p) {
+        Path tmp = null;
+        try {
+            tmp = Files.createTempFile("ooa-word-", ".docx");
+            com.oneofficeautomation.packages.OfficeConvert.convert(ctx, p, tmp, "word", "WORD", 600);
+            try (InputStream in = Files.newInputStream(tmp)) { return new XWPFDocument(in); }
+        } catch (IOException | RuntimeException e) {
+            if (e instanceof ActionException a) throw a;
+            throw new ActionException("WORD.OPEN_FAILED", "Cannot open " + p + ": " + e.getMessage(), "Check the file opens in Word.", true);
+        } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
     }
 
     /** Finds the first paragraph (body, tables, headers, footers) containing the text. */
@@ -678,6 +896,79 @@ public final class WordPackage {
         return insertText(ctx, text, position, anchor, newParagraph, session, null, null, null, null, null, null);
     }
 
+    public Map<String, Object> insertText(ActionContext ctx, String text, String position, String anchor, boolean newParagraph, String session,
+                                          Boolean bold, Boolean italic, Boolean underline, Double size, String colour, String font) {
+        return insertText(ctx, text, position, anchor, newParagraph, session, bold, italic, underline, size, colour, font, false);
+    }
+
+    /** Where inserted HTML goes: blocks are added one after the other, starting at the position. */
+    private static HtmlToDocx.Place htmlPlace(XWPFDocument d, String pos, String anchor) {
+        IBody body;
+        org.apache.xmlbeans.XmlObject before = null, after = null;
+        switch (pos) {
+            case "end" -> {
+                XWPFParagraph blank = blankOnly(d);
+                return new HtmlToDocx.Place() {
+                    boolean usedBlank = blank == null;
+                    public XWPFParagraph paragraph() { if (!usedBlank) { usedBlank = true; return blank; } return d.createParagraph(); }
+                    public XWPFTable table(int rows, int cols) {
+                        if (!usedBlank) { usedBlank = true; d.removeBodyElement(d.getPosOfParagraph(blank)); }
+                        return HtmlToDocx.shape(d.createTable(), rows, cols);
+                    }
+                };
+            }
+            case "start" -> {
+                body = d;
+                if (d.getBodyElements().isEmpty()) return htmlPlace(d, "end", null);
+                IBodyElement first = d.getBodyElements().get(0);
+                before = first instanceof XWPFTable t ? t.getCTTbl() : ((XWPFParagraph) first).getCTP();
+            }
+            case "after_text", "before_text" -> {
+                XWPFParagraph p = findParagraph(d, anchor);
+                body = p.getBody();
+                if (pos.equals("after_text")) after = p.getCTP(); else before = p.getCTP();
+            }
+            case "bookmark" -> {
+                XWPFParagraph found = null;
+                for (XWPFParagraph p : allParagraphs(d)) for (var bm : p.getCTP().getBookmarkStartList()) if (anchor.equals(bm.getName())) found = found == null ? p : found;
+                if (found == null) throw new ActionException("WORD.NO_BOOKMARK", "Bookmark '" + anchor + "' not found", "Check the bookmark name in Word (Insert > Bookmark).");
+                body = found.getBody();
+                after = found.getCTP();
+            }
+            default -> throw new ActionException("WORD.BAD_POSITION", "Unknown position '" + pos + "'", "Use end, start, after_text, before_text or bookmark.");
+        }
+        final IBody b = body;
+        final org.apache.xmlbeans.XmlObject firstBefore = before;
+        final org.apache.xmlbeans.XmlObject[] last = {after};
+        return new HtmlToDocx.Place() {
+            org.apache.xmlbeans.XmlCursor at() {
+                if (last[0] == null) return firstBefore.newCursor();  // before the anchor
+                org.apache.xmlbeans.XmlCursor c = last[0].newCursor();
+                c.toEndToken();
+                c.toNextToken();
+                return c;
+            }
+            public XWPFParagraph paragraph() {
+                org.apache.xmlbeans.XmlCursor c = at();
+                try {
+                    XWPFParagraph np = b.insertNewParagraph(c);
+                    if (np == null) throw new ActionException("WORD.INSERT_FAILED", "Cannot insert at that position", "Use position end instead.");
+                    last[0] = np.getCTP();
+                    return np;
+                } finally { c.close(); }
+            }
+            public XWPFTable table(int rows, int cols) {
+                org.apache.xmlbeans.XmlCursor c = at();
+                try {
+                    XWPFTable t = b.insertNewTbl(c);
+                    if (t == null) throw new ActionException("WORD.INSERT_FAILED", "Cannot insert a table at that position", "Use position end instead.");
+                    last[0] = t.getCTTbl();
+                    return HtmlToDocx.shape(t, rows, cols);
+                } finally { c.close(); }
+            }
+        };
+    }
+
     /** Character formatting applied to runs; null fields are left unchanged. */
     record RunFormat(Boolean bold, Boolean italic, Boolean underline, Double size, String colour, String font, String highlight, Boolean strike) {
         void apply(XWPFRun r) {
@@ -702,8 +993,8 @@ public final class WordPackage {
     }
 
     @Action(id = "insert_text", name = "Insert text", category = "Text",
-            description = "Insert text at the start or end of the document, or just before or after a marker text or a bookmark, optionally with its own font formatting.",
-            panel = "position, anchor, text, new_paragraph, [Format the text: font, color, size, bold, italic, underline] | session")
+            description = "Insert text, or HTML (headings, lists, tables, links, formatting and pictures), at the start or end of the document, or just before or after a marker text or a bookmark, optionally with its own font formatting.",
+            panel = "position, anchor, text, as_html, new_paragraph, [Format the text: font, color, size, bold, italic, underline] | session")
     public Map<String, Object> insertText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; line breaks are kept.") String text,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"end\"",
@@ -717,12 +1008,20 @@ public final class WordPackage {
             @Input(name = "underline", type = OoaType.BOOLEAN, required = false, description = "Single underline on or off for the inserted text.") Boolean underline,
             @Input(name = "size", type = OoaType.NUMBER, required = false, description = "Font size in points for the inserted text.") Double size,
             @Input(name = "color", type = OoaType.STRING, required = false, example = "#C00000", description = "Hex colour for the inserted text.") String colour,
-            @Input(name = "font", type = OoaType.STRING, required = false, description = "Font name for the inserted text, e.g. Calibri.") String font) {
+            @Input(name = "font", type = OoaType.STRING, required = false, description = "Font name for the inserted text, e.g. Calibri.") String font,
+            @Input(name = "as_html", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "The text is HTML: headings, paragraphs, bold/italic/underline, colours and sizes, links, bulleted and numbered lists, tables and pictures "
+                            + "(data: URIs or local files) become Word formatting; it always starts in its own paragraph.") boolean asHtml) {
         XWPFDocument d = s(ctx, session).doc;
         RunFormat fmt = new RunFormat(bold, italic, underline, size, hexColour(colour), font, null, null);
         String pos = position == null ? "end" : position.toLowerCase(Locale.ROOT);
         if (!pos.equals("end") && !pos.equals("start") && (anchor == null || anchor.isEmpty()))
             throw new ActionException("WORD.NO_ANCHOR", "Position '" + pos + "' needs an anchor", "Set anchor to the marker text or bookmark name.");
+        if (asHtml) {
+            int[] made = HtmlToDocx.write(d, text == null ? "" : text, htmlPlace(d, pos, anchor), ctx::resolvePath);
+            ctx.info("Inserted HTML as " + made[0] + " paragraph(s) and " + made[1] + " table(s)");
+            return Map.of();
+        }
         switch (pos) {
             case "end" -> {
                 List<IBodyElement> els = d.getBodyElements();
@@ -912,9 +1211,13 @@ public final class WordPackage {
         return findReplacePicture(ctx, image, altText, index, session, "all", null, null, null);
     }
 
+    public Map<String, Object> findReplacePicture(ActionContext ctx, String image, String altText, Integer index, String session, String occurrence, String newAlt, Double width, Double height) {
+        return findReplacePicture(ctx, image, altText, index, session, occurrence, newAlt, width, height, null);
+    }
+
     @Action(id = "find_replace_picture", name = "Find and replace picture", category = "Pictures", capabilities = "filesystem",
             description = "Swap an existing picture, found by its alternative text or its position in the document, for a new image file, optionally resizing it and changing its alternative text.",
-            panel = "(Find the picture by: Its alt text = alt_text, occurrence / Its position = index), image, new_alt_text, width, height | session")
+            panel = "(Find the picture by: Its alt text = alt_text, occurrence / Its position = index), page, image, new_alt_text, width, height | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pictures replaced.")
     public Map<String, Object> findReplacePicture(ActionContext ctx,
             @Input(name = "image", type = OoaType.FILE, description = "New image file.") String image,
@@ -925,12 +1228,19 @@ public final class WordPackage {
                     description = "With alt_text: replace all matching pictures, or only the first or last one in document order.") String occurrence,
             @Input(name = "new_alt_text", type = OoaType.STRING, required = false, description = "New alternative text for the replaced pictures; kept when empty.") String newAlt,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "New width in points; kept when empty (with only height, the width follows the new image's ratio).") Double width,
-            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "New height in points; kept when empty (with only width, the height follows the new image's ratio).") Double height) {
+            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "New height in points; kept when empty (with only width, the height follows the new image's ratio).") Double height,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "Only look at pictures on this 1-based page of the body; index then counts the pictures on that page.") Integer page) {
         XWPFDocument d = s(ctx, session).doc;
         Path img = ctx.resolvePath(image);
         int type = pictureType(img, "WORD");
         byte[] bytes = readImage(img, "WORD");
         List<PicRef> all = pictures(d);
+        if (page != null) {
+            PageMap pm = pages(d, "auto");
+            checkPage(pm, page);
+            all = new ArrayList<>(all.stream().filter(p -> Objects.equals(pm.of(p.run()), page)).toList());
+        }
         List<PicRef> targets = new ArrayList<>();
         if (altText != null && !altText.isEmpty()) { for (PicRef p : all) if (p.alt().equals(altText)) targets.add(p); targets = new ArrayList<>(pickOccurrence(targets, occurrence, "WORD")); }
         else if (index != null) {
@@ -1004,23 +1314,36 @@ public final class WordPackage {
     public Map<String, Object> saveAs(ActionContext ctx, String path, String format, String session) { return saveAs(ctx, path, format, session, true, null); }
 
     @Action(id = "save_as", name = "Save as", category = "Document", capabilities = "filesystem",
-            description = "Save the document to a new .docx file (optionally password-protected) and continue the session on it, or export its text as a .txt file; PDF output is not available in this toolkit.",
+            description = "Save the document to a new .docx, .doc, .rtf or .odt file (.docx optionally password-protected) and continue the session on it, or export it as PDF or its text as a .txt file.",
             panel = "path, overwrite, format | password, session")
     public Map<String, Object> saveAs(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Target file path.") String path,
-            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"docx\"", enumValues = {"docx", "txt"},
-                    description = "docx keeps the document; txt writes the plain text (body, tables and headers) and the session stays on the docx file.") String format,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"docx\"", enumValues = {"docx", "doc", "rtf", "odt", "pdf", "txt"},
+                    description = "docx keeps the document; doc (Word 97-2003), rtf and odt are written with Microsoft Word (or LibreOffice) on the runner; pdf exports it the same way; txt writes the plain text (body, tables and headers). After pdf and txt the session stays on the previous file.") String format,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that already exists at the target path; false stops with WORD.EXISTS.") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new .docx file with this password; later saves keep it.") Object password) {
         DocSession d = s(ctx, session);
         Path target = ctx.resolvePath(path);
         String fmt = format == null || format.isBlank() ? "docx" : format.toLowerCase(Locale.ROOT);
-        if (fmt.equals("pdf") || target.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf"))
-            throw new ActionException("WORD.PDF_UNSUPPORTED", "Saving as PDF needs a document converter, which this toolkit does not include",
-                    "Save as .docx, then convert it with Word desktop automation or a PDF service.");
-        if (!fmt.equals("docx") && !fmt.equals("txt")) throw new ActionException("WORD.BAD_FORMAT", "Unsupported format '" + format + "'", "Use docx or txt.");
+        String targetExt = com.oneofficeautomation.packages.OfficeConvert.extension(target);
+        if (fmt.equals("docx") && List.of("pdf", "doc", "rtf", "odt").contains(targetExt)) fmt = targetExt;
+        if (!List.of("docx", "doc", "rtf", "odt", "txt", "pdf").contains(fmt)) throw new ActionException("WORD.BAD_FORMAT", "Unsupported format '" + format + "'", "Use docx, doc, rtf, odt, pdf or txt.");
+        if (List.of("doc", "rtf", "odt").contains(fmt) && !targetExt.equals(fmt)) target = target.resolveSibling(target.getFileName() + "." + fmt);
         if (!overwrite && Files.exists(target)) throw new ActionException("WORD.EXISTS", "A file already exists at " + target, "Set overwrite to true or choose another path.");
+        if (fmt.equals("pdf")) {
+            // the converter opens an unencrypted copy of the document as it is now; the session stays on the docx
+            Path tmp = null;
+            try {
+                tmp = Files.createTempFile("ooa-word-", ".docx");
+                writeTo(d, tmp, null);
+                if (target.getParent() != null) Files.createDirectories(target.getParent());
+                com.oneofficeautomation.packages.OfficePdf.Method m = com.oneofficeautomation.packages.OfficePdf.convert(ctx, tmp, target, "word", "WORD", 600);
+                ctx.info("Saved " + target + " as PDF (" + m.name().toLowerCase(Locale.ROOT).replace('_', ' ') + ")");
+            } catch (IOException e) { throw new ActionException("WORD.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Check the folder is writable.", true);
+            } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
+            return Map.of();
+        }
         refuseReadOnly(d, target);
         if (fmt.equals("txt")) {
             try {
@@ -1033,7 +1356,11 @@ public final class WordPackage {
         }
         String pw = OfficeCrypto.secret(password);
         String keep = pw != null ? pw : d.password;
-        writeTo(d, target, keep);
+        if (List.of("doc", "rtf", "odt").contains(fmt)) {
+            if (pw != null) throw new ActionException("WORD.PASSWORD_NOT_SUPPORTED", "Passwords can be kept in .docx files only, not ." + fmt, "Save as .docx, or clear the password.");
+            keep = null;
+        }
+        writeTo(ctx, d, target, keep);
         d.path = target;
         d.password = keep;
         d.readOnly = false;

@@ -129,14 +129,16 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
   type Full = Awaited<ReturnType<CrApi["skill"]>>;
   const [s, setS] = useState<Full | null>(null);
   const [tab, setTab] = useState<"prompt" | "versions">("prompt");
-  const [v, setV] = useState({ name: "", description: "", connection: "", system: "", prompt: "", output: "text", temperature: "0.2", inputs: "", shared: false, template: false, comment: "" });
+  const [v, setV] = useState({ name: "", description: "", connection: "", system: "", prompt: "", output: "text", temperature: "0.2", inputs: "", shared: false, template: false, comment: "",
+    kIndex: "", kTop: "4", kQuery: "" });
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   useEffect(() => {
     if (!name) return;
     api.skill(name).then((x) => { setS(x); const d = x.definition;
       setV({ name: x.name, description: x.description ?? "", connection: d.connection ?? "", system: d.system ?? "", prompt: d.prompt ?? "", output: d.output ?? "text",
-        temperature: String(d.temperature ?? 0.2), inputs: (d.inputs ?? []).map((i) => i.name + (i.description ? " - " + i.description : "")).join("\n"), shared: x.shared, template: !!x.template, comment: "" }); },
+        temperature: String(d.temperature ?? 0.2), inputs: (d.inputs ?? []).map((i) => i.name + (i.description ? " - " + i.description : "")).join("\n"), shared: x.shared, template: !!x.template, comment: "",
+        kIndex: d.knowledge?.index ?? "", kTop: String(d.knowledge?.top_k ?? 4), kQuery: d.knowledge?.query ?? "" }); },
     (e) => setError(message(e)));
   }, [api, name]);
   const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the skills" onClick={onClose}>×</button>;
@@ -152,6 +154,7 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
     const def: SkillDefinition = { prompt: v.prompt, output: v.output as "text" | "json", temperature: Number(v.temperature || 0), inputs: listed };
     if (v.system.trim()) def.system = v.system;
     if (v.connection.trim()) def.connection = v.connection.trim();
+    if (v.kIndex.trim()) def.knowledge = { index: v.kIndex.trim(), top_k: Math.min(20, Math.max(1, Number(v.kTop || 4))), ...(v.kQuery.trim() ? { query: v.kQuery.trim() } : {}) };
     api.saveSkill(v.name.trim(), { description: v.description, definition: def, shared: v.shared, template: v.template, comment: v.comment || null })
       .then((r) => onSaved("Saved " + r.name + " v" + r.version + ".", r.name), (e) => setError(message(e)));
   };
@@ -191,6 +194,11 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
           <Field label="Temperature (0 = steady, 2 = varied)">{(id) => <TextInput id={id} type="number" step="0.1" min={0} max={2} value={v.temperature} disabled={!editable} onChange={set("temperature")} />}</Field>
         </div>
         <Field label="Inputs (one per line: name - description)">{(id) => <TextArea id={id} rows={3} value={v.inputs} disabled={!editable} onChange={set("inputs")} />}</Field>
+        <div className="cc-grid2">
+          <Field label="Ground answers in documents: knowledge index (e.g. knowledge/policies.json)">{(id) => <TextInput id={id} value={v.kIndex} disabled={!editable} placeholder="Empty: no documents" onChange={set("kIndex")} />}</Field>
+          <Field label="Passages given to the model">{(id) => <TextInput id={id} type="number" min={1} max={20} value={v.kTop} disabled={!editable || !v.kIndex.trim()} onChange={set("kTop")} />}</Field>
+        </div>
+        {v.kIndex.trim() && <Field label="Search the index for (empty: the prompt; ${name} allowed)">{(id) => <TextInput id={id} value={v.kQuery} disabled={!editable} onChange={set("kQuery")} />}</Field>}
         <label className="st-check-line"><input type="checkbox" checked={v.shared} disabled={!editable} onChange={(e) => setV({ ...v, shared: e.target.checked })} /> Shared: every agent may use it</label>
         {can("skills.all") && <label className="st-check-line"><input type="checkbox" checked={v.template} onChange={(e) => setV({ ...v, template: e.target.checked })} /> Template: offered as a starting point</label>}
         {editable && <Field label="What changed (optional)">{(id) => <TextInput id={id} value={v.comment} onChange={set("comment")} />}</Field>}

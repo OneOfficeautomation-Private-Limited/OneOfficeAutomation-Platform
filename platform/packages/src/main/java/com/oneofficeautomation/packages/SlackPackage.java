@@ -10,6 +10,12 @@ public final class SlackPackage {
     static final String P = "SLACK";
 
     /** A reply without Slack's ok/error fields: usually a proxy or a wrong base address. */
+    /** An answer that says ok but lacks what the command needs (it used to crash with a NullPointerException). */
+    private static ActionException badShape(String method, String what) {
+        return new ActionException(P + ".BAD_RESPONSE", "Slack's answer to " + method + " has no " + what,
+                "Check base_url (https://slack.com/api), the token's scopes (users:read.email, im:write) and any proxy between the runner and Slack.", true);
+    }
+
     private static ActionException badResponse(String method) {
         return new ActionException(P + ".BAD_RESPONSE", "The reply to " + method + " is not a Slack answer (no ok or error field)",
                 "Check base_url (https://slack.com/api) and any proxy between the runner and Slack.", true);
@@ -31,7 +37,7 @@ public final class SlackPackage {
         return r;
     }
 
-    @Action(id = "post_message", name = "Post message", category = "Messages", capabilities = "network", description = "Post a message to a channel (or a user's DM), optionally as a thread reply.",
+    @Action(id = "post_message", name = "Post message", category = "Messages", capabilities = {"network", "filesystem"}, description = "Post a message to a channel (or a user's DM), optionally as a thread reply.",
             panel = "bot_token, channel, text, thread_ts, files | reply_broadcast, blocks, unfurl_links, unfurl_media, mrkdwn, username, icon_emoji, base_url")
     @Output(name = "ts", type = OoaType.STRING, description = "Message timestamp id (use it to reply in a thread).")
     public Map<String, Object> post(ActionContext ctx,
@@ -154,7 +160,11 @@ public final class SlackPackage {
 
     private static String userId(ActionContext ctx, String base, Object token, String user) {
         String u = user == null ? "" : user.trim();
-        if (u.contains("@")) return String.valueOf(((Map<?, ?>) form(ctx, base, "users.lookupByEmail", token, Map.of("email", u)).get("user")).get("id"));
+        if (u.contains("@")) {
+            Object id = nested(form(ctx, base, "users.lookupByEmail", token, Map.of("email", u)).get("user"), "id");
+            if (id == null) throw badShape("users.lookupByEmail", "user id");
+            return String.valueOf(id);
+        }
         if (!u.matches("^[UW][A-Z0-9]{2,20}$")) throw new ActionException(P + ".BAD_USER", "Invalid user '" + user + "'", "Give a member id such as U0123456789 or an email address.");
         return u;
     }
@@ -167,7 +177,7 @@ public final class SlackPackage {
 
     private static Object nested(Object map, String key) { return map instanceof Map<?, ?> m ? m.get(key) : null; }
 
-    @Action(id = "send_direct_message", name = "Send direct message", category = "Messages", capabilities = "network", description = "Open a direct conversation with a person (by member id or email) and post a message there.",
+    @Action(id = "send_direct_message", name = "Send direct message", category = "Messages", capabilities = {"network", "filesystem"}, description = "Open a direct conversation with a person (by member id or email) and post a message there.",
             panel = "bot_token, user, text | thread_ts, blocks, unfurl_links, unfurl_media, mrkdwn, files, base_url")
     @Output(name = "ts", type = OoaType.STRING, description = "Message timestamp id.")
     @Output(name = "channel", type = OoaType.STRING, description = "Direct conversation id.")
@@ -185,7 +195,9 @@ public final class SlackPackage {
         List<String> ids = new ArrayList<>();
         for (String u : HttpJson.addressList(user)) ids.add(userId(ctx, base, token, u));
         if (ids.isEmpty()) throw new ActionException(P + ".BAD_USER", "No user given", "Give a member id or an email address.");
-        String channel = String.valueOf(nested(call(ctx, base, "conversations.open", token, Map.of("users", String.join(",", ids))).get("channel"), "id"));
+        Object opened = nested(call(ctx, base, "conversations.open", token, Map.of("users", String.join(",", ids))).get("channel"), "id");
+        if (opened == null) throw badShape("conversations.open", "channel id");
+        String channel = String.valueOf(opened);
         Map<String, Object> body = new LinkedHashMap<>(Map.of("channel", channel, "text", text));
         if (thread != null && !thread.isBlank()) body.put("thread_ts", thread);
         messageOptions(body, blocks, unfurlLinks, unfurlMedia, mrkdwn);

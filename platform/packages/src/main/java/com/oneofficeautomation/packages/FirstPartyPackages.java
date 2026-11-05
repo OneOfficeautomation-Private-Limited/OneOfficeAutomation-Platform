@@ -19,7 +19,7 @@ public final class FirstPartyPackages {
             Microsoft365Package.class, GooglePackage.class, SalesforcePackage.class, ServiceNowPackage.class, JiraPackage.class, SlackPackage.class,
             WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, ExcelDesktopPackage.class, OutlookDesktopPackage.class,
             OcrPackage.class, PgpPackage.class, GenAiPackage.class, AiSkillsPackage.class, AiAgentPackage.class, KnowledgePackage.class,
-            WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, ConnectorPackage.class,
+            WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, SapBapiPackage.class, ConnectorPackage.class,
             FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class,
             GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
             OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class, FormsPackage.class, Ec2Package.class);
@@ -57,4 +57,18 @@ public final class FirstPartyPackages {
     }
 
     public static PackageRegistry registry() { return registry(null); }
+
+    /**
+     * Lets toolkits prepare slow first-use work in the background when a host that runs bots starts (the Bot Agent,
+     * One AgentStudio): each optional toolkit class on the classpath with a public static warmUp() has it called, e.g.
+     * PDF builds the computer's font list. Returns at once; never fails.
+     */
+    public static void warmUp() {
+        for (String name : OPTIONAL) {
+            try { Class.forName(name).getMethod("warmUp").invoke(null); }
+            catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+                // module not on the classpath, or a toolkit with nothing to prepare
+            }
+        }
+    }
 }

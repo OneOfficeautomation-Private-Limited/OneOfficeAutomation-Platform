@@ -987,7 +987,10 @@ public final class ControlRoomServer {
             }
             case "globals" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("globals", cr.globals(u)));
-                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); cr.setGlobal(u, seg[1], b.get("value"), b.get("changeable") instanceof Boolean c ? c : null, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); cr.setGlobal(u, seg[1], b.get("value"), b.get("changeable") instanceof Boolean c ? c : null,
+                        b.get("type") instanceof String t && !t.isBlank() ? t : null, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 4 && seg[2].equals("teams")) { cr.setTeamGlobal(u, seg[1], seg[3], map(body(ex)).get("value"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 4 && seg[2].equals("teams")) { cr.deleteTeamGlobal(u, seg[1], seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("mine")) { cr.setMyGlobal(u, seg[1], map(body(ex)).get("value"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 3 && seg[2].equals("mine")) { cr.deleteMyGlobal(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteGlobal(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }

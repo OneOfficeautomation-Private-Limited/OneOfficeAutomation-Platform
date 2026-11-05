@@ -136,7 +136,13 @@ public final class DesktopUiPackage {
         UiGuard.before(ctx);
         try { resizeWindows(ctx, o); } catch (ActionException e) { ctx.warn("Could not resize the window: " + e.getMessage()); }
         List<SelfHealing.Candidate> chain = new ArrayList<>(o.chain());
-        if (o.anchor() != null) chain.add(new SelfHealing.Candidate("anchor", "anchor"));
+        if (o.anchor() != null) {
+            // the anchor the user set is tried before the weakest guess, "the only control of that type in the window",
+            // which would otherwise win in simple windows (one edit box) and could pick the wrong control in others
+            int at = chain.size();
+            for (int i = 0; i < chain.size(); i++) if (chain.get(i).strategy().equals("control_type")) { at = i; break; }
+            chain.add(at, new SelfHealing.Candidate("anchor", "anchor"));
+        }
         try {
             return SelfHealing.locate(chain, c -> resolve(ctx, o, c), (long) (Math.max(0, timeoutSeconds) * 1000), SelfHealing.SYSTEM, 400,
                     () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled);

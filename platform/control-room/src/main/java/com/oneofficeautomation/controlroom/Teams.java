@@ -94,7 +94,8 @@ public final class Teams {
         if (t == null) throw notFound("Team");
         List<String> used = usedIn((String) t.get("name"));
         if (!used.isEmpty()) throw new OoaException("CR.IN_USE", "The team is still named in " + String.join(", ", used), "Remove it there first.", false, Map.of("used_by", used));
-        db.tx(() -> { db.update("DELETE FROM team_members WHERE team_id = ?", teamId); db.update("DELETE FROM teams WHERE id = ?", teamId); return null; });
+        db.tx(() -> { db.update("DELETE FROM team_members WHERE team_id = ?", teamId); db.update("DELETE FROM team_global_values WHERE team_id = ?", teamId);
+            db.update("DELETE FROM teams WHERE id = ?", teamId); return null; });
         cr.audit.record(by.username(), "team.delete", "team", (String) t.get("name"), null, "ok", ip);
     }
 

@@ -24,14 +24,35 @@ final class JavaArgs {
         if (t == String.class) return Values.text(v);
         if (t == BigDecimal.class) return Values.toNumber(v);
         if (t == boolean.class || t == Boolean.class) return Values.coerce(v, "Boolean", name);
-        if (t == int.class || t == Integer.class) return Values.toNumber(v).intValue();
-        if (t == long.class || t == Long.class) return Values.toNumber(v).longValue();
+        if (t == int.class || t == Integer.class) return whole(v, name).intValue();
+        if (t == long.class || t == Long.class) return whole(v, name).longValue();
         if (t == double.class || t == Double.class) return Values.toNumber(v).doubleValue();
         if (t == Path.class) return Path.of(Values.text(v));
         if (t == List.class) return Values.coerce(v, "List", name);
         if (t == Map.class) return Values.coerce(v, "Dictionary", name);
         if (t == SecureString.class)
-            throw new ActionException("VAR.SECURE_REQUIRED", "Input '" + name + "' needs a Credential", "Pass a Credential variable.");
+            throw new ActionException("VAR.SECURE_REQUIRED", "Input '" + name + "' needs a Credential, not plain text",
+                    "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
         throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' cannot be converted to " + t.getSimpleName());
+    }
+
+    /** Measures where a fraction is meaningful but the command works in whole units: rounded to the nearest one. */
+    private static final java.util.regex.Pattern ROUNDED = java.util.regex.Pattern.compile(
+            "(^|_)(x|y|width|height|dpi|font_size|indent)$|seconds$|minutes$|_ms$|percent$|^ms$");
+
+    /**
+     * Positions, counts, ids and sizes are whole numbers: 1.7 used to become 1 silently, hiding calculation mistakes, so it
+     * is refused. Times, coordinates and similar measures are rounded to the nearest whole unit instead of cut off.
+     */
+    static BigDecimal whole(Object v, String name) {
+        BigDecimal n = Values.toNumber(v);
+        if (n.signum() != 0 && n.stripTrailingZeros().scale() > 0 && name != null && ROUNDED.matcher(name).find())
+            n = n.setScale(0, java.math.RoundingMode.HALF_UP);
+        if (n.signum() != 0 && n.stripTrailingZeros().scale() > 0)
+            throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' must be a whole number, got " + n.stripTrailingZeros().toPlainString(),
+                    "Round the value first (Number > Round), or check the calculation that produced it.");
+        if (n.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0 || n.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0)
+            throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' is too large: " + n.toPlainString());
+        return n;
     }
 }

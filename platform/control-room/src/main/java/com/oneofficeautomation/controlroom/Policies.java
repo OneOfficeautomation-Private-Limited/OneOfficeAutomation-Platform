@@ -107,6 +107,7 @@ final class Policies {
      * AI guardrails as saved: mask (personal data always masked, whatever an AI step says), models (the model connections
      * agents may use; empty: any) and content (how answers are checked for harmful content: off, log or block).
      */
+    @SuppressWarnings("unchecked")
     Map<String, Object> cleanGuardrails(Map<String, Object> in) {
         Map<String, Object> g = new LinkedHashMap<>();
         g.put("mask", !Boolean.FALSE.equals(in.get("mask")));
@@ -130,6 +131,16 @@ final class Policies {
         String content = in.get("content") == null ? "off" : String.valueOf(in.get("content"));
         if (!Set.of("off", "log", "block").contains(content)) throw new OoaException("CR.BAD_INPUT", "The content check is off, log or block");
         g.put("content", content);
+        // toxicity: prompts and answers of every AI step rated offline (threats, self-harm, hate, insults, swearing), for any model provider
+        Map<String, Object> tox = in.get("toxicity") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        String action = tox.get("action") == null ? "off" : String.valueOf(tox.get("action"));
+        if (!Set.of("off", "log", "block").contains(action)) throw new OoaException("CR.BAD_INPUT", "The toxicity check is off, log or block");
+        String level = tox.get("level") == null ? "medium" : String.valueOf(tox.get("level"));
+        if (!Set.of("low", "medium", "high").contains(level)) throw new OoaException("CR.BAD_INPUT", "The toxicity level is low, medium or high");
+        List<String> terms = new ArrayList<>();
+        if (tox.get("terms") instanceof List<?> l) for (Object o : l) { String t = String.valueOf(o).strip(); if (!t.isEmpty() && !terms.contains(t)) terms.add(t); }
+        if (terms.size() > 500) throw new OoaException("CR.BAD_INPUT", "At most 500 blocked terms");
+        g.put("toxicity", Map.of("action", action, "level", level, "terms", terms));
         return g;
     }
 

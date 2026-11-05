@@ -52,7 +52,7 @@ class PackagesBatch2Test {
         Files.writeString(w.resolve("secret.txt"), "TOP-SECRET");
         Files.writeString(w.resolve("evil.xml"), "<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY s SYSTEM \"file:" + w.resolve("secret.txt").toUri().getPath() + "\">]><x>&s;</x>");
         RunResult r = runRaw(w, "[]", "[{\"id\":\"x\",\"action\":\"ooa.xml/get_value\",\"args\":{\"path\":\"evil.xml\",\"xpath\":\"/x\"}}]");
-        assertEquals("XML.DTD_NOT_ALLOWED", r.error().get("code"));
+        assertEquals("XML.EXTERNAL_ENTITY_NOT_ALLOWED", r.error().get("code"));
         assertFalse(String.valueOf(r.error()).contains("TOP-SECRET"));
     }
 

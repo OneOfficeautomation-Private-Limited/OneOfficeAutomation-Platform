@@ -359,12 +359,22 @@ public final class Ec2Package {
         signed.forEach(b::header);
         ctx.info("EC2 " + action + " in " + s.region);
         HttpResponse<byte[]> r;
-        try { r = HttpJson.CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofByteArray()); }
-        catch (HttpTimeoutException e) { throw new ActionException(P + ".TIMEOUT", "No answer from EC2 within 60 s", "Try again later.", true); }
-        catch (IOException e) { throw new ActionException(P + ".UNREACHABLE", "Cannot reach " + uri.getHost() + ": " + e.getMessage(), "Check the region, proxy and network access.", true); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        for (int attempt = 0; ; attempt++) {
+            try { r = HttpJson.CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofByteArray()); }
+            catch (HttpTimeoutException e) { throw new ActionException(P + ".TIMEOUT", "No answer from EC2 within 60 s", "Try again later.", true); }
+            catch (IOException e) { throw new ActionException(P + ".UNREACHABLE", "Cannot reach " + uri.getHost() + ": " + NetErrors.reason(e, null), "Check the region, proxy and network access.", true); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            long wait = r.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
+            if (wait < 0) break;
+            ctx.warn("EC2 is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");
+            HttpJson.pause(ctx, wait);
+        }
         Element root = parse(r.body());
         if (r.statusCode() >= 400 || root == null || "Response".equals(root.getTagName()) && child(root, "Errors") != null) throw error(r.statusCode(), root, r.body());
+        // EC2 answers with <ActionResponse>; anything else (an HTML proxy or sign-in page) used to "succeed" with no instances
+        if (!root.getTagName().endsWith("Response"))
+            throw new ActionException(P + ".BAD_RESPONSE", "The answer to " + action + " is not an EC2 response (a <" + root.getTagName() + "> document, often a proxy or sign-in page)",
+                    "Check the region or endpoint, and the proxy between the runner and AWS.", false, Map.of("status", BigDecimal.valueOf(r.statusCode())));
         return root;
     }
 

@@ -84,8 +84,13 @@ public final class FileTransferPackage {
         if (e instanceof JSchException && m.contains("Auth")) return new ActionException("TRANSFER.AUTH_FAILED", "Sign-in failed: " + m, "Check the user, password or private key.");
         if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) return new ActionException("TRANSFER.NOT_FOUND", what + ": no such file or folder", "Check the remote path.");
         if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_PERMISSION_DENIED) return new ActionException("TRANSFER.ACCESS_DENIED", what + ": permission denied", null);
-        if (e instanceof IOException && !(e instanceof FileNotFoundException)) return new ActionException("TRANSFER.FAILED", what + ": " + m, "Check the connection and paths.", true);
-        return new ActionException("TRANSFER.FAILED", what + ": " + m, null);
+        // JSch wraps the socket error ("java.net.ConnectException: Connection refused: getsockopt"): say what it means
+        boolean network = e.getCause() instanceof IOException || e instanceof java.net.SocketException || e instanceof java.net.UnknownHostException
+                || (e instanceof JSchException && (m.contains("Exception") || m.contains("timeout")));
+        if (network) return new ActionException("TRANSFER.UNREACHABLE", what + ": " + com.oneofficeautomation.packages.NetErrors.reason(e, null),
+                "Check the host, port and protocol (SFTP is usually port 22, FTP 21, FTPS 990), and that a firewall allows the connection.", true);
+        if (e instanceof IOException && !(e instanceof FileNotFoundException)) return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), "Check the connection and paths.", true);
+        return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), null);
     }
 
     public Map<String, Object> connect(ActionContext ctx, String protocol, String host, Integer port, String user, Object password, String key, Object keyPass,
@@ -138,7 +143,7 @@ public final class FileTransferPackage {
                     if (attempt > 0) throw new ActionException(e.code(), e.getMessage() + " (after " + (attempt + 1) + " tries)", e.suggestedFix(), e.retryable());
                     throw e;
                 }
-                ctx.warn("Connecting to " + host + " failed (try " + (attempt + 1) + " of " + (retryAttempts + 1) + "): " + e.getMessage() + "; trying again in " + retryDelay + " s.");
+                ctx.warn("Connecting to " + host + " failed (try " + (attempt + 1) + " of " + (retryAttempts + 1) + "): " + com.oneofficeautomation.packages.NetErrors.reason(e, null) + "; trying again in " + retryDelay + " s.");
                 pause(ctx, retryDelay);
             }
         }

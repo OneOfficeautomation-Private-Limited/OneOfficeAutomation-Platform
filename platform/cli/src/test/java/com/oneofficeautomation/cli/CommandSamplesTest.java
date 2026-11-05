@@ -92,6 +92,9 @@ class CommandSamplesTest {
         Path dir = Path.of("src/test/resources/command-samples");
         List<DynamicTest> tests = new ArrayList<>();
         Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmpRoot).build();
+        // as a Bot Agent does when it starts: PDF's font list is made in the background while the first files run (on a
+        // fresh Windows CI machine it took over 300 s, and the first PDF sample timed out waiting for it)
+        FirstPartyPackages.warmUp();
         try (Stream<Path> files = Files.list(dir)) {
             String only = System.getenv("OOA_SAMPLES");   // e.g. OOA_SAMPLES=20-use-cases runs that file only
             for (Path f : files.filter(p -> p.toString().endsWith(".json") && (only == null || only.isBlank() || p.getFileName().toString().contains(only))).sorted().toList()) {

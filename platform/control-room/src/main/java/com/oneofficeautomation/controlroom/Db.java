@@ -619,9 +619,20 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE users ADD COLUMN directory_active BOOLEAN",
     };
 
+    /**
+     * Version 32 (gap round 2, 2 Nov 2026): shared global values get a type the server checks (text, number, boolean,
+     * date, list, record or any), and values per team (user group) that runs of the team's members use, unless the
+     * person set their own.
+     */
+    private static final String[] SCHEMA_V32 = {
+        "ALTER TABLE global_values ADD COLUMN value_type VARCHAR(20)",
+        "CREATE TABLE team_global_values (name VARCHAR(80) NOT NULL, team_id VARCHAR(40) NOT NULL, json_value VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL, "
+            + "updated_by VARCHAR(80), PRIMARY KEY (name, team_id))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 31;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31 };
+    public static final int LATEST = 32;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

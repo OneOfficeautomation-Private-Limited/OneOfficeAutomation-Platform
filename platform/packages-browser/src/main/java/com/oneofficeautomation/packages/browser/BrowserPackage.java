@@ -193,13 +193,13 @@ public final class BrowserPackage {
         return u;
     }
 
-    @Action(id = "open", name = "Open browser", category = "Browser", timeoutSeconds = 180, capabilities = "browser",
+    @Action(id = "open", name = "Open browser", category = "Browser", timeoutSeconds = 180, capabilities = {"browser", "network"},
             description = "Start a browser, optionally open a URL, as a named session.",
             panel = "open_in, window, browser, url | download_folder, headless, keep_open, engine, session, timeout_ms")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium", "firefox"},
-                    visibleWhen = "open_in=new_window", description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright.") String which,
+                    visibleWhen = "open_in=new_window", description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB).") String which,
             @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "open_in=new_window", description = "Run without a visible window (for unattended agents).") boolean headless,
             @Input(name = "download_folder", type = OoaType.FILE, required = false, visibleWhen = "open_in=new_window", description = "Where downloads are saved.") String downloads,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
@@ -253,6 +253,38 @@ public final class BrowserPackage {
         return Map.of();
     }
 
+    private static final Set<String> DOWNLOADED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * Downloads Playwright's own Chromium or Firefox on first use, as the field help promises. Playwright installs browsers
+     * only when its driver starts for the first time in the process, and an earlier Edge or Chrome session starts it without
+     * them, so chromium failed with "Executable doesn't exist". "playwright install" is quick when the browser is there.
+     */
+    static void ensureDownloaded(ActionContext ctx, String which) {
+        if (DOWNLOADED.contains(which)) return;
+        synchronized (DOWNLOADED) {
+            if (DOWNLOADED.contains(which)) return;
+            ctx.info("Checking Playwright's " + which + " (downloaded once, about 150 MB, the first time it is used)");
+            try {
+                ProcessBuilder pb = com.microsoft.playwright.impl.driver.Driver.ensureDriverInstalled(browserEnv(Map.of()), false).createProcessBuilder();
+                pb.command().addAll(List.of("install", which));
+                pb.redirectErrorStream(true);
+                Process proc = pb.start();
+                String out;
+                try (var in = proc.getInputStream()) {
+                    out = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
+                if (!proc.waitFor(15, java.util.concurrent.TimeUnit.MINUTES)) { proc.destroyForcibly(); throw new ActionException("BROWSER.NOT_INSTALLED", "Downloading " + which + " took longer than 15 minutes", "Check the network or proxy, or use browser edge or chrome."); }
+                if (proc.exitValue() != 0)
+                    throw new ActionException("BROWSER.NOT_INSTALLED", "Playwright could not download " + which + ": " + out.strip().lines().reduce((a, b) -> b).orElse("exit code " + proc.exitValue()),
+                            "Allow the runner to reach playwright.azureedge.net (or set HTTPS_PROXY), or use browser edge or chrome, which are installed.");
+                DOWNLOADED.add(which);
+            } catch (java.io.IOException e) {
+                throw new ActionException("BROWSER.NOT_INSTALLED", "Cannot start the Playwright installer for " + which + ": " + e.getMessage(), "Use browser edge or chrome.");
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted while downloading " + which); }
+        }
+    }
+
     /**
      * Starts a browser with Playwright as the named session and opens the address. proxy (or null) routes its traffic
      * through a proxy server; executable (or null) starts that browser program instead of the installed or downloaded one.
@@ -262,6 +294,7 @@ public final class BrowserPackage {
         boolean installed = which.equals("edge") || which.equals("chrome");
         Map<String, String> env = new HashMap<>();
         if (installed || executable != null) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
+        if (!installed && executable == null) ensureDownloaded(ctx, which);
         Playwright pw = null;
         try {
             pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)));
@@ -270,6 +303,11 @@ public final class BrowserPackage {
             if (executable != null) lo.setExecutablePath(executable);
             else if (which.equals("edge")) lo.setChannel("msedge");
             else if (which.equals("chrome")) lo.setChannel("chrome");
+            if (headless && (installed || executable != null) && !which.equals("firefox")) {
+                // Current Edge and Chrome have dropped the old headless mode this Playwright version asks for, so headless
+                // Edge closed at once ("Target page, context or browser has been closed"): start the new headless mode ourselves
+                lo.setHeadless(false).setArgs(List.of("--headless=new", "--hide-scrollbars", "--mute-audio"));
+            }
             if (proxy != null) lo.setProxy(proxy);
             if (downloads != null) lo.setDownloadsPath(ctx.resolvePath(downloads));
             com.microsoft.playwright.Browser b = type.launch(lo);
@@ -285,7 +323,7 @@ public final class BrowserPackage {
         }
     }
 
-    @Action(id = "navigate", name = "Go to URL", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Open a URL in the current tab and wait for it to load.",
+    @Action(id = "navigate", name = "Go to URL", category = "Browser", timeoutSeconds = 120, capabilities = {"browser", "network"}, description = "Open a URL in the current tab and wait for it to load.",
             panel = "url | session")
     public Map<String, Object> navigate(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Address to open.") String url,
@@ -764,11 +802,11 @@ public final class BrowserPackage {
     }
 
     @Action(id = "run_javascript", name = "Run JavaScript", category = "Page", timeoutSeconds = 120, capabilities = "browser",
-            description = "Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).",
+            description = "Run JavaScript in the page and return its result: an expression such as document.title, or statements with return.",
             panel = "window, (Script: Type it here = script / Run a file = script_file) | frame, session")
     @Output(name = "result", description = "Value returned by the script.")
     public Map<String, Object> runJs(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", visibleWhen = "script_file=", description = "JavaScript expression or function, typed here.") String script,
+            @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", visibleWhen = "script_file=", description = "JavaScript typed here: an expression, a function, or statements that end with return.") String script,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "script_file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "Or a .js file to run (UTF-8), used instead of the typed script.") String scriptFile,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
@@ -779,8 +817,17 @@ public final class BrowserPackage {
             if (frame != null) throw frameNotOnTab();
             return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), 60000)));
         }
-        try { return Out(Values.toJsonable(frame != null ? frameOf(ctx, session, frame).evaluate(script) : s(ctx, session).page.evaluate(script))); }
-        catch (PlaywrightException e) { throw pw(e, "Running JavaScript"); }
+        try { return Out(Values.toJsonable(evaluate(ctx, session, frame, script))); }
+        catch (PlaywrightException e) {
+            // a script written with return statements (as most people write them) is run as the body of a function
+            if (!String.valueOf(e.getMessage()).contains("Illegal return statement")) throw pw(e, "Running JavaScript");
+            try { return Out(Values.toJsonable(evaluate(ctx, session, frame, "() => {\n" + script + "\n}"))); }
+            catch (PlaywrightException e2) { throw pw(e2, "Running JavaScript"); }
+        }
+    }
+
+    private Object evaluate(ActionContext ctx, String session, Object frame, String script) {
+        return frame != null ? frameOf(ctx, session, frame).evaluate(script) : s(ctx, session).page.evaluate(script);
     }
 
     /** Run JavaScript on the main page (the signature before the frame input was added). */
@@ -921,7 +968,7 @@ public final class BrowserPackage {
     private static final java.net.http.HttpClient LINKS = java.net.http.HttpClient.newBuilder()
             .connectTimeout(java.time.Duration.ofSeconds(10)).followRedirects(java.net.http.HttpClient.Redirect.NORMAL).build();
 
-    /** Checks each URL with HEAD (falling back to GET when HEAD is refused). Rows: url, status, ok, error. */
+    /** Checks each URL with HEAD (falling back to GET when HEAD is refused); file: links are looked up on disk (200 or 404). Rows: url, status, ok, error. */
     static List<Object> checkLinks(ActionContext ctx, List<String> urls, int timeoutMs, boolean onlyBroken) {
         List<Object> rows = new ArrayList<>();
         java.time.Duration t = java.time.Duration.ofMillis(Math.max(500, timeoutMs));
@@ -931,6 +978,13 @@ public final class BrowserPackage {
             String error = "";
             try {
                 java.net.URI uri = java.net.URI.create(u);
+                if ("file".equalsIgnoreCase(uri.getScheme())) {
+                    boolean there = java.nio.file.Files.exists(java.nio.file.Path.of(uri));
+                    status = there ? 200 : 404;
+                    if (!there) error = "file not found";
+                    if (!onlyBroken || !there) rows.add(new ArrayList<>(Arrays.asList(u, BigDecimal.valueOf(status), there, error)));
+                    continue;
+                }
                 status = LINKS.send(java.net.http.HttpRequest.newBuilder(uri).timeout(t).method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody()).build(),
                         java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
                 if (status == 405 || status == 501 || status == 403)
@@ -1051,7 +1105,7 @@ public final class BrowserPackage {
 
     @Action(id = "find_broken_links", name = "Find broken links", category = "Page", timeoutSeconds = 3600, capabilities = {"browser", "network"},
             description = "Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail "
-                    + "or return an HTTP error; optionally save the list to a CSV file.",
+                    + "or return an HTTP error (links to files, file:, are looked up on disk); optionally save the list to a CSV file.",
             panel = "url, scope, max_pages, [Save the list to a CSV file: csv_path, append, encoding], threads | only_broken, same_site_only, max_links, timeout_ms, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: url, status (0 when unreachable), ok, error.")
     @Output(name = "broken_count", type = OoaType.NUMBER, description = "Number of links that failed.")
@@ -1098,13 +1152,13 @@ public final class BrowserPackage {
             catch (PlaywrightException e) { throw pw(e, "Reading the links"); }
             pageUrl = page.url();
         }
-        String host = "";
-        try { host = String.valueOf(java.net.URI.create(pageUrl).getHost()); } catch (IllegalArgumentException ignored) { }
+        String host = hostOf(pageUrl);
         LinkedHashSet<String> urls = new LinkedHashSet<>();
         for (Object h : hrefs) {
             String u = String.valueOf(h).replaceFirst("#.*$", "");
-            if (!u.matches("(?i)^https?://.+")) continue;
-            if (sameSite) { try { if (!host.equalsIgnoreCase(java.net.URI.create(u).getHost())) continue; } catch (IllegalArgumentException e) { continue; } }
+            // web links, and file: links of a page opened from disk or a file share (they used to be skipped, so 0 were checked)
+            if (!u.matches("(?i)^(https?://|file:).+")) continue;
+            if (sameSite && !host.equalsIgnoreCase(hostOf(u))) continue;
             urls.add(u);
             if (urls.size() >= Math.max(1, maxLinks)) break;
         }
@@ -1122,15 +1176,18 @@ public final class BrowserPackage {
 
     @Action(id = "download", name = "Download file", category = "Page", timeoutSeconds = 600, capabilities = {"browser", "filesystem"},
             description = "Click a link or button that starts a download and save the file into a folder.",
-            panel = "window, object, selector, folder | session, timeout_ms")
+            panel = "window, object, selector, folder | session, timeout_ms, start_timeout_ms")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> download(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = "Element that starts the download, used when no captured object is given.") String sel,
             @Input(name = "folder", type = OoaType.FILE, description = "Folder to save into.") String folder,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "120000", min = 0, description = "How long to wait for the download.") double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "120000", min = 0, description = "How long to wait for the element and the download.") double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "start_timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "15000", min = 0,
+                    description = "How long to wait after the click for the download to start; BROWSER.NO_DOWNLOAD when it does not (the file itself may then take up to timeout_ms).") Double startTimeout) {
+        double start = Math.min(timeout, startTimeout == null ? 15000 : startTimeout);
         session = BrowserWindows.use(ctx, session, window, timeout);
         if (tab(ctx, session) != null) {
             Map<String, Object> el = new LinkedHashMap<>();
@@ -1149,7 +1206,13 @@ public final class BrowserPackage {
         try {
             Page p = s(ctx, session).page;
             Locator trigger = target(ctx, session, object, sel, null, Math.min(timeout, 30000));
-            Download d = p.waitForDownload(new Page.WaitForDownloadOptions().setTimeout(timeout), () -> trigger.click());
+            Download d;
+            try { d = p.waitForDownload(new Page.WaitForDownloadOptions().setTimeout(start), () -> trigger.click()); }
+            catch (TimeoutError e) {
+                // a click that opens a page instead of downloading used to wait the full two minutes
+                throw new ActionException("BROWSER.NO_DOWNLOAD", "Clicking " + what(object, sel) + " did not start a download within " + Values.text(BigDecimal.valueOf(start / 1000)) + " s",
+                        "Check the element starts a download (not a new page or tab), or raise start_timeout_ms.");
+            }
             String name = d.suggestedFilename().replaceAll("[\\\\/:*?\"<>|\\x00-\\x1f]", "_");
             Path target = ctx.resolvePath(folder).resolve(name.isBlank() ? "download" : name);
             Files.createDirectories(target.getParent());
@@ -1319,7 +1382,7 @@ public final class BrowserPackage {
         return out;
     }
 
-    @Action(id = "attach", name = "Attach to open browser", category = "Browser", timeoutSeconds = 120, capabilities = "browser",
+    @Action(id = "attach", name = "Attach to open browser", category = "Browser", timeoutSeconds = 120, capabilities = {"browser", "network"},
             description = "Connect to an Edge or Chrome that is already running, through its DevTools debugging port, and use it as a named session. "
                     + "Only a browser started with a debugging port can be reached (use Start browser for automation, or start it with --remote-debugging-port); "
                     + "a browser opened the usual way has none. Closing the session later only disconnects; the browser stays open.",
@@ -1339,7 +1402,7 @@ public final class BrowserPackage {
         return attachedOut(bs, session);
     }
 
-    @Action(id = "open_for_automation", name = "Start browser for automation", category = "Browser", timeoutSeconds = 180, capabilities = {"browser", "filesystem"},
+    @Action(id = "open_for_automation", name = "Start browser for automation", category = "Browser", timeoutSeconds = 180, capabilities = {"browser", "filesystem", "network"},
             description = "Start Edge or Chrome with a debugging port and its own profile folder in the workspace, so this agent, later agents and Attach to open browser "
                     + "can all reach it. When a browser already listens on the port it is reused instead. A browser opened the usual way cannot be reached, "
                     + "because it has no debugging port; recent browsers also refuse a debugging port on the everyday profile, which is why a separate profile is used. "
@@ -2077,8 +2140,10 @@ public final class BrowserPackage {
     static final Set<String> NOT_THERE = Set.of("BROWSER.OBJECT_NOT_FOUND", "BROWSER.INDEX_OUT_OF_RANGE", "BROWSER.PAGE_TIMEOUT", "BROWSER.TIMEOUT",
             "BROWSER.WINDOW_NOT_FOUND", "UI.ELEMENT_NOT_FOUND", "BROWSER.ELEMENT_NOT_FOUND");
 
+    /** Element action's outputs on success: the result, and found = true (found used to be returned only on the not-found path). */
     private static Map<String, Object> single(Object result) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("found", true);
         out.put("result", result instanceof Boolean || result == null || result instanceof BigDecimal || result instanceof String || result instanceof Map || result instanceof List ? result : Values.toJsonable(result));
         return out;
     }

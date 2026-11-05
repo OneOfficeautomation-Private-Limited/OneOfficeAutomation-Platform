@@ -15,7 +15,7 @@ public final class DictionaryPackage {
     @Output(name = "existed", type = OoaType.BOOLEAN, description = "True when the key was already there.")
     public Map<String, Object> put(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict,
-            @Input(name = "key", type = OoaType.STRING, description = "Key.") String key,
+            @Input(name = "key", type = OoaType.STRING, description = "Key to set; added when the dictionary does not have it yet, its value replaced when it does (keys are case-sensitive).") String key,
             @Input(name = "value", required = false, description = "Value.") Object value,
             @Input(name = "only_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep the existing value when the key is already there.") boolean onlyIfMissing) {
         Map<String, Object> out = new LinkedHashMap<>(dict);
@@ -31,7 +31,7 @@ public final class DictionaryPackage {
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the key exists.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict,
-            @Input(name = "key", type = OoaType.STRING, description = "Key.") String key,
+            @Input(name = "key", type = OoaType.STRING, description = "Key whose value to read (case-sensitive).") String key,
             @Input(name = "default", required = false, visibleWhen = "fail_if_missing=false", description = "Value to return when the key is missing.") Object def,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Find the key without regard to upper/lower case.") boolean ignoreCase,
             @Input(name = "fail_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Fail with DICT.KEY_NOT_FOUND instead of returning the default.") boolean failIfMissing) {
@@ -47,7 +47,7 @@ public final class DictionaryPackage {
         return null;
     }
 
-    @Action(id = "remove", name = "Remove", category = "Dictionary", idempotent = true, description = "Remove a key.",
+    @Action(id = "remove", name = "Remove", category = "Dictionary", idempotent = true, description = "Remove a key and its value from a dictionary; returns the dictionary without it.",
             panel = "dictionary, key | fail_if_missing")
     @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Updated dictionary.")
     @Output(name = "removed", description = "The value that was removed, empty when the key was not there.")
@@ -63,7 +63,7 @@ public final class DictionaryPackage {
         return Out.of("dictionary", out, "removed", removed, "found", found);
     }
 
-    @Action(id = "keys", name = "Get keys", category = "Dictionary", idempotent = true, description = "List all keys.",
+    @Action(id = "keys", name = "Get keys", category = "Dictionary", idempotent = true, description = "List all keys of a dictionary, in the order they were added.",
             panel = "dictionary")
     @Output(name = "keys", type = OoaType.LIST, description = "Keys in insertion order.")
     public Map<String, Object> keys(ActionContext ctx, @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict) {
@@ -80,7 +80,7 @@ public final class DictionaryPackage {
     @Condition(id = "contains_key", name = "Contains key", description = "True when the dictionary has the key.")
     public boolean containsKey(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Dictionary.") Map<String, Object> dict,
-            @Input(name = "key", type = OoaType.STRING, description = "Key.") String key) {
+            @Input(name = "key", type = OoaType.STRING, description = "Key to look for (case-sensitive).") String key) {
         return dict.containsKey(key);
     }
 
@@ -94,7 +94,7 @@ public final class DictionaryPackage {
     @Condition(id = "key_has_value", name = "Key has value", description = "True when the key exists and holds this value.")
     public boolean keyHasValue(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Dictionary.") Map<String, Object> dict,
-            @Input(name = "key", type = OoaType.STRING, description = "Key.") String key,
+            @Input(name = "key", type = OoaType.STRING, description = "Key whose value to compare (case-sensitive).") String key,
             @Input(name = "value", required = false, description = "Expected value.") Object value) {
         return dict.containsKey(key) && com.oneofficeautomation.runner.Values.looseEquals(dict.get(key), value);
     }
