@@ -1,0 +1,146 @@
+[
+ {
+  "command": "ooa.workload/get_next",
+  "name": "tags: take only an item with every tag given",
+  "vars": {"id": "", "data": null, "tags": null, "none": true},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "claims", "data": {"claim": "C-1"}, "tags": ["home"]}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "claims", "data": {"claim": "C-2"}, "tags": ["motor", "urgent"]}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "claims", "tags": ["URGENT", "motor"]}, "out": {"data": "data", "tags": "tags"}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "claims", "tags": ["urgent"]}, "out": {"found": "none"}}
+  ],
+  "expect": {"data": {"claim": "C-2"}, "tags": ["motor", "urgent"], "none": false}
+ },
+ {
+  "command": "ooa.workload/tag_item",
+  "name": "add and remove tags, then list by tag",
+  "vars": {"id": "", "after": null, "left": null, "table": null},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "tagq", "data": {"n": 1}, "tags": ["new"]}, "out": {"item_id": "id"}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "tagq", "data": {"n": 2}}},
+   {"action": "ooa.workload/tag_item", "args": {"queue": "tagq", "item_id": "$id", "tags": ["checked", "NEW"]}, "out": {"tags": "after"}},
+   {"action": "ooa.workload/untag_item", "args": {"queue": "tagq", "item_id": "$id", "tags": ["new"]}, "out": {"tags": "left"}},
+   {"action": "ooa.workload/list_items", "args": {"queue": "tagq", "tags": ["checked"]}, "out": {"table": "table"}}
+  ],
+  "expect": {"after": ["new", "checked"], "left": ["checked"], "table": {"$contains": "checked"}}
+ },
+ {
+  "command": "ooa.workload/add_item",
+  "name": "unique reference: skip and update",
+  "vars": {"first": "", "again": "", "outcome": "", "updated": "", "item": null},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "refs", "data": {"amount": 10}, "reference": "INV-1"}, "out": {"item_id": "first"}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "refs", "data": {"amount": 11}, "reference": "INV-1", "if_exists": "skip"}, "out": {"item_id": "again", "outcome": "outcome"}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "refs", "data": {"amount": 12}, "reference": "INV-1", "if_exists": "update"}, "out": {"outcome": "updated"}},
+   {"action": "ooa.workload/get_item", "args": {"queue": "refs", "item_id": "$first"}, "out": {"item": "item"}}
+  ],
+  "expect": {"outcome": "skipped", "updated": "updated", "item": {"$contains": "amount=12"}}
+ },
+ {
+  "command": "ooa.workload/add_item",
+  "name": "unique reference: a second item with the same reference is refused",
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "refs2", "data": {"a": 1}, "reference": "PO-7"}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "refs2", "data": {"a": 2}, "reference": "PO-7"}}
+  ],
+  "error": "QUEUE.DUPLICATE_REFERENCE"
+ },
+ {
+  "command": "ooa.workload/add_items",
+  "name": "table with a reference column, repeats skipped",
+  "vars": {"count": 0, "skipped": 0},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "rows", "data": {"no": "A"}, "reference": "A"}},
+   {"action": "ooa.workload/add_items", "args": {"queue": "rows", "table": {"columns": ["no", "amount"], "rows": [["A", 1], ["B", 2], ["C", 3]]}, "reference_column": "no", "if_exists": "skip"},
+    "out": {"count": "count", "skipped": "skipped"}}
+  ],
+  "expect": {"count": 2, "skipped": 1}
+ },
+ {
+  "command": "ooa.workload/fail",
+  "name": "business exception: final at once; system exception: retried",
+  "vars": {"a": "", "b": "", "business": true, "system": false, "item": null},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "kinds", "data": {"n": 1}}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "kinds", "data": {"n": 2}}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "kinds"}, "out": {"item_id": "a"}},
+   {"action": "ooa.workload/fail", "args": {"queue": "kinds", "item_id": "$a", "error": "no purchase order", "kind": "business"}, "out": {"will_retry": "business"}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "kinds"}, "out": {"item_id": "b"}},
+   {"action": "ooa.workload/fail", "args": {"queue": "kinds", "item_id": "$b", "error": "portal down", "kind": "system"}, "out": {"will_retry": "system"}},
+   {"action": "ooa.workload/get_item", "args": {"queue": "kinds", "item_id": "$a"}, "out": {"item": "item"}}
+  ],
+  "expect": {"business": false, "system": true, "item": {"$contains": "error_kind=business"}}
+ },
+ {
+  "command": "ooa.workload/unlock_item",
+  "name": "release an item stuck in progress; its attempts are kept",
+  "vars": {"id": "", "attempt": 0},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "stuck", "data": {"n": 1}}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "stuck"}, "out": {"item_id": "id"}},
+   {"action": "ooa.workload/unlock_item", "args": {"queue": "stuck", "item_id": "$id"}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "stuck"}, "out": {"attempt": "attempt"}}
+  ],
+  "expect": {"attempt": 2}
+ },
+ {
+  "command": "ooa.workload/delete_items",
+  "name": "delete finished items; waiting ones stay unless forced",
+  "vars": {"id": "", "finished": 0, "forced": 0, "c": null},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "tidy", "data": {"n": 1}}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "tidy", "data": {"n": 2}, "tags": ["keep"]}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "tidy"}, "out": {"item_id": "id"}},
+   {"action": "ooa.workload/complete", "args": {"queue": "tidy", "item_id": "$id"}},
+   {"action": "ooa.workload/delete_items", "args": {"queue": "tidy"}, "out": {"count": "finished"}},
+   {"action": "ooa.workload/delete_items", "args": {"queue": "tidy", "status": "new", "tags": ["keep"], "force": true}, "out": {"count": "forced"}},
+   {"action": "ooa.workload/counts", "args": {"queue": "tidy"}, "out": {"counts": "c"}}
+  ],
+  "expect": {"finished": 1, "forced": 1, "c": {"$contains": "total=0"}}
+ },
+ {
+  "command": "ooa.workload/delete_items",
+  "name": "waiting items need force",
+  "steps": [
+   {"action": "ooa.workload/delete_items", "args": {"queue": "tidy2", "status": "new"}}
+  ],
+  "error": "QUEUE.NEEDS_FORCE"
+ },
+ {
+  "command": "ooa.workload/copy_items",
+  "name": "copy to another queue: new items with the same data, reference and tags",
+  "vars": {"copied": 0, "skipped": 0, "next": null},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "src", "data": {"n": 1}, "reference": "R1", "tags": ["eu"]}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "src", "data": {"n": 2}, "reference": "R2"}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "dst", "data": {"n": 9}, "reference": "R2"}},
+   {"action": "ooa.workload/copy_items", "args": {"queue": "src", "to_queue": "dst"}, "out": {"count": "copied", "skipped": "skipped"}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "dst", "tags": ["eu"]}, "out": {"data": "next"}}
+  ],
+  "expect": {"copied": 1, "skipped": 1, "next": {"n": 1}}
+ },
+ {
+  "command": "ooa.workload/move_items",
+  "name": "move failed items to a queue of their own",
+  "vars": {"id": "", "moved": 0, "left": null, "there": null},
+  "steps": [
+   {"action": "ooa.workload/add_item", "args": {"queue": "work", "data": {"n": 1}}},
+   {"action": "ooa.workload/add_item", "args": {"queue": "work", "data": {"n": 2}}},
+   {"action": "ooa.workload/get_next", "args": {"queue": "work"}, "out": {"item_id": "id"}},
+   {"action": "ooa.workload/fail", "args": {"queue": "work", "item_id": "$id", "kind": "business"}},
+   {"action": "ooa.workload/move_items", "args": {"queue": "work", "to_queue": "exceptions", "status": "failed"}, "out": {"count": "moved"}},
+   {"action": "ooa.workload/counts", "args": {"queue": "work"}, "out": {"counts": "left"}},
+   {"action": "ooa.workload/counts", "args": {"queue": "exceptions"}, "out": {"counts": "there"}}
+  ],
+  "expect": {"moved": 1, "left": {"$contains": "total=1"}, "there": {"$contains": "new=1"}}
+ },
+ {
+  "command": "ooa.workload/get_next",
+  "name": "wait_seconds: nothing arrives, found is false",
+  "vars": {"found": true},
+  "steps": [
+   {"action": "ooa.workload/get_next", "args": {"queue": "quiet", "wait_seconds": 1}, "out": {"found": "found"}}
+  ],
+  "expect": {"found": false}
+ }
+]

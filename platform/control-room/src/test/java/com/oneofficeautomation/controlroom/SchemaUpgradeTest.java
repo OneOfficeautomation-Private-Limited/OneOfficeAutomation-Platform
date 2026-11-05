@@ -77,10 +77,35 @@ class SchemaUpgradeTest {
             db.update("INSERT INTO credential_meta (locker, name, owner, created) VALUES ('erp', 'sap', 'jane', CURRENT_TIMESTAMP)");
             assertFalse(has(db, "SELECT expires FROM credential_meta WHERE 1 = 0"));
             db.migrate();
-            assertEquals(34, db.schemaVersion());
+            assertEquals(Db.LATEST, db.schemaVersion());
             assertNull(db.one("SELECT expires FROM credential_meta WHERE locker = 'erp'").get("expires"), "existing credentials do not expire");
             assertEquals("jane", db.one("SELECT owner FROM credential_meta WHERE locker = 'erp'").get("owner"));
         }
+    }
+
+    /** Version 34 (G31): items added before keep the references they share; references added as unique are refused twice. */
+    @Test void workQueueUpgradeFrom33KeepsItemsAndGuardsUniqueReferences() throws Exception {
+        try (Db db = fresh()) {
+            upTo(db, 33);
+            db.update("INSERT INTO queues (id, name, max_attempts, processing, created) VALUES ('q1', 'Invoices', 1, FALSE, CURRENT_TIMESTAMP)");
+            for (String id : new String[] { "i1", "i2" })
+                db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated) VALUES (?, 'q1', 'INV-1', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", id);
+            db.migrate();
+            assertEquals(Db.LATEST, db.schemaVersion());
+            assertEquals(2, db.query("SELECT id FROM queue_items WHERE reference = 'INV-1'").size(), "items with the same reference from before stay");
+            assertNull(db.one("SELECT encrypt_data FROM queues WHERE id = 'q1'").get("encrypt_data"));
+            assertTrue(has(db, "SELECT tags, error_kind, unique_ref FROM queue_items WHERE 1 = 0"));
+            db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated, unique_ref) VALUES ('i3', 'q1', 'INV-2', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'INV-2')");
+            db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated, unique_ref) VALUES ('i4', 'q2', 'INV-2', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'INV-2')");
+            assertThrows(OoaException.class, () -> db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated, unique_ref) VALUES ('i5', 'q1', 'INV-2', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'INV-2')"),
+                    "a unique reference once per queue");
+        }
+    }
+
+    @Test void theUniqueIndexIsFilteredOnSqlServerOnly() {
+        String ddl = "CREATE UNIQUE INDEX queue_items_unique_ref ON queue_items (queue_id, unique_ref) WHERE unique_ref IS NOT NULL";
+        assertEquals("CREATE UNIQUE INDEX queue_items_unique_ref ON queue_items (queue_id, unique_ref)", Db.ddl(ddl, false));
+        assertEquals(ddl, Db.ddl(ddl, true));
     }
 
     @Test void aDatabaseOfThisBranchAt25IsNotMistakenForOne() throws Exception {

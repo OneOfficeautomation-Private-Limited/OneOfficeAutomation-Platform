@@ -184,9 +184,9 @@ export type Trigger = { id: string; name: string; kind: string; bot_path: string
   folder?: string | null; pattern?: string | null; config?: Record<string, unknown> | null };
 /** A work queue: items an agent works one by one on a runner pool, with a service level and attempts per item. */
 export type WorkQueue = { id: string; name: string; description?: string | null; bot_path?: string | null; pool_id?: string | null; sla_minutes?: number | null; max_attempts: number;
-  model_id?: string | null; processing: boolean; run_as?: string | null; counts: Record<string, number>; overdue?: number };
+  model_id?: string | null; processing: boolean; run_as?: string | null; counts: Record<string, number>; overdue?: number; encrypt_data?: boolean | null };
 export type WorkItem = { id: string; reference?: string | null; status: string; attempts: number; priority: number; created?: string; finished?: string | null; defer_until?: string | null;
-  data: unknown; result?: unknown; error?: unknown; run_id?: string | null };
+  data: unknown; result?: unknown; error?: unknown; run_id?: string | null; tags?: string[]; error_kind?: "business" | "system" | null };
 /** The fields every item of a queue has (AA's work item template). */
 export type ItemModel = { id: string; name: string; description?: string | null; queues?: number; fields: { name: string; type: "text" | "number" | "boolean" | "date"; required?: boolean; display?: boolean }[] };
 /** A run of a workflow: its stage, data and the timeline of what happened. */
@@ -427,11 +427,19 @@ export class CrApi {
   async deleteQueue(id: string) { await this.call("DELETE", "queues/" + encodeURIComponent(id)); }
   async setProcessing(id: string, on: boolean) { await this.call("POST", "queues/" + encodeURIComponent(id) + (on ? "/start" : "/stop")); }
   async setQueueMembers(id: string, members: { principal: string; role: string }[]) { await this.call("PUT", "queues/" + encodeURIComponent(id) + "/members", { members }); }
-  queueItems(id: string, status: string, q: string, limit = 200) { return this.call<{ items: WorkItem[]; total: number }>("GET", "queues/" + encodeURIComponent(id) + "/items?" + new URLSearchParams({ status, q, limit: String(limit) })); }
+  queueItems(id: string, status: string, q: string, limit = 200, tag = "") { return this.call<{ items: WorkItem[]; total: number }>("GET", "queues/" + encodeURIComponent(id) + "/items?" + new URLSearchParams({ status, q, limit: String(limit), ...(tag ? { tag } : {}) })); }
   queueItem(id: string, itemId: string) { return this.call<WorkItem>("GET", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId)); }
   async updateQueueItem(id: string, itemId: string, b: { data: unknown; reference: string | null; priority: number }) { await this.call("PUT", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId), b); }
   /** retry, defer (until a time, or until someone presses Retry) or delete several items. */
   async itemsAction(id: string, action: "retry" | "defer" | "delete", ids: string[], until?: string) { await this.call("POST", "queues/" + encodeURIComponent(id) + "/items/" + action, { ids, ...(until ? { until } : {}) }); }
+  /** Adds and removes tags on items (G31). */
+  tagItems(id: string, ids: string[], add: string[], remove: string[]) { return this.call<{ changed: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/tag", { ids, add, remove }); }
+  /** Releases items stuck in progress whose run has ended; attempts are kept (G31). */
+  unlockItems(id: string, ids: string[]) { return this.call<{ unlocked: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/unlock", { ids }); }
+  /** Deletes items by status and age; only succeeded and failed ones unless force (G31). */
+  purgeItems(id: string, b: { status: string; older_than_hours?: number; tags?: string[]; force?: boolean }) { return this.call<{ deleted: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/purge", b); }
+  /** Copies or moves items to another queue as new items (G31). */
+  transferItems(id: string, how: "copy" | "move", toQueue: string, ids: string[]) { return this.call<{ count: number; skipped: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/" + how, { to_queue: toQueue, ids }); }
   addItems(id: string, items: unknown[]) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items", { items }); }
   addItemsCsv(id: string, csv: string) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/csv", { csv }); }
   addItemsXlsx(id: string, file: string, sheet: string | null) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/xlsx", { file, sheet }); }

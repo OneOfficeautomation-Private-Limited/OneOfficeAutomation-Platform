@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Runs one bot in its own process. Line protocol with the agent (one JSON object per line):
  * stdin: the job, then {"type":"credential","id","value"|"error"}, {"type":"cancel"|"pause"|"resume"};
  * stdout: {"type":"event"}, {"type":"credential","id","ref"} requests and finally {"type":"result"}; also
- * {"type":"global_value"|"vault","id",...} changes an agent asks One CommandCenter to make (answered with "result" or "error").
+ * {"type":"global_value"|"vault","id",...} changes an agent asks One CommandCenter to make (answered with "result" or "error"),
+ * and {"type":"docflow"}, {"type":"cr","id","call","args"} and {"type":"queue","id","request"} requests, answered with the same type and id.
  * Secrets arrive only on request, live only in memory and are masked in every event.
  */
 public final class RunWorker {
@@ -56,7 +57,7 @@ public final class RunWorker {
                         case "cancel" -> { cancel.set(true); pause.set(false); }
                         case "pause" -> pause.set(true);
                         case "resume" -> pause.set(false);
-                        case "credential", "docflow", "cr", "global_value", "vault" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
+                        case "credential", "docflow", "cr", "global_value", "vault", "queue" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
                         default -> { }
                     }
                 }
@@ -118,6 +119,18 @@ public final class RunWorker {
         // gap G30: an agent changes a shared value or saves a credential; One CommandCenter decides as the run's user
         java.util.function.Function<Map<String, Object>, Map<String, Object>> globalWrite = req -> relay("global_value", req, "GLOBALS.TIMEOUT", "the shared value");
         java.util.function.Function<Map<String, Object>, Map<String, Object>> vaultWrite = req -> relay("vault", req, "VAULT.TIMEOUT", "the credential");
+        // Work queues in One CommandCenter (ooa.workload with central on): each command goes to the Command Center for this run
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> queues = req -> {
+            long id = ids.incrementAndGet();
+            CompletableFuture<Map<String, Object>> f = new CompletableFuture<>();
+            waiting.put(id, f);
+            send(Map.of("type", "queue", "id", id, "request", req));
+            Map<String, Object> r;
+            try { r = f.get(2, TimeUnit.MINUTES); }
+            catch (Exception e) { waiting.remove(id); throw new OoaException("QUEUE.TIMEOUT", "No answer from One CommandCenter about the work queue", null, true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            return (Map<String, Object>) r.getOrDefault("result", Map.of());
+        };
         PackageRegistry registry = FirstPartyPackages.registry();
         String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
@@ -139,6 +152,7 @@ public final class RunWorker {
                 .service("docflow", docflow)
                 .service("command_center", commandCenter)
                 .service("global_values_write", globalWrite).service("vault_write", vaultWrite)
+                .service("work_queues", queues)
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.
