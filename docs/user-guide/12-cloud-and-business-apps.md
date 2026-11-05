@@ -51,6 +51,24 @@ The value is fetched just in time, while the step runs, is masked in every log, 
 > **Tip:** For local test runs in Studio, the reference `crm/salesforce/client_secret` is read from the environment
 > variable `OOA_SECRET_CRM_SALESFORCE_CLIENT_SECRET`, set before ONEOFFICEAUTOMATION starts.
 
+### Saving a new secret and checking its expiry
+
+The **Credential vault** toolkit (`ooa.vault`) has two actions and a condition:
+
+- **Save credential value**: stores a new value of `folder/credential/attribute`, for example the password an agent
+  has just reset, and optionally the credential's new expiry date (**expires**, `yyyy-MM-dd`, or **expires_in_days**).
+  The value must be a Credential (a Credential variable or a vault reference); typed text is refused with
+  `VAULT.NO_SECRET`. It works only in runs from One CommandCenter, when the administrator allows agents to save
+  credentials and the run's user may change that credential (`VAULT.WRITE_OFF`, `VAULT.DENIED` otherwise). In Studio
+  it stops with `VAULT.LOCAL_READ_ONLY`.
+- **Check credential expiry**: gives **expires**, **days_left**, **expired**, **expiring_soon** (within **warn_days**,
+  14 by default) and **has_expiry**. In Studio no expiry dates are known: it reports none, with a warning in the log.
+- **Credential has expired** (condition): for an **If** before a step that needs the credential.
+
+Shared values are changed with **Set shared value** (`ooa.global_values`): in Studio it changes `global-values.json` in
+the workspace; from One CommandCenter the run's user needs permission to manage shared values. Only existing shared
+values are changed (`GLOBALS.NOT_FOUND` otherwise).
+
 ## 3. Saved connections
 
 Toolkits whose actions all repeat the same address and sign-in show a **Connection** field at the top of their settings:

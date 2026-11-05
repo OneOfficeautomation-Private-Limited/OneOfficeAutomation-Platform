@@ -314,7 +314,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "lockers" && (init.method ?? "GET") === "GET") return ok({ lockers: [
       { name: "finance", description: "Bank and ERP", owners: "admin", consumers: "role:bot_runner", managers: [], participants: ["team:finance"], my_role: "owner", can_manage: true,
         external: null, credentials: [{ name: "erp", attribute: "username", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }, { name: "erp", attribute: "password", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }],
-        credential_info: [{ name: "erp", owner: "admin", user_attributes: [], my_values: [] }, { name: "bank", owner: "admin", user_attributes: ["pin"], my_values: [] }] }] });
+        credential_info: [{ name: "erp", owner: "admin", user_attributes: [], my_values: [], expires: "2026-01-01", days_left: -307, expired: true, expiring_soon: false }, { name: "bank", owner: "admin", user_attributes: ["pin"], my_values: [] }] }] });
     if (route === "vault/requests") return ok({ requests: [{ locker: "finance", name: "bank", attribute: "pin", description: "Your bank PIN" }] });
     if (route === "vault/credential" && (init.method ?? "GET") === "GET") return ok({ locker: "finance", name: "erp", owner: "admin", description: "", can_change: true, my_values: [],
       attributes: [{ attribute: "password", user_provided: false, masked: true }, { attribute: "username", user_provided: false, masked: true }] });
@@ -1336,6 +1336,23 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.some((x) => x.method === "DELETE")).toBe(false);
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Delete" })); });
     expect(calls.some((x) => x.method === "DELETE" && x.route === "teams/t2")).toBe(true);
+  });
+
+  it("marks expired credentials, filters them, and sets a credential's expiry date in its details (gap G30)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lockers.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    await go("Credential vault");
+    const list = await screen.findByRole("table", { name: "Credentials list" });
+    expect(await within(list).findByText("Expired 2026-01-01")).toBeTruthy();
+    expect(screen.getByText(/1 expired/)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Expired or expiring"));
+    await waitFor(() => expect(within(list).queryByText("bank")).toBeNull());
+    fireEvent.click(within(list).getByText("erp"));
+    const d = await screen.findByRole("dialog", { name: "Credential finance/erp" });
+    fireEvent.click(await within(d).findByRole("tab", { name: "Details" }));
+    fireEvent.change(within(d).getByLabelText(/^Expires on/), { target: { value: "2027-01-31" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save details" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/credential", body: expect.objectContaining({ expires: "2027-01-31" }) }));
   });
 
   it("shows the Credential vault as AA's: credentials, vault folders, my requests; flags saved, a credential created, members changed", async () => {

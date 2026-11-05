@@ -25,7 +25,8 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Core logic & data | Prompt | ooa.desktop/prompt_* | Built | Value, yes/no, password, file and folder |
 | Core logic & data | Play sound / Beep | ooa.sound | Built |  |
 | Core logic & data | Bot Migration / Legacy | - | Not needed | AA-specific |
-| Core logic & data | Global values | ooa.global_values, $global | Built | Managed in Control Room; workspace file in Studio |
+| Core logic & data | Global values | ooa.global_values, $global | Built | Managed in Control Room; workspace file in Studio; agents change existing values with set (run user needs globals.manage) |
+| Core logic & data | Credential vault (save, expiry) | ooa.vault | Built | Save credential value (admin switch + permission to change the credential), Check credential expiry, Credential has expired |
 | UI automation | Recorder | ooa.browser/record, ooa.browser/element_action (Capture), Studio Record, Capture and Pick | Partial | Web recorder and web Capture built; desktop, Java and SAP capture need the Bot Agent |
 | UI automation | Browser | ooa.browser | Built (library module, test on laptop) | Playwright; uses installed Edge or Chrome |
 | UI automation | Window | ooa.window | Built (library module, test on laptop) | Win32 via JNA |

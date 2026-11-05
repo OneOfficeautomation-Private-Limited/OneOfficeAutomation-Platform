@@ -118,6 +118,7 @@ const SECTIONS: Section[] = [
     { title: "Rules", settings: [
       { key: "production_approval", label: "Approval before production", hint: "A second person approves every version before it goes live.", kind: "check" },
       { key: "block_executable_uploads", label: "Block programs and scripts in uploads", hint: ".exe, .dll, .ps1 and similar.", kind: "check" },
+      { key: "agents_write_credentials", label: "Agents may save credentials", hint: "For example a new password after a reset; the run's user needs permission to change the credential.", kind: "check" },
       { key: "promotion_targets", label: "Promote agents only to", hint: "One CommandCenter addresses, separated by commas. Empty: any.", kind: "text", placeholder: "https://cc-prod.example.com" }] },
     { title: "Git copy", settings: [
       { key: "git_remote_url", label: "Git remote", hint: "https://…git", kind: "text", placeholder: "https://github.com/acme/agents.git" },

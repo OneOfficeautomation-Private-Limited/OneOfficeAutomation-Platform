@@ -412,6 +412,22 @@ public final class Agent {
                             w.send(Map.of("type", "credential", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }
                     });
+                    // gap G30: shared value and credential changes; the run id is added here, One CommandCenter checks the run's user
+                    case "global_value", "vault" -> io.submit(() -> {
+                        String type = String.valueOf(msg.get("type"));
+                        Map<String, Object> body = new LinkedHashMap<>(msg);
+                        body.remove("type"); body.remove("id");
+                        body.put("run_id", w.runId);
+                        try {
+                            Map<String, Object> r = client.post(type.equals("vault") ? "vault" : "global-values", body);
+                            w.send(Map.of("type", type, "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            Map<String, Object> err = new LinkedHashMap<>();
+                            err.put("code", e.code()); err.put("message", e.getMessage());
+                            if (e.suggestedFix() != null) err.put("fix", e.suggestedFix());
+                            w.send(Map.of("type", type, "id", msg.get("id"), "error", err));
+                        }
+                    });
                     case "docflow" -> io.submit(() -> {
                         try {
                             Path file = Path.of(String.valueOf(msg.get("file")));

@@ -361,13 +361,17 @@ folders** and **My requests**.
 ### Credential details
 
 The **Credentials** tab lists every credential you can see with its **Vault folder**, **Attributes**, **Each person's
-own**, **Owner** and **Updated**. Click one to open its page:
+own**, **Owner**, **Expires** and **Updated**. A credential whose expiry date has passed is marked **Expired**, one
+that expires within 14 days **In N days**; the count at the top says how many, and the **Expired or expiring** filter
+shows only those. Click one to open its page:
 
 - **Attributes**: one row per attribute with its value (type a new one and press **Change**), a **Description**,
   **Masked** (on by default: never shown; clear it for non-secret values such as a user name, so owners and managers
   can **Show** it, each look audited) and **Password fields only** (agents may type the value only into password
   fields);
-- **Details**: **Description**, **Owner** (owners and managers can hand a credential over) and **Each person's own
+- **Details**: **Description**, **Owner** (owners and managers can hand a credential over), **Expires on** (the date
+  the credential stops working, for example a password changed every 90 days; empty when it does not expire) and
+  **Each person's own
   attributes (separated by commas)**: for example `password`, so each person keeps their own value under **Your
   values** (**Save mine**, **Clear mine**). A run reads the value of the person it runs as. A shared value cannot be
   set for such an attribute.
@@ -376,6 +380,26 @@ Press **Save details** to keep changes to descriptions, **Masked**, **Password f
 
 **My requests** (with a count) lists the attributes you have to fill in for yourself and have not filled in yet; fill
 them in and press **Save**.
+
+### Agents that save credentials
+
+An agent can store a new value of a credential, for example the new password after it reset one, with **Save
+credential value** (`ooa.vault`), and set the next expiry date at the same time. This is off until an administrator
+ticks **Settings > Agents and repository > Agents may save credentials**. Even then One CommandCenter checks, as the
+user the run runs as (its run-as user, or whoever started it), the same rules as for people:
+
+| What the agent saves | The run's user must be |
+| --- | --- |
+| A shared attribute | An owner or manager of the vault folder, or a participant who owns the credential (or creates it) |
+| An attribute that is each person's own | Any member of the vault folder, consumers included: their own value is stored, as **Save mine** does |
+
+Folders linked to a company vault are not written; change the value there. The value must come from the vault or
+another Credential, never typed text. Every save, and every refusal, is in the Audit Trail as `credential.set` with
+the runner, run, agent and run's user, never the value.
+
+**Check credential expiry** (`ooa.vault`) tells an agent the expiry date, the days left and whether it has expired;
+the run's user must be a member of the folder (consumers included). Reading an expired credential still works, as
+before: agents that must not use one check first.
 
 ### The vault key
 
@@ -408,6 +432,11 @@ value. **Unlink…** removes the link, after asking.
 `$global.name`, such as a reports folder. **New shared value**: a **Name** and a **Value (JSON)** (`"D:/Reports"`,
 `1000`, `{"a": 1}`). Tick **People may set their own value** to let each person keep a **My value** that their runs
 use; turning it off removes everyone's own values.
+
+Agents can change an existing shared value with **Set shared value** (`ooa.global_values`) when the user the run runs
+as has `globals.manage` (Manage shared values); the value must fit the shared value's type. Agents never create or
+delete shared values. Each change is in the Audit Trail as `global.set` with the runner, run, agent and run's user.
+A person's or team's own value still wins for their runs.
 
 **Manage > Connections** (change `globals.manage`): a connector's address and sign-in, kept once and chosen by name on
 agent steps. **New connection**: **Name**, **Toolkit**, **Description** and the toolkit's settings; secret settings
