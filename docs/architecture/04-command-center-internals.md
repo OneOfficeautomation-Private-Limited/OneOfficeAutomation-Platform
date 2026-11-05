@@ -137,6 +137,7 @@ once, and writes on other nodes are seen within 2 seconds.
 | `POST agent/credential` | Fetch one vault value for a running job |
 | `POST agent/global-values` | A running job changes an existing shared value; checked as the run's user (`globals.manage`) |
 | `POST agent/vault` | A running job saves a credential value and expiry (`op` save) or reads a credential's expiry (`op` expiry); checked as the run's user, saving only with Settings `agents_write_credentials` |
+| `POST agent/locks` | Environment locks for a running job: `{run_id, op: acquire \| release \| check, name, lease_seconds, comment}`. The run must be on this runner and running; the holder is always that run |
 | `POST agent/rotate` | Get a new device secret when the heartbeat asks for it |
 | `POST agent/trigger-fired`, `agent/trigger-status` | Report a runner-side trigger event or error |
 | `GET agent/update/manifest`, `agent/update/file?name=` | Program files for self-update |

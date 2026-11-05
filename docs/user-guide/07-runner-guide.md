@@ -21,6 +21,7 @@ and `pools.manage` for runner pools.
 9. [Runner pools](#9-runner-pools)
 10. [Temporary runners](#10-temporary-runners)
 11. [Updates, toolkits and secrets](#11-updates-toolkits-and-secrets)
+- [Environment locks: one run at a time on a shared system](#environment-locks-one-run-at-a-time-on-a-shared-system)
 12. [The assistant in the notification area](#12-the-assistant-in-the-notification-area)
 13. [Diagnosing problems: ooa agent diagnose](#13-diagnosing-problems-ooa-agent-diagnose)
 14. [Moving a runner to a new One CommandCenter address](#14-moving-a-runner-to-a-new-command-center-address)
@@ -241,6 +242,39 @@ the runner checks each jar's checksum and signature (`RUN.TOOLKIT_LOAD` if eithe
 
 **Runner secrets.** Each runner's secret is replaced by itself every 30 days (**Settings > Give runners a new secret
 every (days)**, 0 = never). The runner saves the new secret safely; the old one keeps working for a short while.
+
+## Environment locks: one run at a time on a shared system
+
+Some systems allow only one session at a time: one SAP login, one shared mailbox, one terminal user. When agents on
+several runners use such a system, give it an **environment lock** (as Blue Prism calls it): a name that only one run
+holds at a time.
+
+**In the agent.** Use the **Environment locks** toolkit:
+
+- **Acquire lock** takes the lock by name (names are compared without case). **Wait (seconds)** waits for the run that
+  holds it to give it back (0 tries once). The result **acquired** says whether this run has it; when it does not,
+  **held by** names the run, runner and person holding it. Tick **Fail when the lock is not acquired** to stop with
+  `LOCK.TIMEOUT` instead.
+- **Release lock** gives the lock back. A run can give back only its own locks: releasing a lock it does not hold
+  changes nothing, returns **released** false and writes a warning to the log.
+- **Check lock** says whether the lock is held, by whom, since when and until when; the condition **Lock is held** asks
+  the same in an If or a loop.
+
+**When locks are given back.** A lock belongs to the run that took it. It is given back by Release lock, when the agent
+that took it ends, and in any case when the run ends: succeeded, failed, stopped, or failed because its runner stopped
+reporting. One CommandCenter also checks every 15 seconds for locks whose run is no longer running.
+
+**The lease.** Each lock has a lease, an hour unless the step's **Lease (seconds)** says otherwise (5 seconds to 7 days).
+A lock held past its lease may be taken by another run, and the audit trail notes whose it was. A long job renews its
+lease by acquiring the lock again, which keeps the time it was first taken.
+
+**In One CommandCenter.** **Manage > Environment locks** lists the locks held now: the lock, the run, agent and person
+holding it, the runner, since when, and when the lease runs out (marked when it has passed). Everyone who can see
+runners sees the list. Administrators (permission **Release environment locks**) can **Release** a lock by hand, for
+example when a run is stuck; the run is not stopped, and the release is written to the audit trail.
+
+**Without One CommandCenter.** In One AgentStudio on its own, locks work on this computer only: they are kept in
+memory and shared by the runs in that program, with the same rules. Separate `ooa run` commands do not share them.
 
 ## 12. The assistant in the notification area
 

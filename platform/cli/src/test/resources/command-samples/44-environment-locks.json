@@ -1,0 +1,71 @@
+[
+ {
+  "command": "ooa.locks/acquire",
+  "name": "takes a free lock, then the run holds it",
+  "vars": {"got": false, "mine": false, "who": "x"},
+  "steps": [
+   {"action": "ooa.locks/acquire", "args": {"name": "samples SAP login", "comment": "month end"}, "out": {"acquired": "got", "held_by": "who"}},
+   {"action": "ooa.locks/check", "args": {"name": "SAMPLES sap LOGIN"}, "out": {"mine": "mine"}}
+  ],
+  "expect": {"got": true, "mine": true, "who": ""}
+ },
+ {
+  "command": "ooa.locks/acquire",
+  "name": "taking it again from the same run renews the lease",
+  "vars": {"a": false, "b": false},
+  "steps": [
+   {"action": "ooa.locks/acquire", "args": {"name": "samples renew", "lease_seconds": 30}, "out": {"acquired": "a"}},
+   {"action": "ooa.locks/acquire", "args": {"name": "samples renew", "lease_seconds": 600}, "out": {"acquired": "b"}}
+  ],
+  "expect": {"a": true, "b": true}
+ },
+ {
+  "command": "ooa.locks/acquire",
+  "name": "a lease shorter than 5 seconds is refused before the agent runs",
+  "steps": [{"action": "ooa.locks/acquire", "args": {"name": "samples lease", "lease_seconds": 1}}],
+  "error": "FLOW.INVALID"
+ },
+ {
+  "command": "ooa.locks/acquire",
+  "name": "a lock needs a name",
+  "steps": [{"action": "ooa.locks/acquire", "args": {"name": "  "}}],
+  "error": "LOCK.BAD_NAME"
+ },
+ {
+  "command": "ooa.locks/release",
+  "name": "gives back the run's lock, so it is free",
+  "vars": {"released": false, "held": true},
+  "steps": [
+   {"action": "ooa.locks/acquire", "args": {"name": "samples mailbox"}},
+   {"action": "ooa.locks/release", "args": {"name": "samples mailbox"}, "out": {"released": "released"}},
+   {"action": "ooa.locks/check", "args": {"name": "samples mailbox"}, "out": {"held": "held"}}
+  ],
+  "expect": {"released": true, "held": false}
+ },
+ {
+  "command": "ooa.locks/release",
+  "name": "a lock the run does not hold is left alone (released false)",
+  "vars": {"released": true},
+  "steps": [{"action": "ooa.locks/release", "args": {"name": "samples never taken"}, "out": {"released": "released"}}],
+  "expect": {"released": false}
+ },
+ {
+  "command": "ooa.locks/check",
+  "name": "a free lock: not held, nobody named",
+  "vars": {"held": true, "who": "x", "since": "x"},
+  "steps": [{"action": "ooa.locks/check", "args": {"name": "samples free"}, "out": {"held": "held", "held_by": "who", "since": "since"}}],
+  "expect": {"held": false, "who": "", "since": ""}
+ },
+ {
+  "command": "ooa.locks/is_held",
+  "name": "condition: true while the run holds the lock, false after",
+  "vars": {"during": false, "after": true},
+  "steps": [
+   {"action": "ooa.locks/acquire", "args": {"name": "samples condition"}},
+   {"action": "core/if", "args": {"condition": {"condition": "ooa.locks/is_held", "args": {"name": "samples condition"}}}, "children": [{"action": "core/set", "args": {"variable": "during", "value": true}}]},
+   {"action": "ooa.locks/release", "args": {"name": "samples condition"}},
+   {"action": "core/if", "args": {"condition": {"condition": "ooa.locks/is_held", "args": {"name": "samples condition"}}}, "else": [{"action": "core/set", "args": {"variable": "after", "value": false}}]}
+  ],
+  "expect": {"during": true, "after": false}
+ }
+]

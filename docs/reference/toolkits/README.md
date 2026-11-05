@@ -37,6 +37,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Document Automation](ooa-documents.md) | `ooa.documents` | 1 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process and get the fields it reads. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
+| [Environment locks](ooa-locks.md) | `ooa.locks` | 3 | 1 | 0 | Named locks that one agent run holds at a time, so two runners never use the same single-user system together. |
 | [Excel (desktop, needs Excel)](ooa-excel_desktop.md) | `ooa.excel_desktop` | 5 | 0 | 0 | Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 75 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [Exchange on-premises (EWS)](ooa-exchange.md) | `ooa.exchange` | 13 | 0 | 1 | Read, send, reply to, move, mark and delete emails in an on-premises Exchange Server 2013-2019 or SE mailbox through Exchange Web Services (EWS). For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit, as Microsoft is retiring EWS there. |

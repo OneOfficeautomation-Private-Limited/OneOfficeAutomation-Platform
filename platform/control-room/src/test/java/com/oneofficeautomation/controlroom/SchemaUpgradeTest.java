@@ -83,7 +83,7 @@ class SchemaUpgradeTest {
         }
     }
 
-    /** Version 34 (G31): items added before keep the references they share; references added as unique are refused twice. */
+    /** Version 35 (G31): items added before keep the references they share; references added as unique are refused twice. */
     @Test void workQueueUpgradeFrom33KeepsItemsAndGuardsUniqueReferences() throws Exception {
         try (Db db = fresh()) {
             upTo(db, 33);
