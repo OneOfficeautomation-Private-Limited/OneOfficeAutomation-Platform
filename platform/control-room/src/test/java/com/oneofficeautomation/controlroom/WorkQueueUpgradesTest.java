@@ -197,7 +197,7 @@ class WorkQueueUpgradesTest {
             assertTrue(stored.startsWith("v1:") && !stored.contains("DE89") && !stored.contains("GB29"), "not readable in the table: " + stored);
         }
         assertEquals("GB29NWBK60161331926819", ((Map<String, Object>) cr.platform.item(admin, qid, later).get("data")).get("iban"), "readable through the API");
-        assertTrue(String.valueOf(items(qid, null).get(0).get("data")).contains("GB29"));
+        assertTrue(items(qid, null).stream().anyMatch(i -> String.valueOf(i.get("data")).contains("GB29")), "the list shows the data decrypted");
         assertTrue(audited("queue.encrypt_on"));
         // a person without the right to view the queue reads nothing
         String closedQueue = qid;
