@@ -1,0 +1,41 @@
+{
+  "name": "027_state_machine",
+  "description": "A state machine per invoice: Waiting moves to Approved when the amount is at most 1000, otherwise (the transition without a condition) to Rejected; Approved moves to Paid. Final states end the step; Continue loop inside a state reaches the loop around it.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c27",
+    "name": "c27",
+    "variables": [
+      {"name": "amount", "type": "Any"},
+      {"name": "trail", "type": "String", "direction": "output", "default": ""}
+    ],
+    "steps": [
+      {"id": "l", "action": "core/loop", "args": {"iterator": "list", "over": [500, 0, 5000], "as": "amount"}, "children": [
+        {"id": "sm", "action": "core/state_machine", "args": {"initial": "Waiting", "max_transitions": 10}, "states": [
+          {"name": "Waiting",
+           "entry": [
+             {"id": "w1", "action": "core/set", "args": {"variable": "trail", "value": "${trail}W"}},
+             {"id": "w2", "action": "core/if", "args": {"condition": "$amount == 0"}, "children": [
+               {"id": "w3", "action": "core/set", "args": {"variable": "trail", "value": "${trail}-skip;"}},
+               {"id": "w4", "action": "core/continue"}
+             ]}
+           ],
+           "transitions": [
+             {"to": "Approved", "when": {"op": "le", "left": "$amount", "right": 1000},
+              "steps": [{"id": "t1", "action": "core/set", "args": {"variable": "trail", "value": "${trail}>"}}]},
+             {"to": "Rejected"}
+           ]},
+          {"name": "Approved", "entry": [{"id": "a1", "action": "core/set", "args": {"variable": "trail", "value": "${trail}A"}}],
+           "transitions": [{"to": "Paid"}]},
+          {"name": "Rejected", "final": true, "entry": [{"id": "r1", "action": "core/set", "args": {"variable": "trail", "value": "${trail}R;"}}]},
+          {"name": "Paid", "final": true, "entry": [{"id": "p1", "action": "core/set", "args": {"variable": "trail", "value": "${trail}P;"}}]}
+        ]}
+      ]}
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {"trail": "W>AP;W-skip;WR;"}
+  }
+}

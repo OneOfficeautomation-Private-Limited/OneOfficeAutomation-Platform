@@ -680,6 +680,7 @@ public final class Runner {
                 for (String k : List.of("children", "else", "finally", "default")) sections.add(list(s, k));
                 for (String k : List.of("elseIf", "catch", "cases"))
                     for (Object b : list(s, k)) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) sections.add((List<Object>) c);
+                sections.addAll(Steps.stateLists(s));
                 for (List<Object> sec : sections) {
                     List<String> p = pathTo(sec, id);
                     if (p != null) { p.add(0, sid); return p; }
@@ -693,13 +694,24 @@ public final class Runner {
         /**
          * Run from here: goes into a block that holds the start step without evaluating it (no If condition, one Loop pass
          * without item variables, only the Parallel branch that holds the step, a Switch case without comparing its
-         * values). A Try keeps its Catch and Finally.
+         * values). A Try keeps its Catch and Finally. A State machine starts in the state that holds the step (or on the
+         * transition that does) and then carries on as usual.
          */
         @SuppressWarnings("unchecked")
         void enterTowards(Map<String, Object> step) {
             check();
             String act = String.valueOf(step.get("action")), sid = String.valueOf(step.get("id"));
             log("info", "Entering " + act + " [" + sid + "] without evaluating it, to reach step " + startAt, sid);
+            if (act.equals("core/state_machine")) {
+                Map<String, Object> a = step.get("args") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+                List<Map<String, Object>> states = Steps.states(step);
+                for (Map<String, Object> st : states) {
+                    if (holdsStart(list(st, "entry"))) { stateMachine(step, a, sid, st, null); return; }
+                    for (Map<String, Object> t : Steps.transitions(st))
+                        if (holdsStart(list(t, "steps"))) { stateMachine(step, a, sid, st, t); return; }
+                }
+                return;
+            }
             List<Object> kids = list(step, "children");
             if (holdsStart(kids)) {
                 switch (act) {
@@ -814,6 +826,7 @@ public final class Runner {
                     execSteps(list(step, "else"), false);
                 }
                 case "switch" -> switchStep(step, a, sid);
+                case "state_machine" -> stateMachine(step, a, sid, null, null);
                 case "loop" -> loop(step, a);
                 case "try" -> tryBlock(step);
                 case "step" -> execSteps(list(step, "children"), false);
@@ -934,6 +947,68 @@ public final class Runner {
             boolean hasDefault = step.get("default") instanceof List<?>;
             log("info", "Switch: no case matched" + shown + (hasDefault ? "; running the default steps" : "; nothing to run"), sid);
             execSteps(list(step, "default"), false);
+        }
+
+        /**
+         * core/state_machine: enters the initial state (the first when none is named) and runs its entry steps; a final state
+         * then ends the step, otherwise the state's transitions are tried in order and the first whose condition is true
+         * (or that has none) runs its steps and enters its target state. No true transition fails with STATE.NO_TRANSITION;
+         * more than max_transitions fails with STATE.LIMIT. Exit loop and Continue loop reach a loop around the state
+         * machine; Go to cannot leave it. Run from here passes the state (and transition) that holds the start step.
+         */
+        void stateMachine(Map<String, Object> step, Map<String, Object> a, String sid, Map<String, Object> fromState, Map<String, Object> fromTransition) {
+            Map<String, Map<String, Object>> byName = new LinkedHashMap<>();
+            for (Map<String, Object> st : Steps.states(step)) byName.putIfAbsent(String.valueOf(st.get("name")), st);
+            if (byName.isEmpty()) throw new OoaException("STATE.NOT_FOUND", "The state machine has no states", "Add the states and their transitions.");
+            String initial = optText(a.get("initial"));
+            Object maxRaw = resolve(a.get("max_transitions"));
+            long max = maxRaw == null || "".equals(maxRaw) ? 1000 : Values.toNumber(maxRaw).longValue();
+            Map<String, Object> state = fromState != null ? fromState : stateNamed(byName, initial == null ? byName.keySet().iterator().next() : initial.strip(), null);
+            Map<String, Object> pending = fromTransition;   // Run from here on a transition: its steps run before the next state
+            long taken = 0;
+            try {
+                while (true) {
+                    String name = String.valueOf(state.get("name"));
+                    if (pending == null) {
+                        log("info", "State machine: entered state '" + name + "'", sid);
+                        execSteps(list(state, "entry"), false);
+                        if (onlyDone) return;
+                        if (Boolean.TRUE.equals(state.get("final"))) {
+                            log("info", "State machine: ended in final state '" + name + "'", sid);
+                            return;
+                        }
+                        List<Map<String, Object>> ts = Steps.transitions(state);
+                        int n = 0;
+                        while (n < ts.size() && pending == null) {
+                            Object when = ts.get(n).get("when");
+                            if (when == null || condition(when, sid)) pending = ts.get(n);
+                            else n++;
+                        }
+                        if (pending == null)
+                            throw new OoaException("STATE.NO_TRANSITION", "No transition out of state '" + name + "' is true",
+                                    "Add a transition without a condition as the last one (it is taken when no other is), or mark the state final.");
+                        if (++taken > max)
+                            throw new OoaException("STATE.LIMIT", "The state machine took more than " + max + " transitions (last out of state '" + name + "')",
+                                    "The states may be going round endlessly: check the transition conditions, or raise max_transitions.");
+                        log("info", "State machine: from '" + name + "' to '" + pending.get("to") + "' (transition " + (n + 1) + ")", sid);
+                    }
+                    execSteps(list(pending, "steps"), false);
+                    if (onlyDone) return;
+                    state = stateNamed(byName, String.valueOf(pending.get("to")), name);
+                    pending = null;
+                }
+            } catch (GotoSignal g) {
+                throw new OoaException("FLOW.BAD_GOTO", "Go to label '" + g.label + "' would leave the state machine",
+                        "Go to can only jump to a label in the same step list of a state, or a list inside it.");
+            }
+        }
+
+        /** The state with this name; `from` is the state whose transition leads there (null for the initial state). */
+        Map<String, Object> stateNamed(Map<String, Map<String, Object>> byName, String name, String from) {
+            Map<String, Object> st = byName.get(name);
+            if (st == null) throw new OoaException("STATE.NOT_FOUND", "There is no state named '" + name + "'"
+                    + (from == null ? " to start in" : " (a transition of state '" + from + "' leads there)"), "States: " + String.join(", ", byName.keySet()) + ".");
+            return st;
         }
 
         String optText(Object raw) {

@@ -33,6 +33,14 @@ class CorePackage:
                           description="Compare text without upper/lower case.")])
     def switch(self, ctx, **a): _interp()
 
+    @action("state_machine", "State machine", category="Logic",
+            description="Move between named states: each state runs its entry steps, then the first of its transitions whose condition is true runs its steps "
+                        "and moves to the next state; the step ends in a final state. Fails with STATE.NO_TRANSITION when a state that is not final has no true transition.",
+            inputs=[Input("initial", "String", required=False, description="Name of the state to start in; the first state when empty."),
+                    Input("max_transitions", "Number", required=False, default=1000,
+                          description="Safety limit; the step fails with STATE.LIMIT when more transitions than this are taken.")])
+    def state_machine(self, ctx, **a): _interp()
+
     @action("loop", "Loop", category="Logic",
             description="Repeat the children using an iterator: times, while, list, dictionary, table_rows or a package iterator (package/iterator).",
             inputs=[Input("iterator", "String", description="Iterator kind or package/iterator address.", example="list"),

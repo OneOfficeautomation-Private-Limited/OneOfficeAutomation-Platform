@@ -11,6 +11,7 @@ import {
   pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
   moveCase, parseLoose, setCaseValues, showValue,
+  addTransition, moveState, moveTransition, renameState, setStateFinal, setTransition,
   addSubflow, listOf, removeSubflow, renameSubflow, swapSubflow,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
@@ -28,7 +29,7 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
-import { agentRows, describeAction, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
+import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -840,8 +841,8 @@ function SubflowDialog({ rename, onClose, onSave }: { rename?: string; onClose: 
   );
 }
 
-function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default") => void }) {
-  if (step.action !== "core/if" && step.action !== "core/try" && step.action !== "core/switch") return null;
+function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default" | "states") => void }) {
+  if (step.action !== "core/if" && step.action !== "core/try" && step.action !== "core/switch" && step.action !== "core/state_machine") return null;
   return <>
     <h3 className="st-prop-section">Parts</h3>
     <div className="st-row st-pad">
@@ -857,7 +858,67 @@ function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | 
         <Button kind="secondary" icon="plus" onClick={() => onAdd("cases")}>Case</Button>
         {!step.default && <Button kind="secondary" icon="plus" onClick={() => onAdd("default")}>Default</Button>}
       </>}
+      {step.action === "core/state_machine" && <Button kind="secondary" icon="plus" onClick={() => onAdd("states")}>State</Button>}
     </div>
+    {step.action === "core/state_machine" && <p className="st-pad st-muted">Select a state's heading in the list to rename it, mark it final or add transitions; select a transition's heading to choose where it leads and when.</p>}
+  </>;
+}
+
+/**
+ * A State machine's state: its name, whether the machine starts or ends here, its place, and adding a transition. The
+ * first state is the start unless the start setting names another.
+ */
+function StateFields({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const step = findStep(flow, id)?.step;
+  const st = step?.states?.[k];
+  if (!step || !st) return null;
+  const isStart = st.name === startState(step);
+  const count = step.states!.length;
+  const rename = (t: string) => { try { setError(null); onEdit(renameState(flow, id, k, t)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
+  const select = (m: { flow: Flow; part: Part | null }) => { if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); };
+  return <>
+    <Field label="Name" layout="beside">{(fid) => <CommitInput key={id + k + st.name} id={fid} initial={st.name} onCommit={rename} />}</Field>
+    {error && <p className="st-alert" role="alert">{error}</p>}
+    <label className="st-check-line"><input type="checkbox" checked={isStart} disabled={isStart}
+      onChange={() => onEdit(setArg(flow, id, "initial", k === 0 ? undefined : st.name))} /> Start here{isStart ? " (the start state)" : ""}</label>
+    <label className="st-check-line"><input type="checkbox" checked={!!st.final} onChange={(e) => onEdit(setStateFinal(flow, id, k, e.target.checked))} /> Final: the state machine ends after this state's steps</label>
+    {st.final && !!st.transitions?.length && <p className="st-alert" role="status">A final state has no transitions: remove them, or untick Final.</p>}
+    <div className="st-row">
+      {!st.final && <Button kind="secondary" icon="plus" onClick={() => select(addTransition(flow, id, k))}>Transition</Button>}
+      {count > 1 && <>
+        <Button kind="secondary" icon="up" disabled={k === 0} onClick={() => select(moveState(flow, id, k, -1))}>Move state up</Button>
+        <Button kind="secondary" icon="down" disabled={k === count - 1} onClick={() => select(moveState(flow, id, k, 1))}>Move state down</Button>
+      </>}
+    </div>
+  </>;
+}
+
+/** A transition: the state it leads to, and when it is taken (a condition, or otherwise: when no transition above it is). */
+function TransitionFields({ flow, id, k, j, onEdit }: { flow: Flow; id: string; k: number; j: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const step = findStep(flow, id)?.step;
+  const t = step?.states?.[k]?.transitions?.[j];
+  const [conditional, setConditional] = useState(t?.when !== undefined);
+  if (!step || !t) return null;
+  const names = (step.states ?? []).map((x) => x.name);
+  const count = step.states![k].transitions!.length;
+  const select = (m: { flow: Flow; part: Part | null }) => { if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); };
+  const when = conditional || t.when !== undefined;
+  return <>
+    <Field label="Goes to" layout="beside">{(fid) => <Select id={fid} value={t.to} onChange={(e) => onEdit(setTransition(flow, id, k, j, { to: e.target.value }))}
+      options={[...names.map((n) => ({ value: n, label: n })), ...(names.includes(t.to) ? [] : [{ value: t.to, label: t.to + " (not a state)" }])]} />}</Field>
+    <Field label="Taken" layout="beside" hint="Transitions are tried from the top; the first that holds is taken.">{() =>
+      <div className="st-seg" role="radiogroup" aria-label="When the transition is taken">
+        {([[true, "When a condition holds"], [false, "Otherwise (no condition)"]] as const).map(([c, label]) =>
+          <button key={label} type="button" role="radio" aria-checked={when === c} className="st-seg-btn"
+            onClick={() => { setConditional(c); if (!c) onEdit(setTransition(flow, id, k, j, { when: undefined })); }}>{label}</button>)}
+      </div>}</Field>
+    {when && <Field label="Condition">{() =>
+      <ConditionEditor key={id + ":" + k + ":" + j} value={t.when} onCommit={(v) => onEdit(setTransition(flow, id, k, j, { when: v }))} />}</Field>}
+    {count > 1 && <div className="st-row">
+      <Button kind="secondary" icon="up" disabled={j === 0} onClick={() => select(moveTransition(flow, id, k, j, -1))}>Move up</Button>
+      <Button kind="secondary" icon="down" disabled={j === count - 1} onClick={() => select(moveTransition(flow, id, k, j, 1))}>Move down</Button>
+    </div>}
   </>;
 }
 
@@ -945,13 +1006,15 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
             onCommit={(t) => onEdit(setCatchCodes(flow, id, +k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>}
         {kind === "cases" && <Field label={step.args?.match === "expression" ? "Conditions (any one selects this case)" : "Values (any one selects this case)"}
           hint="Cases are tried from the top; only the first that matches runs.">{() => <CaseValues flow={flow} id={id} k={+k} onEdit={onEdit} />}</Field>}
+        {kind === "entry" && <StateFields key={id + part} flow={flow} id={id} k={+k} onEdit={onEdit} />}
+        {kind === "trans" && <TransitionFields key={id + part} flow={flow} id={id} k={+k} j={+part.split(":")[2]} onEdit={onEdit} />}
         {kind === "cases" && (step.cases?.length ?? 0) > 1 && <div className="st-row">
           <Button kind="secondary" icon="up" disabled={+k === 0} onClick={() => { const m = moveCase(flow, id, +k, -1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case up</Button>
           <Button kind="secondary" icon="down" disabled={+k === (step.cases?.length ?? 0) - 1} onClick={() => { const m = moveCase(flow, id, +k, 1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case down</Button>
         </div>}
       </div>
       {part !== "children" && removed !== flow && <div className="st-pad">
-        <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>Remove this part{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>
+        <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>{kind === "entry" ? "Remove this state" : kind === "trans" ? "Remove this transition" : "Remove this part"}{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>
       </div>}
     </div>
   );

@@ -45,6 +45,17 @@ describe("variables", () => {
     expect(renameRefs(f, "limit", "cap").steps[0].cases![0].values).toEqual(["$x > $cap", "${cap} == 0"]);
   });
 
+  it("counts and renames uses in State machine transition conditions and state steps", () => {
+    const f: Flow = { kind: "TaskBot", id: "w", name: "W", variables: [{ name: "limit", type: "Number" }],
+      steps: [{ id: "s1", action: "core/state_machine", states: [
+        { name: "A", entry: [{ id: "s2", action: "core/log", args: { message: "${limit}" } }], transitions: [{ to: "B", when: { op: "gt", left: "$x", right: "$limit" } }, { to: "A" }] },
+        { name: "B", final: true }] }] };
+    expect(usageCount(f, "limit")).toBe(2);
+    const r = renameRefs(f, "limit", "cap");
+    expect(r.steps[0].states![0].transitions![0].when).toEqual({ op: "gt", left: "$x", right: "$cap" });
+    expect(r.steps[0].states![0].entry![0].args).toEqual({ message: "${cap}" });
+  });
+
   it("saves a variable: refuses bad and taken names, renames its uses, drops what does not apply", () => {
     expect(() => saveVariable(flow(), { name: "2x", type: "String" })).toThrow(/starts with a letter/);
     expect(() => saveVariable(flow(), { name: "row", type: "String" })).toThrow(/already a variable/);

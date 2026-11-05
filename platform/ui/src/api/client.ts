@@ -51,7 +51,13 @@ export type FlowStep = {
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
   /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
   cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
+  /** State machine: named states, each with entry steps and transitions tried in order (one without "when" is the default); a final state ends it. */
+  states?: FlowState[];
 };
+/** A state of a State machine step. */
+export type FlowState = { name: string; description?: string; final?: boolean; entry?: FlowStep[]; transitions?: FlowTransition[] };
+/** A way out of a state: taken when its condition is true (always, without one); its steps run on the way to state `to`. */
+export type FlowTransition = { to: string; when?: unknown; steps?: FlowStep[] };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
 /** A named list of steps inside an agent, run by a Run subflow step; it shares the agent's variables. */

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FlowStep, OpenWindow } from "../api/client";
 import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
-import { findStep } from "./flowEdit";
+import { findStep, stateLists } from "./flowEdit";
 import {
   DESKTOP_LABELS, desktopWindowVariable, fillWindowFromCapture, MATCHES, shareDesktopWindow, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
 } from "./capture";
@@ -251,7 +251,7 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
       const o = s.args?.object as Captured | undefined;
       if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) s.args = { ...s.args, object: { ...o, window: "$" + name } };
       for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children),
-        ...(s.cases ?? []).map((c) => c.children), s.default]) if (l) walk(l);
+        ...(s.cases ?? []).map((c) => c.children), s.default, ...stateLists(s)]) if (l) walk(l);
     } };
     walk(f.steps); walk(f.onError?.steps ?? []);
     vars.edit(f);

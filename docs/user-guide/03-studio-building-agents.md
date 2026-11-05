@@ -89,7 +89,7 @@ Select a step to see its settings on the right. From top to bottom:
 2. **Inputs**: the fields the action needs.
 3. **Outputs**: where to keep what the action returns.
 4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try), **Case** and
-   **Default** (Switch).
+   **Default** (Switch), **State** (State machine).
 5. **Error handling** (folded): **Disabled (skip this step)**, **Continue the agent if this step fails**, and for toolkit
    actions **Retries on temporary errors** and **Timeout (seconds)**.
 6. **General** (folded): **Step id** and **Note**.
@@ -281,6 +281,28 @@ Cases are tried from the top and only the first match runs. **Match** sets the c
 with**, **regex** (each case value is a pattern), or **expression**, where each case value is its own condition and
 Value is not used. **Ignore case** compares text without upper and lower case. **Exit loop** and **Continue loop**
 inside a case act on the loop around the Switch. The run log says which case ran.
+
+**State machine: work that moves through stages.** When an item goes back and forth between stages until it is done
+(an invoice waits for approval, is approved or rejected, then paid), a **State machine** says so directly. Each
+**state** has steps that run when it is entered; its **transitions** say where to go next and when.
+
+1. Add **State machine** (Logic). It starts with a state **Start** that moves on to a final state **Done**.
+2. Select a state's heading (for example **State Start (start)**) to rename it, tick **Final** where the work ends, or
+   tick **Start here**. Click **+ State** in the State machine's settings to add more.
+3. With a state selected, click **+ Transition**. Select the transition's heading (**→ Done (always)**), choose where
+   it **Goes to**, and whether it is taken **When a condition holds** (the same condition editor as If) or
+   **Otherwise**, when no transition above it is. **Move up** and **Move down** change the order they are tried in.
+4. Click actions in the library with a state or a transition selected to put them there: a state's steps run each
+   time it is entered, a transition's steps on the way to the next state.
+
+For example, an invoice: **Waiting** (entry: read the invoice) goes to **Approved** when `$amount <= 1000`, otherwise
+to **Rejected**; **Approved** (entry: post it) goes to **Paid**; **Rejected** and **Paid** are final. The run log
+names each state entered and each transition taken. A state that is not final and has no transition that holds
+stops the run with `STATE.NO_TRANSITION`; the **Maximum transitions** setting (default 1,000) stops a machine that goes round for
+ever (`STATE.LIMIT`). **Exit loop** and **Continue loop** inside a state act on the loop around the State machine;
+Go to stays within one state's (or transition's) steps. Errors reach a Try around it and the agent's On error. The
+check before a run reports states nothing leads to, transitions to states that do not exist, and a machine with no
+final state it can reach.
 
 ## 8. Loops
 

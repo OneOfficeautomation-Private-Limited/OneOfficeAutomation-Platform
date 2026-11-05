@@ -113,6 +113,9 @@ public final class FlowValidator {
                 for (Object c : step.get("cases") instanceof List<?> cl ? cl : List.of())
                     if (c instanceof Map<?, ?> cm && cm.get("values") instanceof List<?> vs)
                         for (Object v : vs) r.addAll(Expressions.references(byCondition ? normCondition(v) : v));
+                for (Map<String, Object> st : Steps.states(step))
+                    for (Map<String, Object> t : Steps.transitions(st))
+                        if (t.get("when") != null) r.addAll(Expressions.references(normCondition(t.get("when"))));
                 refs = r;
             } catch (OoaException e) { p.add(sid, "args", e.getMessage(), e.suggestedFix()); }
             for (String n : refs) if (!declared.containsKey(n) && !Runner.RESERVED.contains(n)) p.add(sid, "args", "Variable '$" + n + "' is not declared", "Declare '" + n + "' in variables or fix the spelling.");
@@ -129,6 +132,8 @@ public final class FlowValidator {
             if ((step.containsKey("else") || step.containsKey("elseIf")) && !act.equals("core/if")) p.add(sid, null, "else/elseIf are only allowed on core/if", null);
             if ((step.containsKey("cases") || step.containsKey("default")) && !act.equals("core/switch")) p.add(sid, null, "cases/default are only allowed on core/switch", null);
             if (act.equals("core/switch")) checkSwitch(p, sid, step, args, requires, kind);
+            if (step.containsKey("states") && !act.equals("core/state_machine")) p.add(sid, null, "states are only allowed on core/state_machine", null);
+            if (act.equals("core/state_machine")) checkStateMachine(p, sid, step, args, requires, kind);
             if (act.equals("core/loop")) {
                 Object it = args.get("iterator");
                 if (it instanceof String s && !CorePackage.BUILTIN_ITERATORS.contains(s) && !s.contains("/"))
@@ -199,7 +204,7 @@ public final class FlowValidator {
 
     /**
      * One step tree (the main steps, or a subflow's when `subflow` is not null): Go to targets a Label in its own list or a
-     * list around it, never into a block, out of a Parallel branch or out of the tree; a label name is used once among the
+     * list around it, never into a block, out of a Parallel branch or a state machine, or out of the tree; a label name is used once among the
      * labels a Go to can see. In a subflow, Exit loop and Continue loop need a loop of the subflow around them. Exit
      * subflow is only for subflows. (Loop exits in the main steps keep failing at run time, as before.)
      */
@@ -239,7 +244,7 @@ public final class FlowValidator {
                     String n = labelName(s);
                     if (n == null) p.add(sid, "args/label", "Go to has no label", "Choose the label to carry on from.");
                     else if (!scope.contains(n)) p.add(sid, "args/label", all.contains(n)
-                            ? "Go to label '" + n + "' cannot be reached from here: it would jump into a block or out of a Parallel branch"
+                            ? "Go to label '" + n + "' cannot be reached from here: it would jump into a block or out of a Parallel branch or a state machine"
                             : "There is no label '" + n + "' in the steps" + where,
                             "Go to can jump to a label in its own step list or a list around it" + (subflow == null ? "" : ", in the same subflow") + ".");
                 }
@@ -265,6 +270,8 @@ public final class FlowValidator {
             for (String k : List.of("elseIf", "catch", "cases"))
                 if (s.get(k) instanceof List<?> l) for (Object b : l)
                     if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) checkList(p, (List<Object>) c, scope, inner, subflow, all, true);
+            // each step list of a state machine stands apart for Go to (no jumps in or out); loop exits reach loops around it
+            for (List<Object> l : Steps.stateLists(s)) checkList(p, l, Set.of(), inner, subflow, all, true);
         }
     }
 
@@ -307,6 +314,72 @@ public final class FlowValidator {
                 }
             }
         }
+    }
+
+    /**
+     * core/state_machine: named states, each name once; the initial state exists; every transition leads to a state that
+     * exists, and only the last transition of a state may have no condition; a final state has no transitions and every
+     * other state has at least one; every state can be reached from the initial state, and a final state can be reached.
+     * Toolkit conditions in transitions are checked like If's.
+     */
+    private void checkStateMachine(P p, String sid, Map<String, Object> step, Map<String, Object> args, Map<String, Object> requires, Object kind) {
+        List<Map<String, Object>> states = Steps.states(step);
+        if (states.isEmpty()) { p.add(sid, "states", "The state machine needs at least one state", "Add the states, with a final state where it ends."); return; }
+        Map<String, Integer> index = new LinkedHashMap<>();
+        for (int i = 0; i < states.size(); i++) {
+            Object n = states.get(i).get("name");
+            if (!(n instanceof String s) || s.isBlank()) p.add(sid, "states/" + i + "/name", "State " + (i + 1) + " has no name", "Give every state a name.");
+            else if (index.putIfAbsent(s.strip(), i) != null) p.add(sid, "states/" + i + "/name", "Duplicate state name '" + s.strip() + "'", "Give every state a name of its own.");
+        }
+        String start = states.get(0).get("name") instanceof String s0 ? s0.strip() : null;
+        if (args.get("initial") instanceof String in && !in.isBlank() && !in.contains("$")) {
+            start = in.strip();
+            if (!index.containsKey(start)) {
+                p.add(sid, "args/initial", "There is no state named '" + start + "' to start in", "States: " + String.join(", ", index.keySet()) + ".");
+                return;
+            }
+        } else if (args.get("initial") instanceof String in && in.contains("$")) start = null;   // known at run time: every state may be the start
+        boolean anyFinal = false;
+        Map<String, Set<String>> next = new HashMap<>();
+        for (int i = 0; i < states.size(); i++) {
+            Map<String, Object> st = states.get(i);
+            String name = st.get("name") instanceof String s ? s.strip() : "";
+            boolean fin = Boolean.TRUE.equals(st.get("final"));
+            anyFinal |= fin;
+            List<Map<String, Object>> ts = Steps.transitions(st);
+            if (fin && !ts.isEmpty()) p.add(sid, "states/" + i + "/transitions", "Final state '" + name + "' has transitions", "Remove them, or untick final: a final state ends the state machine.");
+            if (!fin && ts.isEmpty()) p.add(sid, "states/" + i + "/transitions", "State '" + name + "' is not final and has no transitions",
+                    "Add a transition to the next state, or mark the state final.");
+            Set<String> to = next.computeIfAbsent(name, k -> new LinkedHashSet<>());
+            for (int j = 0; j < ts.size(); j++) {
+                Map<String, Object> t = ts.get(j);
+                String path = "states/" + i + "/transitions/" + j;
+                Object target = t.get("to");
+                if (!(target instanceof String ts2) || ts2.isBlank()) p.add(sid, path + "/to", "Transition " + (j + 1) + " of state '" + name + "' has no target state", "Choose the state it moves to.");
+                else if (!index.containsKey(ts2.strip())) p.add(sid, path + "/to", "Transition " + (j + 1) + " of state '" + name + "' leads to '" + ts2.strip() + "', which is not a state",
+                        "States: " + String.join(", ", index.keySet()) + ".");
+                else to.add(ts2.strip());
+                if (t.get("when") == null) {
+                    if (j < ts.size() - 1) p.add(sid, path + "/when", "Transition " + (j + 1) + " of state '" + name + "' has no condition, so the transitions after it are never tried",
+                            "Give it a condition, or move it to the end as the default.");
+                } else checkCondition(p, sid, path + "/when", t.get("when"), requires, kind, 0);
+            }
+        }
+        if (!anyFinal) { p.add(sid, "states", "The state machine has no final state", "Mark the state where it ends as final."); return; }
+        if (start == null) return;
+        // reachable states, from the start through the transitions
+        Set<String> seen = new LinkedHashSet<>(List.of(start));
+        Deque<String> todo = new ArrayDeque<>(seen);
+        while (!todo.isEmpty()) for (String n : next.getOrDefault(todo.pop(), Set.of())) if (seen.add(n)) todo.add(n);
+        boolean finalReached = false;
+        for (int i = 0; i < states.size(); i++) {
+            String name = states.get(i).get("name") instanceof String s ? s.strip() : "";
+            if (name.isEmpty() || index.get(name) != i) continue;
+            if (!seen.contains(name)) p.add(sid, "states/" + i, "State '" + name + "' cannot be reached from the start state '" + start + "'",
+                    "Add a transition that leads to it, or remove the state.");
+            else finalReached |= Boolean.TRUE.equals(states.get(i).get("final"));
+        }
+        if (!finalReached) p.add(sid, "states", "No final state can be reached from the start state '" + start + "'", "Add a transition that leads to a final state.");
     }
 
     /** Text with no $reference or ${...} in it, so its value is known before the run. */

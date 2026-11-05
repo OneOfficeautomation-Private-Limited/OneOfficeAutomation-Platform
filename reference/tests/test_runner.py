@@ -227,3 +227,28 @@ def test_validation_of_subflows_and_labels(reg):
     for frag in ("There is no subflow named 'Nope'", "jump into a block", "Exit subflow is only for subflows",
                  "Exit loop is not inside a loop of subflow 'A'", "Duplicate subflow name 'A'"):
         assert frag in msgs, frag
+
+
+def test_state_machine_limit_goto_and_validation(reg):
+    from ooa.runner import validate_flow
+    count = {"id": "i", "action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}
+    n = [{"name": "n", "type": "Number", "direction": "output", "default": 0}]
+    ping = bot([{"id": "sm", "action": "core/state_machine", "args": {"max_transitions": 3}, "states": [
+        {"name": "Ping", "entry": [count], "transitions": [{"to": "Done", "when": "$n > 100"}, {"to": "Ping"}]},
+        {"name": "Done", "final": True}]}], n)
+    res = Runner(reg).run(ping)
+    assert res.error["code"] == "STATE.LIMIT" and res.outputs["n"] == 4
+    leave = bot([{"id": "l", "action": "core/label", "args": {"name": "top"}},
+                 {"id": "sm", "action": "core/state_machine", "states": [
+                     {"name": "A", "final": True, "entry": [{"id": "g", "action": "core/goto", "args": {"label": "top"}}]}]}], n)
+    assert "cannot be reached from here" in " | ".join(p["message"] for p in validate_flow(leave, reg, raise_on_error=False))
+    assert Runner(reg).run(leave, validate=False).error["code"] == "FLOW.BAD_GOTO"
+    bad = bot([{"id": "sm", "action": "core/state_machine", "states": [
+        {"name": "A", "transitions": [{"to": "B"}, {"to": "Q", "when": "$ghost > 1"}]},
+        {"name": "A", "final": True}, {"name": "B", "final": True, "transitions": [{"to": "A"}]},
+        {"name": "C", "transitions": []}, {"name": "D", "final": True}]}], n)
+    msgs = " | ".join(p["message"] for p in validate_flow(bad, reg, raise_on_error=False))
+    for frag in ("Duplicate state name 'A'", "leads to 'Q', which is not a state", "so the transitions after it are never tried",
+                 "Variable '$ghost' is not declared", "Final state 'B' has transitions", "State 'C' is not final and has no transitions",
+                 "State 'D' cannot be reached from the start state 'A'"):
+        assert frag in msgs, frag

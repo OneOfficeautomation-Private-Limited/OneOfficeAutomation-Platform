@@ -148,6 +148,7 @@ The core toolkit is always present and cannot be switched off.
 | --- | --- | --- |
 | `core/if` | If | Runs its children when the condition holds; otherwise the first matching Else if branch, then Else |
 | `core/switch` | Switch | Compares one value with each case's values in turn and runs only the first case that matches, or Default when none does; matching by equals, contains, starts with, ends with, regular expression, or a condition per case |
+| `core/state_machine` | State machine | Moves between named states: each state runs its entry steps, then the first of its transitions whose condition holds runs its steps and enters the next state; a final state ends it. Fails when a state that is not final has no true transition, or after too many transitions |
 | `core/loop` | Loop | Iterators `times`, `while`, `list`, `dictionary`, `dictionary_keys`, `dictionary_values`, `table_rows`, or a toolkit iterator; options for item and index variables, columns to variables, from/to index, step, reverse, check at end (while), a label, and `max_iterations` (default 100,000) |
 | `core/try` | Try | Runs its children; on an error runs the first Catch whose codes match, then always Finally |
 | `core/step` | Step | A named group of steps; no effect on the run |

@@ -176,6 +176,7 @@ All control flow is expressed with `core/*` actions:
 | --- | --- |
 | `core/if` | `args.condition`; `children` when true, then each `elseIf` entry `{condition, children}`, then `else` |
 | `core/switch` | `args.value` is compared with each `cases` entry `{values, children}` in order; the first case with a matching value runs (no fall-through), otherwise `default`. `args.match`: `equals` (the `==` rules, so `5` matches `"5"`), `contains`, `starts_with`, `ends_with`, `regex`, or `expression` (each case value is a condition and `value` is unused); `ignore_case` for text. The log says which case ran. Break and Continue inside a case reach the enclosing loop. The validator wants at least one case, each with values, a `value` unless `match` is `expression`, and literal regex patterns that compile (`SWITCH.BAD_REGEX` at run time otherwise) |
+| `core/state_machine` | `states`: `[{name, entry, transitions: [{to, when, steps}], final}]`. Starts in `args.initial` (the first state when empty) and runs its `entry` steps; a `final` state then ends the step, otherwise its `transitions` are tried in order and the first whose `when` holds (the same condition forms as `core/if`, toolkit conditions included), or that has no `when`, runs its `steps` and enters state `to`. No true transition fails with `STATE.NO_TRANSITION`; more than `args.max_transitions` (default 1,000) with `STATE.LIMIT`. The log names each state entered and each transition taken. Break and Continue inside a state reach the enclosing loop; Go to cannot jump into or out of a state's step lists. The validator wants unique state names, a start state and transition targets that exist, no transition after one without `when`, no transitions on a final state and some on every other state, every state reachable from the start, and a reachable final state |
 | `core/loop` | `args.iterator`: `times` (`count`, start and step), `while` (`condition`), `list`, `dictionary`, `dictionary_keys`, `dictionary_values`, `table_rows` (`over`), or a toolkit iterator `pkg/iterator` with `iterator_args`. Options: `from_index`, `to_index`, `step`, `reverse`, `label`, `max_iterations` (default 100,000) |
 | `core/break`, `core/continue` | Leave or skip the current (or labelled) loop; outside a loop the run fails with `FLOW.BAD_BREAK` |
 | `core/try` | `children`, then `catch` entries `{codes, as, message_to, line_to, screenshot, continueOnError, rethrow, children}`, then `finally` (always runs) |
@@ -206,7 +207,7 @@ for a subflow step is its line within the subflow, with `subflow` naming it.
 
 **Labels and Go to.** `core/goto` (`args.label`) carries on from the `core/label` with that `name` in the same step list
 or a list around it; Finally blocks of the blocks it leaves run, and Loops it leaves end. It cannot jump into a block,
-out of a Parallel branch or out of a subflow, and a label name may be used only once among the labels a Go to can see;
+out of a Parallel branch, into or out of a state machine's step lists, or out of a subflow, and a label name may be used only once among the labels a Go to can see;
 the check refuses all of these. It is a signal caught by the step list that holds the label, which continues from the
 label's place. A run allows `RunOptions.maxJumps` jumps (default 10,000; child agents get the same allowance), then
 fails with `GOTO.LIMIT`.
@@ -406,7 +407,8 @@ by blocking in `beforeStep`. The runner itself has no Studio code; only this int
 
 - `startAt(stepId)` – **Run from here**. Steps before the start step (in document order) are skipped and emit no
   events. Blocks that contain the start step are entered without being evaluated: an If does not check its condition,
-  a Switch goes into the case (or default) holding the start step without comparing values, a Loop runs one pass
+  a Switch goes into the case (or default) holding the start step without comparing values, a State machine starts in
+  the state (or on the transition) holding the start step and then carries on as usual, a Loop runs one pass
   without setting its item or index, a Parallel runs only the branch with the start step, and a
   Try keeps its Catch and Finally when the start step is in the Try part. After those blocks the run continues
   normally. An unknown step gives `RUN.START_NOT_FOUND`. A start step inside a subflow runs that subflow from the step

@@ -47,6 +47,7 @@ function fakeServer() {
       { id: "core", name: "Core", version: "1.0.0", actions: [
         { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
         { id: "try", name: "Try", inputs: { properties: {} } },
+        { id: "state_machine", name: "State machine", inputs: { properties: { initial: { "x-ooa-type": "String" }, max_transitions: { type: "number", "x-ooa-type": "Number", default: 1000 } } } },
         { id: "comment", name: "Comment", inputs: { properties: { text: {} } } },
         { id: "set", name: "Assign", inputs: { properties: { variable: {}, value: {} } } },
         { id: "run_bot", name: "Run agent", inputs: { properties: { automation: {}, inputs: {}, output_map: {} } } },
@@ -1242,6 +1243,31 @@ describe("new Studio", () => {
     fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Unfold all" }));
     expect(within(steps).getByRole("button", { name: "Finally (always)" })).toBeTruthy();
+  });
+
+  it("builds a State machine: adds and renames a state, adds a transition, picks where it goes and fills it (G29)", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(within(steps).getByRole("button", { name: "START" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Core/ }));
+    fireEvent.click(screen.getByRole("button", { name: "State machine" }));
+    expect(stepNames(steps)[0]).toBe("State machine");
+    for (const h of ["State Start (start)", "→ Done (always)", "State Done (final)"]) expect(within(steps).getByRole("button", { name: h })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "State" }));   // in the State machine's Parts
+    expect(within(steps).getByRole("button", { name: "State State 3", pressed: true })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Review" } });
+    fireEvent.blur(screen.getByLabelText("Name"));
+    expect(await within(steps).findByRole("button", { name: "State Review", pressed: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Transition" }));
+    expect(within(steps).getByRole("button", { name: "→ Start (always)", pressed: true })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Goes to"), { target: { value: "Done" } });
+    expect(within(steps).getAllByRole("button", { name: "→ Done (always)" })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Write to log" }));   // goes into the selected transition
+    const saved = await saveAndGet(created);
+    expect(saved.steps[0]).toMatchObject({ action: "core/state_machine", states: [
+      { name: "Start", transitions: [{ to: "Done" }] }, { name: "Done", final: true },
+      { name: "Review", transitions: [{ to: "Done", steps: [{ action: "core/log" }] }] }] });
   });
 
   it("adds the best matching action when Enter is pressed in the action search", async () => {

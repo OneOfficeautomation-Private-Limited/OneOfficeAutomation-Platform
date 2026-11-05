@@ -2,8 +2,8 @@ import { useEffect, useState, type DragEvent, type ReactNode } from "react";
 import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, PackageManifest, Proposal, StudioApi } from "../api/client";
 import { ApiFailure } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
-import { ON_ERROR, type Place } from "./flowEdit";
-import { caseText, conditionText, describeAction, plainValue, summarize } from "./toolkits";
+import { ON_ERROR, stateLists, type Place } from "./flowEdit";
+import { caseText, conditionText, describeAction, plainValue, startState, stateText, summarize, transitionText } from "./toolkits";
 import { isInput, isOutput } from "./variables";
 
 /** The agent in plain words: what it needs and returns, then its steps, blocks indented (Classic's Explain this agent). */
@@ -16,6 +16,7 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
     let text: string;
     if (s.action === "core/if") text = "If " + conditionText(a.condition, packages) + ":";
     else if (s.action === "core/switch") text = a.match === "expression" ? "Choose the first case that holds:" : "Depending on " + plainValue(a.value) + ":";
+    else if (s.action === "core/state_machine") text = "Move between states, starting in " + (startState(s) ?? "the first") + ":";
     else if (s.action === "core/loop") text = "Repeat " + (a.iterator === "times" ? plainValue(a.count) + " times" : a.iterator === "while" ? "while " + conditionText(a.condition, packages)
       : "for each item of " + plainValue(a.over) + (a.as ? " (as $" + a.as + ")" : "")) + ":";
     else if (s.action === "core/try") text = "Try the following, and handle errors:";
@@ -34,6 +35,11 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
     if (s.finally?.length) { lines.push("  ".repeat(depth + 1) + "Always, at the end:"); walk(s.finally, depth + 2); }
     for (const c of s.cases ?? []) { lines.push("  ".repeat(depth + 1) + caseText(c.values, a.match, packages) + ":"); walk(c.children, depth + 2); }
     if (s.default?.length) { lines.push("  ".repeat(depth + 1) + "When no case matches:"); walk(s.default, depth + 2); }
+    (s.states ?? []).forEach((st, k) => {
+      lines.push("  ".repeat(depth + 1) + stateText(s, k) + ":"); walk(st.entry, depth + 2);
+      if (st.final) lines.push("  ".repeat(depth + 2) + "Then the state machine ends.");
+      (st.transitions ?? []).forEach((t, j) => { lines.push("  ".repeat(depth + 2) + transitionText(st.transitions!, j, packages) + ":"); walk(t.steps, depth + 3); });
+    });
   });
   const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
   walk(flow.steps, 0);
@@ -146,6 +152,16 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
           {s.default && branch("Default", s.default, s.id + ":default")}
         </div></div>
     );
+    if (s.action === "core/state_machine") return (
+      <div key={s.id} className="st-fblock">{box}
+        <div className="st-fbranches">
+          {(s.states ?? []).map((st, k) => (
+            <div key={s.id + ":state" + k} className="st-fbranch"><div className="st-fbranch-label">{stateText(s, k)}</div>
+              <div className="st-fseq">{seq(st.entry, s.id + ":entry" + k)}</div>
+              {(st.transitions ?? []).map((t, j) => branch(transitionText(st.transitions!, j, packages), t.steps, s.id + ":trans" + k + ":" + j))}
+            </div>))}
+        </div></div>
+    );
     if (s.children || s.catch || s.finally) return (
       <div key={s.id} className="st-fblock">{box}
         <div className="st-fframe">
@@ -193,7 +209,7 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
     finally { setBusy(false); }
   };
   const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else),
-    ...(s.cases ?? []).flatMap((c) => flat(c.children)), ...flat(s.default)]);
+    ...(s.cases ?? []).flatMap((c) => flat(c.children)), ...flat(s.default), ...stateLists(s).flatMap((l) => flat(l))]);
   return (
     <Dialog open onClose={onClose} title="Agent assistant" width={720}
       footer={<><Button kind="secondary" onClick={onClose}>Close</Button><span className="st-bar-fill" />

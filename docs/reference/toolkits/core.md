@@ -6,7 +6,7 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 
 ## Contents
 
-- **Logic**: Exit loop, Comment, Continue loop, Go to, If, Label, Loop, Parallel, Step, Switch
+- **Logic**: Exit loop, Comment, Continue loop, Go to, If, Label, Loop, Parallel, State machine, Step, Switch
 - **Runtime**: Delay, Log message, Wait for condition
 - **Agent**: Exit subflow, Pause agent, Run Agent, Run subflow, Stop agent
 - **Variables**: Assign variable, Assign several variables
@@ -138,6 +138,21 @@ Run each child step as a concurrent branch and wait for all branches.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Maximum concurrency | `max_concurrency` | Number | No | `4` | Main | Maximum branches running at once. Range: 1 to 64 |
+
+*Time limit 60 s.*
+
+### State machine
+
+`core/state_machine` (action)
+
+Move between named states: each state runs its entry steps, then the first of its transitions whose condition is true runs its steps and moves to the next state; the step ends in a final state. Fails with STATE.NO_TRANSITION when a state that is not final has no true transition.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Initial | `initial` | Text | No |  | Main | Name of the state to start in; the first state when empty. |
+| Maximum transitions | `max_transitions` | Number | No | `1000` | Main | Safety limit; the step fails with STATE.LIMIT when more transitions than this are taken. Range: 1 to  |
 
 *Time limit 60 s.*
 

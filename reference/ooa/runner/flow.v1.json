@@ -172,6 +172,31 @@
           }
         },
         "default": {"$ref": "#/$defs/stepList", "description": "Steps of core/switch that run when no case matches."},
+        "states": {
+          "type": "array",
+          "description": "States of core/state_machine. Each state runs its entry steps; a final state then ends the step, otherwise the first transition whose condition is true runs its steps and moves to its target state.",
+          "items": {
+            "type": "object", "required": ["name"], "additionalProperties": false,
+            "properties": {
+              "name": {"type": "string", "description": "Name of the state, unique in the state machine; transitions name it in \"to\"."},
+              "description": {"type": "string"},
+              "final": {"type": "boolean", "default": false, "description": "The state machine ends after this state's entry steps."},
+              "entry": {"$ref": "#/$defs/stepList", "description": "Steps run each time the state is entered."},
+              "transitions": {
+                "type": "array",
+                "description": "Tried in order after the entry steps; the first whose condition is true is taken. One without a condition is taken when none before it was.",
+                "items": {
+                  "type": "object", "required": ["to"], "additionalProperties": false,
+                  "properties": {
+                    "to": {"type": "string", "description": "Name of the state this transition moves to."},
+                    "when": {"description": "Condition, as for core/if; leave it out for the default transition."},
+                    "steps": {"$ref": "#/$defs/stepList", "description": "Steps run on the way to the next state."}
+                  }
+                }
+              }
+            }
+          }
+        },
         "retry":{"$ref": "#/$defs/retry"},
         "timeoutSeconds": {"type": "number", "exclusiveMinimum": 0, "description": "Overrides the action's manifest timeout."},
         "connection": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$", "description": "Name of a saved connection (One CommandCenter or connections.json) that supplies this step's address and sign-in inputs."},

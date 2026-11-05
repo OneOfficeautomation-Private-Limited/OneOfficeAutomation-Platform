@@ -42,6 +42,15 @@ public final class CorePackage {
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "match!=expression",
                     description = "Compare text without upper/lower case.") Object ignoreCase) { return interp(); }
 
+    @Action(id = "state_machine", name = "State machine", category = "Logic",
+            description = "Move between named states: each state runs its entry steps, then the first of its transitions whose condition is true runs its steps "
+                    + "and moves to the next state; the step ends in a final state. Fails with STATE.NO_TRANSITION when a state that is not final has no true transition.")
+    public Map<String, Object> stateMachine(ActionContext c,
+            @Input(name = "initial", type = OoaType.STRING, required = false,
+                    description = "Name of the state to start in; the first state when empty.") String initial,
+            @Input(name = "max_transitions", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1,
+                    description = "Safety limit; the step fails with STATE.LIMIT when more transitions than this are taken.") Object max) { return interp(); }
+
     @Action(id = "loop", name = "Loop", category = "Logic",
             description = "Repeat the children using an iterator: times, while, list, dictionary, dictionary_keys, dictionary_values, table_rows or a toolkit iterator (package/iterator).")
     public Map<String, Object> loop(ActionContext c,

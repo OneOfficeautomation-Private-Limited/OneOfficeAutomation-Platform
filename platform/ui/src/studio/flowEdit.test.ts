@@ -5,6 +5,7 @@ import {
   setArg, setOut, toggleDisabled, insertAt, moveTo, removeSteps, toggleDisabledMany, duplicateSteps,
   addBranch, copySteps, moveManyTo, moveSelection, pasteSteps, readClip, removeBranch, sectionKey, setFolded, spotFor, START, topSteps,
   moveCase, setCaseValues,
+  addTransition, labelsInScope, moveState, moveTransition, renameState, setStateFinal, setTransition,
   addOnError, findStep, inHandler, ON_ERROR, removeOnError, setOnError,
 } from "./flowEdit";
 import { agentRows, stepRows } from "./toolkits";
@@ -252,6 +253,90 @@ describe("Switch", () => {
     const r = replaceInSteps(f, "new", "fresh", true);
     expect(r.count).toBe(2);
     expect(r.flow.steps[0].cases![0]).toMatchObject({ values: ["fresh", 1], children: [{ args: { message: "fresh" } }] });
+  });
+});
+
+describe("State machine", () => {
+  const sm = (): Flow => ({ kind: "TaskBot", id: "w", name: "W", variables: [{ name: "amount", type: "Number" }], steps: [
+    { id: "s1", action: "core/state_machine", states: [
+      { name: "Waiting", entry: [{ id: "s2", action: "core/log", args: { message: "waiting" } }], transitions: [
+        { to: "Approved", when: "$amount <= 1000", steps: [{ id: "s3", action: "core/log", args: { message: "approve" } }] },
+        { to: "Rejected", steps: [] }] },
+      { name: "Approved", entry: [], transitions: [{ to: "Paid" }] },
+      { name: "Rejected", final: true, entry: [{ id: "s4", action: "core/log", args: { message: "no" } }] },
+      { name: "Paid", final: true, entry: [] }] },
+    { id: "s5", action: "core/log", args: { message: "end" } }] });
+
+  it("starts with a start state that moves to a final one, and holds no children", () => {
+    const s = newStep("core/state_machine", sm(), packages);
+    expect(s.states).toEqual([{ name: "Start", entry: [], transitions: [{ to: "Done", steps: [] }] }, { name: "Done", final: true, entry: [] }]);
+    expect(s.children).toBeUndefined();
+  });
+
+  it("numbers the steps in states and transitions as the runner does, with a heading for each", () => {
+    const f = sm();
+    expect(stepRows(f.steps).map((r) => r.kind === "step" ? String(r.n) : r.label)).toEqual([
+      "1", "State Waiting (start)", "2", "→ Approved when $amount <= 1000", "3", "→ Rejected otherwise",
+      "State Approved", "→ Paid (always)", "State Rejected (final)", "4", "State Paid (final)", "5"]);
+    expect(locate(f.steps, "s4")?.step.args).toEqual({ message: "no" });
+    expect(nextId(f)).toBe("s6");
+    expect(stepRows(setArg(f, "s1", "initial", "Approved").steps).filter((r) => r.kind === "section").map((r) => r.kind === "section" && r.label)[0]).toBe("State Waiting");
+  });
+
+  it("puts a step clicked on a selected State machine in its first state, and in a selected transition", () => {
+    const f = sm();
+    expect(spotFor(f, ["s1"])).toEqual({ id: "s1", where: "inside", part: "entry:0" });
+    expect(addStep(f, ["s1"], { id: "s9", action: "core/log" }).steps[0].states![0].entry!.map((s) => s.id)).toEqual(["s2", "s9"]);
+    expect(addStep(f, [sectionKey("s1", "trans:1:0")], { id: "s9", action: "core/log" }).steps[0].states![1].transitions![0].steps!.map((s) => s.id)).toEqual(["s9"]);
+    expect(moveTo(f, "s5", "s1", "inside", "trans:0:1").steps[0].states![0].transitions![1].steps!.map((s) => s.id)).toEqual(["s5"]);
+  });
+
+  it("adds, renames, moves and removes states; a rename follows into transitions and the start setting", () => {
+    const f = sm();
+    const added = addBranch(f, "s1", "states");
+    expect(added.part).toBe("entry:4");
+    expect(added.flow.steps[0].states![4]).toEqual({ name: "State 5", entry: [], transitions: [] });
+    const renamed = renameState(setArg(f, "s1", "initial", "Approved"), "s1", 1, "OK");
+    expect(renamed.steps[0].states![0].transitions![0].to).toBe("OK");
+    expect(renamed.steps[0].args).toEqual({ initial: "OK" });
+    expect(() => renameState(f, "s1", 1, "Paid")).toThrow(/already a state/);
+    expect(() => renameState(f, "s1", 1, "a/b")).toThrow(/letters, digits/);
+    expect(moveState(f, "s1", 0, 1).flow.steps[0].states!.map((s) => s.name)).toEqual(["Approved", "Waiting", "Rejected", "Paid"]);
+    expect(moveState(f, "s1", 0, -1).part).toBeNull();
+    const gone = removeBranch(setArg(f, "s1", "initial", "Paid"), "s1", "entry:3");
+    expect(gone.steps[0].states!.map((s) => s.name)).toEqual(["Waiting", "Approved", "Rejected"]);
+    expect(gone.steps[0].args).toBeUndefined();
+    const single: Flow = { ...f, steps: [{ id: "s1", action: "core/state_machine", states: [{ name: "Only", final: true }] }] };
+    expect(removeBranch(single, "s1", "entry:0")).toBe(single);   // the last state stays
+    expect(setStateFinal(f, "s1", 1, true).steps[0].states![1].final).toBe(true);
+    expect(setStateFinal(f, "s1", 2, false).steps[0].states![2].final).toBeUndefined();
+  });
+
+  it("adds, sets, moves and removes transitions", () => {
+    const f = sm();
+    const t = addTransition(f, "s1", 1);
+    expect(t.part).toBe("trans:1:1");
+    expect(t.flow.steps[0].states![1].transitions![1]).toEqual({ to: "Rejected", steps: [] });
+    expect(addTransition(f, "s1", 3).flow.steps[0].states![3].transitions).toEqual([{ to: "Waiting", steps: [] }]);   // the last state: back to the first
+    const set = setTransition(f, "s1", 0, 1, { to: "Paid", when: { op: "gt", left: "$amount", right: 5000 } });
+    expect(set.steps[0].states![0].transitions![1]).toMatchObject({ to: "Paid", when: { op: "gt", left: "$amount", right: 5000 } });
+    expect(setTransition(set, "s1", 0, 1, { when: undefined }).steps[0].states![0].transitions![1].when).toBeUndefined();
+    const moved = moveTransition(f, "s1", 0, 0, 1);
+    expect(moved.part).toBe("trans:0:1");
+    expect(moved.flow.steps[0].states![0].transitions!.map((x) => x.to)).toEqual(["Rejected", "Approved"]);
+    expect(removeBranch(f, "s1", "trans:0:0").steps[0].states![0].transitions!.map((x) => x.to)).toEqual(["Rejected"]);
+  });
+
+  it("copies with new ids, replaces text in conditions and steps but not in names, and keeps Go to inside a state", () => {
+    const f = sm();
+    expect(duplicateStep(f, "s1").flow.steps[1].states![0].transitions![0].steps![0].id).toBe("s8");
+    const r = replaceInSteps(f, "Approved", "Accepted", true);
+    expect(r.count).toBe(0);   // state names and targets are structure
+    const amount = replaceInSteps(f, "1000", "2000", true);
+    expect(amount.flow.steps[0].states![0].transitions![0].when).toBe("$amount <= 2000");
+    const labels: Flow = { ...f, steps: [{ id: "l0", action: "core/label", args: { name: "top" } }, { id: "s1", action: "core/state_machine", states: [
+      { name: "A", final: true, entry: [{ id: "l1", action: "core/label", args: { name: "inside" } }, { id: "g", action: "core/goto", args: { label: "inside" } }] }] }] };
+    expect(labelsInScope(labels.steps, "g")).toEqual(["inside"]);
   });
 });
 
