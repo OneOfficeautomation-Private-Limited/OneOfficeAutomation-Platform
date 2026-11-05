@@ -135,6 +135,7 @@ once, and writes on other nodes are seen within 2 seconds.
 | `POST agent/runs/{id}/events` | Append a batch of run events (duplicates by `seq` are ignored) |
 | `POST agent/runs/{id}/finish` | Final result, including AI call records |
 | `POST agent/credential` | Fetch one vault value for a running job |
+| `POST agent/locks` | Environment locks for a running job: `{run_id, op: acquire \| release \| check, name, lease_seconds, comment}`. The run must be on this runner and running; the holder is always that run |
 | `POST agent/rotate` | Get a new device secret when the heartbeat asks for it |
 | `POST agent/trigger-fired`, `agent/trigger-status` | Report a runner-side trigger event or error |
 | `GET agent/update/manifest`, `agent/update/file?name=` | Program files for self-update |

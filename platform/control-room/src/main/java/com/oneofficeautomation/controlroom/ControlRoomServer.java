@@ -510,6 +510,7 @@ public final class ControlRoomServer {
             }
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
+            else if (m.equals("POST") && route.equals("agent/locks")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.locks.forRun(d, (String) b.get("run_id"), b)); }   // Environment locks
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;
@@ -1015,6 +1016,11 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.connections(u)));
                 else if (m.equals("PUT") && seg.length == 2) { cr.saveConnection(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteConnection(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("locks", cr.locks.list(u)));
+                else if (m.equals("DELETE") && seg.length == 1) sendJson(ex, 200, cr.locks.adminRelease(u, q.get("name"), ip));
                 else notFound(ex);
             }
             case "audit" -> {

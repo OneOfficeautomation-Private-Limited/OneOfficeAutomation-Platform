@@ -72,6 +72,8 @@ public final class ControlRoom {
     public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
     public final RunnerCare runnerCare;
+    /** Environment locks (gap G33): named locks one run holds at a time. */
+    public final EnvironmentLocks locks;
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
@@ -144,6 +146,7 @@ public final class ControlRoom {
         this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
+        this.locks = new EnvironmentLocks(this);
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
@@ -1847,6 +1850,7 @@ public final class ControlRoom {
                 status, now(), Duration.between(started, now()).toMillis(), result.get("error") == null ? null : JsonLite.write(result.get("error")),
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
+        try { locks.releaseForRun(runId, "its run ended (" + status + ")"); } catch (RuntimeException e) { /* the server clock gives them back */ }
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
@@ -2128,11 +2132,13 @@ public final class ControlRoom {
             db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", now(),
                     JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The runner stopped reporting while the agent was running", "suggestedFix", "Check the runner is on and the OneRunner is running.")), r.get("id"));
             audit.record("system", "run.lost", "run", (String) r.get("id"), null, "failed", null);
+            try { locks.releaseForRun((String) r.get("id"), "its runner was lost"); } catch (RuntimeException ignored) { /* the sweep below tries again */ }
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

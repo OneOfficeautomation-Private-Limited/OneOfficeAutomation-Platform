@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Runs one bot in its own process. Line protocol with the agent (one JSON object per line):
  * stdin: the job, then {"type":"credential","id","value"|"error"}, {"type":"cancel"|"pause"|"resume"};
  * stdout: {"type":"event"}, {"type":"credential","id","ref"} requests and finally {"type":"result"}.
+ * Environment locks: {"type":"locks","id","op","name",...} out, {"type":"locks","id","result"|"error"} back.
  * Secrets arrive only on request, live only in memory and are masked in every event.
  */
 public final class RunWorker {
@@ -55,7 +56,7 @@ public final class RunWorker {
                         case "cancel" -> { cancel.set(true); pause.set(false); }
                         case "pause" -> pause.set(true);
                         case "resume" -> pause.set(false);
-                        case "credential", "docflow" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
+                        case "credential", "docflow", "locks" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
                         default -> { }
                     }
                 }
@@ -102,6 +103,21 @@ public final class RunWorker {
             if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
+        // Environment locks: the runner asks One CommandCenter, which keeps every lock and knows which run asks
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> locks = req -> {
+            long id = ids.incrementAndGet();
+            CompletableFuture<Map<String, Object>> f = new CompletableFuture<>();
+            waiting.put(id, f);
+            Map<String, Object> msg = new LinkedHashMap<>(req);
+            msg.put("type", "locks");
+            msg.put("id", id);
+            send(msg);
+            Map<String, Object> r;
+            try { r = f.get(60, TimeUnit.SECONDS); }
+            catch (Exception e) { waiting.remove(id); throw new OoaException("LOCK.NO_ANSWER", "No answer from One CommandCenter about the lock", null, true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            return (Map<String, Object>) r.getOrDefault("result", Map.of());
+        };
         PackageRegistry registry = FirstPartyPackages.registry();
         String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
@@ -121,6 +137,7 @@ public final class RunWorker {
                 // Settings: no pictures of the screen when a step fails
                 .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("docflow", docflow)
+                .service("environment_locks", locks)
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.

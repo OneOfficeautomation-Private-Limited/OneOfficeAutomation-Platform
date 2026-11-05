@@ -424,6 +424,16 @@ public final class Agent {
                             w.send(Map.of("type", "docflow", "id", msg.get("id"), "error", Map.of("code", "DOCS.FILE", "message", String.valueOf(e.getMessage()))));
                         }
                     });
+                    case "locks" -> io.submit(() -> {   // Environment locks: One CommandCenter checks the run is this runner's and running
+                        try {
+                            Map<String, Object> body = new LinkedHashMap<>(msg);
+                            body.remove("type"); body.remove("id");
+                            body.put("run_id", w.runId);   // always the worker's own run, never what the worker says
+                            w.send(Map.of("type", "locks", "id", msg.get("id"), "result", client.post("locks", body)));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "locks", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
                     default -> { }
                 }
             }

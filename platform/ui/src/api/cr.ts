@@ -197,6 +197,9 @@ export type GlobalValue = { name: string; value: unknown; changeable: boolean; m
   type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
   /** Values per team (user group): runs of the team's members use them unless the person set their own. */
   team_values?: { team_id: string; team_name: string; value: unknown }[] };
+/** An environment lock a run holds (Manage > Environment locks); expired: its lease ran out, so another run may take it. */
+export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
+  acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
 export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
@@ -467,6 +470,9 @@ export class CrApi {
     await this.call("PUT", "saved-connections/" + encodeURIComponent(name), b);
   }
   async deleteConnection(name: string) { await this.call("DELETE", "saved-connections/" + encodeURIComponent(name)); }
+  // ---- Environment locks: named locks one run holds at a time; administrators give one back ----
+  async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
+  async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----
   async toolkits() { return (await this.call<{ toolkits?: Toolkit[] }>("GET", "toolkits")).toolkits ?? []; }
   async setToolkitEnabled(id: string, enabled: boolean) { await this.call("PATCH", "toolkits/" + encodeURIComponent(id), { enabled }); }

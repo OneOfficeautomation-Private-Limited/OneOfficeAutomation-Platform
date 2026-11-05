@@ -639,9 +639,21 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE docflow_mail (process_id VARCHAR(120) PRIMARY KEY, mail_cursor VARCHAR(200), last_check TIMESTAMP, last_error VARCHAR(1000), documents INT)",
     };
 
+    /**
+     * Version 34 (gap G33, Blue Prism's environment locks): a named lock that one run holds at a time, so two runners
+     * never use the same single-user system together. lock_key is the name in lower case (names are compared without
+     * case on every engine); the row says which run, runner and person hold it, since when and until when (the lease).
+     * Taking a lock is one INSERT, or one conditional UPDATE when the row is there, so the database decides who gets it.
+     */
+    private static final String[] SCHEMA_V34 = {
+        "CREATE TABLE environment_locks (lock_key VARCHAR(200) PRIMARY KEY, name VARCHAR(200) NOT NULL, run_id VARCHAR(40) NOT NULL, device_id VARCHAR(40), "
+            + "device_name VARCHAR(120), bot_path VARCHAR(400), held_by VARCHAR(80), acquired TIMESTAMP NOT NULL, expires TIMESTAMP NOT NULL, note VARCHAR(1000))",
+        "CREATE INDEX environment_locks_run ON environment_locks (run_id)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 33;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33 };
+    public static final int LATEST = 34;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {
