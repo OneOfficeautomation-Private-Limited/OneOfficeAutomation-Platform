@@ -93,7 +93,17 @@ and a **runtime** account with data read/write rights only.
 | 23 | toolkit_publishers, custom_toolkits |
 | 24 | defer_until on queue_items; missed_runs and overlap on schedules |
 | 25 | Looking after runners: nickname, description, maintenance, CPU and memory use and limits, logs and screen requests on devices; runner_files; owners and users (roles) on device_pools |
-| 34 | environment_locks (named locks one run holds at a time, gap G33) |
+| 26 | alert_rules, alerts |
+| 27 | policies given to folders (code analysis rules and AI) |
+| 28 | savings for Business: an agent's own cost of an hour |
+| 29 | dashboards e-mailed on a schedule |
+| 30 | accounts from a directory (LDAP or SCIM) |
+| 31 | SCIM provisioning: identity providers' tokens (hashes) |
+| 32 | a type the server checks on shared global values |
+| 33 | docflow_mail (how far each Document Automation inbox was read) |
+| 34 | expires on credential_meta (credential expiry, gap G30) |
+| 35 | encrypt_data on queues; tags, error_kind and unique_ref on queue_items, with a unique index per queue (gap G31) |
+| 36 | environment_locks (named locks one run holds at a time, gap G33) |
 
 ## 4. Tables by area
 
