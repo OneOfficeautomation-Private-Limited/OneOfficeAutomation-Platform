@@ -102,7 +102,7 @@ export type VariableProfile = { runs: number; variables: { variable: string; run
 /** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
 export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
   webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
-export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_offline" | "queue_overdue" | "ai_budget";
+export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_offline" | "queue_overdue" | "ai_budget" | "agent_raised";
 /** An alert a rule raised: open, acknowledged (seen) or cleared (its state ended, or its rule was deleted). */
 export type Alert = { id: string; rule_id: string; rule_name?: string; kind: AlertKind; subject: string; subject_label?: string; message: string; severity: "warning" | "critical";
   status: "open" | "acknowledged" | "cleared"; raised: string; cleared?: string | null; acknowledged?: string | null; acknowledged_by?: string | null; link?: string | null;

@@ -504,6 +504,10 @@ public final class ControlRoomServer {
                 String ref = (String) b.get("ref");
                 sendJson(ex, 200, Map.of("value", cr.credentialForRun(d, (String) b.get("run_id"), ref), "password_only", cr.vaultAdmin.passwordOnly(ref)));
             }
+            else if (m.equals("POST") && route.equals("agent/run-request")) {   // the Jobs and alerts toolkit of a running agent
+                Map<String, Object> b = map(body(ex));
+                sendJson(ex, 200, cr.runRequest(d, (String) b.get("run_id"), String.valueOf(b.get("call")), map(b.getOrDefault("args", Map.of()))));
+            }
             else if (m.equals("POST") && route.equals("agent/trigger-fired")) {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));

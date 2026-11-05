@@ -1,0 +1,16 @@
+[
+ {"command": "ooa.jobs/get_job", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.jobs/get_job", "args": {"job_id": "run_123"}}], "error": "JOBS.NOT_AVAILABLE"},
+ {"command": "ooa.jobs/get_job", "name": "a run id is needed", "steps": [
+    {"action": "ooa.jobs/get_job", "args": {"job_id": " "}}], "error": "JOBS.NO_ID"},
+ {"command": "ooa.jobs/list_jobs", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.jobs/list_jobs", "args": {"status": "active"}}], "error": "JOBS.NOT_AVAILABLE"},
+ {"command": "ooa.jobs/list_jobs", "name": "an unknown status is refused before the run", "steps": [
+    {"action": "ooa.jobs/list_jobs", "args": {"status": "sometimes"}}], "error": "FLOW.INVALID"},
+ {"command": "ooa.jobs/stop_job", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.jobs/stop_job", "args": {"job_id": "run_123"}}], "error": "JOBS.NOT_AVAILABLE"},
+ {"command": "ooa.jobs/raise_alert", "name": "an alert needs a message", "steps": [
+    {"action": "ooa.jobs/raise_alert", "args": {"message": " "}}], "error": "ALERT.NO_MESSAGE"},
+ {"command": "ooa.jobs/raise_alert", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.jobs/raise_alert", "args": {"message": "Invoice 4711 needs a person", "severity": "critical"}}], "error": "JOBS.NOT_AVAILABLE"}
+]

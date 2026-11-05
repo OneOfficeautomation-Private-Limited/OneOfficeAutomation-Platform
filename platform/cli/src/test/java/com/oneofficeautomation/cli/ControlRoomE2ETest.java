@@ -158,6 +158,28 @@ class ControlRoomE2ETest {
             assertEquals(200, call("POST", "/api/runs/" + slowRun + "/stop", d1, null).status());
             assertTrue(until(() -> "stopped".equals(call("GET", "/api/runs/" + slowRun, d1, null).body().get("status")), 20000), "stop reaches the worker");
 
+            // ---------- an agent sees and stops another run and raises an alert (Jobs and alerts, G32), through the runner ----------
+            // the runner runs one agent at a time: the watcher goes first and finds the slow run queued behind it
+            Map<String, Object> watch = bot("watch_bot",
+                    "{\"id\":\"0\",\"action\":\"core/delay\",\"args\":{\"seconds\":2}},"
+                    + "{\"id\":\"1\",\"action\":\"ooa.jobs/list_jobs\",\"args\":{\"status\":\"active\",\"agent\":\"Ops/Slow.flow.json\"},\"out\":{\"jobs\":\"jobs\"}},"
+                    + "{\"id\":\"2\",\"action\":\"core/set\",\"args\":{\"variable\":\"job\",\"value\":\"$jobs[0].id\"}},"
+                    + "{\"id\":\"3\",\"action\":\"ooa.jobs/get_job\",\"args\":{\"job_id\":\"$job\"},\"out\":{\"status\":\"seen\"}},"
+                    + "{\"id\":\"4\",\"action\":\"ooa.jobs/raise_alert\",\"args\":{\"message\":\"Slow run ${job} is ${seen}; stopping it\",\"severity\":\"critical\"},\"out\":{\"alerts\":\"raised\"}},"
+                    + "{\"id\":\"5\",\"action\":\"ooa.jobs/stop_job\",\"args\":{\"job_id\":\"$job\"},\"out\":{\"stopped\":\"stopped\"}}",
+                    ",{\"name\":\"jobs\",\"type\":\"List\"},{\"name\":\"job\",\"type\":\"String\",\"direction\":\"output\"},{\"name\":\"seen\",\"type\":\"String\",\"direction\":\"output\"},"
+                    + "{\"name\":\"raised\",\"type\":\"Number\",\"direction\":\"output\"},{\"name\":\"stopped\",\"type\":\"Boolean\",\"direction\":\"output\"}");
+            call("POST", "/api/repo/checkin", d1, Map.of("path", "Ops/Watch.flow.json", "flow", watch));
+            String watchRun = (String) call("POST", "/api/runs", d1, Map.of("bot_path", "Ops/Watch.flow.json", "device_id", deviceId)).body().get("run_id");
+            String slow2 = (String) call("POST", "/api/runs", d1, Map.of("bot_path", "Ops/Slow.flow.json", "device_id", deviceId)).body().get("run_id");
+            assertTrue(until(() -> Set.of("success", "failed").contains(String.valueOf(call("GET", "/api/runs/" + watchRun, d1, null).body().get("status"))), 90000));
+            Map<String, Object> watched = call("GET", "/api/runs/" + watchRun, d1, null).body();
+            assertEquals("success", watched.get("status"), String.valueOf(watched.get("error")));
+            String outs = watched.get("outputs") instanceof String s ? s : JsonLite.write(watched.get("outputs"));
+            assertTrue(outs.contains(slow2) && outs.contains("\"seen\":\"queued\"") && outs.contains("\"stopped\":true"), outs);
+            assertTrue(until(() -> "stopped".equals(call("GET", "/api/runs/" + slow2, d1, null).body().get("status")), 30000), "the agent's Stop job stopped the other run");
+            assertNotNull(db.one("SELECT id FROM alerts WHERE kind = 'agent_raised' AND bot_path = 'Ops/Watch.flow.json' AND severity = 'critical'"), "the agent's alert is listed");
+
             // ---------- schedule, webhook and file triggers ----------
             Map<String, Object> echo = bot("echo_bot", "{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"note\",\"value\":\"got ${trigger_file}${payload}\"}}",
                     ",{\"name\":\"trigger_file\",\"type\":\"String\",\"direction\":\"input\"},{\"name\":\"payload\",\"type\":\"Any\",\"direction\":\"input\"}");

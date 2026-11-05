@@ -33,6 +33,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
+| [Document Automation](ooa-documents.md) | `ooa.documents` | 1 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process and get the fields it reads. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
 | [Excel (desktop, needs Excel)](ooa-excel_desktop.md) | `ooa.excel_desktop` | 5 | 0 | 0 | Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel. |
@@ -53,6 +54,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Interrupt handlers](ooa-interrupts.md) | `ooa.interrupts` | 5 | 0 | 0 | Rules that deal with unexpected windows and pop-ups during UI automation, checked before each UI action. |
 | [Java applications (Swing/AWT)](ooa-java_apps.md) | `ooa.java_apps` | 3 | 0 | 0 | Find and work with the controls of desktop applications written in Java (Swing and AWT): read and type text, press buttons, read labels and tables. |
 | [Jira](ooa-jira.md) | `ooa.jira` | 15 | 0 | 0 | Create, read and search Jira issues, add comments, move issues through the workflow and attach files. |
+| [Jobs and alerts](ooa-jobs.md) | `ooa.jobs` | 4 | 0 | 0 | See and stop other agent runs, and raise alerts to people, from an agent run by One CommandCenter. |
 | [JSON](ooa-json.md) | `ooa.json` | 12 | 0 | 0 | Parse, query and write JSON documents. |
 | [Kafka](ooa-kafka.md) | `ooa.kafka` | 6 | 0 | 0 | Send messages to Kafka topics, read messages, and create or inspect topics through a Kafka REST Proxy. |
 | [Knowledge Q&A](ooa-knowledge.md) | `ooa.knowledge` | 3 | 0 | 0 | Index your documents and answer questions from them, with the passages each answer comes from. |
@@ -98,4 +100,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 87 toolkits, 1224 actions, 47 conditions and 13 loop types.
+In all: 89 toolkits, 1229 actions, 47 conditions and 13 loop types.

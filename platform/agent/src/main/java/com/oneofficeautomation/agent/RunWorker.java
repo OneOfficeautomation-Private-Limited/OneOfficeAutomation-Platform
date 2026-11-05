@@ -55,7 +55,7 @@ public final class RunWorker {
                         case "cancel" -> { cancel.set(true); pause.set(false); }
                         case "pause" -> pause.set(true);
                         case "resume" -> pause.set(false);
-                        case "credential", "docflow" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
+                        case "credential", "docflow", "cr" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
                         default -> { }
                     }
                 }
@@ -102,6 +102,18 @@ public final class RunWorker {
             if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
+        // the Jobs and alerts toolkit: a request to One CommandCenter for this run ({"call", "args"} in, its answer out)
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> commandCenter = req -> {
+            long id = ids.incrementAndGet();
+            CompletableFuture<Map<String, Object>> f = new CompletableFuture<>();
+            waiting.put(id, f);
+            send(Map.of("type", "cr", "id", id, "call", String.valueOf(req.get("call")), "args", req.getOrDefault("args", Map.of())));
+            Map<String, Object> r;
+            try { r = f.get(60, TimeUnit.SECONDS); }
+            catch (Exception e) { throw new OoaException("JOBS.TIMEOUT", "No answer from One CommandCenter", null, true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            return (Map<String, Object>) r.getOrDefault("result", Map.of());
+        };
         PackageRegistry registry = FirstPartyPackages.registry();
         String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
@@ -121,6 +133,7 @@ public final class RunWorker {
                 // Settings: no pictures of the screen when a step fails
                 .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("docflow", docflow)
+                .service("command_center", commandCenter)
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.

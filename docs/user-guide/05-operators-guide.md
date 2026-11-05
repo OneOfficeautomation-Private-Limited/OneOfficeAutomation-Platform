@@ -401,6 +401,13 @@ webhook (for example to Teams or Slack).
 | A runner stops reporting | When the runner reports again |
 | Work queue items are overdue | When no item is overdue |
 | An AI budget is nearly used | The next month |
+| An agent raises an alert (its **Raise alert** step) | When someone acknowledges it |
+
+An agent can raise an alert itself with the **Jobs and alerts** toolkit's **Raise alert** step: a message, Warning or
+Critical, and what it is about. It goes to the people of the rules of kind **An agent raises an alert** (for every
+agent or that one); with no such rule it is only listed under Alerts. A run raises at most 20 alerts. The same
+toolkit's **Get job**, **List jobs** and **Stop job** let an agent see and stop other runs, with the permissions of the
+user the agent runs as.
 
 To make a rule (needs `alerts.manage`):
 
