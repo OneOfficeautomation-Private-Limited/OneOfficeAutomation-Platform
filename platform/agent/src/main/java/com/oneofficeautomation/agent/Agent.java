@@ -424,6 +424,14 @@ public final class Agent {
                             w.send(Map.of("type", "docflow", "id", msg.get("id"), "error", Map.of("code", "DOCS.FILE", "message", String.valueOf(e.getMessage()))));
                         }
                     });
+                    case "queue" -> io.submit(() -> {
+                        try {
+                            Map<String, Object> r = client.post("queues", Map.of("run_id", w.runId, "request", msg.getOrDefault("request", Map.of())));
+                            w.send(Map.of("type", "queue", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "queue", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
                     default -> { }
                 }
             }

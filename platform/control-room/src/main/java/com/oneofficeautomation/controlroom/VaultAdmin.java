@@ -401,6 +401,8 @@ public final class VaultAdmin {
                 db.update("UPDATE lockers SET external_secret = ? WHERE name = ?", next.encrypt(cr.vault.decrypt((String) l.get("external_secret"), bound), bound), l.get("name"));
                 k++;
             }
+            // work items of queues that keep their data encrypted (G31)
+            k += cr.platform.queueTools.reencrypt(next);
             // values One CommandCenter keeps for itself: evaluation start, install id, audit chain key
             for (String[] s : new String[][] { {"evaluation_started", "evaluation"}, {"install_id", "install-id"}, {"audit_chain_key", "audit-chain"} }) {
                 Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = ?", s[0]);

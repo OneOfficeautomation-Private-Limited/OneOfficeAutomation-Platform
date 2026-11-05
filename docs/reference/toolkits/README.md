@@ -93,7 +93,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Windows Credential Manager](ooa-credential_manager.md) | `ooa.credential_manager` | 4 | 1 | 0 | Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account. |
 | [Windows services](ooa-services.md) | `ooa.services` | 6 | 1 | 0 | Get the status of, start, stop, pause, resume and restart Windows services on this or another computer. |
 | [Word (no Office needed)](ooa-word.md) | `ooa.word` | 16 | 0 | 0 | Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save. |
-| [Work queues](ooa-workload.md) | `ooa.workload` | 10 | 1 | 1 | Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries. |
+| [Work queues](ooa-workload.md) | `ooa.workload` | 16 | 1 | 1 | Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries. |
 | [Workday](ooa-workday.md) | `ooa.workday` | 7 | 0 | 0 | Search and read Workday workers and call Workday REST endpoints or RaaS reports. |
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |

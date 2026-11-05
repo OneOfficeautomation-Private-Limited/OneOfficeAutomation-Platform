@@ -22,7 +22,10 @@ public final class Platform {
     private final Db db;
     private final PackageRegistry registry;
 
-    Platform(ControlRoom cr, PackageRegistry registry) { this.cr = cr; this.db = cr.db; this.registry = registry; }
+    /** Work queue upgrades (G31): tags, unlock, delete by filter, copy and move, unique references, encrypted data, agents' commands. */
+    final QueueTools queueTools;
+
+    Platform(ControlRoom cr, PackageRegistry registry) { this.cr = cr; this.db = cr.db; this.registry = registry; this.queueTools = new QueueTools(cr, this); }
 
     // ===================== settings =====================
 
@@ -751,6 +754,8 @@ public final class Platform {
             db.update("UPDATE queues SET model_id = ? WHERE id = ?", model, qid);
         }
         cr.audit.record(by.username(), "queue.save", "queue", qid, Map.of("name", name), "ok", ip);
+        // "Encrypt item data" (G31): the queue's items are re-written encrypted (or plain) at once
+        if (q.get("encrypt_data") instanceof Boolean enc) queueTools.setEncryption(by, qid, enc, ip);
         return Map.of("id", qid);
     }
 
@@ -778,9 +783,15 @@ public final class Platform {
         cr.audit.record(by.username(), on ? "queue.start" : "queue.stop", "queue", qid, null, "ok", ip);
     }
 
-    /** Adds work items: a list of dictionaries (data), each optionally with "reference" and "priority". */
+    /**
+     * Adds work items: a list of dictionaries (data), each optionally with "_reference" and "_priority", and (G31)
+     * "_tags" (a list or comma-separated text) and "_if_exists" (error, skip or update: the reference is then unique in
+     * the queue). Answers added, ids (in order, also of items skipped or updated), outcomes, skipped and updated.
+     */
+    public Map<String, Object> addItems(User by, String qid, List<Object> items, String ip) { return addItemsAs(by, by.username(), qid, items, ip); }
+
     @SuppressWarnings("unchecked")
-    public Map<String, Object> addItems(User by, String qid, List<Object> items, String ip) {
+    Map<String, Object> addItemsAs(User by, String actor, String qid, List<Object> items, String ip) {
         cr.require(by, "queues.work", "add work items");
         Map<String, Object> queue = db.one("SELECT id, model_id FROM queues WHERE id = ?", qid);
         if (queue == null) throw notFound("Queue");
@@ -788,7 +799,9 @@ public final class Platform {
         if (items == null || items.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Send at least one item");
         if (items.size() > 10000) throw new OoaException("CR.TOO_LARGE", "Add at most 10,000 items at a time");
         List<Map<String, Object>> fields = modelFields((String) queue.get("model_id"));
+        boolean encrypt = queueTools.encrypted(qid);
         List<String> ids = new ArrayList<>();
+        List<Object> outcomes = new ArrayList<>();
         db.tx(() -> {
             int row = 0;
             for (Object o : items) {
@@ -797,32 +810,44 @@ public final class Platform {
                 Map<String, Object> item = new LinkedHashMap<>((Map<String, Object>) m);
                 Object ref = item.remove("_reference");
                 Object pr = item.remove("_priority");
+                List<String> tags = QueueTools.tags(item.remove("_tags"));
+                String ifExists = QueueTools.ifExists(item.remove("_if_exists"));
                 if (fields != null) item = checkItem(fields, item, "Item " + row);
-                String iid = id("item");
-                db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated) VALUES (?,?,?,?,?,?,?,?,?)",
-                        iid, qid, ref == null ? null : String.valueOf(ref), JsonLite.write(item), "new", pr instanceof Number n ? n.intValue() : 0, 0, now(), now());
-                ids.add(iid);
+                Map<String, Object> r = queueTools.addOne(qid, encrypt, item, ref == null ? null : String.valueOf(ref), pr instanceof Number n ? n.intValue() : null, tags, ifExists);
+                ids.add((String) r.get("id"));
+                outcomes.add(r.get("outcome"));
             }
             return null;
         });
-        cr.audit.record(by.username(), "queue.add_items", "queue", qid, Map.of("count", ids.size()), "ok", ip);
-        return Map.of("added", ids.size(), "ids", ids);
+        long added = outcomes.stream().filter("added"::equals).count(), skipped = outcomes.stream().filter("skipped"::equals).count();
+        Map<String, Object> detail = new LinkedHashMap<>(Map.of("count", added));
+        if (skipped > 0) detail.put("skipped", skipped);
+        if (added + skipped < outcomes.size()) detail.put("updated", outcomes.size() - added - skipped);
+        cr.audit.record(actor, "queue.add_items", "queue", qid, detail, "ok", ip);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("added", (int) added); out.put("ids", ids); out.put("outcomes", outcomes);
+        out.put("skipped", (int) skipped); out.put("updated", (int) (outcomes.size() - added - skipped));
+        return out;
     }
 
-    public Map<String, Object> items(User by, String qid, String status, String q, int limit, int offset) {
+    public Map<String, Object> items(User by, String qid, String status, String q, int limit, int offset) { return items(by, qid, status, q, null, limit, offset); }
+
+    /** A page of items, newest first; tag (comma-separated): only items with every one of these tags (G31). */
+    public Map<String, Object> items(User by, String qid, String status, String q, String tag, int limit, int offset) {
         cr.require(by, "queues.view", "view work queues");
         requireQueue(by, qid, "view", "view this work queue");
         List<Object> p = new ArrayList<>(List.of(qid));
         String where = " WHERE queue_id = ?";
         if (status != null && !status.isBlank()) { where += " AND status = ?"; p.add(status); }
         if (q != null && !q.isBlank()) { where += " AND (LOWER(COALESCE(reference, '')) LIKE ? OR LOWER(data) LIKE ?)"; String like = "%" + q.toLowerCase(Locale.ROOT) + "%"; p.add(like); p.add(like); }
+        where += QueueTools.tagFilter("tags", QueueTools.tags(tag), p);
         long total = cr.count("SELECT COUNT(*) AS n FROM queue_items" + where, p.toArray());
         List<Object> page = new ArrayList<>(p);
         page.add(Math.max(1, Math.min(500, limit)));
         page.add(Math.max(0, offset));
         List<Map<String, Object>> rows = db.query("SELECT * FROM queue_items" +
                 where + " ORDER BY created DESC LIMIT ? OFFSET ?", page.toArray());
-        return Map.of("items", rows, "total", total);
+        return Map.of("items", rows.stream().map(queueTools::view).toList(), "total", total);
     }
 
     public void updateItems(User by, String qid, List<Object> ids, String action, String ip) { updateItems(by, qid, ids, action, null, ip); }
@@ -1042,8 +1067,8 @@ public final class Platform {
         requireQueue(by, qid, "view", "view this work queue");
         Map<String, Object> i = db.one("SELECT * FROM queue_items WHERE id = ? AND queue_id = ?", itemId, qid);
         if (i == null) throw notFound("Work item");
-        Map<String, Object> m = new LinkedHashMap<>(i);
-        m.put("data", JsonLite.parse((String) i.get("data")));
+        Map<String, Object> m = queueTools.view(i);
+        m.put("data", JsonLite.parse((String) m.get("data")));
         if (i.get("result") != null) m.put("result", JsonLite.parse((String) i.get("result")));
         if (i.get("error") != null) m.put("error", JsonLite.parse((String) i.get("error")));
         return m;
@@ -1054,14 +1079,21 @@ public final class Platform {
     public void updateItem(User by, String qid, String itemId, Map<String, Object> changes, String ip) {
         cr.require(by, "queues.work", "change work items");
         requireQueue(by, qid, "add", "change work items in this queue");
-        Map<String, Object> i = db.one("SELECT i.status, q.model_id FROM queue_items i JOIN queues q ON q.id = i.queue_id WHERE i.id = ? AND i.queue_id = ?", itemId, qid);
+        Map<String, Object> i = db.one("SELECT i.status, i.unique_ref, q.model_id FROM queue_items i JOIN queues q ON q.id = i.queue_id WHERE i.id = ? AND i.queue_id = ?", itemId, qid);
         if (i == null) throw notFound("Work item");
         if ("in_progress".equals(i.get("status"))) throw new OoaException("CR.CONFLICT", "The item is being worked on", "Change it after its run ends.");
         if (changes.get("data") instanceof Map<?, ?> d) {
             Map<String, Object> data = new LinkedHashMap<>((Map<String, Object>) d);
             List<Map<String, Object>> fields = modelFields((String) i.get("model_id"));
             if (fields != null) data = checkItem(fields, data, "The item");
-            db.update("UPDATE queue_items SET data = ?, updated = ? WHERE id = ?", JsonLite.write(data), now(), itemId);
+            db.update("UPDATE queue_items SET data = ?, updated = ? WHERE id = ?", queueTools.seal(queueTools.encrypted(qid), itemId, JsonLite.write(data)), now(), itemId);
+        }
+        // a reference added as unique stays unique when it is changed (G31)
+        if (changes.containsKey("reference") && i.get("unique_ref") != null) {
+            String ref = changes.get("reference") == null ? null : String.valueOf(changes.get("reference"));
+            if (ref != null && db.one("SELECT id FROM queue_items WHERE queue_id = ? AND reference = ? AND id <> ? LIMIT 1", qid, ref, itemId) != null)
+                throw new OoaException("CR.DUPLICATE_REFERENCE", "The queue already has an item with reference '" + ref + "'");
+            db.update("UPDATE queue_items SET unique_ref = ? WHERE id = ?", ref, itemId);
         }
         if (changes.containsKey("reference")) db.update("UPDATE queue_items SET reference = ?, updated = ? WHERE id = ?", changes.get("reference") == null ? null : String.valueOf(changes.get("reference")), now(), itemId);
         if (changes.get("priority") instanceof Number n) db.update("UPDATE queue_items SET priority = ?, updated = ? WHERE id = ?", n.intValue(), now(), itemId);
@@ -1158,7 +1190,7 @@ public final class Platform {
         if (model != null) for (Map<String, Object> f : model) fields.add(String.valueOf(f.get("name")));
         List<Map<String, Object>> datas = new ArrayList<>();
         for (Map<String, Object> r : rows) {
-            Map<String, Object> d = (Map<String, Object>) JsonLite.parse((String) r.get("data"));
+            Map<String, Object> d = (Map<String, Object>) JsonLite.parse(queueTools.open((String) r.get("id"), r.get("data")));
             datas.add(d);
             if (model == null) for (String k : d.keySet()) if (!fields.contains(k)) fields.add(k);
         }
@@ -1188,6 +1220,7 @@ public final class Platform {
         def.put("format", "ooa.queue"); def.put("format_version", 1); def.put("exported_at", now().toString()); def.put("exported_by", by.username());
         Map<String, Object> settings = new LinkedHashMap<>();
         for (String k : List.of("name", "description", "bot_path", "sla_minutes", "max_attempts")) settings.put(k, q.get(k));
+        if (Boolean.TRUE.equals(q.get("encrypt_data"))) settings.put("encrypt_data", true);
         Map<String, Object> pool = q.get("pool_id") == null ? null : db.one("SELECT name FROM device_pools WHERE id = ?", q.get("pool_id"));
         settings.put("pool_name", pool == null ? null : pool.get("name"));
         def.put("queue", settings);
@@ -1200,8 +1233,9 @@ public final class Platform {
         def.put("members", members);
         if (withItems) {
             List<Object> items = new ArrayList<>();
-            for (Map<String, Object> i : db.query("SELECT reference, priority, data FROM queue_items WHERE queue_id = ? AND status IN ('new', 'retry', 'deferred') ORDER BY created LIMIT 10000", qid)) {
-                Map<String, Object> it = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) i.get("data")));
+            for (Map<String, Object> i : db.query("SELECT id, reference, priority, data, tags FROM queue_items WHERE queue_id = ? AND status IN ('new', 'retry', 'deferred') ORDER BY created LIMIT 10000", qid)) {
+                Map<String, Object> it = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(queueTools.open((String) i.get("id"), i.get("data"))));
+                if (i.get("tags") != null) it.put("_tags", QueueTools.tagList(i.get("tags")));
                 if (i.get("reference") != null) it.put("_reference", i.get("reference"));
                 if (i.get("priority") instanceof Number n && n.intValue() != 0) it.put("_priority", n.intValue());
                 items.add(it);
@@ -1245,6 +1279,7 @@ public final class Platform {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", name); body.put("description", q.get("description")); body.put("bot_path", bot); body.put("pool_id", pool == null ? null : pool.get("id"));
         body.put("sla_minutes", q.get("sla_minutes")); body.put("max_attempts", q.get("max_attempts") instanceof Number n ? n : 1); body.put("model_id", modelId);
+        if (Boolean.TRUE.equals(q.get("encrypt_data"))) body.put("encrypt_data", true);
         String qid = (String) saveQueue(by, null, body, ip).get("id");
         List<Object> members = new ArrayList<>();
         for (Object o : def.get("members") instanceof List<?> l ? l : List.of()) {
@@ -1446,7 +1481,7 @@ public final class Platform {
                 try {
                     Map<String, Object> inputs = new LinkedHashMap<>();
                     Map<String, Object> declared = declaredInputs((String) q.get("bot_path"));
-                    if (declared.containsKey("work_item")) inputs.put("work_item", JsonLite.parse((String) next.get("data")));
+                    if (declared.containsKey("work_item")) inputs.put("work_item", JsonLite.parse(queueTools.open((String) next.get("id"), next.get("data"))));
                     if (declared.containsKey("work_item_id")) inputs.put("work_item_id", next.get("id"));
                     Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", q.get("run_as"));
                     // the run carries its work item from the start: a quick agent may finish before this method goes on
@@ -1486,6 +1521,8 @@ public final class Platform {
         if (r == null || r.get("queue_item_id") == null) return;
         Map<String, Object> item = db.one("SELECT i.*, q.max_attempts FROM queue_items i JOIN queues q ON q.id = i.queue_id WHERE i.id = ?", r.get("queue_item_id"));
         if (item == null) return;
+        // the agent marked its item itself while it ran (ooa.workload with central on, G31): its mark stays
+        if (!"in_progress".equals(item.get("status")) && !("failed".equals(item.get("status")) && item.get("error_kind") == null)) return;
         String next = "success".equals(status) ? "success"
                 : ((Number) item.get("attempts")).intValue() < ((Number) item.get("max_attempts")).intValue() && !"stopped".equals(status) ? "retry" : "failed";
         // the agent asked a person to check what it read (A1): the item waits in "review" until validated
@@ -1493,6 +1530,7 @@ public final class Platform {
         db.update("UPDATE queue_items SET status = ?, error = ?, result = ?, updated = ?, finished = ? WHERE id = ?", next,
                 error == null ? null : JsonLite.write(error), outputs == null ? null : JsonLite.write(outputs), now(),
                 next.equals("retry") || next.equals("review") ? null : now(), item.get("id"));
+        if (error != null && (next.equals("retry") || next.equals("failed"))) db.update("UPDATE queue_items SET error_kind = 'system' WHERE id = ?", item.get("id"));
         if (next.equals("review")) cr.audit.record("system", "queue.item_review", "work_item", (String) item.get("id"), Map.of("queue", item.get("queue_id")), "ok", null);
     }
 
@@ -1523,11 +1561,11 @@ public final class Platform {
         for (String k : asked.keySet()) checked.put(k, given.containsKey(k) ? given.get(k) : asked.get(k));   // only the fields the agent asked about
         List<String> changed = new ArrayList<>();
         for (String k : asked.keySet()) if (!Objects.equals(String.valueOf(asked.get(k)), String.valueOf(checked.get(k)))) changed.add(k);
-        Map<String, Object> data = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) i.get("data")));
+        Map<String, Object> data = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(queueTools.open(itemId, i.get("data"))));
         data.put("validated_fields", checked);
         data.put("validated", true);
         data.put("validated_by", by.username());
-        db.update("UPDATE queue_items SET status = 'new', data = ?, updated = ?, finished = NULL WHERE id = ?", JsonLite.write(data), now(), itemId);
+        db.update("UPDATE queue_items SET status = 'new', data = ?, updated = ?, finished = NULL WHERE id = ?", queueTools.seal(queueTools.encrypted(qid), itemId, JsonLite.write(data)), now(), itemId);
         cr.audit.record(by.username(), "queue.item_validate", "work_item", itemId, Map.of("queue", qid, "changed", changed), "ok", ip);
         return Map.of("status", "new", "changed", changed);
     }

@@ -35,7 +35,7 @@ class SchemaUpgradeTest {
     @Test void aNewDatabaseGetsEveryVersion() {
         try (Db db = fresh()) {
             db.migrate();
-            assertEquals(33, db.schemaVersion());
+            assertEquals(Db.LATEST, db.schemaVersion());
             assertTrue(has(db, "SELECT process_id, mail_cursor FROM docflow_mail WHERE 1 = 0"));
             assertTrue(has(db, "SELECT nickname, cpu_max FROM devices WHERE 1 = 0"));
         }
@@ -46,7 +46,7 @@ class SchemaUpgradeTest {
             upTo(db, 32);
             assertFalse(has(db, "SELECT 1 FROM docflow_mail WHERE 1 = 0"));
             db.migrate();
-            assertEquals(33, db.schemaVersion());
+            assertEquals(Db.LATEST, db.schemaVersion());
             assertTrue(has(db, "SELECT process_id FROM docflow_mail WHERE 1 = 0"));
         }
     }
@@ -60,22 +60,47 @@ class SchemaUpgradeTest {
             db.update("INSERT INTO docflow_mail (process_id, mail_cursor, documents) VALUES ('invoices', 'uid-42', 3)");
             assertFalse(has(db, "SELECT nickname FROM devices WHERE 1 = 0"), "the runners' version 25 is missing");
             db.migrate();
-            assertEquals(33, db.schemaVersion());
+            assertEquals(Db.LATEST, db.schemaVersion());
             assertTrue(has(db, "SELECT nickname, maintenance, cpu_max FROM devices WHERE 1 = 0"), "the runners' version 25 was applied");
             assertTrue(has(db, "SELECT owners FROM device_pools WHERE 1 = 0"));
             assertTrue(has(db, "SELECT kind FROM runner_files WHERE 1 = 0"));
             assertTrue(has(db, "SELECT id FROM alert_rules WHERE 1 = 0"), "26-32 ran after it");
             assertEquals("uid-42", db.one("SELECT mail_cursor FROM docflow_mail WHERE process_id = 'invoices'").get("mail_cursor"), "the mail table and its rows are kept");
             db.migrate();   // and nothing more happens the next time
-            assertEquals(33, db.schemaVersion());
+            assertEquals(Db.LATEST, db.schemaVersion());
         }
+    }
+
+    /** Version 34 (G31): items added before keep the references they share; references added as unique are refused twice. */
+    @Test void workQueueUpgradeFrom33KeepsItemsAndGuardsUniqueReferences() throws Exception {
+        try (Db db = fresh()) {
+            upTo(db, 33);
+            db.update("INSERT INTO queues (id, name, max_attempts, processing, created) VALUES ('q1', 'Invoices', 1, FALSE, CURRENT_TIMESTAMP)");
+            for (String id : new String[] { "i1", "i2" })
+                db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated) VALUES (?, 'q1', 'INV-1', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", id);
+            db.migrate();
+            assertEquals(34, db.schemaVersion());
+            assertEquals(2, db.query("SELECT id FROM queue_items WHERE reference = 'INV-1'").size(), "items with the same reference from before stay");
+            assertNull(db.one("SELECT encrypt_data FROM queues WHERE id = 'q1'").get("encrypt_data"));
+            assertTrue(has(db, "SELECT tags, error_kind, unique_ref FROM queue_items WHERE 1 = 0"));
+            db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated, unique_ref) VALUES ('i3', 'q1', 'INV-2', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'INV-2')");
+            db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated, unique_ref) VALUES ('i4', 'q2', 'INV-2', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'INV-2')");
+            assertThrows(OoaException.class, () -> db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated, unique_ref) VALUES ('i5', 'q1', 'INV-2', '{}', 'new', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'INV-2')"),
+                    "a unique reference once per queue");
+        }
+    }
+
+    @Test void theUniqueIndexIsFilteredOnSqlServerOnly() {
+        String ddl = "CREATE UNIQUE INDEX queue_items_unique_ref ON queue_items (queue_id, unique_ref) WHERE unique_ref IS NOT NULL";
+        assertEquals("CREATE UNIQUE INDEX queue_items_unique_ref ON queue_items (queue_id, unique_ref)", Db.ddl(ddl, false));
+        assertEquals(ddl, Db.ddl(ddl, true));
     }
 
     @Test void aDatabaseOfThisBranchAt25IsNotMistakenForOne() throws Exception {
         try (Db db = fresh()) {
             upTo(db, 25);   // this branch's version 25: the runners' columns, no mail table
             db.migrate();
-            assertEquals(33, db.schemaVersion());
+            assertEquals(Db.LATEST, db.schemaVersion());
             assertTrue(has(db, "SELECT process_id FROM docflow_mail WHERE 1 = 0"));
         }
     }

@@ -510,6 +510,7 @@ public final class ControlRoomServer {
             }
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
+            else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;
@@ -784,8 +785,21 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteQueue(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("start") || seg[2].equals("stop"))) { cr.platform.setProcessing(u, seg[1], seg[2].equals("start"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("items"))
-                    sendJson(ex, 200, cr.platform.items(u, seg[1], q.get("status"), q.get("q"), ControlRoom.intOr(q.get("limit"), 100), ControlRoom.intOr(q.get("offset"), 0)));
+                    sendJson(ex, 200, cr.platform.items(u, seg[1], q.get("status"), q.get("q"), q.get("tag"), ControlRoom.intOr(q.get("limit"), 100), ControlRoom.intOr(q.get("offset"), 0)));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("items")) sendJson(ex, 200, cr.platform.addItems(u, seg[1], (List<Object>) map(body(ex)).get("items"), ip));
+                // G31: tags, unlock, delete by filter, copy and move
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items") && seg[3].equals("tag")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, Map.of("changed", cr.platform.queueTools.retag(u, u.username(), seg[1], (List<Object>) b.get("ids"), b.get("add"), b.get("remove"), ip)));
+                }
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items") && seg[3].equals("unlock"))
+                    sendJson(ex, 200, Map.of("unlocked", cr.platform.queueTools.unlock(u, u.username(), seg[1], (List<Object>) map(body(ex)).get("ids"), null, ip)));
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items") && seg[3].equals("purge"))
+                    sendJson(ex, 200, Map.of("deleted", cr.platform.queueTools.deleteMatching(u, u.username(), seg[1], map(body(ex)), ip)));
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items") && (seg[3].equals("copy") || seg[3].equals("move"))) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.platform.queueTools.transfer(u, u.username(), seg[1], String.valueOf(b.get("to_queue")), b, seg[3].equals("move"), ip));
+                }
                 else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items")) {
                     Map<String, Object> b = map(body(ex));
                     cr.platform.updateItems(u, seg[1], (List<Object>) b.get("ids"), seg[3], ControlRoom.instantOr(b.get("until")), ip);

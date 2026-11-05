@@ -278,8 +278,14 @@ one by one on a runner pool, with retries and a service level.
    list**; then **Save model**. While queues using a model have items, it can gain optional fields but not lose or
    change fields.
 2. Press **Create work queue**: **Name**, **Description**, **Work item model**, **Agent that works the items**,
-   **Runner pool**, **Service level (minutes from added to done)** and **Attempts per item** (1 to 10).
+   **Runner pool**, **Service level (minutes from added to done)**, **Attempts per item** (1 to 10) and **Encrypt
+   item data**.
 3. Press **Create work queue** in the dialog.
+
+**Encrypt item data** keeps each item's data encrypted in the database with the credential vault's key (the same
+encryption as vault values, re-encrypted when the vault key is changed). People and agents allowed to see the queue
+still read the data as usual; turning the switch on or off re-writes the queue's items at once. **Search reference or
+data** then finds encrypted items by their reference only.
 
 The agent receives each item in its input `work_item` (a dictionary) and the item's id in `work_item_id`. Its outputs
 are kept with the item. A failed item is retried until its attempts are used.
@@ -290,6 +296,11 @@ Open the queue (click its row) and press **Add items**. Paste a JSON list or CSV
 JSON or Excel (`.xlsx`) file (for Excel, name the sheet or leave it empty for the first). A `reference` column names
 each item; a `priority` column puts it first. Dates in Excel come as yyyy-mm-dd. Items are checked against the model:
 required fields, right types, no unknown fields.
+
+In a JSON list, an item may also have `_tags` (a list, or tags separated by commas) and `_if_exists` (`error`, `skip`
+or `update`). With `_if_exists` the item's `_reference` is unique in the queue: an item with the same reference is
+refused (the whole list is then not added), left as it is, or given the new data and tags. Items added without
+`_if_exists` may share references, as before.
 
 > **Tip.** Large Excel files travel inside a JSON request, which is limited by **Administration > Settings > General >
 > Largest upload** (MB; 25 MB by default). Ask an administrator to raise it, or split the file.
@@ -302,11 +313,24 @@ required fields, right types, no unknown fields.
   **Service level**, with the number of items past it in red.
 - The queue's page has three tabs: **Work items**, **Details** and **Members**. **Work items** has a chip for each
   status with its count (All, New, In progress, To validate, Waiting to retry, Succeeded, Failed, Deferred) that
-  filters the list, a search box (**Search reference or data**) and the items with **Reference**, **Data**, **Status**,
-  **Attempts**, **Priority**, **Added** and **Result or error**.
+  filters the list, a search box (**Search reference or data**), **Filter by tag** (several tags separated by commas
+  show items that have all of them) and the items with **Reference** (and its tags), **Data**, **Status**,
+  **Attempts**, **Priority**, **Added** and **Result or error**. A failed item shows the kind of its exception:
+  **Business** (the item itself is wrong, for example no purchase order; it is not retried) or **System** (something
+  around it failed, for example a portal was down; it is retried until its attempts are used).
 - Tick items and use **Retry**, **Defer** or **Delete** (items being worked on are kept). **Defer** asks **Until (your
   time)**: after that time processing picks the items up again by itself. Left empty, they wait until someone presses
   **Retry**. The status shows "until <time>" or "until Retry".
+- **Unlock** puts ticked items that are stuck in progress back to new, keeping their attempts (also **Unlock** in an
+  item's **⋯** menu). An item whose run is still queued or running stays locked: stop the run first.
+- **Tags…** adds or removes tags on the ticked items (**Add tags**, **Remove tags**, separated by commas).
+- **Copy to…** and **Move to…** put the ticked items in another queue (**To the queue**) as new items with the same
+  data, reference, priority and tags; their attempts start again. Items being worked on stay, and so do items whose
+  reference the other queue has already. You need to add items to the other queue (participant or owner when it has
+  members).
+- **Delete finished items…** (in the queue's **⋯** menu) deletes **Succeeded and failed**, **Succeeded** or **Failed**
+  items, optionally only those **Older than** some hours. Items waiting or in progress are never deleted here.
+- Unlock, tags, copy, move and every delete are recorded in the audit trail, whether a person or an agent did them.
 - Click an item (or **Open** in its **⋯** menu) to change its data, reference or priority (the form follows the model)
   and press **Save changes**; while it is in progress you can only look at it.
 - **Validate** appears in the **⋯** menu of items **To validate**: the agent was unsure of some fields (marked red with
@@ -317,6 +341,17 @@ required fields, right types, no unknown fields.
   **Import queue** on the list page makes a queue from such a file and lists anything it could not link.
 - **Members** (**Change members**): owners manage the queue, participants add and change items, consumers process the
   items (start processing and retry). Without members, roles alone decide. People with `queues.all` see every queue.
+
+### Agents that work a queue themselves
+
+Besides processing (one run per item), an agent can use the **Work queues** commands (toolkit `ooa.workload`) on a
+queue here: tick **central** in the command (under More options) and give the queue's name. This works for runs
+started from One CommandCenter; the runner passes each command on, and it runs as the person the run belongs to, with
+their permissions and queue membership. **Get next item** (with **tags** and **wait_seconds**), **Mark completed**,
+**Mark failed** (with **kind** business or system), **Defer item**, **Add work item** (with **reference** and
+**if_exists**), **Tag work item**, **Unlock work item**, **Delete work items**, **Copy work items** and **Move work
+items** behave as for a queue in the agent's own workspace. A central queue uses its own **Attempts per item**. When
+an agent started by processing marks its own item, that mark stays when its run ends.
 
 ## 8. Workflow and the Task inbox
 

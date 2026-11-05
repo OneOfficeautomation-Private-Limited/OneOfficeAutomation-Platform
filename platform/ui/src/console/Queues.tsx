@@ -11,12 +11,15 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
  * export and import of a queue's definition. Work item models are AA's work item templates. Refreshes every 10 seconds.
  * Review round 2 (31 Oct 2026), as AA's View queue: one line per queue (its description on hover); a queue opens as its own
  * page with Work items (status chips, one line per item, its data in a column of its own), Details and Members.
+ * G31 (4 Nov 2026), as UiPath's and Blue Prism's queues: tags on items (filter by tag), the kind of an item's exception
+ * (business or system), unlock, copy and move to another queue, delete finished items, and encrypted item data.
  */
 const STATUS: [string, string][] = [["new", "New"], ["in_progress", "In progress"], ["review", "To validate"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]];
 const statusName = (s: string) => STATUS.find(([k]) => k === s)?.[1] ?? s;
 const agentName = (p?: string | null) => p ? p.split("/").pop()!.replace(/\.flow\.json$/, "") : "Not chosen";
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const MEMBER_ROLES: Record<string, string> = { owner: "Owner (manages the queue)", participant: "Participant (adds and changes items)", consumer: "Consumer (processes the items)" };
+const KIND: Record<string, string> = { business: "Business", system: "System" };
 const waiting = (q: WorkQueue) => (q.counts.new ?? 0) + (q.counts.retry ?? 0);
 const parsed = (v: unknown) => { if (typeof v !== "string") return v; try { return JSON.parse(v); } catch { return v; } };
 const short = (v: unknown) => { const p = parsed(v); return p === null || p === undefined ? "" : typeof p === "string" ? p : JSON.stringify(p); };
@@ -42,8 +45,8 @@ const HELP: HelpTopic = { title: "Work queues",
     { name: "Service level", text: "The minutes an item may take from being added to being done. Items past it are counted in red." },
     { name: "Open its items", text: "Opens the queue's own page with its work items, details and members. Clicking the row does the same." },
     { name: "Start processing or Stop processing", text: "Switches processing on or off for the queue. Needs permission to work queues." },
-    { name: "Change settings…", text: "Changes the queue's name, model, agent, runner pool, service level and attempts. Needs permission to manage work "
-      + "queues." },
+    { name: "Change settings…", text: "Changes the queue's name, model, agent, runner pool, service level, attempts and whether item data is kept "
+      + "encrypted. Needs permission to manage work queues." },
   ] };
 
 const HELP_QUEUE: HelpTopic = { title: "Work queue",
@@ -58,10 +61,21 @@ const HELP_QUEUE: HelpTopic = { title: "Work queue",
       + "reference or data." },
     { name: "Retry, Defer and Delete", text: "Tick items to act on several at once. Retry tries them again, Defer holds them until a time you choose or "
       + "until Retry, and Delete removes them; items being worked on are kept." },
+    { name: "Unlock", text: "Puts items stuck in progress back to new, keeping their attempts. Items whose run is still going stay locked: stop the run "
+      + "first." },
+    { name: "Tags…", text: "Adds or removes labels on the ticked items. Type a tag in Filter by tag to see only items with it (several, comma-separated: "
+      + "items with all of them). Agents can take only items with given tags." },
+    { name: "Copy to… and Move to…", text: "Puts the ticked items in another queue as new items with the same data, reference, priority and tags. Items "
+      + "being worked on, and items whose reference the other queue has, stay." },
+    { name: "Delete finished items…", text: "Deletes succeeded or failed items, optionally only those older than some hours. Needs permission to work "
+      + "queues." },
+    { name: "Business or System", text: "The kind of an item's last exception. A business exception (the item itself is wrong) fails it at once; a system "
+      + "exception (something around it failed) is retried until its attempts are used." },
     { name: "Validate", text: "For items an agent was not sure of: check the marked fields, correct them and approve, or reject with a reason. Approved "
       + "items go back to the agent." },
     { name: "Export CSV", text: "Saves the items, or only those of the chosen status, as a CSV file." },
-    { name: "Details", text: "The queue's agent, runner pool, attempts, service level, processing and item model. Edit settings changes them." },
+    { name: "Details", text: "The queue's agent, runner pool, attempts, service level, processing, item model and whether item data is encrypted. Edit "
+      + "settings changes them." },
     { name: "Members", text: "Who may use the queue: owners manage it, participants add and change items, consumers process them. With no members, everyone "
       + "whose role allows it can use it." },
     { name: "Export definition", text: "Saves the queue's settings, model, members and waiting items as a file that Import queue reads, here or on another "
@@ -163,11 +177,12 @@ function QueueForm({ api, queue: x, pools, onClose, onSaved }: { api: CrApi; que
   const [models, setModels] = useState<ItemModel[]>([]);
   const [v, setV] = useState({ name: x?.name ?? "", description: x?.description ?? "", model: x?.model_id ?? "", bot: x?.bot_path ?? "", pool: x?.pool_id ?? "",
     sla: x?.sla_minutes ? String(x.sla_minutes) : "", attempts: String(x?.max_attempts ?? 2) });
+  const [encrypt, setEncrypt] = useState(!!x?.encrypt_data);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { api.liveAgents().then((b) => setAgents(b.map((a) => a.path)), () => {}); api.itemModels().then(setModels, () => {}); }, [api]);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
   const submit = () => api.saveQueue(x?.id ?? null, { name: v.name.trim(), description: v.description, bot_path: v.bot || null, pool_id: v.pool || null,
-    sla_minutes: v.sla ? Number(v.sla) : null, max_attempts: Number(v.attempts), model_id: v.model || null }).then(() => onSaved((x ? "Saved " : "Created ") + v.name.trim() + "."), (e) => setError(message(e)));
+    sla_minutes: v.sla ? Number(v.sla) : null, max_attempts: Number(v.attempts), model_id: v.model || null, encrypt_data: encrypt }).then(() => onSaved((x ? "Saved " : "Created ") + v.name.trim() + "."), (e) => setError(message(e)));
   return (
     <Dialog open title={x ? "Work queue " + x.name : "Create work queue"} width={620} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!v.name.trim()} onClick={submit}>{x ? "Save changes" : "Create work queue"}</Button></>}>
@@ -184,6 +199,9 @@ function QueueForm({ api, queue: x, pools, onClose, onSaved }: { api: CrApi; que
         <Field label="Service level (minutes from added to done)">{(id) => <TextInput id={id} type="number" min={0} value={v.sla} placeholder="240" onChange={set("sla")} />}</Field>
         <Field label="Attempts per item">{(id) => <TextInput id={id} type="number" min={1} max={10} value={v.attempts} onChange={set("attempts")} />}</Field>
       </div>
+      <label className="cc-switch"><input type="checkbox" role="switch" aria-label="Encrypt item data" checked={encrypt} onChange={(e) => setEncrypt(e.target.checked)} />
+        <span className="cc-switch-track" aria-hidden="true" />Encrypt item data</label>
+      <p className="cc-list-hint">Encrypted items are kept in the database with the credential vault's key and shown only to people and agents allowed to see the queue; searching their data no longer finds them.</p>
       <p className="cc-list-hint">The agent receives each item in an input named work_item and its id in work_item_id. A failed run retries the item until its attempts are used.</p>
     </Dialog>
   );
@@ -198,17 +216,18 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
   const [tab, setTab] = useState<"items" | "details" | "members">("items");
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [tag, setTag] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
-  const [sub, setSub] = useState<null | "add" | "members" | "defer" | "delete" | { item: string } | { validate: WorkItem }>(null);
+  const [sub, setSub] = useState<null | "add" | "members" | "defer" | "delete" | "tags" | "purge" | { move: boolean } | { item: string } | { validate: WorkItem }>(null);
   const load = useCallback(async () => {
-    try { const [q, it] = await Promise.all([api.queue(id), api.queueItems(id, status, search.trim())]); setX(q); setItems(it); setError(null); setSelected((s) => s.filter((k) => it.items.some((i) => i.id === k))); }
+    try { const [q, it] = await Promise.all([api.queue(id), api.queueItems(id, status, search.trim(), 200, tag.trim())]); setX(q); setItems(it); setError(null); setSelected((s) => s.filter((k) => it.items.some((i) => i.id === k))); }
     catch (e) { setError(message(e)); }
-  }, [api, id, status, search, version]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, id, status, search, tag, version]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t); }, [load]);
   useEffect(() => { const t = setInterval(() => { if (!sub) load(); }, 10_000); return () => clearInterval(t); }, [load, sub]);
-  const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { onNotice(done); setSelected([]); setSub(null); load(); }, (e) => setError(message(e)));
+  const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { if (done) onNotice(done); setSelected([]); setSub(null); load(); }, (e) => setError(message(e)));
   const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the work queues" onClick={onClose}>×</button>;
   if (!x) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="Work queue"><div className="cc-agent-head"><h1>Work queue</h1><span className="ov-fill" />{close}</div>
     {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
@@ -216,10 +235,14 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
   const total = Object.values(x.counts).reduce((n, v) => n + (v ?? 0), 0);
   const open = (it: WorkItem) => setSub(it.status === "review" && work ? { validate: it } : { item: it.id });
   const more = [...(manage ? [{ key: "edit", label: "Edit settings", onSelect: () => onEdit(x) }] : []),
+    ...(work ? [{ key: "purge", label: "Delete finished items…", onSelect: () => setSub("purge") }] : []),
     { key: "export", label: "Export definition", onSelect: () => { api.exportQueue(x.id, true).then((d) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + ".ooaqueue.json", JSON.stringify(d, null, 2), "application/json"), (e) => setError(message(e))); } },
     ...(manage ? [{ key: "delete", label: "Delete queue…", separatorBefore: true, onSelect: () => setConfirm(true) }] : [])];
   const itemMenu = (it: WorkItem) => [{ key: "open", label: it.status === "review" && work ? "Validate" : "Open", onSelect: () => open(it) },
-    ...(work && ["failed", "deferred"].includes(it.status) ? [{ key: "retry", label: "Retry", onSelect: () => { act(() => api.itemsAction(x.id, "retry", [it.id]), "Retrying " + (it.reference || it.id) + "."); } }] : [])];
+    ...(work && ["failed", "deferred"].includes(it.status) ? [{ key: "retry", label: "Retry", onSelect: () => { act(() => api.itemsAction(x.id, "retry", [it.id]), "Retrying " + (it.reference || it.id) + "."); } }] : []),
+    ...(work && it.status === "in_progress" ? [{ key: "unlock", label: "Unlock", onSelect: () => { unlock([it.id]); } }] : [])];
+  const unlock = (ids: string[]) => act(() => api.unlockItems(x.id, ids).then((r) => { if (r.unlocked < ids.length) throw new Error("Unlocked " + r.unlocked + " of " + ids.length
+    + " item(s): the others are not in progress, or their run is still going (stop it first)."); }), "Unlocked " + ids.length + " item(s).");
   const statusPill = (it: WorkItem) => {
     const tone: Record<string, string> = { new: "stopped", in_progress: "pending", review: "pending", retry: "pending", success: "success", failed: "failed", deferred: "stopped" };
     return <><span className={"cc-pill is-" + (tone[it.status] ?? "pending")}>{it.status === "success" || it.status === "failed" ? <span className="cc-pill-dot" /> : null}{statusName(it.status)}</span>
@@ -256,6 +279,7 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
         <div className="cc-list-tools cc-pane-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">
             <span className="cc-list-search"><TextInput type="search" aria-label="Search items" placeholder="Search reference or data" value={search} onChange={(e) => setSearch(e.target.value)} /></span>
+            <span className="cc-list-search"><TextInput type="search" aria-label="Filter by tag" placeholder="Filter by tag" value={tag} onChange={(e) => setTag(e.target.value)} /></span>
           </div>
           <div className="cc-list-right" role="toolbar" aria-label="Work items tools">
             <Button kind="plain" onClick={() => api.itemsCsv(x.id, status).then((t) => save(x.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + "-items.csv", t, "text/csv"), (e) => setError(message(e)))}>Export CSV</Button>
@@ -267,6 +291,10 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
           {work && <>
             <Button kind="secondary" onClick={() => act(() => api.itemsAction(x.id, "retry", selected), "Retrying " + selected.length + " item(s).")}>Retry</Button>
             <Button kind="secondary" onClick={() => setSub("defer")}>Defer</Button>
+            <Button kind="secondary" onClick={() => unlock(selected)}>Unlock</Button>
+            <Button kind="secondary" onClick={() => setSub("tags")}>Tags…</Button>
+            <Button kind="secondary" onClick={() => setSub({ move: false })}>Copy to…</Button>
+            <Button kind="secondary" onClick={() => setSub({ move: true })}>Move to…</Button>
             <Button kind="danger" onClick={() => setSub("delete")}>Delete</Button>
           </>}
           <Button kind="plain" onClick={() => setSelected([])}>Clear selection</Button>
@@ -281,11 +309,11 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
               {(items?.items ?? []).map((it) => (
                 <tr key={it.id} className={selected.includes(it.id) ? "is-selected" : ""} onClick={rowClick(() => open(it))}>
                   <td className="cc-check"><input type="checkbox" aria-label={"Select " + (it.reference || it.id)} checked={selected.includes(it.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, it.id] : selected.filter((k) => k !== it.id))} /></td>
-                  <td><strong>{it.reference || it.id}</strong></td>
+                  <td><strong>{it.reference || it.id}</strong>{(it.tags ?? []).map((t) => <span key={t} className="cc-tag">{t}</span>)}</td>
                   <td className="ui-mono cc-clip cc-queue-data" title={short(it.data)}>{short(it.data)}</td>
                   <td>{statusPill(it)}</td>
                   <td className="cc-num">{it.attempts}</td><td className="cc-num">{it.priority}</td><td>{when(it.created)}</td>
-                  <td className={it.error ? "cc-err cc-clip" : "cc-clip"} title={it.error ? short(it.error) : short(it.result)}>{it.error ? short(it.error) : short(it.result) || <span className="cc-none">–</span>}</td>
+                  <td className={it.error ? "cc-err cc-clip" : "cc-clip"} title={it.error ? short(it.error) : short(it.result)}>{it.error_kind && it.error ? <span className="cc-tag">{KIND[it.error_kind] ?? it.error_kind}</span> : null}{it.error ? short(it.error) : short(it.result) || <span className="cc-none">–</span>}</td>
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + (it.reference || it.id)} items={itemMenu(it)} /></td>
                 </tr>
               ))}
@@ -303,6 +331,7 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
           <dt>Agent</dt><dd>{agentName(x.bot_path)}</dd><dt>Runner pool</dt><dd>{poolName(x.pool_id)}</dd>
           <dt>Attempts per item</dt><dd>{x.max_attempts}</dd><dt>Service level</dt><dd>{x.sla_minutes ? x.sla_minutes + " minutes" : "None"}</dd>
           <dt>Processing</dt><dd>{x.processing ? "On" + (x.run_as ? " (as " + x.run_as + ")" : "") : "Off"}</dd>{x.model && <><dt>Item model</dt><dd>{x.model.name}</dd></>}
+          <dt>Item data</dt><dd>{x.encrypt_data ? "Encrypted in the database" : "Not encrypted"}</dd>
         </dl>
         {manage && <span><Button kind="secondary" onClick={() => onEdit(x)}>Edit settings</Button></span>}
       </div>}
@@ -321,6 +350,12 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
       {sub === "delete" && <Dialog open title="Delete items" width={420} onClose={() => setSub(null)} footer={<>
         <Button kind="plain" onClick={() => setSub(null)}>Cancel</Button><Button kind="danger" onClick={() => act(() => api.itemsAction(x.id, "delete", selected), "Deleted " + selected.length + " item(s).")}>Delete</Button></>}>
         <p>Delete {selected.length} item(s)? Items being worked on are kept.</p></Dialog>}
+      {sub === "tags" && <TagsDialog count={selected.length} onClose={() => setSub(null)}
+        onSave={(add, remove) => act(() => api.tagItems(x.id, selected, add, remove), "Changed the tags of " + selected.length + " item(s).")} />}
+      {sub && typeof sub === "object" && "move" in sub && <TransferDialog api={api} from={x} move={sub.move} count={selected.length} onClose={() => setSub(null)}
+        onDone={(to, name) => act(() => api.transferItems(x.id, sub.move ? "move" : "copy", to, selected).then((r) => { onNotice((sub.move ? "Moved " : "Copied ") + r.count + " item(s) to " + name
+          + (r.skipped ? "; " + r.skipped + " left out, as " + name + " has their reference" : "") + "."); }), "")} />}
+      {sub === "purge" && <PurgeDialog onClose={() => setSub(null)} onDelete={(b) => act(() => api.purgeItems(x.id, b).then((r) => onNotice("Deleted " + r.deleted + " item(s).")), "")} />}
       {sub && typeof sub === "object" && "item" in sub && <ItemDialog api={api} queue={x} itemId={sub.item} canWork={work} onClose={() => setSub(null)} onSaved={(t) => { onNotice(t); setSub(null); load(); }} />}
       {sub && typeof sub === "object" && "validate" in sub && <Validate api={api} queue={x} item={sub.validate} onClose={() => setSub(null)} onDone={(t) => { onNotice(t); setSub(null); load(); }} />}
     </div>
@@ -334,6 +369,52 @@ function DeferDialog({ count, onClose, onDefer }: { count: number; onClose: () =
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" onClick={() => onDefer(until ? new Date(until).toISOString() : undefined)}>Defer</Button></>}>
       <p>{count} item(s) wait until this time, then are picked up again by themselves. Leave it empty to wait until someone presses Retry.</p>
       <Field label="Until (your time)">{(id) => <TextInput id={id} type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />}</Field>
+    </Dialog>
+  );
+}
+
+/** Add or remove tags on the ticked items (comma-separated). */
+function TagsDialog({ count, onClose, onSave }: { count: number; onClose: () => void; onSave: (add: string[], remove: string[]) => void }) {
+  const [add, setAdd] = useState("");
+  const [remove, setRemove] = useState("");
+  const list = (t: string) => t.split(",").map((s) => s.trim()).filter(Boolean);
+  return (
+    <Dialog open title="Tags" width={460} onClose={onClose} footer={<>
+      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!list(add).length && !list(remove).length} onClick={() => onSave(list(add), list(remove))}>Save tags</Button></>}>
+      <p>Change the tags of {count} item(s). Separate tags with commas.</p>
+      <Field label="Add tags">{(id) => <TextInput id={id} value={add} placeholder="urgent, north" onChange={(e) => setAdd(e.target.value)} />}</Field>
+      <Field label="Remove tags">{(id) => <TextInput id={id} value={remove} onChange={(e) => setRemove(e.target.value)} />}</Field>
+    </Dialog>
+  );
+}
+
+/** Copy or move the ticked items to another queue (as new items). */
+function TransferDialog({ api, from, move, count, onClose, onDone }: { api: CrApi; from: WorkQueue; move: boolean; count: number; onClose: () => void; onDone: (to: string, name: string) => void }) {
+  const [queues, setQueues] = useState<WorkQueue[]>([]);
+  const [to, setTo] = useState("");
+  useEffect(() => { api.queues().then((l) => setQueues(l.filter((q) => q.id !== from.id)), () => {}); }, [api, from.id]);
+  const name = queues.find((q) => q.id === to)?.name ?? "";
+  return (
+    <Dialog open title={(move ? "Move" : "Copy") + " items"} width={460} onClose={onClose} footer={<>
+      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!to} onClick={() => onDone(to, name)}>{move ? "Move items" : "Copy items"}</Button></>}>
+      <p>{count} item(s) become new items in the other queue with the same data, reference, priority and tags; their attempts start again.{move ? " They leave " + from.name + "." : ""} Items being worked on stay.</p>
+      <Field label="To the queue">{(id) => <Select id={id} value={to} onChange={(e) => setTo(e.target.value)} options={[{ value: "", label: "Choose a queue" }, ...queues.map((q) => ({ value: q.id, label: q.name }))]} />}</Field>
+    </Dialog>
+  );
+}
+
+/** Delete finished items: succeeded, failed or both, optionally only those older than some hours. */
+function PurgeDialog({ onClose, onDelete }: { onClose: () => void; onDelete: (b: { status: string; older_than_hours?: number }) => void }) {
+  const [status, setStatus] = useState("finished");
+  const [hours, setHours] = useState("");
+  return (
+    <Dialog open title="Delete finished items" width={460} onClose={onClose} footer={<>
+      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="danger" onClick={() => onDelete({ status, ...(Number(hours) > 0 ? { older_than_hours: Number(hours) } : {}) })}>Delete</Button></>}>
+      <p>Items waiting or being worked on are never deleted here.</p>
+      <div className="cc-grid2">
+        <Field label="Items">{(id) => <Select id={id} value={status} onChange={(e) => setStatus(e.target.value)} options={[{ value: "finished", label: "Succeeded and failed" }, { value: "success", label: "Succeeded" }, { value: "failed", label: "Failed" }]} />}</Field>
+        <Field label="Older than (hours, empty for any age)">{(id) => <TextInput id={id} type="number" min={0} value={hours} onChange={(e) => setHours(e.target.value)} />}</Field>
+      </div>
     </Dialog>
   );
 }
@@ -424,7 +505,8 @@ function ItemDialog({ api, queue: x, itemId, canWork, onClose, onSaved }: { api:
   return (
     <Dialog open title={"Work item " + (it.reference || it.id)} width={680} onClose={onClose} footer={locked ? null : <Button kind="primary" onClick={submit}>Save changes</Button>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <dl className="cc-facts"><dt>Status</dt><dd>{statusName(it.status)}</dd><dt>Attempts</dt><dd>{it.attempts}</dd><dt>Added</dt><dd>{when(it.created)}</dd>{it.finished && <><dt>Finished</dt><dd>{when(it.finished)}</dd></>}</dl>
+      <dl className="cc-facts"><dt>Status</dt><dd>{statusName(it.status)}</dd><dt>Attempts</dt><dd>{it.attempts}</dd><dt>Added</dt><dd>{when(it.created)}</dd>{it.finished && <><dt>Finished</dt><dd>{when(it.finished)}</dd></>}
+        {!!it.tags?.length && <><dt>Tags</dt><dd>{it.tags.join(", ")}</dd></>}{it.error_kind && <><dt>Exception</dt><dd>{KIND[it.error_kind] ?? it.error_kind}</dd></>}</dl>
       <div className="cc-grid2">
         <Field label="Reference">{(id) => <TextInput id={id} value={ref} disabled={locked} onChange={(e) => setRef(e.target.value)} />}</Field>
         <Field label="Priority">{(id) => <TextInput id={id} type="number" value={prio} disabled={locked} onChange={(e) => setPrio(e.target.value)} />}</Field>
