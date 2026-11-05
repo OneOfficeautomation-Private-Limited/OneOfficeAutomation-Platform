@@ -191,6 +191,7 @@ addresses). A rule is **Warning** or **Critical** and can be turned off.
 | A runner stops reporting | a runner | an enabled runner not in maintenance is silent for the time (default 5 minutes) | when it reports |
 | Work queue items are overdue | a queue | at least the number of items (default 1) wait longer than the queue's target time | when none is overdue |
 | An AI budget is nearly used | a model connection | tokens this month reach the share of the budget (default 80%) | next month |
+| An agent raises an alert | an agent (or all) | an agent's Raise alert step runs (`ooa.jobs/raise_alert`: message, severity, subject); the subject once per run, at most 20 per run; with no rule it is listed under "Raised by an agent" and sent to nobody | when acknowledged |
 
 A new rule counts what happens after it is made. One check raises at most 20 alerts per rule and one more that says
 how many were held back. **Send a test** sends a test alert through the rule's recipients. Alerts are **Open**,

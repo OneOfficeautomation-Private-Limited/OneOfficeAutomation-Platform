@@ -21,6 +21,7 @@ const KINDS: Record<AlertKind, { label: string; scope: Scope; threshold?: [strin
   runner_offline: { label: "A runner stops reporting", scope: "runner", window: ["Silent for (minutes)", 5], hint: "Runners that are off or out of service are left out. Clears when it reports again." },
   queue_overdue: { label: "Work queue items are overdue", scope: "queue", threshold: ["Overdue items, at least", 1], hint: "Only queues with a target time count. Clears when no item is overdue." },
   ai_budget: { label: "An AI budget is nearly used", scope: "connection", threshold: ["Share of the monthly budget (%)", 80], hint: "Only connections with a monthly token budget count. Raised once a month." },
+  agent_raised: { label: "An agent raises an alert", scope: "agent", hint: "Sent when an agent's Raise alert step runs, with the agent's message and severity. It stays until someone acknowledges it." },
 };
 const SCOPE_ANY: Record<Scope, string> = { agent: "Any agent", runner: "Any runner", queue: "Any work queue", connection: "Any model connection" };
 const STATUS: Record<Alert["status"], string> = { open: "Open", acknowledged: "Acknowledged", cleared: "Cleared" };

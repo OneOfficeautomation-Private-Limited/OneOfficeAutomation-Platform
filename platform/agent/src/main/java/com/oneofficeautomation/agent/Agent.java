@@ -412,6 +412,16 @@ public final class Agent {
                             w.send(Map.of("type", "credential", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }
                     });
+                    // the Jobs and alerts toolkit: One CommandCenter answers as the run's user
+                    case "cr" -> io.submit(() -> {
+                        try {
+                            Map<String, Object> r = client.post("run-request", Map.of("run_id", w.runId, "call", String.valueOf(msg.get("call")),
+                                    "args", msg.get("args") instanceof Map<?, ?> a ? a : Map.of()));
+                            w.send(Map.of("type", "cr", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "cr", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
                     case "docflow" -> io.submit(() -> {
                         try {
                             Path file = Path.of(String.valueOf(msg.get("file")));

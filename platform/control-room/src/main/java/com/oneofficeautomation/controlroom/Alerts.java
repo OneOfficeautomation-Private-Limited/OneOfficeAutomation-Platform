@@ -24,15 +24,20 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  *   runner_offline  runner id          -                           silent for (5)
  *   queue_overdue   queue id           overdue items (1)           -
  *   ai_budget       model connection   % of the monthly budget (80) -
+ *   agent_raised    agent path         -                           -
  * </pre>
+ * agent_raised: an agent's Raise alert step (gap G32) raises the alert itself, when it runs; the rule only says who
+ * gets the alerts of all agents, or of one. An agent's alert that no rule takes is still listed, for those who see alerts.
  * Viewing alerts and rules needs analytics.view (alerts about agents only for those who may see the agent); changing
  * rules needs alerts.manage.
  */
 public final class Alerts {
-    static final List<String> KINDS = List.of("run_failed", "failure_rate", "run_long", "runner_offline", "queue_overdue", "ai_budget");
+    static final List<String> KINDS = List.of("run_failed", "failure_rate", "run_long", "runner_offline", "queue_overdue", "ai_budget", "agent_raised");
     /** Kinds that raise an alert per event (cleared by acknowledging); the others follow a state. */
-    static final Set<String> EVENTS = Set.of("run_failed");
-    static final Set<String> AGENT_KINDS = Set.of("run_failed", "failure_rate", "run_long");
+    static final Set<String> EVENTS = Set.of("run_failed", "agent_raised");
+    static final Set<String> AGENT_KINDS = Set.of("run_failed", "failure_rate", "run_long", "agent_raised");
+    /** Alerts one run may raise: an agent stuck in a loop cannot flood people. */
+    static final int PER_RUN = 20;
     /** At most this many new alerts per rule per check: a storm of failures raises a summary for the rest (up to 1,000 failures a check are read). */
     static final int BURST = 20;
     /** Finished runs needed before a failure rate counts. */
@@ -113,7 +118,7 @@ public final class Alerts {
 
     private void checkScope(User by, String kind, String scope) {
         switch (kind) {
-            case "run_failed", "failure_rate", "run_long" -> cr.folders.require(by, scope, "view", "watch this agent");
+            case "run_failed", "failure_rate", "run_long", "agent_raised" -> cr.folders.require(by, scope, "view", "watch this agent");
             case "runner_offline" -> { if (db.one("SELECT id FROM devices WHERE id = ?", scope) == null) throw notFound("Runner"); }
             case "queue_overdue" -> { if (db.one("SELECT id FROM queues WHERE id = ?", scope) == null) throw notFound("Work queue"); }
             case "ai_budget" -> { if (db.one("SELECT name FROM model_connections WHERE name = ?", scope) == null) throw notFound("Model connection"); }
@@ -285,6 +290,36 @@ public final class Alerts {
         db.update("UPDATE alert_rules SET last_checked = ? WHERE id = ?", now, rule.get("id"));
     }
 
+    /**
+     * An agent's Raise alert step: one alert for each enabled agent_raised rule of all agents or of this agent, sent to
+     * its recipients; with no such rule, one alert listed under "Raised by an agent" and sent to nobody. Returns the
+     * alerts raised and where they went.
+     */
+    public Map<String, Object> raiseFromRun(Map<String, Object> run, String message, String severity, String subject) {
+        String bot = (String) run.get("bot_path"), runId = (String) run.get("id");
+        String text = message == null ? "" : message.strip();
+        if (text.isEmpty()) throw new OoaException("ALERT.NO_MESSAGE", "The alert has no message", "Say what happened, e.g. the invoice and why it needs a person.");
+        if (cr.count("SELECT COUNT(*) AS n FROM alerts WHERE kind = 'agent_raised' AND subject LIKE ?", "run:" + runId + ":%") >= PER_RUN)
+            throw new OoaException("ALERT.TOO_MANY", "This run has already raised " + PER_RUN + " alerts", "Raise one alert for many items, or look at why the agent raises so many.");
+        String sev = "critical".equals(severity) ? "critical" : "warning";
+        String key = "run:" + runId + ":" + (subject == null || subject.isBlank() ? id("a") : subject.strip());
+        String label = name(bot) + (subject == null || subject.isBlank() ? "" : ": " + subject.strip());
+        Instant now = now();
+        List<Map<String, Object>> rules = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT * FROM alert_rules WHERE kind = 'agent_raised' AND enabled = ?", true))
+            if (r.get("scope") == null || r.get("scope").equals(bot)) rules.add(r);
+        if (rules.isEmpty()) rules.add(Map.of("id", "agent_raised", "name", "Raised by an agent", "kind", "agent_raised", "severity", sev));
+        List<Object> raised = new ArrayList<>();
+        for (Map<String, Object> rule : rules) {
+            Map<String, Object> r = new HashMap<>(rule);
+            r.put("severity", sev);   // the step says how serious it is
+            if (db.one("SELECT id FROM alerts WHERE rule_id = ? AND subject = ?", r.get("id"), key) != null) continue;   // the same subject once per run
+            raised.add(insert(r, key, label, text, "#/activity?run=" + runId, bot, now));
+        }
+        cr.audit.record("agent:" + runId, "alert.raise", "alert", key, Map.of("agent", bot, "severity", sev, "alerts", raised.size()), "ok", null);
+        return Map.of("alerts", raised);
+    }
+
     /** Raises an alert for each new subject; for a state rule, clears the alerts whose state has ended. */
     private void raise(Map<String, Object> rule, List<Hit> hits, Instant now) {
         String ruleId = (String) rule.get("id"), kind = (String) rule.get("kind");
@@ -305,13 +340,14 @@ public final class Alerts {
                 if (!current.contains((String) a.get("subject"))) db.update("UPDATE alerts SET status = 'cleared', cleared = ? WHERE id = ?", now, a.get("id"));
     }
 
-    private void insert(Map<String, Object> rule, String subject, String label, String message, String link, String bot, Instant now) {
+    private Map<String, Object> insert(Map<String, Object> rule, String subject, String label, String message, String link, String bot, Instant now) {
         String id = id("alert");
         String text = message.length() > 1900 ? message.substring(0, 1900) : message;
         db.update("INSERT INTO alerts (id, rule_id, rule_name, kind, subject, subject_label, message, severity, status, raised, link, bot_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 id, rule.get("id"), rule.get("name"), rule.get("kind"), subject, label, text, rule.get("severity"), "open", now, link, bot);
         Map<String, Object> sent = deliver(rule, id, text, link, bot);
         db.update("UPDATE alerts SET delivery = ? WHERE id = ?", JsonLite.write(sent), id);
+        return Map.of("id", id, "rule", String.valueOf(rule.get("name")), "sent", sent);
     }
 
     /** Sends an alert to the rule's inbox recipients, e-mail addresses and webhook; says what was sent and what was not. */
