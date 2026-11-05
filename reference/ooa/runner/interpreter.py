@@ -29,7 +29,7 @@ from .core_package import CONTAINERS, SWITCH_MATCHES, SWITCH_OPS
 from .error_codes import any_matches
 from .events import EventSink, ListSink, RunEvent
 from .expressions import binary, evaluate, resolve, truthy
-from .validate import validate_flow, walk_steps
+from .validate import state_lists, validate_flow, walk_steps
 
 MAX_CHILD_DEPTH = 10
 HANDLER_GRACE_SECONDS = 60   # extra time the error handler gets when the run went over its time limit
@@ -427,6 +427,8 @@ class _Run:
             return self._exec_steps(step.get("else"))
         if aid == "switch":
             return self._switch(step, a)
+        if aid == "state_machine":
+            return self._state_machine(step, a)
         if aid == "loop":
             return self._loop(step, a)
         if aid == "try":
@@ -510,6 +512,52 @@ class _Run:
                     return self._exec_steps(case.get("children"))
         self._log("info", f"Switch: no case matched{shown}" + ("; running the default steps" if "default" in step else "; nothing to run"), sid)
         return self._exec_steps(step.get("default"))
+
+    def _state_machine(self, step: dict, a: dict) -> None:
+        """core/state_machine: enter the initial state (the first when none is named) and run its entry steps; a final state
+        ends the step, otherwise the first transition whose condition is true (or that has none) runs its steps and enters
+        its target state. Go to cannot leave it; Exit loop and Continue loop reach a loop around it."""
+        sid = step["id"]
+        by_name: dict[str, dict] = {}
+        for st in step.get("states") or []:
+            by_name.setdefault(str(st.get("name")), st)
+        if not by_name:
+            raise OoaError("The state machine has no states", code="STATE.NOT_FOUND", suggested_fix="Add the states and their transitions.")
+        initial = resolve(a.get("initial"), self.lookup)
+        initial = str(initial).strip() if initial not in (None, "") else next(iter(by_name))
+        raw_max = resolve(a.get("max_transitions"), self.lookup)
+        limit = int(coerce(raw_max, "Number")) if raw_max not in (None, "") else 1000
+
+        def named(name, came_from):
+            if name not in by_name:
+                raise OoaError(f"There is no state named '{name}'" + (" to start in" if came_from is None else f" (a transition of state '{came_from}' leads there)"),
+                               code="STATE.NOT_FOUND", suggested_fix="States: " + ", ".join(by_name) + ".")
+            return by_name[name]
+
+        state, taken = named(initial, None), 0
+        try:
+            while True:
+                name = str(state.get("name"))
+                self._log("info", f"State machine: entered state '{name}'", sid)
+                self._exec_steps(state.get("entry"))
+                if state.get("final"):
+                    self._log("info", f"State machine: ended in final state '{name}'", sid)
+                    return
+                ts = state.get("transitions") or []
+                n = next((k for k, t in enumerate(ts) if t.get("when") is None or self.condition(t["when"], sid)), None)
+                if n is None:
+                    raise OoaError(f"No transition out of state '{name}' is true", code="STATE.NO_TRANSITION",
+                                   suggested_fix="Add a transition without a condition as the last one (it is taken when no other is), or mark the state final.")
+                taken += 1
+                if taken > limit:
+                    raise OoaError(f"The state machine took more than {limit} transitions (last out of state '{name}')", code="STATE.LIMIT",
+                                   suggested_fix="The states may be going round endlessly: check the transition conditions, or raise max_transitions.")
+                self._log("info", f"State machine: from '{name}' to '{ts[n].get('to')}' (transition {n + 1})", sid)
+                self._exec_steps(ts[n].get("steps"))
+                state = named(str(ts[n].get("to")), name)
+        except _Goto as g:
+            raise OoaError(f"Go to label '{g.label}' would leave the state machine", code="FLOW.BAD_GOTO",
+                           suggested_fix="Go to can only jump to a label in the same step list of a state, or a list inside it.")
 
     def _sleep(self, seconds: float) -> None:
         end = time.monotonic() + seconds
@@ -772,6 +820,8 @@ def _all_actions(steps):
             yield from _all_actions(c.get("children"))
         for c in s.get("cases", []) or []:
             yield from _all_actions(c.get("children"))
+        for lst in state_lists(s):
+            yield from _all_actions(lst)
 
 
 def _compare(op: str, left, right) -> bool:

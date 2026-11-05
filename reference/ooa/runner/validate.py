@@ -74,6 +74,95 @@ def walk_steps(steps, parent=None):
         for c in s.get("cases", []) or []:
             yield from walk_steps(c.get("children"), s)
         yield from walk_steps(s.get("default"), s)
+        for lst in state_lists(s):
+            yield from walk_steps(lst, s)
+
+
+def state_lists(step: dict) -> list:
+    """The step lists inside a core/state_machine, in Studio's order: each state's entry steps, then each of its
+    transitions' steps. Empty for other steps."""
+    out = []
+    for st in step.get("states") or []:
+        if isinstance(st, dict):
+            if isinstance(st.get("entry"), list):
+                out.append(st["entry"])
+            for t in st.get("transitions") or []:
+                if isinstance(t, dict) and isinstance(t.get("steps"), list):
+                    out.append(t["steps"])
+    return out
+
+
+def _state_machine_problems(step: dict, args: dict, add) -> None:
+    """core/state_machine: unique state names, an initial state that exists, transitions to states that exist and only the
+    last one without a condition, final states without transitions and other states with some, every state reachable from
+    the start and a final state among them."""
+    sid, states = step["id"], step.get("states") or []
+    if not states:
+        add("The state machine needs at least one state", sid, "states", "Add the states, with a final state where it ends.")
+        return
+    index: dict[str, int] = {}
+    for i, st in enumerate(states):
+        n = st.get("name")
+        if not isinstance(n, str) or not n.strip():
+            add(f"State {i + 1} has no name", sid, f"states/{i}/name", "Give every state a name.")
+        elif n.strip() in index:
+            add(f"Duplicate state name '{n.strip()}'", sid, f"states/{i}/name", "Give every state a name of its own.")
+        else:
+            index[n.strip()] = i
+    first = states[0].get("name")
+    start = first.strip() if isinstance(first, str) else None
+    initial = args.get("initial")
+    if isinstance(initial, str) and initial.strip() and "$" not in initial:
+        start = initial.strip()
+        if start not in index:
+            add(f"There is no state named '{start}' to start in", sid, "args/initial", "States: " + ", ".join(index) + ".")
+            return
+    elif isinstance(initial, str) and "$" in initial:
+        start = None   # known at run time: every state may be the start
+    any_final, nxt = False, {}
+    for i, st in enumerate(states):
+        name = st.get("name").strip() if isinstance(st.get("name"), str) else ""
+        fin = st.get("final") is True
+        any_final |= fin
+        ts = st.get("transitions") or []
+        if fin and ts:
+            add(f"Final state '{name}' has transitions", sid, f"states/{i}/transitions", "Remove them, or untick final: a final state ends the state machine.")
+        if not fin and not ts:
+            add(f"State '{name}' is not final and has no transitions", sid, f"states/{i}/transitions", "Add a transition to the next state, or mark the state final.")
+        to = nxt.setdefault(name, [])
+        for j, t in enumerate(ts):
+            path, target = f"states/{i}/transitions/{j}", t.get("to")
+            if not isinstance(target, str) or not target.strip():
+                add(f"Transition {j + 1} of state '{name}' has no target state", sid, path + "/to", "Choose the state it moves to.")
+            elif target.strip() not in index:
+                add(f"Transition {j + 1} of state '{name}' leads to '{target.strip()}', which is not a state", sid, path + "/to", "States: " + ", ".join(index) + ".")
+            else:
+                to.append(target.strip())
+            if t.get("when") is None and j < len(ts) - 1:
+                add(f"Transition {j + 1} of state '{name}' has no condition, so the transitions after it are never tried", sid, path + "/when",
+                    "Give it a condition, or move it to the end as the default.")
+    if not any_final:
+        add("The state machine has no final state", sid, "states", "Mark the state where it ends as final.")
+        return
+    if start is None:
+        return
+    seen, todo = {start}, [start]
+    while todo:
+        for n in nxt.get(todo.pop(), []):
+            if n not in seen:
+                seen.add(n)
+                todo.append(n)
+    final_reached = False
+    for i, st in enumerate(states):
+        name = st.get("name").strip() if isinstance(st.get("name"), str) else ""
+        if not name or index.get(name) != i:
+            continue
+        if name not in seen:
+            add(f"State '{name}' cannot be reached from the start state '{start}'", sid, f"states/{i}", "Add a transition that leads to it, or remove the state.")
+        elif st.get("final") is True:
+            final_reached = True
+    if not final_reached:
+        add(f"No final state can be reached from the start state '{start}'", sid, "states", "Add a transition that leads to a final state.")
 
 
 def _switch_problems(step: dict, args: dict, add) -> None:
@@ -171,6 +260,10 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
             for case in step.get("cases", []) or []:
                 for v in case.get("values") or []:
                     refs |= references(_norm_condition(v) if by_condition else v)
+            for st in step.get("states") or []:
+                for t in st.get("transitions") or []:
+                    if t.get("when") is not None:
+                        refs |= references(_norm_condition(t["when"]))
         except OoaError as e:
             add(e.message, sid, "args", e.suggested_fix)
             refs = set()
@@ -194,6 +287,10 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
             add("cases/default are only allowed on core/switch", sid)
         if step["action"] == "core/switch":
             _switch_problems(step, args, add)
+        if "states" in step and step["action"] != "core/state_machine":
+            add("states are only allowed on core/state_machine", sid)
+        if step["action"] == "core/state_machine":
+            _state_machine_problems(step, args, add)
         if step["action"] == "core/loop":
             it = args.get("iterator")
             if isinstance(it, str) and it not in BUILTIN_ITERATORS and "/" not in it:
@@ -271,7 +368,7 @@ def _label_name(step):
 
 def _check_tree(add, steps, subflow):
     """One step tree (main steps, or a subflow's): Go to reaches a Label in its own list or a list around it, never into
-    a block, out of a Parallel branch or out of the tree; label names are used once among those a Go to can see. In a
+    a block, out of a Parallel branch or a state machine, or out of the tree; label names are used once among those a Go to can see. In a
     subflow, Exit loop and Continue loop need a loop of the subflow around them. Exit subflow is only for subflows."""
     all_labels = {_label_name(s) for s, _ in walk_steps(steps) if s.get("action") == "core/label"} - {None}
     where = "" if subflow is None else f" of subflow '{subflow}'"
@@ -298,7 +395,7 @@ def _check_tree(add, steps, subflow):
                 if n is None:
                     add("Go to has no label", sid, "args/label", "Choose the label to carry on from.")
                 elif n not in scope:
-                    add(f"Go to label '{n}' cannot be reached from here: it would jump into a block or out of a Parallel branch"
+                    add(f"Go to label '{n}' cannot be reached from here: it would jump into a block or out of a Parallel branch or a state machine"
                         if n in all_labels else f"There is no label '{n}' in the steps{where}", sid, "args/label",
                         "Go to can jump to a label in its own step list or a list around it.")
             elif act == "core/exit_subflow" and subflow is None:
@@ -321,6 +418,9 @@ def _check_tree(add, steps, subflow):
             for k in ("elseIf", "catch", "cases"):
                 for b in s.get(k) or []:
                     visit(b.get("children") or [], scope, inner, True)
+            # each step list of a state machine stands apart for Go to (no jumps in or out); loop exits reach loops around it
+            for lst in state_lists(s):
+                visit(lst, set(), inner, True)
 
     visit(steps, set(), [], True)
 

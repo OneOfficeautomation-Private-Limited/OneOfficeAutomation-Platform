@@ -1,0 +1,134 @@
+[
+ {
+  "command": "core/state_machine",
+  "name": "invoice: Waiting to Approved to Paid",
+  "vars": {"amount": 420, "trail": ""},
+  "steps": [
+   {
+    "action": "core/state_machine",
+    "args": {"initial": "Waiting"},
+    "states": [
+     {"name": "Waiting", "entry": [{"action": "core/set", "args": {"variable": "trail", "value": "${trail}waiting;"}}],
+      "transitions": [
+       {"to": "Approved", "when": {"op": "le", "left": "$amount", "right": 1000}},
+       {"to": "Rejected"}
+      ]},
+     {"name": "Approved", "entry": [{"action": "core/set", "args": {"variable": "trail", "value": "${trail}approved;"}}],
+      "transitions": [{"to": "Paid", "steps": [{"action": "core/set", "args": {"variable": "trail", "value": "${trail}paying;"}}]}]},
+     {"name": "Rejected", "final": true, "entry": [{"action": "core/set", "args": {"variable": "trail", "value": "${trail}rejected"}}]},
+     {"name": "Paid", "final": true, "entry": [{"action": "core/set", "args": {"variable": "trail", "value": "${trail}paid"}}]}
+    ]
+   }
+  ],
+  "expect": {"trail": "waiting;approved;paying;paid"}
+ },
+ {
+  "command": "core/state_machine",
+  "name": "the transition without a condition is the default",
+  "vars": {"amount": 25000, "trail": ""},
+  "steps": [
+   {
+    "action": "core/state_machine",
+    "states": [
+     {"name": "Waiting", "transitions": [
+       {"to": "Approved", "when": "$amount <= 1000"},
+       {"to": "Rejected", "steps": [{"action": "core/set", "args": {"variable": "trail", "value": "too large"}}]}
+     ]},
+     {"name": "Approved", "final": true},
+     {"name": "Rejected", "final": true}
+    ]
+   }
+  ],
+  "expect": {"trail": "too large"}
+ },
+ {
+  "command": "core/state_machine",
+  "name": "a state entered again: retry until it works",
+  "vars": {"tries": 0},
+  "steps": [
+   {
+    "action": "core/state_machine",
+    "states": [
+     {"name": "Trying", "entry": [{"action": "core/set", "args": {"variable": "tries", "value": {"expr": "$tries + 1"}}}],
+      "transitions": [{"to": "Done", "when": "$tries >= 3"}, {"to": "Trying"}]},
+     {"name": "Done", "final": true}
+    ]
+   }
+  ],
+  "expect": {"tries": 3}
+ },
+ {
+  "command": "core/state_machine",
+  "name": "no true transition fails with STATE.NO_TRANSITION",
+  "vars": {"n": 0},
+  "steps": [
+   {
+    "action": "core/state_machine",
+    "states": [
+     {"name": "Open", "transitions": [{"to": "Closed", "when": "$n > 0"}]},
+     {"name": "Closed", "final": true}
+    ]
+   }
+  ],
+  "error": "STATE.NO_TRANSITION"
+ },
+ {
+  "command": "core/state_machine",
+  "name": "max_transitions stops a machine that goes round",
+  "vars": {"n": 0},
+  "steps": [
+   {
+    "action": "core/state_machine",
+    "args": {"max_transitions": 4},
+    "states": [
+     {"name": "Ping", "entry": [{"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}],
+      "transitions": [{"to": "Done", "when": "$n > 99"}, {"to": "Ping"}]},
+     {"name": "Done", "final": true}
+    ]
+   }
+  ],
+  "error": "STATE.LIMIT"
+ },
+ {
+  "command": "core/state_machine",
+  "name": "Exit loop inside a state leaves the loop around it",
+  "vars": {"item": "", "seen": ""},
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {"iterator": "list", "over": ["a", "b", "stop", "c"], "as": "item"},
+    "children": [
+     {
+      "action": "core/state_machine",
+      "states": [
+       {"name": "Check", "entry": [{"action": "core/if", "args": {"condition": "$item == 'stop'"}, "children": [{"action": "core/break"}]}],
+        "transitions": [{"to": "Keep"}]},
+       {"name": "Keep", "final": true, "entry": [{"action": "core/set", "args": {"variable": "seen", "value": "${seen}${item}"}}]}
+      ]
+     }
+    ]
+   }
+  ],
+  "expect": {"seen": "ab"}
+ },
+ {
+  "command": "core/state_machine",
+  "name": "an error in a state reaches the Try around it",
+  "vars": {"result": ""},
+  "steps": [
+   {
+    "action": "core/try",
+    "children": [
+     {
+      "action": "core/state_machine",
+      "states": [
+       {"name": "Post", "entry": [{"action": "core/throw", "args": {"code": "BUSINESS.REJECTED", "message": "rejected"}}], "final": true}
+      ]
+     }
+    ],
+    "catch": [{"codes": ["BUSINESS.*"], "message_to": "result", "children": []}]
+   }
+  ],
+  "expect": {"result": "rejected"}
+ }
+]

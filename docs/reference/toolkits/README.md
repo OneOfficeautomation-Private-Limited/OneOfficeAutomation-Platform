@@ -10,7 +10,7 @@ values and `$variable` references; Credential fields take a credential from the 
 
 | Toolkit | Id | Actions | Conditions | Loop types | What it does |
 | --- | --- | --- | --- | --- | --- |
-| [Core](core.md) | `core` | 22 | 0 | 0 | Control flow, variables and runtime built-ins. |
+| [Core](core.md) | `core` | 23 | 0 | 0 | Control flow, variables and runtime built-ins. |
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 39 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
 | [Application](ooa-application.md) | `ooa.application` | 8 | 1 | 0 | Open files, start, run and stop programs on the runner. |
@@ -98,4 +98,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 87 toolkits, 1224 actions, 47 conditions and 13 loop types.
+In all: 87 toolkits, 1225 actions, 47 conditions and 13 loop types.

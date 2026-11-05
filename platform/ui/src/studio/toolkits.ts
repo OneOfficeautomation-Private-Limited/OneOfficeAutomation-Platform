@@ -1,6 +1,6 @@
 import type { IconName } from "../components";
 import type { Flow, FlowStep, PackageManifest } from "../api/client";
-import { innerLists, type Part } from "./flowEdit";
+import { innerLists, stateLists, type Part } from "./flowEdit";
 import { binarySummary } from "./variables";
 
 /** Colour and icon of a toolkit, so steps and the action library share one mark per toolkit (approved look). */
@@ -26,6 +26,7 @@ const BY_TOOLKIT: [RegExp, Mark][] = [
 const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/if": { name: "If", mark: { color: "#b45309", icon: "branch" } },
   "core/switch": { name: "Switch", mark: { color: "#b45309", icon: "branch" } },
+  "core/state_machine": { name: "State machine", mark: { color: "#b45309", icon: "process" } },
   "core/loop": { name: "Loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/try": { name: "Try", mark: { color: "#b91c1c", icon: "bug" } },
   "core/parallel": { name: "Run at the same time", mark: { color: "#0e7490", icon: "process" } },
@@ -70,6 +71,7 @@ export function actionsUsed(steps: FlowStep[] | undefined, out = new Set<string>
     out.add(s.action);
     actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out); actionsUsed(s.default, out);
     for (const b of [...(s.elseIf ?? []), ...(s.catch ?? []), ...(s.cases ?? [])]) actionsUsed(b.children, out);
+    for (const l of stateLists(s)) actionsUsed(l, out);
   }
   return out;
 }
@@ -106,6 +108,14 @@ export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), fir
       if (s.finally) sec("Finally (always)", "finally", s.finally);
       (s.cases ?? []).forEach((c, k) => sec(caseText(c.values, s.args?.match), `cases:${k}`, c.children));
       if (s.default) sec("Default (no case matched)", "default", s.default);
+      // a State machine: a heading per state with its entry steps, then one per transition with the steps run on the way
+      (s.states ?? []).forEach((st, k) => {
+        sec(stateText(s, k), `entry:${k}`, st.entry);
+        (st.transitions ?? []).forEach((t, j) => {
+          rows.push({ kind: "section", depth: depth + 2, label: transitionText(st.transitions!, j), stepId: s.id, part: `trans:${k}:${j}` });
+          walk(t.steps, depth + 2);
+        });
+      });
     }
   };
   walk(steps, 0);
@@ -184,9 +194,35 @@ export function caseText(values: unknown[] | undefined, match: unknown, packages
   return "Case " + (words ? words + " " : "") + values.map(quoteIfText).join(", ");
 }
 
+/** The state a State machine starts in: the one its initial setting names, or the first. */
+export function startState(step: FlowStep): string | undefined {
+  const named = typeof step.args?.initial === "string" ? step.args.initial.trim() : "";
+  return named || step.states?.[0]?.name;
+}
+
+/** A state's heading: "State Waiting (start)", "State Paid (final)". */
+export function stateText(step: FlowStep, k: number): string {
+  const st = step.states?.[k];
+  if (!st) return "State";
+  const marks = [st.name === startState(step) ? "start" : "", st.final ? "final" : ""].filter(Boolean);
+  return "State " + (st.name || "(no name)") + (marks.length ? " (" + marks.join(", ") + ")" : "");
+}
+
+/** A transition's heading: "→ Approved when $amount <= 1000", "→ Rejected otherwise", "→ Paid (always)". */
+export function transitionText(ts: { to?: string; when?: unknown }[], j: number, packages: PackageManifest[] = []): string {
+  const t = ts[j];
+  const to = "→ " + (t?.to || "(no state)");
+  if (t?.when !== undefined) return to + " when " + conditionText(t.when, packages);
+  return to + (j === 0 ? " (always)" : " otherwise");
+}
+
 /** A short, readable summary of a step's settings:conditions as sentences, then the first values, then the outputs. */
 export function summarize(step: FlowStep, packages: PackageManifest[] = []): string {
   if (step.note) return step.note;
+  if (step.action === "core/state_machine") {
+    const n = step.states?.length ?? 0;
+    return n + (n === 1 ? " state" : " states") + (n ? ", starts in " + startState(step) : "");
+  }
   if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))
     return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => "$" + (r.variable ?? "?") + " = " + plainValue(r.value)).join(" · ");
   const parts = Object.entries(step.args ?? {}).filter(([, v]) => v !== "" && v != null).slice(0, 3)

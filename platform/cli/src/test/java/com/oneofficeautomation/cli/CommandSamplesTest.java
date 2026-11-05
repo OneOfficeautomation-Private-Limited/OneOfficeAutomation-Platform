@@ -269,6 +269,7 @@ class CommandSamplesTest {
             n++;
             for (String k : List.of("children", "else", "finally", "default")) n += countSteps((List<Map<String, Object>>) s.get(k));
             for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) n += countSteps((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"));
+            for (List<Object> l : com.oneofficeautomation.runner.Steps.stateLists(s)) n += countSteps((List<Map<String, Object>>) (List<?>) l);
         }
         return n;
     }
@@ -384,6 +385,7 @@ class CommandSamplesTest {
                 if (bm.get("message_to") instanceof String v) names.add(v);
                 collect((List<Map<String, Object>>) bm.get("children"), names, id);
             }
+            for (List<Object> l : com.oneofficeautomation.runner.Steps.stateLists(s)) collect((List<Map<String, Object>>) (List<?>) l, names, id);
         }
     }
 
@@ -398,6 +400,7 @@ class CommandSamplesTest {
             for (String k : List.of("children", "else", "finally", "default")) usedActions((List<Map<String, Object>>) s.get(k), uses);
             for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l)
                 for (Object b : l) usedActions((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"), uses);
+            for (List<Object> l : com.oneofficeautomation.runner.Steps.stateLists(s)) usedActions((List<Map<String, Object>>) (List<?>) l, uses);
         }
     }
 
