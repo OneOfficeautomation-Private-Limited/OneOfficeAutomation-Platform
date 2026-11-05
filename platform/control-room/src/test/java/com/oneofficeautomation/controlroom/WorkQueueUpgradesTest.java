@@ -160,7 +160,8 @@ class WorkQueueUpgradesTest {
         assertEquals(1, rows.size()); assertEquals("business", ((List<Object>) rows.get(0)).get(8));
         String id4 = (String) bot("run_1", Map.of("op", "get_next", "queue", "Invoices")).get("item_id");
         bot("run_1", Map.of("op", "complete", "queue", "Invoices", "item_id", id4, "result", Map.of("ok", true)));
-        assertEquals(1L, ((Map<String, Object>) bot("run_1", Map.of("op", "counts", "queue", "Invoices")).get("counts")).get("success"));
+        // a count is a Long on H2 and PostgreSQL and an Integer on SQL Server: compare the number
+        assertEquals(1L, ((Number) ((Map<String, Object>) bot("run_1", Map.of("op", "counts", "queue", "Invoices")).get("counts")).get("success")).longValue());
         // only running agents, and only known queues
         assertEquals("CR.NOT_FOUND", code(() -> bot("run_1", Map.of("op", "counts", "queue", "Nope"))));
         run("run_done", "success");
