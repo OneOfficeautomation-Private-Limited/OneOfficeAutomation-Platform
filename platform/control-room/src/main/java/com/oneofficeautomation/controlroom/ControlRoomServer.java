@@ -508,6 +508,17 @@ public final class ControlRoomServer {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, cr.runRequest(d, (String) b.get("run_id"), String.valueOf(b.get("call")), map(b.getOrDefault("args", Map.of()))));
             }
+            // gap G30: an agent changes a shared value or a credential; One CommandCenter checks the run's user
+            else if (m.equals("POST") && route.equals("agent/global-values")) {
+                Map<String, Object> b = map(body(ex));
+                sendJson(ex, 200, cr.agentWrites.setGlobal(d, (String) b.get("run_id"), (String) b.get("name"), b.get("value")));
+            }
+            else if (m.equals("POST") && route.equals("agent/vault")) {
+                Map<String, Object> b = map(body(ex));
+                String runId = (String) b.get("run_id"), ref = (String) b.get("ref");
+                sendJson(ex, 200, "expiry".equals(b.get("op")) ? cr.agentWrites.credentialExpiry(d, runId, ref)
+                    : cr.agentWrites.setCredential(d, runId, ref, b.get("value") instanceof String v ? v : null, b.get("expires")));
+            }
             else if (m.equals("POST") && route.equals("agent/trigger-fired")) {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));

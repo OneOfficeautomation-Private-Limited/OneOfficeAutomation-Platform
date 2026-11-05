@@ -1,12 +1,12 @@
 # Shared Global values
 
-Toolkit `ooa.global_values`, version 1.0.0. Read shared values that many agents use, such as folders, thresholds or URLs.
+Toolkit `ooa.global_values`, version 1.0.0. Read and change shared values that many agents use, such as folders, thresholds or URLs.
 
 [All toolkits](README.md)
 
 ## Contents
 
-- **Shared Global values**: Get shared value, Get all shared values
+- **Shared Global values**: Get shared value, Get all shared values, Set shared value
 - **Conditions**: Shared value is defined
 
 ## Shared Global values
@@ -50,6 +50,28 @@ Read every shared value as a dictionary.
 | Name | Type | Description |
 | --- | --- | --- |
 | `values` | Dictionary | Name to value. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Set shared value
+
+`ooa.global_values/set` (action)
+
+Change a shared value that already exists. In One CommandCenter the user the run runs as needs permission to manage shared values; every change is recorded in the Audit Trail.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Name | `name` | Text | Yes |  | Main | Shared value name. |
+| Value | `value` | Any | Yes |  | Main | The new value. Secrets belong in the credential vault, not in shared values. |
+| Type | `type` | Text | No | `Any` | More options | Convert the value to this type first; fails with GLOBALS.WRONG_TYPE when it cannot be converted. One CommandCenter also checks the shared value's own type. One of: `Any`, `String`, `Number`, `Boolean`, `DateTime`, `List`, `Dictionary` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `value` | Any | The value as stored. |
 
 *Time limit 60 s; safe to repeat.*
 

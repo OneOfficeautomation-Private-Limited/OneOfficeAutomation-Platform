@@ -76,6 +76,7 @@ export const SETTING_HELP: Record<string, string> = {
   runner_screen_pictures: "Lets administrators ask a runner for a picture of its screen, to see why an agent is stuck. Every picture is recorded in the Audit Trail. Switch it off where screens show private data.",
   // Agents and repository
   production_approval: "A second person must approve each new version before it becomes the live version that runs, schedules and triggers use. The request waits in Automation until someone approves it.",
+  agents_write_credentials: "Lets agents save a new value of a credential in the vault, for example the new password after a reset, with the Save credential value action. The user the run runs as still needs permission to change that credential, and every save is recorded in the Audit Trail without the value. Off: agents only read credentials.",
   block_executable_uploads: "Refuses programs and scripts (.exe, .dll, .ps1 and similar) as repository files and template uploads, so nobody can slip a program in through the repository.",
   git_remote_url: "A Git repository that keeps a copy of every agent version, written as its https address. Use it for a second copy or for review in your Git tools. Leave it empty for no Git copy.",
   git_branch: "The branch the copies go to, for example main.",

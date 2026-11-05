@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Runs one bot in its own process. Line protocol with the agent (one JSON object per line):
  * stdin: the job, then {"type":"credential","id","value"|"error"}, {"type":"cancel"|"pause"|"resume"};
- * stdout: {"type":"event"}, {"type":"credential","id","ref"} requests and finally {"type":"result"}.
+ * stdout: {"type":"event"}, {"type":"credential","id","ref"} requests and finally {"type":"result"}; also
+ * {"type":"global_value"|"vault","id",...} changes an agent asks One CommandCenter to make (answered with "result" or "error").
  * Secrets arrive only on request, live only in memory and are masked in every event.
  */
 public final class RunWorker {
@@ -55,7 +56,7 @@ public final class RunWorker {
                         case "cancel" -> { cancel.set(true); pause.set(false); }
                         case "pause" -> pause.set(true);
                         case "resume" -> pause.set(false);
-                        case "credential", "docflow", "cr" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
+                        case "credential", "docflow", "cr", "global_value", "vault" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
                         default -> { }
                     }
                 }
@@ -114,6 +115,9 @@ public final class RunWorker {
             if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
+        // gap G30: an agent changes a shared value or saves a credential; One CommandCenter decides as the run's user
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> globalWrite = req -> relay("global_value", req, "GLOBALS.TIMEOUT", "the shared value");
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> vaultWrite = req -> relay("vault", req, "VAULT.TIMEOUT", "the credential");
         PackageRegistry registry = FirstPartyPackages.registry();
         String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
@@ -134,6 +138,7 @@ public final class RunWorker {
                 .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("docflow", docflow)
                 .service("command_center", commandCenter)
+                .service("global_values_write", globalWrite).service("vault_write", vaultWrite)
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.
@@ -155,6 +160,23 @@ public final class RunWorker {
         if (!aiCalls.isEmpty()) resultMap.put("ai_calls", aiCalls);
         send(Map.of("type", "result", "result", resultMap));
         System.exit(0);
+    }
+
+    /** Sends a request to the agent (and so to One CommandCenter) and waits up to a minute for its answer. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> relay(String type, Map<String, Object> req, String timeoutCode, String what) {
+        long id = ids.incrementAndGet();
+        CompletableFuture<Map<String, Object>> f = new CompletableFuture<>();
+        waiting.put(id, f);
+        Map<String, Object> msg = new LinkedHashMap<>(req);
+        msg.put("type", type);
+        msg.put("id", id);
+        send(msg);
+        Map<String, Object> r;
+        try { r = f.get(60, TimeUnit.SECONDS); }
+        catch (Exception e) { waiting.remove(id); throw new OoaException(timeoutCode, "No answer from One CommandCenter about " + what, null, true, null); }
+        if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), e.get("fix") == null ? null : String.valueOf(e.get("fix")));
+        return (Map<String, Object>) r.getOrDefault("result", Map.of());
     }
 
     /**

@@ -138,6 +138,8 @@ public final class Platform {
         DEFAULTS.put("ldap_nested_groups", 0);          // AD: groups inside groups count too
         DEFAULTS.put("docflow_url", "");         // Document Automation: the DocFlow service (empty: http://127.0.0.1:8085)
         DEFAULTS.put("docflow_token_ref", "");   // and its service token, a vault reference folder/credential/attribute
+        // agents may save credentials in the vault (gap G30): off until an administrator switches it on
+        DEFAULTS.put("agents_write_credentials", 0);
     }
 
     static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
@@ -188,6 +190,7 @@ public final class Platform {
         Map.entry("trigger_max_failures", new long[] { 0, 100 }),
         Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
         Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
+        Map.entry("agents_write_credentials", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),

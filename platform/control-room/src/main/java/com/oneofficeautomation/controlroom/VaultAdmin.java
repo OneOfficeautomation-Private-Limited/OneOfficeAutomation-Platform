@@ -112,6 +112,7 @@ public final class VaultAdmin {
             r.put("owner", m.get("owner"));
             r.put("description", m.get("description"));
             r.put("user_attributes", csv(m.get("user_attributes")));
+            r.putAll(expiry(m.get("expires")));
         }
         for (Map<String, Object> r : out.values()) {
             r.putIfAbsent("user_attributes", List.of());
@@ -148,6 +149,7 @@ public final class VaultAdmin {
         out.put("description", meta == null ? null : meta.get("description"));
         out.put("attributes", list);
         out.put("can_change", cr.canChangeCredential(by, l, name));
+        out.putAll(expiry(meta == null ? null : meta.get("expires")));
         List<String> mine = new ArrayList<>();
         for (Map<String, Object> v : db.query("SELECT attribute FROM credential_user_values WHERE locker = ? AND name = ? AND username = ?", locker, name, by.username())) mine.add((String) v.get("attribute"));
         out.put("my_values", mine);
@@ -195,6 +197,8 @@ public final class VaultAdmin {
             }
             db.update("UPDATE credential_meta SET attributes_info = ? WHERE locker = ? AND name = ?", JsonLite.write(clean), locker, name);
         }
+        // the expiry date (yyyy-MM-dd); empty clears it
+        if (b.containsKey("expires")) db.update("UPDATE credential_meta SET expires = ? WHERE locker = ? AND name = ?", AgentWrites.expiryDate(b.get("expires"), "CR.BAD_INPUT"), locker, name);
         if (b.get("owner") instanceof String o && !o.equals(meta.get("owner"))) {
             String role = cr.lockerRole(by, l);
             if (!"owner".equals(role) && !"manager".equals(role)) throw denied("hand this credential to someone else");
@@ -202,6 +206,11 @@ public final class VaultAdmin {
             db.update("UPDATE credential_meta SET owner = ? WHERE locker = ? AND name = ?", o, locker, name);
         }
         cr.audit.record(by.username(), "credential.save", "credential", locker + "/" + name, Map.of("changed", new ArrayList<>(b.keySet())), "ok", ip);
+    }
+
+    /** A credential's expiry date with days left and whether it has expired or expires soon (gap G30). */
+    static Map<String, Object> expiry(Object expires) {
+        return AgentWrites.expiryFacts(expires == null || String.valueOf(expires).isBlank() ? null : String.valueOf(expires));
     }
 
     /** Deletes a whole credential: every attribute, everyone's own values and its details. */

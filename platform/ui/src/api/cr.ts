@@ -144,9 +144,11 @@ export type VaultFolder = { name: string; description?: string | null; owners: s
   my_role: "owner" | "manager" | "participant" | "consumer"; can_manage: boolean; created_by?: string;
   external?: { provider: string; url?: string; region?: string; [k: string]: string | undefined } | null;
   credentials: { name: string; attribute: string; updated?: string; updated_by?: string }[];
-  credential_info?: { name: string; owner?: string | null; user_attributes?: string[]; my_values?: string[] }[] };
+  credential_info?: ({ name: string; owner?: string | null; user_attributes?: string[]; my_values?: string[] } & CredentialExpiry)[] };
+/** A credential's expiry date (yyyy-MM-dd) and how near it is; none when it does not expire. */
+export type CredentialExpiry = { expires?: string | null; days_left?: number | null; expired?: boolean; expiring_soon?: boolean };
 export type VaultCredential = { locker: string; name: string; owner?: string | null; description?: string | null; can_change: boolean; my_values: string[];
-  attributes: { attribute: string; user_provided: boolean; description?: string | null; masked?: boolean; password_only?: boolean; updated?: string; updated_by?: string }[] };
+  attributes: { attribute: string; user_provided: boolean; description?: string | null; masked?: boolean; password_only?: boolean; updated?: string; updated_by?: string }[] } & CredentialExpiry;
 /** A value the person must fill in themselves (a user-provided attribute of a credential their runs use). */
 export type VaultRequest = { locker: string; name: string; attribute: string; description?: string | null; credential_description?: string | null; password_only?: boolean };
 export type VaultStatus = { key_source: string; key_source_detail?: string; key_fingerprint: string; vault_folders: number; values: number; personal_values: number;
@@ -332,7 +334,7 @@ export class CrApi {
   async vaultFolders() { return (await this.call<{ lockers?: VaultFolder[] }>("GET", "lockers")).lockers ?? []; }
   async vaultRequests() { return (await this.call<{ requests?: VaultRequest[] }>("GET", "vault/requests")).requests ?? []; }
   credential(folder: string, name: string) { return this.call<VaultCredential>("GET", "vault/credential?" + new URLSearchParams({ locker: folder, name })); }
-  async saveCredentialDetails(folder: string, name: string, b: { description?: string; owner?: string; user_attributes?: string[];
+  async saveCredentialDetails(folder: string, name: string, b: { description?: string; owner?: string; user_attributes?: string[]; expires?: string;
     attributes_info?: Record<string, { description: string; masked: boolean; password_only: boolean }> }) { await this.call("PUT", "vault/credential?" + new URLSearchParams({ locker: folder, name }), b); }
   async deleteCredential(folder: string, name: string) { await this.call("DELETE", "vault/credential?" + new URLSearchParams({ locker: folder, name })); }
   /** Stores one attribute's value, encrypted; it is never shown again (masked values). */

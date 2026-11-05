@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
+import type { CredentialExpiry, CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
@@ -13,6 +13,8 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
  * while rows are ticked, a ⋯ menu per row.
  * Review round 2 (1 Nov 2026): a credential and a vault folder open as their own pages (Attributes, Details, Your values;
  * Credentials, Members, Company vault), and deleting a credential or a folder and unlinking the company vault ask first.
+ * Gap G30 (4 Nov 2026): a credential's expiry date, set in its Details, shown in the list with expired and expiring
+ * soon (14 days or fewer) marked; agents check it with ooa.vault and may save new values when Settings allows.
  */
 type Tab = "credentials" | "folders" | "requests";
 const EXT: Record<string, string> = { hashicorp: "HashiCorp Vault", azure_keyvault: "Azure Key Vault", aws_secrets_manager: "AWS Secrets Manager", cyberark_ccp: "CyberArk Central Credential Provider" };
@@ -28,7 +30,7 @@ const list = (v?: string | string[] | null) => (Array.isArray(v) ? v : String(v 
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 
 /** One row of the Credentials tab: a credential in a folder, its attributes and whether the caller's own values are set. */
-type CredRow = { folder: VaultFolder; name: string; attributes: string[]; userAttrs: string[]; mine: string[]; owner: string; updated?: string; updatedBy?: string };
+type CredRow = { folder: VaultFolder; name: string; attributes: string[]; userAttrs: string[]; mine: string[]; owner: string; updated?: string; updatedBy?: string; exp: CredentialExpiry };
 function rowsOf(folders: VaultFolder[]): CredRow[] {
   const out: CredRow[] = [];
   for (const f of folders) {
@@ -38,12 +40,21 @@ function rowsOf(folders: VaultFolder[]): CredRow[] {
       const cs = f.credentials.filter((c) => c.name === n);
       const last = [...cs].sort((a, b) => String(b.updated).localeCompare(String(a.updated)))[0];
       out.push({ folder: f, name: n, attributes: cs.map((c) => c.attribute), userAttrs: info[n]?.user_attributes ?? [], mine: info[n]?.my_values ?? [],
-        owner: info[n]?.owner ?? "", updated: last?.updated, updatedBy: last?.updated_by });
+        owner: info[n]?.owner ?? "", updated: last?.updated, updatedBy: last?.updated_by, exp: info[n] ?? {} });
     }
   }
   return out.sort((a, b) => (a.folder.name + "/" + a.name).localeCompare(b.folder.name + "/" + b.name));
 }
 const writer = (f: VaultFolder) => f.my_role === "owner" || f.my_role === "manager";
+const needsCare = (e: CredentialExpiry) => !!e.expires && (!!e.expired || !!e.expiring_soon);
+/** A credential's expiry date, marked when it has expired or expires within 14 days. */
+function Expiry({ e }: { e: CredentialExpiry }) {
+  if (!e.expires) return <span className="cc-none">Never</span>;
+  const days = e.days_left ?? 0;
+  if (e.expired) return <span className="cc-own is-expired" title={"Expired on " + e.expires}>Expired {e.expires}</span>;
+  if (e.expiring_soon) return <span className="cc-own is-missing" title={"Expires on " + e.expires}>{days === 0 ? "Expires today" : "In " + days + " day" + (days === 1 ? "" : "s")} ({e.expires})</span>;
+  return <span>{e.expires}</span>;
+}
 
 const HELP: HelpTopic = { title: "Credential vault",
   about: "Encrypted vault folders that keep the passwords, keys and other values agents need. Values are never shown again after saving; "
@@ -65,6 +76,8 @@ const HELP: HelpTopic = { title: "Credential vault",
       + "manage the vault." },
     { name: "Delete…", text: "Deletes credentials with all their values, everyone's own values too, after you confirm. Allowed in folders you manage, or "
       + "for credentials you own." },
+    { name: "Expires", text: "When the credential stops working, for example a password that must be changed every 90 days. Expired ones and those "
+      + "expiring within 14 days are marked; Expired or expiring shows only those. Set it in the credential's Details." },
     { name: "Export CSV", text: "Saves the credentials shown as a CSV file: names and attributes only, never values." },
   ] };
 
@@ -76,8 +89,10 @@ const HELP_CREDENTIAL: HelpTopic = { title: "Credential",
     { name: "Masked", text: "On by default: the value is never shown. Clear it for values that are not secret, such as a user name, so owners and managers "
       + "can look them up with Show; each look is recorded." },
     { name: "Password fields only", text: "Agents may type this value into password fields only, so it cannot end up in ordinary text." },
-    { name: "Details", text: "The description, the owner, and which attributes each person fills in for themselves, separated by commas. Only folder owners "
-      + "and managers change the owner." },
+    { name: "Details", text: "The description, the owner, the expiry date, and which attributes each person fills in for themselves, separated by commas. "
+      + "Only folder owners and managers change the owner." },
+    { name: "Expires on", text: "The date the credential stops working; empty when it does not expire. Agents read it with Check credential expiry, "
+      + "and an agent that saves a new value can set the next date." },
     { name: "Your values", text: "Your own value of each such attribute. A run reads it from whoever the run runs as, or whoever started it. Clear mine "
       + "removes yours." },
     { name: "Save details", text: "Keeps what you changed in descriptions, Masked, Password fields only and Details." },
@@ -123,7 +138,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return rows.filter((r) => (!text || (key(r) + " " + r.attributes.join(" ") + " " + r.userAttrs.join(" ") + " " + r.owner).toLowerCase().includes(text))
-      && (!f.folder || r.folder.name === f.folder) && (!f.mine || r.userAttrs.some((a) => !r.mine.includes(a))));
+      && (!f.folder || r.folder.name === f.folder) && (!f.mine || r.userAttrs.some((a) => !r.mine.includes(a))) && (!f.expiry || needsCare(r.exp)));
   }, [rows, f]);
   const chosen = rows.filter((r) => selected.includes(key(r)));
   const canDelete = (r: CredRow) => writer(r.folder) || (r.folder.my_role === "participant" && r.owner === user.username);
@@ -133,8 +148,8 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     onNotice("Deleted " + done + " credential" + (done === 1 ? "" : "s") + "."); setError(failed); setSelected([]); load();
   };
   const exportCsv = () => {
-    const text = [["Credential", "Vault folder", "Attributes", "Each person's own", "Owner", "Updated"],
-      ...shown.map((r) => [r.name, r.folder.name, r.attributes.join(" "), r.userAttrs.join(" "), r.owner, when(r.updated)])].map((l) => l.map(csvCell).join(",")).join("\n");
+    const text = [["Credential", "Vault folder", "Attributes", "Each person's own", "Owner", "Expires", "Updated"],
+      ...shown.map((r) => [r.name, r.folder.name, r.attributes.join(" "), r.userAttrs.join(" "), r.owner, r.exp.expires ?? "", when(r.updated)])].map((l) => l.map(csvCell).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
     a.download = "credentials.csv";
@@ -154,13 +169,14 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   );
   const filtered = Object.values(f).some(Boolean);
   const missing = rows.filter((r) => r.userAttrs.some((a) => !r.mine.includes(a))).length;
+  const expired = rows.filter((r) => r.exp.expired).length, soon = rows.filter((r) => !r.exp.expired && r.exp.expiring_soon).length;
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-vault-title">
       <header className="cc-list-head">
         <h1 id="cc-vault-title">Credential vault</h1>
         <HelpButton topic={HELP} />
-        {folders && <span className="cc-list-count">{rows.length} credential{rows.length === 1 ? "" : "s"} · {folders.length} vault folder{folders.length === 1 ? "" : "s"}{missing ? " · " + missing + " need your own value" : ""}</span>}
+        {folders && <span className="cc-list-count">{rows.length} credential{rows.length === 1 ? "" : "s"} · {folders.length} vault folder{folders.length === 1 ? "" : "s"}{missing ? " · " + missing + " need your own value" : ""}{expired ? " · " + expired + " expired" : ""}{soon ? " · " + soon + " expiring soon" : ""}</span>}
         <span className="ov-fill" />
         {can("lockers.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "key" })}>Vault key</Button>}
         {tab === "folders" && (can("lockers.manage") || can("lockers.own")) && <Button kind="primary" onClick={() => setDialog({ kind: "create-folder" })}>Create vault folder</Button>}
@@ -179,6 +195,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
             <span className={"cc-chip" + (f.folder ? " is-on" : "")}><Select aria-label="Vault folder" value={f.folder ?? ""} onChange={(e) => setF({ ...f, folder: e.target.value })}
               options={[{ value: "", label: "Folder: Any" }, ...(folders ?? []).map((x) => ({ value: x.name, label: "Folder: " + x.name }))]} /></span>
             <label className={"cc-chip-check" + (f.mine ? " is-on" : "")}><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Needs my own value</label>
+            <label className={"cc-chip-check" + (f.expiry ? " is-on" : "")}><input type="checkbox" checked={!!f.expiry} onChange={(e) => setF({ ...f, expiry: e.target.checked ? "1" : "" })} /> Expired or expiring</label>
             {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
           </div>
           <div className="cc-list-right" role="toolbar" aria-label="Credentials list tools">
@@ -199,7 +216,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
             <table className="cc-list-table" aria-label="Credentials list">
               <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && shown.every((r) => selected.includes(key(r)))}
                 onChange={(e) => setSelected(e.target.checked ? shown.map(key) : [])} /></th><th scope="col">Credential</th><th scope="col">Vault folder</th>
-                <th scope="col">Attributes</th><th scope="col">Each person's own</th><th scope="col">Owner</th><th scope="col">Updated</th>
+                <th scope="col">Attributes</th><th scope="col">Each person's own</th><th scope="col">Owner</th><th scope="col">Expires</th><th scope="col">Updated</th>
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {shown.map((r) => (
@@ -212,14 +229,15 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                     <td>{r.userAttrs.length ? r.userAttrs.map((a) => <span key={a} className={"cc-own " + (r.mine.includes(a) ? "is-set" : "is-missing")}>{a + (r.mine.includes(a) ? " (yours set)" : " (yours missing)")}</span>)
                       : <span className="cc-none">–</span>}</td>
                     <td>{r.owner || <span className="cc-none">–</span>}</td>
+                    <td><Expiry e={r.exp} /></td>
                     <td>{r.updated ? when(r.updated) + (r.updatedBy ? " by " + r.updatedBy : "") : <span className="cc-none">–</span>}</td>
                     <td className="cc-list-menu"><RowMenu label={"Actions for " + key(r)} items={[
                       { key: "open", label: "Open", onSelect: () => setPage({ kind: "credential", folder: r.folder.name, name: r.name }) },
                       { key: "delete", label: "Delete…", disabled: !canDelete(r), separatorBefore: true, onSelect: () => { setSelected([key(r)]); setAsking(true); } }]} /></td>
                   </tr>
                 ))}
-                {folders && !shown.length && <tr className="is-static"><td colSpan={8} className="cc-none">{rows.length ? "No credentials match." : "No credentials you can see yet."}</td></tr>}
-                {!folders && !error && <tr className="is-static"><td colSpan={8} className="cc-none" role="status">Loading…</td></tr>}
+                {folders && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{rows.length ? "No credentials match." : "No credentials you can see yet."}</td></tr>}
+                {!folders && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>
           </div>
@@ -303,6 +321,7 @@ function CreateCredential({ api, folders, onClose, onCreated }: { api: CrApi; fo
   const [folder, setFolder] = useState(folders[0]?.name ?? "");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [expires, setExpires] = useState("");
   const [attrs, setAttrs] = useState<{ attribute: string; value: string; own: boolean }[]>([{ attribute: "username", value: "", own: false }, { attribute: "password", value: "", own: false }]);
   const [error, setError] = useState<string | null>(null);
   const set = (i: number, patch: Partial<(typeof attrs)[number]>) => setAttrs(attrs.map((a, j) => j === i ? { ...a, ...patch } : a));
@@ -312,7 +331,7 @@ function CreateCredential({ api, folders, onClose, onCreated }: { api: CrApi; fo
       const shared = attrs.filter((a) => !a.own);
       for (const a of shared) await api.setCredentialValue(folder, name.trim(), a.attribute.trim(), a.value);
       const own = attrs.filter((a) => a.own).map((a) => a.attribute.trim());
-      if (own.length || description) await api.saveCredentialDetails(folder, name.trim(), { description, user_attributes: own });
+      if (own.length || description || expires) await api.saveCredentialDetails(folder, name.trim(), { description, user_attributes: own, ...(expires ? { expires } : {}) });
       onCreated("Created the credential " + folder + "/" + name.trim() + ". Its values are encrypted.");
     } catch (e) { setError(message(e)); }
   };
@@ -325,7 +344,10 @@ function CreateCredential({ api, folders, onClose, onCreated }: { api: CrApi; fo
         <Field label="Vault folder">{(id) => <Select id={id} value={folder} onChange={(e) => setFolder(e.target.value)} options={folders.map((x) => ({ value: x.name, label: x.name }))} />}</Field>
         <Field label="Credential name">{(id) => <TextInput id={id} value={name} placeholder="vendor_api" maxLength={120} onChange={(e) => setName(e.target.value)} />}</Field>
       </div>
-      <Field label="Description">{(id) => <TextInput id={id} value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} />}</Field>
+      <div className="cc-grid2">
+        <Field label="Description">{(id) => <TextInput id={id} value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} />}</Field>
+        <Field label="Expires on (optional)">{(id) => <TextInput id={id} type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />}</Field>
+      </div>
       <h3 className="cc-log-title">Attributes</h3>
       <table className="st-table" aria-label="Attributes">
         <thead><tr><th scope="col">Attribute</th><th scope="col">Value</th><th scope="col">Each person's own</th><th scope="col"><span className="st-sr">Remove</span></th></tr></thead>
@@ -358,7 +380,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
   const [c, setC] = useState<VaultCredential | null>(null);
   const [tab, setTab] = useState<"attributes" | "details" | "mine">("attributes");
   const [info, setInfo] = useState<Record<string, { description: string; masked: boolean; password_only: boolean }>>({});
-  const [meta, setMeta] = useState({ description: "", owner: "", own: "" });
+  const [meta, setMeta] = useState({ description: "", owner: "", own: "", expires: "" });
   const [values, setValues] = useState<Record<string, string>>({});
   const [shown, setShown] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -367,7 +389,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
   const read = useCallback(() => api.credential(folder.name, name).then((x) => {
     setC(x);
     setInfo(Object.fromEntries(x.attributes.filter((a) => !a.user_provided).map((a) => [a.attribute, { description: a.description ?? "", masked: a.masked !== false, password_only: !!a.password_only }])));
-    setMeta({ description: x.description ?? "", owner: x.owner ?? "", own: x.attributes.filter((a) => a.user_provided).map((a) => a.attribute).join(", ") });
+    setMeta({ description: x.description ?? "", owner: x.owner ?? "", own: x.attributes.filter((a) => a.user_provided).map((a) => a.attribute).join(", "), expires: x.expires ?? "" });
   }, (e) => setError(message(e))), [api, folder.name, name]);
   useEffect(() => { read(); }, [read]);
   const run = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); setError(null); onChanged(done); await read(); } catch (e) { setError(message(e)); } };
@@ -377,6 +399,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
   const ownerEditable = writer(folder);
   const own = c.attributes.filter((a) => a.user_provided);
   const save = () => run(() => api.saveCredentialDetails(folder.name, name, { description: meta.description, user_attributes: list(meta.own), attributes_info: info,
+    ...(c.can_change && meta.expires !== (c.expires ?? "") ? { expires: meta.expires } : {}),
     ...(ownerEditable && meta.owner.trim() && meta.owner.trim() !== c.owner ? { owner: meta.owner.trim() } : {}) }), "Saved the details of " + ref + ".");
   const remove = async () => { setAsking(false); try { await api.deleteCredential(folder.name, name); onChanged("Deleted " + ref + "."); onClose(); } catch (e) { setError(message(e)); } };
   const tabs: ["attributes" | "details" | "mine", string][] = [["attributes", "Attributes (" + c.attributes.length + ")"], ["details", "Details"], ...(own.length ? [["mine", "Your values"] as ["mine", string]] : [])];
@@ -388,6 +411,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
         <HelpButton topic={HELP_CREDENTIAL} />
         {folder.external && <span className="cc-tag" title="Values are read live from the company vault">{EXT[folder.external.provider] ?? folder.external.provider}</span>}
         <span className="cc-none">{c.owner ? "Owner " + c.owner : "No owner"}{own.length ? " · " + own.length + " each person's own" : ""}</span>
+        {c.expires && <span>Expires: <Expiry e={c} /></span>}
         <span className="ov-fill" />
         {(c.can_change || ownerEditable) && <Button kind="primary" onClick={save}>Save details</Button>}
         {c.can_change && <RowMenu label={"More for " + ref} items={[{ key: "delete", label: "Delete…", onSelect: () => setAsking(true) }]} />}
@@ -433,6 +457,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
         <div className="cc-grid2">
           <Field label="Description">{(id) => <TextInput id={id} value={meta.description} disabled={!c.can_change} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />}</Field>
           <Field label="Owner">{(id) => <TextInput id={id} value={meta.owner} disabled={!ownerEditable} onChange={(e) => setMeta({ ...meta, owner: e.target.value })} />}</Field>
+          <Field label="Expires on (empty: does not expire)">{(id) => <TextInput id={id} type="date" value={meta.expires} disabled={!c.can_change} onChange={(e) => setMeta({ ...meta, expires: e.target.value })} />}</Field>
         </div>
         <Field label="Each person's own attributes (separated by commas)">{(id) => <TextInput id={id} value={meta.own} disabled={!c.can_change} placeholder="password" onChange={(e) => setMeta({ ...meta, own: e.target.value })} />}</Field>
         <p className="cc-list-hint">Agents name it as {ref}/attribute. Changes here are kept when you choose Save details.</p>

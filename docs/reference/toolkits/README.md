@@ -23,6 +23,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
+| [Credential vault](ooa-vault.md) | `ooa.vault` | 2 | 1 | 0 | Save a credential's new value in One CommandCenter's vault, for example after a password reset, and check when a credential expires. |
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
 | [Custom Connectors](ooa-connector.md) | `ooa.connector` | 5 | 0 | 0 | Call any REST API imported from an OpenAPI, Swagger or Postman file as named operations with typed inputs and authentication. |
@@ -82,7 +83,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [SAP GUI](ooa-sap.md) | `ooa.sap` | 30 | 0 | 0 | Log on to SAP, run transactions, set and read fields, press buttons, read grids and the status bar through SAP GUI Scripting. |
 | [Scripts](ooa-script.md) | `ooa.script` | 7 | 0 | 0 | Run PowerShell, Python, JavaScript and VBScript with arguments and captured output. |
 | [ServiceNow](ooa-servicenow.md) | `ooa.servicenow` | 13 | 0 | 0 | Query, create and update ServiceNow records (incidents, requests, any table), add comments and attachments. |
-| [Shared Global values](ooa-global_values.md) | `ooa.global_values` | 2 | 1 | 0 | Read shared values that many agents use, such as folders, thresholds or URLs. |
+| [Shared Global values](ooa-global_values.md) | `ooa.global_values` | 3 | 1 | 0 | Read and change shared values that many agents use, such as folders, thresholds or URLs. |
 | [Slack](ooa-slack.md) | `ooa.slack` | 10 | 0 | 0 | Post messages to Slack channels and users. |
 | [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 11 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |

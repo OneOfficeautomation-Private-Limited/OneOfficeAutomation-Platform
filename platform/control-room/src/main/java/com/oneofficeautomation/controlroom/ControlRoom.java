@@ -56,6 +56,8 @@ public final class ControlRoom {
     public final PromptSkills promptSkills;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
+    /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
+    public final AgentWrites agentWrites = new AgentWrites(this);
     private final FlowValidator validator;
     private final PackageRegistry registry;
     static final Duration ONLINE = Duration.ofSeconds(60);

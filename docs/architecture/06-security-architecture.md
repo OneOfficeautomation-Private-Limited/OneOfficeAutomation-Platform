@@ -194,7 +194,15 @@ encrypted value copied to another credential fails to decrypt.
    any occurrence with `****`; `variable.set` events use a safe representation; the value trail and carried-over
    values never contain credentials.
 5. Toolkits may not print to the console (architecture test); they log through `ActionContext`, which redacts.
-6. The web goal agent types secrets through `{{secret:name}}` placeholders whose values the model never sees; AI agents
+6. An agent may also **save** a credential (`ooa.vault`, gap G30): the toolkit refuses anything but a `SecureString`,
+   reveals it only to put it in the request, and the worker relays it (`vault` message) to its runner, which calls
+   `POST /api/agent/vault`. One CommandCenter never trusts the runner: it checks that the run is `running` on that
+   runner, that Settings `agents_write_credentials` is on (off by default), and that the run's user may change the
+   credential (owner or manager of the folder, a participant owning it, or, for a person's own attribute, any member,
+   whose own value is stored). It encrypts the value at once; the audit entry `credential.set` names the runner, run,
+   agent and user and never holds the value. Shared values are changed the same way (`agent/global-values`, needs
+   `globals.manage`).
+7. The web goal agent types secrets through `{{secret:name}}` placeholders whose values the model never sees; AI agents
    never expose Credential inputs to the model.
 
 ## 6. Audit trail
