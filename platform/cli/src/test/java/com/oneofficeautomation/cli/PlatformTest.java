@@ -104,6 +104,29 @@ class PlatformTest {
                     "a failed item can be sent back to the queue");
             call(base, "POST", "/api/queues/" + qid + "/stop", null, admin);
 
+            // ---- G31: an agent works a central queue through its runner (ooa.workload with central on), and the item routes ----
+            String bq = (String) call(base, "POST", "/api/queues", Map.of("name", "Claims", "max_attempts", 2), admin).json().get("id");
+            Map<String, Object> claimer = (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"claimer\",\"name\":\"Claimer\","
+                    + "\"variables\":[{\"name\":\"got\",\"type\":\"Any\",\"direction\":\"output\"},{\"name\":\"dup\",\"type\":\"Any\",\"direction\":\"output\"},{\"name\":\"retry\",\"type\":\"Any\",\"direction\":\"output\"}],"
+                    + "\"steps\":[{\"id\":\"a\",\"action\":\"ooa.workload/add_item\",\"args\":{\"queue\":\"Claims\",\"central\":true,\"data\":{\"claim\":\"C-1\"},\"reference\":\"C-1\",\"tags\":[\"motor\"]}},"
+                    + "{\"id\":\"b\",\"action\":\"ooa.workload/add_item\",\"args\":{\"queue\":\"Claims\",\"central\":true,\"data\":{\"claim\":\"C-1\"},\"reference\":\"C-1\",\"if_exists\":\"skip\"},\"out\":{\"outcome\":\"dup\"}},"
+                    + "{\"id\":\"c\",\"action\":\"ooa.workload/get_next\",\"args\":{\"queue\":\"Claims\",\"central\":true,\"tags\":[\"motor\"],\"wait_seconds\":5},\"out\":{\"item_id\":\"got\"}},"
+                    + "{\"id\":\"d\",\"action\":\"ooa.workload/fail\",\"args\":{\"queue\":\"Claims\",\"central\":true,\"item_id\":\"$got\",\"error\":\"no policy\",\"kind\":\"business\"},\"out\":{\"will_retry\":\"retry\"}}]}");
+            call(base, "POST", "/api/repo/checkin", Map.of("path", "Claims/Claimer.flow.json", "flow", claimer, "comment", "v1"), admin);
+            String claimRun = (String) call(base, "POST", "/api/runs", Map.of("bot_path", "Claims/Claimer.flow.json", "pool_id", pool), admin).json().get("run_id");
+            assertTrue(ControlRoomE2ETest.until(() -> "success".equals(call(base, "GET", "/api/runs/" + claimRun, null, admin).json().get("status")), 120000),
+                    "the agent worked the central queue: " + call(base, "GET", "/api/runs/" + claimRun, null, admin).body());
+            Map<String, Object> claim = (Map<String, Object>) ((List<Object>) call(base, "GET", "/api/queues/" + bq + "/items?tag=motor", null, admin).json().get("items")).get(0);
+            assertEquals("failed", claim.get("status"), "a business exception is final");
+            assertEquals("business", claim.get("error_kind"));
+            assertEquals(List.of("motor"), claim.get("tags"));
+            assertEquals(1, ((List<Object>) call(base, "GET", "/api/queues/" + bq + "/items", null, admin).json().get("items")).size(), "the second add was skipped");
+            String cid = (String) claim.get("id");
+            assertEquals(1, ((Number) call(base, "POST", "/api/queues/" + bq + "/items/tag", Map.of("ids", List.of(cid), "add", List.of("checked")), clerk).json().get("changed")).intValue());
+            assertEquals(0, ((Number) call(base, "POST", "/api/queues/" + bq + "/items/unlock", Map.of("ids", List.of(cid)), clerk).json().get("unlocked")).intValue(), "not in progress");
+            assertEquals(1, ((Number) call(base, "POST", "/api/queues/" + bq + "/items/copy", Map.of("to_queue", "Invoices", "ids", List.of(cid)), clerk).json().get("count")).intValue());
+            assertEquals(1, ((Number) call(base, "POST", "/api/queues/" + bq + "/items/purge", Map.of("status", "failed"), clerk).json().get("deleted")).intValue());
+
             // ---- holiday calendars and schedule ownership ----
             assertEquals(200, call(base, "PUT", "/api/calendars/India%202026", Map.of("dates", List.of("2026-12-25", "2026-01-26")), admin).status());
             assertEquals(400, call(base, "PUT", "/api/calendars/Bad", Map.of("dates", List.of("25/12/2026")), admin).status());

@@ -17,13 +17,14 @@ public final class FirstPartyPackages {
             XmlPackage.class, LogPackage.class, BooleanPackage.class, ApplicationPackage.class, ScriptPackage.class, NetworkPackage.class,
             SoapPackage.class, ActiveDirectoryPackage.class, PrinterPackage.class, ServicesPackage.class, DesktopPackage.class, InterruptsPackage.class, ImagePackage.class,
             Microsoft365Package.class, GooglePackage.class, SalesforcePackage.class, ServiceNowPackage.class, JiraPackage.class, SlackPackage.class,
-            WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, ExcelDesktopPackage.class, PowerPointDesktopPackage.class, OfficeAttachPackage.class, OutlookDesktopPackage.class,
+            WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, VaultPackage.class, ExcelDesktopPackage.class, PowerPointDesktopPackage.class, OfficeAttachPackage.class, OutlookDesktopPackage.class,
             OcrPackage.class, PgpPackage.class, GenAiPackage.class, AiSkillsPackage.class, AiAgentPackage.class, KnowledgePackage.class,
             WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, SapBapiPackage.class, ConnectorPackage.class,
             FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class,
             GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
             OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class, FormsPackage.class, Ec2Package.class, AzureVmPackage.class,
-            AwsAiPackage.class, AzureAiPackage.class, GoogleAiPackage.class, ExchangePackage.class, DocumentAutomationPackage.class);
+            AwsAiPackage.class, AzureAiPackage.class, GoogleAiPackage.class, ExchangePackage.class, DocumentAutomationPackage.class, JobsPackage.class,
+            EnvironmentLocksPackage.class);
 
     /** Optional packages in other modules, installed when their module is on the classpath. */
     public static final List<String> OPTIONAL = List.of(

@@ -239,6 +239,7 @@ public final class CodeAnalysis {
             List<List<Object>> inner = new ArrayList<>();
             for (String k : List.of("children", "else", "finally", "default")) if (s.get(k) instanceof List<?> l) inner.add((List<Object>) l);
             for (String k : List.of("elseIf", "catch", "cases")) if (s.get(k) instanceof List<?> l) for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) inner.add((List<Object>) c);
+            inner.addAll(Steps.stateLists(s));
             for (List<Object> l : inner) if (!l.isEmpty()) max = Math.max(max, depth(l, d + 1));
         }
         return max;

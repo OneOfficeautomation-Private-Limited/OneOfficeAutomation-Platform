@@ -56,6 +56,8 @@ public final class ControlRoom {
     public final PromptSkills promptSkills;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
+    /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
+    public final AgentWrites agentWrites = new AgentWrites(this);
     private final FlowValidator validator;
     private final PackageRegistry registry;
     static final Duration ONLINE = Duration.ofSeconds(60);
@@ -72,6 +74,8 @@ public final class ControlRoom {
     public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
     public final RunnerCare runnerCare;
+    /** Environment locks (gap G33): named locks one run holds at a time. */
+    public final EnvironmentLocks locks;
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
@@ -144,6 +148,7 @@ public final class ControlRoom {
         this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
+        this.locks = new EnvironmentLocks(this);
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
@@ -1847,6 +1852,7 @@ public final class ControlRoom {
                 status, now(), Duration.between(started, now()).toMillis(), result.get("error") == null ? null : JsonLite.write(result.get("error")),
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
+        try { locks.releaseForRun(runId, "its run ended (" + status + ")"); } catch (RuntimeException e) { /* the server clock gives them back */ }
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
@@ -1960,6 +1966,68 @@ public final class ControlRoom {
         }, "ooa-callback");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * A running agent's request to One CommandCenter (the Jobs and alerts toolkit, gap G32), sent by its runner. The run
+     * must be running on that runner; it acts as the run's user (the run-as user, else who started it), with that
+     * person's permissions, and every call is audited as the agent for that user.
+     */
+    public Map<String, Object> runRequest(Map<String, Object> d, String runId, String call, Map<String, Object> args) {
+        Map<String, Object> run = runOnDevice(d, runId);
+        if (!"running".equals(run.get("status"))) throw new OoaException("JOBS.NOT_RUNNING", "Only a running agent can ask One CommandCenter");
+        String name = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
+        Map<String, Object> row = name == null ? null : db.one("SELECT * FROM users WHERE username = ? AND enabled = ?", name, true);
+        if (row == null) throw new OoaException("JOBS.NO_USER", "The run's user '" + name + "' is not an active user of One CommandCenter", "Run the agent as an active user.");
+        User as = user(row);
+        String actor = "agent:" + d.get("name") + " for " + as.username();
+        String job = args.get("job_id") instanceof String s ? s.strip() : null;
+        Map<String, Object> out;
+        switch (call) {
+            case "get_job" -> {
+                require(as, "runs.view", "see other runs");
+                Map<String, Object> r = db.one("SELECT r.id, r.bot_path, r.status, r.requested_by, r.run_as, r.created, r.started, r.finished, r.duration_ms, r.error, d.name AS device_name "
+                        + "FROM runs r LEFT JOIN devices d ON d.id = r.device_id WHERE r.id = ?", job);
+                if (r == null || !folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("JOBS.NOT_FOUND", "There is no run '" + job + "' that " + as.username() + " may see");
+                out = jobRecord(r);
+            }
+            case "list_jobs" -> {
+                require(as, "runs.view", "see other runs");
+                String status = args.get("status") instanceof String s && !s.isBlank() ? s : "active";
+                String agent = args.get("agent") instanceof String s && !s.isBlank() ? s.strip() : null;
+                int limit = args.get("limit") instanceof Number n ? Math.max(1, Math.min(200, n.intValue())) : 50;
+                List<Object> rows = new ArrayList<>();
+                for (Map<String, Object> r : runs(as, status.equals("all") ? "" : status, 500)) {
+                    if (agent != null && !agent.equals(r.get("bot_path"))) continue;
+                    if (!folders.mayView(as, (String) r.get("bot_path"))) continue;
+                    rows.add(jobRecord(r));
+                    if (rows.size() >= limit) break;
+                }
+                out = Map.of("jobs", rows);
+            }
+            case "stop_job" -> {
+                if (runId.equals(job)) throw new OoaException("JOBS.SELF", "An agent cannot stop its own run this way", "Use the Stop agent step.");
+                Map<String, Object> r = db.one("SELECT bot_path, status FROM runs WHERE id = ?", job);
+                if (r == null || !folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("JOBS.NOT_FOUND", "There is no run '" + job + "' that " + as.username() + " may see");
+                if (!Set.of("queued", "running").contains(String.valueOf(r.get("status")))) out = Map.of("stopped", false, "status", r.get("status"));
+                else { control(as, job, "stop", null); out = Map.of("stopped", true, "status", "stopping"); }
+            }
+            case "raise_alert" -> out = alerts.raiseFromRun(run, (String) args.get("message"), (String) args.get("severity"), (String) args.get("subject"));
+            default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
+        }
+        if (!call.equals("raise_alert")) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
+        return out;
+    }
+
+    /** A run as an agent sees it: no events, no inputs or outputs. */
+    private static Map<String, Object> jobRecord(Map<String, Object> r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (String k : List.of("id", "bot_path", "status", "requested_by", "run_as", "device_name", "created", "started", "finished", "duration_ms"))
+            m.put(k, r.get(k) == null ? null : String.valueOf(r.get(k)));
+        Object err = r.get("error") instanceof String s && !s.isBlank() ? JsonLite.parse(s) : null;
+        m.put("error_code", err instanceof Map<?, ?> e ? e.get("code") : null);
+        m.put("error_message", err instanceof Map<?, ?> e ? e.get("message") : null);
+        return m;
     }
 
     public void control(User by, String runId, String action, String ip) {
@@ -2128,11 +2196,13 @@ public final class ControlRoom {
             db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", now(),
                     JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The runner stopped reporting while the agent was running", "suggestedFix", "Check the runner is on and the OneRunner is running.")), r.get("id"));
             audit.record("system", "run.lost", "run", (String) r.get("id"), null, "failed", null);
+            try { locks.releaseForRun((String) r.get("id"), "its runner was lost"); } catch (RuntimeException ignored) { /* the sweep below tries again */ }
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

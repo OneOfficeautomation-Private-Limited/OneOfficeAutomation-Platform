@@ -102,7 +102,7 @@ export type VariableProfile = { runs: number; variables: { variable: string; run
 /** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
 export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
   webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
-export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_offline" | "queue_overdue" | "ai_budget";
+export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_offline" | "queue_overdue" | "ai_budget" | "agent_raised";
 /** An alert a rule raised: open, acknowledged (seen) or cleared (its state ended, or its rule was deleted). */
 export type Alert = { id: string; rule_id: string; rule_name?: string; kind: AlertKind; subject: string; subject_label?: string; message: string; severity: "warning" | "critical";
   status: "open" | "acknowledged" | "cleared"; raised: string; cleared?: string | null; acknowledged?: string | null; acknowledged_by?: string | null; link?: string | null;
@@ -144,9 +144,11 @@ export type VaultFolder = { name: string; description?: string | null; owners: s
   my_role: "owner" | "manager" | "participant" | "consumer"; can_manage: boolean; created_by?: string;
   external?: { provider: string; url?: string; region?: string; [k: string]: string | undefined } | null;
   credentials: { name: string; attribute: string; updated?: string; updated_by?: string }[];
-  credential_info?: { name: string; owner?: string | null; user_attributes?: string[]; my_values?: string[] }[] };
+  credential_info?: ({ name: string; owner?: string | null; user_attributes?: string[]; my_values?: string[] } & CredentialExpiry)[] };
+/** A credential's expiry date (yyyy-MM-dd) and how near it is; none when it does not expire. */
+export type CredentialExpiry = { expires?: string | null; days_left?: number | null; expired?: boolean; expiring_soon?: boolean };
 export type VaultCredential = { locker: string; name: string; owner?: string | null; description?: string | null; can_change: boolean; my_values: string[];
-  attributes: { attribute: string; user_provided: boolean; description?: string | null; masked?: boolean; password_only?: boolean; updated?: string; updated_by?: string }[] };
+  attributes: { attribute: string; user_provided: boolean; description?: string | null; masked?: boolean; password_only?: boolean; updated?: string; updated_by?: string }[] } & CredentialExpiry;
 /** A value the person must fill in themselves (a user-provided attribute of a credential their runs use). */
 export type VaultRequest = { locker: string; name: string; attribute: string; description?: string | null; credential_description?: string | null; password_only?: boolean };
 export type VaultStatus = { key_source: string; key_source_detail?: string; key_fingerprint: string; vault_folders: number; values: number; personal_values: number;
@@ -182,9 +184,9 @@ export type Trigger = { id: string; name: string; kind: string; bot_path: string
   folder?: string | null; pattern?: string | null; config?: Record<string, unknown> | null };
 /** A work queue: items an agent works one by one on a runner pool, with a service level and attempts per item. */
 export type WorkQueue = { id: string; name: string; description?: string | null; bot_path?: string | null; pool_id?: string | null; sla_minutes?: number | null; max_attempts: number;
-  model_id?: string | null; processing: boolean; run_as?: string | null; counts: Record<string, number>; overdue?: number };
+  model_id?: string | null; processing: boolean; run_as?: string | null; counts: Record<string, number>; overdue?: number; encrypt_data?: boolean | null };
 export type WorkItem = { id: string; reference?: string | null; status: string; attempts: number; priority: number; created?: string; finished?: string | null; defer_until?: string | null;
-  data: unknown; result?: unknown; error?: unknown; run_id?: string | null };
+  data: unknown; result?: unknown; error?: unknown; run_id?: string | null; tags?: string[]; error_kind?: "business" | "system" | null };
 /** The fields every item of a queue has (AA's work item template). */
 export type ItemModel = { id: string; name: string; description?: string | null; queues?: number; fields: { name: string; type: "text" | "number" | "boolean" | "date"; required?: boolean; display?: boolean }[] };
 /** A run of a workflow: its stage, data and the timeline of what happened. */
@@ -197,6 +199,9 @@ export type GlobalValue = { name: string; value: unknown; changeable: boolean; m
   type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
   /** Values per team (user group): runs of the team's members use them unless the person set their own. */
   team_values?: { team_id: string; team_name: string; value: unknown }[] };
+/** An environment lock a run holds (Manage > Environment locks); expired: its lease ran out, so another run may take it. */
+export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
+  acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
 export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
@@ -332,7 +337,7 @@ export class CrApi {
   async vaultFolders() { return (await this.call<{ lockers?: VaultFolder[] }>("GET", "lockers")).lockers ?? []; }
   async vaultRequests() { return (await this.call<{ requests?: VaultRequest[] }>("GET", "vault/requests")).requests ?? []; }
   credential(folder: string, name: string) { return this.call<VaultCredential>("GET", "vault/credential?" + new URLSearchParams({ locker: folder, name })); }
-  async saveCredentialDetails(folder: string, name: string, b: { description?: string; owner?: string; user_attributes?: string[];
+  async saveCredentialDetails(folder: string, name: string, b: { description?: string; owner?: string; user_attributes?: string[]; expires?: string;
     attributes_info?: Record<string, { description: string; masked: boolean; password_only: boolean }> }) { await this.call("PUT", "vault/credential?" + new URLSearchParams({ locker: folder, name }), b); }
   async deleteCredential(folder: string, name: string) { await this.call("DELETE", "vault/credential?" + new URLSearchParams({ locker: folder, name })); }
   /** Stores one attribute's value, encrypted; it is never shown again (masked values). */
@@ -425,11 +430,19 @@ export class CrApi {
   async deleteQueue(id: string) { await this.call("DELETE", "queues/" + encodeURIComponent(id)); }
   async setProcessing(id: string, on: boolean) { await this.call("POST", "queues/" + encodeURIComponent(id) + (on ? "/start" : "/stop")); }
   async setQueueMembers(id: string, members: { principal: string; role: string }[]) { await this.call("PUT", "queues/" + encodeURIComponent(id) + "/members", { members }); }
-  queueItems(id: string, status: string, q: string, limit = 200) { return this.call<{ items: WorkItem[]; total: number }>("GET", "queues/" + encodeURIComponent(id) + "/items?" + new URLSearchParams({ status, q, limit: String(limit) })); }
+  queueItems(id: string, status: string, q: string, limit = 200, tag = "") { return this.call<{ items: WorkItem[]; total: number }>("GET", "queues/" + encodeURIComponent(id) + "/items?" + new URLSearchParams({ status, q, limit: String(limit), ...(tag ? { tag } : {}) })); }
   queueItem(id: string, itemId: string) { return this.call<WorkItem>("GET", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId)); }
   async updateQueueItem(id: string, itemId: string, b: { data: unknown; reference: string | null; priority: number }) { await this.call("PUT", "queues/" + encodeURIComponent(id) + "/items/" + encodeURIComponent(itemId), b); }
   /** retry, defer (until a time, or until someone presses Retry) or delete several items. */
   async itemsAction(id: string, action: "retry" | "defer" | "delete", ids: string[], until?: string) { await this.call("POST", "queues/" + encodeURIComponent(id) + "/items/" + action, { ids, ...(until ? { until } : {}) }); }
+  /** Adds and removes tags on items (G31). */
+  tagItems(id: string, ids: string[], add: string[], remove: string[]) { return this.call<{ changed: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/tag", { ids, add, remove }); }
+  /** Releases items stuck in progress whose run has ended; attempts are kept (G31). */
+  unlockItems(id: string, ids: string[]) { return this.call<{ unlocked: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/unlock", { ids }); }
+  /** Deletes items by status and age; only succeeded and failed ones unless force (G31). */
+  purgeItems(id: string, b: { status: string; older_than_hours?: number; tags?: string[]; force?: boolean }) { return this.call<{ deleted: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/purge", b); }
+  /** Copies or moves items to another queue as new items (G31). */
+  transferItems(id: string, how: "copy" | "move", toQueue: string, ids: string[]) { return this.call<{ count: number; skipped: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/" + how, { to_queue: toQueue, ids }); }
   addItems(id: string, items: unknown[]) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items", { items }); }
   addItemsCsv(id: string, csv: string) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/csv", { csv }); }
   addItemsXlsx(id: string, file: string, sheet: string | null) { return this.call<{ added: number }>("POST", "queues/" + encodeURIComponent(id) + "/items/xlsx", { file, sheet }); }
@@ -467,6 +480,9 @@ export class CrApi {
     await this.call("PUT", "saved-connections/" + encodeURIComponent(name), b);
   }
   async deleteConnection(name: string) { await this.call("DELETE", "saved-connections/" + encodeURIComponent(name)); }
+  // ---- Environment locks: named locks one run holds at a time; administrators give one back ----
+  async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
+  async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----
   async toolkits() { return (await this.call<{ toolkits?: Toolkit[] }>("GET", "toolkits")).toolkits ?? []; }
   async setToolkitEnabled(id: string, enabled: boolean) { await this.call("PATCH", "toolkits/" + encodeURIComponent(id), { enabled }); }

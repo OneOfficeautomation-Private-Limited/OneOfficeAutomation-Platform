@@ -93,6 +93,17 @@ and a **runtime** account with data read/write rights only.
 | 23 | toolkit_publishers, custom_toolkits |
 | 24 | defer_until on queue_items; missed_runs and overlap on schedules |
 | 25 | Looking after runners: nickname, description, maintenance, CPU and memory use and limits, logs and screen requests on devices; runner_files; owners and users (roles) on device_pools |
+| 26 | alert_rules, alerts |
+| 27 | policies given to folders (code analysis rules and AI) |
+| 28 | savings for Business: an agent's own cost of an hour |
+| 29 | dashboards e-mailed on a schedule |
+| 30 | accounts from a directory (LDAP or SCIM) |
+| 31 | SCIM provisioning: identity providers' tokens (hashes) |
+| 32 | a type the server checks on shared global values |
+| 33 | docflow_mail (how far each Document Automation inbox was read) |
+| 34 | expires on credential_meta (credential expiry, gap G30) |
+| 35 | encrypt_data on queues; tags, error_kind and unique_ref on queue_items, with a unique index per queue (gap G31) |
+| 36 | environment_locks (named locks one run holds at a time, gap G33) |
 
 ## 4. Tables by area
 
@@ -131,6 +142,7 @@ and a **runtime** account with data read/write rights only.
 | `registration_keys` | One-time runner keys | `key_hash`, `created_by`, `expires`, `used_by`, `temporary` |
 | `device_pools` | Runner pools | `id`, `name`, `devices` (list), `owners` (user names), `consumers` (roles) |
 | `runner_files` | The latest logs and screen picture a runner sent when asked | `device_id`, `kind` (logs, screen; key together), `taken`, `requested_by`, `error`, `content` |
+| `environment_locks` | Environment locks: a named lock one run holds at a time. Taken with one INSERT (fails on the key when held) or one conditional UPDATE (only when held by the same run, past its lease, or its run is no longer running); given back when the run ends | `lock_key` (the name in lower case; key), `name`, `run_id`, `device_id`, `device_name`, `bot_path`, `held_by`, `acquired`, `expires` (the lease), `note` |
 | `user_devices` | Each run-as user's default runner | `username`, `device_id` |
 | `runs` | Every run | `id`, `bot_path`, `version`, `device_id`, `status` (queued, running, success, failed, stopped), `inputs`, `outputs`, `error`, `requested_by`, `run_as`, `run_mode`, `source`, `priority`, `queue_item_id`, `callback_url`, `cancel_requested`, `pause_requested`, `created`, `started`, `finished`, `duration_ms`, `steps` |
 | `run_events` | Event stream per run | `run_id`, `seq`, `event` (JSON, cut at 19,000 characters) |

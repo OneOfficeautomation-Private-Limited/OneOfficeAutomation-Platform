@@ -26,7 +26,7 @@ public final class ServerlessRuns {
     static final double MAX_SECONDS = 300;
     /** Toolkits that need no desktop and cannot reach the server's programs, settings or databases. */
     static final Set<String> TOOLKITS = Set.of("core", "ooa.string", "ooa.number", "ooa.boolean", "ooa.datetime", "ooa.list", "ooa.dictionary",
-        "ooa.datatable", "ooa.json", "ooa.csv", "ooa.xml", "ooa.log", "ooa.crypto", "ooa.fuzzy", "ooa.currency", "ooa.global_values", "ooa.pgp",
+        "ooa.datatable", "ooa.json", "ooa.csv", "ooa.xml", "ooa.log", "ooa.crypto", "ooa.fuzzy", "ooa.currency", "ooa.global_values", "ooa.vault", "ooa.pgp",
         "ooa.rest", "ooa.soap", "ooa.genai", "ooa.ai_skills", "ooa.knowledge", "ooa.workload", "ooa.pdf", "ooa.excel", "ooa.word", "ooa.powerpoint", "ooa.email",
         "ooa.microsoft365", "ooa.google", "ooa.salesforce", "ooa.servicenow", "ooa.jira", "ooa.slack", "ooa.workday", "ooa.github", "ooa.azure_devops",
         "ooa.asana", "ooa.zendesk", "ooa.okta", "ooa.box", "ooa.docusign", "ooa.snowflake", "ooa.databricks", "ooa.kafka", "ooa.connector");
@@ -144,6 +144,11 @@ public final class ServerlessRuns {
                 .service("ai_guardrails", (java.util.function.Supplier<Object>) () -> job.getOrDefault("guardrails", Map.of()))
                 .service("error_screenshots", !Boolean.FALSE.equals(job.get("error_screenshots")))
                 .service("confine_paths", Boolean.TRUE)
+                // gap G30: shared value and credential changes, checked as the run's user as for a runner
+                .service("global_values_write", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) req -> cr.agentWrites.setGlobal(d, runId, (String) req.get("name"), req.get("value")))
+                .service("vault_write", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) req -> "expiry".equals(req.get("op"))
+                    ? cr.agentWrites.credentialExpiry(d, runId, (String) req.get("ref"))
+                    : cr.agentWrites.setCredential(d, runId, (String) req.get("ref"), (String) req.get("value"), req.get("expires")))
                 .principal(String.valueOf(job.getOrDefault("principal", "agent"))).build();
             RunResult result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),
                 new Runner.RunOptions().runId(runId).cancel(cancel).maxRunSeconds(MAX_SECONDS));

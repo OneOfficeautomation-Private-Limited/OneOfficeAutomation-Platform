@@ -30,11 +30,11 @@ const runs = [
 function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[], sso = false, notice = false } = {}) {
   let user = signedIn;
   let logsAsked = false;
-  const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
+  const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string>; url?: string }[] = [];
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
     const body = typeof init.body === "string" ? JSON.parse(init.body) : init.body ? { file: (init.body as File).name } : undefined;   // an upload sends the file itself
-    calls.push({ method: init.method ?? "GET", route, body, headers: init.headers as Record<string, string> });
+    calls.push({ method: init.method ?? "GET", route, body, headers: init.headers as Record<string, string>, url });
     const ok = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
     const no = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: { code, message } }), { status });
     if (route === "health") return ok(studio ? { status: "ok", studio: "/studio/" } : { status: "ok" });
@@ -266,10 +266,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "queues/q1") return ok({ id: "q1", name: "Vendor invoices", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", max_attempts: 2, sla_minutes: 240, processing: false,
       counts: { new: 3, retry: 1, success: 10, failed: 2, review: 1 }, overdue: 1, members: [], model: null });
     if (route === "queues/q1/items") return ok({ total: 2, items: [
-      { id: "i1", reference: "INV-1", status: "failed", attempts: 2, priority: 0, created: "2026-10-31T08:00:00Z", data: JSON.stringify({ vendor: "Acme" }), error: JSON.stringify({ code: "PDF.UNREADABLE" }) },
+      { id: "i1", reference: "INV-1", status: "failed", attempts: 2, priority: 0, created: "2026-10-31T08:00:00Z", data: JSON.stringify({ vendor: "Acme" }), error: JSON.stringify({ code: "PDF.UNREADABLE" }),
+        tags: ["north"], error_kind: "business" },
       { id: "i2", reference: "INV-2", status: "review", attempts: 1, priority: 0, created: "2026-10-31T08:05:00Z", data: "{}",
         result: JSON.stringify({ validation: { fields: { total: "120" }, confidence: { total: 0.4 }, min_confidence: 0.8 } }) }] });
-    if (/^queues\/q1\/(start|stop|items\/(retry|defer|delete)|items\/i\d\/validate)$/.test(route)) return ok({ ok: true, changed: ["total"] });
+    if (route === "queues/q1/items/unlock") return ok({ unlocked: 1 });
+    if (route === "queues/q1/items/purge") return ok({ deleted: 4 });
+    if (route === "queues/q1/items/copy" || route === "queues/q1/items/move") return ok({ count: 1, skipped: 0 });
+    if (/^queues\/q1\/(start|stop|items\/(retry|defer|delete|tag)|items\/i\d\/validate)$/.test(route)) return ok({ ok: true, changed: ["total"] });
     if (route === "triggers" && init.method === "POST") return ok(body.kind === "webhook" ? { id: "t9", url: "/api/hooks/t9", secret: "whsec-1" } : { id: "t8" });
     if (route === "triggers") return ok({ triggers: [
       { id: "g1", name: "New invoices", kind: "file", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", enabled: true, evaluated_on: "runner", folder: "C:\\In", pattern: "*.pdf", fire_count: 3, last_fired: "2026-10-31T08:00:00Z", created_by: "admin" },
@@ -314,7 +318,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "lockers" && (init.method ?? "GET") === "GET") return ok({ lockers: [
       { name: "finance", description: "Bank and ERP", owners: "admin", consumers: "role:bot_runner", managers: [], participants: ["team:finance"], my_role: "owner", can_manage: true,
         external: null, credentials: [{ name: "erp", attribute: "username", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }, { name: "erp", attribute: "password", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }],
-        credential_info: [{ name: "erp", owner: "admin", user_attributes: [], my_values: [] }, { name: "bank", owner: "admin", user_attributes: ["pin"], my_values: [] }] }] });
+        credential_info: [{ name: "erp", owner: "admin", user_attributes: [], my_values: [], expires: "2026-01-01", days_left: -307, expired: true, expiring_soon: false }, { name: "bank", owner: "admin", user_attributes: ["pin"], my_values: [] }] }] });
     if (route === "vault/requests") return ok({ requests: [{ locker: "finance", name: "bank", attribute: "pin", description: "Your bank PIN" }] });
     if (route === "vault/credential" && (init.method ?? "GET") === "GET") return ok({ locker: "finance", name: "erp", owner: "admin", description: "", can_change: true, my_values: [],
       attributes: [{ attribute: "password", user_provided: false, masked: true }, { attribute: "username", user_provided: false, masked: true }] });
@@ -1338,6 +1342,23 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.some((x) => x.method === "DELETE" && x.route === "teams/t2")).toBe(true);
   });
 
+  it("marks expired credentials, filters them, and sets a credential's expiry date in its details (gap G30)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lockers.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    await go("Credential vault");
+    const list = await screen.findByRole("table", { name: "Credentials list" });
+    expect(await within(list).findByText("Expired 2026-01-01")).toBeTruthy();
+    expect(screen.getByText(/1 expired/)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Expired or expiring"));
+    await waitFor(() => expect(within(list).queryByText("bank")).toBeNull());
+    fireEvent.click(within(list).getByText("erp"));
+    const d = await screen.findByRole("dialog", { name: "Credential finance/erp" });
+    fireEvent.click(await within(d).findByRole("tab", { name: "Details" }));
+    fireEvent.change(within(d).getByLabelText(/^Expires on/), { target: { value: "2027-01-31" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save details" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/credential", body: expect.objectContaining({ expires: "2027-01-31" }) }));
+  });
+
   it("shows the Credential vault as AA's: credentials, vault folders, my requests; flags saved, a credential created, members changed", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lockers.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
@@ -1715,6 +1736,56 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/i2/validate", body: { fields: { total: "125" } } }));
     await act(async () => { fireEvent.click(within(view).getByRole("button", { name: "Start processing" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/start" }));
+  });
+
+  it("shows a queue's tags and exception kinds, filters by tag, and unlocks, tags, copies, moves and deletes finished items (G31)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "queues.work", "queues.manage"] } as typeof admin });
+    const base = api.queues.bind(api);
+    api.queues = async () => [...await base(), { id: "q2", name: "Exceptions", max_attempts: 1, processing: false, counts: {} }];
+    render(<ConsoleApp api={api} />);
+    await go("Work queues");
+    fireEvent.click(within(await screen.findByRole("table", { name: "Work queues list" })).getByText("Vendor invoices"));
+    const view = await screen.findByRole("dialog", { name: "Work queue Vendor invoices" });
+    const items = await within(view).findByRole("table", { name: "Work items" });
+    await within(items).findByText("INV-1");
+    expect(within(items).getByText("north")).toBeTruthy();
+    expect(within(items).getByText("Business")).toBeTruthy();
+    // filter by tag
+    fireEvent.change(within(view).getByLabelText("Filter by tag"), { target: { value: "north" } });
+    await waitFor(() => expect(calls.some((c) => c.route === "queues/q1/items" && (c.url ?? "").includes("tag=north"))).toBe(true));
+    // unlock, tags, copy and move the ticked items
+    fireEvent.click(within(items).getByLabelText("Select INV-1"));
+    await act(async () => { fireEvent.click(within(view).getByRole("button", { name: "Unlock" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/unlock", body: { ids: ["i1"] } }));
+    fireEvent.click(await within(items).findByLabelText("Select INV-1"));
+    fireEvent.click(within(view).getByRole("button", { name: "Tags…" }));
+    const tags = await screen.findByRole("dialog", { name: "Tags" });
+    fireEvent.change(within(tags).getByLabelText("Add tags"), { target: { value: "urgent, late" } });
+    await act(async () => { fireEvent.click(within(tags).getByRole("button", { name: "Save tags" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/tag", body: { ids: ["i1"], add: ["urgent", "late"], remove: [] } }));
+    fireEvent.click(await within(items).findByLabelText("Select INV-1"));
+    fireEvent.click(within(view).getByRole("button", { name: "Move to…" }));
+    const move = await screen.findByRole("dialog", { name: "Move items" });
+    await waitFor(() => expect(within(move).getByRole("option", { name: "Exceptions" })).toBeTruthy());
+    fireEvent.change(within(move).getByLabelText("To the queue"), { target: { value: "q2" } });
+    await act(async () => { fireEvent.click(within(move).getByRole("button", { name: "Move items" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/move", body: { to_queue: "q2", ids: ["i1"] } }));
+    // delete finished items from the queue's menu
+    fireEvent.keyDown(within(view).getByRole("button", { name: "More for Vendor invoices" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete finished items…" }));
+    const purge = await screen.findByRole("dialog", { name: "Delete finished items" });
+    fireEvent.change(within(purge).getByLabelText("Items"), { target: { value: "failed" } });
+    fireEvent.change(within(purge).getByLabelText("Older than (hours, empty for any age)"), { target: { value: "24" } });
+    await act(async () => { fireEvent.click(within(purge).getByRole("button", { name: "Delete" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "queues/q1/items/purge", body: { status: "failed", older_than_hours: 24 } }));
+    // the encryption switch in the queue's settings, and its line in Details
+    fireEvent.click(within(view).getByRole("tab", { name: "Details" }));
+    expect(within(view).getByText("Not encrypted")).toBeTruthy();
+    fireEvent.click(within(view).getByRole("button", { name: "Edit settings" }));
+    const form = await screen.findByRole("dialog", { name: "Work queue Vendor invoices" });
+    fireEvent.click(within(form).getByRole("switch", { name: "Encrypt item data" }));
+    await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "queues/q1", body: expect.objectContaining({ encrypt_data: true }) }));
   });
 
   it("shows Workflow as UiPath Maestro's instances: in progress and finished, a run's timeline and tasks, cancel, start with the start form", async () => {

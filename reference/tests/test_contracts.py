@@ -27,6 +27,10 @@ def _actions(steps):
             yield from _actions(c.get("children"))
         for c in s.get("cases", []) or []:
             yield from _actions(c.get("children"))
+        for st in s.get("states", []) or []:
+            yield from _actions(st.get("entry"))
+            for t in st.get("transitions", []) or []:
+                yield from _actions(t.get("steps"))
 
 
 def test_every_example_flow_validates(registry):

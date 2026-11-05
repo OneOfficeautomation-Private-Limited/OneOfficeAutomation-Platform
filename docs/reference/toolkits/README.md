@@ -10,7 +10,7 @@ values and `$variable` references; Credential fields take a credential from the 
 
 | Toolkit | Id | Actions | Conditions | Loop types | What it does |
 | --- | --- | --- | --- | --- | --- |
-| [Core](core.md) | `core` | 22 | 0 | 0 | Control flow, variables and runtime built-ins. |
+| [Core](core.md) | `core` | 23 | 0 | 0 | Control flow, variables and runtime built-ins. |
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 39 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
 | [Application](ooa-application.md) | `ooa.application` | 8 | 1 | 0 | Open files, start, run and stop programs on the runner. |
@@ -23,6 +23,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
+| [Credential vault](ooa-vault.md) | `ooa.vault` | 2 | 1 | 0 | Save a credential's new value in One CommandCenter's vault, for example after a password reset, and check when a credential expires. |
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
 | [Custom Connectors](ooa-connector.md) | `ooa.connector` | 5 | 0 | 0 | Call any REST API imported from an OpenAPI, Swagger or Postman file as named operations with typed inputs and authentication. |
@@ -33,8 +34,10 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
+| [Document Automation](ooa-documents.md) | `ooa.documents` | 1 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process and get the fields it reads. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
+| [Environment locks](ooa-locks.md) | `ooa.locks` | 3 | 1 | 0 | Named locks that one agent run holds at a time, so two runners never use the same single-user system together. |
 | [Excel (desktop, needs Excel)](ooa-excel_desktop.md) | `ooa.excel_desktop` | 5 | 0 | 0 | Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 75 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
 | [Exchange on-premises (EWS)](ooa-exchange.md) | `ooa.exchange` | 13 | 0 | 1 | Read, send, reply to, move, mark and delete emails in an on-premises Exchange Server 2013-2019 or SE mailbox through Exchange Web Services (EWS). For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit, as Microsoft is retiring EWS there. |
@@ -53,6 +56,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Interrupt handlers](ooa-interrupts.md) | `ooa.interrupts` | 5 | 0 | 0 | Rules that deal with unexpected windows and pop-ups during UI automation, checked before each UI action. |
 | [Java applications (Swing/AWT)](ooa-java_apps.md) | `ooa.java_apps` | 3 | 0 | 0 | Find and work with the controls of desktop applications written in Java (Swing and AWT): read and type text, press buttons, read labels and tables. |
 | [Jira](ooa-jira.md) | `ooa.jira` | 15 | 0 | 0 | Create, read and search Jira issues, add comments, move issues through the workflow and attach files. |
+| [Jobs and alerts](ooa-jobs.md) | `ooa.jobs` | 4 | 0 | 0 | See and stop other agent runs, and raise alerts to people, from an agent run by One CommandCenter. |
 | [JSON](ooa-json.md) | `ooa.json` | 12 | 0 | 0 | Parse, query and write JSON documents. |
 | [Kafka](ooa-kafka.md) | `ooa.kafka` | 6 | 0 | 0 | Send messages to Kafka topics, read messages, and create or inspect topics through a Kafka REST Proxy. |
 | [Knowledge Q&A](ooa-knowledge.md) | `ooa.knowledge` | 3 | 0 | 0 | Index your documents and answer questions from them, with the passages each answer comes from. |
@@ -80,7 +84,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [SAP GUI](ooa-sap.md) | `ooa.sap` | 30 | 0 | 0 | Log on to SAP, run transactions, set and read fields, press buttons, read grids and the status bar through SAP GUI Scripting. |
 | [Scripts](ooa-script.md) | `ooa.script` | 7 | 0 | 0 | Run PowerShell, Python, JavaScript and VBScript with arguments and captured output. |
 | [ServiceNow](ooa-servicenow.md) | `ooa.servicenow` | 13 | 0 | 0 | Query, create and update ServiceNow records (incidents, requests, any table), add comments and attachments. |
-| [Shared Global values](ooa-global_values.md) | `ooa.global_values` | 2 | 1 | 0 | Read shared values that many agents use, such as folders, thresholds or URLs. |
+| [Shared Global values](ooa-global_values.md) | `ooa.global_values` | 3 | 1 | 0 | Read and change shared values that many agents use, such as folders, thresholds or URLs. |
 | [Slack](ooa-slack.md) | `ooa.slack` | 10 | 0 | 0 | Post messages to Slack channels and users. |
 | [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 11 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
@@ -93,9 +97,9 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Windows Credential Manager](ooa-credential_manager.md) | `ooa.credential_manager` | 4 | 1 | 0 | Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account. |
 | [Windows services](ooa-services.md) | `ooa.services` | 6 | 1 | 0 | Get the status of, start, stop, pause, resume and restart Windows services on this or another computer. |
 | [Word (no Office needed)](ooa-word.md) | `ooa.word` | 16 | 0 | 0 | Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save. |
-| [Work queues](ooa-workload.md) | `ooa.workload` | 10 | 1 | 1 | Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries. |
+| [Work queues](ooa-workload.md) | `ooa.workload` | 16 | 1 | 1 | Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries. |
 | [Workday](ooa-workday.md) | `ooa.workday` | 7 | 0 | 0 | Search and read Workday workers and call Workday REST endpoints or RaaS reports. |
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 87 toolkits, 1224 actions, 47 conditions and 13 loop types.
+In all: 91 toolkits, 1242 actions, 49 conditions and 13 loop types.

@@ -412,6 +412,32 @@ public final class Agent {
                             w.send(Map.of("type", "credential", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }
                     });
+                    // the Jobs and alerts toolkit: One CommandCenter answers as the run's user
+                    case "cr" -> io.submit(() -> {
+                        try {
+                            Map<String, Object> r = client.post("run-request", Map.of("run_id", w.runId, "call", String.valueOf(msg.get("call")),
+                                    "args", msg.get("args") instanceof Map<?, ?> a ? a : Map.of()));
+                            w.send(Map.of("type", "cr", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "cr", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
+                    // gap G30: shared value and credential changes; the run id is added here, One CommandCenter checks the run's user
+                    case "global_value", "vault" -> io.submit(() -> {
+                        String type = String.valueOf(msg.get("type"));
+                        Map<String, Object> body = new LinkedHashMap<>(msg);
+                        body.remove("type"); body.remove("id");
+                        body.put("run_id", w.runId);
+                        try {
+                            Map<String, Object> r = client.post(type.equals("vault") ? "vault" : "global-values", body);
+                            w.send(Map.of("type", type, "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            Map<String, Object> err = new LinkedHashMap<>();
+                            err.put("code", e.code()); err.put("message", e.getMessage());
+                            if (e.suggestedFix() != null) err.put("fix", e.suggestedFix());
+                            w.send(Map.of("type", type, "id", msg.get("id"), "error", err));
+                        }
+                    });
                     case "docflow" -> io.submit(() -> {
                         try {
                             Path file = Path.of(String.valueOf(msg.get("file")));
@@ -422,6 +448,24 @@ public final class Agent {
                             w.send(Map.of("type", "docflow", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         } catch (IOException | RuntimeException e) {
                             w.send(Map.of("type", "docflow", "id", msg.get("id"), "error", Map.of("code", "DOCS.FILE", "message", String.valueOf(e.getMessage()))));
+                        }
+                    });
+                    case "queue" -> io.submit(() -> {
+                        try {
+                            Map<String, Object> r = client.post("queues", Map.of("run_id", w.runId, "request", msg.getOrDefault("request", Map.of())));
+                            w.send(Map.of("type", "queue", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "queue", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
+                    case "locks" -> io.submit(() -> {   // Environment locks: One CommandCenter checks the run is this runner's and running
+                        try {
+                            Map<String, Object> body = new LinkedHashMap<>(msg);
+                            body.remove("type"); body.remove("id");
+                            body.put("run_id", w.runId);   // always the worker's own run, never what the worker says
+                            w.send(Map.of("type", "locks", "id", msg.get("id"), "result", client.post("locks", body)));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "locks", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }
                     });
                     default -> { }

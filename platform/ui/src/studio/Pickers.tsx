@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type ReactElement } from "react";
 import type { Flow, FlowStep, StudioApi } from "../api/client";
-import { setArg } from "./flowEdit";
+import { setArg, stateLists } from "./flowEdit";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { oneStep, runOnce } from "./runOnce";
 import { useVars } from "./VariablesPanel";
@@ -118,6 +118,7 @@ function connectArgs(flow: Flow): Args | null {
     for (const c of s.catch ?? []) walk(c.children);
     for (const c of s.cases ?? []) walk(c.children);
     walk(s.default);
+    for (const l of stateLists(s)) walk(l);
   } };
   walk(flow.steps); walk(flow.onError?.steps ?? []); for (const sub of flow.subflows ?? []) walk(sub.steps ?? []);
   return found;

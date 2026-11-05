@@ -493,6 +493,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-own { display: inline-block; height: 20px; line-height: 20px; padding: 0 7px; margin-right: 4px; border-radius: 4px; font-size: 12px; }
 .cc-own.is-set { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
 .cc-own.is-missing { background: var(--ui-running-bg); color: var(--ui-warning-text); font-weight: 600; }
+.cc-own.is-expired { background: var(--ui-error-bg); color: var(--ui-error-text); font-weight: 600; }
 .cc-code { display: inline-block; height: 20px; line-height: 20px; padding: 0 6px; margin-right: 4px; border-radius: 4px; background: var(--ui-soft); border: 1px solid var(--ui-divider);
   font: 12px var(--ui-mono); color: var(--ui-text); }
 .cc-list-sub { font-size: 12px; color: var(--ui-text-2); white-space: normal; }

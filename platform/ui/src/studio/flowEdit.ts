@@ -1,4 +1,4 @@
-import type { ActionManifest, Flow, FlowOnError, FlowStep, FlowVariable, PackageManifest } from "../api/client";
+import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest } from "../api/client";
 
 /**
  * Editing an agent, as pure functions: each takes a flow and returns a changed copy, so undo is keeping the old one.
@@ -9,7 +9,10 @@ type Lists = { list: FlowStep[]; index: number; step: FlowStep };
 /** An agent, or anything holding steps as one does. */
 type StepHolder = Pick<Flow, "steps" | "onError">;
 
-/** The lists of steps inside a step: Then/Repeat/Try (children), Else if, Else, Catch, Finally, a Switch's cases, Default. */
+/**
+ * The lists of steps inside a step: Then/Repeat/Try (children), Else if, Else, Catch, Finally, a Switch's cases, Default,
+ * then a State machine's lists (see stateLists). The runner numbers lines in this order.
+ */
 export function innerLists(s: FlowStep): FlowStep[][] {
   const out: FlowStep[][] = [];
   if (s.children) out.push(s.children);
@@ -19,6 +22,17 @@ export function innerLists(s: FlowStep): FlowStep[][] {
   if (s.finally) out.push(s.finally);
   for (const c of s.cases ?? []) if (c.children) out.push(c.children);
   if (s.default) out.push(s.default);
+  out.push(...stateLists(s));
+  return out;
+}
+
+/** The step lists of a State machine: each state's entry steps, then the steps of each of its transitions. */
+export function stateLists(s: FlowStep): FlowStep[][] {
+  const out: FlowStep[][] = [];
+  for (const st of s.states ?? []) {
+    if (st.entry) out.push(st.entry);
+    for (const t of st.transitions ?? []) if (t.steps) out.push(t.steps);
+  }
   return out;
 }
 
@@ -67,7 +81,9 @@ export function findAction(action: string, packages: PackageManifest[]): ActionM
   return packages.find((x) => x.id === p)?.actions.find((a) => a.id === id);
 }
 
-const BLOCKS = new Set(["core/if", "core/loop", "core/try", "core/step", "core/parallel", "core/switch"]);
+const BLOCKS = new Set(["core/if", "core/loop", "core/try", "core/step", "core/parallel", "core/switch", "core/state_machine"]);
+/** Blocks whose steps are all in named parts (Switch cases, State machine states), not in children. */
+const PARTS_ONLY = new Set(["core/switch", "core/state_machine"]);
 export const isBlock = (action: string) => BLOCKS.has(action);
 
 /** A new step for an action, with the starting values Classic Studio gives it. */
@@ -85,6 +101,8 @@ export function newStep(action: string, flow: Flow, packages: PackageManifest[])
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally only when wanted
   else if (action === "core/switch") { step.cases = [{ values: [], children: [] }]; step.default = []; }   // a Switch holds cases, not children
+  else if (action === "core/state_machine")   // a start state that moves on to a final one, ready to rename and fill
+    step.states = [{ name: "Start", entry: [], transitions: [{ to: "Done", steps: [] }] }, { name: "Done", final: true, entry: [] }];
   else if (isBlock(action)) step.children = [];
   return step;
 }
@@ -109,22 +127,28 @@ export function holds(step: FlowStep, id: string): boolean {
 
 export type Place = "before" | "after" | "inside";
 
-/** A block's part: its first steps (Then, Repeat, Try), an Else if, Catch or Switch case by number, Else, Finally or Default. */
-export type Part = "children" | "else" | "finally" | "default" | `elseIf:${number}` | `catch:${number}` | `cases:${number}`;
+/**
+ * A block's part: its first steps (Then, Repeat, Try), an Else if, Catch or Switch case by number, Else, Finally or
+ * Default; for a State machine a state's entry steps (entry:state) or a transition's steps (trans:state:transition).
+ */
+export type Part = "children" | "else" | "finally" | "default" | `elseIf:${number}` | `catch:${number}` | `cases:${number}`
+  | `entry:${number}` | `trans:${number}:${number}`;
 
 /** The list of steps of a block's part, or undefined when the block has no such part. */
 export function partList(step: FlowStep, part: Part = "children"): FlowStep[] | undefined {
-  if (part === "children") return isBlock(step.action) && step.action !== "core/switch" ? (step.children ??= []) : undefined;
+  if (part === "children") return isBlock(step.action) && !PARTS_ONLY.has(step.action) ? (step.children ??= []) : undefined;
   if (part === "else") return step.else;
   if (part === "finally") return step.finally;
   if (part === "default") return step.default;
-  const [kind, k] = part.split(":");
+  const [kind, k, j] = part.split(":");
+  if (kind === "entry") { const st = step.states?.[+k]; return st ? (st.entry ??= []) : undefined; }
+  if (kind === "trans") { const t = step.states?.[+k]?.transitions?.[+j]; return t ? (t.steps ??= []) : undefined; }
   const b = kind === "elseIf" ? step.elseIf?.[+k] : kind === "cases" ? step.cases?.[+k] : step.catch?.[+k];
   return b ? (b.children ??= []) : undefined;
 }
 
-/** Where a new step goes inside a block: its first steps, or for a Switch its first case. */
-const firstPart = (step: FlowStep): Part => step.action === "core/switch" ? "cases:0" : "children";
+/** Where a new step goes inside a block: its first steps, for a Switch its first case, for a State machine its first state. */
+const firstPart = (step: FlowStep): Part => step.action === "core/switch" ? "cases:0" : step.action === "core/state_machine" ? "entry:0" : "children";
 
 /**
  * Where steps go: before or after a step, at the end of a block's part, or with no step at the start ("before") or
@@ -203,7 +227,8 @@ export function spotFor(flow: Flow, selected: string[], intoBlock = true): Spot 
   const real = topSteps(flow, selected.filter((x) => !x.startsWith("@")));
   const at = real.length ? real[real.length - 1] : null;
   if (!at) return { id: null, where: "after" };
-  return intoBlock && real.length === 1 && isBlock(at.action) && (at.action !== "core/switch" || !!at.cases?.length) ?{ id: at.id, where: "inside", part: firstPart(at) } : { id: at.id, where: "after" };
+  const hasFirst = at.action === "core/switch" ? !!at.cases?.length : at.action === "core/state_machine" ? !!at.states?.length : true;
+  return intoBlock && real.length === 1 && isBlock(at.action) && hasFirst ? { id: at.id, where: "inside", part: firstPart(at) } : { id: at.id, where: "after" };
 }
 
 /** Removes several steps; a step inside another removed step goes with it. */
@@ -411,8 +436,12 @@ export function pasteSteps(flow: Flow, clip: Clip, spot: Spot): { flow: Flow; id
   return { flow: f, ids: steps.map((s) => s.id) };
 }
 
-/** Adds a part to an If (Else if, Else), a Try (Catch, Finally) or a Switch (Case, Default); returns the part, so the editor can select it. */
-export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default"): { flow: Flow; part: Part | null } {
+/**
+ * Adds a part to an If (Else if, Else), a Try (Catch, Finally), a Switch (Case, Default) or a State machine (a state);
+ * returns the part, so the editor can select it.
+ */
+export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default" | "states"): { flow: Flow; part: Part | null } {
+  if (kind === "states") return addState(flow, id);
   const f = copy(flow);
   const s = findStep(f, id)?.step;
   if (!s) return { flow, part: null };
@@ -432,6 +461,8 @@ export function removeBranch(flow: Flow, id: string, part: Part): Flow {
   const f = copy(flow);
   const s = findStep(f, id)?.step;
   if (!s || part === "children") return flow;
+  if (part.startsWith("entry:")) return removeState(flow, id, +part.split(":")[1]);
+  if (part.startsWith("trans:")) { const [, k, j] = part.split(":"); return removeTransition(flow, id, +k, +j); }
   if (part === "else" || part === "finally" || part === "default") delete s[part];
   else {
     const [kind, k] = part.split(":") as ["elseIf" | "catch" | "cases", string];
@@ -460,6 +491,125 @@ export function setCaseValues(flow: Flow, id: string, k: number, values: unknown
   const c = findStep(f, id)?.step.cases?.[k];
   if (!c) return flow;
   c.values = values.filter((v) => v !== undefined && v !== "");
+  return f;
+}
+
+// ------------------------------------------------------------------ state machine
+
+export const STATE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_ -]*$/;
+
+/** A state's name checked: letters, digits, spaces, _ and -, and not used by another state of the same State machine. */
+function checkStateName(step: FlowStep, name: string, previous?: string): string {
+  const n = name.trim();
+  if (!STATE_NAME.test(n)) throw new Error("A state name has letters, digits, spaces, _ and - only.");
+  if (n !== previous && (step.states ?? []).some((s) => s.name === n)) throw new Error("There is already a state called " + n + ".");
+  return n;
+}
+
+/** A state name not used yet: State 2, State 3 ... */
+function freeStateName(step: FlowStep): string {
+  const names = new Set((step.states ?? []).map((s) => s.name));
+  let n = (step.states?.length ?? 0) + 1;
+  while (names.has("State " + n)) n++;
+  return "State " + n;
+}
+
+/** Adds a state (named, or State n) at the end of a State machine; returns its entry part, so the editor can select it. */
+export function addState(flow: Flow, id: string, name?: string): { flow: Flow; part: Part | null } {
+  const f = copy(flow);
+  const s = findStep(f, id)?.step;
+  if (!s || s.action !== "core/state_machine") return { flow, part: null };
+  const n = name === undefined ? freeStateName(s) : checkStateName(s, name);
+  (s.states ??= []).push({ name: n, entry: [], transitions: [] });
+  return { flow: f, part: `entry:${s.states.length - 1}` };
+}
+
+/** Renames a state, and the transitions that lead to it and the start state when it named it. */
+export function renameState(flow: Flow, id: string, k: number, name: string): Flow {
+  const f = copy(flow);
+  const s = findStep(f, id)?.step;
+  const st = s?.states?.[k];
+  if (!s || !st) return flow;
+  const from = st.name, to = checkStateName(s, name, from);
+  if (to === from) return flow;
+  st.name = to;
+  for (const x of s.states!) for (const t of x.transitions ?? []) if (t.to === from) t.to = to;
+  if (s.args?.initial === from) s.args = { ...s.args, initial: to };
+  return f;
+}
+
+/**
+ * Removes a state with its steps (a State machine keeps at least one). Transitions that led to it stay, and the check
+ * reports them; the start state setting is cleared when it named it.
+ */
+export function removeState(flow: Flow, id: string, k: number): Flow {
+  const f = copy(flow);
+  const s = findStep(f, id)?.step;
+  if (!s?.states?.[k] || s.states.length < 2) return flow;
+  const [gone] = s.states.splice(k, 1);
+  if (s.args?.initial === gone.name) { const { initial: _, ...rest } = s.args; if (Object.keys(rest).length) s.args = rest; else delete s.args; }
+  return f;
+}
+
+/** Moves a state one place up (-1) or down (+1); returns its entry part, or null at either end. Order matters only for the first state, the default start. */
+export function moveState(flow: Flow, id: string, k: number, by: -1 | 1): { flow: Flow; part: Part | null } {
+  const f = copy(flow);
+  const states = findStep(f, id)?.step.states;
+  const to = k + by;
+  if (!states || k < 0 || k >= states.length || to < 0 || to >= states.length) return { flow, part: null };
+  [states[k], states[to]] = [states[to], states[k]];
+  return { flow: f, part: `entry:${to}` };
+}
+
+/** Marks a state final (the State machine ends after its entry steps) or not. Its transitions stay; the check reports them on a final state. */
+export function setStateFinal(flow: Flow, id: string, k: number, final: boolean): Flow {
+  const f = copy(flow);
+  const st = findStep(f, id)?.step.states?.[k];
+  if (!st) return flow;
+  if (final) st.final = true; else delete st.final;
+  return f;
+}
+
+/**
+ * Adds a transition to a state, leading to `to` (by default the next state, or the state itself when it is the only one)
+ * and without a condition; returns its part.
+ */
+export function addTransition(flow: Flow, id: string, k: number, to?: string): { flow: Flow; part: Part | null } {
+  const f = copy(flow);
+  const s = findStep(f, id)?.step;
+  const st = s?.states?.[k];
+  if (!s || !st) return { flow, part: null };
+  const target = to ?? (s.states![k + 1] ?? s.states![0]).name;
+  (st.transitions ??= []).push({ to: target, steps: [] });
+  return { flow: f, part: `trans:${k}:${st.transitions.length - 1}` };
+}
+
+/** Removes a transition with its steps. */
+export function removeTransition(flow: Flow, id: string, k: number, j: number): Flow {
+  const f = copy(flow);
+  const ts = findStep(f, id)?.step.states?.[k]?.transitions;
+  if (!ts?.[j]) return flow;
+  ts.splice(j, 1);
+  return f;
+}
+
+/** Moves a transition one place up (-1) or down (+1) among its state's transitions (they are tried from the top); returns its new part. */
+export function moveTransition(flow: Flow, id: string, k: number, j: number, by: -1 | 1): { flow: Flow; part: Part | null } {
+  const f = copy(flow);
+  const ts = findStep(f, id)?.step.states?.[k]?.transitions;
+  const to = j + by;
+  if (!ts || j < 0 || j >= ts.length || to < 0 || to >= ts.length) return { flow, part: null };
+  [ts[j], ts[to]] = [ts[to], ts[j]];
+  return { flow: f, part: `trans:${k}:${to}` };
+}
+
+/** Sets where a transition leads, and its condition: undefined makes it the default (taken when no transition above it is). */
+export function setTransition(flow: Flow, id: string, k: number, j: number, patch: { to?: string; when?: unknown }): Flow {
+  const f = copy(flow);
+  const t = findStep(f, id)?.step.states?.[k]?.transitions?.[j];
+  if (!t) return flow;
+  if ("to" in patch && patch.to) t.to = patch.to;
+  if ("when" in patch) { if (patch.when === undefined || patch.when === "") delete t.when; else t.when = patch.when; }
   return f;
 }
 
@@ -498,7 +648,7 @@ export function setFolded(flow: Flow, ids: string[], folded: boolean): Flow {
 export function blockIds(flow: Flow): string[] { return allSteps(flow).filter((s) => isBlock(s.action)).map((s) => s.id); }
 
 /** The keys of a step that are not its settings: never changed by find and replace. */
-const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "cases", "default", "disabled", "connection"]);
+const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "cases", "default", "states", "disabled", "connection"]);
 
 /**
  * Find and replace (AA's Ctrl+H) in the steps' settings and names: every text in their settings (args, outputs, notes,
@@ -522,6 +672,12 @@ export function replaceInSteps(flow: Flow, find: string, replace: string, matchC
         for (const [bk, bv] of Object.entries(b)) nb[bk] = bk === "children" ? (bv as FlowStep[]).map((c) => step(c, on)) : on && bk !== "codes" ? deep(bv) : bv;
         return nb;
       });
+      // a state machine's steps, and its transitions' conditions; state names and targets are structure
+      else if (k === "states") (out as Record<string, unknown>)[k] = (v as FlowState[]).map((st) => ({
+        ...st, ...(st.entry ? { entry: st.entry.map((c) => step(c, on)) } : {}),
+        ...(st.transitions ? { transitions: st.transitions.map((t) => ({ ...t, ...(t.steps ? { steps: t.steps.map((c) => step(c, on)) } : {}),
+          ...(on && t.when !== undefined ? { when: deep(t.when) } : {}) })) } : {}),
+      }));
       else if (on && !STRUCTURE.has(k)) (out as Record<string, unknown>)[k] = deep(v);
     }
     return out;
@@ -633,7 +789,7 @@ export function locateAny(flow: Flow, id: string): Lists | null {
 
 /**
  * The labels a Go to step can jump to: those in its own step list and in the lists around it (not inside blocks, and
- * not across a Parallel branch), nearest first.
+ * not across a Parallel branch or out of a State machine), nearest first.
  */
 export function labelsInScope(steps: FlowStep[], id: string): string[] {
   const labelsOf = (list: FlowStep[]) => list.filter((s) => s.action === "core/label" && typeof s.args?.name === "string" && s.args.name.trim())
@@ -650,7 +806,9 @@ export function labelsInScope(steps: FlowStep[], id: string): string[] {
         }
         continue;
       }
-      for (const inner of innerLists(s)) { const r = find(inner, here); if (r) return r; }
+      // a State machine's step lists stand apart too: Go to cannot jump into or out of them
+      for (const inner of stateLists(s)) { const r = find(inner, []); if (r) return r; }
+      for (const inner of innerLists(s)) { if (stateLists(s).includes(inner)) continue; const r = find(inner, here); if (r) return r; }
     }
     return null;
   };

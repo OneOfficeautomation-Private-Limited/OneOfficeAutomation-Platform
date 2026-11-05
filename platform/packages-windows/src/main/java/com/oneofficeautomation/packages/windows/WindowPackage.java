@@ -611,7 +611,7 @@ public final class WindowPackage {
     @Output(name = "control_text", type = OoaType.STRING, description = "The control's text afterwards, when it reports one (edit boxes do), to check the result.")
     public Map<String, Object> typeInBackground(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
-            @Input(name = "text", description = "Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; {{} types {). A Credential is typed without being logged.") Object text,
+            @Input(name = "text", description = "Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; a { inside braces types a {). A Credential is typed without being logged.") Object text,
             @Input(name = "control_class", type = OoaType.STRING, required = false, example = "Edit", description = "Window class of the control to type into, or a pattern with * and ?; the window's focused control when empty.") String controlClass,
             @Input(name = "control_index", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Which control of that class (0 is the first).") int controlIndex,
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"type\"", enumValues = {"type", "replace", "append"},

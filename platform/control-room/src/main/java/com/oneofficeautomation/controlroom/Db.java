@@ -639,9 +639,43 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE docflow_mail (process_id VARCHAR(120) PRIMARY KEY, mail_cursor VARCHAR(200), last_check TIMESTAMP, last_error VARCHAR(1000), documents INT)",
     };
 
+    /**
+     * Version 34 (gap G30, 4 Nov 2026): a credential's expiry date (yyyy-MM-dd, text so it compares the same on every
+     * database), shown in the Credential vault and checked by agents; empty means it does not expire.
+     */
+    private static final String[] SCHEMA_V34 = {
+        "ALTER TABLE credential_meta ADD COLUMN expires VARCHAR(10)",
+    };
+
+    /**
+     * Version 35 (gap G31, work queue upgrades, 4 Nov 2026): a queue may keep its items' data encrypted with the vault's
+     * key; items get tags (kept as ",a,b,"), the kind of their last exception (business or system) and, when they were
+     * added with a unique reference, that reference again in unique_ref, which a unique index guards per queue (items
+     * added before have none, so references they share stay allowed).
+     */
+    private static final String[] SCHEMA_V35 = {
+        "ALTER TABLE queues ADD COLUMN encrypt_data BOOLEAN",
+        "ALTER TABLE queue_items ADD COLUMN tags VARCHAR(1000)",
+        "ALTER TABLE queue_items ADD COLUMN error_kind VARCHAR(20)",
+        "ALTER TABLE queue_items ADD COLUMN unique_ref VARCHAR(200)",
+        "CREATE UNIQUE INDEX queue_items_unique_ref ON queue_items (queue_id, unique_ref) WHERE unique_ref IS NOT NULL",
+    };
+
+    /**
+     * Version 36 (gap G33, Blue Prism's environment locks): a named lock that one run holds at a time, so two runners
+     * never use the same single-user system together. lock_key is the name in lower case (names are compared without
+     * case on every engine); the row says which run, runner and person hold it, since when and until when (the lease).
+     * Taking a lock is one INSERT, or one conditional UPDATE when the row is there, so the database decides who gets it.
+     */
+    private static final String[] SCHEMA_V36 = {
+        "CREATE TABLE environment_locks (lock_key VARCHAR(200) PRIMARY KEY, name VARCHAR(200) NOT NULL, run_id VARCHAR(40) NOT NULL, device_id VARCHAR(40), "
+            + "device_name VARCHAR(120), bot_path VARCHAR(400), held_by VARCHAR(80), acquired TIMESTAMP NOT NULL, expires TIMESTAMP NOT NULL, note VARCHAR(1000))",
+        "CREATE INDEX environment_locks_run ON environment_locks (run_id)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 33;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33 };
+    public static final int LATEST = 36;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {
@@ -691,9 +725,15 @@ public final class Db implements AutoCloseable {
 
     private void execute(String sql) { withConn(c -> { try (Statement s = c.createStatement()) { s.execute(sql); } return null; }); }
 
-    /** A schema statement for the engine; SQL Server needs its own types and the type of a column made nullable. */
+    private static final java.util.regex.Pattern UNIQUE_NOT_NULL = java.util.regex.Pattern.compile("^(CREATE UNIQUE INDEX .+\\)) WHERE \\w+ IS NOT NULL$");
+
+    /**
+     * A schema statement for the engine; SQL Server needs its own types and the type of a column made nullable. A
+     * unique index "WHERE column IS NOT NULL" stays filtered on SQL Server (which lets only one NULL into a unique
+     * index); H2 and PostgreSQL get it without the WHERE, since their unique indexes let any number of NULLs in.
+     */
     static String ddl(String ddl, boolean sqlServer) {
-        if (!sqlServer) return ddl;
+        if (!sqlServer) { java.util.regex.Matcher u = UNIQUE_NOT_NULL.matcher(ddl); return u.matches() ? u.group(1) : ddl; }
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("ALTER TABLE (\\w+) ALTER COLUMN (\\w+) DROP NOT NULL").matcher(ddl);
         if (m.matches()) return SqlServerDialect.ddl("ALTER TABLE " + m.group(1) + " ALTER COLUMN " + m.group(2) + " " + columnType(m.group(1), m.group(2)) + " NULL");
         return SqlServerDialect.ddl(ddl);

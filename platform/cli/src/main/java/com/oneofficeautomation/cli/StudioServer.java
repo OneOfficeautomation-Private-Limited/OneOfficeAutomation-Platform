@@ -739,6 +739,8 @@ public final class StudioServer {
                 + "Containers: core/if has \"args\": {\"condition\": {\"op\": \"eq|ne|gt|ge|lt|le|contains|empty|notEmpty\", \"left\", \"right\"}}, \"children\" and \"else\"; "
                 + "core/switch has \"args\": {\"value\": \"$status\", \"match\"?: \"equals|contains|starts_with|ends_with|regex|expression\"}, "
                 + "\"cases\": [{\"values\": [v1, v2], \"children\": []}] (only the first matching case runs) and \"default\": []; "
+                + "core/state_machine has \"args\": {\"initial\": \"StateName\"} and \"states\": [{\"name\", \"entry\": [], \"transitions\": [{\"to\": \"OtherState\", \"when\"?: condition, \"steps\": []}], \"final\"?: true}] "
+                + "(the first true transition is taken; one without \"when\" is the last, default one; a final state ends it); "
                 + "core/loop has \"args\": {\"iterator\": \"list|times|table_rows|dictionary|while\", \"over\" or \"count\", \"as\"} and \"children\"; "
                 + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
                 + "To set several variables at once use core/set_many with \"args\": {\"assignments\": [{\"variable\": \"name\", \"value\": ...}]}, run in order. "

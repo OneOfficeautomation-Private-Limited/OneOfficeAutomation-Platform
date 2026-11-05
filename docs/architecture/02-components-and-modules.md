@@ -136,7 +136,7 @@ ooa.optionalModules=packages-office,packages-email,packages-pdf,packages-browser
 | --- | --- |
 | `runner` | `core` |
 | `packages` – data | `ooa.string`, `ooa.number`, `ooa.boolean`, `ooa.datetime`, `ooa.list`, `ooa.dictionary`, `ooa.datatable`, `ooa.json`, `ooa.xml`, `ooa.csv`, `ooa.currency`, `ooa.fuzzy` |
-| `packages` – files and system | `ooa.file`, `ooa.folder`, `ooa.log`, `ooa.system`, `ooa.application`, `ooa.script`, `ooa.services`, `ooa.printer`, `ooa.sound`, `ooa.network`, `ooa.run_context`, `ooa.global_values` |
+| `packages` – files and system | `ooa.file`, `ooa.folder`, `ooa.log`, `ooa.system`, `ooa.application`, `ooa.script`, `ooa.services`, `ooa.printer`, `ooa.sound`, `ooa.network`, `ooa.run_context`, `ooa.global_values`, `ooa.vault` |
 | `packages` – integration | `ooa.rest`, `ooa.soap`, `ooa.database`, `ooa.connector` (custom connectors), `ooa.kafka` |
 | `packages` – security | `ooa.crypto`, `ooa.pgp`, `ooa.active_directory` |
 | `packages` – desktop and screen | `ooa.desktop`, `ooa.image`, `ooa.ocr`, `ooa.excel_desktop`, `ooa.outlook_desktop`, `ooa.interrupts`, `ooa.forms`, `ooa.terminal`, `ooa.sap` |

@@ -1,0 +1,77 @@
+[
+ {
+  "command": "ooa.global_values/set",
+  "name": "Studio: changes the value in the workspace file; a later read sees it",
+  "comment": "the shared sample runner works in the folder above the case's own, so the file is put there",
+  "files": {"../global-values.json": "{\"threshold\": 1000, \"team\": \"Finance\"}"},
+  "steps": [
+   {"action": "ooa.global_values/set", "args": {"name": "threshold", "value": "2500", "type": "Number"}, "out": {"value": "v"}},
+   {"action": "ooa.global_values/get", "args": {"name": "threshold"}, "out": {"value": "after"}}
+  ],
+  "expect": {"v": 2500, "after": 2500},
+  "expectFiles": {"../global-values.json": "{\"threshold\":2500,\"team\":\"Finance\"}"}
+ },
+ {
+  "command": "ooa.global_values/set",
+  "name": "only existing shared values are changed",
+  "files": {"global-values.json": "{\"team\": \"Finance\"}"},
+  "steps": [{"action": "ooa.global_values/set", "args": {"name": "new_value", "value": 1}}],
+  "error": "GLOBALS.NOT_FOUND"
+ },
+ {
+  "command": "ooa.global_values/set",
+  "name": "a value that does not fit the type is refused",
+  "files": {"global-values.json": "{\"threshold\": 1000}"},
+  "steps": [{"action": "ooa.global_values/set", "args": {"name": "threshold", "value": "lots", "type": "Number"}}],
+  "error": "GLOBALS.WRONG_TYPE"
+ },
+ {
+  "command": "ooa.global_values/set",
+  "name": "a bad name is refused",
+  "steps": [{"action": "ooa.global_values/set", "args": {"name": "9 lives", "value": 1}}],
+  "error": "GLOBALS.BAD_NAME"
+ },
+ {
+  "command": "ooa.vault/save_credential",
+  "name": "Studio: saving needs One CommandCenter",
+  "credentials": {"pw": "it/app/password"},
+  "secrets": {"it/app/password": "N3w-Pass"},
+  "steps": [{"action": "ooa.vault/save_credential", "args": {"credential": "it/app/password", "value": "$pw", "expires_in_days": 90}}],
+  "error": "VAULT.LOCAL_READ_ONLY"
+ },
+ {
+  "command": "ooa.vault/save_credential",
+  "name": "typed text is refused: the value must be a Credential",
+  "steps": [{"action": "ooa.vault/save_credential", "args": {"credential": "it/app/password", "value": "plain text"}}],
+  "error": "VAULT.NO_SECRET"
+ },
+ {
+  "command": "ooa.vault/save_credential",
+  "name": "a bad expiry date is refused",
+  "credentials": {"pw": "it/app/password"},
+  "secrets": {"it/app/password": "N3w-Pass"},
+  "steps": [{"action": "ooa.vault/save_credential", "args": {"credential": "it/app/password", "value": "$pw", "expires": "next week"}}],
+  "error": "VAULT.BAD_DATE"
+ },
+ {
+  "command": "ooa.vault/save_credential",
+  "name": "a reference without an attribute is refused",
+  "credentials": {"pw": "it/app/password"},
+  "secrets": {"it/app/password": "N3w-Pass"},
+  "steps": [{"action": "ooa.vault/save_credential", "args": {"credential": "it/app", "value": "$pw"}}],
+  "error": "VAULT.BAD_REF"
+ },
+ {
+  "command": "ooa.vault/credential_expiry",
+  "name": "Studio: no expiry date is known",
+  "steps": [{"action": "ooa.vault/credential_expiry", "args": {"credential": "it/app"}, "out": {"has_expiry": "has", "expired": "gone", "expires": "date"}}],
+  "expect": {"has": false, "gone": false, "date": ""}
+ },
+ {
+  "command": "ooa.vault/is_expired",
+  "name": "condition: not expired when no date is known",
+  "vars": {"note": "not expired"},
+  "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.vault/is_expired", "args": {"credential": "it/app/password"}}}, "children": [{"action": "core/set", "args": {"variable": "note", "value": "expired"}}]}],
+  "expect": {"note": "not expired"}
+ }
+]

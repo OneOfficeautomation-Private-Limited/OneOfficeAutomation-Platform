@@ -1,0 +1,27 @@
+{
+  "name": "028_state_machine_no_transition",
+  "description": "A state that is not final and has no true transition fails the state machine step with STATE.NO_TRANSITION, after its entry steps ran.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c28",
+    "name": "c28",
+    "variables": [
+      {"name": "n", "type": "Number", "direction": "output", "default": 0}
+    ],
+    "steps": [
+      {"id": "sm", "action": "core/state_machine", "states": [
+        {"name": "Counting",
+         "entry": [{"id": "inc", "action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}],
+         "transitions": [{"to": "Done", "when": "$n > 5"}]},
+        {"name": "Done", "final": true}
+      ]}
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "STATE.NO_TRANSITION",
+    "errorStepId": "sm",
+    "outputs": {"n": 1}
+  }
+}

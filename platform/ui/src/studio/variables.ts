@@ -129,12 +129,15 @@ const NAME_ARGS = ["variable", "as", "index"];
 const assignments = (s: FlowStep) => s.action === "core/set_many" && Array.isArray(s.args?.assignments)
   ? (s.args!.assignments as { variable?: unknown }[]).filter((r) => r && typeof r === "object") : [];
 
-/** How many times a variable is used: in settings, Else if conditions, Switch case values, outputs, and as a loop's or catch's name. */
+/** The conditions of a State machine's transitions. */
+const transitionConditions = (s: FlowStep) => (s.states ?? []).flatMap((st) => (st.transitions ?? []).map((t) => t.when));
+
+/** How many times a variable is used: in settings, Else if conditions, Switch case values, transition conditions, outputs, and as a loop's or catch's name. */
 export function usageCount(flow: Flow, name: string): number {
   const re = refRegex(name);
   let n = 0;
   for (const s of allSteps(flow)) {
-    n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition), (s.cases ?? []).map((c) => c.values)]).match(re) ?? []).length;
+    n += (JSON.stringify([s.args ?? {}, (s.elseIf ?? []).map((b) => b.condition), (s.cases ?? []).map((c) => c.values), transitionConditions(s)]).match(re) ?? []).length;
     n += Object.values(s.out ?? {}).filter((v) => v === name).length;
     n += NAME_ARGS.filter((k) => s.args?.[k] === name).length;
     n += assignments(s).filter((r) => r.variable === name).length;
@@ -154,6 +157,7 @@ export function renameRefs(flow: Flow, oldName: string, newName: string): Flow {
     for (const r of assignments(s)) if (r.variable === oldName) r.variable = newName;
     for (const b of s.elseIf ?? []) b.condition = map(b.condition);
     for (const c of s.cases ?? []) if (c.values) c.values = map(c.values) as unknown[];
+    for (const st of s.states ?? []) for (const t of st.transitions ?? []) if (t.when !== undefined) t.when = map(t.when);
     for (const [k, v] of Object.entries(s.out ?? {})) if (v === oldName) s.out![k] = newName;
     for (const c of s.catch ?? []) if (c.as === oldName) c.as = newName;
   }
