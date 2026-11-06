@@ -81,3 +81,12 @@ def test_resolve_forms():
 
 def test_references():
     assert references({"x": "$a", "y": "hi ${s} ${upper($t)}", "z": {"expr": "$u + 1"}, "w": {"literal": "$no"}}) == {"a", "s", "t", "u"}
+
+
+def test_quoted_text_keeps_accented_letters_and_escapes():
+    """REF-1: 'héllo' stays 'héllo'; \n, \', \\ and \u00e9 are still read as escapes."""
+    from ooa.runner.expressions import _unescape
+    assert _unescape("h\u00e9llo \u4e16\u754c") == "h\u00e9llo \u4e16\u754c"
+    assert _unescape("a\nb") == "a\nb"
+    assert _unescape("it\'s \\ x") == "it's \ x"
+    assert _unescape("caf\u00e9") == "caf\u00e9"
