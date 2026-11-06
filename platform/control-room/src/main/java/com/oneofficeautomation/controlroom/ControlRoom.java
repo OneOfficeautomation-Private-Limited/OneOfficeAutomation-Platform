@@ -2212,6 +2212,19 @@ public final class ControlRoom {
 
     // ===================== schedules =====================
 
+
+    /** A schedule row as the API shows it: the timing_rule column (RULE is reserved in SQL Server) is the schedule's rule. */
+    static Map<String, Object> scheduleRow(Map<String, Object> r) {
+        if (r != null && r.containsKey("timing_rule")) { r = new LinkedHashMap<>(r); r.put("rule", r.remove("timing_rule")); }
+        return r;
+    }
+
+    static List<Map<String, Object>> scheduleRows(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (Map<String, Object> r : rows) out.add(scheduleRow(r));
+        return out;
+    }
+
     /**
      * The schedule's next time after {@code after}. Monthly and cron schedules follow their rule (ScheduleRules); a cron
      * rule whose years have all passed has no next time (null), so the schedule stays enabled but does not run again.
@@ -2314,7 +2327,7 @@ public final class ControlRoom {
         db.update("INSERT INTO schedules (id, name, bot_path, device_id, kind, every_minutes, at_time, days, time_zone, inputs, enabled, next_run, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, timing.get("every_minutes"),
                 timing.get("at_time"), timing.get("days"), tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
-        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ?, rule = ? WHERE id = ?", pool, cal, runAs,
+        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ?, timing_rule = ? WHERE id = ?", pool, cal, runAs,
                 scheduleOption(s.get("missed_runs"), MISSED_RUNS), scheduleOption(s.get("overlap"), OVERLAP), timing.get("rule"), sid);
         Map<String, Object> what = new LinkedHashMap<>();
         what.put("bot", s.get("bot_path"));
@@ -2358,7 +2371,7 @@ public final class ControlRoom {
     public List<Map<String, Object>> schedules(User by) {
         require(by, "schedules.view", "view schedules");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> s : db.query("SELECT * FROM schedules ORDER BY name")) {
+        for (Map<String, Object> s : scheduleRows(db.query("SELECT * FROM schedules ORDER BY name"))) {
             Map<String, Object> m = new LinkedHashMap<>(s);
             Map<String, Object> last = db.one("SELECT id, status FROM runs WHERE source = ? ORDER BY created DESC LIMIT 1", "schedule:" + s.get("id"));
             if (last != null) { m.put("last_run_id", last.get("id")); m.put("last_status", last.get("status")); }
@@ -2369,7 +2382,7 @@ public final class ControlRoom {
 
     public Map<String, Object> schedule(User by, String sid) {
         require(by, "schedules.view", "view schedules");
-        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", sid));
         if (s == null) throw notFound("Schedule");
         return s;
     }
@@ -2392,7 +2405,7 @@ public final class ControlRoom {
         if (action.equals("owner") && (owner == null || db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", owner) == null)) throw notFound("User " + owner);
         int n = 0;
         for (String id : ids) {
-            Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", id);
+            Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", id));
             if (s == null) continue;
             switch (action) {
                 case "enable" -> n += db.update("UPDATE schedules SET enabled = TRUE, next_run = ? WHERE id = ?", nextRun(s, now()), id);
@@ -2408,7 +2421,7 @@ public final class ControlRoom {
     /** Starts a schedule's bot now, with its device and inputs, as the person who asked. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> runScheduleNow(User by, String sid, String ip) {
-        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", sid));
         if (s == null) throw notFound("Schedule");
         Map<String, Object> inputs = s.get("inputs") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) s.get("inputs"));
         return startRun(by.username(), by.role(), (String) s.get("bot_path"), (String) s.get("device_id"), (String) s.get("pool_id"), inputs, "schedule:" + sid, ip, 0, null, (String) s.get("run_as"), null);
@@ -2416,7 +2429,7 @@ public final class ControlRoom {
 
     public void setScheduleEnabled(User by, String sid, boolean en, String ip) {
         require(by, "schedules.manage", "manage schedules");
-        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", sid));
         if (s == null) throw notFound("Schedule");
         db.update("UPDATE schedules SET enabled = ?, next_run = ? WHERE id = ?", en, en ? nextRun(s, now()) : null, sid);
         audit.record(by.username(), en ? "schedule.enable" : "schedule.disable", "schedule", sid, null, "ok", ip);
@@ -2446,7 +2459,7 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     public int tickSchedules() {
         int started = 0;
-        for (Map<String, Object> s : db.query("SELECT * FROM schedules WHERE enabled = TRUE AND next_run <= ?", now())) {
+        for (Map<String, Object> s : scheduleRows(db.query("SELECT * FROM schedules WHERE enabled = TRUE AND next_run <= ?", now()))) {
             Instant due = Instant.parse(s.get("next_run").toString());
             Instant next;
             try { next = nextRun(s, now()); }

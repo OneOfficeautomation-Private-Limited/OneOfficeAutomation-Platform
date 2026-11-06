@@ -40,9 +40,9 @@ class MonthlyCronSchedulesTest {
 
     @Test void aMonthlyScheduleStoresItsRuleAndRunsOnItsDays() {
         Map<String, Object> r = cr.createSchedule(admin, draft("name", "Month end", "kind", "monthly", "rule", "days=L, 1 ;every=1", "at_time", "18:00", "time_zone", "Europe/London"), null);
-        Map<String, Object> row = db.one("SELECT kind, rule, at_time, every_minutes, days, next_run FROM schedules WHERE id = ?", r.get("id"));
+        Map<String, Object> row = db.one("SELECT kind, timing_rule, at_time, every_minutes, days, next_run FROM schedules WHERE id = ?", r.get("id"));
         assertEquals("monthly", row.get("kind"));
-        assertEquals("days=1,last", row.get("rule"), "stored the tidy way");
+        assertEquals("days=1,last", row.get("timing_rule"), "stored the tidy way");
         assertEquals("18:00", row.get("at_time"));
         assertNull(row.get("days"));
         ZonedDateTime next = Instant.parse(r.get("next_run").toString()).atZone(ZoneId.of("Europe/London"));
@@ -50,7 +50,7 @@ class MonthlyCronSchedulesTest {
         assertTrue(next.getDayOfMonth() == 1 || next.getDayOfMonth() == next.toLocalDate().lengthOfMonth(), next.toString());
         // every N months keeps the month counting starts from
         Map<String, Object> q = cr.createSchedule(admin, draft("kind", "monthly", "rule", "weekday=first mon;every=3", "at_time", "09:00", "time_zone", "UTC"), null);
-        String rule = (String) db.one("SELECT rule FROM schedules WHERE id = ?", q.get("id")).get("rule");
+        String rule = (String) db.one("SELECT timing_rule FROM schedules WHERE id = ?", q.get("id")).get("timing_rule");
         assertEquals("weekday=first MON;every=3;start=" + YearMonth.now(ZoneOffset.UTC), rule);
         List<Map<String, Object>> audit = db.query("SELECT details FROM audit WHERE action = 'schedule.create' AND object_id = ?", q.get("id"));
         assertTrue(String.valueOf(audit.get(0).get("details")).contains("weekday=first MON"), "the audit trail names the rule");
@@ -58,13 +58,13 @@ class MonthlyCronSchedulesTest {
 
     @Test void aCronScheduleFollowsItsExpression() {
         Map<String, Object> r = cr.createSchedule(admin, draft("kind", "cron", "rule", "  0  9 * *   MON-FRI ", "time_zone", "America/New_York"), null);
-        Map<String, Object> row = db.one("SELECT rule, at_time, next_run FROM schedules WHERE id = ?", r.get("id"));
-        assertEquals("0 9 * * MON-FRI", row.get("rule"));
+        Map<String, Object> row = db.one("SELECT timing_rule, at_time, next_run FROM schedules WHERE id = ?", r.get("id"));
+        assertEquals("0 9 * * MON-FRI", row.get("timing_rule"));
         assertNull(row.get("at_time"), "a cron schedule's time is in its expression");
         ZonedDateTime next = Instant.parse(r.get("next_run").toString()).atZone(ZoneId.of("America/New_York"));
         assertEquals(LocalTime.of(9, 0), next.toLocalTime());
         assertTrue(next.getDayOfWeek().getValue() <= 5);
-        assertEquals("0 0 17 ? * 6#1", db.one("SELECT rule FROM schedules WHERE id = ?", cr.createSchedule(admin, draft("kind", "cron", "rule", "0 0 17 ? * 6#1"), null).get("id")).get("rule"));
+        assertEquals("0 0 17 ? * 6#1", db.one("SELECT timing_rule FROM schedules WHERE id = ?", cr.createSchedule(admin, draft("kind", "cron", "rule", "0 0 17 ? * 6#1"), null).get("id")).get("timing_rule"));
     }
 
     @Test void badRulesAreRefusedWithAnExample() {
@@ -146,7 +146,7 @@ class MonthlyCronSchedulesTest {
         db.update("UPDATE schedules SET enabled = FALSE");
         Map<String, Object> ok = cr.createSchedule(admin, draft("name", "fine", "kind", "cron", "rule", "* * * * *"), null);
         Map<String, Object> broken = cr.createSchedule(admin, draft("name", "broken", "kind", "cron", "rule", "* * * * *"), null);
-        db.update("UPDATE schedules SET rule = 'not a rule', next_run = ? WHERE id = ?", Instant.now().minus(5, ChronoUnit.SECONDS), broken.get("id"));
+        db.update("UPDATE schedules SET timing_rule = 'not a rule', next_run = ? WHERE id = ?", Instant.now().minus(5, ChronoUnit.SECONDS), broken.get("id"));
         db.update("UPDATE schedules SET next_run = ? WHERE id = ?", Instant.now().minus(5, ChronoUnit.SECONDS), ok.get("id"));
         assertEquals(1, cr.tickSchedules());
         assertNull(db.one("SELECT next_run FROM schedules WHERE id = ?", broken.get("id")).get("next_run"));
@@ -158,12 +158,12 @@ class MonthlyCronSchedulesTest {
     @Test void aDatabaseAt36GetsTheRuleColumn() throws Exception {
         try (Db old = SchemaUpgradeTest.fresh()) {
             SchemaUpgradeTest.upTo(old, 36);
-            assertFalse(SchemaUpgradeTest.has(old, "SELECT rule FROM schedules WHERE 1 = 0"));
+            assertFalse(SchemaUpgradeTest.has(old, "SELECT timing_rule FROM schedules WHERE 1 = 0"));
             old.update("INSERT INTO schedules (id, name, bot_path, device_id, kind, at_time, time_zone, inputs, enabled, created_by) VALUES ('s1', 'old', 'A/B.flow.json', 'd1', 'daily', '08:00', 'UTC', '{}', TRUE, 'admin')");
             old.migrate();
             assertEquals(Db.LATEST, old.schemaVersion());
-            assertTrue(SchemaUpgradeTest.has(old, "SELECT rule FROM schedules WHERE 1 = 0"));
-            assertNull(old.one("SELECT rule FROM schedules WHERE id = 's1'").get("rule"), "schedules made before keep working without a rule");
+            assertTrue(SchemaUpgradeTest.has(old, "SELECT timing_rule FROM schedules WHERE 1 = 0"));
+            assertNull(old.one("SELECT timing_rule FROM schedules WHERE id = 's1'").get("timing_rule"), "schedules made before keep working without a rule");
             assertTrue(Db.ddl("ALTER TABLE schedules ADD COLUMN rule VARCHAR(200)", true).contains("NVARCHAR(200)"), "SQL Server gets Unicode text");
         }
     }

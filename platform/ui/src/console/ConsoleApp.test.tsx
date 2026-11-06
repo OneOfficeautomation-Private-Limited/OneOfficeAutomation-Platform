@@ -1718,7 +1718,10 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await within(k).findByText("The minute 61 is not between 0 and 59 (in '61')")).toBeTruthy();
     fireEvent.change(within(k).getByLabelText("Cron expression"), { target: { value: "0 0 9 ? * MON#1" } });
     await within(k).findByRole("list", { name: "Next runs" });
+    // the preview is fetched after a short pause: wait until the earlier error is gone before saving
+    await waitFor(() => expect(within(k).queryByText("The minute 61 is not between 0 and 59 (in '61')")).toBeNull());
     await act(async () => { fireEvent.click(within(k).getByRole("button", { name: "Create schedule" })); });
+    await waitFor(() => expect(calls.filter((x) => x.method === "POST" && x.route === "schedules")).toHaveLength(2));
     const sent = calls.filter((x) => x.method === "POST" && x.route === "schedules").pop()!;
     expect(sent.body).toEqual(expect.objectContaining({ kind: "cron", rule: "0 0 9 ? * MON#1" }));
     expect((sent.body as Record<string, unknown>).at_time).toBeUndefined();

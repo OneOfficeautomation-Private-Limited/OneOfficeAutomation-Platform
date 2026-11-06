@@ -681,12 +681,13 @@ public final class Db implements AutoCloseable {
     };
 
     /**
-     * Version 38 (gap G35, 5 Nov 2026): monthly and cron schedules. A schedule's rule: for kind monthly the days
+     * Version 38 (gap G35, 5 Nov 2026): monthly and cron schedules. A schedule's rule (column timing_rule, as RULE is a
+     * reserved word in SQL Server; the API calls it rule): for kind monthly the days
      * (days=1,15,last or weekday=first MON, with every=N months from start=YYYY-MM and missing=skip|last), for kind
      * cron the expression (five fields, or Quartz's six or seven). Read by ScheduleRules.
      */
     private static final String[] SCHEMA_V38 = {
-        "ALTER TABLE schedules ADD COLUMN rule VARCHAR(200)",
+        "ALTER TABLE schedules ADD COLUMN timing_rule VARCHAR(200)",
     };
 
     /** The schema version this release needs. */
