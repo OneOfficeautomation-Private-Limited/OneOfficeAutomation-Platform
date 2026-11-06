@@ -15,6 +15,7 @@ import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
 import { ConnectionWizard } from "./ConnectionWizard";
 import { agentRows, allInstalled } from "./toolkits";
+import type { Captured } from "./capture";
 import { oneStep, runOnce } from "./runOnce";
 
 /**
@@ -491,7 +492,23 @@ export function App({ api: given }: { api?: StudioApi }) {
           // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
           const cr = info?.controlRoom;
           if (!cr) { setNotice("Connect One AgentStudio to One CommandCenter to add this trigger."); return; }
-          window.open(cr + "next/#/triggers?" + new URLSearchParams({ new: kind, bot: agent.path }).toString(), "_blank", "noopener");
+          const url = (extra: Record<string, string> = {}) => cr + "next/#/triggers?" + new URLSearchParams({ new: kind, bot: agent.path, ...extra }).toString();
+          if (kind !== "mouse_clicked") { window.open(url(), "_blank", "noopener"); return; }
+          // a click trigger: the element picker first (as Capture), then Create trigger with its window and element filled in.
+          // The tab opens now, while the click still counts as the person's, and gets its address after the capture.
+          const tab = window.open("about:blank", "_blank");
+          if (tab) tab.opener = null;
+          setNotice("Hover over the control the person will click (a red frame follows the pointer), then press Ctrl+Shift+C.");
+          api.captureDesktop({ timeout_seconds: 60, screenshot: false, highlight: true }).then((r) => {
+            const c = (r.object ?? r) as Captured;
+            const prop = (n: string) => String((c.properties ?? []).find((x) => x.name === n)?.value ?? "");
+            const w = typeof c.window === "object" && c.window ? c.window : {};
+            const to = url({ ...(w.title ? { window: w.title } : {}), ...(w.process ? { process: w.process } : {}),
+              ...(prop("Name") ? { element_name: prop("Name") } : {}), ...(prop("ControlType") ? { element_type: prop("ControlType") } : {}),
+              ...(prop("AutomationId") ? { automation_id: prop("AutomationId") } : {}) });
+            if (tab) tab.location.href = to; else window.open(to, "_blank", "noopener");
+            setNotice("Captured " + (prop("ControlType") || "a control") + "; finish the trigger in One CommandCenter.");
+          }, (e) => { tab?.close(); fail(e); });
         }} />}
         <main className="st-main">
           {tabs.length > 0 && (

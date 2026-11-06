@@ -1,0 +1,17 @@
+[
+ {"command": "ooa.triggerloop/key_pressed", "name": "plain typing keys are refused (typed text is never watched)", "vars": {"n": 0},
+  "steps": [{"action": "core/loop", "args": {"iterator": "ooa.triggerloop/key_pressed", "iterator_args": {"key": "A", "max_seconds": 1}, "as": "ev"},
+    "children": [{"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}]}], "error": "TRIGGER.BAD_KEY"},
+ {"command": "ooa.triggerloop/key_pressed", "name": "SHIFT with a letter is still typing", "vars": {"n": 0},
+  "steps": [{"action": "core/loop", "args": {"iterator": "ooa.triggerloop/key_pressed", "iterator_args": {"key": "SHIFT+A", "window": "*Invoice*", "max_seconds": 1}, "as": "ev"},
+    "children": [{"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}]}], "error": "TRIGGER.BAD_KEY"},
+ {"command": "ooa.triggerloop/key_pressed", "name": "one key besides the modifiers", "vars": {"n": 0},
+  "steps": [{"action": "core/loop", "args": {"iterator": "ooa.triggerloop/key_pressed", "iterator_args": {"key": "CTRL+F1+F2", "max_seconds": 1}, "as": "ev"},
+    "children": [{"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}]}], "error": "TRIGGER.BAD_KEY"},
+ {"command": "ooa.triggerloop/mouse_clicked", "name": "a click loop needs the window or the program", "vars": {"n": 0},
+  "steps": [{"action": "core/loop", "args": {"iterator": "ooa.triggerloop/mouse_clicked", "iterator_args": {"element_name": "Submit", "max_seconds": 1}, "as": "ev"},
+    "children": [{"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}]}], "error": "TRIGGER.BAD_CLICK"},
+ {"command": "ooa.triggerloop/mouse_clicked", "name": "an unknown mouse button is refused", "vars": {"n": 0},
+  "steps": [{"action": "core/loop", "args": {"iterator": "ooa.triggerloop/mouse_clicked", "iterator_args": {"window": "*Invoice*", "button": "fourth", "max_seconds": 1}, "as": "ev"},
+    "children": [{"action": "core/set", "args": {"variable": "n", "value": {"expr": "$n + 1"}}}]}], "error": "TRIGGER.BAD_CLICK"}
+]

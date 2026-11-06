@@ -6,6 +6,7 @@
 export type F = [key: string, label: string, placeholder?: string, value?: string, type?: "number" | "check", checked?: boolean];
 const FOLDER: F[] = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
 const INTERVAL: F = ["interval_seconds", "Check every (seconds, 15 or more)", "60", "60", "number"];
+const DEBOUNCE: F = ["debounce_ms", "Ignore repeats within (milliseconds)", "500", "500", "number"];
 const MAIL_FILTERS: F[] = [["from_contains", "From contains (optional)", "billing@"], ["subject_contains", "Subject contains (optional)", "Invoice"]];
 export const KINDS: Record<string, { label: string; fields: F[]; help: string }> = {
   file: { label: "File arrives in a folder", fields: FOLDER, help: "Watched on the runner. The agent gets the path in trigger_file and all details in trigger_event." },
@@ -20,6 +21,15 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
   service_started: { label: "Service started", fields: [["service", "Windows service name", "Spooler"]], help: "Windows runners. Use the service name (sc query), not the display name. Input: trigger_service." },
   service_stopped: { label: "Service stopped", fields: [["service", "Windows service name", "Spooler"]], help: "Windows runners. Input: trigger_service." },
   hotkey: { label: "Hotkey pressed", fields: [["hotkey", "Key combination", "CTRL+ALT+F9"]], help: "Windows runners with a signed-in desktop. The combination must not be used by another program. Input: trigger_hotkey." },
+  key_pressed: { label: "Key pressed in a window", fields: [["key", "Key or combination", "CTRL+ENTER"], ["window", "Only in this window (title, optional)", "*Invoice*"],
+    ["process", "Only in this program (optional)", "erp.exe"], DEBOUNCE],
+    help: "Windows runners with a signed-in desktop. Fires when this key or combination is pressed, such as F9, CTRL+ENTER or SHIFT+F2; the key still reaches the application. "
+      + "Typed text is never recorded: the agent gets only the key, the window title and the program. Letters and digits need CTRL, ALT or WIN. Input: trigger_key." },
+  mouse_clicked: { label: "Mouse click on an element or window", fields: [["window", "Window title pattern", "*Invoice*"], ["process", "Or program", "erp.exe"],
+    ["button", "Mouse button (left, right, middle or any)", "left", "left"], ["element_name", "Element name (optional)", "Submit"], ["element_type", "Element type (optional)", "Button"],
+    ["automation_id", "Automation id (optional)", "btnSubmit"], DEBOUNCE],
+    help: "Windows runners with a signed-in desktop. Fires when the person clicks in this window, or on this element only. In One AgentStudio, pick this event to capture the element. "
+      + "The agent gets the button, window, program and the element's name and type, never screen contents. Clicks made by programs are ignored. Input: trigger_click." },
   email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
     ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...MAIL_FILTERS, INTERVAL],
     help: "Checked by One CommandCenter. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
@@ -36,5 +46,5 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
     help: "Checked by One CommandCenter. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
   webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the address and secret after creating it." },
 };
-export const TRIGGER_GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey"]],
+export const TRIGGER_GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey", "key_pressed", "mouse_clicked"]],
   ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];

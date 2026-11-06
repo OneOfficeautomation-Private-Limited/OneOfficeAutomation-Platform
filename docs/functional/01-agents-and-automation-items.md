@@ -124,7 +124,7 @@ value and an optional description.
 | Input name | Filled by |
 | --- | --- |
 | `work_item`, `work_item_id` | Work queue processing ([document 05](05-work-queues.md)) |
-| `trigger_event` and, by kind, `trigger_file`, `trigger_window`, `trigger_process`, `trigger_service`, `trigger_hotkey`, `trigger_email`, `trigger_record`, `trigger_item`, `payload` | Triggers ([document 04](04-schedules-and-triggers.md)) |
+| `trigger_event` and, by kind, `trigger_file`, `trigger_window`, `trigger_process`, `trigger_service`, `trigger_hotkey`, `trigger_key`, `trigger_click`, `trigger_email`, `trigger_record`, `trigger_item`, `payload` | Triggers ([document 04](04-schedules-and-triggers.md)) |
 
 ## 5. Built-in values ($sys and $global)
 

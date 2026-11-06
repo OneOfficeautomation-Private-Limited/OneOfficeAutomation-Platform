@@ -50,7 +50,8 @@ class TriggerApiTest {
         ControlRoom.User admin = cr.session(token);
         @SuppressWarnings("unchecked") Map<String, Object> flow = (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"on_event\",\"name\":\"On event\",\"description\":\"Reacts to triggers\","
                 + "\"variables\":[{\"name\":\"note\",\"type\":\"String\",\"direction\":\"output\"},{\"name\":\"trigger_event\",\"type\":\"Dictionary\",\"direction\":\"input\"},"
-                + "{\"name\":\"trigger_item\",\"type\":\"Dictionary\",\"direction\":\"input\"},{\"name\":\"trigger_window\",\"type\":\"String\",\"direction\":\"input\"}],"
+                + "{\"name\":\"trigger_item\",\"type\":\"Dictionary\",\"direction\":\"input\"},{\"name\":\"trigger_window\",\"type\":\"String\",\"direction\":\"input\"},"
+                + "{\"name\":\"trigger_key\",\"type\":\"String\",\"direction\":\"input\"},{\"name\":\"trigger_click\",\"type\":\"String\",\"direction\":\"input\"}],"
                 + "\"steps\":[{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"note\",\"value\":\"ok\"}}]}");
         cr.checkin(admin, "Ops/On event.flow.json", flow, "first", true, null);
         Map<String, Object> dev = cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null);
@@ -144,6 +145,15 @@ class TriggerApiTest {
         bad.put("path as process", body("process_started", "process", "C:\\x\\excel.exe"));
         bad.put("bad service", body("service_started", "service", "Spool;er"));
         bad.put("bad hotkey", body("hotkey", "hotkey", "CTRL+ALT+F9!"));
+        bad.put("key press without key", body("key_pressed", "window", "*Invoice*"));
+        bad.put("plain typing key", body("key_pressed", "key", "A"));
+        bad.put("shifted typing key", body("key_pressed", "key", "SHIFT+A"));
+        bad.put("two keys", body("key_pressed", "key", "CTRL+A+B"));
+        bad.put("unknown key", body("key_pressed", "key", "CTRL+FOO"));
+        bad.put("debounce too long", body("key_pressed", "key", "F9", "debounce_ms", 120000));
+        bad.put("click without window", body("mouse_clicked", "element_name", "Submit"));
+        bad.put("unknown button", body("mouse_clicked", "window", "*Invoice*", "button", "fourth"));
+        bad.put("click process path", body("mouse_clicked", "process", "C:\\apps\\erp.exe"));
         bad.put("servicenow without credentials", body("servicenow", "instance_url", "https://a.service-now.com", "table", "incident"));
         bad.put("outlook app without mailbox", body("outlook", "tenant_id", "t", "client_id", "c", "client_secret_ref", "a/b/c"));
         bad.put("no folder", body("folder_deleted"));
@@ -186,6 +196,37 @@ class TriggerApiTest {
         String server = create(body("http_poll", "url", "https://api.example.com/x", "id_field", "id"));
         assertEquals("CR.BAD_TRIGGER", agent("trigger-fired", Map.of("trigger_id", server, "event", Map.of())).code(), "runners cannot fire server triggers");
         assertEquals("CR.NOT_FOUND", call("POST", "/api/triggers/nope/pause", null).code());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void keyPressAndClickTriggersAreRunnerTriggersWithNamedKeysOnly() throws Exception {
+        String key = create(body("key_pressed", "key", "ctrl + return", "window", "*Invoice*"));
+        Map<String, Object> cfg = (Map<String, Object>) listed(key).get("config");
+        assertEquals("CTRL+ENTER", cfg.get("key"), "the combination is stored in one spelling");
+        assertEquals("*Invoice*", cfg.get("window"));
+        assertEquals(500, ((Number) cfg.get("debounce_ms")).intValue(), "debounce defaults to half a second");
+        assertEquals(true, listed(key).get("windows_only"));
+        String click = create(body("mouse_clicked", "process", "erp.exe", "element_name", "Submit", "element_type", "Button", "debounce_ms", 1000));
+        Map<String, Object> ccfg = (Map<String, Object>) listed(click).get("config");
+        assertEquals("left", ccfg.get("button"));
+        assertEquals("Button", ccfg.get("element_type"));
+        assertEquals("F9", ((Map<String, Object>) listed(create(body("key_pressed", "key", "f9"))).get("config")).get("key"), "F-keys work alone");
+
+        String local = JsonLite.write(agent("heartbeat", Map.of()).body().get("local_triggers"));
+        assertTrue(local.contains(key) && local.contains(click), "the runner watches them");
+
+        R fired = agent("trigger-fired", Map.of("trigger_id", key, "event", Map.of("key", "CTRL+ENTER", "window", "Invoice 42 - ERP", "process", "erp.exe")));
+        assertEquals(200, fired.status(), String.valueOf(fired.body()));
+        Map<String, Object> in = (Map<String, Object>) JsonLite.parse((String) db.one("SELECT inputs FROM runs WHERE id = ?", fired.body().get("run_id")).get("inputs"));
+        assertEquals("CTRL+ENTER", in.get("trigger_key"));
+        assertEquals("Invoice 42 - ERP", ((Map<String, Object>) in.get("trigger_event")).get("window"));
+
+        fired = agent("trigger-fired", Map.of("trigger_id", click, "event", Map.of("button", "left", "window", "ERP", "process", "erp.exe", "element_name", "Submit", "element_type", "Button")));
+        in = (Map<String, Object>) JsonLite.parse((String) db.one("SELECT inputs FROM runs WHERE id = ?", fired.body().get("run_id")).get("inputs"));
+        assertEquals("Submit", in.get("trigger_click"), "the clicked element's name");
+        fired = agent("trigger-fired", Map.of("trigger_id", click, "event", Map.of("button", "left", "window", "ERP main", "process", "erp.exe", "element_name", "")));
+        in = (Map<String, Object>) JsonLite.parse((String) db.one("SELECT inputs FROM runs WHERE id = ?", fired.body().get("run_id")).get("inputs"));
+        assertEquals("ERP main", in.get("trigger_click"), "else the window title");
     }
 
     @SuppressWarnings("unchecked")

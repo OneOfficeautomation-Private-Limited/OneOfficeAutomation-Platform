@@ -11,7 +11,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
 
-/** Win32 desktop access for interrupt rules and runner triggers: window titles, close and activate, global hotkeys. */
+/** Win32 desktop access for interrupt rules and runner triggers: window titles, close and activate, global hotkeys, key-press and click hooks. */
 public final class JnaDesktopEvents implements DesktopEvents {
     private static final int WM_CLOSE = 0x0010, WM_QUIT = 0x0012, WM_HOTKEY = 0x0312, SW_RESTORE = 9;
 
@@ -41,6 +41,11 @@ public final class JnaDesktopEvents implements DesktopEvents {
     @Override public Optional<int[]> windowBounds(String pattern) {
         return first(pattern).map(w -> { WinDef.RECT r = new WinDef.RECT(); User32.INSTANCE.GetWindowRect(w.hwnd(), r); return new int[]{r.left, r.top, r.right - r.left, r.bottom - r.top}; });
     }
+
+    private final JnaInputHooks input = new JnaInputHooks();
+
+    /** Low-level keyboard and mouse hooks for key-press and click triggers. */
+    @Override public Optional<com.oneofficeautomation.packages.ui.InputTriggers.Native> input() { return Optional.of(input); }
 
     /** Registers the hotkey on its own thread, which then runs the Win32 message loop that receives WM_HOTKEY. */
     @Override public AutoCloseable onHotkey(String combination, Runnable onPress) {

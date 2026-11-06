@@ -36,7 +36,9 @@ OneRunner is the program that runs agents. It registers once with One CommandCen
 - keeps one request open so that queued work, and stop or pause requests, reach it at once;
 - runs each agent in its own process, so a crashing agent never stops the runner;
 - reports every step, log line and variable back to One CommandCenter;
-- watches its own machine for runner triggers (files, windows, processes, services, hotkeys) every two seconds.
+- watches its own machine for runner triggers (files, windows, processes, services, hotkeys) every two seconds, and,
+  on Windows with a signed-in desktop, listens for key-press and click triggers through input hooks (typed text is
+  never recorded).
 
 Its workspace is `C:\Users\<you>\OOA Agent Workspace`; log files are in its `logs` folder (one file per run, named by
 run id). Its registration is saved in `~/.ooa-agent/agent.json` by default.
