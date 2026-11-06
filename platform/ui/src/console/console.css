@@ -836,3 +836,7 @@ a.ov-tab { text-decoration: none; }
 .cc-ev-types { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .cc-ev-types strong { margin-bottom: 2px; }
 .cc-ev-types .st-check-line { display: flex; align-items: center; gap: 6px; }
+/* G43: phone notifications, the server and topic to subscribe to */
+.cc-push-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+.cc-push-facts dt { font-weight: 600; }
+.cc-push-facts dd { margin: 0; overflow-wrap: anywhere; }

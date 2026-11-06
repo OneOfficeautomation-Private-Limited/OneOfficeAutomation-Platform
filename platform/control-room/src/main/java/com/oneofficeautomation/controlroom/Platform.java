@@ -121,6 +121,12 @@ public final class Platform {
         // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
         DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
         DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
+        // approving outside the Task inbox (G43)
+        DEFAULTS.put("task_action_links", 0);           // approvals carry each person's own signed Approve and Reject links (needs public_url)
+        DEFAULTS.put("task_link_hours", 72);            // how long those links work
+        DEFAULTS.put("teams_approval_webhook_ref", ""); // a vault reference to a Teams Workflows webhook address: new tasks post a card there
+        DEFAULTS.put("push_server", "");                // an ntfy server for phone notifications, e.g. https://ntfy.sh or one on the company network
+        DEFAULTS.put("push_token_ref", "");             // a vault reference to that server's access token, when it needs one
         DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
         DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
         DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token
@@ -201,6 +207,8 @@ public final class Platform {
         Map.entry("events_allow_private", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
+        Map.entry("task_action_links", new long[] { 0, 1 }),
+        Map.entry("task_link_hours", new long[] { 1, 720 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
         Map.entry("ldap_nested_groups", new long[] { 0, 1 }),
         Map.entry("value_goal_money", new long[] { 0, 1_000_000_000_000L }));
@@ -342,6 +350,10 @@ public final class Platform {
                 if (k.equals("siem_https_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
                     throw new OoaException("CR.BAD_INPUT", "The SIEM address starts with https://, for example https://splunk.example.com:8088/services/collector/event");
                 if (k.equals("siem_https_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The SIEM token is a vault reference: vault folder/credential/attribute");
+                if ((k.equals("teams_approval_webhook_ref") || k.equals("push_token_ref")) && !s.isEmpty() && s.split("/").length != 3)
+                    throw new OoaException("CR.BAD_INPUT", "This is a vault reference: vault folder/credential/attribute", "Keep the secret in the vault and give where it is.");
+                if (k.equals("push_server") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s?#]*"))
+                    throw new OoaException("CR.BAD_INPUT", "The push server is a web address such as https://ntfy.sh");
                 if (k.equals("siem_https_auth") && !s.equals("bearer") && !s.equals("splunk")) throw new OoaException("CR.BAD_INPUT", "The SIEM sign-in is bearer or splunk");
                 if (k.equals("promotion_targets") && !s.isEmpty())
                     for (String t : s.split("[,;\\s]+"))

@@ -75,6 +75,23 @@ What happens after a rejection was decided by whoever designed the workflow: it 
 an earlier stage (for example back to the requester to correct the form). Every decision is recorded in Audit Trail
 with your name.
 
+### Approve from e-mail, Teams or your phone
+
+When your administrator allows it, you can approve without opening One CommandCenter:
+
+- **E-mail (Outlook or any mail program):** the e-mail about a new approval has an **Approve** link and a **Reject**
+  link. They are made for you alone, so do not forward the e-mail.
+- **Teams:** an approval given only to you is posted in your team's channel with **Approve** and **Reject** buttons.
+  Tasks for a group show **Open the task**.
+- **Your phone:** open your account menu (top right), choose **Phone notifications** and press **Turn on**. In the free
+  **ntfy** app, subscribe to the server and topic shown. New tasks then appear on your phone, and approvals come with
+  **Approve** and **Reject** buttons. **Send a test** checks it works. **New topic** replaces your topic if the phone
+  is lost (the old topic stops working), and **Turn off** stops the notifications.
+
+Each link or button opens a page that shows what the request is and asks you to confirm, with room for a comment.
+Nothing is decided until you press **Approve** or **Reject** on that page. A link stops working after the time your
+administrator set, after the task is decided, and when the task is no longer yours.
+
 ## 5. Take a task, or give it back
 
 When a task is assigned to a role, several people see it. To avoid two people doing the same work:

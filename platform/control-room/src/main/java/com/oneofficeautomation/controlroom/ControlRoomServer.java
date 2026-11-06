@@ -75,6 +75,18 @@ public final class ControlRoomServer {
         writeBody(ex, status, b);
     }
 
+    /** A form post (application/x-www-form-urlencoded) as name to value. */
+    static Map<String, String> formFields(String body) {
+        Map<String, String> out = new HashMap<>();
+        for (String pair : body.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            try { out.put(java.net.URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8), java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8)); }
+            catch (IllegalArgumentException ignored) { }
+        }
+        return out;
+    }
+
     private static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
 
     /**
@@ -489,6 +501,21 @@ public final class ControlRoomServer {
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
             return;
         }
+        // approving from e-mail, Teams or a phone (G43): the signed link is the sign-in; the page asks to confirm first
+        if (seg.length == 2 && seg[0].equals("tasks") && seg[1].equals("act") && (m.equals("GET") || m.equals("POST"))) {
+            String page;
+            if (m.equals("GET")) page = cr.taskChannels.page(q.get("t"));
+            else {
+                Map<String, String> f = formFields(new String(ex.getRequestBody().readNBytes(16_384), StandardCharsets.UTF_8));
+                page = cr.taskChannels.act(f.get("t"), f.get("comment"), ip);
+            }
+            byte[] b = page.getBytes(StandardCharsets.UTF_8);
+            securityHeaders(ex);
+            ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+            ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+            writeBody(ex, 200, b);
+            return;
+        }
         // long-running agents (G36): a one-time callback URL; the token is the secret, the body at most 64 KB
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("callbacks")) {
             byte[] raw = ex.getRequestBody().readNBytes(RunWaits.MAX_CALLBACK_BODY + 1);
@@ -697,6 +724,12 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, cr.db.info());
             }
             case "settings" -> {
+                // G43: phone notifications for the signed-in person, and a test card for the Teams channel
+                if (route.equals("me/push") && m.equals("GET")) { sendJson(ex, 200, cr.taskChannels.pushStatus(u)); return; }
+                if (route.equals("me/push") && m.equals("POST")) { sendJson(ex, 200, cr.taskChannels.pushEnable(u, ip)); return; }
+                if (route.equals("me/push") && m.equals("DELETE")) { cr.taskChannels.pushDisable(u, ip); sendJson(ex, 200, Map.of("ok", true)); return; }
+                if (route.equals("me/push/test") && m.equals("POST")) { sendJson(ex, 200, cr.taskChannels.pushTest(u)); return; }
+                if (m.equals("POST") && route.equals("settings/teams-test")) { sendJson(ex, 200, cr.taskChannels.teamsTest(u)); return; }
                 if (m.equals("GET") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, Map.of("tokens", cr.scim.tokens(u))); return; }
                 if (m.equals("POST") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, cr.scim.makeToken(u, (String) map(body(ex)).get("name"), ip)); return; }
                 if (m.equals("DELETE") && route.startsWith("settings/scim-tokens/") && seg.length == 3) { cr.scim.revokeToken(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); return; }

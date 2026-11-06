@@ -420,6 +420,13 @@ public final class VaultAdmin {
                 db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, s[1])), s[0]);
                 k++;
             }
+            // people's phone notification topics (G43)
+            for (Map<String, Object> r : db.query("SELECT name, json_value FROM settings WHERE name LIKE 'push_topic:%'")) {
+                String bound = String.valueOf(r.get("name"));
+                String plain = cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), bound);
+                db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, bound)), bound);
+                k++;
+            }
             // two-step sign-in secrets
             for (Map<String, Object> u : db.query("SELECT id, mfa_secret FROM users WHERE mfa_secret IS NOT NULL")) {
                 String bound = "mfa:" + u.get("id");

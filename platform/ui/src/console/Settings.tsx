@@ -150,6 +150,12 @@ const SECTIONS: Section[] = [
     { title: "Notifications", settings: [
       { key: "notify_run_failed", label: "E-mail people when a run they started fails", hint: "To the address on their account.", kind: "check" },
       { key: "notify_task_assigned", label: "E-mail people when a workflow gives them a task", hint: "Forms and approvals; not tasks for everyone.", kind: "check" }] },
+    { title: "Approvals outside the Task inbox", settings: [
+      { key: "task_action_links", label: "Approve and reject from e-mail, Teams and phone", hint: "Each person gets their own signed links. Needs the public address.", kind: "check" },
+      { key: "task_link_hours", label: "Links work for", hint: "1 to 720.", unit: "hours", kind: "number", min: 1, max: 720 },
+      { key: "teams_approval_webhook_ref", label: "Teams channel webhook", hint: VAULT_REF + " Empty: no Teams cards.", kind: "text", placeholder: "teams/approvals/url" },
+      { key: "push_server", label: "Push server for phones", hint: "An ntfy server. Empty: no phone notifications.", kind: "text", placeholder: "https://ntfy.sh" },
+      { key: "push_token_ref", label: "Push server token", hint: VAULT_REF + " Empty: none.", kind: "text", placeholder: "push/ntfy/token" }] },
     { title: "Proxy", settings: [
       { key: "outbound_proxy", label: "Proxy for outgoing connections", hint: "http://host:port. Empty: direct.", kind: "text", placeholder: "http://proxy.example.com:8080" },
       { key: "outbound_proxy_bypass", label: "Reach these directly", hint: "Host names; * allowed.", kind: "text", placeholder: "*.example.com, 10.*" }] },
@@ -350,6 +356,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       <Button kind="secondary" onClick={() => api.mailTest(to.trim()).then((r) => onNotice("Test e-mail sent to " + r.to + "."), fail)}>Send a test e-mail</Button>
       <Button kind="secondary" disabled={!form.syslog_target} onClick={() => api.syslogTest().then(() => onNotice("Test message sent to " + form.syslog_target + "."), fail)}>Send a test syslog message</Button>
       <Button kind="secondary" disabled={!form.siem_https_url} onClick={() => api.siemTest().then(() => onNotice("The HTTPS collector accepted a test entry."), fail)}>Send a test SIEM entry</Button>
+      <Button kind="secondary" disabled={!form.teams_approval_webhook_ref} onClick={() => api.teamsTest().then(() => onNotice("Teams accepted a test card."), fail)}>Send a test Teams card</Button>
     </div>}
     {section === "sso" && <ScimTokens api={api} publicUrl={String(form.public_url ?? "")} onNotice={onNotice} fail={fail} />}
     {section === "sso" && <div className="cc-inline cc-test">

@@ -28,6 +28,8 @@ public final class ControlRoom {
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults(this);
     public final Workflows workflows;
+    /** Approving from e-mail, Teams and a phone (G43). */
+    final ApprovalChannels taskChannels;
     public final TestSets testSets;
     public final Dashboards dashboards;
     public final CustomToolkits customToolkits;
@@ -169,6 +171,7 @@ public final class ControlRoom {
         });
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
+        this.taskChannels = new ApprovalChannels(this);
         this.testSets = new TestSets(this);
         this.dashboards = new Dashboards(this);
         this.teams = new Teams(this);
