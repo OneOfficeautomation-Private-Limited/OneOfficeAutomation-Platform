@@ -79,6 +79,7 @@ public final class Workflows {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> start(User by, String path, Map<String, Object> data, String reference, String ip) {
+        cr.licensing.requireFeature("workflows", "Workflows");
         cr.require(by, "runs.start", "start workflows");
         if (!isWorkflow(path)) throw new OoaException("CR.BAD_INPUT", path + " is not a workflow");
         Map<String, Object> c = cr.content(path, "production");

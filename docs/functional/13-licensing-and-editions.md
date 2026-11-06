@@ -121,9 +121,22 @@ folder, which keeps its data. Restart and install the licence. The full steps ar
 | Seat | Given to | Allows |
 | --- | --- | --- |
 | Developer | A person | Checking agents in (Studio, API); running agents by hand on their own default runner |
-| Citizen Developer | A person | The same as Developer |
+| Citizen Developer | A person | Checking in simpler agents: an agent that uses a toolkit in the setting `citizen_blocked_toolkits` (scripts, .NET/Java/COM code, the command line and command sessions at first) is refused for them (`CR.LICENSE_CITIZEN`). A person who also has a Developer seat is not limited |
 | Attended Runner | A person | Running agents by hand on their own default runner |
 | Unattended Runner | A runner | Taking any One CommandCenter work: manual, scheduled, triggered, API, work queues, workflows, tests |
+| Non-production Runner | A runner | Development and test only: runs started by hand, from Studio or by test sets; not scheduled, triggered, API, queue or workflow work |
+| Testing Runner | A runner | The runs of test sets only |
+
+**Feature tiers.** A licence may list the features it includes. A licence that lists none (every licence issued before
+6 November 2026) includes all of them. The features are `workflows`, `ai_agents`, `event_subscriptions`, `git_sync`,
+`insights_business` and `sso`. **Licenses** shows them under the edition. Today **Workflows** checks its feature: starting
+a workflow without it is refused with `CR.LICENSE_FEATURE`. The vendor's editions:
+
+| Edition | Features | For |
+| --- | --- | --- |
+| Community | None beyond agents and runners (the file lists `none`) | Individuals, learning and small teams, free; seats as issued |
+| Standard | workflows, insights_business, sso | Departments |
+| Enterprise | All (no list) | Companies |
 
 ## 6. What is enforced
 
@@ -253,7 +266,8 @@ ooa license issue --key "%USERPROFILE%\OOA License Keys\private.key" --customer 
 | `--expires YYYY-MM-DD` | Required | Last fully valid day; a date in the past is refused |
 | `--out FILE` | Required | The `.lic` file to write |
 | `--install-id ID` or `--any-install` | One is required | The customer's One CommandCenter, or any installation |
-| `--developer N`, `--citizen-developer N`, `--attended N`, `--unattended N` | 0 | Seats |
+| `--developer N`, `--citizen-developer N`, `--attended N`, `--unattended N`, `--nonproduction N`, `--testing N` | 0 | Seats |
+| `--features a,b` | The edition's list (none for Enterprise) | Features the licence includes; Community with no list gets `none` |
 | `--grace-days N` | 14 | Grace days (the product caps them at 90) |
 | `--edition NAME` | Enterprise | Edition name |
 | `--notes TEXT` | - | Free text in the file |

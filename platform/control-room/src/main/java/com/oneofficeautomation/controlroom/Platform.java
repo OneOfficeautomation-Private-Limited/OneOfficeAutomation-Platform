@@ -121,6 +121,8 @@ public final class Platform {
         // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
         DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
         DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
+        // G45: what a Citizen Developer seat cannot check in (scripts, code, the command line)
+        DEFAULTS.put("citizen_blocked_toolkits", "ooa.script, ooa.dotnet, ooa.shell, ooa.application");
         DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
         DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
         DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token

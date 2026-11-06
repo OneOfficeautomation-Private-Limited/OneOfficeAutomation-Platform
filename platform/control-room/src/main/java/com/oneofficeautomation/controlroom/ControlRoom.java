@@ -966,6 +966,7 @@ public final class ControlRoom {
     /** Validates and stores a new version. Existing bots must be checked out by the same user. */
     public Map<String, Object> checkin(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, String ip) {
         licensing.requireDeveloper(by);
+        licensing.checkCitizen(by, flow);
         return storeVersion(by, path, flow, comment, makeProduction, true, ip);
     }
 
