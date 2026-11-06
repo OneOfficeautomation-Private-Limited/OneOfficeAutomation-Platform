@@ -1518,6 +1518,11 @@ public final class ControlRoom {
             if (java.util.Arrays.asList("input", "in_out").contains(m.get("direction"))) declared.put(String.valueOf(m.get("name")), m);
         }
         for (var e : (inputs == null ? Map.<String, Object>of() : inputs).entrySet()) {
+            // a test case's mocks (G61) ride in a reserved input, for test-set runs only
+            if (TestSets.MOCKS_INPUT.equals(e.getKey())) {
+                if (source != null && source.startsWith("test:") && e.getValue() instanceof Map<?, ?>) { clean.put(e.getKey(), e.getValue()); continue; }
+                throw new OoaException("CR.BAD_INPUT", "Only test-set runs take mocks", "Put mocks on a test case (Agent tests).");
+            }
             Map<String, Object> var = declared.get(e.getKey());
             if (var == null) throw new OoaException("CR.BAD_INPUT", "The agent has no input named '" + e.getKey() + "'", "Inputs: " + declared.keySet());
             if ("Credential".equals(var.get("type")) && !(e.getValue() instanceof Map<?, ?> m && m.get("$credential") instanceof String))

@@ -180,6 +180,25 @@ jobs:
           pip install -e ".[test]"
           python -m pytest -q
 
+  ci-plugins:
+    name: CI plug-ins (GitHub Action against a stand-in)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start a stand-in of the test-set API
+        run: python3 platform/deploy/ci/github-action/stub_server.py 8799 &
+      - name: A test set whose cases all pass
+        uses: ./platform/deploy/ci/github-action
+        with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_pass, pool: pool_ci, timeout-minutes: "2" }
+      - name: A test set with a failing case (the step must fail)
+        id: failing
+        continue-on-error: true
+        uses: ./platform/deploy/ci/github-action
+        with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_fail, timeout-minutes: "2" }
+      - name: The failing set failed the step
+        run: test "${{ steps.failing.outcome }}" = "failure"
+
   headless:
     name: Headless runner (${{ matrix.os }})
     strategy:
