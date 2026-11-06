@@ -342,6 +342,7 @@ public final class Ooa {
             }
             case "install-task" -> { return WindowsService.installTask(o); }
             case "uninstall-task" -> { return WindowsService.uninstallTask(); }
+            case "autologon" -> { return com.oneofficeautomation.agent.AutoLogon.run(o, System.out); }   // G49
             default -> throw new IllegalArgumentException("Unknown runner command " + verb);
         }
     }

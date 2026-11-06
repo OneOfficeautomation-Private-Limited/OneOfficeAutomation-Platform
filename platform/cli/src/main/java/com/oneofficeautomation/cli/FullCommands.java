@@ -47,6 +47,11 @@ final class FullCommands {
         c.command("agent install-task", "Start the runner when you sign in to Windows (for runners that need a desktop).", a -> Ooa.agent("install-task", a.o()))
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent uninstall-task", "Stop starting the runner at sign-in.", a -> Ooa.agent("uninstall-task", a.o()));
+        c.command("agent autologon", "Let Windows sign the runner's user in by itself after a restart (as administrator; the password stays a protected Windows secret).",
+                a -> Ooa.agent("autologon", a.o()))
+            .opt("--user", "NAME", "The Windows account, NAME or DOMAIN\\NAME.").opt("--domain", "DOMAIN", "Its domain, when not in --user.")
+            .opt("--password-env", "VAR", "An environment variable holding the password (never typed on the command line).")
+            .flag("--off", "Stop signing in by itself and remove the stored password.").flag("--status", "Show whether it is on, and for whom.");
 
         c.group("db", "Set up and look after One CommandCenter database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")

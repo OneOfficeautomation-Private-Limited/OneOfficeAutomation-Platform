@@ -130,6 +130,25 @@ In **Manage > Runner Machines** the new runner appears with a green dot and **on
 | Service runner | `ooa service install --mode agent` (administrator prompt) | Starts with Windows and restarts after a failure (three times, a minute apart). Name "OOA Runner" unless `--name`; `--account DOMAIN\user --password-env VAR` to run as an account instead of Local System |
 | By hand | `ooa agent start` | Runs until you press Ctrl+C. Useful for testing |
 
+**Automatic sign-in after a restart.** An unattended runner whose agents use the screen needs a signed-in Windows
+desktop. `ooa agent autologon` makes Windows sign the runner's user in by itself after each restart. Run it on the
+runner from a Command Prompt or PowerShell opened as administrator, with the password in an environment variable so it
+is never typed on the command line:
+
+```
+set OOA_RUNNER_PW=...
+ooa agent autologon --user CORPobot1 --password-env OOA_RUNNER_PW
+set OOA_RUNNER_PW=
+```
+
+The password is kept as Windows' protected LSA secret, as Microsoft's Autologon tool keeps it, never as plain text in
+the registry, and it never goes to One CommandCenter. `--status` shows whether automatic sign-in is on and for whom
+(never the password), and warns when an old plain-text password is in the registry. `--off` turns it off and removes the
+password. Together with `ooa agent install-task` and **Lock the screen** after unattended runs (Runners > Update
+runners), the runner comes back signed in and taking work after every restart, and its screen is locked between runs.
+Automatic sign-in does not unlock a screen that is already locked: restart the machine, or sign in on its console.
+Use a dedicated runner account, and keep the machine physically and remotely protected, since it signs in by itself.
+
 Manage a service with `ooa service start|stop|status|uninstall --mode agent` or in Windows Services. Its log is
 `<data>\logs\service-agent.log`.
 
