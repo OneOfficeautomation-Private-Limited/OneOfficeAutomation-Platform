@@ -216,6 +216,9 @@ export type EventSubscriptionList = { subscriptions: EventSubscription[]; types:
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
   created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
+/** A knowledge base (G71): an index kept in One CommandCenter, filled by an indexing agent. */
+export type KnowledgeBase = { id: string; name: string; folder: string; description?: string; passages: number; documents: number; bytes: number;
+  created: string; created_by: string; updated?: string; updated_by_agent?: string; updated_by_run?: string };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -515,6 +518,10 @@ export class CrApi {
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
   async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
+  async knowledgeBases() { return (await this.call<{ knowledge_bases?: KnowledgeBase[] }>("GET", "knowledge-bases")).knowledge_bases ?? []; }
+  saveKnowledgeBase(id: string | null, body: { name: string; folder: string; description: string }) {
+    return this.call<KnowledgeBase>(id ? "PUT" : "POST", "knowledge-bases" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteKnowledgeBase(id: string) { await this.call("DELETE", "knowledge-bases/" + encodeURIComponent(id)); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----

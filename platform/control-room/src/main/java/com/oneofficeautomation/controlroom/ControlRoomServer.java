@@ -558,6 +558,7 @@ public final class ControlRoomServer {
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
             else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
+            else if (m.equals("POST") && route.equals("agent/knowledge")) sendJson(ex, 200, cr.knowledge.forRun(d, map(body(ex))));   // Knowledge bases (G71)
             else if (m.equals("POST") && route.equals("agent/locks")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.locks.forRun(d, (String) b.get("run_id"), b)); }   // Environment locks
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
@@ -1105,6 +1106,13 @@ public final class ControlRoomServer {
             case "metrics-token" -> {   // the bearer token for GET /metrics (G38), shown once
                 if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.metrics.makeToken(u, ip));
                 else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "knowledge-bases" -> {   // AI > Knowledge bases (G71)
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("knowledge_bases", cr.knowledge.list(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.knowledge.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.knowledge.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.knowledge.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash

@@ -20,7 +20,8 @@ Answer a question from a knowledge index: the best passages go to the model, whi
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Index file | `index_file` | File path | Yes |  | Main | The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller). |
+| Index file | `index_file` | File path | No |  | Main; choice Index = A file | The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller). Shown when: `{"knowledge_base": [""]}` |
+| Knowledge base | `knowledge_base` | Text | No |  | Main; choice Index = A knowledge base | A knowledge base kept in One CommandCenter (AI > Knowledge bases), by name; in Studio without One CommandCenter, knowledge-bases/<name>.json.gz in the work folder. Shown when: `{"index_file": [""]}` |
 | Question | `question` | Text | Yes |  | Main | The question. |
 | Top k | `top_k` | Number | No | `5` | Main | How many passages the model gets. Range: 1 to 20 |
 | Connection | `connection` | Text | No |  | Main; choice Model to answer with = A saved connection | Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action. |
@@ -56,8 +57,10 @@ Read documents (files or folders) and texts, split them into passages and write 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Files | `files` | List | No |  | Main | Files and folders to read (folders with their sub-folders). |
+| Urls | `urls` | List | No |  | Main | Web pages to read (https:// addresses of intranet or public pages; HTML, text or PDF). |
 | Texts | `texts` | List | No |  | Main | Texts to add, each a dictionary with source and text (for example from the PDF or OCR toolkit). |
-| Index file | `index_file` | File path | Yes |  | Main | The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller). |
+| Index file | `index_file` | File path | No |  | Main; choice Keep it in = A file | The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller). Shown when: `{"knowledge_base": [""]}` |
+| Knowledge base | `knowledge_base` | Text | No |  | Main; choice Keep it in = A knowledge base in One CommandCenter | A knowledge base kept in One CommandCenter (AI > Knowledge bases), by name; in Studio without One CommandCenter, knowledge-bases/<name>.json.gz in the work folder. Shown when: `{"index_file": [""]}` |
 | Connection | `connection` | Text | No |  | Main; choice Search by meaning too = A saved connection | A saved model connection for embeddings, e.g. one for text-embedding-3-small; without one the index is searched by words only. |
 | Provider | `provider` | Text | No |  | Main; choice Search by meaning too = Set up here | Embedding provider, when not using a saved connection. One of: `openai`, `azure_openai`, `openai_compatible`, `google_vertex`, `aws_bedrock` |
 | Model | `model` | Text | No |  | Main; choice Search by meaning too = Set up here | Embedding model (the deployment for Azure OpenAI). Example: `text-embedding-3-small` |
@@ -87,7 +90,8 @@ Find the passages of a knowledge index that best answer a question, by words and
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Index file | `index_file` | File path | Yes |  | Main | The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller). |
+| Index file | `index_file` | File path | No |  | Main; choice Index = A file | The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller). Shown when: `{"knowledge_base": [""]}` |
+| Knowledge base | `knowledge_base` | Text | No |  | Main; choice Index = A knowledge base | A knowledge base kept in One CommandCenter (AI > Knowledge bases), by name; in Studio without One CommandCenter, knowledge-bases/<name>.json.gz in the work folder. Shown when: `{"index_file": [""]}` |
 | Query | `query` | Text | Yes |  | Main | The question or words to look for. |
 | Top k | `top_k` | Number | No | `5` | Main | How many passages to return. Range: 1 to 50 |
 | Connection | `connection` | Text | No |  | More options | The embedding connection, when not the one the index was built with. |

@@ -26,7 +26,7 @@ class PromptSkillGroundingTest {
             Files.writeString(w.resolve("ai-skills/refund_check.json"), "{\"description\":\"Check a refund\",\"prompt\":\"Is the refund for ${question} on time?\","
                     + "\"provider\":\"openai\",\"model\":\"gpt-test\",\"knowledge\":{\"index\":\"kb/policies.json\",\"top_k\":2,\"query\":\"how are refunds paid for ${question}\"}}");
             var ctx = PackagesTestSupport.ctx(w, Map.of());
-            new KnowledgePackage().buildIndex(ctx, List.of("policies"), null, "kb/policies.json", null, null, null, null, null, 1000, 150, false);
+            new KnowledgePackage().buildIndex(ctx, List.of("policies"), null, "kb/policies.json", null, null, null, null, null, 1000, 150, false, null, null);
 
             Map<String, Object> r = new AiSkillsPackage().run(ctx, "refund_check", Map.of("question", "INV-77"), null, KEY, null, f.url() + "/v1", null, null,
                     null, null, true, 0, null, null, List.of("invoice.txt"));
