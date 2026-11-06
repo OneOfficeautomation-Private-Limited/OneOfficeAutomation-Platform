@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { simplePackages } from "./simpleMode";
 import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
@@ -42,7 +43,11 @@ const ACTION_DRAG = "application/x-ooa-action";
 /** The triggers in the command list: the workspace's own (Details > Triggers) and One CommandCenter's (after check-in). */
 const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["file", "When a file arrives in a folder"], ["webhook", "When a web address is called (webhook)"]];
 
-export function ActionsPanel({ packages, onAdd, onTrigger }: { packages: PackageManifest[]; onAdd: (action: string) => void; onTrigger?: (kind: string, where: "studio" | "server") => void }) {
+export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, onSimple }: { packages: PackageManifest[]; onAdd: (action: string) => void;
+  onTrigger?: (kind: string, where: "studio" | "server") => void; simple?: boolean; onSimple?: (on: boolean) => void }) {
+  // Simple mode (G47): everyday toolkits under plain names; no triggers
+  const packages = simple ? simplePackages(all) : all;
+  if (simple) onTrigger = undefined;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
@@ -58,11 +63,15 @@ export function ActionsPanel({ packages, onAdd, onTrigger }: { packages: Package
   const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
-    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions" actions={<HelpButton topic={ACTIONS_HELP} />}
+    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
+      actions={<>{onSimple && <button type="button" className={"st-simple-toggle" + (simple ? " is-on" : "")} aria-pressed={simple} onClick={() => onSimple(!simple)}
+        title={simple ? "Simple mode is on: everyday actions only. Press for every action." : "Show everyday actions only (Excel, e-mail, websites, files), for business users"}>Simple</button>}
+        <HelpButton topic={ACTIONS_HELP} /></>}
       style={width ? { width } : undefined} panelRef={(el) => { panel.current = el; }}>
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
-      <p className="st-panel-hint">Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match.</p>
+      <p className="st-panel-hint">{simple ? "Everyday actions. Click one to add it after the selected step, or drag it to where it goes. Turn Simple off for every action."
+        : "Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match."}</p>
       <ul className="st-groups">
         {onTrigger && (() => {
           // as AA's editor, the triggers that start the agent sit beside its actions
