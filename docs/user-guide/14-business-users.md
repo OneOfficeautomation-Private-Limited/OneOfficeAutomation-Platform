@@ -66,6 +66,11 @@ entered.
 
 ## 4. Approve or reject
 
+A task from a workflow shows a **stage bar** at the top: the workflow's stages in order, those before this task ticked
+as done, this task's stage marked as current, and the rest still to come. You see where the request stands and what
+happens after your part.
+
+
 1. Click a task of kind **Approve**. **Workflow data** opens straight away so you can see what you are approving (for
    example the supplier, the amount and the invoice number).
 2. Optionally type a **Comment** ("Comment (optional)"). It is kept with your decision.

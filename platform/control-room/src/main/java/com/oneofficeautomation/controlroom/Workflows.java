@@ -67,6 +67,19 @@ public final class Workflows {
         return (Map<String, Object>) JsonLite.parse((String) db.one("SELECT content FROM bot_versions WHERE path = ? AND version = ?", wf.get("path"), wf.get("version")).get("content"));
     }
 
+    /** The stages people see in the stage bar (G48): the workflow's stages in order, without its decisions, as id and name. */
+    private final Map<String, List<Map<String, Object>>> stageBars = new java.util.concurrent.ConcurrentHashMap<>();
+    List<Map<String, Object>> stageBar(Map<String, Object> wf) {
+        return stageBars.computeIfAbsent(wf.get("path") + "@" + wf.get("version"), k -> {
+            List<Map<String, Object>> out = new ArrayList<>();
+            try {
+                for (Map<String, Object> s : stages(definition(wf)))
+                    if (!"decision".equals(s.get("type"))) out.add(Map.of("id", String.valueOf(s.get("id")), "name", String.valueOf(s.getOrDefault("name", s.get("id")))));
+            } catch (RuntimeException e) { return List.of(); }
+            return out;
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> stages(Map<String, Object> def) { return (List<Map<String, Object>>) (List<?>) def.getOrDefault("stages", List.of()); }
 
@@ -372,11 +385,12 @@ public final class Workflows {
             if (!mine && !(admin && all)) continue;
             Map<String, Object> m = new LinkedHashMap<>(t);
             Object runId = t.get("workflow_run_id");
-            Map<String, Object> wf = runId == null ? null : runs.computeIfAbsent(runId, k -> db.one("SELECT path, reference FROM workflow_runs WHERE id = ?", k));
+            Map<String, Object> wf = runId == null ? null : runs.computeIfAbsent(runId, k -> db.one("SELECT path, version, reference FROM workflow_runs WHERE id = ?", k));
             if (wf != null) {   // where the task comes from, as AA's task list shows the request and its reference
                 String path = String.valueOf(wf.get("path"));
                 m.put("workflow", path.substring(path.lastIndexOf('/') + 1).replaceAll("\\.[a-z]+\\.json$", ""));
                 m.put("reference", wf.get("reference"));
+                m.put("stages", stageBar(wf));   // G48: the workflow's stages, for the stage bar above the task
             }
             m.put("form", t.get("form") == null ? null : JsonLite.parse((String) t.get("form")));
             m.put("data", t.get("data") == null ? Map.of() : JsonLite.parse((String) t.get("data")));
