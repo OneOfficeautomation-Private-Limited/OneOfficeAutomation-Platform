@@ -47,6 +47,12 @@ final class FullCommands {
         c.command("agent install-task", "Start the runner when you sign in to Windows (for runners that need a desktop).", a -> Ooa.agent("install-task", a.o()))
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent uninstall-task", "Stop starting the runner at sign-in.", a -> Ooa.agent("uninstall-task", a.o()));
+        c.command("agent sessions", "Windows Server: open a session for each robot account, each with its own runner, so the server takes several screen runs at once.",
+                a -> Ooa.agent("sessions", a.o()))
+            .required("--users", "LIST", "The robot accounts, separated by commas.")
+            .opt("--password-env-prefix", "PREFIX", "Environment variables holding the passwords: PREFIX + account name in capitals (default OOA_SESSION_PW_).")
+            .opt("--width", "PIXELS", "Screen width of each session (default 1920).").opt("--height", "PIXELS", "Screen height (default 1080).")
+            .flag("--check", "Only show which accounts are signed in.").flag("--watch", "Keep checking every minute and open a session again when one is gone.");
 
         c.group("db", "Set up and look after One CommandCenter database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")
