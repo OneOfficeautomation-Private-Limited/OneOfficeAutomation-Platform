@@ -80,6 +80,8 @@ public final class ControlRoom {
     public final Ideas ideas;
     /** Business data store (gap G66): entities with records, and storage buckets runs read and write. */
     public final DataStore dataStore;
+    /** Low-code apps (gap G67): pages of fields and buttons that run agents, add records and work items. */
+    public final Apps apps;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
@@ -161,6 +163,7 @@ public final class ControlRoom {
         this.locks = new EnvironmentLocks(this);
         this.ideas = new Ideas(this);
         this.dataStore = new DataStore(this);
+        this.apps = new Apps(this);
         this.runWaits = new RunWaits(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);

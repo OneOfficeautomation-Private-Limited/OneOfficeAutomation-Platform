@@ -216,6 +216,13 @@ export type EventSubscriptionList = { subscriptions: EventSubscription[]; types:
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
   created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
+/** Low-code apps (G67): pages of components; a button's action is kept by the server, the browser sends only which button and the fields. */
+export type AppAction = { kind: string; agent?: string; runner?: string; pool?: string; inputs?: Record<string, unknown>; entity?: string; values?: Record<string, unknown>;
+  queue?: string; data?: Record<string, unknown>; page?: string; success?: string };
+export type AppComponent = { id: string; kind: string; text?: string; name?: string; label?: string; hint?: string; type?: string; required?: boolean; choices?: string[];
+  style?: string; requires?: string[]; action?: AppAction; entity?: string; title?: string; columns?: string[]; sort?: string };
+export type AppDefinition = { pages: { id: string; title: string; components: AppComponent[] }[] };
+export type AppInfo = { id: string; name: string; description?: string | null; audience: string[]; published_by: string; updated?: string; definition?: AppDefinition; can_edit?: boolean };
 /** The business data store (G66): entities with typed fields and their records, and storage buckets of files. */
 export type DataField = { name: string; type: string; required?: boolean; unique?: boolean; choices?: string[] };
 export type DataEntity = { id: string; name: string; folder: string; description?: string | null; fields: DataField[]; records: number; updated?: string; updated_by?: string | null };
@@ -528,6 +535,16 @@ export class CrApi {
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
   async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
+  async apps() { return (await this.call<{ apps?: AppInfo[] }>("GET", "apps")).apps ?? []; }
+  app(id: string) { return this.call<AppInfo>("GET", "apps/" + encodeURIComponent(id)); }
+  saveApp(id: string | null, body: { name: string; description?: string; audience: string[]; definition: AppDefinition }) {
+    return this.call<AppInfo>(id ? "PUT" : "POST", "apps" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteApp(id: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id)); }
+  appAct(id: string, component: string, fields: Record<string, unknown>) {
+    return this.call<{ run_id?: string; record_id?: string; item_id?: string; page?: string; message?: string; outputs?: Record<string, unknown> }>("POST", "apps/" + encodeURIComponent(id) + "/act", { component, fields }); }
+  appRun(id: string, runId: string) { return this.call<{ status: string; outputs?: Record<string, unknown>; error?: string }>("GET", "apps/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(runId)); }
+  appRecords(id: string, component: string, q = "") {
+    return this.call<{ records: { id: string; data: Record<string, unknown> }[]; total: number; fields: { name: string }[] }>("GET", "apps/" + encodeURIComponent(id) + "/records/" + encodeURIComponent(component) + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
   async dataEntities() { return (await this.call<{ entities?: DataEntity[] }>("GET", "data/entities")).entities ?? []; }
   saveDataEntity(id: string | null, body: { name: string; folder: string; description?: string; fields: DataField[] }) {
     return this.call<DataEntity>(id ? "PUT" : "POST", "data/entities" + (id ? "/" + encodeURIComponent(id) : ""), body); }

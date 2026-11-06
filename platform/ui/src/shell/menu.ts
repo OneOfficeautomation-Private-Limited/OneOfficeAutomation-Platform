@@ -12,7 +12,7 @@ export const MENU_SECTIONS: MenuSection[] = [
   { id: "build", label: "BUILD", color: "#2f6fde", icon: "folder", pages: [
     { id: "automation", label: "Automation", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" },
     { id: "apitasks", label: "Agent APIs", perm: "apitasks.manage" }, { id: "tests", label: "Agent tests", perm: "repo.view" },
-    { id: "ideas", label: "Automation ideas" }] },
+    { id: "ideas", label: "Automation ideas" }, { id: "apps", label: "Apps" }] },
   { id: "manage", label: "MANAGE", color: "#0f766e", icon: "pulse", pages: [
     { id: "activity", label: "Agent Activity", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
     { id: "locks", label: "Environment locks", perm: "devices.view" },

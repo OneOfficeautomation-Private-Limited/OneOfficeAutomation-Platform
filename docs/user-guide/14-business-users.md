@@ -15,6 +15,7 @@ members who start agents themselves from their desktop.
 8. [Start an agent from the assistant](#8-start-an-agent-from-the-assistant)
 9. [Notifications on your desktop](#9-notifications-on-your-desktop)
 9a. [Suggest a process to automate](#9a-suggest-a-process-to-automate)
+9b. [Use an app](#9b-use-an-app)
 10. [If it goes wrong](#10-if-it-goes-wrong)
 11. [Related guides](#related-guides)
 
@@ -161,6 +162,15 @@ through **Assessing**, **Approved**, **Building** and **Live** (or **Rejected** 
 Once it is live, the list shows the hours the agent actually saved over the last 30 days next to the estimate.
 
 You can change or delete your own idea while it is still **Submitted**.
+
+## 9b. Use an app
+
+Your automation team may give you **apps**: simple pages with fields and buttons, in **Build > Apps**. Open one, fill
+in the fields and press its button. A button may start an agent (the app waits and shows what the agent gave back),
+save a record or add a work item for an agent to pick up. A button stays grey until its required fields are filled.
+
+You do not need the right to start agents yourself: the app does what it was built to do on behalf of the person who
+published it, and the audit trail records that you pressed the button.
 
 ## 10. If it goes wrong
 

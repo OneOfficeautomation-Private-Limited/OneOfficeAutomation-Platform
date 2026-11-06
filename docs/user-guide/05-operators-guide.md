@@ -523,6 +523,27 @@ In Studio without One CommandCenter, the same steps use the work folder (data-st
 tried before it is published. Changes people make here are in the audit trail; records show who changed them last,
 an agent's changes as "agent:<agent> for <person>".
 
+## 10d. Apps: pages for business people
+
+**Build > Apps** makes simple apps that people use in the console without Studio (Make apps: agent creators and
+administrators). An app is one or more pages of components, in order:
+
+- **Heading** and **Text**;
+- **Field**: text, long text, number, date, yes/no or a choice, optionally required; its name is used as `{name}`;
+- **Button**: runs an agent (its inputs from the fields, such as `{"customer": "{customer}"}`, on a runner or a pool;
+  the app follows the run and shows the agent's outputs), adds a data store record, adds a work item to a queue, or
+  opens another page. "Needs fields" keeps it grey until those fields are filled; "Message when done" may use fields;
+- **Records**: a searchable table of a data store entity;
+- **Result**: the message and outputs of the last button pressed.
+
+**Rights.** An app acts with the rights of the person who published it last, checked every time a button is pressed;
+publishing checks they may run its agents (with a production version), change its entities and work its queues. The
+browser sends only which button was pressed and the field values; what the button does is kept in One CommandCenter.
+If the publisher's account is switched off, the app stops working until someone publishes it again.
+
+**Audience**: everyone signed in, or only the roles ticked. Every button press is audited as `app:<name> for <person>`,
+and runs started from an app have the source `app:<id>`; only the person who started a run follows it in the app.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**

@@ -36,6 +36,7 @@ const PERMS: Record<string, { area: string; kind: Kind; label: string }> = {
   "pools.manage": { area: "Runner Machines", kind: "admin", label: "Manage runner pools" },
   "locks.manage": { area: "Runner Machines", kind: "admin", label: "Release environment locks" },
   "ideas.manage": { area: "Agents", kind: "admin", label: "Assess automation ideas" },
+  "apps.manage": { area: "Agents", kind: "change", label: "Make apps (they act with your rights)" },
   "data.view": { area: "Data store", kind: "see", label: "See the data store" },
   "data.edit": { area: "Data store", kind: "change", label: "Change data store records and files" },
   "data.manage": { area: "Data store", kind: "admin", label: "Define data store entities and buckets" },

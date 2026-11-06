@@ -1108,6 +1108,17 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "apps" -> {   // Build > Apps (G67): made by apps.manage; used by their audience, acting with the publisher's rights
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("apps", cr.apps.list(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.apps.save(u, null, map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.apps.get(u, seg[1]));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.apps.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.apps.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.apps.act(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.apps.runStatus(u, seg[1], seg[3]));
+                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.apps.records(u, seg[1], seg[3], q.get("q")));
+                else notFound(ex);
+            }
             case "data" -> {   // Manage > Data store (G66): entities and their records, storage buckets and their files
                 if (seg.length >= 2 && seg[1].equals("entities")) {
                     if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("entities", cr.dataStore.entities(u)));
