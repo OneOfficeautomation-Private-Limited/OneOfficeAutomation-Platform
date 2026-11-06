@@ -137,7 +137,7 @@ is never typed on the command line:
 
 ```
 set OOA_RUNNER_PW=...
-ooa agent autologon --user CORPobot1 --password-env OOA_RUNNER_PW
+ooa agent autologon --user CORP\robot1 --password-env OOA_RUNNER_PW
 set OOA_RUNNER_PW=
 ```
 
