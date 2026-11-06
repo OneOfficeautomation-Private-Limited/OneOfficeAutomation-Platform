@@ -137,6 +137,7 @@ once, and writes on other nodes are seen within 2 seconds.
 | `POST agent/credential` | Fetch one vault value for a running job |
 | `POST agent/global-values` | A running job changes an existing shared value; checked as the run's user (`globals.manage`) |
 | `POST agent/vault` | A running job saves a credential value and expiry (`op` save) or reads a credential's expiry (`op` expiry); checked as the run's user, saving only with Settings `agents_write_credentials` |
+| `POST agent/run-request` | A running job asks One CommandCenter as the run's user: `{run_id, call, args}`. Calls: `get_job`, `list_jobs`, `stop_job`, `raise_alert` (G32); `create_callback`, `suspend`, `create_task` (long-running agents, G36, section 5.1) |
 | `POST agent/locks` | Environment locks for a running job: `{run_id, op: acquire \| release \| check, name, lease_seconds, comment}`. The run must be on this runner and running; the holder is always that run |
 | `POST agent/rotate` | Get a new device secret when the heartbeat asks for it |
 | `POST agent/trigger-fired`, `agent/trigger-status` | Report a runner-side trigger event or error |
@@ -148,6 +149,7 @@ once, and writes on other nodes are seen within 2 seconds.
 | --- | --- | --- |
 | `POST /api/hooks/{trigger id}` | `X-OOA-Secret` header, compared as a SHA-256 hash in constant time | Starts the trigger's agent with the payload; answers 202 |
 | `POST /api/apitasks/{id}/run` | `X-OOA-Task-Token` (or Bearer) | Section 11 |
+| `POST /api/callbacks/{token}` | The token in the address (made by Create callback URL; kept only as its SHA-256 hash, compared in constant time) | Resumes a suspended run once (section 5.1). Body: a JSON object, at most 64 KB (another JSON value arrives as `{"value": ...}`; empty is `{}`). Answers 202 `{"accepted": true}`; 404 for an unknown token, 409 when already used or the run no longer waits, 400 for a body that is too large or not JSON, 429 above 120 calls a minute from one address |
 | `POST /api/mcp` | Bearer API key, session, or OAuth JWT | JSON-RPC 2.0; see [08-ai-architecture.md](08-ai-architecture.md) |
 | `GET /.well-known/oauth-protected-resource` | none | OAuth protected resource metadata (RFC 9728) for MCP clients |
 | `GET /api/health`, `/api/health/ready` | none | Liveness and readiness (503 when not ready) |
@@ -189,6 +191,44 @@ callback URL (3 attempts in the background, failures audited).
 
 Run control (`POST /api/runs/{id}` with stop, pause, resume) sets `cancel_requested` or `pause_requested` and asks the
 runner to send a heartbeat at once, which carries the instruction back.
+
+
+### 5.1 Suspended runs (long-running agents, G36)
+
+An agent's step of the `ooa.longrunning` toolkit suspends the run until a time, a Task inbox task, a work item,
+another run or a call to a callback URL (`RunWaits.java`):
+
+1. In the worker, the step asks the runner (`RunSuspension`) whether the run can stop here and for its variable values.
+   It cannot inside a loop, a Parallel block, a Catch or a Finally, a subflow, a child agent or the error handler
+   (`LONGRUN.CANNOT_SUSPEND`), nor with a browser, workbook, file or other session open (`LONGRUN.SESSION_OPEN`).
+   Credential, Window, UI element, Image and Binary variables are not kept.
+2. The step sends `run-request` `suspend` `{kind, ref, timeout_seconds, pool, step_id, values}`. One CommandCenter
+   checks it as the run's user (the task, work item or run must be one that user may see), keeps a `run_waits` row and
+   audits `run.suspend`. The step then throws `RUN.SUSPENDED`, which no Catch, retry, continue-on-error or error handler
+   takes and which skips the Finally of a Try around it; the run ends with status `suspended` and its locks are given
+   back. A run that ends as suspended without a wait is recorded as failed (`LONGRUN.NOT_REGISTERED`).
+3. The clock of the cluster leader (every 5 seconds) marks waits whose task is completed or cancelled, whose work item
+   is success or failed, or whose run ended (a run that is itself suspended is followed to the run that carried it on)
+   as due, then for each due or timed-out wait of a suspended run: one conditional UPDATE ends the wait, and a new run
+   is queued with the same agent version, inputs (an input the run changed keeps its new value), source, people, mode,
+   priority, work item and callback address, on the same runner or on the least busy runner of the pool given.
+   Credential inputs are read from the vault again. Audited as `run.resume`.
+4. The runner gets the job with `resume {step_id, values, answer}` and runs it from that step (Run from here) with the
+   values; the step gets `answer` (`resumed_by`, `timed_out`, `result`) and returns it instead of suspending again.
+   A timed-out wait fails the step with `LONGRUN.TIMEOUT` unless the step says to continue.
+5. What follows the end of a run (the work item, KPIs, test case, workflow, failure mail, callback URL) waits for the
+   end of the chain; a workflow and a test know the chain by its first run.
+
+If the new run cannot be queued (its user disabled, its runner gone or disabled, no licence), the suspended run fails
+with `LONGRUN.RESUME_FAILED`. Stopping a suspended run (Activity, or `POST /api/run-waits/{id}/cancel`) cancels its
+wait (`run.wait_cancel`); `POST /api/run-waits/{id}/resume` (`runs.stop`) resumes it at once with
+`{resumed_by: "admin"}`. `GET /api/run-waits?status=waiting|resumed|timed_out|cancelled|all` lists waits
+(`runs.view`, folder access); values, payloads and token hashes are never listed. `GET /api/runs/{id}` adds `wait`,
+`resumed_from` and `resumed_as`.
+
+Limits: a wait or timeout lasts at most 365 days; saved values at most 1,000,000 characters; a callback body at most
+64 KB; at most 20 callback URLs per run; a payload kept at most 100,000 characters (larger results are left out with a
+note). A callback URL needs Settings > Public address.
 
 ## 6. The runner protocol
 

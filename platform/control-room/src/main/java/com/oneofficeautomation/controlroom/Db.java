@@ -673,9 +673,37 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX environment_locks_run ON environment_locks (run_id)",
     };
 
+    /**
+     * Versions 37 and 38 are the numbers given to the other gap items of this batch (G34, G35); they are empty on this
+     * branch so that run_waits keeps the version number it was given, and are filled when the branches are merged.
+     */
+    private static final String[] SCHEMA_V37 = {};
+    private static final String[] SCHEMA_V38 = {};
+
+    /**
+     * Version 39 (gap G36, 5 Nov 2026): long-running agents. A run that suspends keeps here what it waits for (kind
+     * time, task, queue_item, callback or job, and ref: the time, task, work item, callback or run), the step it stopped
+     * at, its variable values (JSON), when it resumes or times out, and who and where it runs; status is waiting,
+     * resumed, timed_out or cancelled; payload is what ended the wait (a callback's body, a task's answer); the run that
+     * carried on is resumed_run_id, so the chain of runs is kept. A callback URL's token is kept only as its SHA-256 hash.
+     * The clock looks for waits by (status, resume_at) and (status, timeout_at).
+     */
+    private static final String[] SCHEMA_V39 = {
+        "CREATE TABLE run_waits (id VARCHAR(40) PRIMARY KEY, run_id VARCHAR(40) NOT NULL, bot_path VARCHAR(400) NOT NULL, version INT NOT NULL, step_id VARCHAR(200), "
+            + "saved_values VARCHAR(1000000), kind VARCHAR(20) NOT NULL, ref VARCHAR(400), token_hash VARCHAR(64), resume_at TIMESTAMP, timeout_at TIMESTAMP, "
+            + "status VARCHAR(20) NOT NULL, resumed_run_id VARCHAR(40), payload VARCHAR(100000), created TIMESTAMP NOT NULL, created_by VARCHAR(80), run_as VARCHAR(80), "
+            + "device_id VARCHAR(40), pool_id VARCHAR(40), finished TIMESTAMP)",
+        "CREATE INDEX run_waits_resume ON run_waits (status, resume_at)",
+        "CREATE INDEX run_waits_timeout ON run_waits (status, timeout_at)",
+        "CREATE INDEX run_waits_run ON run_waits (run_id)",
+        "CREATE INDEX run_waits_resumed ON run_waits (resumed_run_id)",
+        "CREATE INDEX run_waits_ref ON run_waits (kind, ref)",
+        "CREATE UNIQUE INDEX run_waits_token ON run_waits (token_hash) WHERE token_hash IS NOT NULL",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 36;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36 };
+    public static final int LATEST = 39;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

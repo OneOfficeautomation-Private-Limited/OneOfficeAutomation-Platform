@@ -4,12 +4,13 @@ import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type Help
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { repeats } from "./Schedules";
 import { logFields } from "../studio/flowEdit";
+import { SuspendedRuns } from "./SuspendedRuns";
 
 /**
  * Manage > Agent Activity, built as AA's Activity (In progress, Scheduled, Historical), with UiPath Jobs' job details
  * (input and output arguments, the log, why it ended) and Blue Prism's live session log and request-stop (checked
- * against their official docs, 31 Oct 2026). A summary row; three tabs: In progress (queued and running, refreshed
- * every 5 seconds), Scheduled (each schedule's next run) and Completed (a chosen period, the last 90 days unless
+ * against their official docs, 31 Oct 2026). A summary row; tabs: In progress (queued and running, refreshed
+ * every 5 seconds), Scheduled (each schedule's next run), Suspended (long-running agents waiting, G36) and Completed (a chosen period, the last 90 days unless
  * changed); filters; a column chooser; selected runs paused, resumed, stopped, run again or exported; a run's view
  * with its progress, steps, log, variables, inputs and outputs and AI calls, followed live while it runs.
  * A run opens from a link: #/activity?run=<id>.
@@ -19,7 +20,7 @@ import { logFields } from "../studio/flowEdit";
  * Review round 2 (31 Oct 2026): one line per run as in Automation (the agent with its version, its folder in a column
  * of its own), why it ended on one line with the whole text on hover, and a row menu.
  */
-type Tab = "progress" | "scheduled" | "completed";
+type Tab = "progress" | "scheduled" | "suspended" | "completed";
 type Names = Record<string, string>;
 type Col = { key: string; label: string; cell: (r: Run) => string };
 
@@ -33,7 +34,7 @@ export function howStarted(src?: string) {
   if (s.startsWith("webhook") || s.startsWith("file")) return "Trigger";
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 }
-const STATUS: Record<string, string> = { queued: "Queued", running: "Running", paused: "Paused", stopping: "Stopping", success: "Completed", failed: "Failed", stopped: "Stopped" };
+const STATUS: Record<string, string> = { queued: "Queued", running: "Running", paused: "Paused", stopping: "Stopping", success: "Completed", failed: "Failed", stopped: "Stopped", suspended: "Suspended" };
 export const runState = (r: Run) => r.status === "running" && r.pause_requested ? "paused" : r.status === "running" && r.cancel_requested ? "stopping" : r.status;
 const isActive = (r: Run) => r.status === "queued" || r.status === "running";
 function duration(ms?: number | null) {
@@ -78,7 +79,7 @@ const COMPLETED_COLS: Col[] = [
 const PERIODS: [string, string, number][] = [["24h", "Last 24 hours", 1], ["7d", "Last 7 days", 7], ["", "Last 90 days", 90], ["dates", "Chosen dates", 0]];
 const PAGE = 25;
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
-const PILL: Record<string, string> = { queued: "pending", running: "active", paused: "pending", stopping: "pending", success: "success", failed: "failed", stopped: "stopped" };
+const PILL: Record<string, string> = { queued: "pending", running: "active", paused: "pending", stopping: "pending", success: "success", failed: "failed", stopped: "stopped", suspended: "pending" };
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayOf = (t?: string | null) => { if (!t) return ""; const d = new Date(t); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
 const dayLabel = (t: string) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -106,6 +107,8 @@ const HELP: HelpTopic = { title: "Agent Activity", about: "What is running now, 
       + "Select runs to pause, resume or stop them after their current step." },
     { name: "Scheduled", text: "The next run of each schedule, soonest first. Select schedules to run them now or turn them on or off; "
       + "make or change them on the Schedules page." },
+    { name: "Suspended", text: "Long-running agents that stopped to wait for a time, a task, a work item, another run or a callback; "
+      + "their runner is free meanwhile. A new run carries on from the waiting step when the wait is over. Resume one now or stop it here." },
     { name: "Completed", text: "Every run that ended in the chosen period, grouped by day, with why each ended. Select runs to run them again." },
     { name: "Period", text: "On Completed, choose how far back to look: "
       + "24 hours, 7 days, 90 days (the default) or Chosen dates, which asks for a From and To date." },
@@ -156,7 +159,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
 
   useEffect(() => {   // a tab named in the address wins over the one remembered; the address then keeps only a run
     const t = linked().get("tab");
-    if (t === "progress" || t === "completed" || t === "scheduled") setTabState(t);
+    if (t === "progress" || t === "completed" || t === "scheduled" || t === "suspended") setTabState(t);
     const run = linkedRun();
     if (location.hash.includes("?")) history.replaceState(null, "", "#/activity" + (run ? "?run=" + encodeURIComponent(run) : ""));
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -186,7 +189,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   }, [tab, f]);
 
   const load = useCallback(async () => {
-    if (tab === "scheduled") return;
+    if (tab === "scheduled" || tab === "suspended") return;
     try {
       const r = await api.runs(params(tab === "progress" ? 200 : PAGE, tab === "progress" ? 0 : offset));
       setData(r); setError(null);
@@ -242,8 +245,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     const base = location.hash.split("?")[0] || "#/activity";
     history.replaceState(null, "", id ? base + "?run=" + encodeURIComponent(id) : base);
   };
-  const counts: Record<Tab, number | null> = { progress: summary ? summary.running + summary.queued : null, scheduled: summary?.schedulesOn ?? null, completed: null };
-  const tabs: [Tab, string][] = [["progress", "In progress"], ...(can("schedules.view") ? [["scheduled", "Scheduled"] as [Tab, string]] : []), ["completed", "Completed"]];
+  const counts: Record<Tab, number | null> = { progress: summary ? summary.running + summary.queued : null, scheduled: summary?.schedulesOn ?? null, suspended: null, completed: null };
+  const tabs: [Tab, string][] = [["progress", "In progress"], ...(can("schedules.view") ? [["scheduled", "Scheduled"] as [Tab, string]] : []), ["suspended", "Suspended"], ["completed", "Completed"]];
 
   const filtered = Object.values(f).some(Boolean);
   const periodWords = (PERIODS.find(([k]) => k === (f.period ?? ""))?.[1] ?? "").toLowerCase();
@@ -308,7 +311,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         {tabs.map(([t, label]) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => go(t)}>
           {label}{counts[t] != null && <span className="ov-cnt">{counts[t]}</span>}</button>)}
       </div>
-      {tab === "scheduled" ? <Upcoming api={api} user={user} agents={agents} onNotice={onNotice} onStarted={(id) => { loadSummary(); openRun(id); }} /> : <>
+      {tab === "scheduled" ? <Upcoming api={api} user={user} agents={agents} onNotice={onNotice} onStarted={(id) => { loadSummary(); openRun(id); }} />
+        : tab === "suspended" ? <SuspendedRuns api={api} user={user} onNotice={onNotice} onOpen={openRun} /> : <>
         <div className="cc-list-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">
             <span className="cc-list-search"><TextInput type="search" aria-label="Search runs" placeholder="Search agent, run id, user or error" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
