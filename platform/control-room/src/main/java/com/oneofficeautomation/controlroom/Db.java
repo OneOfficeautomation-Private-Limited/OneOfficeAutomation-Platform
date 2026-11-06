@@ -673,9 +673,30 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX environment_locks_run ON environment_locks (run_id)",
     };
 
+    /*
+     * Versions 37 to 39 are kept for the gaps built alongside G38 (G34-G37); each brings its own statements when it is
+     * merged. Until then they change nothing, so a database here still upgrades straight to 40.
+     */
+    private static final String[] SCHEMA_V37 = { };
+    private static final String[] SCHEMA_V38 = { };
+    private static final String[] SCHEMA_V39 = { };
+
+    /**
+     * Version 40 (gap G38, 5 Nov 2026): event subscriptions, where One CommandCenter posts its events (runs, work items,
+     * runners, alerts, audit entries, run log lines) as they happen. events is a comma list of event types (a type may
+     * end in * for a family); format is json or splunk; secret is the signing key, or Splunk's collector token,
+     * encrypted with the vault's key and never shown again; filters is a comma list of folder or agent path prefixes;
+     * last_status, last_error, last_delivery and failures (deliveries that failed in a row) say how delivery goes.
+     */
+    private static final String[] SCHEMA_V40 = {
+        "CREATE TABLE event_subscriptions (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, url VARCHAR(1000) NOT NULL, events VARCHAR(2000) NOT NULL, "
+            + "format VARCHAR(20) NOT NULL, secret VARCHAR(2000), enabled BOOLEAN NOT NULL, filters VARCHAR(2000), last_status VARCHAR(20), last_error VARCHAR(1000), "
+            + "last_delivery TIMESTAMP, failures INT NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 36;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36 };
+    public static final int LATEST = 40;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

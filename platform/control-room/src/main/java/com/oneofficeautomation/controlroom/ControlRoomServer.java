@@ -167,6 +167,7 @@ public final class ControlRoomServer {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
+            else if (path.equals("/metrics")) metrics(ex);
             else if (path.equals("/scim/v2") || path.startsWith("/scim/v2/")) scim(ex, path.substring(Math.min(path.length(), 9)));
             else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             // The new console is the default (31 Oct 2026): the bare address opens it. The classic console stays at
@@ -199,6 +200,29 @@ public final class ControlRoomServer {
             try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
+    }
+
+    /**
+     * GET /metrics (G38): Prometheus text. The IP allow list applies as for the API; the caller shows the metrics token
+     * as the bearer, or is signed in with the metrics.view permission.
+     */
+    private void metrics(HttpExchange ex) throws IOException {
+        if (!Set.of("GET", "HEAD").contains(ex.getRequestMethod())) { ex.getResponseHeaders().set("Allow", "GET"); securityHeaders(ex); writeBody(ex, 405, new byte[0]); return; }
+        String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
+        IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
+        if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new OoaException("CR.IP_BLOCKED", "This address may not use One CommandCenter");
+        String auth = ex.getRequestHeaders().getFirst("Authorization");
+        String bearer = auth != null && auth.startsWith("Bearer ") ? auth.substring(7).trim() : null;
+        if (!cr.metrics.tokenMatches(bearer)) {
+            if (bearer != null && bearer.startsWith("ooam_")) {
+                ex.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"metrics\"");
+                throw new OoaException("CR.UNAUTHENTICATED", "The metrics token is wrong or was replaced");
+            }
+            cr.require(user(ex, false), "metrics.view", "read the metrics");
+        }
+        securityHeaders(ex);
+        ex.getResponseHeaders().set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        writeBody(ex, 200, cr.metrics.text().getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -1045,6 +1069,20 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.connections(u)));
                 else if (m.equals("PUT") && seg.length == 2) { cr.saveConnection(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteConnection(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "event-subscriptions" -> {   // Administration > Event subscriptions (G38)
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.events.list(u));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.events.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.events.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("PATCH") && seg.length == 2) { cr.events.setEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.events.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, cr.events.test(u, seg[1], ip));
+                else notFound(ex);
+            }
+            case "metrics-token" -> {   // the bearer token for GET /metrics (G38), shown once
+                if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.metrics.makeToken(u, ip));
+                else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash

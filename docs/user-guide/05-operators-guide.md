@@ -458,6 +458,10 @@ On the **Alerts** tab, tick open alerts and press **Acknowledge** to show that s
 severity or rule. A new rule only counts what happens after it is made. The bell in the top bar shows how many alerts
 are open.
 
+Alerts can also reach other systems as they happen: an administrator subscribes a receiver to `alert.raised`, run,
+work-item and runner events, or run log lines in **Administration > Event subscriptions** (see the
+[Administrator's guide](06-administrators-guide.md#event-subscriptions-events-and-run-logs-to-other-systems)).
+
 ### Operations > Agents: how agents ran
 
 **Agents** summarises a period, from the last 24 hours to the last year, for **All agents** or one, **All runners**

@@ -159,6 +159,9 @@ const SECTIONS: Section[] = [
       { key: "siem_https_url", label: "HTTPS collector", hint: "Every audit entry as JSON. Empty: off.", kind: "text", placeholder: "https://splunk.example.com:8088/services/collector/event" },
       { key: "siem_https_token_ref", label: "Collector token", hint: VAULT_REF, kind: "text", placeholder: "siem/collector/token" },
       { key: "siem_https_auth", label: "Collector sign-in", kind: "select", options: [["bearer", "Bearer token"], ["splunk", "Splunk HTTP Event Collector"]] }] },
+    { title: "Event subscriptions", settings: [
+      { key: "events_allow_http", label: "Allow plain http:// receivers", hint: "Test systems only; events then travel unencrypted.", kind: "check" },
+      { key: "events_allow_private", label: "Allow receivers in private networks", hint: "10.x, 192.168.x, this computer and similar.", kind: "check" }] },
   ] },
   { id: "data", title: "Data retention and backups", mark: "D", colour: "#0f766e", about: "How long history is kept (removed once an hour; queued and running runs never), and the backups of everything.", groups: [
     { title: "Keep history", settings: [

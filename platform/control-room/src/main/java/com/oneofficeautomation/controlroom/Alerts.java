@@ -346,6 +346,10 @@ public final class Alerts {
         db.update("INSERT INTO alerts (id, rule_id, rule_name, kind, subject, subject_label, message, severity, status, raised, link, bot_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 id, rule.get("id"), rule.get("name"), rule.get("kind"), subject, label, text, rule.get("severity"), "open", now, link, bot);
         Map<String, Object> sent = deliver(rule, id, text, link, bot);
+        Map<String, Object> ev = new LinkedHashMap<>();
+        ev.put("alert_id", id); ev.put("rule", rule.get("name")); ev.put("kind", rule.get("kind")); ev.put("severity", rule.get("severity"));
+        ev.put("subject", label); ev.put("message", text); if (bot != null) ev.put("bot_path", bot);
+        cr.events.emit("alert.raised", ev);
         db.update("UPDATE alerts SET delivery = ? WHERE id = ?", JsonLite.write(sent), id);
         return Map.of("id", id, "rule", String.valueOf(rule.get("name")), "sent", sent);
     }

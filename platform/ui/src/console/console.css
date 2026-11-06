@@ -819,3 +819,8 @@ a.ov-tab { text-decoration: none; }
 .cc-scim-token { min-width: 360px; }
 /* a list row reached with the arrow keys (item 9) */
 .cc-list-table tbody tr:focus { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
+
+/* Event subscriptions (G38): the event tick boxes, one per line under their family */
+.cc-ev-types { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.cc-ev-types strong { margin-bottom: 2px; }
+.cc-ev-types .st-check-line { display: flex; align-items: center; gap: 6px; }

@@ -104,6 +104,8 @@ and a **runtime** account with data read/write rights only.
 | 34 | expires on credential_meta (credential expiry, gap G30) |
 | 35 | encrypt_data on queues; tags, error_kind and unique_ref on queue_items, with a unique index per queue (gap G31) |
 | 36 | environment_locks (named locks one run holds at a time, gap G33) |
+| 37-39 | kept for the gaps built alongside G38 (empty until they are merged) |
+| 40 | event_subscriptions (where One CommandCenter posts its events, gap G38) |
 
 ## 4. Tables by area
 
@@ -143,6 +145,7 @@ and a **runtime** account with data read/write rights only.
 | `device_pools` | Runner pools | `id`, `name`, `devices` (list), `owners` (user names), `consumers` (roles) |
 | `runner_files` | The latest logs and screen picture a runner sent when asked | `device_id`, `kind` (logs, screen; key together), `taken`, `requested_by`, `error`, `content` |
 | `environment_locks` | Environment locks: a named lock one run holds at a time. Taken with one INSERT (fails on the key when held) or one conditional UPDATE (only when held by the same run, past its lease, or its run is no longer running); given back when the run ends | `lock_key` (the name in lower case; key), `name`, `run_id`, `device_id`, `device_name`, `bot_path`, `held_by`, `acquired`, `expires` (the lease), `note` |
+| `event_subscriptions` | Event subscriptions (Administration > Event subscriptions): an address that gets One CommandCenter's events (runs, work items, runners, alerts, audit entries, run log lines) as signed JSON or in Splunk's collector format. The secret is encrypted with the vault's key (bound to the row's id) and never returned after it is made; `failures` counts deliveries that failed in a row. The metrics token for `GET /metrics` is not here: it is a hash in `settings` (`metrics_token_hash`) | `id`, `name`, `url`, `events` (comma list; a type may end in `*`), `format` (`json`, `splunk`), `secret`, `enabled`, `filters` (folder or agent path prefixes), `last_status`, `last_error`, `last_delivery`, `failures`, `created`, `created_by` |
 | `user_devices` | Each run-as user's default runner | `username`, `device_id` |
 | `runs` | Every run | `id`, `bot_path`, `version`, `device_id`, `status` (queued, running, success, failed, stopped), `inputs`, `outputs`, `error`, `requested_by`, `run_as`, `run_mode`, `source`, `priority`, `queue_item_id`, `callback_url`, `cancel_requested`, `pause_requested`, `created`, `started`, `finished`, `duration_ms`, `steps` |
 | `run_events` | Event stream per run | `run_id`, `seq`, `event` (JSON, cut at 19,000 characters) |
