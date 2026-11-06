@@ -18,7 +18,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     { id: "locks", label: "Environment locks", perm: "devices.view" },
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
     { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "workflows", label: "Workflow", perm: "runs.view" },
-    { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
+    { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "data", label: "Data store", perm: "data.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
     { id: "credentials", label: "Credential vault" }, { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
   { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [
     { id: "insights", label: "Overview", perm: "analytics.view" }, { id: "alerts", label: "Alerts", perm: "analytics.view" }, { id: "operations", label: "Operations", perm: "analytics.view|queues.view|audit.view" },

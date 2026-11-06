@@ -9,12 +9,13 @@ public final class Rbac {
     public static final List<String> ROLES = List.of("admin", "bot_creator", "bot_runner", "viewer");
 
     private static final Map<String, Set<String>> PERMS = Map.of(
-            "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view", "analytics.view", "skills.view", "docs.view"),
+            "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view", "analytics.view", "skills.view", "docs.view",
+                    "data.view"),
             "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view",
-                    "queues.view", "queues.work", "analytics.view", "skills.view", "docs.view", "docs.review"),
+                    "queues.view", "queues.work", "analytics.view", "skills.view", "docs.view", "docs.review", "data.view"),
             "bot_creator", Set.of("repo.view", "repo.checkin", "repo.delete", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
                     "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage", "analytics.view", "apitasks.manage", "skills.view", "skills.manage",
-                    "docs.view", "docs.review", "docs.manage"),
+                    "docs.view", "docs.review", "docs.manage", "data.view", "data.edit"),
             "admin", Set.of("*"));
 
     /** Permissions only administrators have unless a custom role grants them. */
@@ -24,7 +25,9 @@ public final class Rbac {
             // Operational Insights (AA's Insight roles): make and share dashboards; set savings and the yearly goal
             "insights.design", "insights.admin",
             // Automation ideas (G65): assess ideas, move them through the pipeline, link the agent built
-            "ideas.manage");
+            "ideas.manage",
+            // Business data store (G66): define entities and storage buckets
+            "data.manage");
 
     /** Every permission, for building custom roles. */
     public static List<String> all() { return permissions("admin"); }

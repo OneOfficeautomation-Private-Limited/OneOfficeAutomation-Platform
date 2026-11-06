@@ -501,6 +501,28 @@ runner or pool, and each case runs the live production version once. The test ru
 the cases ([04 Running and debugging](04-studio-running-and-debugging.md)); operators run them after changes to
 runners, toolkits or connected systems.
 
+## 10c. Data store: business records and files for agents
+
+**Manage > Data store** keeps business data that agents read and write while they run, in One CommandCenter's database
+and data folder, so nothing extra has to be installed.
+
+- **Entities** are tables of records, such as suppliers, open cases or a price list. An administrator (Define data
+  store entities and buckets) makes an entity and its fields: text, number, yes/no, date (yyyy-MM-dd) or a choice from a
+  list, each required or not and unique or not. Records are checked against the fields every time they are saved, by an
+  agent or by a person here. People with Change data store records and files add, change and delete records on the
+  entity's page; everyone with See the data store can look and search.
+- **Storage buckets** are named file areas. Agents upload, download, list and delete files while they run (repository
+  files, by contrast, are read-only to runs). Each bucket sets its largest file (25 MB at first, up to 200 MB). Files
+  can be uploaded and downloaded here too.
+- **Folder**: an entity or bucket with a folder is only for agents in that folder or below it; leave it empty for every
+  agent. A run that is not allowed gets CR.FORBIDDEN.
+
+Agents use the **Data store** toolkit: Create, Update, Get, Query and Delete record (Query takes filters such as
+`[{"field": "limit", "op": ">", "value": 1000}]`, a sort field and a page), and Upload, Download, List and Delete file.
+In Studio without One CommandCenter, the same steps use the work folder (data-store/ and buckets/), so an agent can be
+tried before it is published. Changes people make here are in the audit trail; records show who changed them last,
+an agent's changes as "agent:<agent> for <person>".
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**

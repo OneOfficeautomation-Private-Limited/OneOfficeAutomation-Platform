@@ -740,9 +740,25 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX ideas_status ON ideas (status)",
     };
 
+    /**
+     * Version 42 (gap G66, 6 Nov 2026): the business data store. entities: tables whose fields (JSON: name, type text,
+     * number, boolean, date or choice, required, unique, choices) an administrator defines, optionally only for agents in
+     * a folder; entity_records: their records, the values as JSON; buckets: named file areas runs read and write (files
+     * under the data folder, buckets/&lt;id&gt;/), with the largest file allowed in MB.
+     */
+    private static final String[] SCHEMA_V42 = {
+        "CREATE TABLE entities (id VARCHAR(40) PRIMARY KEY, name VARCHAR(80) NOT NULL UNIQUE, folder VARCHAR(400) NOT NULL, description VARCHAR(500), "
+            + "fields VARCHAR(20000) NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80), updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE entity_records (id VARCHAR(40) PRIMARY KEY, entity_id VARCHAR(40) NOT NULL, data VARCHAR(100000) NOT NULL, created TIMESTAMP NOT NULL, "
+            + "created_by VARCHAR(200), updated TIMESTAMP NOT NULL, updated_by VARCHAR(200))",
+        "CREATE INDEX entity_records_entity ON entity_records (entity_id, created)",
+        "CREATE TABLE buckets (id VARCHAR(40) PRIMARY KEY, name VARCHAR(80) NOT NULL UNIQUE, folder VARCHAR(400) NOT NULL, description VARCHAR(500), "
+            + "max_mb INT NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 41;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41 };
+    public static final int LATEST = 42;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

@@ -59,7 +59,7 @@ public final class RunWorker {
                         case "cancel" -> { cancel.set(true); pause.set(false); }
                         case "pause" -> pause.set(true);
                         case "resume" -> pause.set(false);
-                        case "credential", "docflow", "cr", "global_value", "vault", "queue", "locks" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
+                        case "credential", "docflow", "cr", "global_value", "vault", "queue", "locks", "data" -> { CompletableFuture<Map<String, Object>> f = waiting.remove(((Number) m.get("id")).longValue()); if (f != null) f.complete(m); }
                         default -> { }
                     }
                 }
@@ -171,6 +171,8 @@ public final class RunWorker {
                 .service("global_values_write", globalWrite).service("vault_write", vaultWrite)
                 .service("work_queues", queues)
                 .service("environment_locks", locks)
+                // Data store (G66): entities and storage buckets in One CommandCenter; the request travels as {request}, files as Base64
+                .service("data_store", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) req -> relay("data", Map.of("request", req), "DATA.TIMEOUT", "the data store"))
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.
