@@ -1720,6 +1720,8 @@ describe("rebuilt One CommandCenter console", () => {
     await within(k).findByRole("list", { name: "Next runs" });
     // the preview is fetched after a short pause: wait until the earlier error is gone before saving
     await waitFor(() => expect(within(k).queryByText("The minute 61 is not between 0 and 59 (in '61')")).toBeNull());
+    // Create is enabled once the agent list has loaded (slow on CI's machines)
+    await waitFor(() => expect((within(k).getByRole("button", { name: "Create schedule" }) as HTMLButtonElement).disabled).toBe(false));
     await act(async () => { fireEvent.click(within(k).getByRole("button", { name: "Create schedule" })); });
     await waitFor(() => expect(calls.filter((x) => x.method === "POST" && x.route === "schedules")).toHaveLength(2));
     const sent = calls.filter((x) => x.method === "POST" && x.route === "schedules").pop()!;
