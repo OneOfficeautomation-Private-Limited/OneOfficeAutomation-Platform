@@ -203,7 +203,9 @@ jobs:
           PY
       - name: The stand-in's log (when a step failed)
         if: failure()
-        run: cat "$RUNNER_TEMP/stub.log"; ps aux | grep -i stub_server || true
+        run: |
+          { cat "$RUNNER_TEMP/stub.log"; ps aux | grep -i [s]tub_server; ss -ltnp 2>/dev/null | grep 8799; } | while IFS= read -r l; do echo "::warning title=stand-in::$l"; done
+          true
       - name: A test set whose cases all pass
         uses: ./platform/deploy/ci/github-action
         with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_pass, pool: pool_ci, timeout-minutes: "2" }
