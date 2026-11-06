@@ -122,6 +122,12 @@ minute per address.
 `{run_id, status, outputs, error}` to that URL, up to 3 attempts in the background; failures are audited and never
 affect the run. In SaaS the URL must be public (`NetGuard`).
 
+**Event subscriptions** (gap G38, `EventSubscriptions`): administrators subscribe addresses to One CommandCenter's
+events (runs, work items, runners, alerts, audit entries, run log lines). Each event is a signed JSON `POST`
+(`X-OOA-Signature: sha256=` HMAC-SHA256 of `timestamp.body`, `X-OOA-Event-Id` for de-duplication) or a Splunk HTTP
+Event Collector message, sent from a bounded in-memory queue with retries, from the node where it happened. Message
+format, retries, address rules and API: [functional/11](../functional/11-operations-audit-and-dashboards.md#event-subscriptions-and-metrics-gap-g38).
+
 Studio also has local triggers (file arrives, schedule, local webhook) in `triggers.json` for testing while Studio is
 open (`TriggerService`).
 
@@ -236,6 +242,10 @@ The GraalVM native executable (`gradlew :cli:nativeExecutable`) contains `valida
   region's own address.
 - **Audit to SIEM**: `syslog_target` (host:port) and `syslog_protocol` (udp or tcp) forward every audit entry as RFC
   5424 syslog, including hourly audit checkpoints; `POST /api/settings/syslog-test` sends a test message.
+- **Metrics**: `GET /metrics` in the Prometheus text format (runs, durations, queues, runners, alerts, licence seats,
+  events, JVM), with a node label; the metrics token as bearer, or a session with `metrics.view`. OpenTelemetry: the
+  Collector's Prometheus receiver scrapes it.
+- **Events and run logs out**: event subscriptions (section 5), including Splunk's HTTP Event Collector.
 - **Run data**: `GET /api/analytics` and dashboards (`/api/dashboards`) with KPIs recorded from agents' `kpi` outputs.
 - **Mail**: SMTP settings (`mail_smtp_*`) for licence reminders and notifications; `POST /api/settings/mail-test`.
 

@@ -206,6 +206,11 @@ export type GlobalValue = { name: string; value: unknown; changeable: boolean; m
   type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
   /** Values per team (user group): runs of the team's members use them unless the person set their own. */
   team_values?: { team_id: string; team_name: string; value: unknown }[] };
+/** A subscription to One CommandCenter's events (Administration > Event subscriptions); the secret itself is never sent back. */
+export type EventSubscription = { id: string; name: string; url: string; events: string[]; format: "json" | "splunk"; filters: string[]; enabled: boolean;
+  has_secret: boolean; last_status?: string | null; last_error?: string | null; last_delivery?: string | null; failures: number; created?: string; created_by?: string;
+  this_node?: { delivered: number; failed: number; dropped: number } };
+export type EventSubscriptionList = { subscriptions: EventSubscription[]; types: string[]; allow_http: boolean; allow_private: boolean; metrics_token: boolean; node?: string };
 /** An environment lock a run holds (Manage > Environment locks); expired: its lease ran out, so another run may take it. */
 /** A suspended run's wait (long-running agents, G36): what it waits for, until when, and the run that carried on. */
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
@@ -496,6 +501,16 @@ export class CrApi {
     await this.call("PUT", "saved-connections/" + encodeURIComponent(name), b);
   }
   async deleteConnection(name: string) { await this.call("DELETE", "saved-connections/" + encodeURIComponent(name)); }
+  // ---- Event subscriptions (G38): events posted to receivers; the metrics token for GET /metrics ----
+  eventSubscriptions() { return this.call<EventSubscriptionList>("GET", "event-subscriptions"); }
+  saveEventSubscription(id: string | null, b: Record<string, unknown>) {
+    return this.call<EventSubscription & { secret?: string }>(id ? "PUT" : "POST", "event-subscriptions" + (id ? "/" + encodeURIComponent(id) : ""), b);
+  }
+  async setEventSubscriptionEnabled(id: string, enabled: boolean) { await this.call("PATCH", "event-subscriptions/" + encodeURIComponent(id), { enabled }); }
+  async deleteEventSubscription(id: string) { await this.call("DELETE", "event-subscriptions/" + encodeURIComponent(id)); }
+  testEventSubscription(id: string) { return this.call<{ ok: boolean; status?: number; error?: string; event_id: string }>("POST", "event-subscriptions/" + encodeURIComponent(id) + "/test"); }
+  makeMetricsToken() { return this.call<{ token: string }>("POST", "metrics-token"); }
+  async deleteMetricsToken() { await this.call("DELETE", "metrics-token"); }
   // ---- Environment locks: named locks one run holds at a time; administrators give one back ----
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }

@@ -11,6 +11,7 @@ import { Connections } from "./Connections";
 import { Devices } from "./Devices";
 import { DocumentAutomation } from "./DocumentAutomation";
 import { EnvironmentLocks } from "./EnvironmentLocks";
+import { EventSubscriptions } from "./EventSubscriptions";
 import { Globals } from "./Globals";
 import { Governance } from "./Governance";
 import { Home } from "./Home";
@@ -39,7 +40,7 @@ import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "insights", "licenses", "locks", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "events", "globals", "governance", "inbox", "insights", "licenses", "locks", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
 /** Pages that became tabs of Operations and Business (item 7, 1 Nov 2026): their old addresses open the tab, so links keep working. */
 const MOVED: Record<string, [string, string]> = { capacity: ["operations", "runners"], queueinsights: ["operations", "queues"], value: ["business", "value"], dashboards: ["business", "dashboards"] };
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
@@ -143,6 +144,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "teams" && <Teams api={api} user={user} onNotice={setNotice} />}
           {page === "credentials" && <Vault api={api} user={user} onNotice={setNotice} />}
           {page === "audit" && <Audit api={api} onNotice={setNotice} />}
+          {page === "events" && <EventSubscriptions api={api} onNotice={setNotice} />}
           {page === "licenses" && <Licenses api={api} user={user} onNotice={setNotice} />}
           {page === "settings" && <Settings api={api} onNotice={setNotice} />}
           {page === "inbox" && <Inbox api={api} user={user} onNotice={setNotice} />}

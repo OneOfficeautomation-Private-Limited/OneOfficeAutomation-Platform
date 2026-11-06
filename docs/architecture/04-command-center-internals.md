@@ -375,6 +375,22 @@ needed.
 - Sign-ins in progress (two-step codes, SAML and OIDC state) are kept in `auth_pending` (`Cluster.put/take/peek`), so
   any node can finish them.
 - All nodes need the same `OOA_MASTER_KEY` and a shared repository-files folder (`repo_files_folder`).
+- Events to subscriptions (G38) leave from the node where they happened: run and work-item events from the node that
+  handled the runner's or person's request, `runner.offline` and clock work from the leader. Each event is therefore
+  sent once. `/metrics` answers per node with its `node` label; counters (runs finished, durations, events) are this
+  node's, gauges read from the database are the same everywhere.
+
+### Events out (gap G38)
+
+`EventSubscriptions` is fed from three places: the audit listener (`Audit.onRecord`, which also feeds
+`SyslogForwarder` and `Metrics`) gives `audit.entry` and the run events the audit trail already records (`run.start`
+becomes `run.queued`; `run.finish` and `run.lost` become `run.finished`, and `run.failed` when failed; `run.pause`,
+`run.resume`); direct calls give the rest (`claimNext` for `run.started`, `appendEvents` for `run.log`, `heartbeat` for
+`runner.online`, `reap` for `runner.offline`, `Alerts.insert` for `alert.raised`, work-queue code for
+`queue.item_*`). `emit` only checks a 5-second copy of the enabled subscriptions and offers the event to a bounded
+queue, so it is safe inside a transaction and never waits; one dispatcher thread adds the agent's path (for filters)
+and hands each match to four sender threads, which retry with back-off through a scheduled executor. Delivery results
+are written to `event_subscriptions` (every failure; a success at most every 5 seconds).
 
 ## 13. Runner updates
 

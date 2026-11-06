@@ -831,3 +831,8 @@ a.ov-tab { text-decoration: none; }
 .cc-nextruns li { padding: 1px 0; font-variant-numeric: tabular-nums; }
 .cc-nextruns li.is-holiday > span:first-child { text-decoration: line-through; }
 .cc-nextruns-error { margin: 0; padding: 6px 10px; color: var(--ui-error-text); background: var(--ui-error-bg); border: 1px solid var(--ui-error-line); border-radius: var(--ui-radius); }
+
+/* Event subscriptions (G38): the event tick boxes, one per line under their family */
+.cc-ev-types { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.cc-ev-types strong { margin-bottom: 2px; }
+.cc-ev-types .st-check-line { display: flex; align-items: center; gap: 6px; }

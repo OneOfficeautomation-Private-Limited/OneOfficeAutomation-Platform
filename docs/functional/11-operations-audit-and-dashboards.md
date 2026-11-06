@@ -288,6 +288,92 @@ Audit entries can also be forwarded as they happen, by syslog or HTTPS, to a SIE
 - API (`audit.view`): `GET /api/audit?q=&actor=&action=&object_type=&object_id=&result=&from=&to=&sort=&limit=&offset=`,
   `GET /api/audit/export` with the same filters (CSV), and `GET /api/audit/verify`.
 
+### Event subscriptions and metrics (gap G38)
+
+**Administration > Event subscriptions** (`events.manage`, administrators) sends One CommandCenter's events to other
+systems as they happen: a webhook receiver, an integration platform, or Splunk's HTTP Event Collector, and with them
+the run log lines. It sits beside the per-run `callback_url`, the alert webhook and SIEM forwarding, which stay as they
+were.
+
+| Event | When | Data |
+| --- | --- | --- |
+| `run.queued` | A run is asked for | `run_id`, `bot_path`, `requested_by`, `source`, `runner_id` |
+| `run.started` | A runner takes the run | as above, `runner` |
+| `run.finished` | A run ends however it ends | as above, `status` (`success`, `failed`, `stopped`), `duration_ms`; `error_code` `AGENT.LOST` when its runner was lost |
+| `run.failed` | A run ends failed (also sent as `run.finished`) | as `run.finished` |
+| `run.paused`, `run.resumed` | Someone pauses or resumes a run | `run_id`, `by`, the agent |
+| `run.log` | A runner sends a batch of step log entries | `run_id`, `bot_path`, `runner_id`, `lines` (the entries as the run log keeps them) |
+| `queue.item_added`, `queue.item_started`, `queue.item_finished`, `queue.item_abandoned` | A work item is added, taken, ends (`success`, `failed`, `retry`, `review`), or is abandoned | `item_id`, `queue_id`, `queue`, `status`, `reference`, `run_id`, the queue's agent; never the item's data |
+| `runner.online`, `runner.offline` | A runner's first report after a minute or more without one; the leader sees it silent for a minute | `runner_id`, `name`, `hostname` or `last_seen` |
+| `alert.raised` | An alert rule raises an alert | `alert_id`, `rule`, `kind`, `severity`, `subject`, `message`, `bot_path` |
+| `audit.entry` | Every audit entry | the entry: `seq`, `ts`, `actor`, `action`, `object_type`, `object_id`, `details`, `result`, `ip` |
+
+A subscription lists the types it takes; a type ending in `*` takes a family (`queue.item_*`, `run.*`, `*`). **Only
+for** limits it to folders or agents (path prefixes such as `Finance/`); events that name no agent (runners, most audit
+entries) always pass.
+
+**The message.** Each event is one `POST` with `Content-Type: application/json` and the body
+`{"id", "type", "time", "node", "tenant" (SaaS only), "data"}`. Headers: `X-OOA-Event` (the type), `X-OOA-Event-Id`
+(the same id: an event may arrive twice, so a receiver keeps the ids it has seen), `X-OOA-Timestamp` (seconds since
+1970) and, for the `json` format, `X-OOA-Signature: sha256=<hex>`, the HMAC-SHA256 of `<timestamp>.<body>` keyed with
+the subscription's secret. A receiver computes the same, compares in constant time and refuses timestamps more than a
+few minutes old. The `splunk` format sends the collector's own shape (`time`, `host`, `source` `ooa-command-center`,
+`sourcetype` `ooa:event`, `event`) with `Authorization: Splunk <secret>`, the secret being the collector token; a
+`run.log` batch becomes one collector event per line. **Send a test event** sends one event of type `test`.
+
+**The secret.** A new `json` subscription without one gets a secret made for it (`whsec_...`), returned once in the
+answer; `rotate_secret` makes a new one the same way. It is kept encrypted with the vault's key and never returned or
+written to the audit trail.
+
+**Delivery.** Events are queued in memory (bounded: 5,000 waiting, 2,000 being sent) and sent by four threads, so a
+slow receiver never holds up a run or a request; events that do not fit are dropped and counted. A delivery with no
+answer, or answered 408, 429 or 5xx, is tried again after 2 s, 10 s, 30 s and 2 minutes; other answers end it.
+Redirects are not followed. `failures` counts deliveries that failed in a row, with the last status and error; a
+success resets it. Each event is sent by the node where it happened (a runner's request, the leader's clock), so with
+several nodes it is sent once. Events are not stored: when a node stops, what it had not sent is lost, as for SIEM
+forwarding.
+
+**Addresses.** `https://` only, unless the setting `events_allow_http` is on; only public internet addresses, unless
+`events_allow_private` is on (loopback, private, link-local such as cloud metadata, carrier-grade NAT and unique-local
+addresses are refused). The address is checked when saved and again before every attempt. A SaaS tenant is always
+held to public addresses.
+
+| API (`events.manage`) | Does |
+| --- | --- |
+| `GET /api/event-subscriptions` | `{subscriptions, types, allow_http, allow_private, metrics_token, node}`; each subscription without its secret (`has_secret`), with `this_node` counts |
+| `POST /api/event-subscriptions` | Makes one: `name`, `url`, `events` (list or comma text), `format` (`json`, `splunk`), `filters`, `enabled`, `secret` (optional for `json`; the collector token for `splunk`). The answer carries `secret` once when one was made |
+| `PUT /api/event-subscriptions/{id}` | Changes it (fields left out keep their value; `rotate_secret: true` makes a new secret) |
+| `PATCH /api/event-subscriptions/{id}` `{enabled}` | Turns it on or off (on resets `failures`) |
+| `DELETE /api/event-subscriptions/{id}` | Deletes it |
+| `POST /api/event-subscriptions/{id}/test` | Sends a test event now, once: `{ok, status, error, event_id}` |
+| `POST /api/metrics-token`, `DELETE /api/metrics-token` | Makes (shown once as `token`, kept as a SHA-256 hash) or removes the metrics token |
+
+Every change is audited: `events.subscription_create`, `_update`, `_enable`, `_disable`, `_delete`, `events.test`,
+`metrics.token_create`, `metrics.token_delete`.
+
+**Metrics.** `GET /metrics` answers in the Prometheus text format (`text/plain; version=0.0.4`). It takes the metrics
+token as `Authorization: Bearer ooam_...`, or a signed-in session with `metrics.view` (administrators); the IP allow
+list applies. Every series has a `node` label (and `tenant` in the SaaS service):
+
+| Metric | Kind | Counted |
+| --- | --- | --- |
+| `ooa_runs_finished_total{status}` | counter | Runs that ended on this node since it started |
+| `ooa_run_duration_seconds` | histogram | Their durations (buckets 1 s to 1 h) |
+| `ooa_runs{status}` | gauge | Runs queued and running (all nodes) |
+| `ooa_queue_items{queue,status}` | gauge | Work items new, retry, deferred, in progress or in review, per queue |
+| `ooa_runners{state}` | gauge | Runners enabled, online (reported in the last minute), busy |
+| `ooa_alerts_open{severity}` | gauge | Open alerts |
+| `ooa_license_seats_used{type}`, `ooa_license_seats_total{type}` | gauge | Licence seats (-1: no limit) |
+| `ooa_events_total{outcome}`, `ooa_events_pending` | counter, gauge | Events delivered, failed, dropped and waiting on this node |
+| `ooa_jvm_memory_used_bytes{area}`, `ooa_jvm_memory_max_bytes`, `ooa_jvm_threads`, `ooa_jvm_gc_seconds_total{gc}`, `ooa_process_uptime_seconds`, `ooa_process_cpu_count` | gauge, counter | This Java process |
+| `ooa_info{leader,schema}`, `ooa_up{part="database"}` | gauge | The node, whether it leads, and whether it could read the database |
+
+The text is made at most once every 5 seconds per node, with a handful of counting queries on indexed columns, so
+scraping every 15 to 60 seconds costs little. The figures read from the database are the same on every node: in
+queries, take `max by` the other labels across nodes. For OpenTelemetry, point the OpenTelemetry Collector's
+`prometheus` receiver at `/metrics` (with the bearer token) and export from the Collector over OTLP; One CommandCenter
+has no OTLP exporter of its own, which would need new libraries.
+
 ## 8. Retention
 
 All in Administration > Settings; 0 keeps everything. Applied at most once an hour by the leading node.
@@ -334,6 +420,8 @@ within about 30 seconds.
 | Make, change, share, copy and e-mail dashboards | `insights.design` (admin only unless a custom role grants it) |
 | Savings per agent and work queue, the yearly goal | `insights.admin` (admin only unless a custom role grants it) |
 | Alert rules (make, change, test, delete) | `alerts.manage` (admin only) |
+| Event subscriptions and the metrics token | `events.manage` (admin only) |
+| `GET /metrics` with a signed-in session (or the metrics token) | `metrics.view` (admin only) |
 | Audit Trail, export, verify, Operations > Audit, the audit data API | `audit.view` |
 | Retention, e-mail, backups, syslog, nodes | `settings.manage` |
 

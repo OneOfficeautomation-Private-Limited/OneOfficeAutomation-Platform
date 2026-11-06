@@ -78,6 +78,10 @@ public final class ControlRoom {
     public final EnvironmentLocks locks;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
+    /** Event subscriptions (gap G38): events posted to receivers as they happen. */
+    public final EventSubscriptions events;
+    /** The Prometheus metrics (gap G38). */
+    public final Metrics metrics;
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
@@ -152,11 +156,17 @@ public final class ControlRoom {
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
         this.runWaits = new RunWaits(this);
+        this.events = new EventSubscriptions(this);
+        this.metrics = new Metrics(this);
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
         this.mailer = new Mailer(this);
-        audit.onRecord(syslog::forward);
+        audit.onRecord(e -> {
+            syslog.forward(e);
+            try { metrics.onAudit(e); } catch (RuntimeException ignored) { }
+            events.onAudit(e);
+        });
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
         this.testSets = new TestSets(this);
@@ -1402,6 +1412,9 @@ public final class ControlRoom {
             String list = String.join(",", tk.stream().map(String::valueOf).filter(x -> x.matches("[A-Za-z0-9._-]{1,80}@[A-Za-z0-9._-]{1,40}")).sorted().toList());
             if (list.length() <= 20000) db.update("UPDATE devices SET toolkits = ? WHERE id = ?", list, did);
         }
+        // runner.online (G38): its first report, or the first after a minute without one (offline comes from the leader's clock)
+        if (d.get("last_seen") == null || Instant.parse(d.get("last_seen").toString()).isBefore(now().minus(ONLINE)))
+            events.emit("runner.online", Map.of("runner_id", did, "name", String.valueOf(d.get("name")), "hostname", String.valueOf(info.getOrDefault("hostname", d.get("hostname")))));
         db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state), build = COALESCE(?, build) WHERE id = ?",
                 now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, build, did);
         List<Object> cancel = new ArrayList<>(), pause = new ArrayList<>(), resume = new ArrayList<>();
@@ -1800,6 +1813,7 @@ public final class ControlRoom {
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
             Map<String, Object> resume = runWaits.forJob((String) run.get("id"));   // a resumed run (G36): where it starts, with what
             if (resume != null) job.put("resume", resume);
+            events.emit("run.started", Map.of("run_id", run.get("id"), "runner_id", did, "runner", String.valueOf(d.get("name"))));
             return job;
         }
         return null;
@@ -1831,7 +1845,9 @@ public final class ControlRoom {
     public void appendEvents(Map<String, Object> d, String runId, List<Object> events) {
         Map<String, Object> r = runOnDevice(d, runId);
         if (!"running".equals(r.get("status"))) return;
+        List<Object> fresh = new ArrayList<>();   // the entries not stored before (a runner may send a batch again)
         db.tx(() -> {
+            fresh.clear();
             for (Object o : events) {
                 Map<String, Object> e = (Map<String, Object>) o;
                 Object seq = e.get("seq");
@@ -1839,9 +1855,13 @@ public final class ControlRoom {
                 if (db.one("SELECT seq FROM run_events WHERE run_id = ? AND seq = ?", runId, ((Number) seq).longValue()) != null) continue;
                 String json = JsonLite.write(e);
                 db.update("INSERT INTO run_events (run_id, seq, event) VALUES (?,?,?)", runId, ((Number) seq).longValue(), json.length() > 19000 ? json.substring(0, 19000) : json);
+                fresh.add(e);
             }
             return null;
         });
+        // run log streaming (G38): the new entries as one run.log event, when a subscription takes them
+        if (!fresh.isEmpty() && this.events.wanted("run.log"))
+            this.events.emit("run.log", Map.of("run_id", runId, "bot_path", String.valueOf(r.get("bot_path")), "runner_id", String.valueOf(d.get("id")), "lines", fresh));
     }
 
     @SuppressWarnings("unchecked")
@@ -1863,6 +1883,7 @@ public final class ControlRoom {
         db.update("UPDATE runs SET status = ?, finished = ?, duration_ms = ?, error = ?, outputs = ?, steps = ? WHERE id = ?",
                 status, now(), Duration.between(started, now()).toMillis(), result.get("error") == null ? null : JsonLite.write(result.get("error")),
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
+        try { metrics.runFinished(status, Duration.between(started, now()).toMillis()); } catch (RuntimeException ignored) { }
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         try { locks.releaseForRun(runId, "its run ended (" + status + ")"); } catch (RuntimeException e) { /* the server clock gives them back */ }
         if (status.equals("suspended")) return;   // the chain goes on: its work item, workflow, test and callback wait for the run that ends it
@@ -1964,9 +1985,11 @@ public final class ControlRoom {
         Instant cutoff = now().minus(Duration.ofHours(hours));
         String error = JsonLite.write(Map.of("code", "QUEUE.ABANDONED", "message", "In progress for more than " + hours + " hours without an answer",
                 "suggestedFix", "Check the runner and the agent, then retry the item."));
-        for (Map<String, Object> i : db.query("SELECT id FROM queue_items WHERE status = 'in_progress' AND updated < ?", cutoff))
-            if (db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ? AND status = 'in_progress'", error, now(), now(), i.get("id")) > 0)
+        for (Map<String, Object> i : db.query("SELECT id, queue_id FROM queue_items WHERE status = 'in_progress' AND updated < ?", cutoff))
+            if (db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ? AND status = 'in_progress'", error, now(), now(), i.get("id")) > 0) {
                 audit.record("system", "queue.item_abandoned", "queue_item", (String) i.get("id"), Map.of("hours", hours), "ok", null);
+                events.emit("queue.item_abandoned", Map.of("item_id", i.get("id"), "queue_id", String.valueOf(i.get("queue_id")), "status", "failed"));
+            }
     }
 
     /** Posts the run result to the caller's callback URL in the background (3 attempts); failures are audited, never raised. */
@@ -2248,6 +2271,7 @@ public final class ControlRoom {
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { events.checkRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

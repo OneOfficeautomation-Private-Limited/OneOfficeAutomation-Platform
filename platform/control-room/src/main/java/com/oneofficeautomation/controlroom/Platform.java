@@ -143,6 +143,9 @@ public final class Platform {
         DEFAULTS.put("docflow_token_ref", "");   // and its service token, a vault reference folder/credential/attribute
         // agents may save credentials in the vault (gap G30): off until an administrator switches it on
         DEFAULTS.put("agents_write_credentials", 0);
+        // event subscriptions (gap G38): receivers at plain http:// addresses, and at private or local addresses
+        DEFAULTS.put("events_allow_http", 0);
+        DEFAULTS.put("events_allow_private", 0);
     }
 
     static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
@@ -194,6 +197,8 @@ public final class Platform {
         Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
         Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
         Map.entry("agents_write_credentials", new long[] { 0, 1 }),
+        Map.entry("events_allow_http", new long[] { 0, 1 }),
+        Map.entry("events_allow_private", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
@@ -805,6 +810,7 @@ public final class Platform {
         boolean encrypt = queueTools.encrypted(qid);
         List<String> ids = new ArrayList<>();
         List<Object> outcomes = new ArrayList<>();
+        List<String> refs = new ArrayList<>();
         db.tx(() -> {
             int row = 0;
             for (Object o : items) {
@@ -819,9 +825,12 @@ public final class Platform {
                 Map<String, Object> r = queueTools.addOne(qid, encrypt, item, ref == null ? null : String.valueOf(ref), pr instanceof Number n ? n.intValue() : null, tags, ifExists);
                 ids.add((String) r.get("id"));
                 outcomes.add(r.get("outcome"));
+                refs.add(ref == null ? null : String.valueOf(ref));
             }
             return null;
         });
+        // queue.item_added (G38) once the items are saved, so a batch that was refused announces nothing
+        for (int i = 0; i < ids.size(); i++) if ("added".equals(outcomes.get(i))) cr.events.emit("queue.item_added", QueueTools.item(ids.get(i), qid, refs.get(i), "new"));
         long added = outcomes.stream().filter("added"::equals).count(), skipped = outcomes.stream().filter("skipped"::equals).count();
         Map<String, Object> detail = new LinkedHashMap<>(Map.of("count", added));
         if (skipped > 0) detail.put("skipped", skipped);
@@ -1493,6 +1502,7 @@ public final class Platform {
                     Map<String, Object> run = cr.startRun((String) q.get("run_as"), creator == null ? "viewer" : (String) creator.get("role"), (String) q.get("bot_path"), device,
                             null, inputs, "queue:" + q.get("id"), null, 0, null, null, null, (String) next.get("id"));
                     db.update("UPDATE queue_items SET run_id = ? WHERE id = ?", run.get("run_id"), next.get("id"));
+                    cr.events.emit("queue.item_started", QueueTools.item((String) next.get("id"), (String) q.get("id"), null, "in_progress", (String) run.get("run_id")));
                     started++;
                 } catch (OoaException e) {
                     db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ? WHERE id = ?", JsonLite.write(e.toMap()), now(), next.get("id"));
@@ -1536,6 +1546,7 @@ public final class Platform {
                 error == null ? null : JsonLite.write(error), outputs == null ? null : JsonLite.write(outputs), now(),
                 next.equals("retry") || next.equals("review") ? null : now(), item.get("id"));
         if (error != null && (next.equals("retry") || next.equals("failed"))) db.update("UPDATE queue_items SET error_kind = 'system' WHERE id = ?", item.get("id"));
+        cr.events.emit("queue.item_finished", QueueTools.item((String) item.get("id"), (String) item.get("queue_id"), (String) item.get("reference"), next, runId));
         if (next.equals("review")) cr.audit.record("system", "queue.item_review", "work_item", (String) item.get("id"), Map.of("queue", item.get("queue_id")), "ok", null);
     }
 
