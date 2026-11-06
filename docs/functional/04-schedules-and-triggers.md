@@ -56,6 +56,15 @@ zone), not on CALENDAR"), owner and run-as user, and next and last run.
 - On a listed date, in the schedule's own time zone, the schedule does not start its agent. The skip is recorded in the
   audit trail (`schedule.skip_holiday`) and the next run is computed as usual.
 - Managing calendars needs `schedules.manage`; seeing them needs `schedules.view`.
+- Since gap G34 a calendar also has a **weekend**: the days of the week that are not working days (`MON`..`SUN`;
+  `SAT,SUN` when none is stored, `NONE` for none; at least one working day must remain). `PUT /api/calendars/{name}`
+  takes `dates` and optionally `weekend` (a list or comma text); a save without `weekend` keeps the calendar's.
+  `calendar.save` audits the number of dates, the weekend and, when it changed, the old weekend. The weekend does not
+  change when schedules run.
+- Running agents read a calendar for the Date and time toolkit's working-day steps (Add working days, Count working
+  days, Next / Previous working day, Is working day) through the run-request relay (`call` = `calendar`), as the run's
+  user with `schedules.view`; the read is audited as `agent.calendar` and an unknown name gives `CALENDAR.NOT_FOUND`
+  (`DATETIME.CALENDAR_NOT_FOUND` on the step). The runner keeps what it read for the rest of the run.
 
 ## 3. How a schedule fires
 

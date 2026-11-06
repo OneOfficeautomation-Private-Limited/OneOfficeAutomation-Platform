@@ -833,7 +833,11 @@ public final class ControlRoomServer {
             }
             case "calendars" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("calendars", cr.platform.calendars(u)));
-                else if (m.equals("PUT") && seg.length == 2) { cr.platform.saveCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), map(body(ex)).get("dates"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 2) {   // weekend (gap G34) is changed only when the body has it
+                    Map<String, Object> b = map(body(ex));
+                    cr.platform.saveCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), b.get("dates"), b.get("weekend"), b.containsKey("weekend"), ip);
+                    sendJson(ex, 200, Map.of("ok", true));
+                }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }

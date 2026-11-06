@@ -10,7 +10,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /** DateTime values are UTC on the platform; time zones apply when reading or formatting. */
-@OoaPackage(id = "ooa.datetime", name = "Date and time", version = "1.0.0", description = "Current time, add, difference, format and time zone conversion.")
+@OoaPackage(id = "ooa.datetime", name = "Date and time", version = "1.0.0", description = "Current time, add, difference, format, time zone conversion and working days with business calendars.")
 public final class DateTimePackage {
     private static final String[] UNITS = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"};
     private static final String[] STANDARD = {"ISO_LOCAL_DATE", "ISO_LOCAL_TIME", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
@@ -427,5 +427,176 @@ public final class DateTimePackage {
         LocalDateTime s = startOf(need(value, "value"), u);
         LocalDateTime next = switch (u) { case "week" -> s.plusWeeks(1); case "month" -> s.plusMonths(1); case "year" -> s.plusYears(1); default -> s.plusDays(1); };
         return Out.of("result", next.minusSeconds(1));
+    }
+
+    // ---- Working days with business calendars (gap G34) ----
+
+    private static final String CAL = "Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; "
+            + "needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here.";
+    private static final String HOLS = "Dates that are not working days, as yyyy-MM-dd, e.g. [\"2026-12-25\"]. Added to the calendar's dates when a calendar is named too.";
+    private static final String WKND = "Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. "
+            + "When given with a calendar, it replaces the calendar's weekend.";
+    private static final String WD_ZONE = "Time zone whose calendar date counts; the time of day is kept in this zone.";
+    private static final String DAY_ZONE = "Time zone whose calendar date counts.";
+    private static final String WD_PANEL = "(Working days from: A holiday calendar = calendar / Weekend and holidays I give = weekend, holidays)";
+
+    /** The calendars this run has read from One CommandCenter, so each is asked for once per run. */
+    static final class CalendarCache {
+        final Map<String, Map<String, Object>> byName = new java.util.concurrent.ConcurrentHashMap<>();
+    }
+    static final String CALENDAR_CACHE = "ooa.datetime.calendars";
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> commandCenterCalendar(ActionContext ctx, String name) {
+        CalendarCache cache;
+        if (ctx.sessions().get(CALENDAR_CACHE) instanceof CalendarCache c) cache = c;
+        else { cache = new CalendarCache(); ctx.sessions().put(CALENDAR_CACHE, cache); }
+        Map<String, Object> hit = cache.byName.get(name);
+        if (hit != null) return hit;
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> cc;
+        try { cc = ctx.service("command_center", java.util.function.Function.class); }
+        catch (OoaException e) {
+            throw new ActionException("DATETIME.NO_COMMAND_CENTER", "The holiday calendar '" + name + "' is kept in One CommandCenter, and this run is not connected to it",
+                    "Run the agent from One CommandCenter, or leave the calendar empty and give the holidays and weekend on the step.");
+        }
+        Map<String, Object> cal;
+        try { cal = cc.apply(Map.of("call", "calendar", "args", Map.of("name", name))); }
+        catch (OoaException e) {
+            if ("CALENDAR.NOT_FOUND".equals(e.code()))
+                throw new ActionException("DATETIME.CALENDAR_NOT_FOUND", "There is no holiday calendar '" + name + "' in One CommandCenter",
+                        "Check the name under Manage > Schedules > Holiday calendars (names are exact), or give the holidays and weekend on the step.");
+            if ("JOBS.BAD_CALL".equals(e.code()))
+                throw new ActionException("DATETIME.NO_COMMAND_CENTER", "This One CommandCenter is too old to give holiday calendars to agents",
+                        "Update One CommandCenter, or give the holidays and weekend on the step.");
+            throw e;
+        }
+        cache.byName.put(name, cal);
+        ctx.info("Read the holiday calendar " + name + " from One CommandCenter");
+        return cal;
+    }
+
+    /** The business calendar a step means: a named calendar, the holidays and weekend given, or both together. */
+    static WorkingDays calendar(ActionContext ctx, String calendar, List<Object> holidays, String weekend) {
+        Set<LocalDate> off = new HashSet<>(WorkingDays.holidays(holidays));
+        List<DayOfWeek> wk;
+        if (calendar != null && !calendar.isBlank()) {
+            Map<String, Object> c = commandCenterCalendar(ctx, calendar.strip());
+            off.addAll(WorkingDays.holidays(c.get("dates") instanceof Collection<?> l ? l : List.of()));
+            Object cw = c.get("weekend");
+            if (weekend != null && !weekend.isBlank()) wk = WorkingDays.weekend(weekend);
+            else if (cw instanceof Collection<?> l && l.isEmpty()) wk = List.of();   // the calendar has no weekend
+            else wk = WorkingDays.weekend(cw);
+        } else wk = WorkingDays.weekend(weekend);
+        return new WorkingDays(wk, off);
+    }
+
+    private static ZonedDateTime local(LocalDateTime value, String tz) {
+        return need(value, "value").atOffset(ZoneOffset.UTC).atZoneSameInstant(zone(tz == null || tz.isBlank() ? "UTC" : tz));
+    }
+
+    /** The same local time of day on another date, back in UTC. */
+    private static LocalDateTime onDate(ZonedDateTime z, LocalDate d) {
+        return ZonedDateTime.of(d, z.toLocalTime(), z.getZone()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    @Action(id = "add_working_days", name = "Add working days", category = "Date and time", idempotent = true,
+            description = "Move a date by a number of working days, skipping the weekend and holidays of a business calendar; a negative number moves back. "
+                + "The start date itself is not counted (1 from Friday is Monday) and 0 keeps the date. The time of day is kept.",
+            panel = "value, days, " + WD_PANEL + " | time_zone")
+    @Output(name = "result", type = OoaType.DATETIME, description = "The date that many working days later (or earlier).")
+    public Map<String, Object> addWorkingDays(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
+            @Input(name = "days", type = OoaType.NUMBER, description = "Working days to add, a whole number; negative to go back.") BigDecimal days,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = CAL) String calendar,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, description = HOLS) List<Object> holidays,
+            @Input(name = "weekend", type = OoaType.STRING, required = false, description = WKND) String weekend,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = WD_ZONE) String tz) {
+        if (days == null) throw new ActionException("DATETIME.MISSING", "Give the number of working days", "Fill in 'days', e.g. 5 or -2.");
+        if (days.stripTrailingZeros().scale() > 0)
+            throw new ActionException("DATETIME.BAD_AMOUNT", "Add working days: days must be a whole number, got " + days.stripTrailingZeros().toPlainString(), "Round the number first.");
+        ZonedDateTime z = local(value, tz);
+        WorkingDays wd = calendar(ctx, calendar, holidays, weekend);
+        long n;
+        try { n = days.longValueExact(); } catch (ArithmeticException e) { n = Long.MAX_VALUE; }
+        return Out.of("result", onDate(z, wd.plus(z.toLocalDate(), n)));
+    }
+
+    @Action(id = "working_days_between", name = "Count working days", category = "Date and time", idempotent = true,
+            description = "Count the working days between two dates in a business calendar: the days after the start up to and including the end "
+                + "(the start too, when chosen). The count is negative when the end is before the start.",
+            panel = "start, end, " + WD_PANEL + " | include_start, time_zone")
+    @Output(name = "result", type = OoaType.NUMBER, description = "Number of working days.")
+    public Map<String, Object> workingDaysBetween(ActionContext ctx,
+            @Input(name = "start", type = OoaType.DATETIME, description = "First date.") LocalDateTime start,
+            @Input(name = "end", type = OoaType.DATETIME, description = "Last date.") LocalDateTime end,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = CAL) String calendar,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, description = HOLS) List<Object> holidays,
+            @Input(name = "weekend", type = OoaType.STRING, required = false, description = WKND) String weekend,
+            @Input(name = "include_start", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Count the start date too when it is a working day (Monday to Friday of one week is then 5, not 4).") boolean includeStart,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = DAY_ZONE) String tz) {
+        need(start, "start"); need(end, "end");
+        WorkingDays wd = calendar(ctx, calendar, holidays, weekend);
+        return Out.of("result", BigDecimal.valueOf(wd.between(local(start, tz).toLocalDate(), local(end, tz).toLocalDate(), includeStart)));
+    }
+
+    @Action(id = "next_working_day", name = "Next working day", category = "Date and time", idempotent = true,
+            description = "Return the first working day after a date in a business calendar, or the date itself when it is a working day and same_day is on. The time of day is kept.",
+            panel = "value, " + WD_PANEL + " | same_day, time_zone")
+    @Output(name = "result", type = OoaType.DATETIME, description = "The next working day.")
+    public Map<String, Object> nextWorkingDay(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to start from.") LocalDateTime value,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = CAL) String calendar,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, description = HOLS) List<Object> holidays,
+            @Input(name = "weekend", type = OoaType.STRING, required = false, description = WKND) String weekend,
+            @Input(name = "same_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Return the date itself when it is a working day (e.g. a due date that moves only off holidays and weekends).") boolean sameDay,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = WD_ZONE) String tz) {
+        ZonedDateTime z = local(value, tz);
+        return Out.of("result", onDate(z, calendar(ctx, calendar, holidays, weekend).nextWorking(z.toLocalDate(), sameDay, false)));
+    }
+
+    @Action(id = "previous_working_day", name = "Previous working day", category = "Date and time", idempotent = true,
+            description = "Return the last working day before a date in a business calendar, or the date itself when it is a working day and same_day is on. The time of day is kept.",
+            panel = "value, " + WD_PANEL + " | same_day, time_zone")
+    @Output(name = "result", type = OoaType.DATETIME, description = "The previous working day.")
+    public Map<String, Object> previousWorkingDay(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to start from.") LocalDateTime value,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = CAL) String calendar,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, description = HOLS) List<Object> holidays,
+            @Input(name = "weekend", type = OoaType.STRING, required = false, description = WKND) String weekend,
+            @Input(name = "same_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Return the date itself when it is a working day.") boolean sameDay,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = WD_ZONE) String tz) {
+        ZonedDateTime z = local(value, tz);
+        return Out.of("result", onDate(z, calendar(ctx, calendar, holidays, weekend).nextWorking(z.toLocalDate(), sameDay, true)));
+    }
+
+    @Action(id = "is_working_day", name = "Is working day", category = "Date and time", idempotent = true,
+            description = "Check whether a date is a working day in a business calendar: not on its weekend and not one of its holidays.",
+            panel = "value, " + WD_PANEL + " | time_zone")
+    @Output(name = "result", type = OoaType.BOOLEAN, description = "True on a working day.")
+    @Output(name = "reason", type = OoaType.STRING, description = "Why it is not a working day: holiday or weekend (holiday when both); empty on a working day.")
+    public Map<String, Object> isWorkingDayAction(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = CAL) String calendar,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, description = HOLS) List<Object> holidays,
+            @Input(name = "weekend", type = OoaType.STRING, required = false, description = WKND) String weekend,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = DAY_ZONE) String tz) {
+        LocalDate d = local(value, tz).toLocalDate();
+        WorkingDays wd = calendar(ctx, calendar, holidays, weekend);
+        String reason = wd.isHoliday(d) ? "holiday" : wd.isWeekend(d) ? "weekend" : "";
+        return Out.of("result", reason.isEmpty(), "reason", reason);
+    }
+
+    @Condition(id = "is_working_day", name = "Is working day",
+            description = "True when the date is a working day in a business calendar: not on its weekend and not one of its holidays.")
+    public boolean isWorkingDay(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = CAL) String calendar,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, description = HOLS) List<Object> holidays,
+            @Input(name = "weekend", type = OoaType.STRING, required = false, description = WKND) String weekend,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = DAY_ZONE) String tz) {
+        return calendar(ctx, calendar, holidays, weekend).isWorking(local(value, tz).toLocalDate());
     }
 }

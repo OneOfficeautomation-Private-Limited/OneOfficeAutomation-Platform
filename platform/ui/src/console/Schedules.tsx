@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, CrUser, Runner, RunnerPool, Schedule } from "../api/cr";
+import type { CrApi, CrUser, HolidayCalendar, Runner, RunnerPool, Schedule } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
@@ -30,7 +30,8 @@ const HELP: HelpTopic = { title: "Schedules",
   items: [
     { name: "Create schedule", text: "Choose the agent (its live version runs), who it runs as, where it runs (a runner, a runner pool or the run-as "
       + "person's default runner) and when: every N minutes, daily or weekly, in a time zone. Needs permission to manage schedules." },
-    { name: "Holiday calendars", text: "Named lists of dates, such as public holidays. A schedule that uses a calendar does not run on its dates." },
+    { name: "Holiday calendars", text: "Named lists of dates, such as public holidays, with the days of the weekend. A schedule that uses a calendar does not run on its dates; "
+      + "agents count working days with it (Date and time: Add working days, Count working days, Next working day, Is working day)." },
     { name: "Times missed and overlapping runs", text: "When creating or opening a schedule: run once for times missed while One CommandCenter was down, or "
       + "skip them; and start another run or skip this time when the previous run is still going." },
     { name: "Last run", text: "How the latest run ended and when. Click it to open that run in Agent Activity." },
@@ -288,33 +289,50 @@ function EditSchedule({ api, s, manage, runsOn, onClose, onCopy, onSaved }: { ap
   );
 }
 
-/** Holiday calendars: named lists of dates schedules skip (UiPath's non-working days, Blue Prism's calendars). */
+/** A weekend as short day names, e.g. "Sat, Sun"; "none" when every day is a working day. */
+export const weekendText = (w?: string[]) => { const d = w ?? ["SAT", "SUN"]; return d.length ? d.map((x) => x.charAt(0) + x.slice(1).toLowerCase()).join(", ") : "none"; };
+
+/**
+ * Holiday calendars: named lists of dates schedules skip (UiPath's non-working days, Blue Prism's calendars). Since gap
+ * G34 a calendar also has a weekend (Blue Prism's working week): agents' working-day steps in Date and time skip both.
+ */
 function Calendars({ api, manage, onClose, onNotice }: { api: CrApi; manage: boolean; onClose: () => void; onNotice: (t: string) => void }) {
-  const [cals, setCals] = useState<{ name: string; dates: string[]; updated?: string; updated_by?: string }[] | null>(null);
+  const [cals, setCals] = useState<HolidayCalendar[] | null>(null);
   const [name, setName] = useState("");
   const [dates, setDates] = useState("");
+  const [weekend, setWeekend] = useState<string[]>(["SAT", "SUN"]);
   const [error, setError] = useState<string | null>(null);
   const read = useCallback(() => api.calendars().then(setCals, (e) => setError(message(e))), [api]);
   useEffect(() => { read(); }, [read]);
   const today = new Date().toISOString().slice(0, 10);
+  const allWeekend = weekend.length === DAYS.length;
   return (
-    <Dialog open title="Holiday calendars" width={640} onClose={onClose} footer={manage ? <Button kind="primary" disabled={!name.trim()}
-      onClick={() => api.saveCalendar(name.trim(), dates.split(/[\s,;]+/).filter(Boolean)).then(() => { onNotice("Saved the calendar " + name.trim() + "."); setName(""); setDates(""); read(); }, (e) => setError(message(e)))}>Save calendar</Button> : null}>
+    <Dialog open title="Holiday calendars" width={680} onClose={onClose} footer={manage ? <Button kind="primary" disabled={!name.trim() || allWeekend}
+      onClick={() => api.saveCalendar(name.trim(), dates.split(/[\s,;]+/).filter(Boolean), DAYS.filter((d) => weekend.includes(d)))
+        .then(() => { onNotice("Saved the calendar " + name.trim() + "."); setName(""); setDates(""); setWeekend(["SAT", "SUN"]); read(); }, (e) => setError(message(e)))}>Save calendar</Button> : null}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <table className="st-table" aria-label="Calendars">
-        <thead><tr><th scope="col">Calendar</th><th scope="col">Dates</th><th scope="col">Updated</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+        <thead><tr><th scope="col">Calendar</th><th scope="col">Dates</th><th scope="col">Weekend</th><th scope="col">Updated</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
         <tbody>
           {(cals ?? []).map((c) => <tr key={c.name}><td>{c.name}</td><td>{c.dates.length} dates{c.dates.length ? " (next " + (c.dates.find((d) => d >= today) ?? "none") + ")" : ""}</td>
+            <td>{weekendText(c.weekend)}</td>
             <td>{when(c.updated)}{c.updated_by ? " by " + c.updated_by : ""}</td>
-            <td>{manage && <span className="cc-inline"><Button kind="plain" onClick={() => { setName(c.name); setDates(c.dates.join("\n")); }}>Edit</Button>
+            <td>{manage && <span className="cc-inline"><Button kind="plain" onClick={() => { setName(c.name); setDates(c.dates.join("\n")); setWeekend(c.weekend ?? ["SAT", "SUN"]); }}>Edit</Button>
               <Button kind="plain" onClick={() => api.deleteCalendar(c.name).then(() => { onNotice("Deleted the calendar " + c.name + "."); read(); }, (e) => setError(message(e)))}>Delete</Button></span>}</td></tr>)}
-          {cals && !cals.length && <tr><td colSpan={4} className="st-muted">No holiday calendars yet.</td></tr>}
+          {cals && !cals.length && <tr><td colSpan={5} className="st-muted">No holiday calendars yet.</td></tr>}
         </tbody>
       </table>
       {manage && <>
         <h3 className="cc-log-title">Add or change a calendar</h3>
         <Field label="Name">{(id) => <TextInput id={id} value={name} placeholder="India 2026" onChange={(e) => setName(e.target.value)} />}</Field>
         <Field label="Dates (YYYY-MM-DD, one per line or separated by commas)">{(id) => <TextArea id={id} rows={4} value={dates} placeholder={"2026-01-26\n2026-08-15"} onChange={(e) => setDates(e.target.value)} />}</Field>
+        <div className="cc-inline" role="group" aria-label="Weekend days">
+          <span className="st-muted">Weekend (not working days):</span>
+          {DAYS.map((d) => <label key={d} className="st-check-line"><input type="checkbox" checked={weekend.includes(d)}
+            onChange={(e) => setWeekend(e.target.checked ? [...weekend, d] : weekend.filter((x) => x !== d))} /> {d.charAt(0) + d.slice(1).toLowerCase()}</label>)}
+        </div>
+        <p className="st-muted">{allWeekend ? "Leave at least one working day in the week." : "Schedules skip the dates. Agents' working-day steps (Date and time: Add working days, "
+          + "Count working days, Next working day, Is working day) skip the dates and the weekend."}</p>
       </>}
     </Dialog>
   );

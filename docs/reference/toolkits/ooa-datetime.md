@@ -1,13 +1,13 @@
 # Date and time
 
-Toolkit `ooa.datetime`, version 1.0.0. Current time, add, difference, format and time zone conversion.
+Toolkit `ooa.datetime`, version 1.0.0. Current time, add, difference, format, time zone conversion and working days with business calendars.
 
 [All toolkits](README.md)
 
 ## Contents
 
-- **Date and time**: Add to date, Convert time zone, Difference between dates, End of period, Format date, Get part of date, Is after, Is before, Is equal, Is leap year, Get current date and time, Text to date, Start of period, Subtract from date
-- **Conditions**: Date is after, Date is before, Date is between, Within business hours, Dates are equal, Text is a valid date, Is weekend
+- **Date and time**: Add to date, Add working days, Convert time zone, Difference between dates, End of period, Format date, Get part of date, Is after, Is before, Is equal, Is leap year, Is working day, Next working day, Get current date and time, Text to date, Previous working day, Start of period, Subtract from date, Count working days
+- **Conditions**: Date is after, Date is before, Date is between, Within business hours, Dates are equal, Text is a valid date, Is weekend, Is working day
 
 ## Date and time
 
@@ -31,6 +31,31 @@ Add (or subtract, with a negative amount) a duration to a date.
 | Name | Type | Description |
 | --- | --- | --- |
 | `result` | DateTime | New date and time. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Add working days
+
+`ooa.datetime/add_working_days` (action)
+
+Move a date by a number of working days, skipping the weekend and holidays of a business calendar; a negative number moves back. The start date itself is not counted (1 from Friday is Monday) and 0 keeps the date. The time of day is kept.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | DateTime | Yes |  | Main | Start date. |
+| Days | `days` | Number | Yes |  | Main | Working days to add, a whole number; negative to go back. |
+| Calendar | `calendar` | Text | No |  | Main; choice Working days from = A holiday calendar | Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here. |
+| Weekend | `weekend` | Text | No |  | Main; choice Working days from = Weekend and holidays I give | Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. When given with a calendar, it replaces the calendar's weekend. |
+| Holidays | `holidays` | List | No |  | Main; choice Working days from = Weekend and holidays I give | Dates that are not working days, as yyyy-MM-dd, e.g. ["2026-12-25"]. Added to the calendar's dates when a calendar is named too. |
+| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone whose calendar date counts; the time of day is kept in this zone. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | DateTime | The date that many working days later (or earlier). |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -237,6 +262,56 @@ Check whether the year of a date, or a year number, is a leap year.
 
 *Time limit 60 s; safe to repeat.*
 
+### Is working day
+
+`ooa.datetime/is_working_day` (action)
+
+Check whether a date is a working day in a business calendar: not on its weekend and not one of its holidays.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | DateTime | Yes |  | Main | Date to check. |
+| Calendar | `calendar` | Text | No |  | Main; choice Working days from = A holiday calendar | Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here. |
+| Weekend | `weekend` | Text | No |  | Main; choice Working days from = Weekend and holidays I give | Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. When given with a calendar, it replaces the calendar's weekend. |
+| Holidays | `holidays` | List | No |  | Main; choice Working days from = Weekend and holidays I give | Dates that are not working days, as yyyy-MM-dd, e.g. ["2026-12-25"]. Added to the calendar's dates when a calendar is named too. |
+| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone whose calendar date counts. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Yes/No | True on a working day. |
+| `reason` | Text | Why it is not a working day: holiday or weekend (holiday when both); empty on a working day. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Next working day
+
+`ooa.datetime/next_working_day` (action)
+
+Return the first working day after a date in a business calendar, or the date itself when it is a working day and same_day is on. The time of day is kept.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | DateTime | Yes |  | Main | Date to start from. |
+| Calendar | `calendar` | Text | No |  | Main; choice Working days from = A holiday calendar | Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here. |
+| Weekend | `weekend` | Text | No |  | Main; choice Working days from = Weekend and holidays I give | Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. When given with a calendar, it replaces the calendar's weekend. |
+| Holidays | `holidays` | List | No |  | Main; choice Working days from = Weekend and holidays I give | Dates that are not working days, as yyyy-MM-dd, e.g. ["2026-12-25"]. Added to the calendar's dates when a calendar is named too. |
+| Same day | `same_day` | Yes/No | No | No | More options | Return the date itself when it is a working day (e.g. a due date that moves only off holidays and weekends). |
+| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone whose calendar date counts; the time of day is kept in this zone. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | DateTime | The next working day. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Get current date and time
 
 `ooa.datetime/now` (action)
@@ -274,6 +349,31 @@ Read a date from text using a pattern, interpreting it in a time zone; the resul
 | Name | Type | Description |
 | --- | --- | --- |
 | `value` | DateTime | Parsed date (UTC). |
+
+*Time limit 60 s; safe to repeat.*
+
+### Previous working day
+
+`ooa.datetime/previous_working_day` (action)
+
+Return the last working day before a date in a business calendar, or the date itself when it is a working day and same_day is on. The time of day is kept.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | DateTime | Yes |  | Main | Date to start from. |
+| Calendar | `calendar` | Text | No |  | Main; choice Working days from = A holiday calendar | Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here. |
+| Weekend | `weekend` | Text | No |  | Main; choice Working days from = Weekend and holidays I give | Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. When given with a calendar, it replaces the calendar's weekend. |
+| Holidays | `holidays` | List | No |  | Main; choice Working days from = Weekend and holidays I give | Dates that are not working days, as yyyy-MM-dd, e.g. ["2026-12-25"]. Added to the calendar's dates when a calendar is named too. |
+| Same day | `same_day` | Yes/No | No | No | More options | Return the date itself when it is a working day. |
+| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone whose calendar date counts; the time of day is kept in this zone. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | DateTime | The previous working day. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -318,6 +418,32 @@ Subtract an amount of time from a date.
 | Name | Type | Description |
 | --- | --- | --- |
 | `result` | DateTime | New date and time. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Count working days
+
+`ooa.datetime/working_days_between` (action)
+
+Count the working days between two dates in a business calendar: the days after the start up to and including the end (the start too, when chosen). The count is negative when the end is before the start.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Start | `start` | DateTime | Yes |  | Main | First date. |
+| End | `end` | DateTime | Yes |  | Main | Last date. |
+| Calendar | `calendar` | Text | No |  | Main; choice Working days from = A holiday calendar | Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here. |
+| Weekend | `weekend` | Text | No |  | Main; choice Working days from = Weekend and holidays I give | Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. When given with a calendar, it replaces the calendar's weekend. |
+| Holidays | `holidays` | List | No |  | Main; choice Working days from = Weekend and holidays I give | Dates that are not working days, as yyyy-MM-dd, e.g. ["2026-12-25"]. Added to the calendar's dates when a calendar is named too. |
+| Include start | `include_start` | Yes/No | No | No | More options | Count the start date too when it is a working day (Monday to Friday of one week is then 5, not 4). |
+| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone whose calendar date counts. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Number | Number of working days. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -426,3 +552,19 @@ True when the date falls on Saturday or Sunday in the given time zone.
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | DateTime | Yes |  | Main | Date (UTC). |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone. |
+
+### Is working day
+
+`ooa.datetime/is_working_day` (condition)
+
+True when the date is a working day in a business calendar: not on its weekend and not one of its holidays.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | DateTime | Yes |  | Main | Date to check. |
+| Calendar | `calendar` | Text | No |  | Main | Name of a holiday calendar in One CommandCenter (its holidays and weekend). Read once per run as the run's user; needs the agent to run from One CommandCenter. Leave empty to give the holidays and weekend here. |
+| Holidays | `holidays` | List | No |  | Main | Dates that are not working days, as yyyy-MM-dd, e.g. ["2026-12-25"]. Added to the calendar's dates when a calendar is named too. |
+| Weekend | `weekend` | Text | No |  | Main | Days of the week that are not working days, e.g. SAT,SUN (the default) or FRI,SAT; NONE when every day is a working day. When given with a calendar, it replaces the calendar's weekend. |
+| Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone whose calendar date counts. |

@@ -210,8 +210,27 @@ Several at once: tick schedules, then **Enable selected**, **Disable selected** 
 
 ### Holiday calendars
 
-**Holiday calendars** lists calendars with their number of dates and the next one. To add or change one, type a
-**Name** and the **Dates** (YYYY-MM-DD, one per line or separated by commas) and press **Save calendar**.
+**Holiday calendars** lists calendars with their number of dates, the next one and the **Weekend**. To add or change
+one, type a **Name** and the **Dates** (YYYY-MM-DD, one per line or separated by commas), tick the **Weekend** days
+(Saturday and Sunday unless you change them; Friday and Saturday in much of the Middle East; none for teams that work
+every day; at least one day of the week must stay a working day) and press **Save calendar**. **Edit** fills the form
+with a calendar so you can change it. Saving and deleting need permission to manage schedules and are written to the
+Audit Trail (`calendar.save` records the number of dates and the weekend, and the old weekend when it changed).
+
+A calendar is used in two places:
+
+- **Schedules** that name it do not start on its dates (in the schedule's time zone). The weekend does not stop a
+  schedule; choose the schedule's days for that.
+- **Agents** count working days with it. The Date and time toolkit's **Add working days** (a negative number goes
+  back), **Count working days**, **Next working day**, **Previous working day** and **Is working day** (a step and a
+  condition) take the calendar's name. A working day is one that is neither on the calendar's weekend nor one of its
+  dates. The runner reads the calendar from One CommandCenter once per run, as the run's user (who needs permission
+  to view schedules); each read is in the Audit Trail as `agent.calendar`. A name that does not exist fails the step
+  with `DATETIME.CALENDAR_NOT_FOUND`.
+- In One AgentStudio, or any run without One CommandCenter, the same steps take the **holidays** (a list of
+  YYYY-MM-DD dates) and the **weekend** (such as `SAT,SUN`, `FRI,SAT` or `NONE`) on the step itself; a calendar name
+  there fails with `DATETIME.NO_COMMAND_CENTER`. Holidays given with a calendar are added to its dates, and a weekend
+  given with a calendar replaces the calendar's.
 
 ### Rules to remember
 

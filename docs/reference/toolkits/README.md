@@ -30,7 +30,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Data Table](ooa-datatable.md) | `ooa.datatable` | 33 | 5 | 0 | Build, filter, sort, search and change in-memory tables. |
 | [Database](ooa-database.md) | `ooa.database` | 12 | 0 | 1 | Connect to databases and run parameterised queries, updates and transactions. |
 | [Databricks](ooa-databricks.md) | `ooa.databricks` | 14 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
-| [Date and time](ooa-datetime.md) | `ooa.datetime` | 14 | 7 | 0 | Current time, add, difference, format and time zone conversion. |
+| [Date and time](ooa-datetime.md) | `ooa.datetime` | 19 | 8 | 0 | Current time, add, difference, format, time zone conversion and working days with business calendars. |
 | [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
@@ -102,4 +102,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 91 toolkits, 1242 actions, 49 conditions and 13 loop types.
+In all: 91 toolkits, 1247 actions, 50 conditions and 13 loop types.
