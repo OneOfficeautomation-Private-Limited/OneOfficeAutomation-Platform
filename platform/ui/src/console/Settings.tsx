@@ -360,6 +360,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
         Test the directory</Button>
     </div>}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
+    {section === "agents" && <Button kind="secondary" onClick={() => api.gitPull().then((r) => onNotice(pullNotice(r)), fail)}>Pull from Git</Button>}
     {section === "data" && <span className="cc-inline">
       <Button kind="secondary" onClick={() => api.backupNow().then((r) => onNotice("Backup made: " + r.file + " (" + r.size_mb + " MB)."), fail)}>Back up now</Button>
       <Button kind="secondary" disabled={!what || asking} title={what ? undefined : "Keep runs for and Keep step logs for are 0 (always): there is nothing to remove"}
@@ -399,4 +400,13 @@ function ScimTokens({ api, publicUrl, onNotice, fail }: { api: CrApi; publicUrl:
       <Button kind="secondary" disabled={!name.trim()} onClick={() => api.makeScimToken(name.trim()).then((r) => { setMade({ name: r.name, token: r.token }); setName(""); load(); }, fail)}>Make a SCIM token</Button>
     </div>
   </section>;
+}
+
+/** What Pull from Git (G70) did, in one line: agents read, and the ones left alone and why. */
+export function pullNotice(r: { imported: { path: string }[]; conflicts: { path: string }[]; problems: { path: string; error: string }[]; deleted_in_git: string[] }) {
+  const parts = [r.imported.length ? "Read " + r.imported.length + " agent" + (r.imported.length === 1 ? "" : "s") + " from Git as new versions." : "Nothing new in Git."];
+  if (r.conflicts.length) parts.push("Left alone, changed in both places: " + r.conflicts.map((c) => c.path).join(", ") + ".");
+  if (r.problems.length) parts.push("Not read: " + r.problems.map((p) => p.path + " (" + p.error + ")").join("; ") + ".");
+  if (r.deleted_in_git.length) parts.push("Deleted in Git but kept here: " + r.deleted_in_git.join(", ") + ".");
+  return parts.join(" ");
 }

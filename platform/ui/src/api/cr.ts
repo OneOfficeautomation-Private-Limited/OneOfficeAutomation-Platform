@@ -407,6 +407,9 @@ export class CrApi {
   }
   mailTest(to: string) { return this.call<{ to: string }>("POST", "settings/mail-test", { to }); }
   gitStatus() { return this.call<{ configured: boolean; state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("GET", "git/status"); }
+  /** Reads agents changed in Git back as new versions (G70). */
+  gitPull() { return this.call<{ imported: { path: string; version: number; created: boolean }[]; conflicts: { path: string; why: string }[];
+    problems: { path: string; error: string }[]; deleted_in_git: string[] }>("POST", "git/pull"); }
   gitSync() { return this.call<{ state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("POST", "git/sync"); }
   backups() { return this.call<{ folder: string; backups: { file?: string; created: string; size_mb: number }[]; state?: string; error?: string; key_note?: string }>("GET", "backups"); }
   backupNow() { return this.call<{ file: string; size_mb: number }>("POST", "backups"); }

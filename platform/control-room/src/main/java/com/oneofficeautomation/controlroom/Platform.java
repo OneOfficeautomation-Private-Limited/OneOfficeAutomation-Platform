@@ -1889,6 +1889,11 @@ public final class Platform {
             String pid = String.valueOf(s.get("action")).split("/")[0];
             if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this One CommandCenter (step " + s.get("id") + ")",
                     "Ask an administrator to switch it on under Toolkits, or remove the step.");
+            // a coded agent's step (G70) lists the toolkits its code may call
+            if (s.get("args") instanceof Map<?, ?> a && a.get("uses") instanceof List<?> uses && "ooa.coded".equals(pid))
+                for (Object u : uses) if (off.contains(String.valueOf(u).trim()))
+                    throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + u + "' is switched off in this One CommandCenter (its code in step " + s.get("id") + " may call it)",
+                        "Ask an administrator to switch it on under Toolkits, or take it out of the step's Toolkits it may call.");
         }
     }
 }

@@ -1535,9 +1535,32 @@ public final class Runner {
                     public Object value(String name) { synchronized (scope) { return scope.values.get(name); } }
                 });
                 m.putIfAbsent(RunSuspension.SERVICE, suspension());
+                // coded agents (G70): a toolkit command the code calls runs as part of the calling step
+                m.putIfAbsent("action_invoker", (java.util.function.Function<Map<String, Object>, Object>) this::invokeForCode);
                 stepServices = java.util.Collections.unmodifiableMap(m);
             }
             return stepServices;
+        }
+
+        /**
+         * A toolkit command called by a coded agent's code (G70): {action: "toolkit/command", inputs, step}. It is checked
+         * and run as a step's command is (inputs, vault references, the agent's toolkit versions), and logged under the
+         * calling step.
+         */
+        @SuppressWarnings("unchecked")
+        Object invokeForCode(Map<String, Object> req) {
+            String action = String.valueOf(req.get("action"));
+            int slash = action.lastIndexOf('/');
+            if (slash <= 0) throw new OoaException("CODE.BAD_CALL", "Name the command as toolkit/command, such as ooa.excel/read_range");
+            String pid = action.substring(0, slash), aid = action.substring(slash + 1);
+            PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
+            ActionSpec spec = pkg.spec("action", aid);
+            if (spec == null) throw new OoaException("FLOW.UNKNOWN_ACTION", pid + "@" + pkg.version() + " has no action '" + aid + "'");
+            registry.recordUsage(pid, pkg.version(), String.valueOf(flow.getOrDefault("id", "?")));
+            String sid = String.valueOf(req.getOrDefault("step", "code"));
+            Map<String, Object> args = prepareArgs(spec, req.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of());
+            emit("log", sid, logData("info", "The code calls " + action));
+            return invoke(pkg, spec, args, ctx(sid));
         }
 
         /** Suspend and resume for this run (G36): where it may stop, what it saves, and the answer when it comes back. */
