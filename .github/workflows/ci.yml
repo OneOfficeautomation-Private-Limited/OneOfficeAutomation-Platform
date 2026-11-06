@@ -186,8 +186,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Start a stand-in of the test-set API
-        run: python3 platform/deploy/ci/github-action/stub_server.py 8799 &
+      - name: Start a stand-in of the test-set API (and wait until it answers)
+        run: |
+          nohup python3 platform/deploy/ci/github-action/stub_server.py 8799 > stub.log 2>&1 &
+          for i in $(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:8799/ && exit 0; sleep 0.25; done
+          cat stub.log; exit 1
       - name: A test set whose cases all pass
         uses: ./platform/deploy/ci/github-action
         with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_pass, pool: pool_ci, timeout-minutes: "2" }
