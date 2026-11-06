@@ -77,6 +77,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [PowerPoint](ooa-powerpoint.md) | `ooa.powerpoint` | 17 | 0 | 0 | Open or create .pptx presentations, add, copy and delete slides, edit text, pictures and tables, and save. |
 | [PowerPoint (desktop, needs PowerPoint)](ooa-powerpoint_desktop.md) | `ooa.powerpoint_desktop` | 4 | 0 | 0 | Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint. |
 | [Printer](ooa-printer.md) | `ooa.printer` | 5 | 0 | 0 | List printers and print files. |
+| [Process mining](ooa-mining.md) | `ooa.mining` | 2 | 0 | 0 | Discover a process from an event log (cases, activities, times): variants, flows, waiting times and a diagram; check conformance. |
 | [Prompt Skills](ooa-ai_skills.md) | `ooa.ai_skills` | 2 | 0 | 0 | Run saved, reusable prompt templates (Prompt Skills) with your values. |
 | [REST Web Service](ooa-rest.md) | `ooa.rest` | 3 | 0 | 0 | Call HTTP/REST APIs with JSON, headers and authentication. |
 | [Run context](ooa-run_context.md) | `ooa.run_context` | 2 | 0 | 0 | Information about the current run: run id, runner, user and workspace. |
@@ -103,4 +104,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 92 toolkits, 1255 actions, 50 conditions and 15 loop types.
+In all: 93 toolkits, 1257 actions, 50 conditions and 15 loop types.
