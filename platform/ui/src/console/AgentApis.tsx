@@ -26,7 +26,7 @@ const HELP: HelpTopic = { title: "Agent APIs", about: "An agent behind its own a
       + "The token is shown once when you create it, with an example call. It needs the Manage Agent APIs permission." },
     { name: "Folders", text: "The folders of the agents behind the Agent APIs, as in Automation. Pick one to see only its Agent APIs." },
     { name: "Runs on", text: "A runner, a runner pool, or One CommandCenter itself (serverless). "
-      + "Serverless suits agents that only call web services and work on data; they run for at most 5 minutes." },
+      + "Serverless suits agents that only call web services and work on data; they run for at most 5 minutes unless an administrator allows longer (Settings, up to 60)." },
     { name: "Waits up to", text: "How long a caller waits for the run to finish. "
       + "When it takes longer, the caller gets 202 with the run id and asks again later." },
     { name: "Copy", text: "Copies the full address to call (with POST), to give to the system that calls it." },
@@ -184,7 +184,7 @@ function NewApi({ api, runners, pools, preset, onClose, onCreated }: { api: CrAp
       </div>
       {v.where === "runner" && <Field label="Runner">{(id) => <Select id={id} value={v.device} onChange={set("device")} options={runners.map((r) => ({ value: r.id, label: r.name + " (" + r.status + ")" }))} />}</Field>}
       {v.where === "pool" && <Field label="Runner pool">{(id) => <Select id={id} value={v.pool} onChange={set("pool")} options={[{ value: "", label: "Choose a pool" }, ...pools.map((p) => ({ value: p.id, label: p.name }))]} />}</Field>}
-      {v.where === "serverless" && <p className="st-muted">Serverless suits agents that only call web services and work on data (REST, SOAP, cloud apps, Excel, PDF, JSON). They run for at most 5 minutes, four at a time, with files only in their own workspace.</p>}
+      {v.where === "serverless" && <p className="st-muted">Serverless suits agents that only call web services and work on data (REST, SOAP, cloud apps, Excel, PDF, JSON). They run for at most 5 minutes and four at a time, unless an administrator changes that in Settings (up to 60 minutes and 16 at a time), with files only in their own workspace.</p>}
       <Field label="Wait for the result up to (seconds, 1-300)">{(id) => <TextInput id={id} type="number" min={1} max={300} value={v.timeout} onChange={set("timeout")} />}</Field>
       <p className="cc-list-hint">Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again.</p>
     </Dialog>

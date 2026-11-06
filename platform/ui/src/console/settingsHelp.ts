@@ -7,6 +7,8 @@ export const SETTING_HELP: Record<string, string> = {
   announcement: "A message shown at the top of every page to everyone signed in, for example a maintenance window. Type it and save; clear the box and save to remove it.",
   public_url: "The address people use to reach this One CommandCenter, such as https://ooa.example.com. Single sign-on sends people back to it, and links in e-mails use it. Leave it empty when everyone uses this computer's address.",
   max_upload_mb: "The biggest file anyone can upload, such as a toolkit, a template or a repository file. Raise it only when you upload large files; uploads above it are refused.",
+  serverless_max_minutes: "Serverless Agent API runs (agents that only call web services and work on data, run inside One CommandCenter with no runner) stop after this long. Longer runs suit integrations that page through many records; each one holds one of the serverless places for that time.",
+  serverless_parallel: "How many serverless runs go at the same time; more wait their turn. Each takes memory and CPU on One CommandCenter, so raise it only with room to spare. A change takes effect for the next runs.",
   queue_poll_seconds: "How often waiting work-queue items are checked and handed to free runners. Shorter starts work sooner but adds load; 10 to 30 seconds suits most sites.",
   default_minutes_saved: "The manual minutes one successful run saves, for agents that have no value of their own. Value uses it to work out hours and money saved; set an agent's own value in Value.",
   hourly_cost: "What an hour of the same work costs when people do it by hand. Value multiplies the hours saved by this to show money saved, in the currency below.",

@@ -32,7 +32,9 @@ const SECTIONS: Section[] = [
       { key: "default_time_zone", label: "Time zone for new schedules", hint: "Empty: each person's own.", kind: "text", placeholder: "Asia/Kolkata" }] },
     { title: "Limits", settings: [
       { key: "max_upload_mb", label: "Largest upload", hint: "1 to 1024.", unit: "MB", kind: "number", min: 1, max: 1024 },
-      { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 }] },
+      { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 },
+      { key: "serverless_max_minutes", label: "Longest serverless Agent API run", hint: "1 to 60.", unit: "minutes", kind: "number", min: 1, max: 60 },
+      { key: "serverless_parallel", label: "Serverless runs at the same time", hint: "1 to 16.", kind: "number", min: 1, max: 16 }] },
     { title: "Value of automation", settings: [
       { key: "default_minutes_saved", label: "Minutes saved per successful run", hint: "For agents without their own value.", unit: "minutes", kind: "number", min: 0, max: 100000 },
       { key: "hourly_cost", label: "Cost of an hour of the manual work", hint: "For money saved in Value.", kind: "number", min: 0, max: 100000 },
