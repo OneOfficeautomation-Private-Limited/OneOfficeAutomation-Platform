@@ -133,6 +133,12 @@ final class FullCommands {
         c.command("directory start", "Start the directory (config/ooa-directory.properties lists the regions).", a -> RegionCommand.directory(a.o()))
             .opt("--data", "DIR", "Its data folder.").opt("--host", "HOST", "The address to listen on (default 0.0.0.0).").number("--port", "N", "The port (default 8720).");
 
+        // bot migration (G74): AA Task Bots and UiPath workflows to OOA agents, with what is left to do by hand
+        c.command("migrate", "Turn Automation Anywhere bots (JSON) or UiPath workflows (.xaml) into OOA agents, with a report.",
+                a -> Migrate.run(a.pos(0), a.pos(1), a.pos(2)))
+            .param("FROM", "aa or uipath.", "1").param("SOURCE", "A bot file, or a folder of them.", "1")
+            .param("OUT", "The folder for the agents and migration-report.json.", "1");
+
         c.command("check", "Check whether this computer is ready for One CommandCenter.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
 
