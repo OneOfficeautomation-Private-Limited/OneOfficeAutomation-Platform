@@ -73,7 +73,28 @@ DocFlow's `PLATFORM-CONTRACT.md` lists the methods, inputs and response fields f
 5. **Release approval.** Each DocFlow release and each change to the pinned version is approved before it is merged
    or published.
 
-The pinned version and range will be recorded here once phase 2 adds the platform test that runs against a real DocFlow.
+### Where the pin lives
+
+`platform/control-room/src/main/resources/docflow-compat.properties` holds the pin:
+- `contract`: the API version the Command Center calls (`v1`);
+- `pinned`: the DocFlow version this release is tested with (3.1.0);
+- `minimum`: the oldest DocFlow version that works (3.1.0);
+- `ref`: the oneoffice-docauto commit or tag that CI checks out (a commit until DocFlow has its first tag).
+
+CI's job **"Document Automation with the real DocFlow (Linux)"** checks out DocFlow at `ref`, starts it with
+PostgreSQL and Tesseract, and runs `DocFlowLiveTest` against it. The test covers:
+- that DocFlow reports the pinned version;
+- the screens' routes through the proxy;
+- a live process with a "Start a bot" delivery;
+- an invoice uploaded and read;
+- DocFlow calling back to start the agent;
+- the review queue turning into Task inbox tasks;
+- a wrong token reported plainly.
+
+To move to a newer DocFlow, change `ref`, and `pinned` if the version changed, on a branch of its own. Then let this
+job pass before asking for the merge. To run the test on a PC that has a DocFlow running:
+`gradlew :control-room:test --tests "*DocFlowLiveTest*" -Pooa.test.docflow=http://127.0.0.1:8085 -Pooa.test.docflow.token=<token> -Pooa.test.docflow.port=18766 -Pooa.test.docflow.samples=<oneoffice-docauto>/samples`.
+DocFlow's `DOCAUTO_PLATFORM_URL` must then be `http://127.0.0.1:18766`.
 
 ## Known gaps (2026-11-07)
 
@@ -83,7 +104,5 @@ The pinned version and range will be recorded here once phase 2 adds the platfor
 2. **Which DocFlow branch.** The platform needs DocFlow's `document-automation` branch. Its `main` branch lacks the
    platform "Start a bot" callback, the email inbox settings, the test lab (`df/test`) and PostgreSQL storage. The
    first DocFlow release should come from `document-automation` once it is merged into `main`.
-3. **Platform tests use a stand-in.** `DocFlowProxyTest` runs against a fake DocFlow. Phase 2 adds a CI job that
-   runs the real DocFlow.
-4. **Not packaged yet.** DocFlow isn't in `platform/docker` compose files or the Windows installer yet (phase 5),
+3. **Not packaged yet.** DocFlow isn't in `platform/docker` compose files or the Windows installer yet (phase 5),
    and there is no Helm chart yet (phase 6).
