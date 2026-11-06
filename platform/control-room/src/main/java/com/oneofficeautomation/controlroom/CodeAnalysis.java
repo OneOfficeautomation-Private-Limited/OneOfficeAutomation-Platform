@@ -31,7 +31,27 @@ public final class CodeAnalysis {
         rule("long_waits", true, "warning", Map.of("max_seconds", 600), "Fixed delays longer than the limit");
         rule("max_steps", true, "warning", Map.of("limit", 300), "Very long agents are hard to maintain; split them into child agents");
         rule("max_nesting", true, "warning", Map.of("limit", 6), "Blocks nested deeper than the limit");
+        // G83: connector groups, as Power Automate's data policies: business, blocked, and neutral (data-only) toolkits;
+        // every other toolkit is non-business, and one agent may not use business and non-business toolkits together
+        rule("connector_groups", false, "error", Map.of("business", List.of(), "blocked", List.of(), "neutral", neutralToolkits()),
+                "Toolkits are grouped as business, non-business (the rest) and blocked; an agent may not mix business and non-business ones");
     }
+    /** Toolkits that only work on the agent's own values (text, numbers, dates, lists): in no group, so they mix with both. */
+    static List<String> neutralToolkits() { return List.of("core", "ooa.string", "ooa.number", "ooa.datetime", "ooa.boolean", "ooa.list", "ooa.dictionary",
+            "ooa.datatable", "ooa.log", "ooa.json", "ooa.xml", "ooa.csv", "ooa.locks", "ooa.jobs"); }
+
+    /** True when the action belongs to one of the toolkits listed (a toolkit id, or a prefix ending in * such as ooa.aws*). */
+    static boolean inGroup(String action, List<String> group) {
+        String pid = action.contains("/") ? action.substring(0, action.indexOf('/')) : action;
+        for (String g : group) {
+            String t = g.trim();
+            if (t.endsWith("/")) t = t.substring(0, t.length() - 1);
+            if (t.isEmpty()) continue;
+            if (t.endsWith("*") ? pid.startsWith(t.substring(0, t.length() - 1)) : pid.equals(t)) return true;
+        }
+        return false;
+    }
+
     private static void rule(String id, boolean on, String severity, Map<String, Object> params, String description) {
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("enabled", on); r.put("severity", severity); r.put("params", params); r.put("description", description);
@@ -208,6 +228,21 @@ public final class CodeAnalysis {
                     int depth = Math.max(depth(top, 0), depth(Steps.onErrorSteps(flow), 0));
                     for (List<Object> sub : Steps.subflows(flow).values()) depth = Math.max(depth, depth(sub, 0));
                     if (depth > limit) out.add(new Violation("max_nesting", sev, null, "Blocks are nested " + depth + " deep (limit " + limit + ")"));
+                }
+                case "connector_groups" -> {
+                    List<String> business = csv(p.get("business")), blocked = csv(p.get("blocked")), neutral = csv(p.get("neutral"));
+                    String firstBusiness = null, firstOther = null, businessStep = null, otherStep = null;
+                    for (Map<String, Object> s : all) {
+                        String a = String.valueOf(s.get("action"));
+                        if (inGroup(a, blocked)) { out.add(new Violation("connector_groups", sev, id(s), "The toolkit of " + a + " is blocked by the policy")); continue; }
+                        if (inGroup(a, neutral)) continue;
+                        String pid = a.contains("/") ? a.substring(0, a.indexOf('/')) : a;
+                        if (inGroup(a, business)) { if (firstBusiness == null) { firstBusiness = pid; businessStep = id(s); } }
+                        else if (firstOther == null) { firstOther = pid; otherStep = id(s); }
+                    }
+                    if (firstBusiness != null && firstOther != null)
+                        out.add(new Violation("connector_groups", sev, otherStep, "The agent uses " + firstBusiness + " (business, step " + businessStep + ") and "
+                                + firstOther + " (non-business) together; data could pass between them. Move one to another agent, or ask for the toolkit to be grouped"));
                 }
                 default -> { }
             }

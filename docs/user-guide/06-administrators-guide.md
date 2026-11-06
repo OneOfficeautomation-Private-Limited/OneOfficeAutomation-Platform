@@ -517,6 +517,20 @@ The agent repository is the **Public** tab of **Build > Automation**; builders u
 | **Code analysis policy** | The rules agents are checked against (each used or not, an **Error** or a **Warning**, some with a setting such as the most steps an agent may have), and **Refuse check-ins that have errors** | At every check-in and analysis |
 | **AI guardrails policy** | **Mask personal data before it reaches a model**, **Models agents may use**, and a **Content check** on answers | At every AI step, when the agent runs |
 
+The code analysis rule **connector_groups** (off at first) groups toolkits the way Power Automate's data policies group
+connectors:
+
+- **business**: the toolkits for company systems, such as `ooa.sap`, `ooa.microsoft365` or `ooa.aws*`;
+- **blocked**: toolkits no agent in these folders may use;
+- **neutral**: toolkits that only work on the agent's own values (text, numbers, dates, lists, tables, logs). They go
+  with both groups and are filled in at first;
+- every other toolkit is **non-business**.
+
+An agent that uses a business toolkit and a non-business one together is reported, because data could pass from one
+to the other. So is every step of a blocked toolkit. Toolkits are named by id (Agent ToolKits shows them), and a name
+ending in `*` covers every toolkit that starts with it. With **Refuse check-ins that have errors**, such agents cannot be
+checked in to the folders the policy is given to.
+
 A folder follows its own policy of each kind, or else the nearest folder above it that has one; a folder can have one
 policy of each kind. Folders with no code analysis policy anywhere above them follow **Default code analysis**, which
 cannot be deleted (change its rules to change the default). The page is in the menu for people with `settings.manage`,
