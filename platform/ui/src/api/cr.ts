@@ -593,7 +593,7 @@ export class CrApi {
   addDashboardMail(id: string, b: { recipients: string; every: string; at_time: string; weekday?: string; time_zone: string }) {
     return this.call<{ id: string }>("POST", "dashboards/" + encodeURIComponent(id) + "/mail", b); }
   async stopDashboardMail(schedule: string) { await this.call("DELETE", "dashboards/mail/" + encodeURIComponent(schedule)); }
-  sendDashboardMail(schedule: string) { return this.call<{ sent_to: number }>("POST", "dashboards/mail/" + encodeURIComponent(schedule) + "/send"); }
+  sendDashboardMail(schedule: string) { return this.call<{ sent_to: number; left_out?: number }>("POST", "dashboards/mail/" + encodeURIComponent(schedule) + "/send"); }
   dashboardData(id: string, tz?: string) { return this.call<{ id: string; name: string; widgets: WidgetData[] }>("GET", "dashboards/" + encodeURIComponent(id) + "/data" + (tz ? "?tz=" + encodeURIComponent(tz) : "")); }
   value(params: Record<string, string>) { return this.call<ValueReport>("GET", "analytics/value?" + new URLSearchParams(params).toString()); }
   /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */

@@ -119,7 +119,9 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "dashboards/db1/mail" && init.method === "POST") return ok({ id: "dm2" });
     if (route === "dashboards/db1/mail") return ok({ schedules: [{ id: "dm1", recipients: "role:finance,cfo@example.com", every: "week", weekday: "MON", at_time: "08:00",
       time_zone: "UTC", created_by: "admin", created: "2026-10-30T08:00:00Z", next_send: "2026-11-02T08:00:00Z", last_sent: null, last_error: "E-mail is not set up" }] });
-    if (route === "dashboards/mail/dm1/send") return ok({ sent_to: 2 });
+    if (route === "dashboards/mail/dm1/send") return ok({ sent_to: 2, left_out: 1 });
+    if (route === "dashboards/db2/mail") return ok({ schedules: [{ id: "dm3", recipients: "user:vic", every: "day", at_time: "07:00", time_zone: "UTC", created_by: "vic",
+      created: "2026-10-30T08:00:00Z", next_send: "2026-11-02T07:00:00Z", last_sent: null, last_error: null }] });
     if (route === "dashboards/kpis") return ok({ kpis: [{ bot_path: "Finance/Invoice intake.flow.json", name: "amount", n: 12 }, { bot_path: "Finance/Invoice intake.flow.json", name: "category", n: 12 }] });
     if (route === "dashboards/db1/data") return ok({ id: "db1", name: "Finance", widgets: [
       { title: "Amount paid", type: "number", kpi: "amount", agg: "sum", value: 1200 },
@@ -883,6 +885,30 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(within(d).getByLabelText("How often"), { target: { value: "day" } });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Add the e-mail" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "dashboards/db1/mail", body: expect.objectContaining({ recipients: "user:asha", every: "day", at_time: "08:00" }) }));
+    expect(within(d).getByText(/Shared with role:viewer\. It goes only to them/)).toBeTruthy();
+    // send now: says who was left out (no longer shared with them, or no address)
+    fireEvent.keyDown(within(d).getByRole("button", { name: "Actions for the e-mail to role:finance,cfo@example.com" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Send now" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "dashboards/mail/dm1/send" }));
+    expect(await screen.findByText(/Sent to 2 addresses; 1 left out/)).toBeTruthy();
+    location.hash = "";
+  });
+
+  it("lets only a dashboard's owner or an administrator set up its e-mails", async () => {
+    const otto = { ...admin, username: "otto", permissions: admin.permissions.filter((p) => p !== "settings.manage") } as typeof admin;
+    const { api } = fakeServer({ signedIn: otto });
+    render(<ConsoleApp api={api} />);
+    await go("Business");
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Dashboards" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Dashboard" }), { target: { value: "db2" } });   // vic's, shared with everyone
+    fireEvent.keyDown(await screen.findByRole("button", { name: "More for Ops board" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "E-mail it on a schedule…" }));
+    const d = await screen.findByRole("dialog", { name: "E-mail Ops board on a schedule" });
+    expect(within(d).getByText(/Shared with everyone\./)).toBeTruthy();
+    await within(d).findByRole("table", { name: "E-mail schedules" });
+    expect(within(d).getByText("Only the dashboard's owner or an administrator sets up its e-mails.")).toBeTruthy();
+    expect(within(d).queryByRole("button", { name: "Add the e-mail" })).toBeNull();
+    expect(within(d).queryByRole("button", { name: /Actions for the e-mail/ })).toBeNull();
     location.hash = "";
   });
 

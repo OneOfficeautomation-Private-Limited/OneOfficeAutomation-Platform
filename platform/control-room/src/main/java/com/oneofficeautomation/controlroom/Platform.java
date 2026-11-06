@@ -121,6 +121,7 @@ public final class Platform {
         // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
         DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
         DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
+        DEFAULTS.put("dashboard_mail_outside", 0);      // dashboards may be e-mailed to addresses outside One CommandCenter's users
         DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
         DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
         DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token
@@ -196,6 +197,7 @@ public final class Platform {
         Map.entry("agents_write_credentials", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
+        Map.entry("dashboard_mail_outside", new long[] { 0, 1 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
         Map.entry("ldap_nested_groups", new long[] { 0, 1 }),
         Map.entry("value_goal_money", new long[] { 0, 1_000_000_000_000L }));

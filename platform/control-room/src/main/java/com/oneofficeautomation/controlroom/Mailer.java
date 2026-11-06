@@ -14,7 +14,7 @@ import java.util.*;
 
 /**
  * E-mail sent by One CommandCenter itself (licence expiry, workflow steps), through the company's SMTP server. A small
- * SMTP client with no third-party library: EHLO, STARTTLS or implicit TLS, AUTH PLAIN/LOGIN, one plain-text message.
+ * SMTP client with no third-party library: EHLO, STARTTLS or implicit TLS, AUTH PLAIN/LOGIN, one message (plain text, or text and HTML).
  * Settings: mail_smtp_host, mail_smtp_port (587), mail_smtp_security (starttls, ssl or none), mail_smtp_user,
  * mail_smtp_password_ref (a vault reference folder/credential/attribute, never the password itself) and mail_from.
  */
@@ -37,7 +37,10 @@ final class Mailer {
     void send(List<String> to, String subject, String body) { send(to, subject, body, List.of()); }
 
     /** Sends one message, with files attached when given (multipart/mixed). */
-    void send(List<String> to, String subject, String body, List<Attachment> attachments) {
+    void send(List<String> to, String subject, String body, List<Attachment> attachments) { send(to, subject, body, null, attachments); }
+
+    /** Sends one message with a plain-text body and, when html is given, an HTML one too (multipart/alternative). */
+    void send(List<String> to, String subject, String body, String html, List<Attachment> attachments) {
         if (!configured()) throw new OoaException("MAIL.NOT_SET_UP", "E-mail is not set up", "Fill in the outgoing mail server and sender in Administration > Settings > E-mail");
         List<String> rcpt = new ArrayList<>();
         for (String a : to) if (a != null && !a.isBlank()) rcpt.add(address(a.trim()));
@@ -69,7 +72,7 @@ final class Mailer {
             c.cmd("MAIL FROM:<" + from + ">", 250);
             for (String r : rcpt) c.cmd("RCPT TO:<" + r + ">", 250, 251);
             c.cmd("DATA", 354);
-            c.cmd(message(from, rcpt, subject, body, attachments) + "\r\n.", 250);
+            c.cmd(message(from, rcpt, subject, body, html, attachments) + "\r\n.", 250);
             try { c.cmd("QUIT", 221); } catch (RuntimeException ignored) { }
         } catch (IOException e) {
             throw new OoaException("MAIL.FAILED", "Could not reach the mail server " + host + ":" + port + ": " + e.getMessage(), "Check the server, port and security in Administration > Settings > E-mail");
@@ -113,7 +116,10 @@ final class Mailer {
 
     static String message(String from, List<String> to, String subject, String body) { return message(from, to, subject, body, List.of()); }
 
-    static String message(String from, List<String> to, String subject, String body, List<Attachment> attachments) {
+    static String message(String from, List<String> to, String subject, String body, List<Attachment> attachments) { return message(from, to, subject, body, null, attachments); }
+
+    /** The message: plain text, or text and HTML as multipart/alternative, inside multipart/mixed when files are attached. */
+    static String message(String from, List<String> to, String subject, String body, String html, List<Attachment> attachments) {
         String subj = subject == null ? "" : subject.replaceAll("[\\r\\n]+", " ").trim();
         StringBuilder m = new StringBuilder();
         m.append("From: ").append(from).append("\r\n");
@@ -123,14 +129,23 @@ final class Mailer {
         m.append("Message-ID: <").append(UUID.randomUUID()).append("@ooa-command-center>\r\n");
         Base64.Encoder mime = Base64.getMimeEncoder(76, "\r\n".getBytes(StandardCharsets.US_ASCII));
         String encoded = mime.encodeToString((body == null ? "" : body).getBytes(StandardCharsets.UTF_8));
+        // the body: plain text, or text and HTML for the mail program to choose from
+        String part;
+        if (html == null) part = "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + encoded;
+        else {
+            String alt = "ooa-alt-" + UUID.randomUUID();
+            part = "Content-Type: multipart/alternative; boundary=\"" + alt + "\"\r\n\r\n"
+                + "--" + alt + "\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + encoded + "\r\n"
+                + "--" + alt + "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+                + mime.encodeToString(html.getBytes(StandardCharsets.UTF_8)) + "\r\n--" + alt + "--";
+        }
         if (attachments == null || attachments.isEmpty()) {
-            m.append("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n");
-            m.append(encoded);
+            m.append("MIME-Version: 1.0\r\n").append(part);
             return m.toString();
         }
         String boundary = "ooa-" + UUID.randomUUID();
         m.append("MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"").append(boundary).append("\"\r\n\r\n");
-        m.append("--").append(boundary).append("\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n").append(encoded).append("\r\n");
+        m.append("--").append(boundary).append("\r\n").append(part).append("\r\n");
         for (Attachment a : attachments) {
             String name = a.name().replaceAll("[^A-Za-z0-9 ._-]", "_");
             m.append("--").append(boundary).append("\r\nContent-Type: ").append(a.contentType()).append("; name=\"").append(name).append("\"\r\n")

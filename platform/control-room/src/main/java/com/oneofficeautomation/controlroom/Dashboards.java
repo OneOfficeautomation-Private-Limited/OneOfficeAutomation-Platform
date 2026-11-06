@@ -190,24 +190,71 @@ public final class Dashboards {
         return db.query("SELECT id, recipients, every, at_time, weekday, time_zone, created_by, created, next_send, last_sent, last_error FROM dashboard_mail WHERE dashboard_id = ? ORDER BY created", dashboardId);
     }
 
+    /** Only a dashboard's owner, or an administrator (settings.manage), sets up, sends or changes its e-mails. */
+    private boolean mayManageMail(User by, Map<String, Object> d) {
+        return cr.can(by, "settings.manage") || (by.username().equals(d.get("owner")) && cr.can(by, "insights.design"));
+    }
+
+    /** Whether a person may open the dashboard: may view dashboards at all, and this one is theirs or shared with them. */
+    private boolean mayRead(User u, Map<String, Object> d) { return cr.can(u, "analytics.view") && mayView(u, d); }
+
+    /** Settings > E-mail: whether a dashboard may go to addresses that are not people here (off by default). */
+    private boolean outsideAllowed() { return cr.platform.intSetting("dashboard_mail_outside") == 1; }
+
+    /** An active person, as a user, or null. */
+    private User activeUser(String username) {
+        Map<String, Object> u = db.one("SELECT * FROM users WHERE username = ? AND enabled = TRUE", username);
+        return u == null ? null : ControlRoom.user(u);
+    }
+
+    /** The active person with this e-mail address, or null. */
+    private String userWithAddress(String address) {
+        Map<String, Object> u = db.one("SELECT username FROM users WHERE LOWER(email) = ? AND enabled = TRUE", address.toLowerCase(Locale.ROOT));
+        return u == null ? null : (String) u.get("username");
+    }
+
     /**
-     * E-mails a dashboard on a schedule: recipients are user:NAME, role:NAME or e-mail addresses (at most 50); every is
-     * day, week (with weekday MON..SUN) or month (its first day); at_time HH:MM in time_zone. The figures are those the
-     * person setting it up sees. Needs insights.design.
+     * Checks one recipient against the dashboard: a person must be able to see it, a role or team must be one it is
+     * shared with (or it is shared with everyone), and an address must be a person's who may see it, unless addresses
+     * outside One CommandCenter are allowed in Settings > E-mail. Returns why not, or null when it may go.
+     */
+    private String whyNot(String r, Map<String, Object> d) {
+        List<String> shared = csv(d.get("shared_with"));
+        if (r.startsWith("user:")) {
+            User u = activeUser(r.substring(5));
+            if (u == null) return r.substring(5) + " is not an active person";
+            return mayRead(u, d) ? null : r.substring(5) + " may not see this dashboard: share it with them first";
+        }
+        if (r.startsWith("role:") || r.startsWith("team:")) {
+            if (r.startsWith("team:") ? db.one("SELECT id FROM teams WHERE name = ?", r.substring(5)) == null : !cr.roleExists(r.substring(5))) return "There is no " + r;
+            return shared.contains("*") || shared.contains(r) ? null : "The dashboard is not shared with " + r + ": share it with them first";
+        }
+        String person = userWithAddress(r);
+        if (person != null) return whyNot("user:" + person, d);
+        return outsideAllowed() ? null : r + " is not a person here, and e-mailing dashboards to other addresses is off (Administration > Settings > E-mail)";
+    }
+
+    /**
+     * E-mails a dashboard on a schedule: recipients are user:NAME, role:NAME, team:NAME or e-mail addresses (at most 50);
+     * every is day, week (with weekday MON..SUN) or month (its first day); at_time HH:MM in time_zone. Only the
+     * dashboard's owner or an administrator sets one up; each recipient must be someone the dashboard is shared with
+     * (addresses of other people only when Settings allows them). Each person gets the figures they may see.
      */
     public Map<String, Object> mailSave(User by, String dashboardId, Map<String, Object> b, String ip) {
-        cr.require(by, "insights.design", "e-mail dashboards");
+        cr.require(by, "analytics.view", "view dashboards");
         Map<String, Object> d = db.one("SELECT * FROM dashboards WHERE id = ?", dashboardId);
         if (d == null) throw notFound("Dashboard");
         if (!mayView(by, d)) throw cr.denied("view this dashboard");
+        if (!mayManageMail(by, d)) throw cr.denied("e-mail this dashboard (only its owner or an administrator may)");
         List<String> to = new ArrayList<>();
         for (String r : String.valueOf(b.getOrDefault("recipients", "")).split("[,;\\s]+")) {
             if (r.isBlank()) continue;
-            if (r.startsWith("user:") || r.startsWith("role:")) { if (!r.matches("(user|role):[A-Za-z0-9_.@-]{1,80}") || r.equals("role:*")) throw new OoaException("CR.BAD_INPUT", "Not a person or role: " + r); }
+            if (r.startsWith("user:") || r.startsWith("role:") || r.startsWith("team:")) { if (!r.matches("(user|role|team):[A-Za-z0-9_.@-]{1,80}") || r.equals("role:*")) throw new OoaException("CR.BAD_INPUT", "Not a person, role or team: " + r); }
             else Mailer.address(r);
             if (!to.contains(r)) to.add(r);
         }
-        if (to.isEmpty() || to.size() > 50) throw new OoaException("CR.BAD_INPUT", "Send it to 1 to 50 people, roles or addresses");
+        if (to.isEmpty() || to.size() > 50) throw new OoaException("CR.BAD_INPUT", "Send it to 1 to 50 people, roles, teams or addresses");
+        for (String r : to) { String why = whyNot(r, d); if (why != null) throw new OoaException("CR.BAD_INPUT", why); }
         String every = String.valueOf(b.getOrDefault("every", "week"));
         if (!List.of("day", "week", "month").contains(every)) throw new OoaException("CR.BAD_INPUT", "Send it each day, week or month");
         String at = String.valueOf(b.getOrDefault("at_time", "08:00"));
@@ -225,24 +272,28 @@ public final class Dashboards {
         return Map.of("id", id);
     }
 
-    /** Stops an e-mail schedule: the person who set it up, or an administrator. */
+    /** Stops an e-mail schedule: the dashboard's owner, the person who set it up, or an administrator. */
     public void mailDelete(User by, String id, String ip) {
         Map<String, Object> s = db.one("SELECT dashboard_id, created_by FROM dashboard_mail WHERE id = ?", id);
         if (s == null) throw notFound("E-mail schedule");
-        if (!by.username().equals(s.get("created_by")) && !cr.can(by, "settings.manage")) throw cr.denied("stop this e-mail");
+        Map<String, Object> d = db.one("SELECT * FROM dashboards WHERE id = ?", s.get("dashboard_id"));
+        if (!by.username().equals(s.get("created_by")) && !cr.can(by, "settings.manage") && !(d != null && by.username().equals(d.get("owner"))))
+            throw cr.denied("stop this e-mail");
         db.update("DELETE FROM dashboard_mail WHERE id = ?", id);
         cr.audit.record(by.username(), "dashboard.mail_stop", "dashboard", (String) s.get("dashboard_id"), Map.of("schedule", id), "ok", ip);
     }
 
-    /** Sends one schedule's e-mail now (to check it); the schedule keeps its next time. */
+    /** Sends one schedule's e-mail now (to check it): the dashboard's owner or an administrator; the schedule keeps its next time. */
     public Map<String, Object> mailNow(User by, String id, String ip) {
         Map<String, Object> s = db.one("SELECT * FROM dashboard_mail WHERE id = ?", id);
         if (s == null) throw notFound("E-mail schedule");
-        if (!by.username().equals(s.get("created_by")) && !cr.can(by, "settings.manage")) throw cr.denied("send this e-mail");
-        int n = send(s);
+        Map<String, Object> d = db.one("SELECT * FROM dashboards WHERE id = ?", s.get("dashboard_id"));
+        if (d == null) throw notFound("Dashboard");
+        if (!mayManageMail(by, d)) throw cr.denied("send this e-mail (only the dashboard's owner or an administrator may)");
+        Sent r = send(s);
         db.update("UPDATE dashboard_mail SET last_sent = ?, last_error = NULL WHERE id = ?", now(), id);
-        cr.audit.record(by.username(), "dashboard.mailed", "dashboard", (String) s.get("dashboard_id"), Map.of("schedule", id, "to", n), "ok", ip);
-        return Map.of("sent_to", n);
+        cr.audit.record(by.username(), "dashboard.mailed", "dashboard", (String) s.get("dashboard_id"), Map.of("schedule", id, "to", r.to(), "left_out", r.leftOut()), "ok", ip);
+        return Map.of("sent_to", r.to(), "left_out", r.leftOut());
     }
 
     /** Once a minute (the leader): sends the schedules that are due, and moves each to its next time. */
@@ -250,47 +301,154 @@ public final class Dashboards {
         if (!cr.mailer.configured()) return;
         for (Map<String, Object> s : db.query("SELECT * FROM dashboard_mail WHERE next_send <= ? ORDER BY next_send", now())) {
             String error = null;
-            int n = 0;
-            try { n = send(s); } catch (RuntimeException e) { error = String.valueOf(e.getMessage()); }
+            Sent r = null;
+            try { r = send(s); } catch (RuntimeException e) { error = String.valueOf(e.getMessage()); }
             db.update("UPDATE dashboard_mail SET next_send = ?, last_sent = ?, last_error = ? WHERE id = ?", nextSend(s, now()), error == null ? now() : s.get("last_sent"),
                 error == null ? null : error.substring(0, Math.min(1000, error.length())), s.get("id"));
-            cr.audit.record("system", "dashboard.mailed", "dashboard", (String) s.get("dashboard_id"), error == null ? Map.of("schedule", s.get("id"), "to", n) : error, error == null ? "ok" : "failed", null);
+            cr.audit.record("system", "dashboard.mailed", "dashboard", (String) s.get("dashboard_id"),
+                r != null ? Map.of("schedule", s.get("id"), "to", r.to(), "left_out", r.leftOut()) : error, r != null ? "ok" : "failed", null);
         }
     }
 
-    /** The e-mail: each widget's figure (a number, or its first ten parts) and a link; worked out as its maker sees it. */
-    @SuppressWarnings("unchecked")
-    private int send(Map<String, Object> s) {
-        Map<String, Object> u = db.one("SELECT * FROM users WHERE username = ? AND enabled = TRUE", s.get("created_by"));
-        if (u == null) throw new OoaException("CR.MAIL_OWNER_GONE", "The person who set up this e-mail is no longer active", "Set it up again as someone active.");
+    /** How many addresses an e-mail went to, and how many named recipients were left out (no longer allowed, or no address). */
+    record Sent(int to, int leftOut) {}
+
+    /**
+     * The e-mail, checked again when it is sent: each person named, or in a role or team named, who may still see the
+     * dashboard gets the figures they may see; outside addresses (only while Settings allows them) get the figures as the
+     * person who set it up sees them. Recipients who may see the same figures share one message.
+     */
+    private Sent send(Map<String, Object> s) {
         String dashboardId = (String) s.get("dashboard_id");
-        Map<String, Object> d = data(ControlRoom.user(u), dashboardId, String.valueOf(s.get("time_zone")));
-        List<String> people = new ArrayList<>(), to = new ArrayList<>();
-        for (String r : String.valueOf(s.get("recipients")).split(",")) if (r.contains("@") && !r.startsWith("user:") && !r.startsWith("role:")) to.add(r); else people.add(r);
-        for (String a : cr.addressesOf(people)) if (!to.contains(a)) to.add(a);
-        if (to.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "None of the people or roles has an e-mail address");
-        String dated = String.valueOf(d.get("name")) + ", " + LocalDate.now(ZoneId.of(String.valueOf(s.get("time_zone")))).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH));
-        StringBuilder body = new StringBuilder(dated).append("\n\n");
+        Map<String, Object> d = db.one("SELECT * FROM dashboards WHERE id = ?", dashboardId);
+        if (d == null) throw notFound("Dashboard");
+        User setter = activeUser(String.valueOf(s.get("created_by")));
+        if (setter == null) throw new OoaException("CR.MAIL_OWNER_GONE", "The person who set up this e-mail is no longer active", "Set it up again as someone active.");
+        if (!mayManageMail(setter, d)) throw new OoaException("CR.FORBIDDEN", "Only the dashboard's owner or an administrator may e-mail it", "Ask its owner to set it up again.");
+        String tz = String.valueOf(s.get("time_zone"));
+        List<String> shared = csv(d.get("shared_with"));
+        // who it goes to: people (each checked), and outside addresses
+        Set<String> people = new LinkedHashSet<>();
+        List<String> outside = new ArrayList<>();
+        int leftOut = 0;
+        for (String r : String.valueOf(s.get("recipients")).split(",")) {
+            if (r.isBlank()) continue;
+            if (r.startsWith("user:")) people.add(r.substring(5));
+            else if (r.startsWith("role:") || r.startsWith("team:")) {
+                if (!shared.contains("*") && !shared.contains(r)) { leftOut++; continue; }   // no longer shared with them
+                List<Map<String, Object>> members = r.startsWith("role:")
+                    ? db.query("SELECT username FROM users WHERE role = ? UNION SELECT username FROM user_roles WHERE role = ?", r.substring(5), r.substring(5))
+                    : db.query("SELECT m.username FROM team_members m JOIN teams t ON t.id = m.team_id WHERE t.name = ?", r.substring(5));
+                for (Map<String, Object> u : members) people.add((String) u.get("username"));
+            } else {
+                String person = userWithAddress(r);
+                if (person != null) people.add(person);
+                else if (outsideAllowed()) { if (!outside.contains(r)) outside.add(r); }
+                else leftOut++;
+            }
+        }
+        // one message per set of figures: people who see the same figures share it
+        Map<String, Mail> mails = new LinkedHashMap<>();
+        Set<String> addresses = new HashSet<>();
+        for (String name : people) {
+            User u = activeUser(name);
+            Map<String, Object> row = u == null ? null : db.one("SELECT email FROM users WHERE username = ?", name);
+            String email = row != null && row.get("email") instanceof String e && !e.isBlank() ? e.trim() : null;
+            if (u == null || email == null || !mayRead(u, d)) { leftOut++; continue; }
+            if (addresses.size() == 50 || !addresses.add(email.toLowerCase(Locale.ROOT))) continue;
+            Mail m = render(data(u, dashboardId, tz), dashboardId, tz);
+            mails.computeIfAbsent(m.text(), k -> m).to().add(email);
+        }
+        if (!outside.isEmpty()) {
+            Mail m = render(data(setter, dashboardId, tz), dashboardId, tz);
+            for (String a : outside) if (addresses.size() < 50 && addresses.add(a.toLowerCase(Locale.ROOT))) mails.computeIfAbsent(m.text(), k -> m).to().add(a);
+        }
+        if (addresses.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "None of the recipients may see this dashboard and has an e-mail address", "Share the dashboard with them, or add their e-mail address to their user.");
+        int n = 0;
+        for (Mail m : mails.values()) {
+            cr.mailer.send(m.to(), "Dashboard: " + d.get("name"), m.text(), m.html(), List.of(new Mailer.Attachment(m.file() + ".pdf", "application/pdf", m.pdf())));
+            n += m.to().size();
+        }
+        return new Sent(n, leftOut);
+    }
+
+    /** One message: its text and HTML bodies, the same figures as a PDF, and who gets it. */
+    record Mail(String text, String html, byte[] pdf, String file, List<String> to) {}
+
+    static final int MAIL_ROWS = 25;
+
+    /** The figures as text, as HTML (a number, or a table of the first 25 parts per widget) and as a PDF; and a link. */
+    @SuppressWarnings("unchecked")
+    Mail render(Map<String, Object> d, String dashboardId, String tz) {
+        String name = String.valueOf(d.get("name"));
+        String date = LocalDate.now(ZoneId.of(tz)).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH));
+        String dated = name + ", " + date;
+        StringBuilder text = new StringBuilder(dated).append("\n\n");
+        StringBuilder html = new StringBuilder("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>").append(esc(name)).append("</title></head>")
+            .append("<body style=\"margin:0;padding:16px;background:#ffffff;color:#1f2328;font-family:'Segoe UI',Arial,sans-serif;font-size:14px\">")
+            .append("<h1 style=\"font-size:18px;margin:0 0 2px\">").append(esc(name)).append("</h1>")
+            .append("<p style=\"margin:0 0 16px;color:#4b535c\">").append(esc(date)).append("</p>");
+        String th = "padding:4px 10px;border:1px solid #d0d7de;background:#f6f8fa;color:#1f2328;text-align:left;font-weight:600";
+        String td = "padding:4px 10px;border:1px solid #d0d7de;color:#1f2328";
         for (Object o : (List<Object>) d.get("widgets")) {
             Map<String, Object> w = (Map<String, Object>) o;
             String title = String.valueOf(w.getOrDefault("title", w.getOrDefault("kpi", w.getOrDefault("metric", "Figure"))));
-            if (w.get("error") != null) body.append(title).append(": ").append(w.get("error")).append("\n");
-            else if (w.containsKey("value")) body.append(title).append(": ").append(figure(w.get("value"))).append("\n");
-            else {
-                body.append(title).append(":\n");
+            html.append("<h2 style=\"font-size:15px;margin:16px 0 6px\">").append(esc(title)).append("</h2>");
+            if (w.get("error") != null) {
+                text.append(title).append(": ").append(w.get("error")).append("\n");
+                html.append("<p style=\"margin:0;color:#b42318\">").append(esc(String.valueOf(w.get("error")))).append("</p>");
+            } else if (w.containsKey("value")) {
+                text.append(title).append(": ").append(figure(w.get("value"))).append("\n");
+                html.append("<p style=\"margin:0;font-size:22px;font-weight:600\">").append(esc(figure(w.get("value")))).append("</p>");
+            } else {
+                text.append(title).append(":\n");
                 List<Map<String, Object>> pts = (List<Map<String, Object>>) w.getOrDefault("points", List.of());
-                for (Map<String, Object> p : pts.subList(0, Math.min(10, pts.size()))) body.append("  ").append(p.get("label")).append(": ").append(figure(p.get("value"))).append("\n");
-                if (pts.size() > 10) body.append("  and ").append(pts.size() - 10).append(" more\n");
+                html.append("<table style=\"border-collapse:collapse;font-size:13px\"><thead><tr><th style=\"").append(th).append("\">").append(esc(partHeading(w)))
+                    .append("</th><th style=\"").append(th).append(";text-align:right\">").append(esc(figureHeading(w))).append("</th></tr></thead><tbody>");
+                for (Map<String, Object> p : pts.subList(0, Math.min(MAIL_ROWS, pts.size()))) {
+                    text.append("  ").append(p.get("label")).append(": ").append(figure(p.get("value"))).append("\n");
+                    html.append("<tr><td style=\"").append(td).append("\">").append(esc(String.valueOf(p.get("label")))).append("</td><td style=\"").append(td)
+                        .append(";text-align:right\">").append(esc(figure(p.get("value")))).append("</td></tr>");
+                }
+                if (pts.isEmpty()) html.append("<tr><td colspan=\"2\" style=\"").append(td).append("\">No figures for this period.</td></tr>");
+                html.append("</tbody></table>");
+                if (pts.size() > MAIL_ROWS) {
+                    text.append("  and ").append(pts.size() - MAIL_ROWS).append(" more\n");
+                    html.append("<p style=\"margin:4px 0 0;color:#4b535c\">And ").append(pts.size() - MAIL_ROWS).append(" more in One CommandCenter.</p>");
+                }
             }
         }
         String link = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
-        body.append("\n").append(link.isEmpty() ? "Open it in One CommandCenter: Operational Insights > Business > Dashboards."
-            : "Open it: " + link + "/next/#/business?tab=dashboards&dashboard=" + dashboardId).append("\n");
+        String url = link.isEmpty() ? null : link + "/next/#/business?tab=dashboards&dashboard=" + dashboardId;
+        text.append("\n").append(url == null ? "Open it in One CommandCenter: Operational Insights > Business > Dashboards." : "Open it: " + url).append("\n");
+        html.append("<p style=\"margin:20px 0 0\">").append(url == null ? "Open it in One CommandCenter: Operational Insights &gt; Business &gt; Dashboards."
+            : "<a href=\"" + esc(url) + "\" style=\"color:#0550ae\">Open it in One CommandCenter</a>").append("</p></body></html>");
         // the same figures as a PDF too, to keep or forward
-        byte[] pdf = TextPdf.of(dated, Arrays.asList(body.substring(dated.length() + 2).split("\n", -1)));
-        String file = String.valueOf(d.get("name")).replaceAll("[^A-Za-z0-9 ._-]", "_").trim();
-        cr.mailer.send(to, "Dashboard: " + d.get("name"), body.toString(), List.of(new Mailer.Attachment((file.isEmpty() ? "dashboard" : file) + ".pdf", "application/pdf", pdf)));
-        return to.size();
+        byte[] pdf = TextPdf.of(dated, Arrays.asList(text.substring(dated.length() + 2).split("\n", -1)));
+        String file = name.replaceAll("[^A-Za-z0-9 ._-]", "_").trim();
+        return new Mail(text.toString(), html.toString(), pdf, file.isEmpty() ? "dashboard" : file, new ArrayList<>());
+    }
+
+    /** The first column's heading: what the parts are (day, week, month, agent, or the KPI they are grouped by). */
+    private static String partHeading(Map<String, Object> w) {
+        String g = String.valueOf(w.getOrDefault("group", "none"));
+        return switch (g) {
+            case "day" -> "Day"; case "week" -> "Week"; case "month" -> "Month"; case "agent" -> "Agent";
+            case "value" -> w.get("by") instanceof String by && !by.isBlank() ? by : "Value";
+            default -> "Part";
+        };
+    }
+
+    /** The second column's heading: the KPI, or the run figure. */
+    private static String figureHeading(Map<String, Object> w) {
+        if ("runs".equals(w.get("source"))) return switch (String.valueOf(w.getOrDefault("metric", "runs"))) {
+            case "success_rate" -> "Success rate"; case "failed" -> "Failed runs"; case "avg_seconds" -> "Average seconds"; case "hours_saved" -> "Hours saved"; default -> "Runs";
+        };
+        return String.valueOf(w.getOrDefault("kpi", "Figure"));
+    }
+
+    private static String esc(String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     private static String figure(Object v) { return v instanceof BigDecimal b ? b.stripTrailingZeros().toPlainString() : v == null ? "-" : String.valueOf(v); }

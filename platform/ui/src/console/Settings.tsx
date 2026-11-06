@@ -149,7 +149,8 @@ const SECTIONS: Section[] = [
       { key: "license_mail_to", label: "Also send licence reminders to", hint: "Addresses, separated by commas.", kind: "text" }] },
     { title: "Notifications", settings: [
       { key: "notify_run_failed", label: "E-mail people when a run they started fails", hint: "To the address on their account.", kind: "check" },
-      { key: "notify_task_assigned", label: "E-mail people when a workflow gives them a task", hint: "Forms and approvals; not tasks for everyone.", kind: "check" }] },
+      { key: "notify_task_assigned", label: "E-mail people when a workflow gives them a task", hint: "Forms and approvals; not tasks for everyone.", kind: "check" },
+      { key: "dashboard_mail_outside", label: "Dashboards may be e-mailed to outside addresses", hint: "Off: only to people the dashboard is shared with.", kind: "check" }] },
     { title: "Proxy", settings: [
       { key: "outbound_proxy", label: "Proxy for outgoing connections", hint: "http://host:port. Empty: direct.", kind: "text", placeholder: "http://proxy.example.com:8080" },
       { key: "outbound_proxy_bypass", label: "Reach these directly", hint: "Host names; * allowed.", kind: "text", placeholder: "*.example.com, 10.*" }] },

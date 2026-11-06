@@ -36,8 +36,9 @@ const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your age
     { name: "CSV", text: "On each widget: saves its figures as a CSV file." },
     { name: "Actions (⋯)", text: "Edit or delete a dashboard you may change, or Copy as mine to make your own copy of any dashboard you can see." },
     { name: "Print or save as PDF", text: "Opens your browser's print window with only the dashboard; choose Save as PDF there to keep or send it." },
-    { name: "E-mail it on a schedule…", text: "Sends the dashboard's figures and a link each day, week or month to people, roles or e-mail addresses. "
-      + "The figures are the ones you see, so send it only to people who may see them. Needs permission to make dashboards and e-mail set up in Settings." },
+    { name: "E-mail it on a schedule…", text: "Sends the dashboard's figures (numbers, and a table for each chart) with a PDF and a link each day, week or month "
+      + "to people, roles or teams the dashboard is shared with. Each person gets the figures they may see; anyone it is no longer shared with is left out. "
+      + "Only the dashboard's owner or an administrator sets it up. Other e-mail addresses only when an administrator allows them in Settings, and e-mail must be set up there." },
     { name: "Address", text: "The address in the browser opens this dashboard, so you can send a link to it." },
   ] };
 const fmt = (w: DashWidget, v?: number | null) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }) + (w.metric === "success_rate" ? "%" : "");
@@ -257,13 +258,17 @@ function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrU
   const [list, setList] = useState<DashMail[] | null>(null);
   const [x, setX] = useState({ recipients: "", every: "week", weekday: "MON", at_time: "08:00", time_zone: user.default_time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
   const [error, setError] = useState<string | null>(null);
-  const design = user.permissions.includes("insights.design");
+  const admin = user.permissions.includes("settings.manage");
+  const manage = d.can_edit && (admin || user.permissions.includes("insights.design"));   // the owner or an administrator
   const load = useCallback(() => api.dashboardMail(d.id).then(setList, (e) => setError(message(e))), [api, d.id]);
   useEffect(() => { load(); }, [load]);
   const add = () => api.addDashboardMail(d.id, { recipients: x.recipients, every: x.every, at_time: x.at_time, time_zone: x.time_zone.trim(), ...(x.every === "week" ? { weekday: x.weekday } : {}) })
     .then(() => { setX({ ...x, recipients: "" }); setError(null); onNotice("The dashboard " + d.name + " will be e-mailed " + (x.every === "day" ? "each day" : x.every === "week" ? "each week" : "each month") + "."); load(); },
       (e) => setError(message(e)));
-  const mine = (m: DashMail) => m.created_by === user.username || user.permissions.includes("settings.manage");
+  const mayStop = (m: DashMail) => manage || m.created_by === user.username;
+  const sent = (r: { sent_to: number; left_out?: number }) => "Sent to " + r.sent_to + " address" + (r.sent_to === 1 ? "" : "es")
+    + (r.left_out ? "; " + r.left_out + " left out (not shared with them now, or no e-mail address)" : "") + ".";
+  const shared = d.shared_with.length ? d.shared_with.map((s) => s === "*" ? "everyone" : s).join(", ") : "nobody (only its owner)";
   return (
     <Dialog open title={"E-mail " + d.name + " on a schedule"} width={760} onClose={onClose} footer={<><span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Close</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
@@ -272,14 +277,16 @@ function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrU
         <thead><tr><th scope="col">To</th><th scope="col">When</th><th scope="col">Next</th><th scope="col">Last sent</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
         <tbody>{list.map((m) => <tr key={m.id}><td className="cc-clip" title={m.recipients}>{m.recipients.split(",").join(", ")}</td><td>{whenText(m)}</td><td>{at(m.next_send)}</td>
           <td>{m.last_error ? <span className="cc-err" title={m.last_error}>Failed: {m.last_error}</span> : at(m.last_sent)}</td>
-          <td className="cc-list-menu">{mine(m) && <RowMenu label={"Actions for the e-mail to " + m.recipients} items={[
-            { key: "send", label: "Send now", onSelect: () => api.sendDashboardMail(m.id).then((r) => { onNotice("Sent to " + r.sent_to + " address" + (r.sent_to === 1 ? "" : "es") + "."); load(); }, (e) => setError(message(e))) },
-            { key: "stop", label: "Stop", separatorBefore: true, onSelect: () => api.stopDashboardMail(m.id).then(() => { onNotice("Stopped the e-mail to " + m.recipients + "."); load(); }, (e) => setError(message(e))) }]} />}</td></tr>)}
+          <td className="cc-list-menu">{mayStop(m) && <RowMenu label={"Actions for the e-mail to " + m.recipients} items={[
+            ...(manage ? [{ key: "send", label: "Send now", onSelect: () => api.sendDashboardMail(m.id).then((r) => { onNotice(sent(r)); load(); }, (e) => setError(message(e))) }] : []),
+            { key: "stop", label: "Stop", separatorBefore: manage, onSelect: () => api.stopDashboardMail(m.id).then(() => { onNotice("Stopped the e-mail to " + m.recipients + "."); load(); }, (e) => setError(message(e))) }]} />}</td></tr>)}
           {!list.length && <tr><td colSpan={5} className="cc-none">Not e-mailed yet.</td></tr>}</tbody>
       </table>}
-      {design && <>
+      <p className="st-muted">Shared with {shared}. It goes only to them; each gets the figures they may see.</p>
+      {!manage && <p className="st-muted">Only the dashboard's owner or an administrator sets up its e-mails.</p>}
+      {manage && <>
         <h3 className="cc-dlg-h">E-mail it</h3>
-        <Field label="To" hint="user:NAME, role:NAME or e-mail addresses, separated by commas. They get the figures you see.">{(id) =>
+        <Field label="To" hint="user:NAME, role:NAME or team:NAME it is shared with, or their e-mail addresses, separated by commas. Other addresses only if an administrator allows them in Settings > E-mail.">{(id) =>
           <TextInput id={id} value={x.recipients} placeholder="role:finance, cfo@example.com" onChange={(e) => setX({ ...x, recipients: e.target.value })} />}</Field>
         <div className="cc-grid2">
           <Field label="How often">{(id) => <Select id={id} value={x.every} onChange={(e) => setX({ ...x, every: e.target.value })}

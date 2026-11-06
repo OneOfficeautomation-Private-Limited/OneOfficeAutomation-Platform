@@ -247,12 +247,28 @@ estimated_runs_month}`, `POST /api/analytics/queue-savings` `{queue_id, minutes_
   Making, changing and copying dashboards needs `insights.design`.
 - The address names the dashboard shown (`#/business?tab=dashboards&dashboard=ID`), so a link opens it.
 - **Print or save as PDF** opens the browser's print window with only the dashboard, its name and the time.
-- **E-mail it on a schedule…** sends the dashboard's figures (each widget's number, or its first ten parts), the same
-  figures as an attached PDF (`<dashboard>.pdf`, written without a PDF library) and a link
-  each day, week (on a weekday) or month (its first day) at a time in a time zone, to `user:…`, `role:…` or e-mail
-  addresses (at most 50). The figures are those its maker sees. Each schedule shows its next time, the last sending
-  or what went wrong; **Send now** checks it. Needs `insights.design` and e-mail set up (section 9). API:
-  `GET`/`POST /api/dashboards/{id}/mail`, `DELETE /api/dashboards/mail/{schedule}`, `POST /api/dashboards/mail/{schedule}/send`.
+- **E-mail it on a schedule…** sends the dashboard each day, week (on a weekday) or month (its first day) at a time in
+  a time zone. The e-mail is HTML with a plain-text part for mail programs that show only text: each number widget's
+  figure, and a table (part and figure, the first 25 parts) for each bars, line, pie or table widget. The same figures
+  come as an attached PDF (`<dashboard>.pdf`, written without a PDF library), with a link to the dashboard.
+  - **Who sets it up:** only the dashboard's owner (with `insights.design`) or an administrator (`settings.manage`).
+    Others who may see the dashboard see its schedules and a note saying this. A schedule can be stopped by the
+    owner, an administrator or the person who set it up.
+  - **Who gets it:** at most 50 recipients: `user:…`, `role:…`, `team:…` or e-mail addresses. Each must be someone
+    the dashboard is shared with: a person who may see it, or a role or team it is shared with (or anyone, when it is
+    shared with everyone). An address that belongs to a person here counts as that person. Other addresses are
+    refused unless an administrator turns on **Dashboards may be e-mailed to outside addresses** (Settings > E-mail,
+    `dashboard_mail_outside`, off by default). Those addresses get the figures as the person who set it up sees them.
+  - **Checked again at each sending:** each person gets the figures they may see. People who see the same figures
+    share one message. Anyone the dashboard is no longer shared with, people with no e-mail address, and outside
+    addresses after the setting is turned off are left out. When no one is left, the sending fails with
+    "None of the recipients may see this dashboard". The schedule also stops sending if the person who set it up is no
+    longer active, or is no longer the owner or an administrator.
+  - Each schedule shows its next time, the last sending or what went wrong; **Send now** checks it and says how many
+    were left out. Every sending is in the Audit Trail (`dashboard.mailed`, with how many it went to and how many were
+    left out), as are setting up (`dashboard.mail_schedule`) and stopping (`dashboard.mail_stop`). E-mail must be set
+    up (section 9). API: `GET`/`POST /api/dashboards/{id}/mail`, `DELETE /api/dashboards/mail/{schedule}`,
+    `POST /api/dashboards/mail/{schedule}/send` (answers `sent_to` and `left_out`).
 - Only agents the viewer may see are counted. Days are counted in the viewer's time zone.
 - API: `/api/dashboards` (GET lists, POST makes, `PUT`/`DELETE /api/dashboards/{id}`), `GET /api/dashboards/{id}/data?tz=`
   (the widgets' figures, with days in that time zone) and `GET /api/dashboards/kpis` (the KPIs that can be chosen).
@@ -308,7 +324,8 @@ periods at once (`settings.manage`). Every removal is audited (`runs.purge`, `ai
 Administration > Settings > E-mail: mail server, port (default 587), security (`starttls`, `ssl`, or `none` on a trusted
 network only), account, password as a vault reference, and sender address. **Send a test e-mail** checks it. The
 One CommandCenter uses it for workflow notifications to e-mail addresses and for licence reminders (to administrators with
-an e-mail address and `license_mail_to`). Messages are plain text; the server's certificate must name the server.
+an e-mail address and `license_mail_to`). Messages are plain text, except dashboards e-mailed on a schedule (HTML
+with a plain-text part and a PDF); the server's certificate must name the server.
 
 ## 10. Backups
 
@@ -331,7 +348,8 @@ within about 30 seconds.
 | --- | --- |
 | Agent Activity and run details | `runs.view` |
 | Overview, Operations, Business, dashboards, alerts (see, acknowledge), the runs and KPI data API | `analytics.view` |
-| Make, change, share, copy and e-mail dashboards | `insights.design` (admin only unless a custom role grants it) |
+| Make, change, share and copy dashboards | `insights.design` (admin only unless a custom role grants it) |
+| E-mail a dashboard on a schedule | its owner (with `insights.design`) or `settings.manage`; only to people it is shared with |
 | Savings per agent and work queue, the yearly goal | `insights.admin` (admin only unless a custom role grants it) |
 | Alert rules (make, change, test, delete) | `alerts.manage` (admin only) |
 | Audit Trail, export, verify, Operations > Audit, the audit data API | `audit.view` |
