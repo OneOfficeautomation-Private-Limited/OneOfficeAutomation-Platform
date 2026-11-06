@@ -189,14 +189,51 @@ runners** lists them on the **Runners** tab. Administrators handle registering, 
 4. **Run as (credentials are checked against this person)**: leave "(the owner, on the runner chosen here)", or pick a
    person. Tick **Use the run-as user's default runner** to follow that person's default runner instead of the one
    chosen above.
-5. **Repeat**: **Every N minutes** (with **Minutes**), **Daily** (with **Time**, such as `08:30`) or **Weekly** (with
-   the days, Monday to Friday ticked by default).
+5. **Repeat**: **Every N minutes** (with **Minutes**), **Daily** (with **Time**, such as `08:30`), **Weekly** (with
+   the days, Monday to Friday ticked by default), **Monthly** or **Cron expression** (see below). **Next runs** shows
+   the next five times in the schedule's time zone as you choose; a time its holiday calendar skips is struck through
+   and marked "holiday, skipped", and a wrong rule shows what is wrong with an example.
 6. **Time zone** (your browser's, by default) and **Skip the dates of a holiday calendar**.
 7. **Inputs (JSON, optional)**, for example `{"region": "EU"}`.
 8. **Times missed while One CommandCenter was down**: **Run once for them** (default) or **Skip them** (a time more
    than 15 minutes in the past is not run).
 9. **When the previous run is still going**: **Start another run** (default) or **Skip this time**.
 10. Press **Create**. A toast shows the next run time.
+
+### Monthly and cron schedules
+
+**Monthly** runs at **Time** on:
+
+- **Days of the month**: click the days (1 to 31) and/or **Last day**; or
+- **A weekday of the month**: **Which** (First, Second, Third, Fourth, Fifth or Last) and **Weekday**, such as the
+  first Monday or the last Friday.
+
+**Every (months)** repeats every N months (1 to 120), counted from the month the schedule is made. **A day the month
+does not have** (31 in April, 29 to 31 in February) is **Skip that month** by default, as UiPath's and Blue Prism's
+schedules do; choose **Run on the month's last day** to run on the 30th or 28th instead. A Fifth weekday is skipped in
+months that have only four.
+
+**Cron expression** takes the standard five fields `minute hour day month weekday` (0 or 7 is Sunday), or Quartz's six
+or seven as UiPath's advanced triggers use (`second minute hour day month weekday [year]`, 1 is Sunday, with `?` in one
+of the day fields). Both understand lists (`1,15`), ranges (`MON-FRI`), steps (`*/15`), names (`JAN`, `MON`), `L`
+(last day), `L-3`, `15W` (nearest weekday), `LW`, `6L` / `FRIL` (last Friday) and `6#1` / `FRI#1` (first Friday), and
+the shortcuts `@hourly`, `@daily`, `@weekly`, `@monthly` and `@yearly`. With five fields and both day fields given,
+either matching is enough, as in Unix cron. The seconds field must be one number: schedules start at most once a
+minute. Examples:
+
+| Expression | Runs |
+| --- | --- |
+| `0 9 * * MON-FRI` | 09:00 on weekdays |
+| `*/15 8-18 * * *` | every 15 minutes from 08:00 to 18:45 |
+| `0 0 9 ? * MON#1` | 09:00 on the first Monday of the month (Quartz) |
+| `0 30 18 L * ?` | 18:30 on the last day of the month (Quartz) |
+
+**Clock changes.** Times follow the schedule's time zone. A time in the hour skipped when clocks go forward runs as
+much later (02:30 becomes 03:30), as daily and weekly schedules do; a time in the hour repeated when clocks go back
+runs once. Only a cron expression that runs every hour (`*` in the hour field) runs in both copies of that hour.
+
+Holiday calendars, **Times missed while One CommandCenter was down** and **When the previous run is still going**
+work for monthly and cron schedules as for the others.
 
 ### The list
 

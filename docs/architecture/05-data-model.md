@@ -105,6 +105,7 @@ and a **runtime** account with data read/write rights only.
 | 35 | encrypt_data on queues; tags, error_kind and unique_ref on queue_items, with a unique index per queue (gap G31) |
 | 36 | environment_locks (named locks one run holds at a time, gap G33) |
 | 37 | weekend on holiday_calendars (business calendars for working-day steps, gap G34) |
+| 38 | rule on schedules (monthly and cron schedules, gap G35) |
 
 ## 4. Tables by area
 
@@ -152,7 +153,7 @@ and a **runtime** account with data read/write rights only.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `schedules` | Timed starts | `kind`, `every_minutes`, `at_time`, `days`, `time_zone`, `holiday_calendar`, `device_id`, `pool_id`, `run_as`, `missed_runs`, `overlap`, `inputs`, `next_run`, `last_run`, `enabled` |
+| `schedules` | Timed starts (`kind` every, daily, weekly, monthly or cron; `rule` holds the monthly days or the cron expression) | `kind`, `every_minutes`, `at_time`, `days`, `rule`, `time_zone`, `holiday_calendar`, `device_id`, `pool_id`, `run_as`, `missed_runs`, `overlap`, `inputs`, `next_run`, `last_run`, `enabled` |
 | `holiday_calendars` | Business calendars: dates schedules skip; with the weekend, the days agents' working-day steps (ooa.datetime) skip | `name`, `dates` (comma list of yyyy-MM-dd), `weekend` (comma list of MON..SUN; empty or null is SAT,SUN, NONE is no weekend), `updated`, `updated_by` |
 | `triggers` | Event starts | `kind`, `device_id`, `folder`, `pattern`, `config` (JSON, vault references only), `secret_hash` (webhooks), `run_as`, `last_fired`, `fire_count`, `last_error`, `last_hash` (cursor) |
 | `queues` | Work queues | `bot_path`, `pool_id`, `run_as`, `sla_minutes`, `max_attempts`, `processing`, `model_id` |
