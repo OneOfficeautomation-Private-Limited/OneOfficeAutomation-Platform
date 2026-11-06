@@ -79,6 +79,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [AI architecture](architecture/08-ai-architecture.md) | Models, governance, agents, MCP |
 | [Multi-tenant SaaS and regions](architecture/09-multi-tenant-saas-and-regions.md) | Tenants, regions, isolation |
 | [Extensibility and integration](architecture/10-extensibility-and-integration.md) | API, MCP, custom toolkits |
+| [Document Automation contract](integration/document-automation-contract.md) | How the Command Center and the DocFlow service work together, and how their versions move |
 
 ## Infrastructure
 
