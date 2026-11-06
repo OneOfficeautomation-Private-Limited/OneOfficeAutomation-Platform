@@ -138,6 +138,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       last_run: "2026-10-30T08:00:00Z" }] });
     if (route === "analytics/export") { calls.push({ method: "GET", route: "analytics/export?" + (url.split("?")[1] ?? "") }); return new Response("agent,runs\r\n", { status: 200 }); }
     if (route === "plugins") return ok({ plugins });
+    if (route === "docflow/version") return ok({ status: "newer", compatible: true, version: "3.2.0", tested: "3.1.0", minimum: "3.1.0", contract: "v1",
+      message: "DocFlow 3.2.0 is newer than the version tested with this release (3.1.0)." });
     if (route === "repo/policy") return ok({ enforce_at_checkin: false, rules: {
       require_description: { enabled: true, severity: "warning", description: "Every agent says what it does", params: {} },
       max_steps: { enabled: true, severity: "error", description: "Agents stay small enough to read", params: { max: 200 } },
@@ -487,6 +489,11 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Document Automation");
     expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
     expect(screen.getByText("Installed").closest(".cc-pill")).toBeTruthy();
+    // the service it uses: its version against the one this release is tested with
+    const service = await screen.findByRole("generic", { name: "Document Automation service" });
+    expect(within(service).getByRole("heading", { name: /Service: DocFlow 3\.2\.0/ })).toBeTruthy();
+    expect(within(service).getByText("Newer than tested").closest(".cc-pill")?.className).toContain("is-pending");
+    expect(within(service).getByText(/tested with DocFlow 3\.1\.0 \(works from 3\.1\.0\)/)).toBeTruthy();
   });
 
   it("shows Agent Activity as AA's Activity: a summary, In progress and Completed, filters, selected runs stopped or run again, columns, CSV", async () => {

@@ -73,6 +73,21 @@ DocFlow's `PLATFORM-CONTRACT.md` lists the methods, inputs and response fields f
 5. **Release approval.** Each DocFlow release and each change to the pinned version is approved before it is merged
    or published.
 
+### What the console shows
+
+The AI > Document Automation page has a **Service** card. It shows the DocFlow version in use and whether it fits
+this release. The card is a warning only and never blocks anything. The Command Center asks DocFlow's
+`admin/version` at most once a minute. The page reads the answer from `GET /api/docflow/version`, which needs
+`docs.view`.
+
+| Status | Means |
+|---|---|
+| Compatible | Between `minimum` and `pinned` |
+| Newer than tested | Same major version, newer than `pinned`. It should work |
+| Needs an update | Older than `minimum` |
+| Not compatible | Another major version, which is another contract |
+| Not reachable, Not set up, Version unknown | DocFlow does not answer, is not configured, or does not say its version |
+
 ### Where the pin lives
 
 `platform/control-room/src/main/resources/docflow-compat.properties` holds the pin:
