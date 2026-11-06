@@ -134,8 +134,8 @@ In **Manage > Runner Machines** the new runner appears with a green dot and **on
 at once on a Windows Server with Remote Desktop Services, give each robot a Windows account of its own:
 
 1. Sign in once as each robot account. Register a runner for it with its own registration file (`ooa agent register
-   --url ... --key ... --name SERVER-robot1 --config C:\OOAobot1gent.json`) and run `ooa agent install-task
-   --config C:\OOAobot1gent.json`, so that account's runner starts when it signs in.
+   --url ... --key ... --name SERVER-robot1 --config C:\OOA\robot1\agent.json`) and run `ooa agent install-task
+   --config C:\OOA\robot1\agent.json`, so that account's runner starts when it signs in.
 2. As an administrator on the server, put each password in an environment variable named after the account
    (`OOA_SESSION_PW_ROBOT1`, `OOA_SESSION_PW_ROBOT2`, ...), then run `ooa agent sessions --users robot1,robot2 --watch`.
 
