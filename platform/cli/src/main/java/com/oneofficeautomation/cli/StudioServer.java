@@ -230,7 +230,9 @@ public final class StudioServer {
                 Path tmp = p.resolveSibling("." + p.getFileName() + ".tmp");
                 Files.writeString(tmp, json.write(flow, true));
                 Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
-                sendJson(ex, 200, Map.of("saved", rel, "problems", validator().validate(flow)));
+                List<Map<String, Object>> problems = new ArrayList<>(validator().validate(flow));
+                problems.addAll(repositoryProblems(flow));
+                sendJson(ex, 200, Map.of("saved", rel, "problems", problems));
             } else send(ex, 405, "text/plain", "Method not allowed");
         } else if (method.equals("POST") && route.equals("files/upload")) {
             // Raw bytes, so uploads are not limited by the JSON body size: POST files/upload?parent=<folder>&name=<file name>
@@ -257,6 +259,10 @@ public final class StudioServer {
                 default -> throw new OoaException("STUDIO.UNKNOWN", "Unknown file operation " + route);
             };
             sendJson(ex, 200, Map.of("path", result));
+        } else if (method.equals("GET") && route.equals("objects/catalogue")) {
+            sendJson(ex, 200, Map.of("repositories", objectCatalogue()));
+        } else if (method.equals("POST") && route.equals("objects/add")) {
+            sendJson(ex, 200, addToRepository((Map<String, Object>) body(ex)));
         } else if (route.equals("item")) {
             String rel = query(ex).getOrDefault("path", "");
             if (method.equals("GET")) {
@@ -828,6 +834,14 @@ public final class StudioServer {
                 (action.startsWith("ooa.script/") ? scripts : files).add(dep(v, ws.rel(f), step));
             }
         }
+        // shared object repositories (G42): checked in and sent with the agent like its other files
+        for (Map<String, Object> ref : ObjectRepositories.references(flow)) {
+            String repo = String.valueOf(ref.get("repository"));
+            if (!seen.add("file:" + repo)) continue;
+            Path f;
+            try { f = ws.resolve(repo); } catch (OoaException outside) { f = null; }
+            files.add(dep(repo, f != null && Files.isRegularFile(f) ? ws.rel(f) : null, Map.of("id", ref.get("step"))));
+        }
         List<Map<String, Object>> usedBy = new ArrayList<>();
         String myId = String.valueOf(flow.get("id"));
         stepsByBot.forEach((path, steps) -> {
@@ -840,6 +854,94 @@ public final class StudioServer {
             }
         });
         return Map.of("bots", bots, "scripts", scripts, "skills", skills, "files", files, "usedBy", usedBy);
+    }
+
+    /** Problems with the shared object repository elements an agent uses: a missing file or element (G42). */
+    List<Map<String, Object>> repositoryProblems(Map<String, Object> flow) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> ref : ObjectRepositories.references(flow)) {
+            try {
+                Map<String, Object> repo = ObjectRepositories.read(ws.root, String.valueOf(ref.get("repository")));
+                if (ObjectRepositories.find(repo, String.valueOf(ref.get("element"))) == null)
+                    out.add(problem(ref, "The object repository " + ref.get("repository") + " has no element " + ref.get("element"), "Choose the element again from the repository."));
+            } catch (OoaException e) { out.add(problem(ref, e.getMessage(), "Check the repository file, or choose the element again.")); }
+        }
+        return out;
+    }
+
+    private static Map<String, Object> problem(Map<String, Object> ref, String message, String fix) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("stepId", ref.get("step")); m.put("path", "args/object"); m.put("message", message); m.put("suggestedFix", fix);
+        return m;
+    }
+
+    /** Every object repository in the workspace with its elements (path, description, technology), for the picker. */
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> objectCatalogue() throws IOException {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try (var st = Files.walk(ws.root, 12)) {
+            for (Path p : st.filter(f -> f.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(Workspace.OBJECTS_SUFFIX)).sorted().toList()) {
+                String r = ws.rel(p);
+                if (r.startsWith(".") || r.contains("/.")) continue;
+                Map<String, Object> repo;
+                try { repo = ObjectRepositories.read(ws.root, r); } catch (OoaException bad) { continue; }
+                List<Map<String, Object>> elements = new ArrayList<>();
+                for (String e : ObjectRepositories.elements(repo)) {
+                    Map<String, Object> el = ObjectRepositories.find(repo, e);
+                    Map<String, Object> obj = el != null && el.get("object") instanceof Map<?, ?> o ? (Map<String, Object>) o : Map.of();
+                    elements.add(Map.of("element", e, "description", String.valueOf(el == null ? "" : el.getOrDefault("description", "")),
+                            "technology", String.valueOf(obj.getOrDefault("technology", ""))));
+                }
+                out.add(Map.of("path", r, "name", String.valueOf(repo.getOrDefault("name", r)), "elements", elements));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Adds a captured object to a repository as Application / Screen / Element, making the application and screen when
+     * they are new. An element of the same name is replaced only with replace: true. Returns the reference for the step.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> addToRepository(Map<String, Object> b) throws IOException {
+        String repoPath = String.valueOf(b.getOrDefault("repository", "")).strip();
+        String app = String.valueOf(b.getOrDefault("application", "")).strip(), screen = String.valueOf(b.getOrDefault("screen", "")).strip(),
+                name = String.valueOf(b.getOrDefault("name", "")).strip();
+        for (String n : List.of(app, screen, name))
+            if (n.isEmpty() || n.contains("/") || n.length() > 120) throw new OoaException("STUDIO.BAD_NAME", "Application, screen and element names are 1 to 120 characters, without /");
+        if (!(b.get("object") instanceof Map<?, ?> obj) || ObjectRepositories.isReference(obj))
+            throw new OoaException("STUDIO.BAD_INPUT", "Give the captured object to keep in the repository");
+        // a copy: the cached repository is not changed in place
+        Map<String, Object> repo = (Map<String, Object>) json.parse(json.write(ObjectRepositories.read(ws.root, repoPath), false));
+        List<Object> apps = (List<Object>) repo.computeIfAbsent("applications", k -> new ArrayList<>());
+        Map<String, Object> a = named(apps, app, "screens");
+        Map<String, Object> sc = named((List<Object>) a.get("screens"), screen, "elements");
+        List<Object> els = (List<Object>) sc.get("elements");
+        Map<String, Object> el = new LinkedHashMap<>();
+        el.put("name", name); el.put("description", String.valueOf(b.getOrDefault("description", ""))); el.put("object", obj);
+        int at = -1;
+        for (int i = 0; i < els.size(); i++) if (els.get(i) instanceof Map<?, ?> m && name.equals(m.get("name"))) at = i;
+        if (at >= 0 && !Boolean.TRUE.equals(b.get("replace")))
+            throw new OoaException("STUDIO.EXISTS", "\"" + app + " / " + screen + " / " + name + "\" is already in the repository", "Choose another name, or replace it.");
+        if (at >= 0) els.set(at, el); else els.add(el);
+        Path p = ws.resolve(repoPath);
+        Path tmp = p.resolveSibling("." + p.getFileName() + ".tmp");
+        Files.writeString(tmp, json.write(repo, true));
+        Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
+        return Map.of("repository", repoPath, "element", app + "/" + screen + "/" + name);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> named(List<Object> list, String name, String childKey) {
+        for (Object o : list) if (o instanceof Map<?, ?> m && name.equals(m.get("name"))) {
+            Map<String, Object> mm = (Map<String, Object>) m;
+            mm.computeIfAbsent(childKey, k -> new ArrayList<>());
+            return mm;
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", name); m.put("description", ""); m.put(childKey, new ArrayList<>());
+        list.add(m);
+        return m;
     }
 
     private static Map<String, Object> dep(String name, String path, Map<String, Object> step) {

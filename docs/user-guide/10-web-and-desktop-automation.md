@@ -177,6 +177,35 @@ loosen a property (contains, wildcard) or recapture; several matches mean you sh
 the element is from the anchor; when the run cannot find the element, or finds several, it picks the one nearest that
 spot. **Recapture anchor** and **Remove anchor** change it.
 
+### 7.1 Shared object repositories
+
+When several agents work on the same screens, keep each captured object once in an **object repository** and let the
+agents use it from there. When a screen changes, you fix the element in the repository, and every agent that uses it
+picks up the change on its next run.
+
+1. **+ Create > Object repository** makes a file such as `Shared/SAP.objects.json`. It holds **applications**
+   (a program or website), their **screens** (a window or page) and each screen's **elements**.
+2. Capture an element in an agent's step as usual. In the **Captured object** field, choose **Save to repository…** and
+   pick the repository. Type the **Application**, **Screen** and **Element name**: names already in the repository are
+   offered as you type, and a name cannot contain `/`. Saving an element under a name that is already there needs
+   **Replace the element already saved with this name** ticked. The step then uses the element from the repository.
+3. In another agent, a step's **Captured object** field offers **Use from repository…**. It lists the repositories' web
+   or desktop elements, matching the step. Search, choose one, and press **Use this element**.
+
+A step that uses a repository element shows **Repository**, the element's application › screen › element and the file,
+with **Open repository**, **Choose another…** and **Use a copy in this step**. The copy makes the step independent
+again: later changes in the repository no longer reach it.
+
+The repository opens in its own tab. There you rename applications, screens and elements, describe them and remove
+them, and see whether each element is web or desktop and how it is found. Renaming changes the name agents use, so an
+agent that still uses the old name shows a problem when it is saved, as does a step whose repository file is missing.
+
+**Dependencies** lists the repositories an agent uses with its files. When you check the agent in, Studio also sends
+those repository files to One CommandCenter's repository files, at the same path, skipping files that are unchanged.
+Runs from One CommandCenter receive them with the agent's other files, without listing them under the agent's required
+files. Administrators can require repository objects with the code analysis rules **repository_objects** and
+**ui_in_object_agents** (Administrator's guide, Policies).
+
 ## 8. Record
 
 1. Select where the recorded steps should go.

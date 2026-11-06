@@ -1605,6 +1605,8 @@ public final class Runner {
                 Object v = raw == null ? null : raw.get(in.name());
                 if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
                 else if (v != null) refuseVaultReference(in.name(), v, 0);
+                // an element of a shared object repository (G42) is read from its file just before the step runs
+                if ("object".equals(in.name()) && ObjectRepositories.isReference(v)) v = ObjectRepositories.resolve(workDir, v);
                 if (v != null) {
                     if (in.type() == OoaType.FILE && v instanceof com.oneofficeautomation.sdk.ImageValue img && PICTURE_INPUTS.contains(in.name())) v = pictureFile(img);
                     if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {

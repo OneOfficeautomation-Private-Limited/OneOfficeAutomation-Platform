@@ -6,6 +6,7 @@ import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, 
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, PublicRepository, type CheckInDep } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
+import { ObjectRepositoryEditor } from "./ObjectRepository";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
@@ -36,7 +37,7 @@ type ItemTab = { kind: "item"; path: string; name: string; itemType: WorkspaceNo
 type OpenTab = AgentTab | ItemTab;
 const MAX_TABS = 10;
 const MAX_UNDO = 100;
-const EDITABLE: WorkspaceNode["type"][] = ["form", "process", "document", "skill", "script"];
+const EDITABLE: WorkspaceNode["type"][] = ["form", "process", "document", "objects", "skill", "script"];
 const isDirty = (t: OpenTab) => t.kind === "agent" ? JSON.stringify(t.flow) !== t.saved : t.text !== t.saved;
 const SCRIPT_LANGUAGE: Record<string, string> = { py: "Python script", ps1: "PowerShell script", vbs: "VBScript", js: "JavaScript" };
 /** The Scripts toolkit action that runs each kind of script file. */
@@ -387,7 +388,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     }
     await reloadTree();
     // the new item opens in a tab, ready to edit
-    const type = ({ TaskBot: "bot", AiAgent: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", skill: "skill",
+    const type = ({ TaskBot: "bot", AiAgent: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", objects: "objects", skill: "skill",
       "script-python": "script", "script-powershell": "script" } as const)[kind];
     await open({ name: path.split("/").pop()!, path, type });
   };
@@ -699,7 +700,7 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
         </>}
         {tab.itemType === "document" && <><span className="st-bar-gap" /><Button kind="secondary" onClick={onExtraction}
           title="An agent that reads a document and extracts these fields with AI">Create extraction agent</Button></>}
-        <span className="st-steps-meta">{{ form: "Form", process: "Workflow", document: "Document type", skill: "Prompt Skill", script: SCRIPT_LANGUAGE[ext] ?? "Script" }[tab.itemType as string] ?? "File"}</span>
+        <span className="st-steps-meta">{{ form: "Form", process: "Workflow", document: "Document type", objects: "Object repository", skill: "Prompt Skill", script: SCRIPT_LANGUAGE[ext] ?? "Script" }[tab.itemType as string] ?? "File"}</span>
       </div>
       {tab.itemType === "script" || !data
         ? <>{!data && tab.itemType !== "script" && <p className="st-alert" role="alert">This file is not valid JSON, so it opens as text. Repair it and save.</p>}
@@ -713,6 +714,7 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
         : tab.itemType === "form" ? <FormEditor data={data} onChange={set} />
         : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} />
         : tab.itemType === "document" ? <DocumentEditor data={data} onChange={set} />
+        : tab.itemType === "objects" ? <ObjectRepositoryEditor data={data} onChange={set} />
         : <SkillEditor data={data} onChange={set} name={tab.path.split("/").pop()!.replace(/\.json$/i, "")} />}
     </div>
   );
