@@ -20,7 +20,7 @@ import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
  */
 const TAB_IDS = ["overview", "inbox", "processes", "types", "refdata", "engines", "testlab"] as const;
 /** process: a process page; design: a process open in the builder (#/processes/<id>); document: a review. */
-/** section / item: a part of a page and what is open in it, e.g. #/engines/catalog/onemind, #/testlab/sets/<set>. */
+/** section / item: a part of a page and what is open in it, e.g. #/overview/dashboard, #/engines/catalog/onemind, #/testlab/sets/<set>. */
 export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; stage?: string; document?: string; section?: string; item?: string };
 
 export function parseRoute(hash: string): Route {
@@ -28,6 +28,7 @@ export function parseRoute(hash: string): Route {
   if (first === "process" && second) return { tab: "inbox", process: second };
   if (first === "review" && second) return { tab: "review", document: second };
   if (first === "processes" && second) return { tab: "processes", design: second, ...(third ? { stage: third } : {}) };
+  if (first === "overview" && second) return { tab: "overview", section: second };
   if (first === "engines" && second) return { tab: "engines", section: second, ...(third ? { item: third } : {}) };
   if (first === "testlab" && second) return { tab: "testlab", section: second, ...(third ? { item: third } : {}) };
   return { tab: (TAB_IDS as readonly string[]).includes(first) ? first as typeof TAB_IDS[number] : "overview" };
@@ -66,7 +67,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route]);
 
   const reviewing = route.tab === "review";
-  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab === "testlab" && route.section === "sets" ? "testsets" : route.tab as HelpPage;
+  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab === "testlab" && route.section === "sets" ? "testsets"
+    : route.tab === "overview" && route.section === "dashboard" ? "dashboard" : route.tab as HelpPage;
   const helpOpen = !helpHidden[helpPage];
   const toggleHelp = () => setHelpHidden({ ...helpHidden, [helpPage]: helpOpen });
   const help = helpOpen && <HelpPanel {...HELP[helpPage]} onHide={toggleHelp} />;
@@ -156,6 +158,6 @@ function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptI
     case "refdata": return <RefData api={api} />;
     case "engines": return <Engines api={api} onOptIn={onOptIn} section={route.section} option={route.item} />;
     case "testlab": return <TestLab api={api} section={route.section} item={route.item} />;
-    default: return <OverviewPage api={api} />;
+    default: return <OverviewPage api={api} section={route.section} />;
   }
 }

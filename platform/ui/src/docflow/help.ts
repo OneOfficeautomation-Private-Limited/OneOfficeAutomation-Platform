@@ -2,31 +2,43 @@
  * "How to use this page": a few short steps for every Document Automation screen, and one-line hints for the options
  * people ask about. Plain words, one action per step, so anyone can follow them. Kept in one place for translation.
  */
-export type HelpPage = "overview" | "inbox" | "process" | "review" | "processes" | "types" | "refdata" | "engines" | "testlab" | "testsets";
+export type HelpPage = "overview" | "dashboard" | "inbox" | "process" | "review" | "processes" | "types" | "refdata" | "engines" | "testlab" | "testsets";
 
 export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
   overview: {
-    summary: "How documents are doing today, across all processes.",
+    summary: "Every process in one table: how it is set up and what is happening.",
     steps: [
-      "Read the numbers at the top: received, straight through, waiting, failed.",
+      "Search, or filter by status, folder or how documents come in.",
+      "Click a column title to sort by it. Click again to reverse.",
+      "The table is wide: scroll it sideways to see activity.",
+      "Click a row to open that process.",
+      "Open Dashboard for the charts.",
+    ],
+  },
+  dashboard: {
+    summary: "How documents are doing, across every process, in charts.",
+    steps: [
+      "Read the numbers at the top: today, straight through, waiting, failed.",
       "Click an item under Needs attention to go where action is needed.",
-      "Use the chart to compare the last 14 days.",
-      "Check Cloud cost if cloud opt-in is on.",
+      "Compare the last 14 days, and the straight-through rate per day.",
+      "See which process has a review backlog or failures. Click its name to open it.",
+      "Cloud cost shows when cloud opt-in is on.",
     ],
   },
   inbox: {
-    summary: "Add documents and see every process at a glance.",
+    summary: "Every process at a glance.",
     steps: [
-      "Click Add documents, or drop files on the box.",
-      "Choose a process, or let DocFlow recognise each document.",
       "Watch the Status column: Processing, Done or Needs review.",
-      "Click a process to see its documents.",
+      "Use the filters to find a process.",
+      "Click a process to see its documents, or to add new ones.",
+      "Documents of different kinds? Add them in One Inbox: it recognises each one.",
       "No process yet? Click New process.",
     ],
   },
   process: {
-    summary: "Every document of this process.",
+    summary: "Every document of this process, and adding new ones.",
     steps: [
+      "Click Add documents, or drop files on the box, then Start processing.",
       "Use the filters to find documents.",
       "Needs review? Click Open to check it.",
       "Failed? The note says why. Fix the file and add it again.",
@@ -45,14 +57,15 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     ],
   },
   processes: {
-    summary: "Build a process step by step, from where documents come in to going live.",
+    summary: "Build a process step by step, from choosing it to going live.",
     steps: [
-      "Work through the steps left to right, from 1 Document ingestion to 7 Testing & go-live.",
-      "In step 1, keep Read e-invoice data first on for ZATCA and GST invoices.",
-      "In step 2, choose the document type and check its fields on the same screen.",
-      "In step 5, give important fields, such as the total, a stricter threshold.",
+      "In step 1, choose a process, or click New process.",
+      "In step 2, set where documents come in. Upload files to try it, even on a draft.",
+      "Keep Read e-invoice data first on for ZATCA and GST invoices.",
+      "In step 3, choose the document type and check its fields on the same screen.",
+      "In step 6, give important fields, such as the total, a stricter threshold.",
       "Click Save draft as you go. On a live process, Save changes applies at once.",
-      "In step 7, try 1–3 sample documents, then click Go live.",
+      "In step 8, try 1–3 sample documents, then click Go live.",
     ],
   },
   types: {
@@ -61,6 +74,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
       "Pick a type on the left to see its fields.",
       "Labels are the words DocFlow looks for on the page.",
       "Learned shows labels picked up from reviewers' corrections.",
+      "Tick the languages on the documents. Need another? An administrator offers it in Engines, Languages.",
       "Need a new type? Click Teach from samples and add 3 to 5 example files.",
     ],
   },
@@ -79,6 +93,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
       "Leave Cloud opt-in off unless the client agreed to it.",
       "How pages are routed: choose when weak pages are read again, and by which engine.",
       "Engines: click OneCore, OneConnect or OneMind, then Test or Configure an engine.",
+      "Languages: tick the languages people may choose for document types, then Save languages.",
       "Monthly cost: enter the client's volumes before turning the cloud on.",
     ],
   },

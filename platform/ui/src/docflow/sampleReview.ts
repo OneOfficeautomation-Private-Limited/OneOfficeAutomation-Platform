@@ -86,7 +86,7 @@ export const SAMPLE_REVIEW: ReviewTask = {
     { text: "Subtotal: 41,714.21", mark: "ok" }, { text: "VAT 15%: 6,257.13", mark: "flag" }, { text: "Total: 47,971.34 SAR", mark: "ok", bold: true }],
   fields: [
     { id: "vat_amount", label: "VAT amount", value: "6,287.13", confidence: 61, place: { page: null, bbox: null, grounded: false, groundedBy: null },
-      flagged: { reason: "Fails 2 checks: subtotal + VAT does not equal the total, and it is not 15% of the subtotal.", suggestion: "6,257.13" } },
+      flagged: { reason: "Fails 2 checks: subtotal + VAT does not equal the total, and it is not 15% of the subtotal.", kind: "rule", suggestion: "6,257.13" } },
     { id: "supplier", label: "Supplier", value: "Red Sea Print House", confidence: 96, place: at(1, PAGE1, "supplier") },
     { id: "invoice_number", label: "Invoice number", value: "INV-2026-3944", confidence: 92, place: at(1, PAGE1, "invoice_number") },
     { id: "invoice_date", label: "Invoice date", value: "05/02/2026", confidence: 95, place: at(1, PAGE1, "invoice_date") },
@@ -105,6 +105,7 @@ export const SAMPLE_REVIEW: ReviewTask = {
     { text: "VAT is 15% of subtotal", passed: false, detail: "expected 6,257.13" },
     { text: "Supplier is in reference data", passed: true, detail: "Suppliers list" },
     { text: "Not a duplicate", passed: true, detail: "no earlier INV-2026-3944" }],
+  documentReasons: ["Document confidence 78% is under the 80% needed"],
   einvoice: {
     source: "zatca-qr", values: { seller_name: "Red Sea Print House", vat_number: "318609139099603", timestamp: "2026-02-05T09:12:00", total: "47971.34", vat_amount: "6257.13" },
     checks: [

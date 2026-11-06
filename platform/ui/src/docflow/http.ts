@@ -1,8 +1,9 @@
 import {
-  RULE_KIND, ruleTest, stagesOf,
+  INBOX_ID, RULE_KIND, ruleTest, stagesOf,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type NewProcess, type Overview, type Place, type ProcessDesign, type ProcessSummary, type RefTable,
-  type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
+  type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
+  type ProcessRow, type ProcessSummary, type RefTable,
+  type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
 } from "./api";
 
@@ -16,8 +17,13 @@ import {
 interface Stats {
   byStatus: Record<string, number>; total: number; processed: number; stpRate: number | null; pages: number; credits: number;
   daily: { day: string; total: number; stp: number; human: number; failed: number }[];
+  /** Documents that came in since the 1st of this month (newer DocFlow). */
+  thisMonth?: number;
 }
-interface DfFieldDef { name: string; type: string; label?: string | null; required: boolean; regex?: string | null; format?: string | null; aliases: string[]; columns: DfFieldDef[] }
+interface DfFieldDef {
+  name: string; type: string; label?: string | null; required: boolean; regex?: string | null; format?: string | null; aliases: string[]; columns: DfFieldDef[];
+  fallback?: string | null;
+}
 interface DfDocType {
   id: string; name: string; description: string; category: string; languages: string[]; keywords: string[]; fields: DfFieldDef[];
   checks: string[]; learning: { enabled: boolean; aliases: Record<string, string[]> }; version: number; createdAt: string;
@@ -42,9 +48,14 @@ interface DfDocRow {
 interface DfPlace { page: number | null; bbox: { x: number; y: number; w: number; h: number } | null; grounded: boolean | null; groundedBy?: string | null }
 interface DfLocation extends DfPlace { rows?: (DfPlace & { row: number; cells: Record<string, DfPlace> })[] }
 interface DfEInvoice { source: string; values: Record<string, unknown>; checks?: { field: string; qr: unknown; read: unknown; result: "match" | "mismatch" | "differs" | "filled" }[] }
+/**
+ * Why a document went to review (docauto/scoring.py review_reasons, plus DocFlow's rules): field null = the whole document.
+ * reason: low_confidence | required_missing | validation | not_grounded | check_failed | document_confidence | rule | unclassified.
+ */
+interface DfReason { field: string | null; reason: string; message: string; threshold?: number | null; confidence?: number | null; fields?: string[]; rule?: string | null }
 interface DfDocument extends Omit<DfDocRow, "instance_id" | "flags" | "confidence"> {
   flowId: string; flags: DfFlag[]; fields: Record<string, unknown>; confidence: Record<string, number | null>; error: { message?: string } | null;
-  locations?: Record<string, DfLocation>; einvoice?: DfEInvoice | null;
+  locations?: Record<string, DfLocation>; einvoice?: DfEInvoice | null; reviewReasons?: DfReason[];
 }
 interface DfResult {
   pages: { pageNumber?: number; width?: number; height?: number; lines: { text: string }[] }[];
@@ -61,7 +72,6 @@ interface DfCosts {
 
 /* ------------------------------------------------------------------ helpers */
 
-const INBOX_ID = "smart-inbox";
 const ENGINE_NAMES: Record<string, string> = {
   tesseract: "Tesseract", paddleocr: "PaddleOCR", "pdf-text": "PDF text layer", "builtin-rules": "Rules extractor", "azure-di": "Azure Document Intelligence",
   "google-docai": "Google Document AI", "aws-textract": "AWS Textract", abbyy: "ABBYY", claude: "Claude (Anthropic)", "llm-cloud": "Cloud AI API", "llm-local": "Self-hosted model",
@@ -180,6 +190,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     if (o.deliveryFailures) alerts.push({ level: "warn", title: "Deliveries failed", text: `${o.deliveryFailures} recent deliveries did not arrive`, to: "#/processes" });
     if (!costs.cloudOptIn) alerts.push({ level: "info", title: "Cloud opt-in is off", text: "Weak pages are retried locally only", to: "#/engines" });
     return {
+      cloudOptIn: costs.cloudOptIn,
       today: today?.total ?? 0, straightThrough: pct(t.stpRate) ?? 0, waiting: o.review, overdue: o.overdue, failed: t.byStatus.failed ?? 0,
       pagesThisMonth: o.pagesThisMonth ?? t.pages, cloudCost: Math.round((o.creditsThisMonth ?? t.credits ?? 0) * 100) / 100,
       days: t.daily.map((d) => ({ label: d.day.slice(8), straight: d.stp, reviewed: d.human })),
@@ -190,19 +201,42 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   async processes(): Promise<ProcessSummary[]> {
     const [flows, recent] = await Promise.all([this.flows(true), this.call<DfDocRow[]>("GET", "/df/flows/all/documents?limit=200")]);
+    return flows.map((f) => this.summary(f, recent));
+  }
+
+  /** A flow's counts and its latest document (recent: the newest documents of every process, newest first). */
+  private summary(f: DfFlow, recent: DfDocRow[]): ProcessSummary {
     const todayKey = new Date().toISOString().slice(0, 10);
+    const by = f.stats?.byStatus ?? {};
+    const last = recent.find((d) => d.instance_id === f.id);
+    return {
+      id: f.id, name: f.name, folder: f.folder ?? "", docType: f.isInbox ? "Any" : (f.docTypeNames ?? []).join(", ") || "—",
+      state: f.status, version: f.version,
+      today: f.stats?.daily.find((d) => d.day === todayKey)?.total ?? 0,
+      review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: (by.failed ?? 0) + (by.invalid ?? 0),
+      done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0,
+      lastDocument: last?.file_name ?? "—", lastTime: last ? clock(last.created_at) : "",
+      sources: ["upload", ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
+      deliversTo: f.deliveries.filter((d) => d.enabled).map((d) => d.name || d.type),
+    };
+  }
+
+  async processTable(): Promise<ProcessRow[]> {
+    // three calls for every process: the flows (with their counts), the newest documents and the review queue
+    const [flows, recent, queue] = await Promise.all([
+      this.flows(true), this.call<DfDocRow[]>("GET", "/df/flows/all/documents?limit=200"),
+      this.call<{ flowId: string; overdue: boolean }[]>("GET", "/df/review").catch(() => []),
+    ]);
+    const month = new Date().toISOString().slice(0, 7);
     return flows.map((f) => {
-      const by = f.stats?.byStatus ?? {};
       const last = recent.find((d) => d.instance_id === f.id);
+      const e = f.engine.extractionProvider;
       return {
-        id: f.id, name: f.name, folder: f.folder ?? "", docType: f.isInbox ? "Any" : (f.docTypeNames ?? []).join(", ") || "—",
-        state: f.status, version: f.version,
-        today: f.stats?.daily.find((d) => d.day === todayKey)?.total ?? 0,
-        review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: (by.failed ?? 0) + (by.invalid ?? 0),
-        done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0,
-        lastDocument: last?.file_name ?? "—", lastTime: last ? clock(last.created_at) : "",
-        sources: ["upload", ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
-        deliversTo: f.deliveries.filter((d) => d.enabled).map((d) => d.name || d.type),
+        ...this.summary(f, recent), isInbox: f.isInbox, docTypes: f.isInbox ? [] : f.docTypeNames ?? [], classifyMode: f.isInbox ? "auto" : f.classify.mode,
+        extraction: !e || e === "auto" ? "Default engine" : ENGINE_NAMES[e] ?? e,
+        checksOn: f.rules.filter((r) => r.enabled).length, checks: f.rules.length, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
+        month: f.stats?.thisMonth ?? (f.stats?.daily ?? []).filter((d) => d.day.startsWith(month)).reduce((n, d) => n + d.total, 0),
+        overdue: queue.filter((q) => q.flowId === f.id && q.overdue).length, lastAt: last?.created_at ?? null,
       };
     });
   }
@@ -269,6 +303,15 @@ export class HttpDocFlowApi implements DocFlowApi {
     const loc = d.locations ?? {};
     const engines = [...new Set(result?.provenance.steps.filter((s) => s.stage === "digitize").map((s) => ENGINE_NAMES[s.providerId] ?? s.providerId) ?? [])];
     const label = (f: DfFieldDef) => (f.label ?? f.name).split(" / ")[0];
+    // why it needs review: the process's rules (flags) and DocFlow's reasons, per field; only while it waits for review
+    const reasons = status(d.status) === "review" ? d.reviewReasons ?? [] : [];
+    const known = new Set([...defs, ...tableDefs].map((f) => f.name));
+    const flagOf = (name: string): ReviewFlag | undefined => {
+      const why = [...d.flags.filter((x) => x.field === name && x.action !== "warn").map((x) => ({ kind: "rule", text: x.message })),
+        ...reasons.filter((r) => r.field === name).map((r) => ({ kind: r.reason, text: r.message }))];
+      const texts = [...new Set(why.map((w) => w.text))];
+      return texts.length ? { reason: texts.join(". "), kind: why[0].kind } : undefined;
+    };
     return {
       documentId, processId: d.flowId, ...(d.doctype_id ? { docTypeId: d.doctype_id } : {}), status: status(d.status), reviewedBy: d.validated_by ?? undefined, name: d.file_name, processName: flow?.name ?? d.flowId, docType: type?.name ?? "Not recognised",
       cameIn: `${clock(d.created_at)} by ${sourceOf({ ...d, instance_id: d.flowId, flags: d.flags, confidence: null }).label.toLowerCase()}`,
@@ -281,31 +324,33 @@ export class HttpDocFlowApi implements DocFlowApi {
       }),
       pageLines: (result?.pages ?? []).flatMap((p) => p.lines.map((l) => ({ text: l.text }))).slice(0, 200),
       fields: defs.map((f) => {
-        const flag = d.flags.find((x) => x.field === f.name && x.action !== "warn");
+        const flag = flagOf(f.name);
         const conf = d.confidence[f.name];
         const place = placeOf(loc[f.name]);
         return {
           id: f.name, label: label(f), value: d.fields[f.name] === null || d.fields[f.name] === undefined ? "" : String(d.fields[f.name]),
-          confidence: pct(conf) ?? 0, ...(flag ? { flagged: { reason: flag.message } } : {}), ...(place ? { place } : {}),
+          confidence: pct(conf) ?? 0, ...(flag ? { flagged: flag } : {}), ...(place ? { place } : {}),
         };
       }),
       tables: tableDefs.map((f): ReviewTable => {
         const raw = Array.isArray(d.fields[f.name]) ? d.fields[f.name] as Record<string, unknown>[] : [];
         const names = f.columns?.length ? f.columns.map((c) => ({ name: c.name, label: label(c) }))
           : [...new Set(raw.flatMap((r) => (r && typeof r === "object" ? Object.keys(r) : [])))].map((n) => ({ name: n, label: n }));
-        const flag = d.flags.find((x) => x.field === f.name && x.action !== "warn");
+        const flag = flagOf(f.name);
         const l = loc[f.name];
         return {
           id: f.name, label: label(f), columns: names, confidence: pct(d.confidence[f.name]),
           rows: raw.map((r) => Object.fromEntries(names.map((c) => [c.name, cell(r?.[c.name])]))),
-          ...(flag ? { flagged: { reason: flag.message } } : {}), ...(l ? { place: placeOf(l) } : {}),
+          ...(flag ? { flagged: flag } : {}), ...(l ? { place: placeOf(l) } : {}),
           ...(l?.rows ? { rowPlaces: l.rows.map((r) => ({ ...placeOf(r)!, cells: Object.fromEntries(Object.entries(r.cells ?? {}).map(([k, c]) => [k, placeOf(c)!])) })) } : {}),
         };
       }),
       einvoice: d.einvoice ? this.einvoiceOf(d.einvoice, (n) => label(type?.fields.find((x) => x.name === n) ?? ({ name: n } as DfFieldDef))) : null,
-      checks: d.flags.length
-        ? d.flags.map((x) => ({ text: x.rule, passed: x.action === "warn", detail: x.message }))
+      checks: d.flags.length || reasons.some((r) => r.reason === "check_failed")
+        ? [...d.flags.map((x) => ({ text: x.rule, passed: x.action === "warn", detail: x.message })),
+          ...reasons.filter((r) => r.reason === "check_failed").map((r) => ({ text: r.message.replace(/^Check failed: /, ""), passed: false, detail: "check of the document type" }))]
         : [{ text: "Every check", passed: true, detail: "nothing to fix" }],
+      documentReasons: reasons.filter((r) => !r.field || !known.has(r.field)).map((r) => (r.field ? `${r.field}: ${r.message}` : r.message)),
     };
   }
 
@@ -484,6 +529,14 @@ export class HttpDocFlowApi implements DocFlowApi {
     return docTypeOf({ id: "", name: p.name, description: "", category: "custom", languages: p.languages, keywords: p.keywords, checks: [], version: 0, createdAt: "",
       learning: { enabled: true, aliases: {} }, fields: p.fields.filter((x) => !x.suggestOff).map((x) => ({ ...x, aliases: x.aliases ?? [], columns: x.columns ?? [] })) },
     new Set(), []);
+  }
+
+  async languages(): Promise<Language[]> {
+    return this.call<Language[]>("GET", "/df/languages");
+  }
+
+  async saveOfferedLanguages(codes: string[]): Promise<void> {
+    await this.call("PUT", "/admin/settings", { values: { DOCAUTO_OFFERED_LANGUAGES: codes.join(",") } });
   }
 
   async refTables(): Promise<RefTable[]> {

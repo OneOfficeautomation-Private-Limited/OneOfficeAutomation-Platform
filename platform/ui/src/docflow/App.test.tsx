@@ -20,7 +20,7 @@ describe("Document Automation", () => {
     expect(within(tabs).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["Pages", "Libraries"]);
     expect(within(within(tabs).getByRole("group", { name: "Pages" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Overview", "Inbox", "Processes"]);
     expect(within(tabs).getByRole("link", { name: "Overview" }).getAttribute("aria-current")).toBe("page");
-    expect(await screen.findByText("Documents today")).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Processes" })).toBeTruthy();   // Overview opens on its table
     expect(screen.getByText("Local-only: nothing leaves this server")).toBeTruthy();
   });
 
@@ -38,15 +38,16 @@ describe("Document Automation", () => {
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Libraries" })).getByRole("button").textContent).toBe("Engines"));
   });
 
-  it("builds a process in seven numbered steps, documents in first, and tests it before going live", async () => {
+  it("builds a process in eight numbered steps, the process chosen first, and tests it before going live", async () => {
     start(); await go("#/processes/supplier-invoices-ksa");
     const steps = await screen.findByRole("tablist", { name: "Steps" });
     expect(within(steps).getAllByRole("tab").map((t) => t.querySelector("b")!.textContent))
-      .toEqual(["Document ingestion", "Document classification", "Data extraction", "Validation", "Human review", "Export & integration", "Testing & go-live"]);
-    expect(screen.getByRole("region", { name: "Document ingestion" })).toBeTruthy();  // step 1 first: where documents come from
+      .toEqual(["Select a process", "Document ingestion", "Document classification", "Data extraction", "Validation", "Human review", "Export & integration", "Testing & go-live"]);
+    expect(screen.getByRole("region", { name: "Document ingestion" })).toBeTruthy();  // a process in the address: it opens on step 2
+    expect(screen.queryByRole("combobox", { name: "Process" })).toBeNull();          // no process list in the header: step 1 is the one place
     fireEvent.click(within(steps).getByRole("tab", { name: /Data extraction/ }));
     expect(within(screen.getByRole("region", { name: "Data extraction" })).getByRole("link", { name: "Engines" }).getAttribute("href")).toBe("#/engines/routing");
-    fireEvent.click(screen.getByRole("button", { name: "step 7, Testing & go-live" }));
+    fireEvent.click(screen.getByRole("button", { name: "step 8, Testing & go-live" }));
     const test = screen.getByRole("region", { name: "Testing & go-live" });
     expect(await within(test).findByRole("button", { name: "Run test" })).toBeTruthy();
     fireEvent.click(within(test).getByRole("button", { name: "Go live" }));
@@ -54,7 +55,7 @@ describe("Document Automation", () => {
     expect(within(test).getByText("This process is live: new documents use this version.")).toBeTruthy();
   });
 
-  it("chooses and edits the document type in step 2, on the same screen", async () => {
+  it("chooses and edits the document type in step 3, on the same screen", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/classify");
     const step = await screen.findByRole("region", { name: "Document classification" });
     expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice");
@@ -68,7 +69,7 @@ describe("Document Automation", () => {
     expect(await api.processDesign("supplier-invoices-ksa")).toMatchObject({ docTypeIds: ["receipt"], docType: "Receipt" });
   });
 
-  it("makes a new document type in step 2, and the process reads it", async () => {
+  it("makes a new document type in step 3, and the process reads it", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/classify");
     fireEvent.click(await screen.findByRole("button", { name: "New document type" }));
     const naming = await screen.findByRole("dialog", { name: "New document type" });
@@ -88,6 +89,8 @@ describe("Document Automation", () => {
     expect(parseRoute("#/process/ap-invoices")).toEqual({ tab: "inbox", process: "ap-invoices" });
     expect(parseRoute("#/review/scan_0457")).toEqual({ tab: "review", document: "scan_0457" });
     expect(parseRoute("#/engines")).toEqual({ tab: "engines" });
+    expect(parseRoute("#/overview/dashboard")).toEqual({ tab: "overview", section: "dashboard" });
+    expect(parseRoute("#/processes/ap-invoices/select")).toEqual({ tab: "processes", design: "ap-invoices", stage: "select" });
     expect(parseRoute("#/engines/catalog/onemind")).toEqual({ tab: "engines", section: "catalog", item: "onemind" });
     expect(parseRoute("#/testlab/sets/ap-reviewed")).toEqual({ tab: "testlab", section: "sets", item: "ap-reviewed" });
     expect(parseRoute("#/nowhere")).toEqual({ tab: "overview" });
@@ -99,26 +102,38 @@ describe("Document Automation", () => {
     expect(within(region).getAllByRole("row")).toHaveLength(5);   // header + 4 processes
     fireEvent.change(within(region).getByLabelText("Status"), { target: { value: "failed" } });
     expect(within(region).getAllByRole("row")).toHaveLength(2);
-    expect(within(region).getByRole("link", { name: "Smart inbox" })).toBeTruthy();
+    expect(within(region).getByRole("link", { name: "One Inbox" })).toBeTruthy();
     fireEvent.change(within(region).getByLabelText("Comes in from"), { target: { value: "email" } });
     expect(within(region).getByText("No process matches these filters.")).toBeTruthy();
     fireEvent.click(within(region).getAllByRole("button", { name: "Clear filters" })[0]);
     expect(within(region).getAllByRole("row")).toHaveLength(5);
   });
 
-  it("adds documents to a chosen process and opens it", async () => {
+  it("adds documents on the process page, not on the Inbox's main screen", async () => {
     const api = start(); await go("#/inbox");
-    fireEvent.click(await screen.findByRole("button", { name: "Add documents" }));
-    const dialog = await screen.findByRole("dialog", { name: "Add documents" });
-    const start_ = within(dialog).getByRole("button", { name: "Start processing" }) as HTMLButtonElement;
-    expect(start_.disabled).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText("Choose files"), { target: { files: [new File(["x"], "INV-NEW-1.pdf")] } });
-    fireEvent.click(within(dialog).getByRole("radio", { name: /Use a process/ }));
-    fireEvent.change(within(dialog).getByLabelText("Process"), { target: { value: "expense-claims" } });
-    expect(within(dialog).getByRole("note").textContent).toContain("Filed in Finance / Expenses");          // the process's own folder
-    fireEvent.click(within(dialog).getByRole("button", { name: "Start processing" }));
-    await waitFor(() => expect(location.hash).toBe("#/process/expense-claims"));
-    expect((await api.documents("expense-claims")).some((d) => d.name === "INV-NEW-1.pdf")).toBe(true);
+    await table("Processes");
+    expect(screen.queryByRole("button", { name: "Add documents" })).toBeNull();
+    expect(screen.queryByText(/Drop files here/)).toBeNull();
+    expect(screen.getByRole("button", { name: "New process" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Add them in One Inbox" }).getAttribute("href")).toBe("#/process/smart-inbox");
+
+    await go("#/process/expense-claims");
+    expect(await screen.findByRole("button", { name: "Add documents" })).toBeTruthy();
+    expect(screen.getByText(/They go to Expense claims/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Choose files for Expense claims"), { target: { files: [new File(["x"], "INV-NEW-1.pdf")] } });
+    const files = screen.getByLabelText("Files to add");
+    expect(within(files).getByText("Filed in Finance / Expenses")).toBeTruthy();       // the process's own folder
+    fireEvent.click(within(files).getByRole("button", { name: "Start processing" }));
+    expect(await within(await table("Documents in Expense claims")).findByRole("link", { name: "INV-NEW-1.pdf" })).toBeTruthy();
+    expect((await api.documents("expense-claims")).find((d) => d.name === "INV-NEW-1.pdf")?.status).toBe("processing");
+  });
+
+  it("recognises documents of mixed types on the One Inbox page", async () => {
+    const api = start(); await go("#/process/smart-inbox");
+    expect(await screen.findByText(/Each document is recognised and sent to its process/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Choose files for One Inbox"), { target: { files: [new File(["x"], "mixed.pdf")] } });
+    fireEvent.click(screen.getByRole("button", { name: "Start processing" }));
+    await waitFor(async () => expect((await api.documents("smart-inbox")).some((d) => d.name === "mixed.pdf")).toBe(true));
   });
 
   it("creates a process with the ways documents come in, then opens the builder", async () => {
@@ -165,6 +180,34 @@ describe("Document Automation", () => {
     expect(api.reviews[0].fields.line_items).toBeUndefined();                   // an unchanged table is not sent back as a correction
     const menu = screen.queryByRole("navigation", { name: "One CommandCenter" });
     expect(menu).toBeTruthy();
+  });
+
+  it("says why the document needs review: the fields to check first with their reason, the rest after, the document's own reasons on top", async () => {
+    const api = new SampleApi();
+    const sample = await api.reviewTask("scan_0457");
+    api.reviewTask = async () => ({ ...sample,
+      fields: sample.fields.map((f) => (f.id === "subtotal" ? { ...f, confidence: 58, flagged: { reason: "Confidence 58% is under the 85% needed", kind: "low_confidence" } }
+        : f.id === "supplier" ? { ...f, value: "", confidence: 0, flagged: { reason: "Required, but not found on the document", kind: "required_missing" } } : f)),
+      documentReasons: ["Document confidence 74% is under the 80% needed"] });
+    start(api); await go("#/review/scan_0457");
+    const fields = await screen.findByRole("region", { name: "Fields" });
+    expect(within(fields).getByText("3 fields need you")).toBeTruthy();
+    const why = within(fields).getByRole("note", { name: "Why this document needs review" });
+    expect(within(why).getByText("Document confidence 74% is under the 80% needed")).toBeTruthy();
+    expect(within(fields).getByText("Confidence 58% is under the 85% needed")).toBeTruthy();
+    expect(within(fields).getByText("Required, but not found on the document")).toBeTruthy();
+    expect(within(fields).getByText("Not read")).toBeTruthy();
+    expect(within(fields).getByText("Read at 58%")).toBeTruthy();
+    // the fields to check come first, under their heading; Subtotal is no longer "checked, no action needed"
+    const text = fields.textContent!;
+    const needs = text.indexOf("NEEDS YOUR CHECK"), fine = text.indexOf("CHECKED, NO ACTION NEEDED");
+    expect(needs).toBeGreaterThanOrEqual(0);
+    for (const label of ["VAT amount", "Supplier", "Subtotal"]) {
+      const at = text.indexOf(label, needs);
+      expect(at > needs && at < fine).toBe(true);
+    }
+    expect(within(fields).getByLabelText(/^Subtotal/).closest(".df-flag")).toBeTruthy();
+    expect(within(fields).getByLabelText(/^Invoice number/).closest(".df-field-row")).toBeTruthy();
   });
 
   it("shows the page itself, with pages, zoom and a box over each value; a field and its box find each other", async () => {
@@ -228,7 +271,7 @@ describe("Document Automation", () => {
     expect(within(e).getAllByText("Match")).toHaveLength(3);
   });
 
-  it("reads e-invoice data first in step 1 and gives fields their own review threshold in step 5", async () => {
+  it("reads e-invoice data first in step 2 and gives fields their own review threshold in step 6", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
     const einvoice = within(intake).getByRole("switch", { name: "Read e-invoice data first (ZATCA XML, QR codes)" });
@@ -517,7 +560,7 @@ describe("Document Automation", () => {
     start();
     await go("#/inbox");
     const help = await screen.findByRole("region", { name: "How to use this page" });
-    expect(within(help).getAllByRole("listitem")[0].textContent).toContain("Add documents");
+    expect(within(help).getAllByRole("listitem")[0].textContent).toContain("Status column");
     fireEvent.click(within(help).getByRole("button", { name: "Hide" }));
     expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();
     await go("#/engines");
@@ -567,7 +610,7 @@ describe("Document Automation", () => {
     await waitFor(async () => expect((await api.docTypes()).some((t) => t.id === "pro-forma-invoice" && t.fields.length === 3)).toBe(true));
   });
 
-  it("sets up a process's email inbox in step 1, Document ingestion", async () => {
+  it("sets up a process's email inbox in step 2, Document ingestion", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
     fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
@@ -592,6 +635,124 @@ describe("Document Automation", () => {
     expect(within(row).getByText("3")).toBeTruthy();
     expect(within(row).queryByText("No documents yet")).toBeNull();
     expect(screen.queryByLabelText("Period")).toBeNull();
-    expect(screen.getByText(/You choose the process next/)).toBeTruthy();
+  });
+
+  it("starts the builder on step 1: choose a process; the other steps open once one is chosen", async () => {
+    start(); await go("#/processes");
+    const select = await screen.findByRole("region", { name: "Select a process" });
+    const tabs = within(screen.getByRole("tablist", { name: "Steps" })).getAllByRole("tab") as HTMLButtonElement[];
+    expect(tabs).toHaveLength(8);
+    expect(tabs[0].disabled).toBe(false);
+    expect(tabs.slice(1).every((t) => t.disabled)).toBe(true);
+    const list = within(select).getByLabelText("Process") as HTMLSelectElement;
+    expect([...list.options].map((o) => o.textContent)).toEqual(["Choose a process", "AP invoices", "One Inbox", "Expense claims", "Deliveries"]);
+    expect(within(select).getByRole("button", { name: "New process" })).toBeTruthy();
+    fireEvent.change(list, { target: { value: "expense-claims" } });
+    await waitFor(() => expect(location.hash).toBe("#/processes/expense-claims"));
+    await go("#/processes/expense-claims/select");                                  // step 1 again: the process is shown chosen
+    const chosen = await screen.findByRole("region", { name: "Select a process" });
+    expect((within(chosen).getByLabelText("Process") as HTMLSelectElement).value).toBe("expense-claims");
+    expect(within(chosen).getByText("Finance / Expenses")).toBeTruthy();
+    expect(within(chosen).getByText("Live · version 1")).toBeTruthy();
+  });
+
+  it("uploads files into a draft process in step 2 and shows its last documents", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const upload = await screen.findByRole("region", { name: "Upload files" });
+    expect(await within(upload).findByText("No documents yet.")).toBeTruthy();
+    fireEvent.change(within(upload).getByLabelText("Choose files for Supplier invoices KSA"), { target: { files: [new File(["x"], "try-1.pdf")] } });
+    fireEvent.click(within(upload).getByRole("button", { name: "Start processing" }));
+    expect(await within(upload).findByRole("link", { name: "try-1.pdf" })).toBeTruthy();
+    expect(within(within(upload).getByRole("region", { name: "Last uploads" })).getByText("Processing")).toBeTruthy();
+    expect((await api.processDesign("supplier-invoices-ksa")).state).toBe("draft");
+    expect((await api.documents("supplier-invoices-ksa")).map((d) => d.name)).toEqual(["try-1.pdf"]);
+  });
+
+  it("shows the Overview as a table of every process: filters, sorting, a row opens the process", async () => {
+    start(); await go("#/overview");
+    const sections = screen.getByRole("navigation", { name: "Overview sections" });
+    expect(within(sections).getAllByRole("link").map((a) => a.textContent)).toEqual(["Table", "Dashboard"]);
+    expect(within(sections).getByRole("link", { name: "Table" }).getAttribute("aria-current")).toBe("page");
+    const region = await table("Processes");
+    expect(within(region).getByRole("group", { name: /scrolls sideways/ }).className).toBe("df-table-wrap");   // the wide table scrolls in its card
+    expect(within(region).getAllByRole("button").filter((b) => b.className === "df-sort").map((b) => b.textContent!.replace(/ .$/, ""))).toEqual([
+      "Process", "Folder", "Status", "Document types", "Comes in from", "Classification", "Extraction engine", "Checks on", "Review",
+      "Delivers to", "This month", "Today", "Done", "Straight through", "Waiting for review", "Overdue", "Failed", "Last document"]);
+    const names = () => within(region).getAllByRole("row").slice(1).map((r) => r.querySelector("a")!.textContent);
+    expect(names()).toEqual(["AP invoices", "Deliveries", "Expense claims", "One Inbox"]);
+    const ap = within(region).getByRole("link", { name: "AP invoices" }).closest("tr")!;
+    expect(within(ap).getByText("Live · v4")).toBeTruthy();
+    expect(within(ap).getByText("Upload, Watched folder, Bot")).toBeTruthy();
+    expect(within(ap).getByText("5 of 6")).toBeTruthy();
+    expect(within(ap).getByText("Under 85% · 24 h")).toBeTruthy();
+    expect(within(ap).getByText("1,460")).toBeTruthy();
+    const inbox = within(region).getByRole("link", { name: "One Inbox" }).closest("tr")!;
+    expect(within(inbox).getByText("Any type")).toBeTruthy();
+    expect(within(inbox).getByText("Recognised")).toBeTruthy();
+
+    fireEvent.click(within(region).getByRole("button", { name: "This month" }));        // numbers sort largest first
+    expect(names()).toEqual(["AP invoices", "One Inbox", "Expense claims", "Deliveries"]);
+    expect(within(region).getByRole("columnheader", { name: /This month/ }).getAttribute("aria-sort")).toBe("descending");
+    fireEvent.click(within(region).getByRole("button", { name: "This month" }));
+    expect(names()[0]).toBe("Deliveries");
+
+    fireEvent.change(within(region).getByLabelText("Comes in from"), { target: { value: "email" } });
+    expect(names()).toEqual(["Deliveries"]);
+    expect(within(region).getByText("1 of 4 processes")).toBeTruthy();
+    fireEvent.click(within(region).getByRole("button", { name: "Clear filters" }));
+    fireEvent.change(within(region).getByLabelText("Folder"), { target: { value: "Finance" } });
+    expect(names()).toEqual(["Expense claims", "AP invoices"]);
+    fireEvent.click(within(region).getByText("Finance / Expenses"));                    // anywhere on the row
+    expect(location.hash).toBe("#/process/expense-claims");
+  });
+
+  it("shows the charts on the Overview's Dashboard", async () => {
+    const api = start(); await go("#/overview/dashboard");
+    expect(await screen.findByText("Documents today")).toBeTruthy();
+    for (const name of ["Documents per day", "Needs attention", "Straight-through rate", "Review backlog", "Failures", "Documents by process", "Where pages were read"])
+      expect(screen.getByRole("region", { name })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Processes" })).toBeNull();            // the table is a page of its own
+    expect(within(screen.getByRole("region", { name: "Review backlog" })).getByText("5 · 1 overdue")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Failures" })).getByRole("link", { name: "One Inbox" })).toBeTruthy();
+    expect(screen.queryByText("Cloud cost this month")).toBeNull();                      // only with cloud opt-in
+    expect(within(screen.getByRole("region", { name: "How to use this page" })).getByText(/in charts/)).toBeTruthy();
+    cleanup();
+    await api.saveRouting({ ...(await api.engines()).routing, cloudOptIn: true });
+    start(api); await go("#/overview/dashboard");
+    expect(await screen.findByText("Cloud cost this month")).toBeTruthy();
+  });
+
+  it("offers the administrator's languages for a document type, marking those not installed", async () => {
+    const api = start(); await go("#/types");
+    const type = await screen.findByRole("region", { name: "Supplier invoice" });
+    const langs = within(type).getByRole("group", { name: "Languages" });
+    await waitFor(() => expect(within(langs).getAllByRole("checkbox").map((c) => c.parentElement!.textContent)).toEqual(["English", "Arabic"]));
+
+    await go("#/engines/languages");
+    const panel = await screen.findByRole("region", { name: "Languages" });
+    expect(within(panel).getByText("2 offered · 8 installed")).toBeTruthy();
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "Offer Urdu" }));
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "Offer Bengali" }));
+    fireEvent.change(within(panel).getByLabelText("Show"), { target: { value: "missing" } });
+    expect(within(panel).getByText("Bengali").closest("tr")!.textContent).toContain("Not installed");
+    fireEvent.click(within(panel).getByRole("button", { name: "Save languages" }));
+    await waitFor(async () => expect((await api.languages()).filter((l) => l.offered).map((l) => l.code)).toEqual(["en", "ar", "ur", "bn"]));
+
+    await go("#/types");
+    const again = within(await screen.findByRole("region", { name: "Supplier invoice" })).getByRole("group", { name: "Languages" });
+    await waitFor(() => expect(within(again).getAllByRole("checkbox")).toHaveLength(4));
+    expect(within(again).getByText("Bengali").parentElement!.textContent).toContain("not installed");
+    fireEvent.click(within(again).getByRole("checkbox", { name: /Urdu/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(async () => expect((await api.docTypes()).find((t) => t.id === "supplier-invoice")!.languages).toEqual(["en", "ar", "ur"]));
+  });
+
+  it("keeps a document type's language that is no longer offered", async () => {
+    const api = new SampleApi();
+    await api.saveOfferedLanguages(["en"]);
+    start(api); await go("#/types");
+    const langs = within(await screen.findByRole("region", { name: "Supplier invoice" })).getByRole("group", { name: "Languages" });
+    await waitFor(() => expect(within(langs).getByText("not offered")).toBeTruthy());
+    expect((within(langs).getByRole("checkbox", { name: /Arabic/ }) as HTMLInputElement).checked).toBe(true);
   });
 });

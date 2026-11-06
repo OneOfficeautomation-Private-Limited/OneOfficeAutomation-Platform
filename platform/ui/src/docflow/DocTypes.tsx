@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
 import type { DocFlowApi, DocType, DocTypeField, FieldType } from "./api";
+import { LanguagePicker } from "./languages";
 import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
 
 const TYPES: FieldType[] = ["Text", "Date", "Amount", "Number", "Choice", "Table"];
-const LANGS: [string, string][] = [["en", "English"], ["ar", "Arabic"]];
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const keyOf = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^(\d)/, "f_$1") || "field";
 const same = (a: DocType, b: DocType) => JSON.stringify(a) === JSON.stringify(b);
@@ -106,15 +106,7 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           <Field label="Recognised by" hint="Words on the page that identify this type, comma separated.">
             {(id) => <TextInput id={id} value={t.keywords.join(", ")} onChange={(e) => set({ keywords: list(e.target.value) })} />}
           </Field>
-          <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-            <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>Languages</legend>
-            {LANGS.map(([code, label]) => (
-              <label key={code} style={{ display: "inline-flex", gap: 6, marginRight: 14 }}>
-                <input type="checkbox" checked={t.languages.includes(code)}
-                  onChange={(e) => set({ languages: e.target.checked ? [...t.languages, code] : t.languages.filter((l) => l !== code) })} />{label}
-              </label>
-            ))}
-          </fieldset>
+          <LanguagePicker api={api} value={t.languages} onChange={(languages) => set({ languages })} />
           <div><div className="df-small">Used by</div>{t.usedBy.length ? t.usedBy.join(", ") : "No process yet"}</div>
         </div>
       </section>

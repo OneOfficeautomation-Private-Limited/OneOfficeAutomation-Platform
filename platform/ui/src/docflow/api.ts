@@ -15,6 +15,24 @@ export interface ProcessSummary {
   lastDocument: string; lastTime: string; sources: Source[]; deliversTo: string[];
 }
 
+/** The process that recognises each document and sends it on (DocFlow's inbox flow); uploads of mixed types go here. */
+export const INBOX_ID = "smart-inbox";
+
+/**
+ * A process as the Overview table shows it: its set-up (document types, classification, engine, checks, review,
+ * deliveries) and what is happening (this month, overdue, the last document's time as ISO, or null).
+ */
+export interface ProcessRow extends ProcessSummary {
+  isInbox: boolean; docTypes: string[]; classifyMode: "single" | "auto"; extraction: string; checksOn: number; checks: number;
+  fieldConfidence: number; slaHours: number; month: number; overdue: number; lastAt: string | null;
+}
+
+/**
+ * A language document types can use. engines: the OCR engines on the server that read it; installed: at least one
+ * does; offered: on the administrator's list, so people can choose it for a document type.
+ */
+export interface Language { code: string; name: string; engines: string[]; installed: boolean; offered: boolean }
+
 export interface DocumentRow {
   id: string; processId: string; name: string; pages: string; supplier: string; invoice: string; total: string;
   time: string; source: Source; sourceLabel: string; status: DocStatus; note: string; engine: string; confidence: number | null;
@@ -28,12 +46,17 @@ export interface Box { x: number; y: number; w: number; h: number }
  */
 export interface Place { page: number | null; bbox: Box | null; grounded: boolean | null; groundedBy?: "ocr" | "qr" | "einvoice-xml" | null }
 export interface RowPlace extends Place { cells: Record<string, Place> }
-export interface ReviewField { id: string; label: string; value: string; confidence: number; flagged?: { reason: string; suggestion?: string }; place?: Place }
+/**
+ * Why a field needs the reviewer (DocFlow's review reasons and the process's rules): reason in plain words; kind: DocFlow's
+ * reason (low_confidence, required_missing, validation, not_grounded, rule...); suggestion: a value that makes the checks pass.
+ */
+export interface ReviewFlag { reason: string; kind?: string; suggestion?: string }
+export interface ReviewField { id: string; label: string; value: string; confidence: number; flagged?: ReviewFlag; place?: Place }
 export type TableRow = Record<string, string>;
 /** A table field (line items): its columns, the rows read, and where the table and each row are on the pages. */
 export interface ReviewTable {
   id: string; label: string; columns: { name: string; label: string }[]; rows: TableRow[]; confidence: number | null;
-  flagged?: { reason: string }; place?: Place; rowPlaces?: RowPlace[];
+  flagged?: ReviewFlag; place?: Place; rowPlaces?: RowPlace[];
 }
 export interface ReviewCheck { text: string; passed: boolean; detail: string }
 /** One value of the e-invoice QR code compared with what was read from the page. */
@@ -49,6 +72,8 @@ export interface ReviewTask {
   /** The page's text, shown only when there is no page image (an e-invoice XML on its own). */
   pageLines: { text: string; mark?: "flag" | "ok"; bold?: boolean }[];
   fields: ReviewField[]; tables: ReviewTable[]; checks: ReviewCheck[]; einvoice: EInvoice | null;
+  /** Why the whole document needs review, not one field (document confidence, a failed check, type not recognised). */
+  documentReasons: string[];
 }
 /** What a reviewer sends back: text fields as typed, and table fields (only those changed) as rows. */
 export type ReviewValues = Record<string, string | TableRow[]>;
@@ -158,6 +183,8 @@ export type RefRow = Record<string, string | number | boolean | null>;
 export interface DayCount { label: string; straight: number; reviewed: number }
 export interface Overview {
   today: number; straightThrough: number; waiting: number; overdue: number; failed: number; pagesThisMonth: number; cloudCost: number;
+  /** Whether pages may go to cloud engines (the dashboard shows the cloud cost only then). */
+  cloudOptIn: boolean;
   days: DayCount[]; alerts: { level: "bad" | "warn" | "info"; title: string; text: string; to: string }[];
   readBy: { label: string; share: number }[];
 }
@@ -200,12 +227,14 @@ export interface TestSet {
 }
 
 /** docType is a document type id (DocType.id). */
-/** email: the person will set up the inbox next (in the builder's step 1, Document ingestion). */
+/** email: the person will set up the inbox next (in the builder's step 2, Document ingestion). */
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
   overview(): Promise<Overview>;
   processes(): Promise<ProcessSummary[]>;
+  /** Every process with its set-up and activity, in one go (the Overview table). */
+  processTable(): Promise<ProcessRow[]>;
   documents(processId: string): Promise<DocumentRow[]>;
   addDocuments(files: File[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
   createProcess(p: NewProcess): Promise<{ id: string }>;
@@ -244,6 +273,10 @@ export interface DocFlowApi {
   deleteDocType(id: string): Promise<void>;
   /** Proposes a document type (not saved) from 1 to 3 sample files. */
   suggestDocType(files: File[]): Promise<DocType>;
+  /** The languages document types can use: the offered ones first, then the others the engines know. */
+  languages(): Promise<Language[]>;
+  /** The languages offered for document types (administrators: Engines, Languages). */
+  saveOfferedLanguages(codes: string[]): Promise<void>;
 
   /** Test sets, of one document type (id) or all. */
   testSets(docType?: string): Promise<TestSet[]>;
@@ -275,7 +308,7 @@ const PROCESSES: ProcessSummary[] = [
   { id: "ap-invoices", name: "AP invoices", folder: "Finance / Accounts payable", docType: "Supplier invoice", state: "live", version: 4,
     today: 74, review: 5, processing: 2, failed: 0, done: 67, straightThrough: 91, lastDocument: "INV-2026-3944.pdf", lastTime: "10:42",
     sources: ["upload", "folder", "bot"], deliversTo: ["Excel register", 'bot "Post to ERP"'] },
-  { id: "smart-inbox", name: "Smart inbox", folder: "Shared / Unsorted", docType: "Any", state: "live", version: 2,
+  { id: "smart-inbox", name: "One Inbox", folder: "Shared / Unsorted", docType: "Any", state: "live", version: 2,
     today: 21, review: 3, processing: 0, failed: 1, done: 17, straightThrough: 81, lastDocument: "batch_0930.pdf", lastTime: "10:31",
     sources: ["upload", "folder"], deliversTo: ["Matching process"] },
   { id: "expense-claims", name: "Expense claims", folder: "Finance / Expenses", docType: "Receipt", state: "live", version: 1,
@@ -317,6 +350,19 @@ const DOCUMENTS: DocumentRow[] = [
   doc({ id: "dn_118", processId: "deliveries", name: "Part 2 of batch_0930.pdf", pages: "pages 3–4", status: "done", time: "10:31", source: "split",
     sourceLabel: "Split from batch", confidence: 93 }),
 ];
+
+/** Sample activity the process summaries do not carry: this month, overdue reviews, the last document's time. */
+const ACTIVITY: Record<string, { month: number; overdue: number; at: string }> = {
+  "ap-invoices": { month: 1460, overdue: 1, at: "10:42" }, "smart-inbox": { month: 402, overdue: 0, at: "10:31" },
+  "expense-claims": { month: 351, overdue: 0, at: "10:12" }, deliveries: { month: 288, overdue: 0, at: "10:31" },
+};
+const todayAt = (hhmm: string) => { const d = new Date(); const [h, m] = hhmm.split(":").map(Number); d.setHours(h, m, 0, 0); return d.toISOString(); };
+
+const LANGUAGES: Omit<Language, "offered">[] = [
+  ["en", "English", "tesseract,paddleocr"], ["ar", "Arabic", "tesseract,paddleocr"], ["ur", "Urdu", "tesseract,paddleocr"], ["hi", "Hindi", "tesseract,paddleocr"],
+  ["fa", "Persian", "tesseract,paddleocr"], ["fr", "French", "tesseract,paddleocr"], ["zh", "Chinese (simplified)", "paddleocr"], ["bn", "Bengali", ""],
+  ["ta", "Tamil", ""], ["ml", "Malayalam", ""], ["tl", "Filipino", ""], ["de", "German", "paddleocr"], ["ja", "Japanese", ""],
+].map(([code, name, engines]) => ({ code, name, engines: engines ? engines.split(",") : [], installed: !!engines }));
 
 const REVIEW = SAMPLE_REVIEW;
 
@@ -398,13 +444,13 @@ const REF_TABLES: RefTable[] = [
 ];
 
 const OVERVIEW: Overview = {
-  today: 128, straightThrough: 90, waiting: 9, overdue: 1, failed: 1, pagesThisMonth: 3412, cloudCost: 0,
+  today: 128, straightThrough: 90, waiting: 9, overdue: 1, failed: 1, pagesThisMonth: 3412, cloudCost: 0, cloudOptIn: false,
   days: [[96, 9], [104, 12], [88, 8], [0, 0], [0, 0], [112, 11], [121, 14], [118, 10], [109, 9], [126, 13], [0, 0], [0, 0], [131, 12], [115, 13]]
     .map(([s, r], i) => ({ label: ["21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "1", "2", "3"][i], straight: s, reviewed: r })),
   alerts: [
     { level: "bad", title: "Review overdue", text: "NL-INV-7710.pdf in AP invoices passed its 24 h target", to: "#/review/nl_7710" },
     { level: "bad", title: "1 document failed", text: "contract_signed.pdf is password-protected", to: "#/process/smart-inbox" },
-    { level: "warn", title: "Unrecognised pages", text: "3 pages in Smart inbox need a document type", to: "#/process/smart-inbox" },
+    { level: "warn", title: "Unrecognised pages", text: "3 pages in One Inbox need a document type", to: "#/process/smart-inbox" },
     { level: "info", title: "Cloud opt-in is off", text: "Weak pages are retried locally only", to: "#/engines" }],
   readBy: [{ label: "Tesseract", share: 86 }, { label: "PaddleOCR retry (weak pages)", share: 9 }, { label: "PDF text layer, no OCR", share: 5 }, { label: "Cloud engines", share: 0 }],
 };
@@ -488,8 +534,20 @@ export class SampleApi implements DocFlowApi {
   readonly reviews: { documentId: string; fields: ReviewValues; decision: string }[] = [];
   private claude: ClaudeModels = { model: "claude-haiku-5-5", escalationModel: "claude-sonnet-5-5" };
 
-  async overview() { return copy(OVERVIEW); }
+  async overview() { return { ...copy(OVERVIEW), cloudOptIn: this.routing.cloudOptIn }; }
   async processes() { return copy(this.processesData); }
+  async processTable(): Promise<ProcessRow[]> {
+    const name = (id: string) => ENGINES.flatMap((o) => o.engines).find((e) => e.id === id)?.name ?? id;
+    return Promise.all(this.processesData.map(async (p) => {
+      const d = await this.processDesign(p.id);
+      const inbox = p.id === INBOX_ID;
+      const a = ACTIVITY[p.id] ?? { month: p.today, overdue: 0, at: p.lastTime };
+      return { ...copy(p), isInbox: inbox, docTypes: inbox ? [] : d.docType.split(", ").filter(Boolean),
+        classifyMode: inbox ? "auto" as const : d.settings.classifyMode, extraction: d.settings.extraction === "auto" ? "Default engine" : name(d.settings.extraction),
+        checksOn: d.checks.filter((c) => c.on).length, checks: d.checks.length, fieldConfidence: d.settings.fieldConfidence, slaHours: d.settings.slaHours,
+        month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
+    }));
+  }
   async documents(processId: string) { return copy(this.documentsData.filter((d) => d.processId === processId)); }
   async addDocuments(files: File[], processId: string | "auto") {
     const target = processId === "auto" ? "smart-inbox" : processId;
@@ -511,7 +569,7 @@ export class SampleApi implements DocFlowApi {
     const d = this.documentsData.find((x) => x.id === documentId);
     const approved = this.reviews.some((r) => r.documentId === documentId && r.decision === "approve") && d?.status === "done";
     return { ...copy(REVIEW), documentId, name: d?.name ?? REVIEW.name, docTypeId: "supplier-invoice",
-      ...(approved ? { status: "done" as const, reviewedBy: "you" } : {}) };
+      ...(approved ? { status: "done" as const, reviewedBy: "you", documentReasons: [] } : {}) };
   }
   async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject") {
     this.reviews.push({ documentId, fields, decision });
@@ -580,6 +638,15 @@ export class SampleApi implements DocFlowApi {
   async suggestDocType(files: File[]): Promise<DocType> {
     return { id: "", name: "New document type", origin: "made-here", meta: `From ${files.length} sample${files.length > 1 ? "s" : ""}`, keywords: ["Invoice"], languages: ["en"], usedBy: [],
       fields: [f("invoice_number", "Invoice number", [], "Text", true), f("invoice_date", "Invoice date", [], "Date", true), f("total", "Total", [], "Amount", true)] };
+  }
+  private offered = ["en", "ar"];
+  async languages(): Promise<Language[]> {
+    const all = LANGUAGES.map((l) => ({ ...l, engines: [...l.engines], offered: this.offered.includes(l.code) }));
+    return [...this.offered.map((c) => all.find((l) => l.code === c)).filter((l): l is Language => !!l), ...all.filter((l) => !l.offered)];
+  }
+  async saveOfferedLanguages(codes: string[]) {
+    if (!codes.length) throw new Error("offer at least one language");
+    this.offered = [...new Set(codes)];
   }
   private tables = copy(REF_TABLES);
   async refTables() { return copy(this.tables); }

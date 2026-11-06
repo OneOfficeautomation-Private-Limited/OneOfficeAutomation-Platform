@@ -6,7 +6,7 @@ import { ClassifyStage } from "./stages";
 import { Loading, useLoad } from "./ui";
 
 /**
- * Step 2 of the process builder, Document classification: how files are classified, and the document type they are
+ * Step 3 of the process builder, Document classification: how files are classified, and the document type they are
  * read as, chosen, taught or made here, with its fields shown and edited on the same screen. A document type is
  * shared, so saving it changes every process that uses it; choosing another one changes only this process.
  */
@@ -18,7 +18,7 @@ export function ClassificationStep({ api, design, setSettings, onType }:
   const [naming, setNaming] = useState(false);
   if (!types) return <Loading />;
 
-  const anyType = design.docType === "Any" && !design.docTypeIds.length;   // the Smart inbox reads every type
+  const anyType = design.docType === "Any" && !design.docTypeIds.length;   // the One Inbox reads every type
   const chosen = types.find((t) => design.docTypeIds.includes(t.id)) ?? types.find((t) => t.name === design.docType);
   const current = pending?.type ?? chosen;
   const propose = (type: DocType, addField: boolean) => setPending({ type, addField, n: (pending?.n ?? 0) + 1 });
@@ -26,7 +26,7 @@ export function ClassificationStep({ api, design, setSettings, onType }:
   return (
     <>
       <section className="df-card df-pad" aria-label="Document classification" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div><b style={{ fontSize: 15 }}>2 · Document classification</b>
+        <div><b style={{ fontSize: 15 }}>3 · Document classification</b>
           <div className="df-muted">What kind of document each file is, and which fields are read from it.</div></div>
         <ClassifyStage s={design.settings} set={setSettings} />
         {anyType

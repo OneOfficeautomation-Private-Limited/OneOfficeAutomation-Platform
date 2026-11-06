@@ -9,8 +9,9 @@ import { TableField } from "./review/TableField";
 import { Chip, Hint, Loading, reportError } from "./ui";
 
 /**
- * The review task a reviewer opens from the Task inbox: the page itself with a box over every value read from it, the
- * fields with what needs them first, the tables, the e-invoice data, the checks, and Approve and next (Ctrl+Enter).
+ * The review task a reviewer opens from the Task inbox: the page itself with a box over every value read from it, why the
+ * document needs a person (a banner for the whole document, the reason under each field), the fields that need a check
+ * first, the tables, the e-invoice data, the checks, and Approve and next (Ctrl+Enter).
  * Choosing a field shows its box (turning the page when needed); clicking a box chooses its field.
  */
 type Selection = { field: string; row: number | null } | null;
@@ -134,14 +135,22 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
 
         <section className="df-review-fields" aria-label="Fields">
           <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ui-divider)" }}>
-            <b style={{ fontSize: 14 }}>{flagged.filter((f) => !fixed(f.id)).length === 0 ? "All flagged fields checked" : `${flagged.length} field${flagged.length > 1 ? "s" : ""} need${flagged.length > 1 ? "" : "s"} you`}</b>
+            <b style={{ fontSize: 14 }}>{flagged.filter((f) => !fixed(f.id)).length > 0 ? `${flagged.length} field${flagged.length > 1 ? "s" : ""} need${flagged.length > 1 ? "" : "s"} you`
+              : !flagged.length && task.documentReasons.length ? "The document needs your check" : "All flagged fields checked"}</b>
             <div className="df-muted">Click a field to see it on the page. Check the highlighted value, then approve.</div>
           </div>
           <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14, overflow: "auto", flex: 1 }}>
+            {task.documentReasons.length > 0 && (
+              <div className="df-review-why" role="note" aria-label="Why this document needs review">
+                <b>Why it needs review</b>
+                <ul>{task.documentReasons.map((r) => <li key={r}>{r}</li>)}</ul>
+              </div>
+            )}
+            {flagged.length > 0 && <div className="df-small" style={{ fontWeight: 700 }}>NEEDS YOUR CHECK</div>}
             {flagged.map((f) => (
               <div key={f.id} className={`df-flag${isSel(f.id) ? " is-selected" : ""}`}>
                 <label htmlFor={"df-f-" + f.id} style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
-                  {f.label}<span className="df-grow" />{fixed(f.id) ? <Chip tone="ok">Corrected</Chip> : <Chip tone="warn">Read at {f.confidence}%</Chip>}</label>
+                  {f.label}<span className="df-grow" />{fixed(f.id) ? <Chip tone="ok">Corrected</Chip> : f.value === "" ? <Chip tone="warn">Not read</Chip> : <Chip tone="warn">Read at {f.confidence}%</Chip>}</label>
                 <input id={"df-f-" + f.id} className="ui-input df-num" dir="auto" style={{ marginTop: 6 }} value={values[f.id] ?? ""}
                   onFocus={() => select(f.id)} onChange={(e) => setValue(f.id, e.target.value)} />
                 <Where place={f.place} />

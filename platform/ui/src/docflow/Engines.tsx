@@ -4,17 +4,19 @@ import { CostSection } from "./engines/CostSection";
 import { EngineCatalog } from "./engines/EngineCatalog";
 import { OptInSwitch } from "./engines/OptInSwitch";
 import { RoutingSection } from "./engines/RoutingSection";
+import { LanguagesPanel } from "./languages";
 import { Loading, reportError, useLoad } from "./ui";
 
 export const ENGINE_SECTIONS = [
-  { id: "routing", label: "How pages are routed" }, { id: "catalog", label: "Engines" }, { id: "cost", label: "Monthly cost" },
+  { id: "routing", label: "How pages are routed" }, { id: "catalog", label: "Engines" }, { id: "languages", label: "Languages" }, { id: "cost", label: "Monthly cost" },
 ] as const;
 type SectionId = typeof ENGINE_SECTIONS[number]["id"];
 const OPTION_IDS: EngineOption["id"][] = ["onecore", "oneconnect", "onemind"];
 
 /**
- * Engines, in three sections of their own, each with the whole page: how a page is routed, the engines of each option,
- * and the monthly cost. Cloud opt-in stays at the top, as it changes all three. #/engines/<section>[/<option>].
+ * Engines, in sections of their own, each with the whole page: how a page is routed, the engines of each option, the
+ * languages offered for document types (what the OCR engines here can read), and the monthly cost. Cloud opt-in stays
+ * at the top, as it changes routing, engines and cost. #/engines/<section>[/<option>].
  */
 export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; onOptIn?: (on: boolean) => void; section?: string; option?: string }) {
   const [data, reload] = useLoad(() => api.engines(), [api]);
@@ -46,6 +48,7 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
         onChange={(r) => { setSaved(false); setRouting(r); }} onSave={() => save(routing)} />}
       {current === "catalog" && <EngineCatalog api={api} options={data.options} optionId={optionId} optIn={routing.cloudOptIn}
         onOption={(id) => { location.hash = "#/engines/catalog/" + id; }} />}
+      {current === "languages" && <LanguagesPanel api={api} />}
       {current === "cost" && <CostSection optIn={routing.cloudOptIn} claude={data.claude} />}
     </div>
   );

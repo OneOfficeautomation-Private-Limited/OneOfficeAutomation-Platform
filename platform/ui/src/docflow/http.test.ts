@@ -207,9 +207,72 @@ describe("HttpDocFlowApi", () => {
     expect(api.testItemFileUrl("ap", "i 1")).toBe("/api/docflow/df/testsets/ap/items/i%201/file");
   });
 
+  it("flags the fields DocFlow sends to review, with its reason, and says why the whole document needs a person", async () => {
+    const doc = { ...row, flowId: "ap", confidence: { subtotal: 0.58, supplier_name: 0.72, total: 0.99, line_items: 0.8 }, error: null,
+      flags: [{ rule: "Large invoice", type: "threshold", action: "review", message: "total 11,500.00 > 10,000.00", field: "total" }],
+      fields: { subtotal: 10000, supplier_name: "ACME Trading Co. LLC", total: 11500, po_number: null, line_items: [{ amount: 8000 }] },
+      reviewReasons: [
+        { field: "total", reason: "rule", rule: "Large invoice", message: "total 11,500.00 > 10,000.00" },
+        { field: null, reason: "check_failed", message: "Check failed: abs(subtotal + vat_amount - total) < 0.05", fields: ["subtotal", "total", "vat_amount"] },
+        { field: "subtotal", reason: "low_confidence", message: "Confidence 58% is under the 85% needed", threshold: 0.85, confidence: 0.58 },
+        { field: "supplier_name", reason: "low_confidence", message: "Confidence 72% is under the 85% needed", threshold: 0.85, confidence: 0.72 },
+        { field: "po_number", reason: "required_missing", message: "Required, but not found on the document" },
+        { field: "line_items", reason: "low_confidence", message: "Confidence 80% is under the 85% needed", threshold: 0.85, confidence: 0.8 },
+        { field: "supplier_code", reason: "validation", message: "Not in the supplier list" },
+        { field: null, reason: "document_confidence", message: "Document confidence 74% is under the 80% needed", threshold: 0.8, confidence: 0.74 }] };
+    const f = (name: string, type = "string", columns: unknown[] = []) => ({ name, type, label: name, required: false, aliases: [], columns });
+    const type = { id: "invoice", name: "Invoice", fields: [f("supplier_name"), f("subtotal", "currency"), f("total", "currency"), f("po_number"),
+      f("line_items", "table", [f("amount", "currency")])], learning: { aliases: {} } };
+    const { api } = fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [type], "/df/review": [] });
+    const t = await api.reviewTask("d1");
+    const field = (id: string) => t.fields.find((x) => x.id === id)!;
+    expect(field("subtotal").flagged).toEqual({ reason: "Confidence 58% is under the 85% needed", kind: "low_confidence" });
+    expect(field("supplier_name").flagged).toEqual({ reason: "Confidence 72% is under the 85% needed", kind: "low_confidence" });
+    expect(field("po_number").flagged).toEqual({ reason: "Required, but not found on the document", kind: "required_missing" });
+    expect(field("total").flagged).toEqual({ reason: "total 11,500.00 > 10,000.00", kind: "rule" });     // the rule's flag, once
+    expect(t.tables[0].flagged).toEqual({ reason: "Confidence 80% is under the 85% needed", kind: "low_confidence" });
+    expect(t.documentReasons).toEqual(["Check failed: abs(subtotal + vat_amount - total) < 0.05", "supplier_code: Not in the supplier list",
+      "Document confidence 74% is under the 80% needed"]);
+    expect(t.checks).toEqual([{ text: "Large invoice", passed: false, detail: "total 11,500.00 > 10,000.00" },
+      { text: "abs(subtotal + vat_amount - total) < 0.05", passed: false, detail: "check of the document type" }]);
+
+    // once reviewed, the reasons are history: nothing is flagged by them
+    const done = fake({ "/df/documents/d1": { ...doc, status: "validated", flags: [] }, "/df/flows": [flow], "/df/doctypes": [type], "/df/review": [] });
+    const d = await done.api.reviewTask("d1");
+    expect(d.fields.some((x) => x.flagged)).toBe(false);
+    expect(d.documentReasons).toEqual([]);
+    expect(d.checks).toEqual([{ text: "Every check", passed: true, detail: "nothing to fix" }]);
+  });
+
   it("gives a review task its document type id, for Add to test set", async () => {
     const doc = { ...row, flowId: "ap", status: "validated", validated_by: "Sara", flags: [], fields: { total: 115 }, confidence: { total: 0.9 }, error: null };
     const { api } = fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [], "/df/review": [] });
     expect(await api.reviewTask("d1")).toMatchObject({ docTypeId: "invoice", status: "done", reviewedBy: "Sara" });
+  });
+
+  it("maps every process's set-up and activity for the Overview table in three calls", async () => {
+    const inbox = { ...flow, id: "smart-inbox", name: "One Inbox", isInbox: true, docTypes: [], docTypeNames: ["Invoice", "Receipt"], classify: { mode: "single", split: true },
+      engine: { ...flow.engine, extractionProvider: "claude" }, rules: [], deliveries: [], intake: { inputFolder: "", pollSeconds: 30 }, stats: { ...stats, thisMonth: undefined } };
+    const { api, calls } = fake({ "/df/flows": [{ ...flow, stats: { ...stats, thisMonth: 37 } }, inbox], "/df/flows/all/documents": [row],
+      "/df/review": [{ flowId: "ap", overdue: true }, { flowId: "ap", overdue: false }] });
+    const [ap, one] = await api.processTable();
+    expect(calls.map((c) => c.url.replace("/api/docflow", "").split("?")[0])).toEqual(["/df/flows", "/df/flows/all/documents", "/df/review"]);
+    expect(ap).toMatchObject({ id: "ap", isInbox: false, docTypes: ["Invoice"], classifyMode: "single", extraction: "Default engine", checksOn: 1, checks: 1,
+      fieldConfidence: 0.85, slaHours: 24, month: 37, overdue: 1, review: 2, failed: 1, lastAt: row.created_at, deliversTo: ["Excel register"], sources: ["upload", "folder"] });
+    expect(one).toMatchObject({ isInbox: true, docTypes: [], docType: "Any", classifyMode: "auto", extraction: "Claude (Anthropic)", month: 4, overdue: 0, lastAt: null });
+  });
+
+  it("lists the languages DocFlow's engines read, and saves the offered ones as a DocFlow setting", async () => {
+    const langs = [{ code: "en", name: "English", engines: ["tesseract"], installed: true, offered: true }, { code: "bn", name: "Bengali", engines: [], installed: false, offered: false }];
+    const { api, calls } = fake({ "/df/languages": langs, "PUT /admin/settings": {} });
+    expect(await api.languages()).toEqual(langs);
+    await api.saveOfferedLanguages(["en", "ar", "bn"]);
+    expect(calls[1].method).toBe("PUT");
+    expect(JSON.parse(String(calls[1].body))).toEqual({ values: { DOCAUTO_OFFERED_LANGUAGES: "en,ar,bn" } });
+  });
+
+  it("tells the dashboard whether cloud opt-in is on", async () => {
+    const { api } = fake({ "/df/overview": { totals: stats, review: 2, overdue: 0, deliveryFailures: 0 }, "/costs": { prices: {}, claudeModel: "", cloudOptIn: true }, "/usage": [] });
+    expect((await api.overview()).cloudOptIn).toBe(true);
   });
 });

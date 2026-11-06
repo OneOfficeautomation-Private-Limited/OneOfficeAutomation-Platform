@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { Button } from "../components";
-import type { DocFlowApi, Source } from "./api";
-import { AddDocumentsDialog, NewProcessDialog, folderLabel } from "./dialogs";
+import { INBOX_ID, type DocFlowApi, type Source } from "./api";
+import { NewProcessDialog, folderLabel } from "./dialogs";
 import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoad } from "./ui";
 
-/** Inbox: one row per process (minimal); a row opens the process page with every document. */
+/**
+ * Inbox: one row per process (minimal); a row opens the process page with every document. Documents are added on a
+ * process's own page (or in its builder step 2); documents of mixed types go to the One Inbox, which recognises them.
+ */
 export function Inbox({ api }: { api: DocFlowApi }) {
   const [processes, reload] = useLoad(() => api.processes(), [api]);
-  const [adding, setAdding] = useState<string | null>(null);   // "" = from the toolbar, else a process id
-  const [dropped, setDropped] = useState<File[]>([]);           // files dropped on the box go straight into the dialog
   const [creating, setCreating] = useState(false);
-  const [over, setOver] = useState(false);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "review" | "processing" | "done" | "failed">("all");
   const [folder, setFolder] = useState("all");
@@ -31,16 +31,10 @@ export function Inbox({ api }: { api: DocFlowApi }) {
   return (
     <div className="df-page">
       <div className="df-page-head">
-        <div><h2>Inbox</h2><p>Every process and its documents. Open a process to see them one by one.</p></div>
+        <div><h2>Inbox</h2><p>Every process and its documents. Open a process to see them, or to add documents.</p></div>
         <span className="df-grow" />
         <Button icon="plus" onClick={() => setCreating(true)}>New process</Button>
-        <Button kind="primary" onClick={() => setAdding("")}>Add documents</Button>
       </div>
-
-      <button type="button" className={`df-drop${over ? " is-over" : ""}`} onClick={() => setAdding("")}
-        onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); setDropped(Array.from(e.dataTransfer.files)); setAdding(""); }}>
-        <span><b>Drop files here</b> or click to choose. You choose the process next.</span>
-      </button>
 
       <div className="df-grid df-g4">
         <Kpi label="Received today" value={total("today")} />
@@ -79,7 +73,6 @@ export function Inbox({ api }: { api: DocFlowApi }) {
                   </span></td>
                   <td className="df-muted" style={{ whiteSpace: "nowrap" }}>{p.lastTime ? `${p.lastTime} · ${p.lastDocument}` : "—"}</td>
                   <td className="df-right" style={{ whiteSpace: "nowrap" }}>
-                    <Button onClick={() => setAdding(p.id)} aria-label={"Add documents to " + p.name}>Add documents</Button>{" "}
                     <a className="ui-btn ui-btn-plain" href={"#/process/" + p.id} aria-label={"Open " + p.name}>Open</a>
                   </td>
                 </tr>
@@ -89,12 +82,9 @@ export function Inbox({ api }: { api: DocFlowApi }) {
           {!rows.length && <div className="df-empty">No process matches these filters. <button type="button" className="df-link" onClick={clear}>Clear filters</button></div>}
         </div>
       </section>
+      {processes.some((p) => p.id === INBOX_ID) && <p className="df-small" style={{ margin: 0 }}>Documents of different kinds?{" "}
+        <a href={"#/process/" + INBOX_ID}>Add them in {processes.find((p) => p.id === INBOX_ID)!.name}</a>: it recognises each one and sends it to its process.</p>}
 
-      {adding !== null && (
-        <AddDocumentsDialog api={api} open onClose={() => setAdding(null)} processes={processes} initialProcess={adding || undefined} initialFiles={dropped}
-          onNewProcess={() => { setAdding(null); setDropped([]); setCreating(true); }}
-          onAdded={(id) => { setAdding(null); setDropped([]); location.hash = "#/process/" + id; }} />
-      )}
       <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
         onCreated={(id) => { setCreating(false); reload(); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
     </div>
