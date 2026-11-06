@@ -990,6 +990,7 @@ public final class ControlRoomServer {
             case "schedules" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("schedules", cr.schedules(u)));
                 else if (m.equals("POST") && route.equals("schedules/bulk")) sendJson(ex, 200, cr.bulkSchedules(u, map(body(ex)), ip));
+                else if (m.equals("POST") && route.equals("schedules/preview")) sendJson(ex, 200, cr.previewSchedule(u, map(body(ex))));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.schedule(u, seg[1]));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.createSchedule(u, map(body(ex)), ip));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) sendJson(ex, 200, cr.runScheduleNow(u, seg[1], ip));

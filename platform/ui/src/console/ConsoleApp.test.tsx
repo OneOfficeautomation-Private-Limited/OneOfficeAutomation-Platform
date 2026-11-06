@@ -285,8 +285,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "schedules") return ok({ schedules: [
       { id: "s1", name: "Nightly invoices", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "daily", at_time: "02:00", time_zone: "Asia/Kolkata", enabled: true,
         next_run: "2026-11-01T20:30:00Z", last_run: "2026-10-31T20:30:00Z", created_by: "admin", holiday_calendar: "India 2026", last_run_id: "r7", last_status: "failed" },
-      { id: "s2", name: "Hourly onboarding", bot_path: "HR/Onboard.flow.json", pool_id: "p1", kind: "every", every_minutes: 60, time_zone: "UTC", enabled: false, created_by: "vic" }] });
+      { id: "s2", name: "Hourly onboarding", bot_path: "HR/Onboard.flow.json", pool_id: "p1", kind: "every", every_minutes: 60, time_zone: "UTC", enabled: false, created_by: "vic" },
+      { id: "s3", name: "Month end", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "monthly", rule: "days=15,last;every=3;start=2026-11", at_time: "18:00", time_zone: "UTC", enabled: true, created_by: "admin" },
+      { id: "s4", name: "Weekday mornings", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "cron", rule: "0 9 * * MON-FRI", time_zone: "UTC", enabled: true, created_by: "admin" }] });
     if (route === "schedules/bulk") return ok({ changed: (body.ids as string[]).length });
+    if (route === "schedules/preview") return body.kind === "cron" && body.rule === "61 * * * *"
+      ? new Response(JSON.stringify({ error: { code: "CR.BAD_SCHEDULE", message: "The minute 61 is not between 0 and 59 (in '61')" } }), { status: 400 })
+      : ok({ kind: body.kind, time_zone: body.time_zone, rule: body.rule, next_runs: [
+        { time: "2026-12-07T09:00:00Z", local: "2026-12-07T09:00Z", holiday: false }, { time: "2027-01-04T09:00:00Z", local: "2027-01-04T09:00Z", holiday: true }] });
     if (/^schedules\/s\d(\/run)?$/.test(route)) return ok(route.endsWith("/run") ? { run_id: "r9" } : { ok: true });
     if (route === "calendars") return ok({ calendars: [{ name: "India 2026", dates: ["2026-08-15", "2026-12-25"] }] });
     if (route === "tasks") return ok({ tasks: url.includes("status=completed") ? [
@@ -1669,6 +1675,53 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create schedule" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules", body: expect.objectContaining({
       name: "Nightly invoices (copy)", bot_path: "Finance/Invoice intake.flow.json", kind: "weekly", at_time: "02:00", days: "MON,TUE,WED,THU", device_id: "d1", pool_id: null, holiday_calendar: "India 2026" }) }));
+  });
+
+  it("makes monthly and cron schedules (G35): days of the month or an ordinal weekday, every N months, a cron expression, and the next runs shown", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "schedules.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    await go("Schedules");
+    const list = await screen.findByRole("table", { name: "Schedules list" });
+    expect(await within(list).findByText("Every 3 months on day 15 and the last day at 18:00 (UTC)")).toBeTruthy();
+    expect(within(list).getByText("Cron 0 9 * * MON-FRI (UTC)")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create schedule" }));
+    const c = await screen.findByRole("dialog", { name: "Create schedule" });
+    fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "First Monday" } });
+    fireEvent.change(within(c).getByLabelText("Runner"), { target: { value: "d1" } });
+    fireEvent.change(within(c).getByLabelText("Repeat"), { target: { value: "monthly" } });
+    // days of the month: 1 is chosen; add 15 and the last day, run on the last day when a month is shorter
+    const days = within(c).getByRole("group", { name: "Days of the month" });
+    expect(within(days).getByRole("button", { name: "Day 1" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(days).getByRole("button", { name: "Day 15" }));
+    fireEvent.click(within(days).getByRole("button", { name: "Last day" }));
+    fireEvent.change(within(c).getByLabelText("A day the month does not have"), { target: { value: "last" } });
+    await waitFor(() => expect(calls).toContainEqual(expect.objectContaining({ route: "schedules/preview", body: expect.objectContaining({ kind: "monthly", rule: "days=1,15,last;missing=last", at_time: "08:30" }) })));
+    // then an ordinal weekday, every 3 months
+    fireEvent.click(within(c).getByLabelText("A weekday of the month"));
+    fireEvent.change(within(c).getByLabelText("Which"), { target: { value: "first" } });
+    fireEvent.change(within(c).getByLabelText("Weekday"), { target: { value: "MON" } });
+    fireEvent.change(within(c).getByLabelText("Every (months)"), { target: { value: "3" } });
+    const next = await within(c).findByRole("list", { name: "Next runs" });
+    await waitFor(() => expect(within(next).getAllByRole("listitem")).toHaveLength(2));
+    expect(within(next).getByText("Mon, 7 Dec 2026 09:00")).toBeTruthy();
+    expect(within(next).getByText("holiday, skipped")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create schedule" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules", body: expect.objectContaining({ name: "First Monday", kind: "monthly", rule: "weekday=first MON;every=3", at_time: "08:30" }) }));
+
+    // a cron expression: a wrong one says what is wrong before saving
+    fireEvent.click(screen.getByRole("button", { name: "Create schedule" }));
+    const k = await screen.findByRole("dialog", { name: "Create schedule" });
+    fireEvent.change(within(k).getByLabelText("Runner"), { target: { value: "d1" } });
+    fireEvent.change(within(k).getByLabelText("Repeat"), { target: { value: "cron" } });
+    expect((within(k).getByLabelText("Cron expression") as HTMLInputElement).value).toBe("0 9 * * MON-FRI");
+    fireEvent.change(within(k).getByLabelText("Cron expression"), { target: { value: "61 * * * *" } });
+    expect(await within(k).findByText("The minute 61 is not between 0 and 59 (in '61')")).toBeTruthy();
+    fireEvent.change(within(k).getByLabelText("Cron expression"), { target: { value: "0 0 9 ? * MON#1" } });
+    await within(k).findByRole("list", { name: "Next runs" });
+    await act(async () => { fireEvent.click(within(k).getByRole("button", { name: "Create schedule" })); });
+    const sent = calls.filter((x) => x.method === "POST" && x.route === "schedules").pop()!;
+    expect(sent.body).toEqual(expect.objectContaining({ kind: "cron", rule: "0 0 9 ? * MON#1" }));
+    expect((sent.body as Record<string, unknown>).at_time).toBeUndefined();
   });
 
   it("shows Triggers as AA's event triggers: one line each, where each listens, its health and last problem, Check now; a webhook created shows its secret once", async () => {

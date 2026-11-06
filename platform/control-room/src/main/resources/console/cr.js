@@ -1169,7 +1169,8 @@ const VIEWS = {
   async schedules(main) {
     await loadRefs();
     const r = await api("GET", "schedules");
-    const when = (s) => s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time : s.days + " at " + s.at_time;
+    const when = (s) => s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time
+      : s.kind === "monthly" ? "Monthly " + s.rule + " at " + s.at_time : s.kind === "cron" ? "Cron " + s.rule : s.days + " at " + s.at_time;
     const [cals, pools] = await Promise.all([api("GET", "calendars"), can("devices.view") ? api("GET", "pools") : { pools: [] }]);
     S.calendars = cals.calendars; S.pools = pools.pools;
     // several schedules at once: enable, disable, hand to another owner

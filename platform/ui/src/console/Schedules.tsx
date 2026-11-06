@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, CrUser, Runner, RunnerPool, Schedule } from "../api/cr";
+import { CrFailure, type CrApi, type CrUser, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
@@ -12,6 +12,9 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
  * bar only while rows are ticked, a ⋯ menu per row.
  * Review round 2 (31 Oct 2026): the last run says how it ended and opens in Agent Activity (as Blue Prism's Scheduler
  * shows the last result); the agent has its icon, as in Automation.
+ * Gap G35 (5 Nov 2026): monthly schedules (days of the month or the last day, or an ordinal weekday such as the first
+ * Monday, every N months; as AA's and Blue Prism's monthly options) and cron expressions (UiPath's advanced triggers),
+ * with the next five times shown while the schedule is made.
  */
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.flow\.json$/, "");
@@ -19,17 +22,63 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 /** How a schedule's last run ended, as a pill (the words and colours of Agent Activity). */
 const LAST: Record<string, [string, string]> = { success: ["Completed", "success"], failed: ["Failed", "failed"], stopped: ["Stopped", "stopped"], running: ["Running", "active"], queued: ["Waiting", "pending"] };
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+const DAY_WORDS: Record<string, string> = { MON: "Monday", TUE: "Tuesday", WED: "Wednesday", THU: "Thursday", FRI: "Friday", SAT: "Saturday", SUN: "Sunday" };
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "last"];
+/** A monthly rule's parts, as the dialog edits them. */
+type MonthlyParts = { mode: "days" | "weekday"; days: string[]; ord: string; wday: string; every: string; missing: string };
+/** Reads a stored monthly rule ("days=1,15,last;every=3;start=2026-11;missing=last" or "weekday=first MON"). */
+export function parseMonthly(rule?: string | null): MonthlyParts {
+  const m: MonthlyParts = { mode: "days", days: ["1"], ord: "first", wday: "MON", every: "1", missing: "skip" };
+  for (const part of (rule ?? "").split(";")) {
+    const [k, v = ""] = part.split("=").map((x) => x.trim());
+    if (k === "days") m.days = v.split(",").filter(Boolean);
+    else if (k === "weekday") { const [o, d] = v.split(",")[0].split(/\s+/); m.mode = "weekday"; m.ord = o ?? "first"; m.wday = (d ?? "MON").toUpperCase(); }
+    else if (k === "every") m.every = v;
+    else if (k === "missing") m.missing = v;
+  }
+  return m;
+}
+/** Writes the monthly rule the server stores (it adds the start month when it repeats every N months). */
+export function monthlyRule(m: MonthlyParts) {
+  const parts = [m.mode === "weekday" ? "weekday=" + m.ord + " " + m.wday : "days=" + m.days.join(",")];
+  if (m.every && m.every !== "1") parts.push("every=" + m.every);
+  if (m.mode === "days" && m.missing === "last") parts.push("missing=last");
+  return parts.join(";");
+}
+/** A monthly rule in words: "Monthly on day 1, 15 and the last day", "Every 3 months on the first Monday". */
+export function monthlyWords(rule?: string | null) {
+  const m = parseMonthly(rule);
+  const head = m.every && m.every !== "1" ? "Every " + m.every + " months" : "Monthly";
+  if (m.mode === "weekday") return head + " on the " + m.ord + " " + (DAY_WORDS[m.wday] ?? m.wday);
+  const nums = m.days.filter((d) => d !== "last"), last = m.days.includes("last");
+  const list = [...(nums.length ? ["day " + nums.join(", ")] : []), ...(last ? ["the last day"] : [])].join(" and ");
+  return head + " on " + list + (m.missing === "last" ? " (the last day when a month is shorter)" : "");
+}
 /** When a schedule repeats; in lists (short) the time zone only when it is not the viewer's own, so a row fits at 1366 px. */
 export const repeats = (s: Schedule, short = false) => (s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time
+  : s.kind === "monthly" ? monthlyWords(s.rule) + " at " + s.at_time : s.kind === "cron" ? "Cron " + s.rule
   : (s.days ?? "").split(",").filter(Boolean).map((d) => d.charAt(0) + d.slice(1).toLowerCase()).join(", ") + " at " + s.at_time)
   + (short && s.time_zone === Intl.DateTimeFormat().resolvedOptions().timeZone ? "" : " (" + s.time_zone + ")");
+/** A preview time in the schedule's own zone: "Mon, 2 Nov 2026 09:00", and its UTC offset. */
+const localTime = (local: string) => {
+  const [d, rest = ""] = local.split("T");
+  const day = new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const off = rest.slice(5).replace(/^:\d\d/, "");
+  return { text: day + " " + rest.slice(0, 5), offset: off === "Z" ? "UTC" : "UTC" + off };
+};
 
 const HELP: HelpTopic = { title: "Schedules",
   about: "Run agents automatically at set times. A scheduled run uses the permissions and vault access of the schedule's owner, or of the run-as person; "
     + "holiday calendars skip the dates you list.",
   items: [
     { name: "Create schedule", text: "Choose the agent (its live version runs), who it runs as, where it runs (a runner, a runner pool or the run-as "
-      + "person's default runner) and when: every N minutes, daily or weekly, in a time zone. Needs permission to manage schedules." },
+      + "person's default runner) and when: every N minutes, daily, weekly, monthly or by a cron expression, in a time zone. The next five "
+      + "times are shown as you choose. Needs permission to manage schedules." },
+    { name: "Monthly", text: "On days of the month (and/or the last day), or on a weekday such as the first Monday or the last Friday, every month "
+      + "or every N months. A day a month does not have (31 in April) is skipped, unless you choose to run on the month's last day instead." },
+    { name: "Cron", text: "A cron expression: five fields (minute hour day month weekday, such as 0 9 * * MON-FRI) or six to seven Quartz fields "
+      + "as UiPath uses (seconds first, such as 0 0 9 ? * MON#1). Times skipped when clocks go forward run as much later; a time repeated when "
+      + "clocks go back runs once." },
     { name: "Holiday calendars", text: "Named lists of dates, such as public holidays. A schedule that uses a calendar does not run on its dates." },
     { name: "Times missed and overlapping runs", text: "When creating or opening a schedule: run once for times missed while One CommandCenter was down, or "
       + "skip them; and start another run or skip this time when the previous run is still going." },
@@ -198,6 +247,7 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
   const [v, setV] = useState({ name: from ? from.name + " (copy)" : "", bot: from?.bot_path ?? "", runAs: from?.run_as ?? "",
     where: from ? (from.pool_id ? "pool" : from.device_id ? "runner" : "default") : "runner", device: from?.device_id ?? "", pool: from?.pool_id ?? "",
     kind: from?.kind ?? "daily", every: String(from?.every_minutes ?? 60), at: from?.at_time ?? "08:30", days: (from?.days ?? "MON,TUE,WED,THU,FRI").split(",").filter(Boolean),
+    monthly: parseMonthly(from?.kind === "monthly" ? from.rule : null), cron: from?.kind === "cron" ? from.rule ?? "" : "0 9 * * MON-FRI",
     tz: from?.time_zone ?? (defaultTz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), cal: from?.holiday_calendar ?? "", missed: from?.missed_runs ?? "once", overlap: from?.overlap ?? "allow",
     inputs: from?.inputs ? (typeof from.inputs === "string" ? from.inputs : JSON.stringify(from.inputs)) : "" });
   const [error, setError] = useState<string | null>(null);
@@ -207,16 +257,25 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
     api.calendars().then((c) => setCals(c.map((x) => x.name)), () => {});
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
+  const setM = (m: Partial<MonthlyParts>) => setV({ ...v, monthly: { ...v.monthly, ...m } });
+  /** The timing part of the schedule, as the server and its preview read it. */
+  const timing = useMemo(() => {
+    const t: Record<string, unknown> = { kind: v.kind, time_zone: v.tz.trim(), holiday_calendar: v.cal || null };
+    if (v.kind === "every") t.every_minutes = parseInt(v.every, 10); else if (v.kind !== "cron") t.at_time = v.at;
+    if (v.kind === "weekly") t.days = v.days.join(",");
+    if (v.kind === "monthly") t.rule = monthlyRule(v.monthly);
+    if (v.kind === "cron") t.rule = v.cron.trim();
+    return t;
+  }, [v.kind, v.tz, v.cal, v.every, v.at, v.days, v.monthly, v.cron]);
   const create = async () => {
     let inputs: unknown = {};
     if (v.inputs.trim()) { try { inputs = JSON.parse(v.inputs); } catch { setError("Inputs are not JSON."); return; } }
-    const b: Record<string, unknown> = { name: v.name.trim() || "Schedule", bot_path: v.bot, run_as: v.runAs || null, kind: v.kind, time_zone: v.tz.trim(), holiday_calendar: v.cal || null,
+    const b: Record<string, unknown> = { name: v.name.trim() || "Schedule", bot_path: v.bot, run_as: v.runAs || null, ...timing,
       missed_runs: v.missed, overlap: v.overlap, inputs, device_id: v.where === "runner" ? v.device : null, pool_id: v.where === "pool" ? v.pool : null };
-    if (v.kind === "every") b.every_minutes = parseInt(v.every, 10); else b.at_time = v.at;
-    if (v.kind === "weekly") b.days = v.days.join(",");
     try { const r = await api.createSchedule(b); onCreated("Created " + b.name + "." + (r.next_run ? " Next run " + when(r.next_run) + "." : "")); } catch (e) { setError(message(e)); }
   };
-  const ok = v.bot && (v.where !== "runner" || v.device) && (v.where !== "pool" || v.pool) && (v.where !== "default" || v.runAs) && (v.kind !== "weekly" || v.days.length > 0);
+  const ok = v.bot && (v.where !== "runner" || v.device) && (v.where !== "pool" || v.pool) && (v.where !== "default" || v.runAs) && (v.kind !== "weekly" || v.days.length > 0)
+    && (v.kind !== "monthly" || v.monthly.mode === "weekday" || v.monthly.days.length > 0) && (v.kind !== "cron" || v.cron.trim() !== "");
   return (
     <Dialog open title={from ? "Copy of " + from.name : "Create schedule"} width={680} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!ok} onClick={create}>Create schedule</Button></>}>
@@ -236,20 +295,74 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
       {v.where === "pool" && <Field label="Runner pool">{(id) => <Select id={id} value={v.pool} onChange={set("pool")} options={[{ value: "", label: "Choose a pool" }, ...pools.map((p) => ({ value: p.id, label: p.name }))]} />}</Field>}
       <h3 className="cc-log-title">When</h3>
       <div className="cc-grid2">
-        <Field label="Repeat">{(id) => <Select id={id} value={v.kind} onChange={set("kind")} options={[{ value: "every", label: "Every N minutes" }, { value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} />}</Field>
+        <Field label="Repeat">{(id) => <Select id={id} value={v.kind} onChange={set("kind")} options={[{ value: "every", label: "Every N minutes" }, { value: "daily", label: "Daily" },
+          { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly" }, { value: "cron", label: "Cron expression" }]} />}</Field>
         {v.kind === "every" ? <Field label="Minutes">{(id) => <TextInput id={id} type="number" min={1} value={v.every} onChange={set("every")} />}</Field>
+          : v.kind === "cron" ? <Field label="Cron expression" hint="minute hour day month weekday; Quartz: second first, ? and L, W, #">{(id) =>
+            <TextInput id={id} mono value={v.cron} placeholder="0 9 * * MON-FRI" spellCheck={false} onChange={set("cron")} />}</Field>
           : <Field label="Time (HH:MM)">{(id) => <TextInput id={id} value={v.at} placeholder="08:30" onChange={set("at")} />}</Field>}
       </div>
       {v.kind === "weekly" && <div className="cc-inline" role="group" aria-label="Days">{DAYS.map((d) =>
         <label key={d} className="st-check-line"><input type="checkbox" checked={v.days.includes(d)} onChange={(e) => setV({ ...v, days: e.target.checked ? [...v.days, d] : v.days.filter((x) => x !== d) })} /> {d.charAt(0) + d.slice(1).toLowerCase()}</label>)}</div>}
+      {v.kind === "monthly" && <MonthlyFields m={v.monthly} onChange={setM} />}
       <div className="cc-grid2">
         <Field label="Time zone">{(id) => <TextInput id={id} value={v.tz} onChange={set("tz")} />}</Field>
         <Field label="Skip the dates of a holiday calendar">{(id) => <Select id={id} value={v.cal} onChange={set("cal")} options={[{ value: "", label: "None" }, ...cals.map((c) => ({ value: c, label: c }))]} />}</Field>
       </div>
+      <NextRuns api={api} timing={timing} />
       <RuleFields missed={v.missed} overlap={v.overlap} onMissed={(x) => setV({ ...v, missed: x })} onOverlap={(x) => setV({ ...v, overlap: x })} />
       <Field label="Inputs (JSON, optional)">{(id) => <TextArea id={id} rows={2} value={v.inputs} placeholder="{}" onChange={set("inputs")} />}</Field>
     </Dialog>
   );
+}
+
+/** A monthly schedule's days: days of the month (and the last day), or an ordinal weekday; every N months; a missing day. */
+function MonthlyFields({ m, onChange }: { m: MonthlyParts; onChange: (m: Partial<MonthlyParts>) => void }) {
+  const toggle = (d: string) => onChange({ days: m.days.includes(d) ? m.days.filter((x) => x !== d)
+    : [...m.days, d].sort((a, b) => (a === "last" ? 99 : +a) - (b === "last" ? 99 : +b)) });
+  return <div className="cc-monthly">
+    <div role="radiogroup" aria-label="Monthly on" className="cc-inline">
+      <label className="st-check-line"><input type="radio" name="mmode" checked={m.mode === "days"} onChange={() => onChange({ mode: "days" })} /> Days of the month</label>
+      <label className="st-check-line"><input type="radio" name="mmode" checked={m.mode === "weekday"} onChange={() => onChange({ mode: "weekday" })} /> A weekday of the month</label>
+    </div>
+    {m.mode === "days" ? <>
+      <div className="cc-mdays" role="group" aria-label="Days of the month">
+        {[...Array.from({ length: 31 }, (_, i) => String(i + 1)), "last"].map((d) =>
+          <button key={d} type="button" className={d === "last" ? "is-last" : ""} aria-pressed={m.days.includes(d)} aria-label={d === "last" ? "Last day" : "Day " + d}
+            onClick={() => toggle(d)}>{d === "last" ? "Last day" : d}</button>)}
+      </div>
+    </> : <div className="cc-grid2">
+      <Field label="Which">{(id) => <Select id={id} value={m.ord} onChange={(e) => onChange({ ord: e.target.value })}
+        options={ORDINALS.map((o) => ({ value: o, label: o.charAt(0).toUpperCase() + o.slice(1) }))} />}</Field>
+      <Field label="Weekday">{(id) => <Select id={id} value={m.wday} onChange={(e) => onChange({ wday: e.target.value })}
+        options={DAYS.map((d) => ({ value: d, label: DAY_WORDS[d] }))} />}</Field>
+    </div>}
+    <div className="cc-grid2">
+      <Field label="Every (months)">{(id) => <TextInput id={id} type="number" min={1} max={120} value={m.every} onChange={(e) => onChange({ every: e.target.value })} />}</Field>
+      {m.mode === "days" && <Field label="A day the month does not have">{(id) => <Select id={id} value={m.missing} onChange={(e) => onChange({ missing: e.target.value })}
+        options={[{ value: "skip", label: "Skip that month" }, { value: "last", label: "Run on the month's last day" }]} />}</Field>}
+    </div>
+  </div>;
+}
+
+/** The next five times a draft schedule runs, asked of One CommandCenter as the timing changes (holidays marked). */
+function NextRuns({ api, timing }: { api: CrApi; timing: Record<string, unknown> }) {
+  const [p, setP] = useState<SchedulePreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const key = JSON.stringify(timing);
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(() => api.previewSchedule(JSON.parse(key)).then((r) => { if (live) { setP(r); setError(null); } }, (e) => { if (live) { setP(null); setError(message(e) + (e instanceof CrFailure && e.error.suggestedFix ? " " + e.error.suggestedFix : "")); } }), 300);
+    return () => { live = false; clearTimeout(t); };
+  }, [api, key]);
+  return <div className="cc-nextruns" aria-live="polite">
+    <h3 className="cc-log-title">Next runs</h3>
+    {error ? <p className="cc-nextruns-error" role="alert">{error}</p>
+      : !p ? <p className="cc-none">Working them out…</p>
+      : !p.next_runs.length ? <p className="cc-none">This schedule does not run again.</p>
+      : <ol aria-label="Next runs">{p.next_runs.map((r) => { const l = localTime(r.local); return <li key={r.time} className={r.holiday ? "is-holiday" : ""}>
+        <span>{l.text}</span> <span className="cc-none">{l.offset}</span>{r.holiday && <span className="cc-tag">holiday, skipped</span>}</li>; })}</ol>}
+  </div>;
 }
 
 /** A schedule: what can change in place (name, calendar, owner, run-as, the two rules); its timing is changed by a copy. */

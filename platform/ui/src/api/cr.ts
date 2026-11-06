@@ -172,12 +172,17 @@ export type HumanTask = { id: string; title: string; description?: string | null
   form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string;
   /** Where it comes from: its workflow's name and the request's reference. */
   workflow?: string | null; reference?: string | null };
-/** A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily or weekly. */
-export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly";
-  every_minutes?: number | null; at_time?: string | null; days?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
+/**
+ * A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily, weekly,
+ * monthly (rule like "days=1,15,last" or "weekday=first MON;every=3;start=2026-11") or by a cron expression (rule).
+ */
+export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly" | "monthly" | "cron";
+  every_minutes?: number | null; at_time?: string | null; days?: string | null; rule?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
   created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null;
   /** Its last run, and how that run ended (queued, running, success, failed or stopped). */
   last_run_id?: string | null; last_status?: string | null };
+/** A draft schedule's next times: UTC (time), in its time zone (local, with the offset), and whether a holiday skips it. */
+export type SchedulePreview = { kind: string; time_zone: string; rule?: string; next_runs: { time: string; local: string; holiday: boolean }[] };
 /** A trigger: an event that starts an agent, watched on a runner or checked by One CommandCenter (evaluated_on). */
 export type Trigger = { id: string; name: string; kind: string; bot_path: string; device_id?: string | null; run_as?: string | null; created_by?: string; enabled: boolean;
   status?: string | null; evaluated_on?: "runner" | "server" | null; windows_only?: boolean; fire_count?: number; last_fired?: string | null; last_error?: string | null;
@@ -408,6 +413,8 @@ export class CrApi {
   async setScheduleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "schedules/" + encodeURIComponent(id), { enabled }); }
   async deleteSchedule(id: string) { await this.call("DELETE", "schedules/" + encodeURIComponent(id)); }
   runSchedule(id: string) { return this.call<{ run_id: string }>("POST", "schedules/" + encodeURIComponent(id) + "/run"); }
+  /** The next times a draft schedule would run (nothing is saved); each says whether its holiday calendar skips it. */
+  previewSchedule(b: Record<string, unknown>) { return this.call<SchedulePreview>("POST", "schedules/preview", b); }
   bulkSchedules(ids: string[], action: "enable" | "disable" | "owner", owner?: string) { return this.call<{ changed: number }>("POST", "schedules/bulk", { ids, action, ...(owner ? { owner } : {}) }); }
   async calendars() { return (await this.call<{ calendars?: { name: string; dates: string[]; updated?: string; updated_by?: string }[] }>("GET", "calendars")).calendars ?? []; }
   async saveCalendar(name: string, dates: string[]) { await this.call("PUT", "calendars/" + encodeURIComponent(name), { dates }); }

@@ -2212,10 +2212,16 @@ public final class ControlRoom {
 
     // ===================== schedules =====================
 
+    /**
+     * The schedule's next time after {@code after}. Monthly and cron schedules follow their rule (ScheduleRules); a cron
+     * rule whose years have all passed has no next time (null), so the schedule stays enabled but does not run again.
+     */
     static Instant nextRun(Map<String, Object> s, Instant after) {
         ZoneId zone = ZoneId.of(String.valueOf(s.getOrDefault("time_zone", "UTC")));
         String kind = String.valueOf(s.get("kind"));
         if (kind.equals("every")) return after.plus(Duration.ofMinutes(((Number) s.get("every_minutes")).longValue()));
+        if (kind.equals("monthly") || kind.equals("cron"))
+            return ScheduleRules.next(ScheduleRules.of(kind, (String) s.get("rule"), String.valueOf(s.get("at_time")), java.time.YearMonth.from(after.atZone(zone))), after, zone);
         LocalTime at = LocalTime.parse(String.valueOf(s.get("at_time")));
         Set<DayOfWeek> days = new HashSet<>();
         if (kind.equals("weekly")) for (String d : String.valueOf(s.get("days")).split(",")) days.add(DayOfWeek.valueOf(switch (d.trim().toUpperCase(Locale.ROOT)) {
@@ -2228,17 +2234,72 @@ public final class ControlRoom {
         throw new OoaException("CR.BAD_SCHEDULE", "No next run could be computed");
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> createSchedule(User by, Map<String, Object> s, String ip) {
-        require(by, "schedules.manage", "manage schedules");
+    static final Set<String> SCHEDULE_KINDS = Set.of("every", "daily", "weekly", "monthly", "cron");
+
+    /**
+     * Checks a schedule's timing (kind, every_minutes, at_time, days, rule, time_zone) and returns it ready to store: the
+     * time zone filled in, a monthly rule written the stored way (with its start month when it repeats every N months),
+     * a cron expression with its spaces tidied. Refuses a rule that never runs again.
+     */
+    Map<String, Object> scheduleTiming(Map<String, Object> s) {
         String kind = String.valueOf(s.get("kind"));
-        if (!Set.of("every", "daily", "weekly").contains(kind)) throw new OoaException("CR.BAD_SCHEDULE", "kind must be every, daily or weekly");
+        if (!SCHEDULE_KINDS.contains(kind)) throw new OoaException("CR.BAD_SCHEDULE", "kind must be every, daily, weekly, monthly or cron");
         if (kind.equals("every") && (!(s.get("every_minutes") instanceof Number n) || n.intValue() < 1)) throw new OoaException("CR.BAD_SCHEDULE", "every_minutes must be at least 1");
-        if (!kind.equals("every") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30");
+        if (!kind.equals("every") && !kind.equals("cron") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30");
         if (kind.equals("weekly") && !String.valueOf(s.get("days")).matches("^(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*$"))
             throw new OoaException("CR.BAD_SCHEDULE", "days must be like MON,WED,FRI");
         String tz = s.get("time_zone") instanceof String z && !z.isBlank() ? z.trim() : defaultTimeZone();
-        try { ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
+        ZoneId zone;
+        try { zone = ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
+        Map<String, Object> t = new HashMap<>();
+        t.put("kind", kind);
+        t.put("time_zone", tz);
+        if (kind.equals("every")) t.put("every_minutes", ((Number) s.get("every_minutes")).intValue());
+        if (!kind.equals("every") && !kind.equals("cron")) t.put("at_time", s.get("at_time"));
+        if (kind.equals("weekly")) t.put("days", s.get("days"));
+        String rule = s.get("rule") == null ? null : String.valueOf(s.get("rule"));
+        if (kind.equals("monthly")) t.put("rule", ScheduleRules.monthly(rule, LocalTime.parse(String.valueOf(s.get("at_time"))), java.time.YearMonth.from(now().atZone(zone))).text());
+        if (kind.equals("cron")) t.put("rule", ScheduleRules.cron(rule).text);
+        if ((kind.equals("monthly") || kind.equals("cron")) && nextRun(t, now()) == null)
+            throw new OoaException("CR.BAD_SCHEDULE", "The rule '" + t.get("rule") + "' never runs again", kind.equals("cron") ? ScheduleRules.CRON_EXAMPLE : ScheduleRules.MONTHLY_EXAMPLE);
+        return t;
+    }
+
+    /**
+     * The next times a draft schedule would run (for the console's preview), each with whether its holiday calendar
+     * skips it. Nothing is stored. {@code count} is 1 to 20 (default 5).
+     */
+    public Map<String, Object> previewSchedule(User by, Map<String, Object> s) {
+        require(by, "schedules.view", "view schedules");
+        Map<String, Object> t = scheduleTiming(s);
+        String cal = s.get("holiday_calendar") instanceof String cs && !cs.isBlank() ? cs : null;
+        if (cal != null && db.one("SELECT name FROM holiday_calendars WHERE name = ?", cal) == null) throw notFound("Holiday calendar");
+        t.put("holiday_calendar", cal);
+        int count = s.get("count") instanceof Number n ? Math.max(1, Math.min(20, n.intValue())) : 5;
+        List<Map<String, Object>> runs = new ArrayList<>();
+        Instant at = now();
+        ZoneId zone = ZoneId.of((String) t.get("time_zone"));
+        while (runs.size() < count && (at = nextRun(t, at)) != null) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("time", at.toString());
+            r.put("local", at.atZone(zone).toOffsetDateTime().toString());
+            r.put("holiday", platform.isHoliday(t, at));
+            runs.add(r);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("kind", t.get("kind"));
+        out.put("time_zone", t.get("time_zone"));
+        if (t.get("rule") != null) out.put("rule", t.get("rule"));
+        out.put("next_runs", runs);
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createSchedule(User by, Map<String, Object> s, String ip) {
+        require(by, "schedules.manage", "manage schedules");
+        Map<String, Object> timing = scheduleTiming(s);
+        String kind = (String) timing.get("kind");
+        String tz = (String) timing.get("time_zone");
         content(String.valueOf(s.get("bot_path")), "production");
         folders.require(by, String.valueOf(s.get("bot_path")), "run", "schedule agents");
         String pool = s.get("pool_id") instanceof String ps && !ps.isBlank() ? ps : null;
@@ -2249,15 +2310,17 @@ public final class ControlRoom {
         String cal = s.get("holiday_calendar") instanceof String cs && !cs.isBlank() ? cs : null;
         if (cal != null && db.one("SELECT name FROM holiday_calendars WHERE name = ?", cal) == null) throw notFound("Holiday calendar");
         String sid = id("sch");
-        Map<String, Object> row = new HashMap<>(s);
-        row.put("time_zone", tz);
-        Instant next = nextRun(row, now());
+        Instant next = nextRun(timing, now());
         db.update("INSERT INTO schedules (id, name, bot_path, device_id, kind, every_minutes, at_time, days, time_zone, inputs, enabled, next_run, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, s.get("every_minutes") instanceof Number n ? n.intValue() : null,
-                kind.equals("every") ? null : s.get("at_time"), kind.equals("weekly") ? s.get("days") : null, tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
-        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ? WHERE id = ?", pool, cal, runAs,
-                scheduleOption(s.get("missed_runs"), MISSED_RUNS), scheduleOption(s.get("overlap"), OVERLAP), sid);
-        audit.record(by.username(), "schedule.create", "schedule", sid, Map.of("bot", s.get("bot_path"), "kind", kind), "ok", ip);
+                sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, timing.get("every_minutes"),
+                timing.get("at_time"), timing.get("days"), tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
+        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ?, rule = ? WHERE id = ?", pool, cal, runAs,
+                scheduleOption(s.get("missed_runs"), MISSED_RUNS), scheduleOption(s.get("overlap"), OVERLAP), timing.get("rule"), sid);
+        Map<String, Object> what = new LinkedHashMap<>();
+        what.put("bot", s.get("bot_path"));
+        what.put("kind", kind);
+        if (timing.get("rule") != null) what.put("rule", timing.get("rule"));
+        audit.record(by.username(), "schedule.create", "schedule", sid, what, "ok", ip);
         return Map.of("id", sid, "next_run", next.toString());
     }
 
@@ -2385,7 +2448,13 @@ public final class ControlRoom {
         int started = 0;
         for (Map<String, Object> s : db.query("SELECT * FROM schedules WHERE enabled = TRUE AND next_run <= ?", now())) {
             Instant due = Instant.parse(s.get("next_run").toString());
-            Instant next = nextRun(s, now());
+            Instant next;
+            try { next = nextRun(s, now()); }
+            catch (RuntimeException e) {   // a rule that cannot be read stops this schedule only, not the others
+                if (db.update("UPDATE schedules SET next_run = NULL WHERE id = ? AND next_run = ?", s.get("id"), due) == 1)
+                    audit.record("scheduler", "schedule.fire", "schedule", (String) s.get("id"), "its timing cannot be read: " + e.getMessage(), "failed", null);
+                continue;
+            }
             if (db.update("UPDATE schedules SET last_run = ?, next_run = ? WHERE id = ? AND next_run = ?", now(), next, s.get("id"), due) != 1) continue;
             if (platform.isHoliday(s, now())) { audit.record("scheduler", "schedule.skip_holiday", "schedule", (String) s.get("id"), s.get("holiday_calendar"), "ok", null); continue; }
             if ("skip".equals(s.get("missed_runs")) && due.isBefore(now().minus(MISSED_AFTER))) {

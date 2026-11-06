@@ -114,7 +114,7 @@ failures. Every response carries the security headers described in [06-security-
 | Repository | `repo`, `repo/bot`, `repo/checkin`, `repo/checkout`, `repo/undo-checkout`, `repo/versions`, `repo/labels`, `repo/production`, `repo/production-requests`, `repo/folders`, `repo/permissions`, `repo/files`, `repo/move`, `repo/copy`, `repo/delete`, `repo/recover`, `repo/dependencies`, `repo/analyze`, `repo/analysis`, `repo/policy`, `repo/roi` |
 | Runs | `runs` (list, start one or many, control, purge), `runs/{id}/ai-calls`, `changes` (live update feed) |
 | Runners | `devices`, `devices/registration-key`, `devices/runasusers`, `devices/update`, `pools` |
-| Automation | `schedules`, `schedules/bulk`, `triggers`, `calendars`, `queues`, `queues/import`, `queue-models`, `workflows`, `workflows/start`, `workflows/runs`, `workflows/form`, `tasks`, `apitasks`, `test-sets` |
+| Automation | `schedules`, `schedules/bulk`, `schedules/preview`, `triggers`, `calendars`, `queues`, `queues/import`, `queue-models`, `workflows`, `workflows/start`, `workflows/runs`, `workflows/form`, `tasks`, `apitasks`, `test-sets` |
 | Vault and values | `lockers`, `vault`, `vault/credential`, `vault/value`, `vault/my-value`, `vault/requests`, `vault/rotate`, `vault/status`, `globals`, `saved-connections`, `connection-kinds` |
 | AI | `connections` (model connections), `connections/test`, `skills`, `skills/templates`, `skills/from-template`, `governance`, `mcp` |
 | Administration | `users`, `roles`, `teams`, `apikeys`, `settings`, `settings/mail-test`, `settings/syslog-test`, `database`, `toolkits`, `toolkits/custom`, `toolkits/publishers`, `license`, `license/assignments`, `license/usage`, `backups`, `cluster`, `git`, `git/sync`, `git/status`, `audit`, `audit/verify`, `audit/export` |
@@ -247,10 +247,14 @@ checkpoints, scheduled backups (`backup_hours`, `backup_keep_days`) and licence 
 
 ## 8. Schedules and triggers
 
-- **Schedules** (`schedules` table): kinds every N minutes, daily at a time, weekly on days; a time zone; an optional
-  holiday calendar; a runner, pool or run-as user; inputs. `tickSchedules()` starts every enabled schedule whose
-  `next_run` has passed and computes the next one (`nextRun`, skipping holidays). Schedules can be changed in bulk
-  (`schedules/bulk`) and run at once (`run now`).
+- **Schedules** (`schedules` table): kinds every N minutes, daily at a time, weekly on days, monthly (days of the
+  month, the last day or an ordinal weekday, every N months) and cron (five-field or Quartz expressions); a time zone;
+  an optional holiday calendar; a runner, pool or run-as user; inputs. `tickSchedules()` starts every enabled schedule
+  whose `next_run` has passed and computes the next one (`nextRun`, skipping holidays). Monthly and cron rules are read
+  by `ScheduleRules` (no scheduling library): it walks wall-clock days in the schedule's time zone, moves a time in the
+  spring-forward gap on by the gap and runs a repeated autumn time once (both copies only for an every-hour cron). A
+  rule that cannot be read stops only its own schedule (audited as a failed `schedule.fire`). `schedules/preview`
+  returns a draft's next times. Schedules can be changed in bulk (`schedules/bulk`) and run at once (`run now`).
 - **Triggers** (`TriggerKinds.KINDS`):
 
 | Where evaluated | Kinds |

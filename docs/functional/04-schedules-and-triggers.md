@@ -2,7 +2,7 @@
 
 ## What this covers
 
-How agents are started without a person: schedules (every N minutes, daily, weekly) with time zones and holiday
+How agents are started without a person: schedules (every N minutes, daily, weekly, monthly, cron) with time zones and holiday
 calendars, and triggers that react to events on a runner, on remote systems polled by One CommandCenter, or through
 webhooks. It specifies who a scheduled or triggered run belongs to, which values the agent receives, how failures are
 reported, and what happens with overlapping runs and with occurrences missed while One CommandCenter was down.
@@ -32,7 +32,8 @@ A schedule (Manage > Schedules) starts the live production version of one agent 
 | --- | --- |
 | Name | 1-200 characters (default "Schedule") |
 | Agent | Must exist and have a live production version; the creator needs folder access **run** |
-| Kind | `every` (every N minutes, N ≥ 1), `daily` (at HH:mm) or `weekly` (at HH:mm on chosen days `MON`…`SUN`) |
+| Kind | `every` (every N minutes, N ≥ 1), `daily` (at HH:mm), `weekly` (at HH:mm on chosen days `MON`…`SUN`), `monthly` (at HH:mm, on the days of `rule`) or `cron` (the expression in `rule`) |
+| Rule | For `monthly` and `cron` only, up to 200 characters; see "Monthly rules" and "Cron expressions" below. A wrong rule, or one that never runs again, is refused (`CR.BAD_SCHEDULE`) with an example |
 | Time zone | An IANA name such as `Asia/Kolkata`, `Europe/London` (default `UTC`); an unknown zone is refused (`CR.BAD_SCHEDULE`) |
 | Where | A runner, or a runner pool, or neither when a run-as user with a default runner is given |
 | Run-as user | Optional; must be enabled; without a runner or pool they need a default runner (`CR.NO_DEFAULT_RUNNER`) |
@@ -78,6 +79,44 @@ Next run times:
 | every | The moment the occurrence was handled, plus N minutes (so the interval is measured from when it fired) |
 | daily | The next HH:mm in the schedule's time zone after now |
 | weekly | The next HH:mm on one of the chosen days, in the time zone |
+| monthly | The next HH:mm on a day of the rule, in the time zone |
+| cron | The next time the expression names, in the time zone |
+
+A preview of the next times (`POST /api/schedules/preview`, needs `schedules.view`) takes a draft schedule's timing
+(`kind`, `every_minutes`, `at_time`, `days`, `rule`, `time_zone`, `holiday_calendar`, optional `count` 1-20, default 5)
+and returns `next_runs`, each with `time` (UTC), `local` (in the time zone, with its offset) and `holiday` (skipped by
+the calendar). Nothing is stored.
+
+### Monthly rules
+
+Parts separated by `;`, stored the tidy way (for example `days=1,15,last;every=3;start=2026-11`):
+
+| Part | Meaning |
+| --- | --- |
+| `days=1,15,last` | Days of the month, 1-31, and/or `last` |
+| `weekday=first MON` | Or ordinal weekdays: `first`, `second`, `third`, `fourth`, `fifth` or `last` with `MON`…`SUN` (several with commas) |
+| `every=3` | Every N months, 1-120 (default 1) |
+| `start=2026-11` | The month counting starts from (default: the month the schedule is made; stored when `every` is more than 1) |
+| `missing=skip` or `missing=last` | A day the month does not have (31 in April) is skipped (default), or runs on the month's last day |
+
+Skipping a missing day is what UiPath's (Quartz) triggers and Blue Prism's Scheduler do by default; Blue Prism also
+offers the last day, which is `missing=last`. A `fifth` weekday is skipped in months with only four.
+
+### Cron expressions
+
+Five fields (`minute hour day-of-month month day-of-week`, Sunday is 0 or 7), or Quartz's six or seven (`second` first
+and an optional `year` last, Sunday is 1; one of the two day fields is `?`). Lists, ranges, steps (`*/15`, `5/10`,
+`1-5/2`), month and day names, `L`, `L-n`, `nW`, `LW`, `xL` (last weekday x of the month), `x#n` (n-th weekday x) and
+`@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`. With five fields and both day fields restricted, either
+matching is enough (Unix cron). The seconds field must be a single number. A cron rule whose `year` field has passed
+has no next run; the schedule stays enabled but does not run again.
+
+### Clock changes
+
+Monthly and cron times are wall-clock times in the schedule's time zone. A time in the hour skipped when clocks go
+forward runs as many minutes later as the clocks moved (02:30 becomes 03:30), as for daily and weekly schedules. A
+time in the hour repeated when clocks go back runs once, the first time; a cron expression with `*` in the hour field
+runs in both copies of that hour. No time runs twice.
 
 Daily and weekly times follow the time zone's clock changes (summer time). Enabling a schedule computes its next run
 from that moment; disabling clears it.
