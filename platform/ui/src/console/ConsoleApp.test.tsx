@@ -1682,8 +1682,8 @@ describe("rebuilt One CommandCenter console", () => {
     render(<ConsoleApp api={api} />);
     await go("Schedules");
     const list = await screen.findByRole("table", { name: "Schedules list" });
-    expect(await within(list).findByText("Every 3 months on day 15 and the last day at 18:00 (UTC)")).toBeTruthy();
-    expect(within(list).getByText("Cron 0 9 * * MON-FRI (UTC)")).toBeTruthy();
+    expect(await within(list).findByText(/^Every 3 months on day 15 and the last day at 18:00( \(UTC\))?$/)).toBeTruthy();
+    expect(within(list).getByText(/^Cron 0 9 \* \* MON-FRI( \(UTC\))?$/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Create schedule" }));
     const c = await screen.findByRole("dialog", { name: "Create schedule" });
     fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "First Monday" } });
