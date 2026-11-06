@@ -1246,6 +1246,16 @@ public final class ControlRoomServer {
      * is still refused. A copy built without Node.js has no page and says how to build one.
      */
     private void nextConsole(HttpExchange ex, String file) throws IOException {
+        // the console as an app on phones (G69): its manifest, icons and service worker, made here
+        if (file.equals("manifest.webmanifest") || file.equals("sw.js") || file.equals("icon-192.png") || file.equals("icon-512.png")) {
+            securityHeaders(ex);
+            switch (file) {
+                case "manifest.webmanifest" -> { ex.getResponseHeaders().set("Content-Type", "application/manifest+json"); writeBody(ex, 200, MobileApp.manifest()); }
+                case "sw.js" -> { ex.getResponseHeaders().set("Content-Type", "text/javascript; charset=utf-8"); writeBody(ex, 200, MobileApp.serviceWorker()); }
+                default -> { ex.getResponseHeaders().set("Content-Type", "image/png"); writeBody(ex, 200, MobileApp.icon(file.equals("icon-192.png") ? 192 : 512)); }
+            }
+            return;
+        }
         boolean page = file.isEmpty() || file.equals("index.html");
         if (!page && !NEXT_FILE.matcher(file).matches()) { sendJson(ex, 404, Map.of("error", "not found")); return; }
         try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/" + (page ? "console.html" : file))) {

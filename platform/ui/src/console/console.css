@@ -847,3 +847,11 @@ a.ov-tab { text-decoration: none; }
 .cc-app-design { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
 .cc-app-design > li { border: 1px solid var(--ui-border); border-radius: 4px; padding: 8px; }
 .cc-embed { min-height: 100vh; background: var(--ui-bg); }   /* an app inside another site (G68) */
+/* phones (G69): the open menu lies over the page instead of squeezing it; lists scroll sideways; dialogs use the width */
+@media (max-width: 640px) {
+  .cc-app .st-body { position: relative; }
+  .cc-app .st-menu.is-console:not(.is-mini) { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; width: min(300px, 86vw) !important; box-shadow: 4px 0 16px rgba(0, 0, 0, .25); }
+  .cc-app .st-main { min-width: 0; }
+  .cc-list-scroll { overflow-x: auto; }
+  .ui-dialog { max-width: calc(100vw - 16px) !important; }
+}

@@ -15,4 +15,7 @@ if (nonce && nonce !== "__CSP_NONCE__") setNonce(nonce);
 
 // /embed/<link id>: an app shown inside another site (G68), with no sign-in and no menus
 const embedded = window.location.pathname.startsWith("/embed/");
+// the console as an app on phones (G69): the service worker only shows a notice when a page load finds no connection
+if (!embedded && window.location.pathname.startsWith("/next/") && window.isSecureContext && "serviceWorker" in navigator)
+  navigator.serviceWorker.register("./sw.js").catch(() => { /* the console works without it */ });
 createRoot(document.getElementById("root")!).render(<StrictMode>{embedded ? <EmbedApp /> : <ConsoleApp />}</StrictMode>);

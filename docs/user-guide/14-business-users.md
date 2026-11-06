@@ -16,6 +16,7 @@ members who start agents themselves from their desktop.
 9. [Notifications on your desktop](#9-notifications-on-your-desktop)
 9a. [Suggest a process to automate](#9a-suggest-a-process-to-automate)
 9b. [Use an app](#9b-use-an-app)
+9c. [One CommandCenter on your phone](#9c-one-commandcenter-on-your-phone)
 10. [If it goes wrong](#10-if-it-goes-wrong)
 11. [Related guides](#related-guides)
 
@@ -171,6 +172,23 @@ save a record or add a work item for an agent to pick up. A button stays grey un
 
 You do not need the right to start agents yourself: the app does what it was built to do on behalf of the person who
 published it, and the audit trail records that you pressed the button.
+
+## 9c. One CommandCenter on your phone
+
+One CommandCenter works as an app on phones and tablets. Open its address in the phone's browser (Chrome or Edge on
+Android, Safari on iPhone and iPad), sign in, then:
+
+- **Android**: the browser offers **Install app** (or ⋮ > **Add to Home screen**);
+- **iPhone and iPad**: Share > **Add to Home Screen**.
+
+The app opens full screen at your **Task inbox**, so you can approve, reject and fill in tasks; the menu (the narrow
+column of icons on the left; **Expand menu** opens it) leads to **Apps** and, if you may, to starting agents. Pressing and holding the app's icon offers Task inbox
+and Apps directly. On a phone the menu folds away once you pick a page.
+
+The app needs One CommandCenter to be reachable over **https://** from the phone (on the company network, a VPN, or a
+public address your administrator sets up). Nothing from One CommandCenter is kept on the phone; without a connection
+the app says so. For notices on the phone when a task arrives, see [Notifications on your desktop](#9-notifications-on-your-desktop)
+and ask your administrator about push notices and approval links.
 
 ## 10. If it goes wrong
 
