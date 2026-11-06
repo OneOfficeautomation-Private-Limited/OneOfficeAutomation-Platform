@@ -383,6 +383,45 @@ public final class OcrPackage {
         return readScreen(ctx, x, y, w, h, lang, psm, after, before, trim, scale, mode, waitMs, null);
     }
 
+    @Action(id = "read_with_cloud", name = "Read text with a cloud engine", category = "OCR", timeoutSeconds = 600, capabilities = {"filesystem", "network"},
+            description = "Read an image or PDF, or an area of the screen, with Azure AI Document Intelligence (printed and handwritten text) or Google Vision, "
+                    + "through a session from that toolkit's Connect step.",
+            panel = "engine, (Read: A file = path / The screen = x, y, width, height), session | language")
+    @Output(name = "text", type = OoaType.STRING, description = "The text read, in reading order.")
+    @Output(name = "engine", type = OoaType.STRING, description = "The engine that read it.")
+    public Map<String, Object> readWithCloud(ActionContext ctx,
+            @Input(name = "engine", type = OoaType.STRING, defaultValue = "\"azure\"", enumValues = {"azure", "google"},
+                    description = "azure: Document Intelligence's read model, which also reads handwriting; google: Vision text detection.") String engine,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "An image or PDF file; the screen when empty.") String path,
+            @Input(name = "x", type = OoaType.NUMBER, required = false, visibleWhen = "path=", description = "Screen area left (whole screen when empty).") Integer x,
+            @Input(name = "y", type = OoaType.NUMBER, required = false, visibleWhen = "path=", description = "Screen area top.") Integer y,
+            @Input(name = "width", type = OoaType.NUMBER, required = false, visibleWhen = "path=", description = "Screen area width.") Integer w,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, visibleWhen = "path=", description = "Screen area height.") Integer h,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session from Azure AI services > Connect or Google Cloud AI > Connect; the only one open when empty.") String session,
+            @Input(name = "language", type = OoaType.STRING, required = false, example = "en", description = "A language hint (en-US for Azure, en for Google); detected when empty.") String lang) {
+        String file = path;
+        Path shot = null;
+        try {
+            if (file == null || file.isBlank()) {
+                shot = Files.createTempFile(ctx.workDir(), "ooa-ocr-", ".png");
+                ImageIO.write(capture(x, y, w, h), "png", shot.toFile());
+                file = shot.toString();
+            }
+            String e = engine == null ? "azure" : engine.strip().toLowerCase(Locale.ROOT);
+            Map<String, Object> r = switch (e) {
+                case "azure" -> new AzureAiPackage().documentRead(ctx, session == null || session.isBlank() ? "azure_ai" : session, file, null, lang, 120);
+                case "google" -> new GoogleAiPackage().visionOcr(ctx, session == null || session.isBlank() ? "google_ai" : session, file, "document",
+                        lang == null || lang.isBlank() ? null : List.of(lang));
+                default -> throw new ActionException("OCR.BAD_ENGINE", "The cloud engine is azure or google");
+            };
+            return Map.of("text", String.valueOf(r.getOrDefault("text", "")), "engine", e);
+        } catch (IOException ex) {
+            throw new ActionException("OCR.SCREEN", "Cannot keep the screen picture: " + ex.getMessage());
+        } finally {
+            if (shot != null) try { Files.deleteIfExists(shot); } catch (IOException ignored) { }
+        }
+    }
+
     @Action(id = "read_screen", name = "Read text from screen", category = "OCR", timeoutSeconds = 300, capabilities = "desktop",
             description = "Capture the screen (or a region) and extract its text, optionally keeping only the text between two markers; for Citrix and applications without accessible controls.",
             panel = "(Read from: The whole screen = / One window = window), [Read only an area: x, y, width, height], wait_ms, [Keep only part of the text: after_text, before_text], trim, language | page_mode, scale, image_mode")
