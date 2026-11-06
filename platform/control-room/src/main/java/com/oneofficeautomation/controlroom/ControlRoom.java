@@ -82,6 +82,8 @@ public final class ControlRoom {
     public final DataStore dataStore;
     /** Low-code apps (gap G67): pages of fields and buttons that run agents, add records and work items. */
     public final Apps apps;
+    /** Apps embedded in other web pages (gap G68): embed links with the sites allowed to frame them. */
+    public final AppEmbeds appEmbeds;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
@@ -164,6 +166,7 @@ public final class ControlRoom {
         this.ideas = new Ideas(this);
         this.dataStore = new DataStore(this);
         this.apps = new Apps(this);
+        this.appEmbeds = new AppEmbeds(this);
         this.runWaits = new RunWaits(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);

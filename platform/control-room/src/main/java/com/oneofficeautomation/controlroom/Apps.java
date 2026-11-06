@@ -213,6 +213,7 @@ public final class Apps {
     public void delete(User by, String id, String ip) {
         cr.require(by, "apps.manage", "make apps");
         Map<String, Object> r = app(id);
+        db.update("DELETE FROM app_embeds WHERE app_id = ?", id);
         db.update("DELETE FROM apps WHERE id = ?", id);
         cr.audit.record(by.username(), "app.delete", "app", id, Map.of("name", r.get("name")), "ok", ip);
     }
@@ -227,17 +228,26 @@ public final class Apps {
     }
 
     /** A button was pressed: its saved action is done with the publisher's rights, with the page's field values. */
-    @SuppressWarnings("unchecked")
     public Map<String, Object> act(User by, String id, Map<String, Object> body, String ip) {
         Map<String, Object> app = app(id);
         if (!mayUse(by, app)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you");
+        return actAs(app, by.username(), by.username(), body, ip);
+    }
+
+    /**
+     * A button pressed by someone: owner is who may follow the runs it starts (a user name, or embed:&lt;link id&gt;),
+     * user how the audit trail names them.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> actAs(Map<String, Object> app, String owner, String user, Map<String, Object> body, String ip) {
+        String id = (String) app.get("id");
         Map<String, Object> def = (Map<String, Object>) JsonLite.parse((String) app.get("definition"));
         Map<String, Object> c = component(def, str(body.get("component")));
         if (!"button".equals(c.get("kind"))) throw new OoaException("CR.BAD_INPUT", "Only buttons act");
         Map<String, Object> fields = body.get("fields") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         Map<String, Object> a = (Map<String, Object>) c.get("action");
         User pub = publisher(app);
-        String actor = "app:" + app.get("name") + " for " + by.username();
+        String actor = "app:" + app.get("name") + " for " + user;
         Map<String, Object> result = new LinkedHashMap<>();
         switch (str(a.get("kind"))) {
             case "run_agent" -> {
@@ -245,7 +255,7 @@ public final class Apps {
                 inputs.values().removeIf(Objects::isNull);
                 Map<String, Object> r = cr.startRun(pub.username(), pub.role(), str(a.get("agent")), str(a.get("runner")).isEmpty() ? null : str(a.get("runner")),
                     str(a.get("pool")).isEmpty() ? null : str(a.get("pool")), inputs, "app:" + id, ip, 0, null, null, null, null);
-                db.update("INSERT INTO app_runs (run_id, app_id, username, created) VALUES (?,?,?,?)", r.get("run_id"), id, by.username(), ControlRoom.now());
+                db.update("INSERT INTO app_runs (run_id, app_id, username, created) VALUES (?,?,?,?)", r.get("run_id"), id, owner, ControlRoom.now());
                 result.put("run_id", r.get("run_id"));
                 result.put("status", "queued");
             }
@@ -272,9 +282,10 @@ public final class Apps {
     }
 
     /** How a run started from the app is going, and its outputs when it has finished: only for the person who started it. */
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> runStatus(User by, String id, String runId) {
-        if (db.one("SELECT run_id FROM app_runs WHERE run_id = ? AND app_id = ? AND username = ?", runId, id, by.username()) == null)
+    public Map<String, Object> runStatus(User by, String id, String runId) { return runStatusFor(id, by.username(), runId); }
+
+    Map<String, Object> runStatusFor(String id, String owner, String runId) {
+        if (db.one("SELECT run_id FROM app_runs WHERE run_id = ? AND app_id = ? AND username = ?", runId, id, owner) == null)
             throw new OoaException("CR.NOT_FOUND", "Run " + runId + " was not started by you from this app");
         Map<String, Object> r = db.one("SELECT status, outputs, error FROM runs WHERE id = ?", runId);
         if (r == null) throw new OoaException("CR.NOT_FOUND", "Run " + runId + " not found");
@@ -290,6 +301,11 @@ public final class Apps {
     public Map<String, Object> records(User by, String id, String compId, String search) {
         Map<String, Object> app = app(id);
         if (!mayUse(by, app)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you");
+        return recordsFor(app, compId, search);
+    }
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> recordsFor(Map<String, Object> app, String compId, String search) {
         Map<String, Object> c = component((Map<String, Object>) JsonLite.parse((String) app.get("definition")), compId);
         if (!"records".equals(c.get("kind"))) throw new OoaException("CR.BAD_INPUT", "Not a records table");
         cr.require(publisher(app), "data.view", "show data store records in apps");

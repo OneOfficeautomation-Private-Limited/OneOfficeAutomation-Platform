@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppComponent, AppDefinition, AppInfo, CrApi, CrUser } from "../api/cr";
+import type { AppComponent, AppDefinition, AppEmbed, AppInfo, CrApi, CrUser } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
@@ -10,6 +10,9 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
  * of the person who published them, so their users need no right to start runs. Making apps needs apps.manage.
  */
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
+
+/** What an app's page needs from the server: the console's API, or an embed link's (EmbedApp). */
+export type AppApi = Pick<CrApi, "app" | "appAct" | "appRun" | "appRecords">;
 
 const HELP: HelpTopic = { title: "Apps", about: "Simple apps made of pages, fields and buttons, used here in the console by people who never open Studio.",
   items: [
@@ -30,6 +33,7 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
   const [open, setOpen] = useState<string | null>(null);
   const [editing, setEditing] = useState<AppInfo | "new" | null>(null);
   const [deleting, setDeleting] = useState<AppInfo | null>(null);
+  const [embeds, setEmbeds] = useState<AppInfo | null>(null);
   const maker = user.permissions.includes("apps.manage");
   const load = useCallback(async () => { try { setList(await api.apps()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
@@ -64,6 +68,7 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
                   {maker && <td className="cc-list-menu"><RowMenu label={"Actions for " + a.name} items={[
                     { key: "open", label: "Open", onSelect: () => setOpen(a.id) },
                     { key: "edit", label: "Edit", onSelect: () => { api.app(a.id).then((full) => setEditing(full), (e) => setError(message(e))); } },
+                    { key: "embed", label: "Embed links…", onSelect: () => setEmbeds(a) },
                     { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setDeleting(a) }]} /></td>}
                 </tr>
               ))}
@@ -73,6 +78,7 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
           </table>
         </div>
       </div>
+      {embeds && <EmbedLinks api={api} app={embeds} onClose={() => setEmbeds(null)} onNotice={onNotice} />}
       {editing && <AppDesigner api={api} app={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(t) => { onNotice(t); setEditing(null); load(); }} />}
     </section>
   );
@@ -81,10 +87,10 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
 type Fields = Record<string, string | boolean>;
 
 /** Using an app: its pages, fields and buttons; runs started by a button are followed until they finish. */
-export function AppView({ api, appId, onBack }: { api: CrApi; appId: string; onBack?: () => void }) {
+export function AppView({ api, appId, onBack, initial }: { api: AppApi; appId: string; onBack?: () => void; initial?: Record<string, string> }) {
   const [app, setApp] = useState<AppInfo | null>(null);
   const [page, setPage] = useState<string>("");
-  const [fields, setFields] = useState<Fields>({});
+  const [fields, setFields] = useState<Fields>(initial ?? {});
   const [result, setResult] = useState<{ text: string; outputs?: Record<string, unknown>; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +134,7 @@ export function AppView({ api, appId, onBack }: { api: CrApi; appId: string; onB
   );
 }
 
-function AppPart({ api, appId, c, fields, setFields, result, busy, onPress }: { api: CrApi; appId: string; c: AppComponent; fields: Fields;
+function AppPart({ api, appId, c, fields, setFields, result, busy, onPress }: { api: AppApi; appId: string; c: AppComponent; fields: Fields;
   setFields: (f: Fields) => void; result: { text: string; outputs?: Record<string, unknown>; error?: boolean } | null; busy: boolean; onPress: (c: AppComponent) => void }) {
   const set = (v: string | boolean) => setFields({ ...fields, [c.name ?? ""]: v });
   switch (c.kind) {
@@ -154,7 +160,7 @@ function AppPart({ api, appId, c, fields, setFields, result, busy, onPress }: { 
   }
 }
 
-function AppRecords({ api, appId, c }: { api: CrApi; appId: string; c: AppComponent }) {
+function AppRecords({ api, appId, c }: { api: AppApi; appId: string; c: AppComponent }) {
   const [data, setData] = useState<{ records: { id: string; data: Record<string, unknown> }[]; total: number; fields: { name: string }[] } | null>(null);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -284,4 +290,56 @@ function ComponentEditor({ c, pages, onChange }: { c: AppComponent; pages: strin
     }
     default: return null;
   }
+}
+
+/**
+ * An app's embed links (G68): each names the sites that may show the app in a frame; its key is shown once. The
+ * Teams package puts the link in a Teams tab.
+ */
+function EmbedLinks({ api, app, onClose, onNotice }: { api: CrApi; app: AppInfo; onClose: () => void; onNotice: (t: string) => void }) {
+  const [list, setList] = useState<AppEmbed[] | null>(null);
+  const [v, setV] = useState({ name: "", origins: "" });
+  const [made, setMade] = useState<AppEmbed & { key: string; path: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => { api.appEmbeds(app.id).then(setList, (e) => setError(message(e))); }, [api, app.id]);
+  useEffect(() => { load(); }, [load]);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const make = () => api.makeAppEmbed(app.id, { name: v.name.trim(), origins: v.origins.split(/[\s,]+/).filter(Boolean) })
+    .then((r) => { setMade(r); setV({ name: "", origins: "" }); setError(null); load(); }, (e) => setError(message(e)));
+  const remove = (e: AppEmbed) => api.deleteAppEmbed(app.id, e.id).then(() => { onNotice("Removed the embed link " + e.name + "; pages using it stop working."); load(); }, (x) => setError(message(x)));
+  const teams = () => made && api.teamsPackage(app.id, made.id, made.key, origin).then((blob) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = app.name.replace(/[^A-Za-z0-9 _-]/g, "") + " Teams app.zip"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  }, (e) => setError(message(e)));
+  return (
+    <Dialog open title={"Embed links for " + app.name} width={760} onClose={onClose} footer={<Button kind="plain" onClick={onClose}>Close</Button>}>
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      <p className="cc-none">An embed link shows this app inside another site (Salesforce, ServiceNow, Teams, an intranet) without signing in.
+        Whoever has the link can use the app, with the rights of its publisher, so make one only for what that site's users may do.
+        Add fields to the link's query to fill them in, such as ?customer=ACME.</p>
+      {made && <div className="cc-list-bulk" role="status">
+        <span>The link for {made.name}, shown this once: copy it now.</span>
+        <TextInput readOnly mono aria-label="Embed link" value={origin + made.path} onFocus={(e) => e.currentTarget.select()} />
+        <Button kind="secondary" onClick={teams}>Teams app package</Button>
+        <Button kind="plain" onClick={() => setMade(null)}>Done</Button>
+      </div>}
+      <table className="cc-list-table" aria-label="Embed links">
+        <thead><tr><th scope="col">Link</th><th scope="col">Sites</th><th scope="col">Made</th><th scope="col">Last used</th><th scope="col"><span className="st-sr">Remove</span></th></tr></thead>
+        <tbody>
+          {(list ?? []).map((e) => <tr key={e.id} className="is-static"><td>{e.name}</td><td className="cc-clip" title={e.origins.join(" ")}>{e.origins.join(" ")}</td>
+            <td>{when(e.created)}</td><td>{e.last_used ? when(e.last_used) : "Never"}</td>
+            <td><Button kind="plain" aria-label={"Remove " + e.name} onClick={() => remove(e)}>Remove</Button></td></tr>)}
+          {list && !list.length && <tr className="is-static"><td colSpan={5} className="cc-none">No embed links yet.</td></tr>}
+        </tbody>
+      </table>
+      <h3 className="cc-log-title">New embed link</h3>
+      <div className="cc-grid2">
+        <Field label="Name">{(id) => <TextInput id={id} value={v.name} maxLength={80} placeholder="Salesforce account page" onChange={(e) => setV({ ...v, name: e.target.value })} />}</Field>
+        <Field label="Sites that may show it" hint="https:// addresses, separated by spaces; *. for every subdomain">{(id) =>
+          <TextInput id={id} value={v.origins} placeholder="https://acme.lightning.force.com https://*.teams.microsoft.com" onChange={(e) => setV({ ...v, origins: e.target.value })} />}</Field>
+      </div>
+      <p><Button kind="primary" disabled={!v.name.trim() || !v.origins.trim()} onClick={make}>Make the link</Button></p>
+    </Dialog>
+  );
 }

@@ -176,6 +176,7 @@ public final class ControlRoomServer {
             // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
             else if (path.equals("/") && ex.getRequestURI().getRawQuery() == null) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
+            else if (path.startsWith("/embed/")) embedPage(ex, path.substring(7));
             else if (path.equals("/documents") || path.startsWith("/documents/")) documentsPage(ex, path);
             else serveStatic(ex, path);
         } catch (OoaException e) {
@@ -388,6 +389,16 @@ public final class ControlRoomServer {
         }
 
         // ---------- public ----------
+        // apps embedded in other pages (G68): the embed key, never a session, and only for that link's app
+        if (seg.length >= 3 && seg[0].equals("embed")) {
+            String key = ex.getRequestHeaders().getFirst("X-OOA-Embed-Key");
+            if (m.equals("GET") && seg.length == 3 && seg[2].equals("app")) sendJson(ex, 200, cr.appEmbeds.app(seg[1], key));
+            else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.appEmbeds.act(seg[1], key, map(body(ex)), ip));
+            else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.appEmbeds.runStatus(seg[1], key, seg[3]));
+            else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.appEmbeds.records(seg[1], key, seg[3], q.get("q")));
+            else notFound(ex);
+            return;
+        }
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
             // with the sign-in notice set to be accepted, a sign-in without the tick is refused
@@ -1117,6 +1128,14 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.apps.act(u, seg[1], map(body(ex)), ip));
                 else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.apps.runStatus(u, seg[1], seg[3]));
                 else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.apps.records(u, seg[1], seg[3], q.get("q")));
+                // embed links (G68)
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("embeds")) sendJson(ex, 200, Map.of("embeds", cr.appEmbeds.list(u, seg[1])));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("embeds")) sendJson(ex, 200, cr.appEmbeds.make(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 4 && seg[2].equals("embeds")) { cr.appEmbeds.delete(u, seg[1], seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 5 && seg[2].equals("embeds") && seg[4].equals("teams")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendBytes(ex, cr.appEmbeds.teamsPackage(u, seg[1], seg[3], (String) b.get("key"), (String) b.get("base_url")), "application/zip", "teams-app.zip");
+                }
                 else notFound(ex);
             }
             case "data" -> {   // Manage > Data store (G66): entities and their records, storage buckets and their files
@@ -1248,6 +1267,29 @@ public final class ControlRoomServer {
                         + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
             }
             ex.getResponseHeaders().set("Content-Type", page ? "text/html; charset=utf-8" : TYPES.getOrDefault(file.substring(file.lastIndexOf('.') + 1), "application/octet-stream"));
+            writeBody(ex, 200, b);
+        }
+    }
+
+    /**
+     * /embed/&lt;link id&gt; (G68): the console's page for an app embedded in another site. Only the sites the link names
+     * may frame it; the key travels in the URL's fragment, never to this server in the page request.
+     */
+    private void embedPage(HttpExchange ex, String id) throws IOException {
+        if (id.startsWith("assets/")) { nextConsole(ex, id); return; }   // the page's files, by the same relative paths as under /next/
+        String origins = cr.appEmbeds.frameAncestors(id);
+        if (origins == null) { securityHeaders(ex); ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8"); writeBody(ex, 404, "No such embed link".getBytes(StandardCharsets.UTF_8)); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/console.html")) {
+            if (in == null) { securityHeaders(ex); writeBody(ex, 503, "The console was not built into this copy".getBytes(StandardCharsets.UTF_8)); return; }
+            byte[] r = new byte[16];
+            NONCES.nextBytes(r);
+            String nonce = Base64.getEncoder().encodeToString(r);
+            byte[] b = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+            securityHeaders(ex);
+            ex.getResponseHeaders().remove("X-Frame-Options");
+            ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce
+                + "'; script-src 'self'; frame-ancestors 'self' " + origins + "; base-uri 'none'; form-action 'self'");
+            ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
             writeBody(ex, 200, b);
         }
     }

@@ -544,6 +544,27 @@ If the publisher's account is switched off, the app stops working until someone 
 **Audience**: everyone signed in, or only the roles ticked. Every button press is audited as `app:<name> for <person>`,
 and runs started from an app have the source `app:<id>`; only the person who started a run follows it in the app.
 
+### Apps inside other sites (embed links)
+
+An app can be shown inside another site, so people use it where they work: a Salesforce or ServiceNow record page, a
+Teams tab, an intranet page. In **Build > Apps**, an app's menu > **Embed links…** makes a link and names the sites
+that may show it (https:// addresses, `*.` for every subdomain, up to 10). The link looks like
+`https://<One CommandCenter>/embed/emb_...#k=ooae_...` and is shown once; copy it then.
+
+- **No sign-in**: whoever has the link can use that one app (nothing else), with the publisher's rights as for any use
+  of the app. Make a link only for what the people of that site may do, and remove it in Embed links to stop it.
+- **The key** is the part after `#`. Browsers never send it to servers or in Referer headers; the page sends it with
+  each of its calls. One CommandCenter keeps only its hash.
+- **Framing**: only the sites named may frame the page; the console itself still cannot be framed.
+- **Fields from the site**: add them to the link's query, before the `#`, to fill the app's fields, such as
+  `.../embed/emb_123?caller={!Contact.Phone}#k=...` in a Salesforce Visualforce page or Lightning web tab, or a
+  ServiceNow UI page's iframe with `?ticket=${current.number}`.
+- **Teams**: right after making the link, **Teams app package** downloads a zip (manifest and icons) whose personal tab
+  shows the app. Upload it in Teams admin (Manage apps > Upload) or in Teams (Apps > Manage your apps > Upload).
+  One CommandCenter must be reachable over https:// for Teams.
+- The IP allow list (Settings) applies to embedded apps too: allow the addresses of the people who will use them.
+- Each press is audited as `app:<name> for embed:<link name>`, and the link list shows when each link was last used.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**

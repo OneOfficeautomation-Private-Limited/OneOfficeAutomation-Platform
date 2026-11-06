@@ -767,9 +767,19 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE app_runs (run_id VARCHAR(40) PRIMARY KEY, app_id VARCHAR(40) NOT NULL, username VARCHAR(80) NOT NULL, created TIMESTAMP NOT NULL)",
     };
 
+    /**
+     * Version 44 (gap G68, 6 Nov 2026): embed links for apps. Each names the sites that may show the app in a frame
+     * (origins, separated by spaces) and keeps its key only as a SHA-256 hash; last_used says when a page last used it.
+     */
+    private static final String[] SCHEMA_V44 = {
+        "CREATE TABLE app_embeds (id VARCHAR(40) PRIMARY KEY, app_id VARCHAR(40) NOT NULL, name VARCHAR(80) NOT NULL, key_hash VARCHAR(64) NOT NULL, "
+            + "origins VARCHAR(2000) NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80), last_used TIMESTAMP)",
+        "CREATE INDEX app_embeds_app ON app_embeds (app_id)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 43;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43 };
+    public static final int LATEST = 44;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

@@ -222,6 +222,7 @@ export type AppAction = { kind: string; agent?: string; runner?: string; pool?: 
 export type AppComponent = { id: string; kind: string; text?: string; name?: string; label?: string; hint?: string; type?: string; required?: boolean; choices?: string[];
   style?: string; requires?: string[]; action?: AppAction; entity?: string; title?: string; columns?: string[]; sort?: string };
 export type AppDefinition = { pages: { id: string; title: string; components: AppComponent[] }[] };
+export type AppEmbed = { id: string; app_id: string; name: string; origins: string[]; created: string; created_by?: string; last_used?: string | null };
 export type AppInfo = { id: string; name: string; description?: string | null; audience: string[]; published_by: string; updated?: string; definition?: AppDefinition; can_edit?: boolean };
 /** The business data store (G66): entities with typed fields and their records, and storage buckets of files. */
 export type DataField = { name: string; type: string; required?: boolean; unique?: boolean; choices?: string[] };
@@ -539,6 +540,16 @@ export class CrApi {
   app(id: string) { return this.call<AppInfo>("GET", "apps/" + encodeURIComponent(id)); }
   saveApp(id: string | null, body: { name: string; description?: string; audience: string[]; definition: AppDefinition }) {
     return this.call<AppInfo>(id ? "PUT" : "POST", "apps" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async appEmbeds(id: string) { return (await this.call<{ embeds?: AppEmbed[] }>("GET", "apps/" + encodeURIComponent(id) + "/embeds")).embeds ?? []; }
+  makeAppEmbed(id: string, body: { name: string; origins: string[] }) { return this.call<AppEmbed & { key: string; path: string }>("POST", "apps/" + encodeURIComponent(id) + "/embeds", body); }
+  async deleteAppEmbed(id: string, embed: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed)); }
+  /** A Teams app package (zip) whose tab shows the embed link; the key is needed again, as only its hash is kept. */
+  async teamsPackage(id: string, embed: string, key: string, baseUrl: string) {
+    const res = await this.fetcher(this.base + "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed) + "/teams", { method: "POST", credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify({ key, base_url: baseUrl }) });
+    if (!res.ok) { let d: { error?: CrError } = {}; try { d = JSON.parse(await res.text()); } catch { /* not JSON */ } throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Failed" }); }
+    return res.blob();
+  }
   async deleteApp(id: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id)); }
   appAct(id: string, component: string, fields: Record<string, unknown>) {
     return this.call<{ run_id?: string; record_id?: string; item_id?: string; page?: string; message?: string; outputs?: Record<string, unknown> }>("POST", "apps/" + encodeURIComponent(id) + "/act", { component, fields }); }
