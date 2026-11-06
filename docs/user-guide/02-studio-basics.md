@@ -195,6 +195,14 @@ The **Create ▾** menu also offers (each opens the same kind of dialog, with **
 A blueprint (a ready-made pattern such as Loop through a CSV file or Agent with error handling) is chosen in the
 **New agent** dialog's **Start from**.
 
+Blueprints for common agent shapes:
+
+| Blueprint | What you get |
+|---|---|
+| **Transactional framework (work queue)** | Subflows **Init**, **Get item**, **Process** and **End**. It takes items from the queue named in the `queue` input one at a time, marks each one completed, and marks it failed. A `BUSINESS.*` error (use **Throw**, for example `BUSINESS.REJECTED`) fails the item at once. Any other error puts it back for another try, up to `max_attempts`. The outputs `processed` and `failed` give the counts. An error in Init or End stops the agent through its **On error** handler. Put your steps in **Process**, using `item_data`. |
+| **Attended: ask, confirm, act** | For an agent a person starts at their desk. It asks for a reference, asks for a yes before acting, and shows the result. Cancelling ends the run quietly. |
+| **Attended: pick a file and process it** | The person chooses a file, and the agent works on it and shows the outcome. An error is shown in a message and still fails the run. |
+
 ### 5.2 Create a folder
 
 1. Select the parent folder in the Explorer.

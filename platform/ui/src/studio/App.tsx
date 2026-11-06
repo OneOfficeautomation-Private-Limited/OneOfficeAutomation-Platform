@@ -381,9 +381,10 @@ export function App({ api: given }: { api?: StudioApi }) {
     const path = await api.create(kind, parent, name);
     if (kind === "AiAgent") await api.saveBot(path, aiAgentTemplate(await api.bot(path)));
     if (from) {
-      // the new agent keeps its own id and name; the blueprint gives its description, variables and steps
+      // the new agent keeps its own id and name; the blueprint gives its description, variables, steps, subflows and error handler
       const flow = await api.bot(path);
-      await api.saveBot(path, { ...flow, description: from.description, variables: structuredClone(from.variables), steps: structuredClone(from.steps) });
+      await api.saveBot(path, { ...flow, description: from.description, variables: structuredClone(from.variables), steps: structuredClone(from.steps),
+        ...(from.subflows ? { subflows: structuredClone(from.subflows) } : {}), ...(from.onError ? { onError: structuredClone(from.onError) } : {}) });
     }
     await reloadTree();
     // the new item opens in a tab, ready to edit
@@ -545,7 +546,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                 onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
               ? <Automation view={view} tree={tree}
-                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
+                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled([...b.steps, ...(b.subflows ?? []).flatMap((s) => s.steps), ...(b.onError?.steps ?? [])], packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
                   api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
