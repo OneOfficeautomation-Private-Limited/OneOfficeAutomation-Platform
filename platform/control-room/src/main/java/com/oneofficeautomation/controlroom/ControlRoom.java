@@ -78,6 +78,8 @@ public final class ControlRoom {
     public final EnvironmentLocks locks;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
+    /** Auto-scaling runner pools (G52). */
+    final PoolScaling poolScaling;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
     public final EventSubscriptions events;
     /** The Prometheus metrics (gap G38). */
@@ -156,6 +158,7 @@ public final class ControlRoom {
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
         this.runWaits = new RunWaits(this);
+        this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);
         this.gitSync = new GitSync(this, dataDir);
@@ -1490,7 +1493,10 @@ public final class ControlRoom {
         if ((deviceId == null || deviceId.isBlank()) && poolId != null && !poolId.isBlank()) {
             platform.requirePoolUse(requestedBy, role, poolId);
             deviceId = platform.pickDevice(poolId);
-            if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
+            if (deviceId == null) {
+                poolScaling.noRunner(poolId);   // demand for an auto-scaling pool (G52)
+                throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
+            }
         }
         if (deviceId == null || deviceId.isBlank()) throw new OoaException("CR.BAD_INPUT", "Choose a runner or a runner pool");
         boolean serverlessRun = ServerlessRuns.DEVICE.equals(deviceId);

@@ -607,6 +607,9 @@ export class CrApi {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);
   }
   async deletePool(id: string) { await this.call("DELETE", "pools/" + encodeURIComponent(id)); }
+  /** G52: a pool's auto-scaling and what it would ask for now. */
+  poolScaling(id: string) { return this.call<{ scaling: PoolScaling; now: PoolScalingNow }>("GET", "pools/" + encodeURIComponent(id) + "/scaling"); }
+  savePoolScaling(id: string, b: PoolScaling) { return this.call<{ scaling: PoolScaling; now: PoolScalingNow }>("PUT", "pools/" + encodeURIComponent(id) + "/scaling", b); }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
   // ---- Alerts: rules checked once a minute, and the alerts they raised ----
   alerts(params: Record<string, string>) { return this.call<{ alerts: Alert[]; open: number }>("GET", "alerts?" + new URLSearchParams(params).toString()); }
@@ -692,3 +695,6 @@ export class CrApi {
   operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }
+
+export type PoolScaling = { enabled?: boolean; min?: number | ""; max?: number | ""; runs_per_runner?: number | ""; cooldown_minutes?: number | ""; provider?: string; [k: string]: unknown };
+export type PoolScalingNow = { queued: number; running: number; refused_recently: number; online: number; desired: number };

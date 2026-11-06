@@ -224,6 +224,28 @@ goes to its least busy online runner.
 The list shows each pool's runners with a status dot and **Online** "n of m". Put runners with the same applications
 and toolkits in one pool, so any of them can take any run.
 
+### 9.1 Auto-scaling pools
+
+One CommandCenter can make a pool's machines follow its work in your own cloud. On a pool's row menu, choose
+**Auto-scaling** (needs `devices.manage`) and tick **Scale this pool by its work**:
+
+| Setting | Meaning |
+| --- | --- |
+| **Fewest machines**, **Most machines** | The range (0 to 500). With 0 the pool may have no machines when there is no work |
+| **Runs per machine** | How many waiting and running runs one machine takes |
+| **Minutes between changes** | How long after a change before the size changes again |
+| **Where the size goes** | **A webhook** (any cloud or tool): a POST of `{"pool", "desired", "at"}`, signed with HMAC-SHA256 in `X-OOA-Signature: sha256=...` when a signing secret is set. **AWS Auto Scaling group**: its desired capacity is set, with an access key kept in the vault. **Azure virtual machine scale set**: its capacity is set, signed in as an app (client secret in the vault) |
+
+Every minute, One CommandCenter counts the pool's waiting and running runs, plus the runs refused in the last ten
+minutes because no runner of the pool was online, so an empty pool still grows when work arrives. It divides by **Runs
+per machine**, keeps the result within the range, and sends it when it changed. Each change is recorded in Audit Trail as
+`pool.scale`, including failures. The dialog shows the figures and the size it would ask for now.
+
+Machines that start must register as runners of the pool by themselves: make a **Temporary runner** key and use it in
+their start-up script (`ooa agent register --url ... --key ... --keep-existing`, then `ooa agent install-task`), and add
+them to the pool. Removed machines go offline, and temporary runners are cleaned up (section 10). A webhook may be plain
+http only to this computer (a scaling script beside One CommandCenter); otherwise it is https.
+
 ## 10. Temporary runners
 
 For pooled virtual desktops or short-lived machines, tick **Temporary runner** when making the registration key. The

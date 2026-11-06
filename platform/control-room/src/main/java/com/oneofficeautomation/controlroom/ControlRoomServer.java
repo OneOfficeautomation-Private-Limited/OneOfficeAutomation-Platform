@@ -151,6 +151,7 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
         // long-running agents (G36): resume suspended runs whose wait is over or timed out
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.runWaits.tick(); } catch (RuntimeException ignored) { } }, 6, 5, TimeUnit.SECONDS);
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.poolScaling.tick(); } catch (RuntimeException ignored) { } }, 30, 60, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
         // documents waiting for review in Document Automation become Task inbox tasks
@@ -727,6 +728,8 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
                 else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("scaling")) sendJson(ex, 200, cr.poolScaling.get(u, seg[1]));
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("scaling")) sendJson(ex, 200, cr.poolScaling.put(u, seg[1], map(body(ex)), ip));
                 else notFound(ex);
             }
             case "apitasks" -> {
