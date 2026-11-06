@@ -1,0 +1,91 @@
+{{- include "ooa.checks" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ooa.fullname" . }}
+  labels:
+    {{- include "ooa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: command-center
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.database.url }}
+  strategy: { type: Recreate }   # the evaluation database is a file on the volume: never two pods at once
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ooa.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ooa.labels" . | nindent 8 }}
+        app.kubernetes.io/component: command-center
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: command-center
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8720
+          env:
+            - name: OOA_PORT
+              value: "8720"
+            - name: JAVA_OPTS
+              value: {{ .Values.javaOpts | quote }}
+            {{- if .Values.masterKey.existingSecret }}
+            - name: OOA_MASTER_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.masterKey.existingSecret | quote }}, key: {{ .Values.masterKey.key | quote }} } }
+            {{- end }}
+            {{- if .Values.database.url }}
+            - name: OOA_DB_URL
+              value: {{ .Values.database.url | quote }}
+            - name: OOA_DB_USER
+              value: {{ .Values.database.user | quote }}
+            - name: OOA_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.database.existingSecret | quote }}, key: {{ .Values.database.passwordKey | quote }} } }
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /api/health/ready, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "ooa.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,87 @@
+# One CommandCenter on Kubernetes (gap G53). See docs/infrastructure/03-installation-linux-and-containers.md.
+#
+# Production needs an external SQL Server or PostgreSQL database (database.url) and the vault key from a Secret
+# (masterKey.existingSecret). Without database.url the built-in evaluation database lives on the data volume, which
+# allows one replica only.
+
+image:
+  repository: ooa-command-center   # build it with platform/docker/Dockerfile and push it to your registry
+  tag: "0.2.0"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+replicaCount: 1                    # more than one needs database.url (the nodes share the database and elect a leader)
+
+# The vault master key (32 random bytes, Base64): keep it in a Secret you make yourself, apart from backups.
+#   kubectl create secret generic ooa-master-key --from-literal=key=$(openssl rand -base64 32)
+masterKey:
+  existingSecret: ""               # Secret name; empty: a key file is made on the data volume (evaluation only)
+  key: key
+
+database:
+  url: ""                          # e.g. jdbc:sqlserver://sql:1433;databaseName=ooa_command_center;encrypt=true
+  user: ooa_app
+  existingSecret: ""               # Secret holding the password
+  passwordKey: password
+
+javaOpts: "-Xmx2g -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true"
+extraEnv: []                       # more environment variables, as a list of {name, value} or {name, valueFrom}
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce        # ReadWriteMany when replicaCount > 1 and repository files or backups stay on the volume
+  existingClaim: ""
+
+service:
+  type: ClusterIP
+  port: 8720
+
+ingress:
+  enabled: false
+  className: ""
+  host: ooa.example.com
+  annotations: {}
+  tlsSecret: ""                    # a TLS Secret for the host; One CommandCenter then sees https through the proxy
+
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { memory: 3Gi }
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001                 # any non-root id: the image runs from /opt/ooa (read-only) and /data (this volume, group fsGroup)
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile: { type: RuntimeDefault }
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Outgoing connections: allow DNS, the database and HTTPS only (AI providers, e-mail and SIEM may need more ports).
+networkPolicy:
+  enabled: false
+  extraEgressPorts: []             # e.g. [587] for SMTP, [514] for syslog
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Headless runners in the cluster, for agents that need no screen (APIs, files, databases, documents). Make a
+# registration key in One CommandCenter (Runners > Register a runner; tick Temporary runner) and keep it in a Secret:
+#   kubectl create secret generic ooa-runner-key --from-literal=key=ooareg_...
+runners:
+  enabled: false
+  replicas: 2
+  existingSecret: ooa-runner-key
+  secretKey: key
+  url: ""                          # One CommandCenter as the runners reach it; empty: the service in this release
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 2Gi }

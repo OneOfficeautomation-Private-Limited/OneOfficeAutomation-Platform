@@ -1,0 +1,17 @@
+One CommandCenter is starting as {{ include "ooa.fullname" . }} ({{ .Values.replicaCount }} replica(s)).
+
+{{- if .Values.ingress.enabled }}
+Open https://{{ .Values.ingress.host }}/ when the pods are ready, and set Administration > Settings > Public address to it.
+{{- else }}
+Reach it with:  kubectl port-forward svc/{{ include "ooa.fullname" . }} 8720:{{ .Values.service.port }}   then open http://localhost:8720/
+{{- end }}
+
+The first administrator's one-time password is in the log of the first start:
+  kubectl logs deploy/{{ include "ooa.fullname" . }} | grep -i password
+
+{{- if not .Values.database.url }}
+WARNING: no database.url, so the built-in evaluation database is used (one replica, not for production).
+{{- end }}
+{{- if not .Values.masterKey.existingSecret }}
+WARNING: no masterKey.existingSecret, so the vault key is a file on the data volume. Keep a copy of it apart from backups.
+{{- end }}
