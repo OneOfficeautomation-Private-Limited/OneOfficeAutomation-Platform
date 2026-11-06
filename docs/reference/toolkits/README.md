@@ -35,6 +35,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
 | [Document Automation](ooa-documents.md) | `ooa.documents` | 1 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process and get the fields it reads. |
+| [Document processing](ooa-idp.md) | `ooa.idp` | 4 | 0 | 0 | Classify documents by type, extract fields by rules, and extract with AI that learns from validated examples. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
 | [Environment locks](ooa-locks.md) | `ooa.locks` | 3 | 1 | 0 | Named locks that one agent run holds at a time, so two runners never use the same single-user system together. |
@@ -103,4 +104,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 92 toolkits, 1255 actions, 50 conditions and 15 loop types.
+In all: 93 toolkits, 1259 actions, 50 conditions and 15 loop types.
