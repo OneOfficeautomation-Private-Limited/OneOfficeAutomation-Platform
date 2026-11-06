@@ -2013,6 +2013,14 @@ public final class ControlRoom {
                 else { control(as, job, "stop", null); out = Map.of("stopped", true, "status", "stopping"); }
             }
             case "raise_alert" -> out = alerts.raiseFromRun(run, (String) args.get("message"), (String) args.get("severity"), (String) args.get("subject"));
+            case "calendar" -> {   // gap G34: a holiday calendar for ooa.datetime's working-day actions, read as the run's user
+                String cal = args.get("name") instanceof String s ? s.strip() : "";
+                out = platform.calendarFor(as, cal);
+                if (out == null) throw new OoaException("CALENDAR.NOT_FOUND", "There is no holiday calendar '" + cal + "' in One CommandCenter",
+                        "Check the name under Manage > Schedules > Holiday calendars, or give the holidays and weekend on the step.");
+                audit.record(actor, "agent.calendar", "calendar", cal, Map.of("from_run", runId), "ok", null);
+                return out;
+            }
             default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
         }
         if (!call.equals("raise_alert")) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);

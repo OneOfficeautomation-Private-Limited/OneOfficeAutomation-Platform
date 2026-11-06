@@ -1699,22 +1699,98 @@ public final class Platform {
     public List<Map<String, Object>> calendars(User by) {
         cr.require(by, "schedules.view", "view schedules");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT * FROM holiday_calendars ORDER BY name")) {
-            Map<String, Object> m = new LinkedHashMap<>(c);
-            m.put("dates", csv(c.get("dates")));
-            out.add(m);
-        }
+        for (Map<String, Object> c : db.query("SELECT * FROM holiday_calendars ORDER BY name")) out.add(calendarRecord(c));
         return out;
     }
 
-    public void saveCalendar(User by, String name, Object dates, String ip) {
+    /** A calendar as the console and agents see it: its dates as a list and its weekend as a list of MON..SUN. */
+    private static Map<String, Object> calendarRecord(Map<String, Object> c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : c.entrySet()) m.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue());
+        m.put("dates", csv(c.get("dates")));
+        m.put("weekend", weekendDays(c.get("weekend") == null ? null : String.valueOf(c.get("weekend"))));
+        return m;
+    }
+
+    /** Days of the week in calendar order, as stored in holiday_calendars.weekend. */
+    static final List<String> WEEK = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
+
+    /** The weekend days a stored value means: empty or null is SAT,SUN (as before version 37), NONE is no weekend. */
+    static List<String> weekendDays(String stored) {
+        if (stored == null || stored.isBlank()) return List.of("SAT", "SUN");
+        if (stored.trim().equalsIgnoreCase("NONE")) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String d : WEEK) if (csv(stored).contains(d)) out.add(d);
+        return out;
+    }
+
+    /**
+     * The value stored for a weekend given as a list or comma text of day names (MON or Monday, any case). Nothing given
+     * means SAT,SUN; NONE (or an empty list in a list with NONE) means every day is a working day.
+     */
+    static String weekendValue(Object given) {
+        List<String> parts = new ArrayList<>();
+        if (given instanceof List<?> l) { for (Object o : l) if (o != null) parts.addAll(csv(String.valueOf(o))); }
+        else if (given != null) parts.addAll(csv(String.valueOf(given).replace(';', ',').replace(' ', ',')));
+        parts.removeIf(String::isBlank);
+        if (parts.isEmpty()) return "SAT,SUN";
+        if (parts.size() == 1 && parts.get(0).equalsIgnoreCase("NONE")) return "NONE";
+        Set<String> days = new HashSet<>();
+        for (String p : parts) {
+            String d = p.trim().toUpperCase(Locale.ROOT);
+            String day = d.length() >= 3 ? d.substring(0, 3) : d;
+            if (!WEEK.contains(day) || d.length() > 3 && !java.time.DayOfWeek.valueOf(fullDay(day)).name().equals(d))
+                throw new OoaException("CR.BAD_INPUT", "Not a day of the week: " + p, "Use MON, TUE, WED, THU, FRI, SAT, SUN (or NONE for no weekend).");
+            days.add(day);
+        }
+        if (days.size() == 7) throw new OoaException("CR.BAD_INPUT", "A calendar needs at least one working day in the week", "Leave at least one day out of the weekend.");
+        List<String> out = new ArrayList<>();
+        for (String d : WEEK) if (days.contains(d)) out.add(d);
+        return String.join(",", out);
+    }
+
+    private static String fullDay(String three) {
+        for (java.time.DayOfWeek d : java.time.DayOfWeek.values()) if (d.name().startsWith(three)) return d.name();
+        return three;
+    }
+
+    public void saveCalendar(User by, String name, Object dates, String ip) { saveCalendar(by, name, dates, null, false, ip); }
+
+    /**
+     * Adds or changes a calendar. The weekend is changed only when weekendGiven (a calendar saved without one keeps its
+     * weekend; a new one gets SAT,SUN). Audited with the number of dates and the weekend.
+     */
+    public void saveCalendar(User by, String name, Object dates, Object weekend, boolean weekendGiven, String ip) {
         cr.require(by, "schedules.manage", "manage holiday calendars");
         if (name == null || !name.matches("^[A-Za-z0-9 _.-]{1,80}$")) throw new OoaException("CR.BAD_INPUT", "Calendar names use letters, digits, spaces and . _ -");
         List<String> ds = new ArrayList<>(new TreeSet<>(csv(dates)));
         for (String d : ds) try { LocalDate.parse(d); } catch (RuntimeException e) { throw new OoaException("CR.BAD_INPUT", "Not a date: " + d, "Use YYYY-MM-DD."); }
-        if (db.update("UPDATE holiday_calendars SET dates = ?, updated = ?, updated_by = ? WHERE name = ?", String.join(",", ds), now(), by.username(), name) == 0)
-            db.update("INSERT INTO holiday_calendars (name, dates, updated, updated_by) VALUES (?,?,?,?)", name, String.join(",", ds), now(), by.username());
-        cr.audit.record(by.username(), "calendar.save", "calendar", name, Map.of("dates", ds.size()), "ok", ip);
+        Map<String, Object> before = db.one("SELECT weekend FROM holiday_calendars WHERE name = ?", name);
+        String wk = weekendGiven ? weekendValue(weekend)
+            : before != null && before.get("weekend") != null ? String.valueOf(before.get("weekend")) : "SAT,SUN";
+        if (db.update("UPDATE holiday_calendars SET dates = ?, weekend = ?, updated = ?, updated_by = ? WHERE name = ?", String.join(",", ds), wk, now(), by.username(), name) == 0)
+            db.update("INSERT INTO holiday_calendars (name, dates, weekend, updated, updated_by) VALUES (?,?,?,?,?)", name, String.join(",", ds), wk, now(), by.username());
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("dates", ds.size());
+        details.put("weekend", wk);
+        String was = before == null ? null : String.join(",", weekendDays(before.get("weekend") == null ? null : String.valueOf(before.get("weekend"))));
+        String now = String.join(",", weekendDays(wk));
+        if (was != null && !was.equals(now)) details.put("weekend_was", was.isEmpty() ? "NONE" : was);
+        cr.audit.record(by.username(), "calendar.save", "calendar", name, details, "ok", ip);
+    }
+
+    /**
+     * A calendar for a running agent (ooa.datetime working-day actions), read as the run's user: they need View
+     * schedules, as in the console. Null when there is no calendar of that name.
+     */
+    Map<String, Object> calendarFor(User as, String name) {
+        cr.require(as, "schedules.view", "read holiday calendars");
+        Map<String, Object> c = name == null ? null : db.one("SELECT name, dates, weekend FROM holiday_calendars WHERE name = ?", name.strip());
+        if (c == null) return null;
+        Map<String, Object> m = calendarRecord(c);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("name", m.get("name")); out.put("dates", m.get("dates")); out.put("weekend", m.get("weekend"));
+        return out;
     }
 
     public void deleteCalendar(User by, String name, String ip) {

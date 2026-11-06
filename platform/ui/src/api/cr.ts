@@ -173,6 +173,8 @@ export type HumanTask = { id: string; title: string; description?: string | null
   /** Where it comes from: its workflow's name and the request's reference. */
   workflow?: string | null; reference?: string | null };
 /** A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily or weekly. */
+/** A holiday calendar: dates schedules skip, and (gap G34) the weekend agents' working-day steps skip too. */
+export type HolidayCalendar = { name: string; dates: string[]; weekend?: string[]; updated?: string; updated_by?: string };
 export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly";
   every_minutes?: number | null; at_time?: string | null; days?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
   created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null;
@@ -409,8 +411,11 @@ export class CrApi {
   async deleteSchedule(id: string) { await this.call("DELETE", "schedules/" + encodeURIComponent(id)); }
   runSchedule(id: string) { return this.call<{ run_id: string }>("POST", "schedules/" + encodeURIComponent(id) + "/run"); }
   bulkSchedules(ids: string[], action: "enable" | "disable" | "owner", owner?: string) { return this.call<{ changed: number }>("POST", "schedules/bulk", { ids, action, ...(owner ? { owner } : {}) }); }
-  async calendars() { return (await this.call<{ calendars?: { name: string; dates: string[]; updated?: string; updated_by?: string }[] }>("GET", "calendars")).calendars ?? []; }
-  async saveCalendar(name: string, dates: string[]) { await this.call("PUT", "calendars/" + encodeURIComponent(name), { dates }); }
+  async calendars() { return (await this.call<{ calendars?: HolidayCalendar[] }>("GET", "calendars")).calendars ?? []; }
+  /** Saves a calendar's dates; its weekend too when given (days MON..SUN; an empty list means every day is a working day). */
+  async saveCalendar(name: string, dates: string[], weekend?: string[]) {
+    await this.call("PUT", "calendars/" + encodeURIComponent(name), weekend === undefined ? { dates } : { dates, weekend: weekend.length ? weekend : "NONE" });
+  }
   async deleteCalendar(name: string) { await this.call("DELETE", "calendars/" + encodeURIComponent(name)); }
   /** Agents with their live (production) version, for choosing what a schedule, trigger or queue runs. */
   async liveAgents() { return ((await this.call<{ bots?: { path: string; production_version?: number | null }[] }>("GET", "repo")).bots ?? []).filter((b) => b.production_version && b.path.endsWith(".flow.json")); }
