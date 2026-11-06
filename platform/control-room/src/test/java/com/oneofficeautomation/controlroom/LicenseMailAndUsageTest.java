@@ -186,7 +186,7 @@ class LicenseMailAndUsageTest {
             @SuppressWarnings("unchecked") List<Map<String, Object>> trend = (List<Map<String, Object>>) u.get("trend");
             assertEquals(License.TYPES.size(), trend.size(), "today's figure for each licence type");
             cr.licensing.usage(admin, 30);
-            assertEquals(4, cr.count("SELECT COUNT(*) AS n FROM license_usage"), "one snapshot a day");
+            assertEquals(License.TYPES.size(), cr.count("SELECT COUNT(*) AS n FROM license_usage"), "one snapshot a day");
 
             String csv = cr.licensing.usageCsv(admin);
             assertTrue(csv.startsWith("license,holder_type,holder,name"), csv);
