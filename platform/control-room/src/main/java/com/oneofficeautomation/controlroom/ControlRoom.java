@@ -2640,9 +2640,10 @@ public final class ControlRoom {
     }
 
     /**
-     * A runner reports a local event (file or folder, window, process, service, hotkey) for one of its triggers. The
-     * agent receives trigger_event (all details) and, by kind, trigger_file, trigger_window, trigger_process,
-     * trigger_service or trigger_hotkey.
+     * A runner reports a local event (file or folder, window, process, service, hotkey, key press, click) for one of its
+     * triggers. The agent receives trigger_event (all details) and, by kind, trigger_file, trigger_window,
+     * trigger_process, trigger_service, trigger_hotkey, trigger_key (the configured key) or trigger_click (the clicked
+     * element's name, else the window title).
      */
     public Map<String, Object> localFired(Map<String, Object> d, String tid, Map<String, Object> event) {
         Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND device_id = ? AND enabled = TRUE", tid, d.get("id"));
@@ -2656,8 +2657,9 @@ public final class ControlRoom {
         ev.put("trigger_name", t.get("name"));
         ev.putIfAbsent("time", now().toString());
         String input = kind.startsWith("window") ? "trigger_window" : kind.startsWith("process") ? "trigger_process" : kind.startsWith("service") ? "trigger_service"
-                : kind.equals("hotkey") ? "trigger_hotkey" : "trigger_file";
-        Object main = ev.get(switch (input) { case "trigger_window" -> "title"; case "trigger_process" -> "process"; case "trigger_service" -> "service"; case "trigger_hotkey" -> "hotkey"; default -> "path"; });
+                : kind.equals("hotkey") ? "trigger_hotkey" : kind.equals("key_pressed") ? "trigger_key" : kind.equals("mouse_clicked") ? "trigger_click" : "trigger_file";
+        Object main = ev.get(switch (input) { case "trigger_window" -> "title"; case "trigger_process" -> "process"; case "trigger_service" -> "service"; case "trigger_hotkey" -> "hotkey";
+            case "trigger_key" -> "key"; case "trigger_click" -> ev.get("element_name") instanceof String n && !n.isBlank() ? "element_name" : "window"; default -> "path"; });
         Map<String, Object> in = new LinkedHashMap<>();
         in.put("trigger_event", ev);
         if (main != null) in.put(input, String.valueOf(main));

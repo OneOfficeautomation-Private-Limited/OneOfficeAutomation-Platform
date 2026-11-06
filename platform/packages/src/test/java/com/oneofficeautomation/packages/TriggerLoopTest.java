@@ -1,6 +1,8 @@
 package com.oneofficeautomation.packages;
 
+import com.oneofficeautomation.packages.ui.InputTriggersTest.FakeNative;
 import com.oneofficeautomation.sdk.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.*;
@@ -134,5 +136,66 @@ class TriggerLoopTest {
         assertFalse(TriggerLoopPackage.nameMatches("notepad.exe", "note"));
         assertTrue(TriggerLoopPackage.nameMatches("NOTEPAD.EXE", "notepad"));
         assertTrue(TriggerLoopPackage.nameMatches("notepad", "notepad.exe"));
+    }
+
+    // ---------- key presses and clicks (fake hooks) ----------
+
+    @AfterEach void realHooks() {
+        TriggerLoopPackage.inputHooks = () -> com.oneofficeautomation.packages.ui.DesktopEvents.installed().flatMap(com.oneofficeautomation.packages.ui.DesktopEvents::input);
+        TriggerLoopPackage.clockMs = System::currentTimeMillis;
+    }
+
+    static void await(java.util.function.BooleanSupplier ok) throws InterruptedException {
+        for (int i = 0; i < 200 && !ok.getAsBoolean(); i++) Thread.sleep(10);
+        assertTrue(ok.getAsBoolean());
+    }
+
+    @Test void keyPressedInsideALoopStepUnhooksWhenTheLoopEnds() throws Exception {
+        FakeNative n = new FakeNative();
+        long[] now = {0};
+        TriggerLoopPackage.inputHooks = () -> Optional.of(n);
+        TriggerLoopPackage.clockMs = () -> now[0] += 1000;   // every press is a second after the last: no debouncing here
+        Thread presser = later(0, () -> {
+            await(() -> n.key != null);
+            n.press("Notepad", "notepad.exe");                 // not the named window
+            n.press("Invoice 7 - ERP", "erp.exe");
+            n.press("Invoice 8 - ERP", "erp.exe");
+        });
+        Map<String, Object> o = run(tmp(), "[{\"name\":\"ev\",\"type\":\"Dictionary\"},{\"name\":\"seen\",\"type\":\"String\",\"direction\":\"output\",\"default\":\"\"}]",
+                "[{\"id\":\"l\",\"action\":\"core/loop\",\"args\":{\"iterator\":\"ooa.triggerloop/key_pressed\","
+                + "\"iterator_args\":{\"key\":\"ctrl+enter\",\"window\":\"*ERP\",\"max_events\":2,\"max_seconds\":10},\"as\":\"ev\"},\"children\":["
+                + "{\"id\":\"a\",\"action\":\"core/set\",\"args\":{\"variable\":\"seen\",\"value\":{\"expr\":\"$seen + $ev.key + '@' + $ev.window + ';'\"}}}]}]", Map.of());
+        presser.join(5000);
+        assertEquals("CTRL+ENTER@Invoice 7 - ERP;CTRL+ENTER@Invoice 8 - ERP;", o.get("seen"));
+        assertNull(n.key, "the hook is removed when the loop ends");
+        assertEquals(1, n.hooksClosed);
+    }
+
+    @Test void exitLoopUnhooksTheClickWatch() throws Exception {
+        FakeNative n = new FakeNative();
+        n.elements.put("5,5", Map.of("Name", "Approve", "ControlType", "Button", "AutomationId", "ok"));
+        TriggerLoopPackage.inputHooks = () -> Optional.of(n);
+        Thread clicker = later(0, () -> { await(() -> n.mouse != null); n.click("left", 5, 5, "ERP", "erp.exe"); });
+        Map<String, Object> o = run(tmp(), "[{\"name\":\"ev\",\"type\":\"Dictionary\"},{\"name\":\"what\",\"type\":\"String\",\"direction\":\"output\",\"default\":\"\"}]",
+                "[{\"id\":\"l\",\"action\":\"core/loop\",\"args\":{\"iterator\":\"ooa.triggerloop/mouse_clicked\","
+                + "\"iterator_args\":{\"process\":\"erp\",\"element_type\":\"Button\",\"max_seconds\":10},\"as\":\"ev\"},\"children\":["
+                + "{\"id\":\"a\",\"action\":\"core/set\",\"args\":{\"variable\":\"what\",\"value\":{\"expr\":\"$ev.element_type + ' ' + $ev.element_name + ' ' + $ev.event\"}}},"
+                + "{\"id\":\"x\",\"action\":\"core/break\"}]}]", Map.of());
+        clicker.join(5000);
+        assertEquals("Button Approve click", o.get("what"));
+        assertNull(n.mouse, "Exit loop also removes the hook");
+        assertEquals(1, n.lookupsClosed);
+    }
+
+    @Test void keyAndClickLoopsNeedWindows() throws Exception {
+        TriggerLoopPackage.inputHooks = Optional::empty;
+        var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
+        ActionException e = assertThrows(ActionException.class, () -> tl.keyPressed(ctx, "F9", null, null, 500, 0, 0));
+        assertEquals("TRIGGER.WINDOWS_ONLY", e.code());
+        assertTrue(e.getMessage().contains("Windows runners only"), e.getMessage());
+        assertEquals("TRIGGER.WINDOWS_ONLY", assertThrows(ActionException.class, () -> tl.mouseClicked(ctx, "ERP", null, "left", null, null, null, 500, 0, 0)).code());
+        TriggerLoopPackage.inputHooks = () -> Optional.of(new FakeNative());
+        assertEquals("TRIGGER.BAD_KEY", assertThrows(ActionException.class, () -> tl.keyPressed(ctx, "A", null, null, 500, 0, 0)).code(), "typing keys are refused");
+        assertEquals("TRIGGER.BAD_CLICK", assertThrows(ActionException.class, () -> tl.mouseClicked(ctx, null, null, "left", "OK", null, null, 500, 0, 0)).code());
     }
 }

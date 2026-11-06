@@ -262,9 +262,10 @@ sequenceDiagram
   the runner's workspace.
 - `{check: true}` tells the runner to send a heartbeat now (a run of its own was stopped or paused).
 - The housekeeping fails runs whose runner has not reported for **2 minutes** with `AGENT.LOST`.
-- Runner-side triggers (files, folders, windows, processes, services, hotkeys) arrive in the heartbeat answer as
-  `local_triggers`; `LocalTriggers` polls the machine every 2 seconds and reports differences to
-  `agent/trigger-fired`.
+- Runner-side triggers (files, folders, windows, processes, services, hotkeys, key presses, clicks) arrive in the
+  heartbeat answer as `local_triggers`; `LocalTriggers` polls the machine every 2 seconds and reports differences to
+  `agent/trigger-fired`. Key-press and click triggers are not polled: they use Windows input hooks through
+  `InputTriggers` (packages), which never pass on typed text.
 
 ## 7. The background clock
 
@@ -299,7 +300,7 @@ checkpoints, scheduled backups (`backup_hours`, `backup_keep_days`) and licence 
 
 | Where evaluated | Kinds |
 | --- | --- |
-| Runner (`LocalTriggers`) | `file`, `file_changed`, `file_deleted`, `folder_created`, `folder_deleted`, `window_opened`, `window_closed`, `process_started`, `process_stopped`, `service_started`, `service_stopped`, `hotkey` |
+| Runner (`LocalTriggers`) | `file`, `file_changed`, `file_deleted`, `folder_created`, `folder_deleted`, `window_opened`, `window_closed`, `process_started`, `process_stopped`, `service_started`, `service_stopped`, `hotkey`, `key_pressed`, `mouse_clicked` |
 | One CommandCenter (`TriggerPollers`) | `email` (IMAP), `outlook` (Microsoft 365 via Graph), `servicenow`, `http_poll` (universal HTTP poller with JSON path selection) |
 | Webhook | `webhook` (`POST /api/hooks/{id}`) |
 

@@ -174,6 +174,8 @@ error and polls One CommandCenter trigger again soon. Over the API: `POST /api/t
 | `service_started` | Service started | Runner | Yes |
 | `service_stopped` | Service stopped | Runner | Yes |
 | `hotkey` | Hotkey pressed | Runner | Yes (needs the Window toolkit) |
+| `key_pressed` | Key pressed in a window | Runner | Yes (needs the Window toolkit) |
+| `mouse_clicked` | Mouse click on an element or window | Runner | Yes (needs the Window toolkit) |
 | `email` | New email (IMAP) | One CommandCenter | No |
 | `outlook` | New email (Microsoft 365 Outlook) | One CommandCenter | No |
 | `servicenow` | ServiceNow record | One CommandCenter | No |
@@ -195,6 +197,15 @@ records what is there**; later looks fire for differences, so files present when
 | Process started, stopped | Process name only, such as `notepad.exe` (no path) | A process of that name starts or stops |
 | Service started, stopped | Windows service name as `sc query` shows it | The service reaches running or stopped |
 | Hotkey | Up to five keys joined with `+`, such as `CTRL+ALT+F9` | The global hotkey is pressed |
+| Key pressed in a window | `key`: one key with any of `CTRL`, `ALT`, `SHIFT`, `WIN`, such as `F9` or `CTRL+ENTER` (letters, digits, space and backspace need `CTRL`, `ALT` or `WIN`); optional `window` (title pattern) and `process`; `debounce_ms` (default 500, 0 to 60,000) | The key goes down with exactly those modifiers while a matching window is in front; held-key repeats and presses within `debounce_ms` of the last firing do not fire. Event: `key`, `window`, `process` |
+| Mouse click | `window` (title pattern) and/or `process` (one is required); `button` (`left` default, `right`, `middle`, `any`); optional `element_name` (pattern), `element_type` (such as `Button`), `automation_id`; `debounce_ms` | The button goes down in a matching window (on a matching element, read with UI Automation at the click point). Event: `button`, `window`, `process`, `element_name`, `element_type`, `automation_id` |
+
+Key-press and click triggers use Windows low-level input hooks (no polling). The hook callback only compares the key
+code with the configured key (or notes which button went down) and hands off to a worker thread; typed text is never
+recorded, buffered, logged or sent, and input injected by programs is ignored. The keys and clicks still reach the
+application. On a runner that is not Windows the trigger reports "Key-press and click triggers work on Windows runners
+only". The same events are available inside an attended agent through the Trigger Loop iterators
+`ooa.triggerloop/key_pressed` and `ooa.triggerloop/mouse_clicked`.
 
 When the runner cannot watch a trigger (folder missing, hotkey taken, kind not supported on that system) it reports the
 reason, which shows as the trigger's last error; when it can again, the error clears.
@@ -236,6 +247,8 @@ The agent receives only the values it declares as inputs:
 | `trigger_process` | The process name |
 | `trigger_service` | The service name |
 | `trigger_hotkey` | The key combination |
+| `trigger_key` | The configured key combination that was pressed (never typed text) |
+| `trigger_click` | The clicked element's name, or the window title when the element has none |
 | `trigger_email` | The message (email and Outlook kinds) |
 | `trigger_record` | The ServiceNow record |
 | `trigger_item` | The polled item |

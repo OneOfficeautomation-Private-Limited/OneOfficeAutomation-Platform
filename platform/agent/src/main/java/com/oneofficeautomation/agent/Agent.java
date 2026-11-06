@@ -110,7 +110,7 @@ public final class Agent {
         this.localTriggers = new LocalTriggers(new LocalTriggers.Reporter() {
             public void fired(String id, Map<String, Object> event) { client.post("trigger-fired", Map.of("trigger_id", id, "event", event)); }
             public void status(String id, String error) { Map<String, Object> b = new HashMap<>(); b.put("trigger_id", id); b.put("error", error); client.post("trigger-status", b); }
-        }, new LocalTriggers.SystemProbe(), LocalTriggers.systemHotkeys(), this::log);
+        }, new LocalTriggers.SystemProbe(), LocalTriggers.systemHotkeys(), LocalTriggers.systemInput(), this::log);
     }
 
     /**

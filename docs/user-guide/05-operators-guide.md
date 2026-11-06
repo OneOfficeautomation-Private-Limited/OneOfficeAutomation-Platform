@@ -319,6 +319,8 @@ happens.
    | Process started, Process stopped | Process name, such as `excel.exe` | `trigger_process` |
    | Service started, Service stopped (Windows) | Windows service name (from `sc query`, not the display name) | `trigger_service` |
    | Hotkey pressed (Windows, signed-in desktop) | Key combination, such as `CTRL+ALT+F9` | `trigger_hotkey` |
+   | Key pressed in a window (Windows, signed-in desktop) | Key or combination, such as `F9` or `CTRL+ENTER`; optionally only while a window (title pattern) or program is in front; Ignore repeats within (default 500 ms) | `trigger_key` |
+   | Mouse click on an element or window (Windows, signed-in desktop) | Window title pattern or program; Mouse button (`left`, `right`, `middle`, `any`); optionally the element's name, type and automation id; Ignore repeats within | `trigger_click` (the element's name, else the window title) |
 
    **On One CommandCenter** (checked every interval, 15 seconds or more):
 
@@ -331,10 +333,35 @@ happens.
    | Webhook (HTTP call) | none | `payload` |
 
    Every agent also receives `trigger_event` with all details, if it declares it.
+
+   The hotkey trigger takes the combination for itself (other programs no longer receive it). The key-press trigger
+   only listens: the key still reaches the application, so it suits keys such as `CTRL+ENTER` in one program. To
+   pick the element of a click trigger, choose **Mouse click on an element or window** among the triggers of One
+   AgentStudio's command list: it captures the control (Ctrl+Shift+C, as Capture does) and opens **Create trigger**
+   with the window and element filled in.
 3. Passwords and tokens are always vault references such as `mail/imap/password`; the trigger's owner must be a
    consumer of that vault folder.
 4. Press **Create**. For a webhook you then see its **URL** and **Secret** (send it in the `X-OOA-Secret` header),
    shown only once.
+
+### Key-press and click triggers: privacy
+
+Security teams usually ask what these triggers can see. The rules, which the runner enforces and the tests check:
+
+- A key-press trigger names **one** key or combination, such as `F9`, `CTRL+ENTER` or `SHIFT+F2`. The runner's hook
+  compares each key going down with that one key and lets everything else pass untouched. **Typed text is never
+  recorded, buffered, logged or passed to the agent.** The event says only which configured key was pressed, and the
+  title and program of the window in front.
+- Letters, digits, space and backspace are refused unless held with `CTRL`, `ALT` or `WIN` (`SHIFT+A` is just typing a
+  capital), so a trigger cannot be used to count what someone types.
+- A click trigger reports the mouse button, the window title and program, and the clicked element's name, type and
+  automation id. It never reads screen contents or the value of a field, and gives no name for password fields.
+- The key or click still reaches the application; nothing is blocked. Input sent by programs (including agents) is
+  ignored, so these triggers only react to the person at the computer.
+- Both work on **Windows runners with a signed-in desktop only**. On a Linux runner the trigger shows the error "Key-press
+  and click triggers work on Windows runners only" and is not watched.
+- They use operating-system input hooks, not polling: no CPU is used while nothing is pressed, and the hook is removed
+  when the trigger is paused, deleted or the runner stops.
 
 ### Watching triggers
 

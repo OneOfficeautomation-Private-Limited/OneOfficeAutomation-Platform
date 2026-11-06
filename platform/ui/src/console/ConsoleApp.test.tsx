@@ -916,6 +916,24 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
+  it("opens a click trigger with the element captured in One AgentStudio filled in, and offers key-press triggers", async () => {
+    location.hash = "#/triggers?" + new URLSearchParams({ new: "mouse_clicked", bot: "Finance/Invoice intake.flow.json", window: "Invoice - ERP", process: "erp.exe",
+      element_name: "Submit", element_type: "Button", automation_id: "btnSubmit", unknown: "ignored" }).toString();
+    render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.view", "triggers.manage"] } as typeof admin }).api} />);
+    const d = await screen.findByRole("dialog", { name: /trigger/i });
+    expect(within(d).getByDisplayValue("Mouse click on an element or window")).toBeTruthy();
+    expect((within(d).getByLabelText("Window title pattern") as HTMLInputElement).value).toBe("Invoice - ERP");
+    expect((within(d).getByLabelText("Element type (optional)") as HTMLInputElement).value).toBe("Button");
+    expect((within(d).getByLabelText("Automation id (optional)") as HTMLInputElement).value).toBe("btnSubmit");
+    expect((within(d).getByLabelText("Mouse button (left, right, middle or any)") as HTMLInputElement).value).toBe("left");
+    expect(within(d).getByRole("option", { name: "Key pressed in a window" })).toBeTruthy();
+    expect(within(d).getByText(/never screen contents/)).toBeTruthy();
+    location.hash = "";
+    fireEvent.change(within(d).getByLabelText("Event"), { target: { value: "key_pressed" } });
+    expect(within(d).getByText(/Typed text is never recorded/)).toBeTruthy();
+    expect((within(d).getByLabelText("Ignore repeats within (milliseconds)") as HTMLInputElement).value).toBe("500");
+  });
+
   it("moves through a list with the keys, opens a row with Enter, and shows the shortcuts with ?", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     await go("Business");
