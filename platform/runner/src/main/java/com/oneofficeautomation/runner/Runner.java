@@ -81,6 +81,7 @@ public final class Runner {
         r.startAt = opts.startAt;
         r.onlyStep = opts.onlyStep;
         r.carryOver = opts.carryOver;
+        r.resumeAnswer = opts.resumeAnswer;
         r.trail = opts.trail;
         r.maxJumps = opts.maxJumps;
         return r.execute(inputs == null ? Map.of() : inputs, true);
@@ -129,7 +130,7 @@ public final class Runner {
      */
     public static final class RunOptions {
         String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger; String startAt; boolean onlyStep;
-        Map<String, Object> carryOver; ValueTrail trail; int maxJumps = DEFAULT_MAX_JUMPS;
+        Map<String, Object> carryOver; ValueTrail trail; int maxJumps = DEFAULT_MAX_JUMPS; Map<String, Object> resumeAnswer;
         /** Go to jumps allowed in the run (each child agent gets the same allowance); more fail the run with GOTO.LIMIT. */
         public RunOptions maxJumps(int n) { maxJumps = Math.max(0, n); return this; }
         public RunOptions startAt(String stepId) { startAt = stepId == null || stepId.isBlank() ? null : stepId; return this; }
@@ -141,6 +142,13 @@ public final class Runner {
         /** Notes the agent's variable values as the run goes, for a later Run from here (see ValueTrail). */
         public RunOptions trail(ValueTrail t) { trail = t; return this; }
         public RunOptions onlyStep(String stepId) { startAt(stepId); onlyStep = startAt != null; return this; }
+        /**
+         * Resumes a suspended run (gap G36, see {@link RunSuspension}): starts at the step that suspended it, with the
+         * values saved then; that step's action gets `answer` (what ended the wait) from RunSuspension.resumed.
+         */
+        public RunOptions resume(String stepId, Map<String, Object> values, Map<String, Object> answer) {
+            startAt(stepId); carryOver = values == null ? Map.of() : values; resumeAnswer = answer == null ? Map.of() : answer; return this;
+        }
         public RunOptions debugger(Debugger d) { debugger = d; return this; }
         public RunOptions pause(AtomicBoolean p) { pause = p; return this; }
         public RunOptions runId(String id) { runId = id; return this; }
@@ -263,6 +271,9 @@ public final class Runner {
         Set<String> startPath = Set.of();
         volatile boolean reached, onlyDone;
         Map<String, Object> carryOver;
+        /** A resumed run (G36): the answer for the start step's action, handed over once. */
+        Map<String, Object> resumeAnswer;
+        final java.util.concurrent.atomic.AtomicBoolean resumeGiven = new java.util.concurrent.atomic.AtomicBoolean();
         ValueTrail trail;
         Run parent;
         String parentStep;
@@ -453,7 +464,7 @@ public final class Runner {
                     else execSteps((List<Object>) flow.get("steps"), true);
                 } catch (OoaException e) { if (!handleError(e)) throw e; handled = e; }
             } catch (OoaException e) {
-                status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : "failed";
+                status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : RunSuspension.CODE.equals(e.code()) && depth == 0 ? "suspended" : "failed";
                 error = e.toMap();
             } catch (BreakSignal | ContinueSignal e) {
                 status = "failed";
@@ -799,6 +810,11 @@ public final class Runner {
                 throw sig;
             } catch (OoaException e) {
                 if ("RUN.CANCELLED".equals(e.code())) throw e;
+                if (RunSuspension.CODE.equals(e.code())) {   // the run is suspended here (G36): no continue-on-error
+                    e.atStep(sid);
+                    emit("step.finished", sid, data("action", act, "durationMs", (System.nanoTime() - t0) / 1_000_000, "suspended", true));
+                    throw e;
+                }
                 e.atStep(sid);
                 Map<String, Object> d = data("action", act, "durationMs", (System.nanoTime() - t0) / 1_000_000);
                 d.putAll(e.toMap());
@@ -1305,7 +1321,7 @@ public final class Runner {
          */
         boolean handleError(OoaException e) {
             Map<String, Object> h = Steps.onError(flow);
-            if (h == null || "RUN.CANCELLED".equals(e.code())) return false;
+            if (h == null || "RUN.CANCELLED".equals(e.code()) || RunSuspension.CODE.equals(e.code())) return false;
             String sid = e.stepId();
             boolean succeed = "succeed".equals(h.get("then"));
             // a run that went over its time limit gets a short extra time for its handler
@@ -1344,10 +1360,13 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         void tryBlock(Map<String, Object> step) {
             String sid = String.valueOf(step.get("id"));
+            boolean suspending = false;
             try {
                 execSteps(list(step, "children"), false);
             } catch (OoaException e) {
                 if ("RUN.CANCELLED".equals(e.code())) throw e;
+                // suspended in the Try part (G36): neither Catch nor Finally runs now; the resumed run enters the Try again
+                if (RunSuspension.CODE.equals(e.code())) { suspending = true; throw e; }
                 boolean handled = false;
                 for (Object o : list(step, "catch")) {
                     Map<String, Object> c = (Map<String, Object>) o;
@@ -1371,7 +1390,7 @@ public final class Runner {
                 }
                 if (!handled) throw e;
             } finally {
-                if (!list(step, "finally").isEmpty()) execSteps(list(step, "finally"), false);
+                if (!suspending && !list(step, "finally").isEmpty()) execSteps(list(step, "finally"), false);
             }
         }
 
@@ -1509,9 +1528,64 @@ public final class Runner {
                     public Map<String, String> declared() { synchronized (scope) { return new LinkedHashMap<>(scope.types); } }
                     public Object value(String name) { synchronized (scope) { return scope.values.get(name); } }
                 });
+                m.putIfAbsent(RunSuspension.SERVICE, suspension());
                 stepServices = java.util.Collections.unmodifiableMap(m);
             }
             return stepServices;
+        }
+
+        /** Suspend and resume for this run (G36): where it may stop, what it saves, and the answer when it comes back. */
+        RunSuspension suspension() {
+            return new RunSuspension() {
+                @SuppressWarnings("unchecked")
+                public Map<String, Object> prepare(String stepId) {
+                    if (depth > 0) refuse("in a child agent", "Suspend in the agent that One CommandCenter runs, after the Run agent step.");
+                    if (currentSubflow() != null) refuse("in a subflow", "Suspend in the agent's main steps; a resumed run cannot return to the step that called the subflow.");
+                    List<String> path = pathTo((List<Object>) flow.get("steps"), stepId);
+                    if (path == null) refuse("in the error handler or a subflow", "Suspend in the agent's main steps.");
+                    Map<String, Map<String, Object>> byId = new HashMap<>();
+                    for (Map<String, Object> s : Steps.walkFlow(flow)) byId.putIfAbsent(String.valueOf(s.get("id")), s);
+                    for (int i = 0; i < path.size() - 1; i++) {
+                        Map<String, Object> block = byId.getOrDefault(path.get(i), Map.of());
+                        String act = String.valueOf(block.get("action"));
+                        if (!RESUMABLE_BLOCKS.contains(act))
+                            refuse("inside " + act + " [" + path.get(i) + "]", act.equals("core/loop")
+                                    ? "A resumed run cannot continue a loop where it stopped: put the steps after the wait in their own agent run per item (a work queue), or suspend before or after the loop."
+                                    : "Suspend outside the block.");
+                        String next = path.get(i + 1);
+                        if (act.equals("core/try") && list(block, "children").stream().noneMatch(o -> o instanceof Map<?, ?> m && next.equals(String.valueOf(m.get("id")))))
+                            refuse("in the Catch or Finally of Try [" + path.get(i) + "]", "Suspend in the Try part, or after the Try.");
+                    }
+                    List<String> open = new ArrayList<>();
+                    for (var e : sessions.entrySet()) if (e.getValue() instanceof AutoCloseable) open.add(e.getKey());
+                    if (!open.isEmpty()) {
+                        Collections.sort(open);
+                        throw new OoaException("LONGRUN.SESSION_OPEN", "These sessions are open and cannot be carried to the resumed run: " + String.join(", ", open),
+                                "Close them (Close browser, Close workbook, Close file...) before the wait, and open them again after it.");
+                    }
+                    Map<String, Object> values = snapshot();
+                    List<String> leftOut = new ArrayList<>();
+                    synchronized (scope) {
+                        for (var t : scope.types.entrySet()) {
+                            if (NOT_CARRIED.contains(t.getValue()) && scope.values.get(t.getKey()) != null) leftOut.add(t.getKey());
+                            if (NOT_CARRIED.contains(t.getValue())) values.remove(t.getKey());
+                        }
+                    }
+                    Map<String, Object> out = new LinkedHashMap<>();
+                    out.put("values", values);
+                    out.put("left_out", leftOut);
+                    return out;
+                }
+
+                public Map<String, Object> resumed(String stepId) {
+                    if (depth > 0 || resumeAnswer == null || stepId == null || !stepId.equals(startAt)) return null;
+                    return resumeGiven.compareAndSet(false, true) ? resumeAnswer : null;
+                }
+
+                void refuse(String where, String fix) {
+                    throw new OoaException("LONGRUN.CANNOT_SUSPEND", "The run cannot be suspended " + where + ": it could not be resumed at the right place", fix);
+                }
+            };
         }
 
         ActionContext ctx(String stepId) {
@@ -1682,7 +1756,7 @@ public final class Runner {
                     result = callWithTimeout(() -> invoke(pkg, spec, args, c), timeout);
                     break;
                 } catch (OoaException e) {
-                    if ("RUN.CANCELLED".equals(e.code())) throw e;
+                    if ("RUN.CANCELLED".equals(e.code()) || RunSuspension.CODE.equals(e.code())) throw e;
                     err = e;
                 } catch (RuntimeException e) {
                     err = new ActionException("ACTION.UNEXPECTED", pid + "/" + aid + " raised " + e.getClass().getSimpleName() + ": " + e.getMessage(),

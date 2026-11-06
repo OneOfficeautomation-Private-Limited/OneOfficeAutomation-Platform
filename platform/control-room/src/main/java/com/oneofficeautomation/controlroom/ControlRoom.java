@@ -76,6 +76,8 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
+    /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
+    public final RunWaits runWaits;
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
@@ -149,6 +151,7 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
+        this.runWaits = new RunWaits(this);
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
@@ -1795,6 +1798,8 @@ public final class ControlRoom {
             if (guardrails != null) job.put("guardrails", guardrails);
             if (platform.intSetting("runner_error_screenshots") == 0) job.put("error_screenshots", false);   // Settings: no pictures of the screen
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
+            Map<String, Object> resume = runWaits.forJob((String) run.get("id"));   // a resumed run (G36): where it starts, with what
+            if (resume != null) job.put("resume", resume);
             return job;
         }
         return null;
@@ -1844,7 +1849,14 @@ public final class ControlRoom {
         Map<String, Object> r = runOnDevice(d, runId);
         if (!"running".equals(r.get("status"))) return;
         String status = String.valueOf(result.getOrDefault("status", "failed"));
-        if (!Set.of("success", "failed", "stopped").contains(status)) status = "failed";
+        if (!Set.of("success", "failed", "stopped", "suspended").contains(status)) status = "failed";
+        // a suspended run (G36) must have told One CommandCenter what it waits for; other ends cancel its waits
+        String ended = runWaits.onRunEnd(runId, status);
+        if (!ended.equals(status)) {
+            result = new LinkedHashMap<>(result);
+            result.put("error", new OoaException("LONGRUN.NOT_REGISTERED", "The run ended as suspended, but One CommandCenter has no wait for it").toMap());
+            status = ended;
+        }
         Instant started = r.get("started") == null ? now() : Instant.parse(r.get("started").toString());
         // the run's AI calls are recorded before it shows as finished, so whoever waits for the status sees them
         if (result.get("ai_calls") instanceof List<?> calls) platform.recordAiCalls(r, calls);
@@ -1853,12 +1865,25 @@ public final class ControlRoom {
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         try { locks.releaseForRun(runId, "its run ended (" + status + ")"); } catch (RuntimeException e) { /* the server clock gives them back */ }
+        if (status.equals("suspended")) return;   // the chain goes on: its work item, workflow, test and callback wait for the run that ends it
+        afterRunEnded(r, status, result);
+    }
+
+    /**
+     * What follows the end of a run, or of a chain of suspended and resumed runs (G36): its work item, KPIs, test case,
+     * workflow, failing trigger, failure mail and callback. A workflow and a test know the chain by its first run.
+     */
+    void afterRunEnded(Map<String, Object> r, String status, Map<String, Object> result) {
+        String runId = (String) r.get("id");
+        String root = runWaits.rootRun(runId);
+        Map<String, Object> first = r;
+        if (!root.equals(runId)) { first = new LinkedHashMap<>(r); first.put("id", root); }
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
         if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        try { testSets.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
@@ -2021,9 +2046,13 @@ public final class ControlRoom {
                 audit.record(actor, "agent.calendar", "calendar", cal, Map.of("from_run", runId), "ok", null);
                 return out;
             }
+            // long-running agents (G36); each audits itself
+            case "create_callback" -> out = runWaits.createCallback(run, actor);
+            case "suspend" -> out = runWaits.suspend(run, as, args, actor);
+            case "create_task" -> out = runWaits.createTask(run, args, actor);
             default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
         }
-        if (!call.equals("raise_alert")) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
+        if (!Set.of("raise_alert", "create_callback", "suspend", "create_task").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
         return out;
     }
 
@@ -2042,6 +2071,11 @@ public final class ControlRoom {
         require(by, "runs.stop", "control runs");
         Map<String, Object> r = db.one("SELECT status FROM runs WHERE id = ?", runId);
         if (r == null) throw notFound("Run");
+        if ("suspended".equals(r.get("status"))) {   // a suspended run (G36) has no runner: stopping it cancels its wait
+            if (!action.equals("stop")) throw new OoaException("CR.CONFLICT", "The run is suspended", "Resume it or stop it from the Suspended tab.");
+            runWaits.stopSuspended(runId, by.username(), ip);
+            return;
+        }
         switch (action) {
             case "stop" -> {
                 if ("queued".equals(r.get("status"))) db.update("UPDATE runs SET status = 'stopped', finished = ?, error = ? WHERE id = ? AND status = 'queued'",
@@ -2059,7 +2093,8 @@ public final class ControlRoom {
 
     public List<Map<String, Object>> runs(User by, String filter, int limit) {
         require(by, "runs.view", "view runs");
-        String where = "active".equals(filter) ? "WHERE r.status IN ('queued', 'running')" : "history".equals(filter) ? "WHERE r.status IN ('success', 'failed', 'stopped')" : "";
+        String where = "active".equals(filter) ? "WHERE r.status IN ('queued', 'running')" : "history".equals(filter) ? "WHERE r.status IN ('success', 'failed', 'stopped')"
+                : "suspended".equals(filter) ? "WHERE r.status = 'suspended'" : "";
         return db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.run_as, r.run_mode, r.source, r.created, r.started, r.finished, r.duration_ms, " +
                 "r.error, r.pause_requested, r.cancel_requested, r.steps FROM runs r LEFT JOIN devices d ON d.id = r.device_id " + where + " ORDER BY r.created DESC LIMIT " + Math.max(1, Math.min(500, limit)));
     }
@@ -2075,8 +2110,9 @@ public final class ControlRoom {
         String filter = q.getOrDefault("filter", "all");
         if ("active".equals(filter)) where.add("r.status IN ('queued', 'running')");
         else if ("history".equals(filter)) where.add("r.status IN ('success', 'failed', 'stopped')");
+        else if ("suspended".equals(filter)) where.add("r.status = 'suspended'");
         String status = q.get("status");
-        if (status != null && Set.of("queued", "running", "success", "failed", "stopped").contains(status)) { where.add("r.status = ?"); p.add(status); }
+        if (status != null && Set.of("queued", "running", "success", "failed", "stopped", "suspended").contains(status)) { where.add("r.status = ?"); p.add(status); }
         for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}}) {
             String v = q.get(f[0]);
             if (v != null && !v.isBlank()) { where.add(f[1] + " = ?"); p.add(v); }
@@ -2174,6 +2210,7 @@ public final class ControlRoom {
         for (Map<String, Object> e : db.query("SELECT event FROM run_events WHERE run_id = ? AND seq > ? ORDER BY seq LIMIT 2000", runId, afterSeq)) events.add(JsonLite.parse((String) e.get("event")));
         Map<String, Object> out = new LinkedHashMap<>(r);
         out.put("events", events);
+        out.putAll(runWaits.chain(runId));   // suspended and resumed runs (G36): what it waits for, the runs before and after
         return out;
     }
 

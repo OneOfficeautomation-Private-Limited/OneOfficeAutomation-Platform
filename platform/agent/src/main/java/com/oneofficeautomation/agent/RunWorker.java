@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * {"type":"global_value"|"vault","id",...} changes an agent asks One CommandCenter to make (answered with "result" or "error"),
  * and {"type":"docflow"}, {"type":"cr","id","call","args"} and {"type":"queue","id","request"} requests, answered with the same type and id.
  * Environment locks: {"type":"locks","id","op","name",...} out, {"type":"locks","id","result"|"error"} back.
+ * A job with "resume" {step_id, values, answer} is a suspended run carried on (long-running agents): it starts at that step.
  * Secrets arrive only on request, live only in memory and are masked in every event.
  */
 public final class RunWorker {
@@ -178,8 +179,11 @@ public final class RunWorker {
         try { aiStart = java.nio.file.Files.exists(aiLog) ? java.nio.file.Files.size(aiLog) : 0; } catch (IOException ignored) { }
         try {
             if (toolkitProblem != null) throw new OoaException("RUN.TOOLKIT_LOAD", toolkitProblem);
-            result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),
-                    new Runner.RunOptions().runId(String.valueOf(job.get("run_id"))).cancel(cancel).pause(pause).maxRunSeconds(24 * 3600.0));
+            Runner.RunOptions opts = new Runner.RunOptions().runId(String.valueOf(job.get("run_id"))).cancel(cancel).pause(pause).maxRunSeconds(24 * 3600.0);
+            // a resumed run (long-running agents, G36): it starts at the step that suspended, with the values saved then
+            if (job.get("resume") instanceof Map<?, ?> res)
+                opts.resume(String.valueOf(res.get("step_id")), (Map<String, Object>) res.get("values"), (Map<String, Object>) res.get("answer"));
+            result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()), opts);
         } catch (OoaException e) {
             result = new RunResult(String.valueOf(job.get("run_id")), String.valueOf(main.get("id")), "failed", Map.of(), e.toMap(), 0, null, 0);
         } catch (RuntimeException e) {

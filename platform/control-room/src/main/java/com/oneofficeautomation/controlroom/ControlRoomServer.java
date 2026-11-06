@@ -149,6 +149,8 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
+        // long-running agents (G36): resume suspended runs whose wait is over or timed out
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.runWaits.tick(); } catch (RuntimeException ignored) { } }, 6, 5, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
         // documents waiting for review in Document Automation become Task inbox tasks
@@ -461,6 +463,12 @@ public final class ControlRoomServer {
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("hooks")) {
             String secret = ex.getRequestHeaders().getFirst("X-OOA-Secret");
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
+            return;
+        }
+        // long-running agents (G36): a one-time callback URL; the token is the secret, the body at most 64 KB
+        if (m.equals("POST") && seg.length == 2 && seg[0].equals("callbacks")) {
+            byte[] raw = ex.getRequestBody().readNBytes(RunWaits.MAX_CALLBACK_BODY + 1);
+            sendJson(ex, 202, cr.runWaits.callback(seg[1], raw, ip));
             return;
         }
         if (m.equals("GET") && route.equals("health/ready")) {
@@ -1050,6 +1058,15 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.connections(u)));
                 else if (m.equals("PUT") && seg.length == 2) { cr.saveConnection(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteConnection(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "run-waits" -> {   // Activity > Suspended (G36): suspended runs, resume now, cancel
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("waits", cr.runWaits.list(u, q.get("status"), q.get("limit") != null && q.get("limit").matches("\\d{1,3}") ? Integer.parseInt(q.get("limit")) : 200)));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("resume")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.runWaits.resumeNow(u, seg[1], b.get("result") instanceof Map<?, ?> r ? (Map<String, Object>) r : null, ip));
+                }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("cancel")) { cr.runWaits.cancel(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash

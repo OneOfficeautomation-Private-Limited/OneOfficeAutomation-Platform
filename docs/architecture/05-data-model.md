@@ -106,6 +106,7 @@ and a **runtime** account with data read/write rights only.
 | 36 | environment_locks (named locks one run holds at a time, gap G33) |
 | 37 | weekend on holiday_calendars (business calendars for working-day steps, gap G34) |
 | 38 | rule on schedules (monthly and cron schedules, gap G35) |
+| 39 | run_waits (suspended runs of long-running agents and what they wait for, gap G36) |
 
 ## 4. Tables by area
 
@@ -146,8 +147,9 @@ and a **runtime** account with data read/write rights only.
 | `runner_files` | The latest logs and screen picture a runner sent when asked | `device_id`, `kind` (logs, screen; key together), `taken`, `requested_by`, `error`, `content` |
 | `environment_locks` | Environment locks: a named lock one run holds at a time. Taken with one INSERT (fails on the key when held) or one conditional UPDATE (only when held by the same run, past its lease, or its run is no longer running); given back when the run ends | `lock_key` (the name in lower case; key), `name`, `run_id`, `device_id`, `device_name`, `bot_path`, `held_by`, `acquired`, `expires` (the lease), `note` |
 | `user_devices` | Each run-as user's default runner | `username`, `device_id` |
-| `runs` | Every run | `id`, `bot_path`, `version`, `device_id`, `status` (queued, running, success, failed, stopped), `inputs`, `outputs`, `error`, `requested_by`, `run_as`, `run_mode`, `source`, `priority`, `queue_item_id`, `callback_url`, `cancel_requested`, `pause_requested`, `created`, `started`, `finished`, `duration_ms`, `steps` |
+| `runs` | Every run | `id`, `bot_path`, `version`, `device_id`, `status` (queued, running, suspended, success, failed, stopped), `inputs`, `outputs`, `error`, `requested_by`, `run_as`, `run_mode`, `source`, `priority`, `queue_item_id`, `callback_url`, `cancel_requested`, `pause_requested`, `created`, `started`, `finished`, `duration_ms`, `steps` |
 | `run_events` | Event stream per run | `run_id`, `seq`, `event` (JSON, cut at 19,000 characters) |
+| `run_waits` | Long-running agents (G36): what a suspended run waits for, and the run that carried it on. A run in status `suspended` has one row with `step_id` set; a callback URL made before the wait has a row without it. The clock finds due rows by (`status`, `resume_at`) and (`status`, `timeout_at`); ending a wait is one conditional UPDATE (`status = 'waiting'`), so one node resumes it once | `id`, `run_id`, `bot_path`, `version`, `step_id` (the step to start the next run at), `saved_values` (the agent's variables as JSON, at most 1,000,000 characters; no credentials, window, element, image or binary values), `kind` (time, task, queue_item, callback, job), `ref` (the time, task, work item, run or callback id), `token_hash` (SHA-256 of a callback URL's token; the token is never kept), `resume_at` (when the wait is over: the time, or when the task, item, run or callback came), `timeout_at`, `status` (waiting, resumed, timed_out, cancelled), `resumed_run_id`, `payload` (what ended the wait, at most 100,000 characters), `created`, `created_by`, `run_as`, `device_id`, `pool_id`, `finished` |
 
 ### 4.4 Automation
 

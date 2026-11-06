@@ -1393,6 +1393,8 @@ public final class Platform {
             Instant cut = now().minus(Duration.ofDays(runDays));
             events += db.update("DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped'))", cut);
             runs = db.update("DELETE FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped')", cut);
+            // ended waits of long-running agents (G36) go with them; a suspended run's wait is never removed
+            db.update("DELETE FROM run_waits WHERE status <> 'waiting' AND finished < ?", cut);
         }
         cr.audit.record(by, "runs.purge", "runs", null, Map.of("run_days", runDays, "log_days", logDays, "runs", runs, "log_lines", events), "ok", ip);
         return Map.of("runs_removed", runs, "log_lines_removed", events);

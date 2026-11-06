@@ -1,0 +1,32 @@
+[
+ {"command": "ooa.longrunning/create_callback", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/create_callback", "args": {}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/create_task", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/create_task", "args": {"kind": "approval", "title": "Approve invoice 4711", "assignee": "role:Finance approvers"}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/create_task", "name": "a task is an approval or a form", "steps": [
+    {"action": "ooa.longrunning/create_task", "args": {"kind": "chat", "title": "x", "assignee": "role:admin"}}], "error": "FLOW.INVALID"},
+ {"command": "ooa.longrunning/suspend_until", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/suspend_until", "args": {"kind": "time", "ref": "3600"}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/suspend_until", "name": "an unknown kind of wait is refused before the run", "steps": [
+    {"action": "ooa.longrunning/suspend_until", "args": {"kind": "forever", "ref": "x"}}], "error": "FLOW.INVALID"},
+ {"command": "ooa.longrunning/suspend_until", "name": "what to wait for is needed", "steps": [
+    {"action": "ooa.longrunning/suspend_until", "args": {"kind": "task", "ref": " "}}], "error": "LONGRUN.NO_ID"},
+ {"command": "ooa.longrunning/resume_after", "name": "how long or until when is needed", "steps": [
+    {"action": "ooa.longrunning/resume_after", "args": {}}], "error": "LONGRUN.NO_TIME"},
+ {"command": "ooa.longrunning/resume_after", "name": "a date and time it cannot read", "steps": [
+    {"action": "ooa.longrunning/resume_after", "args": {"until": "next Tuesday"}}], "error": "LONGRUN.BAD_TIME"},
+ {"command": "ooa.longrunning/resume_after", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/resume_after", "args": {"delay_seconds": 3600}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/wait_for_callback", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/wait_for_callback", "args": {"callback_id": "wait_123", "timeout_seconds": 600}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/wait_for_task", "name": "a task id is needed", "steps": [
+    {"action": "ooa.longrunning/wait_for_task", "args": {"task_id": " "}}], "error": "LONGRUN.NO_ID"},
+ {"command": "ooa.longrunning/wait_for_task", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/wait_for_task", "args": {"task_id": "task_123", "on_timeout": "continue"}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/wait_for_item", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/wait_for_item", "args": {"item_id": "item_123"}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/wait_for_job", "name": "outside One CommandCenter it says where it works", "steps": [
+    {"action": "ooa.longrunning/wait_for_job", "args": {"job_id": "run_123"}}], "error": "LONGRUN.NOT_AVAILABLE"},
+ {"command": "ooa.longrunning/wait_for_job", "name": "a run id is needed", "steps": [
+    {"action": "ooa.longrunning/wait_for_job", "args": {"job_id": ""}}], "error": "LONGRUN.NO_ID"}
+]

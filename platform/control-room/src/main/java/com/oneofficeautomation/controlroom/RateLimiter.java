@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Per-address request limits for the routes anyone can call without a session: sign-in and tokens (60 a minute),
- * runner registration (60), and webhooks, Agent APIs and MCP (1,200). A fixed one-minute window per address and group.
+ * runner registration (60), long-running agents' callback URLs (120), and webhooks, Agent APIs and MCP (1,200). A fixed one-minute window per address and group.
  */
 final class RateLimiter {
     private record Window(long start, int count) { }
@@ -21,11 +21,12 @@ final class RateLimiter {
         if (!method.equals("POST") && !route.startsWith("auth/sso") && !route.startsWith("auth/saml")) return null;
         if (route.equals("auth/login") || route.equals("auth/mfa") || route.equals("auth/mfa/enable") || route.equals("auth/mfa/disable") || route.equals("auth/token") || route.startsWith("auth/sso") || route.startsWith("auth/saml")) return "auth";
         if (route.equals("agent/register")) return "register";
+        if (route.startsWith("callbacks/")) return "callbacks";
         if (route.startsWith("hooks/") || route.startsWith("apitasks/") && route.endsWith("/run") || route.equals("mcp")) return "calls";
         return null;
     }
 
-    static int limit(String group) { return group.equals("calls") ? 1200 : 60; }
+    static int limit(String group) { return group.equals("calls") ? 1200 : group.equals("callbacks") ? 120 : 60; }
 
     /** Counts one request; false when the address has used up this minute's allowance for the group. */
     boolean allow(String address, String group) {
