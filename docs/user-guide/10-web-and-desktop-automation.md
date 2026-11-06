@@ -275,6 +275,18 @@ IntelliJ and other IDEs) are skipped unless you name them in **Process**.
 SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) instead; see its
 [reference](../reference/toolkits/ooa-sap.md).
 
+**Record in SAP GUI.** Record with SAP GUI's own recorder: **Customize Local Layout > Script Recording and Playback**,
+then save the .vbs file. In Studio, the step list's **More** menu has **Import SAP GUI recording…**. Open the file or paste
+its text, and the steps go in after the selected step:
+
+- typed text becomes **Set field**, except a transaction code typed as `/nVA01`, which becomes **Run transaction**;
+- buttons become **Press button**, keys become **Send key** (in the right window), and check boxes **Set check box**;
+- list choices become **Select list item** (by key), radio buttons **Select radio button**, and menu entries **Click**;
+- double-clicks become **Double-click**.
+
+Cursor, focus and window-size lines are left out, and a line it does not know is kept as a **Comment**. Add **Open system
+and log on** first, and change typed passwords to a Credential from the vault.
+
 ### 10.3 Windows, programs, mouse and keyboard
 
 | Group | Typical actions |
