@@ -1808,6 +1808,12 @@ public final class ControlRoom {
             if (!files.isEmpty()) job.put("files", files);
             if (!skills.isEmpty()) job.put("skills", skills);
             Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
+            // Settings > AI (item 4n): AI switched off for everyone, and full logging of prompts and answers (off at first)
+            if (platform.intSetting("ai_enabled") == 0 || platform.intSetting("ai_log_content") == 1) {
+                guardrails = new LinkedHashMap<>(guardrails == null ? Map.of() : guardrails);
+                if (platform.intSetting("ai_enabled") == 0) guardrails.put("disabled", true);
+                if (platform.intSetting("ai_log_content") == 1) guardrails.put("log_content", true);
+            }
             if (guardrails != null) job.put("guardrails", guardrails);
             if (platform.intSetting("runner_error_screenshots") == 0) job.put("error_screenshots", false);   // Settings: no pictures of the screen
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);

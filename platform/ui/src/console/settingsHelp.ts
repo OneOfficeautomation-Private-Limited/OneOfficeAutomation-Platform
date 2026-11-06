@@ -108,6 +108,8 @@ export const SETTING_HELP: Record<string, string> = {
   run_log_retention_days: "Step-by-step logs of runs are removed after this many days, as they take the most room. The runs themselves stay. 0 keeps them always.",
   run_retention_days: "Finished runs are removed from Agent Activity after this many days. Queued and running runs are never removed. 0 keeps them always.",
   audit_retention_days: "Audit Trail entries older than this are archived, then removed. Most rules ask for at least 90 days, which is the least allowed; 0 keeps them always.",
+  ai_enabled: "On at first. Switched off, every AI step (generative AI, AI agents, document and knowledge AI) fails with AI.DISABLED, whatever its connection.",
+  ai_log_content: "Off at first: AI governance keeps which model was asked, by which agent, the tokens and the time, and a hash of the prompt, never the text. On: the prompt and the answer are kept too (with personal data masked as the provider saw it), shown in the run's AI calls to people who may read the audit trail, and removed with the call records.",
   ai_call_retention_days: "Records of calls to AI models (for AI governance) are removed after this many days. 0 keeps them always.",
   work_item_retention_days: "Finished work-queue items are removed after this many days. Items still waiting or being worked on stay. 0 keeps them always.",
   backup_hours: "One CommandCenter backs up its data this often. 0 makes no automatic backups; Back up now below still works.",
