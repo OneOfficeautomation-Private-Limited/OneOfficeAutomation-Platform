@@ -96,6 +96,58 @@ public final class AiAgentPackage {
      * after ooa.approval.timeoutSeconds (default 300), so an unattended runner never waits forever. Headless or
      * unattended runs: denied at once, as nobody is there to answer.
      */
+    /**
+     * A sensitive tool's approval: the person at the desktop when there is one; otherwise, with approvers named and One
+     * CommandCenter there, a task in their Task inbox that the agent waits for (approval_timeout_seconds; no answer is no).
+     */
+    @SuppressWarnings("unchecked")
+    static boolean approve(ActionContext ctx, String what, Map<String, Object> args, Extras extras, List<Object> trace) {
+        boolean nobody = GraphicsEnvironment.isHeadless() || "unattended".equals(System.getProperty("ooa.runMode"));
+        if (!nobody) return approve(ctx, new Tool(what, what, Map.of(), Map.of(), true), args);
+        if (extras.approvers() == null || extras.approvers().isBlank()) return false;
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> cc;
+        try { cc = ctx.service("command_center", java.util.function.Function.class); }
+        catch (OoaException e) { cc = null; }
+        if (cc == null) { ctx.warn("No One CommandCenter to ask for approval of " + what); return false; }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("tool", what);
+        for (var e : args.entrySet()) if (!(e.getValue() instanceof Map) && !(e.getValue() instanceof List)) data.put(e.getKey(), e.getValue());
+        Map<String, Object> created = cc.apply(Map.of("call", "create_task", "args", Map.of("kind", "approval", "title", "AI agent: allow " + what + "?",
+                "description", "An AI agent wants to use " + what + " with: " + JsonLite.write(args), "assignee", extras.approvers().strip(), "data", data)));
+        String task = String.valueOf(created.get("task_id"));
+        trace.add(Out.of("type", "approval", "tool", what, "status", "asked", "task_id", task));
+        long until = System.nanoTime() + Math.max(30, extras.approvalTimeout()) * 1_000_000_000L;
+        long pause = Long.getLong("ooa.approval.pollMillis", 5000);
+        while (System.nanoTime() < until) {
+            ctx.checkCancelled();
+            Map<String, Object> st = cc.apply(Map.of("call", "task_status", "args", Map.of("task_id", task)));
+            if ("completed".equals(st.get("status"))) {
+                boolean yes = "approved".equals(st.get("outcome"));
+                if (!yes) ctx.warn("The approver rejected " + what + (st.get("comment") == null ? "" : ": " + st.get("comment")));
+                return yes;
+            }
+            if (!Set.of("open", "claimed").contains(String.valueOf(st.get("status")))) return false;
+            try { Thread.sleep(pause); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+        }
+        ctx.warn("No answer in the Task inbox about " + what + " in time");
+        return false;
+    }
+
+    /** The search_knowledge tool: the best passages from each index, numbered, with their sources. */
+    @SuppressWarnings("unchecked")
+    static String searchKnowledge(ActionContext ctx, List<Path> indexes, Map<String, Object> args, List<Object> trace) {
+        String q = args.get("query") instanceof String s ? s.strip() : "";
+        if (q.isEmpty()) return JsonLite.write(Map.of("status", "rejected", "error", "Give a query."));
+        List<Object> found = new ArrayList<>();
+        KnowledgePackage kp = new KnowledgePackage();
+        for (Path ix : indexes) {
+            try { found.addAll((List<Object>) kp.search(ctx, ix.toString(), q, 4, null, null).get("results")); }
+            catch (ActionException e) { found.add(Map.of("source", ix.getFileName().toString(), "error", e.getMessage())); }
+        }
+        trace.add(Out.of("type", "knowledge", "query", q, "passages", found.size()));
+        return JsonLite.write(Map.of("status", "success", "passages", found));
+    }
+
     static boolean approve(ActionContext ctx, Tool t, Map<String, Object> args) {
         if (GraphicsEnvironment.isHeadless() || "unattended".equals(System.getProperty("ooa.runMode"))) return false;
         int timeout = Integer.getInteger("ooa.approval.timeoutSeconds", 300);
@@ -122,7 +174,7 @@ public final class AiAgentPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "run", name = "Run AI agent", category = "AI Agents", timeoutSeconds = 1800, capabilities = {"network", "ai"},
             description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.",
-            panel = "goal, instructions, tools, [Let the agent ask a person with forms: forms, form_timeout_seconds], (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, [Toxicity guardrail: toxicity_guardrail, toxicity_level, blocked_terms], max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii")
+            panel = "goal, instructions, tools, [Let the agent ask a person with forms: forms, form_timeout_seconds], (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, [Toxicity guardrail: toxicity_guardrail, toxicity_level, blocked_terms], max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii, [Ask approvers in the Task inbox when nobody is at the runner: approvers, approval_timeout_seconds], knowledge_indexes, [Use an MCP server's tools: mcp_server_url, mcp_token, mcp_tools]")
     @Output(name = "answer", type = OoaType.STRING, description = "The agent's final answer.")
     @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached, stopped or blocked (by the toxicity guardrail); with output fields also failed or cancelled, as the agent decided.")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The output fields asked for (empty when none were).")
@@ -159,10 +211,35 @@ public final class AiAgentPackage {
                             + "log records it in the trace; block stops the agent with status blocked.") String toxicityAction,
             @Input(name = "toxicity_level", type = OoaType.STRING, required = false, defaultValue = "\"medium\"", enumValues = {"low", "medium", "high"},
                     description = "From which level the guardrail acts: high only threats, self-harm and hate; medium also insults and explicit content; low also swearing.") String toxicityLevel,
-            @Input(name = "blocked_terms", type = OoaType.LIST, required = false, description = "Your own words or phrases the guardrail treats as high, e.g. competitor names or internal code names.") List<Object> blockedTerms) {
+            @Input(name = "blocked_terms", type = OoaType.LIST, required = false, description = "Your own words or phrases the guardrail treats as high, e.g. competitor names or internal code names.") List<Object> blockedTerms,
+            @Input(name = "approvers", type = OoaType.STRING, required = false, example = "role:supervisor",
+                    description = "When nobody is at the runner, a sensitive tool's approval goes to the Task inbox of these people (user:NAME or role:NAME, separated by commas). Empty: denied at once.") String approvers,
+            @Input(name = "approval_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 30, max = 1700,
+                    description = "How long to wait for an answer in the Task inbox; no answer means no.") int approvalTimeout,
+            @Input(name = "knowledge_indexes", type = OoaType.LIST, required = false, example = "[\"Knowledge/policies.kidx\"]",
+                    description = "Knowledge indexes (Knowledge Q&A > Build index) the agent searches itself for facts, with a search_knowledge tool.") List<Object> knowledge,
+            @Input(name = "mcp_server_url", type = OoaType.STRING, required = false, example = "https://mcp.example.com/mcp", description = "An MCP server whose tools the agent may use (Streamable HTTP).") String mcpUrl,
+            @Input(name = "mcp_token", type = OoaType.CREDENTIAL, required = false, description = "The MCP server's bearer token, when it needs one.") Object mcpToken,
+            @Input(name = "mcp_tools", type = OoaType.LIST, required = false, description = "Which of the server's tools it may use (names); empty: all. Name them in sensitive_tools as mcp:NAME to need approval.") List<Object> mcpTools) {
         return runAgent(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
-                role, plan, outputFields, allowCancel, maxSeconds, temperature, forms, formTimeout, Toxicity.setting(toxicityAction, toxicityLevel, blockedTerms, "AGENT"));
+                role, plan, outputFields, allowCancel, maxSeconds, temperature, forms, formTimeout, Toxicity.setting(toxicityAction, toxicityLevel, blockedTerms, "AGENT"),
+                new Extras(approvers, approvalTimeout, knowledge, mcpUrl, McpPackage.secret(mcpToken), mcpTools));
     }
+
+    /** Before approvers, knowledge and MCP (G44): the same agent without them. */
+    public Map<String, Object> run(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
+                                   String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
+                                   String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature,
+                                   List<Object> forms, double formTimeout, String toxicityAction, String toxicityLevel, List<Object> blockedTerms) {
+        return runAgent(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
+                role, plan, outputFields, allowCancel, maxSeconds, temperature, forms, formTimeout, Toxicity.setting(toxicityAction, toxicityLevel, blockedTerms, "AGENT"), Extras.NONE);
+    }
+
+    /** G44: approvals through the Task inbox, knowledge indexes the agent searches, and an MCP server's tools. */
+    record Extras(String approvers, int approvalTimeout, List<Object> knowledge, String mcpUrl, String mcpToken, List<Object> mcpTools) {
+        static final Extras NONE = new Extras(null, 600, null, null, null, null);
+    }
+    static final String KNOWLEDGE_TOOL = "search_knowledge";
 
     public Map<String, Object> run(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
                                    String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
@@ -181,7 +258,7 @@ public final class AiAgentPackage {
     private Map<String, Object> runAgent(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
                                          String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
                                          String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature,
-                                         List<Object> formPaths, double formTimeout, Toxicity.Setting toxic) {
+                                         List<Object> formPaths, double formTimeout, Toxicity.Setting toxic, Extras extras) {
         if (maxSeconds < 0) throw new ActionException("AGENT.BAD_OPTION", "max_duration_seconds cannot be negative");
         long deadline = maxSeconds > 0 ? System.nanoTime() + maxSeconds * 1_000_000_000L : Long.MAX_VALUE;
         boolean structured = outputFields != null && !outputFields.isEmpty();
@@ -202,11 +279,42 @@ public final class AiAgentPackage {
         if (toolIds != null) for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o))); tools.put(t.name(), t); }
         Map<String, FormTool> forms = new LinkedHashMap<>();
         if (formPaths != null) for (Object o : formPaths) { FormTool ft = formTool(ctx, Values.text(o)); if (tools.containsKey(ft.name())) throw new ActionException("AGENT.BAD_OPTION", "A tool and a form are both named " + ft.name()); forms.put(ft.name(), ft); }
-        if (tools.isEmpty() && forms.isEmpty()) throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent or form to use");
+        List<Path> indexes = new ArrayList<>();
+        if (extras.knowledge() != null) for (Object o : extras.knowledge()) {
+            Path ip = ctx.resolvePath(Values.text(o));
+            if (!java.nio.file.Files.isRegularFile(ip)) throw new ActionException("AGENT.KNOWLEDGE_NOT_FOUND", "Knowledge index not found: " + ip, "Build it with Knowledge Q&A > Build index.");
+            indexes.add(ip);
+        }
+        McpClient mcp = null;
+        Map<String, Map<String, Object>> mcpTools = new LinkedHashMap<>();   // tool name for the model -> the server's tool
+        if (extras.mcpUrl() != null && !extras.mcpUrl().isBlank()) {
+            mcp = new McpClient(extras.mcpUrl(), extras.mcpToken(), java.time.Duration.ofSeconds(120));
+            mcp.initialize();
+            Set<String> allowed = new HashSet<>();
+            if (extras.mcpTools() != null) for (Object o : extras.mcpTools()) allowed.add(Values.text(o).strip());
+            for (Map<String, Object> mt : mcp.tools()) {
+                String n = String.valueOf(mt.get("name"));
+                if (!allowed.isEmpty() && !allowed.contains(n)) continue;
+                String local = ("mcp_" + n.replaceAll("[^A-Za-z0-9_-]", "_"));
+                if (local.length() > 64) local = local.substring(0, 64);
+                if (tools.containsKey(local) || forms.containsKey(local)) throw new ActionException("AGENT.BAD_OPTION", "Two tools are both named " + local);
+                mcpTools.put(local, mt);
+            }
+            if (!allowed.isEmpty() && mcpTools.size() < allowed.size()) ctx.warn("The MCP server does not offer every tool named in mcp_tools");
+        }
+        if (tools.isEmpty() && forms.isEmpty() && indexes.isEmpty() && mcpTools.isEmpty())
+            throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent, form, knowledge index or MCP tool to use");
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));
         for (FormTool ft : forms.values()) toolSpecs.add(Map.of("name", ft.name(), "description", ft.description(), "input_schema", ft.schema()));
+        if (!indexes.isEmpty()) toolSpecs.add(Map.of("name", KNOWLEDGE_TOOL, "description", "Search the company's documents for passages that answer a question. Use it for facts and rules; cite what you use.",
+                "input_schema", Map.of("type", "object", "properties", Map.of("query", Map.of("type", "string", "description", "The question or words to look for.")), "required", List.of("query"))));
+        for (var e : mcpTools.entrySet()) {
+            boolean sens = sensitive.contains("mcp:" + e.getValue().get("name"));
+            toolSpecs.add(Map.of("name", e.getKey(), "description", String.valueOf(e.getValue().getOrDefault("description", "")) + (sens ? " (Needs human approval; may be denied.)" : ""),
+                    "input_schema", e.getValue().get("inputSchema") instanceof Map<?, ?> sch ? sch : Map.of("type", "object")));
+        }
         List<Object> trace0 = new ArrayList<>();
         if (toxic != null && toxic.on()) {
             Toxicity.Rating g = Toxicity.check(ctx, toxic, goal, "goal", "AGENT.TOXIC", true);
@@ -254,14 +362,29 @@ public final class AiAgentPackage {
                 Tool t = tools.get(tc.name());
                 FormTool ft = forms.get(tc.name());
                 String content;
-                if (t == null && ft != null) content = askForm(ctx, ft, tc.args(), formTimeout, trace);
+                if (t == null && ft == null && tc.name().equals(KNOWLEDGE_TOOL) && !indexes.isEmpty()) content = searchKnowledge(ctx, indexes, tc.args(), trace);
+                else if (t == null && ft == null && mcpTools.containsKey(tc.name())) {
+                    Map<String, Object> mt = mcpTools.get(tc.name());
+                    String server = String.valueOf(mt.get("name"));
+                    if (sensitive.contains("mcp:" + server) && !approve(ctx, "mcp:" + server, tc.args(), extras, trace)) {
+                        content = JsonLite.write(Map.of("status", "denied", "error", "A person did not approve this action. Do not retry; explain the outcome."));
+                        trace.add(Map.of("type", "approval", "tool", "mcp:" + server, "status", "denied"));
+                    } else {
+                        Map<String, Object> res;
+                        try { res = mcp.call(server, tc.args()); }
+                        catch (ActionException e) { res = Map.of("is_error", true, "text", e.getMessage()); }
+                        content = JsonLite.write(Out.of("status", Boolean.TRUE.equals(res.get("is_error")) ? "error" : "success", "text", res.get("text"), "result", res.get("structured")));
+                        trace.add(Out.of("type", "tool", "tool", "mcp:" + server, "arguments", tc.args(), "status", Boolean.TRUE.equals(res.get("is_error")) ? "error" : "success"));
+                    }
+                }
+                else if (t == null && ft != null) content = askForm(ctx, ft, tc.args(), formTimeout, trace);
                 else if (t == null) {
                     content = JsonLite.write(Map.of("status", "rejected", "error", "Tool '" + tc.name() + "' is not available. Use one of " + tools.keySet() + "."));
                     trace.add(Map.of("type", "guardrail", "message", "rejected unknown tool " + tc.name()));
                 } else if (checkArgs(t, tc.args()) != null) {
                     content = JsonLite.write(Map.of("status", "rejected", "error", checkArgs(t, tc.args())));
                     trace.add(Map.of("type", "guardrail", "message", "invalid arguments for " + t.botId()));
-                } else if (t.sensitive() && !approve(ctx, t, tc.args())) {
+                } else if (t.sensitive() && !approve(ctx, t.botId(), tc.args(), extras, trace)) {
                     content = JsonLite.write(Map.of("status", "denied", "error", "A person did not approve this action. Do not retry; explain the outcome."));
                     trace.add(Map.of("type", "approval", "tool", t.botId(), "status", "denied"));
                     ctx.warn("Sensitive agent " + t.botId() + " was not approved");

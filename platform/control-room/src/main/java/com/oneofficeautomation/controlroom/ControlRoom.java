@@ -2073,9 +2073,10 @@ public final class ControlRoom {
             case "create_callback" -> out = runWaits.createCallback(run, actor);
             case "suspend" -> out = runWaits.suspend(run, as, args, actor);
             case "create_task" -> out = runWaits.createTask(run, args, actor);
+            case "task_status" -> out = runWaits.taskStatus(run, args);   // G44: an AI agent waiting for an approval it asked for
             default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
         }
-        if (!Set.of("raise_alert", "create_callback", "suspend", "create_task").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
+        if (!Set.of("raise_alert", "create_callback", "suspend", "create_task", "task_status").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
         return out;
     }
 
