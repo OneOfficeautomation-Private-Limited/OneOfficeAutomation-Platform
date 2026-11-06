@@ -190,7 +190,7 @@ jobs:
         with: { python-version: "3.12" }
       - name: Start a stand-in of the test-set API (and wait until it answers)
         run: |
-          python platform/deploy/ci/github-action/stub_server.py 8799 > "$RUNNER_TEMP/stub.log" 2>&1 &
+          python deploy/ci/github-action/stub_server.py 8799 > "$RUNNER_TEMP/stub.log" 2>&1 &
           echo "stand-in pid $!"
           python - <<'PY'
           import socket, sys, time
