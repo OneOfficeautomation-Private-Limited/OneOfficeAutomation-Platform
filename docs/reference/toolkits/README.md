@@ -13,6 +13,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Core](core.md) | `core` | 23 | 0 | 0 | Control flow, variables and runtime built-ins. |
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 39 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
+| [AI screen (vision)](ooa-ai_screen.md) | `ooa.ai_screen` | 4 | 0 | 0 | Find and click controls on the screen from a plain description, with a vision model. |
 | [Application](ooa-application.md) | `ooa.application` | 8 | 1 | 0 | Open files, start, run and stop programs on the runner. |
 | [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
 | [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 10 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
@@ -103,4 +104,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 92 toolkits, 1255 actions, 50 conditions and 15 loop types.
+In all: 93 toolkits, 1259 actions, 50 conditions and 15 loop types.
