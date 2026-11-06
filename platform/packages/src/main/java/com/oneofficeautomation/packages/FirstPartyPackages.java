@@ -24,7 +24,7 @@ public final class FirstPartyPackages {
             GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
             OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class, FormsPackage.class, Ec2Package.class, AzureVmPackage.class,
             AwsAiPackage.class, AzureAiPackage.class, GoogleAiPackage.class, ExchangePackage.class, DocumentAutomationPackage.class, JobsPackage.class,
-            EnvironmentLocksPackage.class, LongRunningPackage.class);
+            EnvironmentLocksPackage.class, LongRunningPackage.class, CommsPackage.class);
 
     /** Optional packages in other modules, installed when their module is on the classpath. */
     public static final List<String> OPTIONAL = List.of(

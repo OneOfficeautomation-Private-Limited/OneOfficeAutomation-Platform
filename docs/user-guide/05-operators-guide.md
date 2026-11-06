@@ -501,6 +501,22 @@ runner or pool, and each case runs the live production version once. The test ru
 the cases ([04 Running and debugging](04-studio-running-and-debugging.md)); operators run them after changes to
 runners, toolkits or connected systems.
 
+## 10b. Communications mining: what the inbox is about
+
+When a shared mailbox or ticket queue gets hundreds of messages a day, find out what they are about before deciding
+what to automate. Read the messages into a table (E-mail: Get messages, a ticketing toolkit, or a CSV export) and use
+the **Communications mining** toolkit:
+
+- **Discover topics** groups the messages by the words they use and lists each topic with its top words, how many
+  messages it has and three typical examples. Quoted replies and signatures are left out. It runs on the runner with no
+  AI service, so the mail stays inside the company, and a rerun on the same messages gives the same topics.
+- **Route messages** gives each message the queue whose keywords or phrases it matches best (matches in the subject
+  count double, and "invoice" also matches "invoices"). Messages that match no queue go to a default queue. Discover
+  topics gives a first set of rules: rename its labels to your queues and adjust the words. Then add the routed rows to
+  work queues with Work queues: Add work items from table.
+
+For messages that keywords cannot sort, use Generative AI: Classify on the default queue's messages.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**
