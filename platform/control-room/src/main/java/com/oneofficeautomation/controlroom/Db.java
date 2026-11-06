@@ -726,9 +726,23 @@ public final class Db implements AutoCloseable {
             + "last_delivery TIMESTAMP, failures INT NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80))",
     };
 
+    /**
+     * Version 41 (gap G65, 6 Nov 2026): automation ideas. Anyone signed in suggests a process (title, description,
+     * department, who runs it, cases a month, minutes each) and votes (voters: a comma list of user names); the
+     * automation team assesses it (status, how rule-based, structured and stable it is, 1-5 each, complexity low, medium
+     * or high, the cost of an hour, notes) and links the agent built (bot_path). The score is worked out when read.
+     */
+    private static final String[] SCHEMA_V41 = {
+        "CREATE TABLE ideas (id VARCHAR(40) PRIMARY KEY, title VARCHAR(200) NOT NULL, description VARCHAR(4000), department VARCHAR(120), process_owner VARCHAR(120), "
+            + "status VARCHAR(20) NOT NULL, volume_month INT, minutes_each INT, hourly_cost INT, complexity VARCHAR(10), rules_score INT, structured_score INT, "
+            + "stable_score INT, bot_path VARCHAR(400), notes VARCHAR(4000), voters VARCHAR(20000), submitted_by VARCHAR(80) NOT NULL, submitted TIMESTAMP NOT NULL, "
+            + "updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE INDEX ideas_status ON ideas (status)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 40;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40 };
+    public static final int LATEST = 41;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

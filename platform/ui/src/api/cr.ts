@@ -216,6 +216,13 @@ export type EventSubscriptionList = { subscriptions: EventSubscription[]; types:
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
   created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
+/** An automation idea (G65): suggested and voted by anyone, assessed by the automation team; the score and savings are worked out by the server. */
+export type Idea = { id: string; title: string; description?: string | null; department?: string | null; process_owner?: string | null; status: string;
+  volume_month?: number | null; minutes_each?: number | null; hourly_cost?: number | null; complexity?: string | null; rules_score?: number | null;
+  structured_score?: number | null; stable_score?: number | null; bot_path?: string | null; notes?: string | null; submitted_by: string; submitted: string;
+  updated?: string; updated_by?: string | null; votes: number; voted: boolean; mine: boolean; hours_year: number; value_year?: number | null; score?: number | null;
+  runs_30_days?: number; hours_saved_30_days?: number | null };
+export type IdeaList = { ideas: Idea[]; can_manage: boolean; statuses: string[] };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -515,6 +522,10 @@ export class CrApi {
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
   async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
+  async ideas() { return this.call<IdeaList>("GET", "ideas"); }
+  async saveIdea(id: string | null, body: Partial<Idea>) { return this.call<Idea>(id ? "PUT" : "POST", id ? "ideas/" + encodeURIComponent(id) : "ideas", body); }
+  async voteIdea(id: string) { return this.call<Idea>("POST", "ideas/" + encodeURIComponent(id) + "/vote"); }
+  async deleteIdea(id: string) { await this.call("DELETE", "ideas/" + encodeURIComponent(id)); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----

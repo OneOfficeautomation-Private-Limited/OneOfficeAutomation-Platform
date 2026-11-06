@@ -35,6 +35,7 @@ const PERMS: Record<string, { area: string; kind: Kind; label: string }> = {
   "devices.manage": { area: "Runner Machines", kind: "admin", label: "Manage runners" },
   "pools.manage": { area: "Runner Machines", kind: "admin", label: "Manage runner pools" },
   "locks.manage": { area: "Runner Machines", kind: "admin", label: "Release environment locks" },
+  "ideas.manage": { area: "Agents", kind: "admin", label: "Assess automation ideas" },
   "schedules.view": { area: "Schedules and triggers", kind: "see", label: "See schedules" },
   "schedules.manage": { area: "Schedules and triggers", kind: "change", label: "Manage schedules" },
   "triggers.view": { area: "Schedules and triggers", kind: "see", label: "See triggers" },

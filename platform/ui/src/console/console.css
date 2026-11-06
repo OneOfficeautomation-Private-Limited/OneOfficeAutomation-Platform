@@ -121,6 +121,7 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-describe { display: grid; gap: 6px; margin: 8px 0; }
 .cc-shot { display: block; max-width: 100%; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); margin: 6px 0; }
 .cc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.cc-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }   /* a group of fields turned off together (read-only ideas) */
 @media (max-width: 640px) { .cc-grid2 { grid-template-columns: 1fr; } }
 .cc-status.is-active { color: var(--ui-success); }
 .cc-status.is-locked { color: var(--ui-error-text); }

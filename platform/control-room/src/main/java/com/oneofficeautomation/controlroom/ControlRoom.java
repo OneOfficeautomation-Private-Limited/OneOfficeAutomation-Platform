@@ -76,6 +76,8 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
+    /** Automation ideas (gap G65): suggested, voted, assessed and scored, linked to the agent built. */
+    public final Ideas ideas;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
@@ -155,6 +157,7 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
+        this.ideas = new Ideas(this);
         this.runWaits = new RunWaits(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);

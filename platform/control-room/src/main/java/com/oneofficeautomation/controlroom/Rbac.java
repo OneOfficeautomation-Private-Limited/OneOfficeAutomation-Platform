@@ -22,7 +22,9 @@ public final class Rbac {
             "lockers.manage", "globals.manage", "audit.view", "pools.manage", "locks.manage", "settings.manage", "events.manage", "metrics.view", "connections.manage", "toolkits.manage", "skills.all", "alerts.manage",
             "docs.engines",
             // Operational Insights (AA's Insight roles): make and share dashboards; set savings and the yearly goal
-            "insights.design", "insights.admin");
+            "insights.design", "insights.admin",
+            // Automation ideas (G65): assess ideas, move them through the pipeline, link the agent built
+            "ideas.manage");
 
     /** Every permission, for building custom roles. */
     public static List<String> all() { return permissions("admin"); }

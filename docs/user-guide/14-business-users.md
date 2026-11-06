@@ -14,6 +14,7 @@ members who start agents themselves from their desktop.
 7. [The assistant in the notification area](#7-the-assistant-in-the-notification-area)
 8. [Start an agent from the assistant](#8-start-an-agent-from-the-assistant)
 9. [Notifications on your desktop](#9-notifications-on-your-desktop)
+9a. [Suggest a process to automate](#9a-suggest-a-process-to-automate)
 10. [If it goes wrong](#10-if-it-goes-wrong)
 11. [Related guides](#related-guides)
 
@@ -146,6 +147,20 @@ Click the notification (or the icon) to open the matching page in One CommandCen
 
 Your administrator can also have One CommandCenter e-mail you when a run you started fails (with the agent, the
 reason and a link to the run).
+
+## 9a. Suggest a process to automate
+
+If part of your work is repetitive, suggest it: in One CommandCenter open **Build > Automation ideas** and choose
+**Suggest an idea**. Say what should be automated, how it is done today, your department, roughly how many cases a
+month and how many minutes each takes by hand. Everyone signed in can see the ideas and vote for the ones they would
+use (vote again to take a vote back).
+
+The automation team assesses each idea: how rule-based, structured and stable the process is, and how hard it is to
+build. That gives a **score** from 0 to 100, which with the votes decides what is built first. The idea then moves
+through **Assessing**, **Approved**, **Building** and **Live** (or **Rejected** or **On hold**, with the team's notes).
+Once it is live, the list shows the hours the agent actually saved over the last 30 days next to the estimate.
+
+You can change or delete your own idea while it is still **Submitted**.
 
 ## 10. If it goes wrong
 
