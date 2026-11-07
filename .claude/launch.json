@@ -101,6 +101,18 @@
       ],
       "port": 8763,
       "cwd": "C:/OOA/oneofficeautomation/platform"
+    },
+    {
+      "name": "ooa-p5-packaging",
+      "runtimeExecutable": "C:/OOA/OneOfficeAutomation-Platform/.claude/worktrees/oneofficeautomation-platform-connect-030d24/platform/gradlew.bat",
+      "runtimeArgs": [
+        "-q",
+        "--console=plain",
+        ":cli:run",
+        "--args=server --port 8730 --no-agent --no-browser --data C:/Users/virup/AppData/Local/Temp/claude/f0a23e925e158914/37d34b5e-4859-4ad1-8569-e5d9ed1fb13a/scratchpad/p5data --workspace C:/Users/virup/AppData/Local/Temp/claude/f0a23e925e158914/37d34b5e-4859-4ad1-8569-e5d9ed1fb13a/scratchpad/p5ws"
+      ],
+      "port": 8730,
+      "cwd": "C:/OOA/OneOfficeAutomation-Platform/.claude/worktrees/oneofficeautomation-platform-connect-030d24/platform"
     }
   ]
 }
