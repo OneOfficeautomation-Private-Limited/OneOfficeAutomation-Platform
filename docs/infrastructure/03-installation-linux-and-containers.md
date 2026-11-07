@@ -222,7 +222,7 @@ docker compose -f docker/compose.saas.yaml -f docker/compose.saas.docflow.yaml u
 | Service | What it does |
 | --- | --- |
 | `docflow-db` | `postgres:16-alpine`, database and user `docflow`, volume `docflow-db` |
-| `docflow` | DocFlow at the version this release is tested with (built from its `v3.1.0` tag, or `DOCFLOW_IMAGE`). It runs in managed mode, uses volume `docflow-data` and publishes no port |
+| `docflow` | DocFlow at the version this release is tested with (built from its `v3.1.1` tag, or `DOCFLOW_IMAGE`). It runs in managed mode, uses volume `docflow-data` and publishes no port |
 | `command-center` / `region` | Gets `OOA_DOCFLOW_URL` and `OOA_DOCFLOW_TOKEN`, so Document Automation works with no further set-up |
 
 Add these to `.env`:

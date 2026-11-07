@@ -26,8 +26,8 @@ services:
     restart: unless-stopped
 
   docflow:
-    image: ${DOCFLOW_IMAGE:-oneoffice/docauto:3.1.0}
-    build: https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#v3.1.0
+    image: ${DOCFLOW_IMAGE:-oneoffice/docauto:3.1.1}
+    build: https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#v3.1.1
     depends_on: { docflow-db: { condition: service_healthy } }
     environment:
       DOCAUTO_MANAGED: "true"

@@ -27,7 +27,8 @@ class DocFlowProxyTest {
     /** What the fake DocFlow lists as processes. */
     volatile String flowsJson = "[]";
     /** What the fake DocFlow says its version is. */
-    volatile String versionJson = "{\"version\":\"3.1.0\"}";
+    static final String PINNED = DocFlowProxy.COMPAT.getProperty("pinned");
+    volatile String versionJson = "{\"version\":\"" + PINNED + "\"}";
 
     @BeforeAll void start() throws Exception {
         Path data = Files.createTempDirectory("ooa-docflow-proxy");
@@ -128,16 +129,16 @@ class DocFlowProxyTest {
             HttpResponse<String> r = call("GET", "/api/docflow/version", null);
             assertEquals(200, r.statusCode(), r.body());
             Map<?, ?> v = (Map<?, ?>) JsonLite.parse(r.body());
-            assertEquals(List.of("compatible", true, "3.1.0", "3.1.0"), List.of(v.get("status"), v.get("compatible"), v.get("version"), v.get("tested")));
+            assertEquals(List.of("compatible", true, PINNED, PINNED), List.of(v.get("status"), v.get("compatible"), v.get("version"), v.get("tested")));
             versionJson = "{\"version\":\"4.0.0\"}";
             Map<String, Object> other = new DocFlowProxy(cr).version();
             assertEquals(List.of("other_contract", false), List.of(other.get("status"), other.get("compatible")));
-            assertTrue(String.valueOf(other.get("message")).contains("Install DocFlow 3.1.0"));
+            assertTrue(String.valueOf(other.get("message")).contains("Install DocFlow " + PINNED));
             versionJson = "{\"version\":\"3.0.0\"}";
             assertEquals("too_old", new DocFlowProxy(cr).version().get("status"));
             versionJson = "{}";
             assertEquals("unknown", new DocFlowProxy(cr).version().get("status"));
-        } finally { versionJson = "{\"version\":\"3.1.0\"}"; }
+        } finally { versionJson = "{\"version\":\"" + PINNED + "\"}"; }
         assertTrue(Rbac.allowed("viewer", "docs.view"));                       // everyone who may see the page may see this
     }
 

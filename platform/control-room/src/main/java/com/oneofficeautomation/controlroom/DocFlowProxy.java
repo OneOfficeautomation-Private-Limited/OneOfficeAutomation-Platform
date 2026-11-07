@@ -56,7 +56,8 @@ final class DocFlowProxy {
     DocFlowProxy(ControlRoom cr) {
         this.cr = cr;
         // DocFlow runs next to the Command Center: never through the outbound proxy for internet traffic
-        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
+        // and over HTTP/1.1: DocFlow (uvicorn) does not take the HTTP/2 upgrade and logged a warning for every request
+        this.http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
     }
 
     /** The permission a request needs. */
