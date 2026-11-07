@@ -197,6 +197,25 @@ upper end out); a list `EU, UK`; or `not EU, UK`. For example:
 (exactly one must match, else the step fails with `RULES.NOT_UNIQUE`) or **collect** (all of them, in **all**). With no
 match the step gives **default_outputs**, or fails when **fail_when_none** is ticked.
 
+## 6b. Finding controls by sight (AI screen)
+
+For screens without usable selectors, such as remote desktops, Citrix and VDI sessions, or applications that draw their
+own controls, the **AI screen (vision)** toolkit finds a control from a plain description with a model that reads
+pictures:
+
+| Action | What it does |
+| --- | --- |
+| **Find on screen (AI)** | Takes a screenshot, asks the model where "the Submit button below the address" is, and returns **found**, the middle (**x**, **y**), the **box**, the model's **confidence** and the **text** it reads there |
+| **Click described control (AI)** | The same, then a single, double or right click. Below **min_confidence** (0.7 at first) it fails with `VISION.NOT_FOUND` instead of clicking |
+| **Type into described control (AI)** | Clicks into the described field and types the text (pasted, so any language works) |
+| **Read described control (AI)** | Returns the text of the described control |
+
+Describe the control by its text, kind, colour or place. When several match, the model is asked to answer "not found"
+rather than guess. The screenshot is made at most 1600 pixels wide before it goes to the model, and the model's answer
+is checked to lie inside the picture before anything is clicked. Personal-data masking does not apply to pictures, so
+use a model connection your company allows for screen content. Keep captured objects for screens that have them: they
+are faster, cost nothing per step and need no model.
+
 ## 7. Knowledge Q&A
 
 Answer questions from your company's documents:
