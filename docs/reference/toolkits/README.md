@@ -71,7 +71,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 21 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
-| [OCR](ooa-ocr.md) | `ooa.ocr` | 7 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
+| [OCR](ooa-ocr.md) | `ooa.ocr` | 8 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
 | [Okta](ooa-okta.md) | `ooa.okta` | 14 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
 | [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
 | [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 0 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |

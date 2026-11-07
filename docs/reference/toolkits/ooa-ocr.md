@@ -6,7 +6,7 @@ Toolkit `ooa.ocr`, version 1.0.0. Read text from images, image URLs or the scree
 
 ## Contents
 
-- **OCR**: Add OCR language to Windows, Click text on screen, Get OCR engines, Find text in image, Read text from image, Read text from screen, Read text from image URL
+- **OCR**: Add OCR language to Windows, Click text on screen, Get OCR engines, Find text in image, Read text from image, Read text from screen, Read text from image URL, Read text with a cloud engine
 - **Conditions**: Text is on screen
 
 ## OCR
@@ -193,6 +193,34 @@ Download an image from an http or https address and extract its text, optionally
 | `text` | Text | Recognised text. |
 
 *Time limit 300 s; safe to repeat; needs: network.*
+
+### Read text with a cloud engine
+
+`ooa.ocr/read_with_cloud` (action)
+
+Read an image or PDF, or an area of the screen, with Azure AI Document Intelligence (printed and handwritten text) or Google Vision, through a session from that toolkit's Connect step.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Engine | `engine` | Text | No | `azure` | Main | azure: Document Intelligence's read model, which also reads handwriting; google: Vision text detection. One of: `azure`, `google` |
+| Path | `path` | File path | No |  | Main; choice Read = A file | An image or PDF file; the screen when empty. |
+| X | `x` | Number | No |  | Main; choice Read = The screen | Screen area left (whole screen when empty). Shown when: `{"path": [""]}` |
+| Y | `y` | Number | No |  | Main; choice Read = The screen | Screen area top. Shown when: `{"path": [""]}` |
+| Width | `width` | Number | No |  | Main; choice Read = The screen | Screen area width. Shown when: `{"path": [""]}` |
+| Height | `height` | Number | No |  | Main; choice Read = The screen | Screen area height. Shown when: `{"path": [""]}` |
+| Session | `session` | Text | No |  | Main | The session from Azure AI services > Connect or Google Cloud AI > Connect; the only one open when empty. |
+| Language | `language` | Text | No |  | More options | A language hint (en-US for Azure, en for Google); detected when empty. Example: `en` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | The text read, in reading order. |
+| `engine` | Text | The engine that read it. |
+
+*Time limit 600 s; needs: filesystem, network.*
 
 ## Conditions
 

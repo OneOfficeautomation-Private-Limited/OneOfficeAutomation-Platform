@@ -353,8 +353,13 @@ When an application cannot be read through its controls (remote desktops, Citrix
   workspace; set **Tolerance** and, to speed things up, **Search only an area**.
 - **OCR (read text in images)**: **Read text from image**, **Read text from image URL**, **Read text from screen**
   (whole screen or one window, optionally an area), **Find text in image**, **Click text on screen**; condition
-  **Text is on screen**. **Keep only part of the text** takes the text after or before a word. OCR needs Tesseract
-  installed on the computer that runs the agent.
+  **Text is on screen**. **Keep only part of the text** takes the text after or before a word. OCR uses Tesseract when
+  it is installed on the computer that runs the agent, and otherwise the OCR built into Windows 10 and 11.
+- **Cloud OCR engines**: **Read text with a cloud engine** reads an image or PDF file, or an area of the screen, with
+  **Azure** (Azure AI Document Intelligence's read model, which also reads handwriting) or **Google** (Vision text
+  detection). Connect first with **Azure AI services > Connect** or **Google Cloud AI > Connect**. The text leaves
+  the computer for that service, so use it where your company allows. ABBYY is not built in; call its API with the
+  REST toolkit.
 
 ## 12. Interrupt handlers for unexpected pop-ups
 
