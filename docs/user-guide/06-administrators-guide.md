@@ -524,6 +524,20 @@ Two code analysis rules keep screen work in one place. Both are off until an adm
 | **repository_objects** | Web and desktop steps use elements of a shared object repository, not objects captured into the agent itself. |
 | **ui_in_object_agents** | Only agents with the tag set on the rule (`object-agent` at first) contain screen steps. By default these are the Browser, Desktop objects, Mouse/keyboard and Window toolkits; the rule's toolkit list sets which. Other agents ("process agents") call those object agents with **Run agent**, as Blue Prism separates objects from processes. |
 
+The code analysis rule **connector_groups** (off at first) groups toolkits the way Power Automate's data policies group
+connectors:
+
+- **business**: the toolkits for company systems, such as `ooa.sap`, `ooa.microsoft365` or `ooa.aws*`;
+- **blocked**: toolkits no agent in these folders may use;
+- **neutral**: toolkits that only work on the agent's own values (text, numbers, dates, lists, tables, logs). They go
+  with both groups and are filled in at first;
+- every other toolkit is **non-business**.
+
+An agent that uses a business toolkit and a non-business one together is reported, because data could pass from one
+to the other. So is every step of a blocked toolkit. Toolkits are named by id (Agent ToolKits shows them), and a name
+ending in `*` covers every toolkit that starts with it. With **Refuse check-ins that have errors**, such agents cannot be
+checked in to the folders the policy is given to.
+
 A folder follows its own policy of each kind, or else the nearest folder above it that has one; a folder can have one
 policy of each kind. Folders with no code analysis policy anywhere above them follow **Default code analysis**, which
 cannot be deleted (change its rules to change the default). The page is in the menu for people with `settings.manage`,
