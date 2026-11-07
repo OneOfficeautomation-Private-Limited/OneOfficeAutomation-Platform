@@ -27,6 +27,7 @@ The production platform is Java 21; it must pass the same conformance suite.
 ## Agents
 - An Agent Flow declares `agent.instructions`, `agent.tools` (published automation ids; `sensitive: true` requires human approval), `maxSteps`, `maxCostUsd`, optional `outputSchema`
 - A tool's input schema is the automation's input variables; its result is the output variables
+- One Chat: an optional top-level `chat` block lets people start the automation in plain words: `risk` (R0 runs at once; R1/R2 wait for a yes; R3 also needs a second person's approval; default R2), `examples`, `aliases`, `not_for` (lists of phrases) and `prompts` (question per input variable). Older flows with `ui.chat` still work
 
 ## Errors
 Every error has `code`, `message`, `suggestedFix`, `retryable`, `stepId`. Catch blocks match codes or prefixes (`BUSINESS.*`).

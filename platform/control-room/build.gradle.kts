@@ -2,6 +2,8 @@
 // Storage is JDBC: embedded H2 by default (no setup); SQL Server or PostgreSQL in production (config/ooa-db.properties).
 dependencies {
     implementation(project(":packages"))
+    // One Chat's engines and conversation rules; this module provides its ChatPlatform (Chat.java)
+    implementation(project(":conversation"))
     // work items from Excel workbooks
     implementation("org.apache.poi:poi-ooxml:5.3.0")
     // Git sync of the agent repository (pure Java: the server needs no git installed)

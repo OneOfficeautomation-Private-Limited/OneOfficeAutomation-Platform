@@ -440,6 +440,9 @@ public final class Workflows {
         String kind = String.valueOf(t.get("kind"));
         if (kind.equals(DocFlowProxy.TASK_KIND))
             throw new OoaException("CR.BAD_INPUT", "Open the document to review it", "Approve or reject it on the review screen; the task then closes by itself.");
+        // One Chat's R3 approvals: never your own request, administrators included
+        if (kind.equals("approval") && u.username().equals(Chat.requester(t)))
+            throw new OoaException("CR.FORBIDDEN", "You cannot approve your own request", "Someone else among the approvers decides it.");
         Map<String, Object> result = new LinkedHashMap<>();
         String forcedNext = null;
         String out;
@@ -469,6 +472,10 @@ public final class Workflows {
         if (t.get("workflow_run_id") != null && !kind.equals("notification"))
             resume((String) t.get("workflow_run_id"), String.valueOf(t.get("stage")), result, kind.equals("approval") ? out : "task_completed",
                     Map.of("task_id", taskId, "by", u.username()), forcedNext);
+        if (kind.equals("approval") && Chat.APPROVAL_STAGE.equals(t.get("stage"))) {
+            String runId = cr.chat.decided(t, u, out, comment, ip);
+            if (runId != null) return Map.of("ok", true, "outcome", out, "run_id", runId);
+        }
         return Map.of("ok", true, "outcome", out);
     }
 

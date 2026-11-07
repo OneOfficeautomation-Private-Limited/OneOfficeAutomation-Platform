@@ -203,7 +203,7 @@ const PAGES = [
   ["audit", "Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Agent ToolKits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "Agent APIs", "apitasks.manage", "code", "#2563eb"],
-  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["docautomation", "Document Automation", "repo.view", "form", "#6d28d9"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
+  ["chat", "One Chat", "runs.view", "shieldai", "#2563eb"], ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["docautomation", "Document Automation", "repo.view", "form", "#6d28d9"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
@@ -218,7 +218,7 @@ const NAV_GROUPS = [
   ["manage", "Manage", "desktop", ["activity", "inbox", "devices", "schedules", "triggers", "queues", "workflows", "globals", "savedconn", "toolkits"]],
   ["insights", "Operational Insights", "percent", ["operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "credentials", "audit", "licenses", "settings"]],
-  ["ai", "AI", "shieldai", ["connections", "skills", "docautomation", "governance"]],
+  ["ai", "AI", "shieldai", ["chat", "connections", "skills", "docautomation", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
@@ -842,6 +842,56 @@ const VIEWS = {
     if (main.isConnected) S.timer = every(() => { if (S.page === "queues" && $("modal").hidden && $("drawer").hidden) go("queues"); }, 5000);
   },
 
+  async chat(main) {
+    // One Chat: ask in plain words for an agent run or for your runs; anything that changes data waits for your yes
+    S.chat = S.chat || { session: null, messages: [], busy: false };
+    const log = h("div", { class: "chat-log", role: "log", "aria-live": "polite" });
+    const chatLang = () => (window.OOA_I18N && window.OOA_I18N.lang) || document.documentElement.lang || "en";
+    const input = h("input", { type: "text", "aria-label": "Message", placeholder: "For example: post today's invoices for Acme, or: what are my runs?", maxlength: "2000" });
+    const send = async (text) => {
+      text = String(text || "").trim();
+      if (!text || S.chat.busy) return;
+      S.chat.busy = true; S.chat.messages.push({ role: "user", text }); draw();
+      try {
+        const r = await api("POST", "chat", { session_id: S.chat.session, message: text, lang: chatLang() });
+        S.chat.session = r.session_id;
+        S.chat.messages.push({ role: "assistant", text: r.reply, kind: r.kind, run: r.run_id });
+      } catch (e) {
+        if (e.code === "CR.NOT_FOUND") S.chat.session = null;   // the chat expired on the server: the next message starts a new one
+        S.chat.messages.push({ role: "assistant", text: e.message, kind: "error" });
+      } finally { S.chat.busy = false; draw(); input.focus(); }
+    };
+    const draw = () => {
+      const last = S.chat.messages[S.chat.messages.length - 1];
+      log.replaceChildren(...(S.chat.messages.length ? [] : [h("p", { class: "muted", text: "Ask for an agent by name or describe the task. I only offer agents you may run, and I ask before running anything that changes data." })]),
+        // replies come already in the person's language and what people type stays as typed: the page translator keeps out
+        ...S.chat.messages.map((m) => h("div", { class: "chat-msg " + m.role }, h("span", { "data-no-i18n": "" }, m.text),
+          m === last && m.kind === "confirm" && !S.chat.busy ? h("div", { class: "chat-actions" },
+            h("button", { type: "button", class: "primary", onclick: () => send("yes") }, "Yes, run it"), h("button", { type: "button", onclick: () => send("no") }, "No")) : null,
+          m.run && (m.kind === "started" || String(m.kind || "").startsWith("run_")) ? h("div", { class: "chat-actions" }, h("button", { type: "button", onclick: () => go("activity") }, "Open Agent Runs")) : null)));
+      log.scrollTop = log.scrollHeight;
+    };
+    const form = h("form", { class: "chat-form", onsubmit: (e) => { e.preventDefault(); const t = input.value; input.value = ""; send(t); } },
+      input, h("button", { type: "submit", class: "primary" }, "Send"));
+    main.replaceChildren(...header("One Chat", "Run agents and check your runs in plain words. Runs start as you, with your permissions, and show in Agent Runs and the One Audit Trail.",
+      h("button", { type: "button", onclick: () => { S.chat = null; go("chat"); } }, "New chat")),
+      h("div", { class: "chat" }, log, form));
+    draw(); input.focus();
+    // while a run or an approval from this chat is still open, pick up what the Command Center adds (finished, failed, approved)
+    const open = () => S.chat.messages.some((m) => (m.kind === "awaiting_approval" && !S.chat.messages.some((x) => String(x.kind || "").startsWith("approval_")))
+      || ((m.kind === "started" || m.kind === "approval_approved") && m.run && !S.chat.messages.some((x) => x.run === m.run && String(x.kind || "").startsWith("run_"))));
+    if (main.isConnected) S.timer = every(async () => {
+      if (S.page !== "chat" || S.chat.busy || !S.chat.session || !open()) return;
+      try {
+        const r = await api("GET", "chat/" + S.chat.session);
+        if (r.messages.length > S.chat.messages.length) {
+          S.chat.messages = r.messages.map((m) => ({ role: m.role, text: m.text, kind: m.kind, run: m.run_id }));
+          draw();
+        }
+      } catch (_) { /* the chat expired; the next message starts a new one */ }
+    }, 10000);
+  },
+
   async inbox(main) {
     S.inboxTab = S.inboxTab || "open";
     const admin = can("users.manage");
@@ -950,6 +1000,10 @@ const VIEWS = {
       const pub = txt("public_url", location.origin), ssoIssuer = txt("sso_issuer", "https://login.microsoftonline.com/<tenant>/v2.0"), ssoClient = txt("sso_client_id"),
         ssoSecret = txt("sso_client_secret_ref", "sso/oidc/client_secret"), ssoRole = txt("sso_default_role", "viewer"), ssoGroups = h("textarea", { rows: 3, value: st.sso_group_roles || "", placeholder: "OOA Admins = admin\nFinance Automation = bot_runner" }), ssoLabel = txt("sso_label", "Sign in with your organisation account"),
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600),
+        chatMode = h("select", {}, [["deterministic", "Rules only (no AI model)"], ["hybrid", "Rules first, the AI model when unsure"], ["llm", "AI model"]]
+          .map(([v, l]) => h("option", { value: v, text: l, selected: (st.chat_mode || "deterministic") === v }))),
+        chatConn = txt("chat_connection", "empty = the person's first allowed connection"), chatRunner = txt("chat_runner"), chatApprovers = txt("chat_approvers", "role:admin"),
+        chatByRole = h("textarea", { rows: 3, placeholder: "bot_runner=deterministic\nadmin=hybrid", value: String(st.chat_mode_by_role || "") }),
         mcpAud = txt("mcp_oauth_audience", "api://ooa-mcp (empty = API keys only)"), mcpScope = txt("mcp_oauth_scope", "mcp.use (optional)");
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500), keepAudit = num("audit_retention_days", 0, 36500);
@@ -1036,6 +1090,12 @@ const VIEWS = {
           h("label", {}, "Wait for a result (seconds)", mcpTimeout)),
         h("p", { class: "muted", text: "Sign-in with OAuth: assistants can also send an access token from your identity provider (the single sign-on issuer above), meant for the audience below. The person must already have an account here. Assistants find this at " + location.origin + "/.well-known/oauth-protected-resource." }),
         h("div", { class: "grid2" }, h("label", {}, "Token audience (the application id URI of the MCP app in your identity provider)", mcpAud), h("label", {}, "Scope the token must carry", mcpScope)),
+        h("h3", {}, ic("shieldai", "#2563eb", "sm"), "One Chat"),
+        h("p", { class: "muted", text: "People ask in plain words for their agents. Runs start as them, and anything that changes data waits for their yes. With an AI model, only the person's words and the agent descriptions go to the model, through the chosen One Model Connection (its masking and budget apply)." }),
+        h("div", { class: "grid2" }, h("label", {}, "How chat understands requests", chatMode), h("label", {}, "One Model Connection for chat", chatConn),
+          h("label", {}, "Runner or runner pool id (empty = any online runner)", chatRunner),
+          h("label", {}, "Who approves high-impact (R3) requests (user:name, role:name; never the person who asked)", chatApprovers),
+          h("label", {}, "A different mode for some roles (one role=mode per line; mode is deterministic, hybrid or llm)", chatByRole)),
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use One CommandCenter. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
@@ -1108,7 +1168,7 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_group_roles: ssoGroups.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
+              mcp_timeout_seconds: Number(mcpTimeout.value), chat_mode: chatMode.value, chat_connection: chatConn.value.trim(), chat_runner: chatRunner.value.trim(), chat_approvers: chatApprovers.value.trim(), chat_mode_by_role: chatByRole.value.trim(), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value), runner_cpu_max: Number(cpuMax.value), runner_mem_max: Number(memMax.value), runner_screen_pictures: screenPics.checked ? 1 : 0,
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
@@ -2497,7 +2557,7 @@ async function openTask(t) {
   // a document review happens on Document Automation's review screen; the task closes when it is approved or rejected
   if (t.kind === "document_review" && t.can_act && t.data && t.data.link) { location.href = t.data.link; return; }
   const fields = t.kind === "form" && t.form ? (t.form.fields || []).map((f) => [f, taskField(f, (t.result || {})[f.id])]) : [];
-  const ctx = Object.keys(t.data || {}).length ? h("details", { open: t.kind === "approval" }, h("summary", { text: "Workflow data" }), kv(Object.entries(t.data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]))) : null;
+  const ctx = Object.keys(t.data || {}).length ? h("details", { open: t.kind === "approval" }, h("summary", { text: t.stage === "chat_approval" ? "Request details (One Chat)" : "Workflow data" }), kv(Object.entries(t.data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]))) : null;
   const comment = h("textarea", { rows: 2, placeholder: "Comment (optional)" });
   const done = !t.can_act;
   const submit = async (outcome) => {

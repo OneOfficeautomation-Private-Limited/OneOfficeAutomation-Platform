@@ -56,6 +56,8 @@ public final class ControlRoom {
     public final RepoFiles repoFiles;
     /** Prompt Skills kept in One CommandCenter. */
     public final PromptSkills promptSkills;
+    /** One Chat: plain-language requests to run agents, under the same permissions and with confirmation. */
+    public final Chat chat;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
@@ -204,6 +206,7 @@ public final class ControlRoom {
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
+        this.chat = new Chat(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
         this.serverless = new ServerlessRuns(this, registry, dataDir);
@@ -1943,6 +1946,7 @@ public final class ControlRoom {
         try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
+        if ("chat".equals(r.get("source"))) try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* the next clock tick tells the chat */ }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 
@@ -2305,6 +2309,7 @@ public final class ControlRoom {
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
+        try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

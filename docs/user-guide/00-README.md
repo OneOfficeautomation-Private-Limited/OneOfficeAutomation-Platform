@@ -53,6 +53,7 @@ recorded in the **Audit Trail**.
 | 13 | [AI in agents](13-ai-in-agents.md) | Builders | Prompt Skills, AI agents, model connections, Knowledge Q&A |
 | 14 | [Business users](14-business-users.md) | Business users | The Task inbox, starting workflows, running agents you are allowed to run, the notification-area assistant |
 | 15 | [Publishing to One CommandCenter](15-publishing-to-command-center.md) | Builders | Check-in and check-out, versions, labels, approvals, folders |
+| 16 | [One Chat](16-one-chat.md) | Business users, builders, administrators | Running agents in plain words, the yes and the R3 approval, languages, the agent's `chat` block, chat settings and modes |
 
 ## Start here: a reading path for each role
 
@@ -71,6 +72,7 @@ recorded in the **Audit Trail**.
 
 1. [01 Getting started](01-getting-started.md), sections "Signing in for the first time" and "Finding your way".
 2. [14 Business users](14-business-users.md): your Task inbox, starting a workflow, the assistant in the notification area.
+   [16 One Chat](16-one-chat.md) to start agents in plain words.
 3. If you have your own runner on your PC, the parts of [07 Runner guide](07-runner-guide.md) about attended runners.
 
 ### Operator (you run, schedule and watch agents)
