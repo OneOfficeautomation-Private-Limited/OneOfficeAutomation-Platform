@@ -78,17 +78,12 @@
       "id": "one-chat",
       "name": "One Chat",
       "layer": 3,
-      "description": "Running agents and checking runs in plain words.",
+      "description": "Running agents and checking runs in plain words. Moved out of the kernel: platform/modules/one-chat (Gradle project :one-chat).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Chat.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ChatModel.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Chat*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ChatModel*Test.java",
-        "platform/ui/src/console/Chat.tsx",
-        "platform/ui/src/console/Chat.test.tsx",
+        "platform/modules/one-chat/**",
+        "platform/ui/src/modules/one-chat/**",
         "platform/conversation/**",
-        "docs/user-guide/16-one-chat.md",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/LlmChatTest.java"
+        "docs/user-guide/16-one-chat.md"
       ],
       "dependsOn": [
         "kernel"
@@ -181,7 +176,8 @@
         "platform/ui/src/console/Capacity.tsx",
         "platform/ui/src/console/EventSubscriptions.tsx",
         "platform/ui/src/console/Activity.tsx",
-        "platform/ui/src/console/EventSubscriptions.test.tsx"
+        "platform/ui/src/console/EventSubscriptions.test.tsx",
+        "platform/ui/src/console/BusinessAgents.tsx"
       ],
       "dependsOn": [
         "kernel"
@@ -191,16 +187,10 @@
       "id": "ai-services",
       "name": "AI services",
       "layer": 3,
-      "description": "Prompt skills, model connections and knowledge bases.",
+      "description": "Prompt skills and knowledge bases. (Model connections, the AI gateway, are the kernel's.) Moved out of the kernel: platform/modules/ai-services (Gradle project :ai-services).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PromptSkills.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/KnowledgeBases.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PromptSkills*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/KnowledgeBases*Test.java",
-        "platform/ui/src/console/Skills.tsx",
-        "platform/ui/src/console/ModelConnections.tsx",
-        "platform/ui/src/console/KnowledgeBases.tsx",
-        "platform/ui/src/console/Connections.tsx"
+        "platform/modules/ai-services/**",
+        "platform/ui/src/modules/ai-services/**"
       ],
       "dependsOn": [
         "kernel"
@@ -210,22 +200,10 @@
       "id": "low-code",
       "name": "Low-code apps",
       "layer": 3,
-      "description": "Apps, apps embedded in other sites, the business data store and the console as a phone app.",
+      "description": "Low-code apps, apps embedded in other sites and the business data store. (The console as a phone app, MobileApp, is the kernel's shell.) Moved out of the kernel: platform/modules/low-code (Gradle project :low-code).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Apps.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/AppEmbeds.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/DataStore.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/MobileApp.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Apps*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/AppEmbeds*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DataStore*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/MobileApp*Test.java",
-        "platform/ui/src/console/Apps.tsx",
-        "platform/ui/src/console/EmbedApp.tsx",
-        "platform/ui/src/console/DataStore.tsx",
-        "platform/ui/src/console/Apps.test.tsx",
-        "platform/ui/src/console/EmbedApp.test.tsx",
-        "platform/ui/src/console/DataStore.test.tsx"
+        "platform/modules/low-code/**",
+        "platform/ui/src/modules/low-code/**"
       ],
       "dependsOn": [
         "kernel"
@@ -235,13 +213,10 @@
       "id": "coe",
       "name": "Automation ideas",
       "layer": 3,
-      "description": "Ideas suggested, voted, assessed and linked to the agent built.",
+      "description": "Ideas suggested, voted, assessed and linked to the agent built. Moved out of the kernel: platform/modules/coe (Gradle project :coe).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Ideas.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Ideas*Test.java",
-        "platform/ui/src/console/Ideas.tsx",
-        "platform/ui/src/console/BusinessAgents.tsx",
-        "platform/ui/src/console/Ideas.test.tsx"
+        "platform/modules/coe/**",
+        "platform/ui/src/modules/coe/**"
       ],
       "dependsOn": [
         "kernel"

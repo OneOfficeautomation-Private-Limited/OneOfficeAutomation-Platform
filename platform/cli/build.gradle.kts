@@ -12,6 +12,10 @@ dependencies {
     implementation(project(":control-room"))
     // feature modules of One CommandCenter, found by the kernel with ServiceLoader (ooa docflow uses its settings file)
     implementation(project(":document-automation"))
+    implementation(project(":one-chat"))
+    implementation(project(":low-code"))
+    implementation(project(":ai-services"))
+    implementation(project(":coe"))
     implementation(project(":agent"))
     // the command line: commands, options, help and shell completion
     implementation("info.picocli:picocli:4.7.6")

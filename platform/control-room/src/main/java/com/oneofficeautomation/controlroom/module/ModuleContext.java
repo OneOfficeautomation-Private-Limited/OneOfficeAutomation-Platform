@@ -67,11 +67,17 @@ public interface ModuleContext {
     /** Whether the person may use the vault folder (as its consumer). */
     boolean consumesVaultFolder(String username, String role, String folder);
 
-    /** Records an Audit Trail entry. */
-    void audit(String by, String action, String objectType, String objectId, Map<String, Object> details, String outcome, String ip);
+    /** Records an Audit Trail entry; details is usually a map, or a short text. */
+    void audit(String by, String action, String objectType, String objectId, Object details, String outcome, String ip);
 
     /** A Settings value (the module's own, from {@link #defineSetting}, or the kernel's). */
     Object setting(String key);
+
+    /** A whole-number setting (0 when it is not a number). */
+    default int intSetting(String key) { return setting(key) instanceof Number n ? n.intValue() : 0; }
+
+    /** COUNT(*) AS n of a query, as a long. */
+    default long count(String sql, Object... params) { return ((Number) db().one(sql, params).get("n")).longValue(); }
 
     /** Refuses an outbound address the network policy does not allow (Settings > Outbound connections). */
     void checkHost(String host, String what);
@@ -97,6 +103,27 @@ public interface ModuleContext {
     /** Starts a trigger's agent with these inputs, as the trigger's owner. */
     Map<String, Object> fireTrigger(Map<String, Object> trigger, Map<String, Object> inputs, String source, String ip);
 
+    /**
+     * Adds work items to a work queue on behalf of a person (an app's publisher, with actor saying who used the app):
+     * the queue's rules and the person's rights apply. Returns {ids}.
+     */
+    Map<String, Object> addWorkItems(User by, String actor, String queueId, List<Object> items, String ip);
+
+    /** Every main and further role of a person. */
+    List<String> rolesOf(String username, String role);
+
+    /** Whether a role exists (built in or custom). */
+    boolean roleExists(String role);
+
+    /** An online runner that takes work, or null when none is online. */
+    String onlineRunner();
+
+    /** The model connections (AI gateway) a person's roles may use, as a run's job carries them. */
+    Map<String, Object> modelConnectionsFor(List<String> roles);
+
+    /** Records the AI calls a run (or a chat turn) made, for AI governance. */
+    void recordAiCalls(Map<String, Object> run, List<?> calls);
+
     /** A trigger's settings (its config), as the trigger pollers read them. */
     Map<String, Object> triggerConfig(Map<String, Object> trigger);
 
@@ -111,11 +138,17 @@ public interface ModuleContext {
     /** Sends a JSON answer. */
     void sendJson(HttpExchange ex, int status, Object body) throws IOException;
 
+    /** Sends a file to download (Content-Disposition attachment), with the kernel's security headers. */
+    void sendFile(HttpExchange ex, byte[] content, String contentType, String fileName) throws IOException;
+
     /** The request body, up to Settings > Largest upload (CR.TOO_LARGE beyond). */
     byte[] body(HttpExchange ex) throws IOException;
 
     /** The request body as a JSON object (CR.BAD_JSON otherwise). */
     Map<String, Object> jsonBody(HttpExchange ex) throws IOException;
+
+    /** The request's query parameters (decoded). */
+    Map<String, String> query(HttpExchange ex);
 
     /** Settings > Largest upload, in bytes. */
     int maxBody();
@@ -130,6 +163,23 @@ public interface ModuleContext {
 
     /** A call from another service at /api/{route}, before sign-in: the module authenticates it (a service token). Returns the JSON answer. */
     @FunctionalInterface interface CallbackRoute { Object handle(HttpExchange ex, String ip) throws IOException; }
+
+    /** A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key). The route is after the prefix. */
+    @FunctionalInterface interface PublicRoute { void handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
+
+    /** The sites that may show a page in a frame, as a frame-ancestors list ("https://a.example https://b.example"), or null when there is no such page. */
+    @FunctionalInterface interface FrameOrigins { String forPage(String id); }
+
+    /** Told when a run (or a chain of suspended and resumed runs) ends: success, failed or stopped. */
+    @FunctionalInterface interface RunEnded { void ended(Map<String, Object> run, String status, Map<String, Object> result); }
+
+    /** Task inbox tasks of a stage a module opens (One Chat's R3 approvals), whatever their kind. */
+    interface TaskStage {
+        /** Refuses (OoaException) a person completing the task, such as approving their own request. */
+        default void checkComplete(User u, Map<String, Object> task) { }
+        /** The task was decided; returns the id of a run it started, or null. */
+        String decided(Map<String, Object> task, User u, String outcome, String comment, String ip);
+    }
 
     /** Checks a value saved in Settings for a module's setting; throws OoaException (CR.BAD_INPUT) to refuse it. */
     @FunctionalInterface interface SettingCheck { void check(String value, boolean saas); }
@@ -165,6 +215,53 @@ public interface ModuleContext {
         List<Map<String, Object>> install(User by, Map<String, Object> bundle, String folder);
     }
 
+    /**
+     * Offers one of the module's objects to the rest of One CommandCenter by its type (its tests, and other modules
+     * through an interface the kernel publishes); {@code Modules.service(type)} finds it.
+     */
+    <T> void provide(Class<T> type, T service);
+
+    /** An object a module or the kernel offers by this type, or null when none does. */
+    <T> T service(Class<T> type);
+
+    // ------------------------------------------------------------------ the kernel's conventions, the same for every module
+
+    /** A new id with a prefix ("idea_3f2a..."), as the kernel makes them. */
+    static String id(String prefix) { return com.oneofficeautomation.controlroom.ControlRoom.newId(prefix); }
+
+    /** Now, to the millisecond, as the kernel stores times. */
+    static java.time.Instant now() { return com.oneofficeautomation.controlroom.ControlRoom.nowMillis(); }
+
+    /** CR.FORBIDDEN: "You do not have permission to {what}". */
+    static com.oneofficeautomation.sdk.OoaException denied(String what) { return com.oneofficeautomation.controlroom.ControlRoom.deniedTo(what); }
+
+    /** A random token of this many bytes, URL-safe (embed keys, API keys), as the kernel makes them. */
+    static String secureToken(int bytes) { return com.oneofficeautomation.controlroom.Security.token(bytes); }
+
+    /** The SHA-256 of a text, in hex (how keys are kept: only their hash). */
+    static String sha256(String text) { return com.oneofficeautomation.controlroom.Security.sha256(text); }
+
+    /** Compares two secrets in constant time. */
+    static boolean constantEquals(String a, String b) { return com.oneofficeautomation.controlroom.Security.constantEquals(a, b); }
+
+    /** A folder path as the repository keeps it ("Finance/AP"); refuses one that is not valid (CR.BAD_PATH). */
+    static String folderPath(String path) { return com.oneofficeautomation.controlroom.ControlRoom.normalizedFolder(path); }
+
+    /** CR.NOT_FOUND: "{what} not found". */
+    static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
+
+    /** A part a module adds to every run's job when a runner takes it (Prompt Skills: the skills the agent names). */
+    @FunctionalInterface interface JobPart {
+        /**
+         * The part for this run: the agent's flow, its bundle (the agents it calls) and the person it runs as. Empty
+         * when there is nothing to add; an OoaException fails the run before it starts, with the reason.
+         */
+        Map<String, Object> forJob(Map<String, Object> flow, Map<String, Object> bundle, String principal);
+    }
+
+    /** Adds a part, under this key, to the job of every run (the runner reads it there). */
+    void jobPart(String key, JobPart part);
+
     /** Requests under /api/{prefix}/ from signed-in people. */
     void route(String prefix, UserRoute handler);
 
@@ -173,6 +270,21 @@ public interface ModuleContext {
 
     /** Requests at /api/{route} from another service, before sign-in (POST only). */
     void callbackRoute(String route, CallbackRoute handler);
+
+    /** Requests under /api/{prefix}/ before sign-in, which the module authenticates itself. */
+    void publicRoute(String prefix, PublicRoute handler);
+
+    /**
+     * The console page at /{path}/{id} (apps embedded in other sites: /embed/{link}), which the sites the module names
+     * may frame; an unknown id gets 404.
+     */
+    void embeddablePage(String path, FrameOrigins origins);
+
+    /** Tells the module when runs end (after the kernel's own follow-up: work items, KPIs, workflows). */
+    void onRunEnded(RunEnded listener);
+
+    /** Tasks whose stage the module owns (One Chat: chat_approval). */
+    void taskStage(String stage, TaskStage rules);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

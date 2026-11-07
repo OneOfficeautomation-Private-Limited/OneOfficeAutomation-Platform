@@ -50,6 +50,9 @@ class ModulesTest {
     @Test void aModuleCannotTakeOverTheKernelsSettingsOrTriggerKinds() {
         assertThrows(IllegalStateException.class, () -> Platform.defineModuleSetting("session_hours", 8, null), "a kernel setting stays the kernel's");
         assertThrows(IllegalArgumentException.class, () -> Platform.defineModuleSetting("Bad Key", "", null));
+        // a module's setting without a check may be defined again (a second One CommandCenter in this process)
+        Platform.defineModuleSetting("sample_note", "", null);
+        Platform.defineModuleSetting("sample_note", "", null);
         assertThrows(IllegalStateException.class, () -> TriggerKinds.defineModuleKind("email", "Mail", r -> Map.of()), "a kernel trigger kind stays the kernel's");
         assertThrows(IllegalArgumentException.class, () -> TriggerKinds.defineModuleKind("a_kind_longer_than_twenty", "x", r -> Map.of()), "the triggers table's kind column");
         // a module's own may be defined again (one class path, several tenants in SaaS): the same entry

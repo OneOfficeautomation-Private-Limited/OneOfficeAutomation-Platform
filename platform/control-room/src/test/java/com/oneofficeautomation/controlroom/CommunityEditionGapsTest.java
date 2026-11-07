@@ -15,8 +15,8 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The gaps found in the reference product's Community Edition: repository files, moving and copying agents, Prompt
- * Skills kept centrally, model connection roles and test, vault attribute flags and requests, several roles per
+ * The gaps found in the reference product's Community Edition: repository files, moving and copying agents (Prompt
+ * Skills kept centrally are tested in the ai-services module), model connection roles and test, vault attribute flags and requests, several roles per
  * person, shared values people change for themselves, and runner settings.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -127,35 +127,6 @@ class CommunityEditionGapsTest {
 
     @SuppressWarnings("unchecked")
     static Map<String, Object> castMap(Object o) { return (Map<String, Object>) o; }
-
-    @Test @Order(3)
-    @SuppressWarnings("unchecked")
-    void promptSkillsAreSharedVersionedAndSentWithRuns() {
-        Map<String, Object> def = Map.of("prompt", "Summarise: ${text}", "output", "text", "temperature", 0.2);
-        assertEquals(1, cr.promptSkills.save(jane, "summary", Map.of("description", "Short summary", "definition", def), null).get("version"));
-        assertTrue(cr.promptSkills.list(bob).isEmpty(), "private until shared");
-        assertEquals(2, cr.promptSkills.save(jane, "summary", Map.of("description", "Short summary", "definition", Map.of("prompt", "Summarise briefly: ${text}"), "shared", true, "comment", "shorter"), null).get("version"));
-        assertEquals(1, cr.promptSkills.list(bob).size());
-        Map<String, Object> s = cr.promptSkills.get(bob, "summary", 1);
-        assertEquals("Summarise: ${text}", ((Map<String, Object>) s.get("definition")).get("prompt"));
-        assertEquals(2, ((List<Object>) s.get("versions")).size());
-        assertEquals("CR.FORBIDDEN", code(() -> cr.promptSkills.save(bob, "summary", Map.of("definition", def), null)));
-        assertEquals("CR.BAD_INPUT", code(() -> cr.promptSkills.save(jane, "bad", Map.of("definition", Map.of("output", "text")), null)));
-        assertEquals("CR.FORBIDDEN", code(() -> cr.promptSkills.save(jane, "tpl", Map.of("definition", def, "template", true), null)), "only administrators publish templates");
-        assertEquals(3, cr.promptSkills.templates(jane).size(), "the built-in templates");
-        assertEquals("route", cr.promptSkills.fromTemplate(jane, "template_route_request", "route", null).get("name"));
-
-        // a run gets the skills its agent names
-        cr.checkin(jane, "Sales/Summarise.flow.json", json("{\"kind\":\"TaskBot\",\"id\":\"summ\",\"name\":\"s\",\"variables\":[],\"steps\":[{\"id\":\"1\",\"action\":\"ooa.ai_skills/run\",\"args\":{\"skill\":\"summary\",\"values\":{}}}]}"), "v1", true, null);
-        cr.startRun("bob", "bot_runner", "Sales/Summarise.flow.json", device, Map.of(), "manual", null);
-        Map<String, Object> job = claim();
-        Map<String, Object> skills = (Map<String, Object>) job.get("skills");
-        assertEquals(Set.of("summary"), skills.keySet());
-        assertEquals("Summarise briefly: ${text}", ((Map<String, Object>) skills.get("summary")).get("prompt"));
-        finishAll();
-        cr.promptSkills.delete(jane, "route", null);
-        assertEquals("CR.NOT_FOUND", code(() -> cr.promptSkills.get(jane, "route", null)));
-    }
 
     @Test @Order(4)
     @SuppressWarnings("unchecked")

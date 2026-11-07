@@ -27,10 +27,19 @@ public final class Modules {
     final Map<String, ModuleContext.UserRoute> userRoutes = new LinkedHashMap<>();
     final Map<String, ModuleContext.AgentRoute> agentRoutes = new LinkedHashMap<>();
     final Map<String, ModuleContext.CallbackRoute> callbacks = new LinkedHashMap<>();
+    final Map<String, ModuleContext.PublicRoute> publicRoutes = new LinkedHashMap<>();
+    final Map<String, ModuleContext.FrameOrigins> embeddablePages = new LinkedHashMap<>();
     final List<Job> jobs = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskKind> taskKinds = new LinkedHashMap<>();
     final List<ModuleContext.McpTools> mcpTools = new CopyOnWriteArrayList<>();
     final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
+    final Map<String, ModuleContext.JobPart> jobParts = new LinkedHashMap<>();
+    final List<ModuleContext.RunEnded> runEnded = new CopyOnWriteArrayList<>();
+    final Map<String, ModuleContext.TaskStage> taskStages = new LinkedHashMap<>();
+    private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
+    public <T> T service(Class<T> type) { return type.cast(services.get(type)); }
 
     Modules(ControlRoom cr) { this.cr = cr; }
 
@@ -97,6 +106,14 @@ public final class Modules {
         return new Context(module);
     }
 
+    /** The rules of a task stage a module owns, or null. */
+    ModuleContext.TaskStage taskStage(Object stage) { return stage == null ? null : taskStages.get(String.valueOf(stage)); }
+
+    /** Tells the modules a run ended; one module failing does not stop the others. */
+    void runEnded(Map<String, Object> run, String status, Map<String, Object> result) {
+        for (ModuleContext.RunEnded l : runEnded) try { l.ended(run, status, result); } catch (RuntimeException ignored) { /* the module's own clock catches up */ }
+    }
+
     /** The task kind rules a module registered, or null for the kernel's own kinds. */
     ModuleContext.TaskKind taskKind(String kind) { return taskKinds.get(kind); }
 
@@ -133,7 +150,7 @@ public final class Modules {
             return l != null && cr.consumes(username, role, l);
         }
 
-        public void audit(String by, String action, String objectType, String objectId, Map<String, Object> details, String outcome, String ip) {
+        public void audit(String by, String action, String objectType, String objectId, Object details, String outcome, String ip) {
             cr.audit.record(by, action, objectType, objectId, details, outcome, ip);
         }
 
@@ -150,6 +167,12 @@ public final class Modules {
         public Map<String, Object> fireTrigger(Map<String, Object> trigger, Map<String, Object> inputs, String source, String ip) {
             return cr.fireTrigger(trigger, inputs, source, ip);
         }
+        public Map<String, Object> addWorkItems(User by, String actor, String queueId, List<Object> items, String ip) { return cr.platform.addItemsAs(by, actor, queueId, items, ip); }
+        public List<String> rolesOf(String username, String role) { return cr.rolesOf(username, role); }
+        public boolean roleExists(String role) { return cr.roleExists(role); }
+        public String onlineRunner() { return cr.platform.onlineRunner(); }
+        public Map<String, Object> modelConnectionsFor(List<String> roles) { return cr.platform.connectionsForJob(roles); }
+        public void recordAiCalls(Map<String, Object> run, List<?> calls) { cr.platform.recordAiCalls(run, calls); }
         public Map<String, Object> triggerConfig(Map<String, Object> trigger) { return TriggerPollers.config(trigger); }
 
         public MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) {
@@ -168,18 +191,27 @@ public final class Modules {
         }
         public Map<String, Object> jsonBody(HttpExchange ex) throws IOException { return ControlRoomServer.map(ControlRoomServer.body(ex)); }
         public int maxBody() { return ControlRoomServer.maxBody.getAsInt(); }
+        public Map<String, String> query(HttpExchange ex) { return ControlRoomServer.query(ex); }
+        public void sendFile(HttpExchange ex, byte[] content, String contentType, String fileName) throws IOException { ControlRoomServer.sendBytes(ex, content, contentType, fileName); }
 
         public void route(String prefix, UserRoute handler) { claim(userRoutes, prefix, handler, "the route /api/" + prefix); }
         public void agentRoute(String route, AgentRoute handler) { claim(agentRoutes, route, handler, "the runner route /api/agent/" + route); }
         public void callbackRoute(String route, CallbackRoute handler) { claim(callbacks, route, handler, "the callback /api/" + route); }
+        public void publicRoute(String prefix, PublicRoute handler) { claim(publicRoutes, prefix, handler, "the public route /api/" + prefix); }
+        public void embeddablePage(String path, FrameOrigins origins) { claim(embeddablePages, path, origins, "the page /" + path + "/"); }
+        public void onRunEnded(RunEnded listener) { runEnded.add(listener); }
+        public void taskStage(String stage, TaskStage rules) { claim(taskStages, stage, rules, "the task stage " + stage); }
         public void every(Duration delay, Duration period, Runnable job) { jobs.add(new Job(module, delay, period, job)); }
         public void defineSetting(String key, Object defaultValue, SettingCheck check) { Platform.defineModuleSetting(key, defaultValue, check); }
         public void taskKind(String kind, TaskKind rules) { claim(taskKinds, kind, rules, "the task kind " + kind); }
         public void triggerKind(String kind, String label, TriggerKind rules) { TriggerKinds.defineModuleKind(kind, label, rules); }
         public void mcpTools(McpTools tools) { mcpTools.add(tools); }
         public void templatePart(TemplatePart part) { templateParts.add(part); }
+        public void jobPart(String key, JobPart part) { claim(jobParts, key, part, "the job part " + key); }
+        public <T> void provide(Class<T> type, T service) { claim(services, type, service, "the service " + type.getName()); }
+        public <T> T service(Class<T> type) { return Modules.this.service(type); }
 
-        private <T> void claim(Map<String, T> map, String key, T value, String what) {
+        private <K, T> void claim(Map<K, T> map, K key, T value, String what) {
             if (map.putIfAbsent(key, value) != null) throw new IllegalStateException("Module " + module + " registers " + what + ", which another module has");
         }
     }

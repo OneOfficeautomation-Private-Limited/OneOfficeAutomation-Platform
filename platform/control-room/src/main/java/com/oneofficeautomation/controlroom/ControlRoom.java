@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.runner.FlowSchemaValidator;
 import com.oneofficeautomation.runner.FlowValidator;
 import com.oneofficeautomation.sdk.JsonLite;
@@ -56,10 +58,6 @@ public final class ControlRoom {
     public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
     public final RepoFiles repoFiles;
-    /** Prompt Skills kept in One CommandCenter. */
-    public final PromptSkills promptSkills;
-    /** One Chat: plain-language requests to run agents, under the same permissions and with confirmation. */
-    public final Chat chat;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
@@ -82,16 +80,6 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
-    /** Automation ideas (gap G65): suggested, voted, assessed and scored, linked to the agent built. */
-    public final Ideas ideas;
-    /** Business data store (gap G66): entities with records, and storage buckets runs read and write. */
-    public final DataStore dataStore;
-    /** Low-code apps (gap G67): pages of fields and buttons that run agents, add records and work items. */
-    public final Apps apps;
-    /** Apps embedded in other web pages (gap G68): embed links with the sites allowed to frame them. */
-    public final AppEmbeds appEmbeds;
-    /** Knowledge bases (gap G71): knowledge indexes kept here, refreshed by agents, asked by name. */
-    public final KnowledgeBases knowledge;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Auto-scaling runner pools (G52). */
@@ -173,11 +161,6 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
-        this.ideas = new Ideas(this);
-        this.dataStore = new DataStore(this);
-        this.apps = new Apps(this);
-        this.appEmbeds = new AppEmbeds(this);
-        this.knowledge = new KnowledgeBases(this);
         this.runWaits = new RunWaits(this);
         this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);
@@ -207,8 +190,6 @@ public final class ControlRoom {
         this.policies = new Policies(this);
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
-        this.promptSkills = new PromptSkills(this);
-        this.chat = new Chat(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
         this.serverless = new ServerlessRuns(this, registry, dataDir);
@@ -218,6 +199,13 @@ public final class ControlRoom {
         this.modules = new Modules(this);
         modules.start();
     }
+
+    /** The kernel's conventions, published to feature modules through ModuleContext (id, now, denied, notFound). */
+    public static String newId(String prefix) { return id(prefix); }
+    public static Instant nowMillis() { return now(); }
+    public static OoaException deniedTo(String what) { return denied(what); }
+    public static OoaException notFoundError(String what) { return notFound(what); }
+    public static String normalizedFolder(String path) { return Folders.normalize(path); }
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
@@ -1824,13 +1812,15 @@ public final class ControlRoom {
                 globals.put((String) g.get("name"), JsonLite.parse((String) g.get("json_value")));
             Map<String, Object> user = db.one("SELECT role FROM users WHERE username = ?", principal);
             String role = user == null ? "viewer" : (String) user.get("role");
-            Map<String, Object> files, skills;
+            Map<String, Object> files;
+            Map<String, Map<String, Object>> moduleParts = new LinkedHashMap<>();
             List<Map<String, Object>> custom;
             try {
                 requireToolkits(d, main, bundle);
                 custom = customToolkits.forJob(main, bundle);
                 files = repoFiles.forJob(main, String.valueOf(principal), role);
-                skills = promptSkills.forJob(main, bundle, String.valueOf(principal));
+                // what feature modules add to the job (Prompt Skills: the skills the agent names)
+                for (Map.Entry<String, ModuleContext.JobPart> p : modules.jobParts.entrySet()) moduleParts.put(p.getKey(), p.getValue().forJob(main, bundle, String.valueOf(principal)));
             } catch (OoaException e) {
                 // a missing or forbidden file or skill fails the run before it starts, with the reason
                 db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ?", now(), JsonLite.write(e.toMap()), run.get("id"));
@@ -1844,7 +1834,7 @@ public final class ControlRoom {
             Map<String, Object> saved = connectionsForJob();
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
-            if (!skills.isEmpty()) job.put("skills", skills);
+            moduleParts.forEach((k, v) -> { if (v != null && !v.isEmpty()) job.put(k, v); });
             Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
             // Settings > AI (item 4n): AI switched off for everyone, and full logging of prompts and answers (off at first)
             if (platform.intSetting("ai_enabled") == 0 || platform.intSetting("ai_log_content") == 1) {
@@ -1951,7 +1941,7 @@ public final class ControlRoom {
         try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
-        if ("chat".equals(r.get("source"))) try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* the next clock tick tells the chat */ }
+        if (modules != null) modules.runEnded(r, status, result);   // feature modules (One Chat tells the chat at once)
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 
@@ -2314,7 +2304,6 @@ public final class ControlRoom {
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
-        try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

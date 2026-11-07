@@ -10,3 +10,11 @@ project(":document-automation").projectDir = file("modules/document-automation")
 val optionalModules = (providers.gradleProperty("ooa.optionalModules").orNull ?: "")
     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
 optionalModules.forEach { include(it) }
+include("coe")
+project(":coe").projectDir = file("modules/coe")
+include("ai-services")
+project(":ai-services").projectDir = file("modules/ai-services")
+include("low-code")
+project(":low-code").projectDir = file("modules/low-code")
+include("one-chat")
+project(":one-chat").projectDir = file("modules/one-chat")

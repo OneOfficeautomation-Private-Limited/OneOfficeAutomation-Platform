@@ -1,8 +1,8 @@
 # 13. Modules: one platform, separately changed parts
 
-Status: **approved** (2026-11-07). Phase 0 (the module map and the boundary report) and phase 1 (the module
-contract, with Document Automation as the first module moved out) are built. Phases 2 to 8 follow, one module at a
-time.
+Status: **approved** (2026-11-07). Phase 0 (the module map and the boundary report), phase 1 (the module
+contract, with Document Automation as the first module moved out) and phase 2 (automation ideas, AI services,
+low-code and One Chat moved out) are built. Phases 3 to 8 follow, one module at a time.
 
 ## 1. Why
 
@@ -80,6 +80,12 @@ What a module adds, in `start`:
 | Trigger kinds | `triggerKind(kind, label, rules)` | lists the kind, stores its settings as the module cleans them, and never polls it |
 | AI assistant tools | `mcpTools(tools)` | offers them through the MCP server before the agent tools |
 | Template content | `templatePart(part)` | asks the part to add to a shared bundle and to create its items on install |
+| A part of every run's job | `jobPart(key, part)` | puts it in the job under the key when a runner takes the run; a refusal fails the run before it starts (Prompt Skills) |
+| Requests before sign-in | `publicRoute(prefix, handler)` | sends `/api/{prefix}/...` to it; the module checks its own credential (low-code's embed key) |
+| A page other sites may frame | `embeddablePage(path, origins)` | serves the console page at `/{path}/{id}` with frame-ancestors from the module; an unknown id is 404 |
+| Runs that end | `onRunEnded(listener)` | tells it after the kernel's own follow-up (One Chat tells the chat at once) |
+| Task inbox stages | `taskStage(stage, rules)` | asks it before such a task is completed and tells it the decision (One Chat's R3 approvals) |
+| Objects for others | `provide(type, object)` | finds it with `Modules.service(type)` (tests, and other modules through a kernel interface) |
 | Its own tables | `schema()`: numbered steps | applies the missing steps after the kernel's schema and records the module's version in `module_schema` (kernel schema 46) |
 
 `GET /api/modules` lists the modules running, with their versions.
@@ -109,8 +115,8 @@ modules); the console wires the module's page in directly (phase 6: a UI module 
 | --- | --- | --- |
 | P0 | Module map, boundary report (87 crossings on 7 Nov 2026), this record | done |
 | P1 | Module contract, `Modules` registry, schema 46 (`module_schema`), Document Automation moved out, CI `changes` job | done |
-| P2 | Move the loosely joined modules: coe (ideas), ai-services (knowledge bases, prompt skills), low-code, one-chat | next |
-| P3 | Insights, testing, governance, integration, runner-management | |
+| P2 | coe (automation ideas), ai-services (Prompt Skills, knowledge bases), low-code (apps, embed links, data store), one-chat moved out; contract grows job parts, public routes, embeddable pages, run-ended listeners, task stages, services (boundary crossings 81 -> 59) | done |
+| P3 | Insights, testing, governance, integration, runner-management | next |
 | P4 | Orchestration (schedules, triggers, workflows, run waits), the most joined to runs | |
 | P5 | Toolkit groups, found with ServiceLoader instead of one list (`FirstPartyPackages`) | |
 | P6 | UI: a module registry for menu and routes, the API client, stylesheet and translations split per module, class prefixes checked | |
@@ -126,9 +132,12 @@ New feature work pauses only for the module being moved.
 2. Create `platform/modules/<name>/build.gradle.kts` depending on `:control-room` (and `:sdk`), include it in
    `platform/settings.gradle.kts`, and add it to the `cli` dependencies.
 3. Write the `CommandCenterModule` class and its services file; register everything in `start`.
-4. Move the classes, changing every kernel call to a `ModuleContext` call. If the module needs something the context
+4. Move the classes, changing every kernel call to a `ModuleContext` call (the kernel's ids, times, errors, tokens and
+   hashes are static methods of `ModuleContext`). If the module needs something the context
    does not offer, add it to the contract (a public, documented method), never a back door.
-5. Move its tests and screens (`platform/ui/src/modules/<name>`), then add the module to `ENFORCED` in
+5. Move its tests and screens (`platform/ui/src/modules/<name>`); the tests stay in the kernel's package and use the
+   kernel's test kit (the module's build script adds the kernel's test classes), and reach the module's objects with
+   `cr.modules.service(Type.class)`. Then add the module to `ENFORCED` in
    `ModuleMapTest` and to `FEATURE_MODULES` in `ArchitectureTest`.
 6. Give CI jobs that test only this module `needs: changes` and an `if:` on its output.
 
