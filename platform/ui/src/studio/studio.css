@@ -642,3 +642,7 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-objrepo-pick li.is-selected { background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-bg)); outline: 1px solid var(--ui-accent); }
 .st-objrepo-pick li:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
 .st-cap-ref code { overflow-wrap: anywhere; }
+/* G47: the Simple mode switch in the Actions panel's header */
+.st-simple-toggle { font: inherit; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ui-border); background: var(--ui-bg); color: var(--ui-text); cursor: pointer; }
+.st-simple-toggle.is-on { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
+.st-simple-toggle:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }

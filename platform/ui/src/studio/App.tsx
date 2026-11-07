@@ -75,6 +75,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [checkInDeps, setCheckInDeps] = useState<CheckInDep[]>([]);   // the agents one checked-in agent runs, for the review
   // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
+  const [simple, setSimple] = usePersistent("mode.simple", false);   // Simple mode for business users (G47)
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
     ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
@@ -489,7 +490,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
-        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} onTrigger={(kind, where) => {
+        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} simple={simple} onSimple={setSimple} onTrigger={(kind, where) => {
           if (where === "studio") { setAskTrigger({ kind, n: Date.now() }); return; }
           // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
           const cr = info?.controlRoom;

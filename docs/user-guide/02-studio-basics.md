@@ -124,6 +124,13 @@ lists every action in groups by toolkit, with a count each. Type in **Search act
 match after the selected step, or click an action, or drag it to where it goes. The **Triggers** group lists the triggers
 an agent can have (see [Running and debugging](04-studio-running-and-debugging.md#10-local-triggers)).
 
+**Simple mode** (the **Simple** switch at the top of the Actions panel) is for business users who automate their own
+work. The Actions panel then shows only everyday toolkits under plain names: Excel files, e-mail and Outlook,
+Microsoft 365, websites, files and folders, PDF and Word files, dates, text, asking a person, and forms. The building
+blocks are If, Loop, Assign, Comment, Log, Delay, Break and Try, and triggers are hidden. The agent itself is an
+ordinary agent: with Simple mode off you see and use every action. Studio remembers the choice for you on this
+computer. A Citizen Developer seat cannot check in agents that use scripts or code (Administrator's guide, Licenses).
+
 ### 4.3 The steps
 
 The steps toolbar has **Undo** and **Redo**, the **⋯** menu (**Select all**, **Find in this agent**, **Find and
