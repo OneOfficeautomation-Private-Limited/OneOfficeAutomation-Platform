@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.auth;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Security;
 import com.oneofficeautomation.sdk.OoaException;
 import org.w3c.dom.*;
 
@@ -31,30 +33,30 @@ import java.util.zip.Deflater;
  * <p>Settings: saml_idp_sso_url, saml_idp_entity_id, saml_idp_certificate (PEM), saml_sp_entity_id (default: the
  * metadata address), saml_label; new people get sso_default_role, as with OpenID Connect.
  */
-final class Saml {
-    static final String P = "urn:oasis:names:tc:SAML:2.0:protocol", A = "urn:oasis:names:tc:SAML:2.0:assertion";
+public final class Saml {
+    public static final String P = "urn:oasis:names:tc:SAML:2.0:protocol", A = "urn:oasis:names:tc:SAML:2.0:assertion";
     static final long SKEW_SECONDS = 120;
     private final ControlRoom cr;
     // sign-ins started here (10 minutes to come back) and assertion ids already used live in the store all nodes share
     /** The time responses are checked against (tests move it). */
-    java.time.Clock clock = java.time.Clock.systemUTC();
+    public java.time.Clock clock = java.time.Clock.systemUTC();
 
-    Saml(ControlRoom cr) { this.cr = cr; }
+    public Saml(ControlRoom cr) { this.cr = cr; }
 
     private String s(String k) { return String.valueOf(cr.platform.setting(k)).trim(); }
 
     boolean enabled() { return !s("saml_idp_sso_url").isEmpty() && !s("saml_idp_certificate").isEmpty(); }
 
-    Map<String, Object> info() { return Map.of("enabled", enabled(), "label", s("saml_label").isEmpty() ? "Sign in with SAML" : s("saml_label")); }
+    public Map<String, Object> info() { return Map.of("enabled", enabled(), "label", s("saml_label").isEmpty() ? "Sign in with SAML" : s("saml_label")); }
 
     /** This One CommandCenter's entity id: the setting, else the metadata address. */
     String spEntityId(String origin) { return s("saml_sp_entity_id").isEmpty() ? origin + "/api/auth/saml/metadata" : s("saml_sp_entity_id"); }
 
     /** The address to send the person to: the identity provider with a deflated, Base64 AuthnRequest. */
-    String start(String origin) { return start(origin, "/"); }
+    public String start(String origin) { return start(origin, "/"); }
 
     /** As above, coming back to returnTo (a page of this One CommandCenter) after sign-in. */
-    String start(String origin, String returnTo) {
+    public String start(String origin, String returnTo) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets it up in Administration > Settings.");
         String id = "_" + Security.token(18).replace('-', 'a').replace('_', 'b');
         cr.cluster.put("saml", id, ControlRoom.safeReturn(returnTo), java.time.Duration.ofMinutes(10));
@@ -72,7 +74,7 @@ final class Saml {
     }
 
     /** The metadata an identity provider imports: entity id and assertion consumer address (HTTP-POST). */
-    String metadata(String origin) {
+    public String metadata(String origin) {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"" + xml(spEntityId(origin)) + "\">"
             + "<md:SPSSODescriptor AuthnRequestsSigned=\"false\" WantAssertionsSigned=\"true\" protocolSupportEnumeration=\"" + P + "\">"
             + "<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>"
@@ -81,7 +83,7 @@ final class Saml {
     }
 
     /** Checks a SAMLResponse posted back by the identity provider and signs the person in. */
-    Map<String, Object> acs(String samlResponse, String origin, String ip) {
+    public Map<String, Object> acs(String samlResponse, String origin, String ip) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up");
         Map<String, Object> claims = new LinkedHashMap<>(validate(samlResponse, origin));
         String back = ControlRoom.safeReturn((String) claims.remove("_return"));
@@ -200,7 +202,7 @@ final class Saml {
         catch (Exception e) { throw new OoaException("SSO.CONFIG", "The identity provider certificate in Settings cannot be read", "Paste the identity provider's signing certificate (PEM)."); }
     }
 
-    static Document parse(byte[] xml) {
+    public static Document parse(byte[] xml) {
         try {
             DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
             f.setNamespaceAware(true);

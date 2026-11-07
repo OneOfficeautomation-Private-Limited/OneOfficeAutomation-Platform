@@ -19,10 +19,10 @@ import java.util.Locale;
  * The name is resolved here and again when connecting, so the region's network must also block those ranges for the
  * One CommandCenter's outgoing traffic (docs/infrastructure/09-saas-and-multi-region-operations.md); this check gives the tenant a clear message first.
  */
-final class NetGuard {
+public final class NetGuard {
     private NetGuard() { }
 
-    static void check(ControlRoom cr, String target, String what) {
+    public static void check(ControlRoom cr, String target, String what) {
         if (cr == null || cr.tenant == null) return;
         String host = hostOf(target);
         if (host.isEmpty() || host.equals("metadata.google.internal") || host.endsWith(".internal") || host.equals("localhost") || host.endsWith(".localhost"))

@@ -1,6 +1,7 @@
 package com.oneofficeautomation.cli;
 
 import com.oneofficeautomation.controlroom.*;
+import com.oneofficeautomation.controlroom.vault.*;
 
 import java.net.*;
 import java.nio.file.*;
@@ -124,7 +125,7 @@ final class CheckCommand {
     /** Where the vault key comes from: the environment, a key store (OOA_MASTER_KEY_SOURCE), or a file next to the data. */
     static Result vaultKey(String env, String source) {
         if (env != null && !env.isBlank()) return new Result("PASS", "Vault key", "from OOA_MASTER_KEY");
-        if (source != null && !source.isBlank()) return new Result("PASS", "Vault key", "from " + com.oneofficeautomation.controlroom.KeySources.describe(source.trim()));
+        if (source != null && !source.isBlank()) return new Result("PASS", "Vault key", "from " + com.oneofficeautomation.controlroom.vault.KeySources.describe(source.trim()));
         return new Result("WARN", "Vault key", "key file in the data folder; for production set OOA_MASTER_KEY or OOA_MASTER_KEY_SOURCE and keep a copy apart from backups");
     }
 }

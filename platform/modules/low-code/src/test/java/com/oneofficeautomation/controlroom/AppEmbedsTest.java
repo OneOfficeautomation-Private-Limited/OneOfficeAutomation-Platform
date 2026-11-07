@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
 import com.oneofficeautomation.modules.lowcode.AppEmbeds;
 import com.oneofficeautomation.modules.lowcode.Apps;
 import com.oneofficeautomation.modules.lowcode.DataStore;

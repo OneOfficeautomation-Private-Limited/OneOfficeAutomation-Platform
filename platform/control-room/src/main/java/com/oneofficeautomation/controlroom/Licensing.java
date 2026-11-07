@@ -337,7 +337,7 @@ public final class Licensing {
             : "This runner has no Unattended Runner license (an administrator assigns one in Administration > Licenses)";
     }
 
-    void requireRunnable(String deviceId, String requestedBy, String source) {
+    public void requireRunnable(String deviceId, String requestedBy, String source) {
         String p = runProblem(deviceId, requestedBy, source);
         if (p != null) throw expired() ? expiredError() : new OoaException("CR.LICENSE_REQUIRED", p);
     }
@@ -479,7 +479,7 @@ public final class Licensing {
     }
 
     /** A CSV cell: quoted when needed, and never starting like a spreadsheet formula. */
-    static String csv(String v) {
+    public static String csv(String v) {
         String s = !v.isEmpty() && "=+-@".indexOf(v.charAt(0)) >= 0 ? "'" + v : v;
         return s.contains(",") || s.contains("\"") || s.contains("\n") ? "\"" + s.replace("\"", "\"\"") + "\"" : s;
     }

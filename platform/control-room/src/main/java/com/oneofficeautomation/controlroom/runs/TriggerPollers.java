@@ -1,5 +1,11 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.GraphMailSource;
+import com.oneofficeautomation.controlroom.ImapMailSource;
+import com.oneofficeautomation.controlroom.JsonPath;
+import com.oneofficeautomation.controlroom.MailSource;
+import com.oneofficeautomation.controlroom.NetGuard;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -30,10 +36,10 @@ public final class TriggerPollers {
     /** The trigger, its config and a way to read the vault references it names. */
     private record Ctx(Map<String, Object> trigger, Map<String, Object> config) {}
 
-    TriggerPollers(ControlRoom cr) { this.cr = cr; }
+    public TriggerPollers(ControlRoom cr) { this.cr = cr; }
 
     /** One poll result: the new cursor, the payloads to fire for, and (universal poller) the ids seen. */
-    record Poll(String cursor, List<Map<String, Object>> payloads, List<String> seen) {}
+    public record Poll(String cursor, List<Map<String, Object>> payloads, List<String> seen) {}
 
     /** Called by the server clock: starts the polls that are due, at most one at a time per trigger. */
     public void tick() {
@@ -49,10 +55,10 @@ public final class TriggerPollers {
     }
 
     /** Forget the schedule of a trigger, so it is polled at the next tick (after resume or a change). */
-    void reset(String id) { nextDue.remove(id); }
+    public void reset(String id) { nextDue.remove(id); }
 
     @SuppressWarnings("unchecked")
-    static Map<String, Object> config(Map<String, Object> t) {
+    public static Map<String, Object> config(Map<String, Object> t) {
         Object c = t.get("config");
         if (c == null || String.valueOf(c).isBlank()) return new LinkedHashMap<>();
         try { return new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(String.valueOf(c))); } catch (RuntimeException e) { return new LinkedHashMap<>(); }
@@ -154,7 +160,7 @@ public final class TriggerPollers {
     }
 
     // ---------- pollers (static, tested with fakes) ----------
-    static Poll pollMail(MailSource src, Map<String, Object> cfg, String cursor, boolean fireExisting) throws IOException {
+    public static Poll pollMail(MailSource src, Map<String, Object> cfg, String cursor, boolean fireExisting) throws IOException {
         MailSource.Batch b = src.fetch(cursor, fireExisting);
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> m : b.messages()) if (MailSource.matches(m, cfg) && out.size() < MAX_EVENTS) out.add(m);
@@ -166,7 +172,7 @@ public final class TriggerPollers {
      * "sys_updated_on|sys_id" of the last record handled (UTC, as the Table API returns it).
      */
     @SuppressWarnings("unchecked")
-    static Poll pollServiceNow(Map<String, Object> cfg, String cursor, boolean fireExisting, Function<String, String> secrets) throws IOException {
+    public static Poll pollServiceNow(Map<String, Object> cfg, String cursor, boolean fireExisting, Function<String, String> secrets) throws IOException {
         String base = String.valueOf(cfg.get("instance_url")).replaceAll("/+$", "") + "/api/now/table/" + cfg.get("table");
         Map<String, String> headers = new LinkedHashMap<>();
         if (cfg.get("token_ref") instanceof String tr) headers.put("Authorization", "Bearer " + secrets.apply(tr));
@@ -203,7 +209,7 @@ public final class TriggerPollers {
     }
 
     /** Universal poller: calls the URL, takes the items at items_path and fires once per item whose id_field is new. */
-    static Poll pollHttp(Map<String, Object> cfg, String cursor, List<String> seen, boolean fireExisting, Function<String, String> secrets) throws IOException {
+    public static Poll pollHttp(Map<String, Object> cfg, String cursor, List<String> seen, boolean fireExisting, Function<String, String> secrets) throws IOException {
         Map<String, String> headers = new LinkedHashMap<>();
         if (cfg.get("headers") instanceof Map<?, ?> h) h.forEach((k, v) -> headers.put(String.valueOf(k), String.valueOf(v)));
         if (cfg.get("auth_ref") instanceof String ar) headers.put("Authorization", "Bearer " + secrets.apply(ar));
@@ -238,5 +244,5 @@ public final class TriggerPollers {
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
-    void stop() { pool.shutdownNow(); }
+    public void stop() { pool.shutdownNow(); }
 }

@@ -1,5 +1,6 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.JsonPath;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.packages.ui.InputTriggers;
@@ -15,19 +16,19 @@ import java.util.regex.Pattern;
  * the Document Automation kinds, which DocFlow reports to it as they happen.
  * Validation turns a request body into the stored config; secrets are never stored, only vault references.
  */
-final class TriggerKinds {
+public final class TriggerKinds {
     private TriggerKinds() {}
 
-    enum Where { RUNNER, SERVER, WEBHOOK }
+    public enum Where { RUNNER, SERVER, WEBHOOK }
 
-    record Kind(String id, Where where, String label, boolean windowsOnly) {}
+    public record Kind(String id, Where where, String label, boolean windowsOnly) {}
 
-    static final Map<String, Kind> KINDS = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
+    public static final Map<String, Kind> KINDS = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
     /** Kinds feature modules add (ModuleContext.triggerKind): the module reports their events; nothing is polled. */
     static final Map<String, ModuleContext.TriggerKind> MODULE_KINDS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** A feature module's trigger kind (at most 20 characters, the triggers table's kind column). */
-    static synchronized void defineModuleKind(String kind, String label, ModuleContext.TriggerKind rules) {
+    public static synchronized void defineModuleKind(String kind, String label, ModuleContext.TriggerKind rules) {
         if (!kind.matches("[a-z][a-z0-9_]{1,19}")) throw new IllegalArgumentException("A trigger kind is lower case letters, digits and _, at most 20: " + kind);
         if (KINDS.containsKey(kind) && !MODULE_KINDS.containsKey(kind)) throw new IllegalStateException("The trigger kind " + kind + " is the kernel's");
         KINDS.put(kind, new Kind(kind, Where.SERVER, label, false));
@@ -35,7 +36,7 @@ final class TriggerKinds {
     }
 
     /** True for a kind a module reports (nothing to poll). */
-    static boolean pushed(String kind) { return MODULE_KINDS.containsKey(kind); }
+    public static boolean pushed(String kind) { return MODULE_KINDS.containsKey(kind); }
     static {
         for (Kind k : List.of(
                 new Kind("file", Where.RUNNER, "File arrives", false),
@@ -60,13 +61,13 @@ final class TriggerKinds {
             KINDS.put(k.id(), k);
     }
 
-    static final Set<String> FOLDER_KINDS = Set.of("file", "file_changed", "file_deleted", "folder_created", "folder_deleted");
+    public static final Set<String> FOLDER_KINDS = Set.of("file", "file_changed", "file_deleted", "folder_created", "folder_deleted");
     static final Pattern VAULT_REF = Pattern.compile("^[A-Za-z0-9_.-]{1,80}/[A-Za-z0-9_.-]{1,80}/[A-Za-z0-9_.-]{1,80}$");
     static final Pattern SERVICE = Pattern.compile("^[A-Za-z0-9_.\\- $]{1,256}$");
     static final Pattern TABLE = Pattern.compile("^[a-z][a-z0-9_]{0,79}$");
     static final int MIN_INTERVAL = 15, DEFAULT_INTERVAL = 60;
 
-    static Kind kind(String id) {
+    public static Kind kind(String id) {
         Kind k = KINDS.get(id);
         if (k == null) throw bad("Unknown trigger kind '" + id + "'; use one of " + String.join(", ", KINDS.keySet()));
         return k;
@@ -114,7 +115,7 @@ final class TriggerKinds {
      * pattern of folder kinds also stay in their own columns, as before.
      */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> validate(String kind, Map<String, Object> body) {
+    public static Map<String, Object> validate(String kind, Map<String, Object> body) {
         Map<String, Object> in = new LinkedHashMap<>(body);
         if (body.get("config") instanceof Map<?, ?> c) in.putAll((Map<String, Object>) c);   // settings may come flat or under "config"
         Map<String, Object> out = new LinkedHashMap<>();
@@ -232,7 +233,7 @@ final class TriggerKinds {
     }
 
     /** Config as shown to users: internal state (keys starting with _) removed. */
-    static Map<String, Object> publicConfig(Map<String, Object> config) {
+    public static Map<String, Object> publicConfig(Map<String, Object> config) {
         Map<String, Object> m = new LinkedHashMap<>();
         if (config != null) config.forEach((k, v) -> { if (!k.startsWith("_")) m.put(k, v); });
         return m;

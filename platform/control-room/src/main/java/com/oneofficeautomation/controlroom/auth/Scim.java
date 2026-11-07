@@ -1,5 +1,8 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.auth;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.Security;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.time.Instant;
@@ -19,20 +22,20 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  * sign-on; with no mapped group the role for new people is used, and with neither the account stays off. People sign
  * in with single sign-on, which finds the SCIM account by its user name.
  */
-final class Scim {
-    static final String USER = "urn:ietf:params:scim:schemas:core:2.0:User", GROUP = "urn:ietf:params:scim:schemas:core:2.0:Group",
+public final class Scim {
+    public static final String USER = "urn:ietf:params:scim:schemas:core:2.0:User", GROUP = "urn:ietf:params:scim:schemas:core:2.0:Group",
         LIST = "urn:ietf:params:scim:api:messages:2.0:ListResponse", ERROR = "urn:ietf:params:scim:api:messages:2.0:Error",
         PATCH = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
     private static final Pattern FILTER = Pattern.compile("^\\s*([A-Za-z.\\[\\]\" ]+?)\\s+eq\\s+\"((?:[^\"\\\\]|\\\\.)*)\"\\s*$", Pattern.CASE_INSENSITIVE);
 
     /** An answer: its HTTP status and body (null: none). */
-    record Answer(int status, Object body) {}
+    public record Answer(int status, Object body) {}
 
     /** A SCIM error: its status, scimType and detail (RFC 7644 3.12). */
-    static final class Problem extends RuntimeException {
-        final int status; final String type;
-        Problem(int status, String type, String detail) { super(detail); this.status = status; this.type = type; }
-        Map<String, Object> body() {
+    public static final class Problem extends RuntimeException {
+        public final int status; final String type;
+        public Problem(int status, String type, String detail) { super(detail); this.status = status; this.type = type; }
+        public Map<String, Object> body() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("schemas", List.of(ERROR)); m.put("status", String.valueOf(status));
             if (type != null) m.put("scimType", type);
@@ -44,7 +47,7 @@ final class Scim {
     private final ControlRoom cr;
     private final Db db;
 
-    Scim(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public Scim(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
     // ---------- tokens (Settings > Single sign-on) ----------
 
@@ -71,7 +74,7 @@ final class Scim {
     }
 
     /** The token's id, or null when it is not a live SCIM token. */
-    String tokenId(String bearer) {
+    public String tokenId(String bearer) {
         if (bearer == null || !bearer.startsWith("scim_")) return null;
         Map<String, Object> t = db.one("SELECT id FROM scim_tokens WHERE token_hash = ?", Security.sha256(bearer));
         if (t == null) return null;
@@ -82,7 +85,7 @@ final class Scim {
     // ---------- requests ----------
 
     /** One SCIM request; path is what follows /scim/v2/. */
-    Answer handle(String method, String path, Map<String, String> q, Object body, String base) {
+    public Answer handle(String method, String path, Map<String, String> q, Object body, String base) {
         String[] seg = path.replaceAll("^/+|/+$", "").split("/");
         String what = seg[0];
         String id = seg.length > 1 ? seg[1] : null;

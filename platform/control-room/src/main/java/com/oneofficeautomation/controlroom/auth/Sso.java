@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.auth;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.NetGuard;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -27,7 +29,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * Settings: sso_issuer, sso_client_id, sso_client_secret_ref (a vault reference folder/credential/attribute),
  * sso_default_role (for new users; empty = only existing users may sign in), sso_label (button text).
  */
-final class Sso {
+public final class Sso {
     private final ControlRoom cr;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
     // state -> verifier and nonce, for 10 minutes, in the store all nodes share
@@ -36,13 +38,13 @@ final class Sso {
     private volatile Map<String, Object> jwks;
     private volatile long jwksAt;
 
-    Sso(ControlRoom cr) { this.cr = cr; }
+    public Sso(ControlRoom cr) { this.cr = cr; }
 
     boolean enabled() {
         return !String.valueOf(cr.platform.setting("sso_issuer")).isBlank() && !String.valueOf(cr.platform.setting("sso_client_id")).isBlank();
     }
 
-    Map<String, Object> info() {
+    public Map<String, Object> info() {
         String label = String.valueOf(cr.platform.setting("sso_label"));
         return Map.of("enabled", enabled(), "label", label.isBlank() ? "Sign in with your organisation account" : label);
     }
@@ -76,10 +78,10 @@ final class Sso {
     }
 
     /** Builds the provider's sign-in URL and remembers the PKCE verifier and nonce for the state. */
-    String start(String redirectUri) { return start(redirectUri, "/"); }
+    public String start(String redirectUri) { return start(redirectUri, "/"); }
 
     /** As above, coming back to returnTo (a page of this One CommandCenter, from {@link ControlRoom#safeReturn}) after sign-in. */
-    String start(String redirectUri, String returnTo) {
+    public String start(String redirectUri, String returnTo) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "Single sign-on is not set up", "An administrator sets it up in Administration > Settings.");
         SecureRandom rnd = new SecureRandom();
         byte[] v = new byte[32], s = new byte[24], n = new byte[24];
@@ -95,7 +97,7 @@ final class Sso {
 
     /** Exchanges the code, checks the ID token and signs the person in; returns the login result (token + user). */
     @SuppressWarnings("unchecked")
-    Map<String, Object> callback(String code, String state, String redirectUri, String ip) {
+    public Map<String, Object> callback(String code, String state, String redirectUri, String ip) {
         String held = cr.cluster.take("oidc", state);
         String[] p = held == null ? null : held.split("\\|", 3);
         if (p == null || code == null) throw new OoaException("SSO.BAD_STATE", "The sign-in link expired or was already used", "Start the sign-in again.");
@@ -123,7 +125,7 @@ final class Sso {
 
     /** Verifies an ID token and returns its claims. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> verify(String jwt, String clientId, String nonce) {
+    public Map<String, Object> verify(String jwt, String clientId, String nonce) {
         String[] parts = jwt == null ? new String[0] : jwt.split("\\.");
         if (parts.length != 3) throw new OoaException("SSO.BAD_TOKEN", "The identity provider sent no valid ID token");
         Base64.Decoder d = Base64.getUrlDecoder();

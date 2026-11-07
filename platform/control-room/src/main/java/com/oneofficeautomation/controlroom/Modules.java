@@ -1,5 +1,8 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Folders;
+import com.oneofficeautomation.controlroom.runs.TriggerKinds;
+import com.oneofficeautomation.controlroom.runs.TriggerPollers;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.controlroom.module.CommandCenterModule;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
@@ -32,7 +35,7 @@ public final class Modules {
     final List<Job> jobs = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskKind> taskKinds = new LinkedHashMap<>();
     final List<ModuleContext.McpTools> mcpTools = new CopyOnWriteArrayList<>();
-    final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
+    public final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.JobPart> jobParts = new LinkedHashMap<>();
     final List<ModuleContext.RunEnded> runEnded = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskStage> taskStages = new LinkedHashMap<>();

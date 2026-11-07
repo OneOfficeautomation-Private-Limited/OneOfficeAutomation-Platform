@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -32,13 +34,13 @@ public final class RunnerCare {
     private final ControlRoom cr;
     private final Db db;
 
-    RunnerCare(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public RunnerCare(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
     /**
      * Why the runner takes no new work now (maintenance, or above a limit), or null. {@code d} holds maintenance,
      * cpu_pct, mem_pct, cpu_max and mem_max.
      */
-    String whyNoWork(Map<String, Object> d) {
+    public String whyNoWork(Map<String, Object> d) {
         if (d.get("maintenance") != null) return "in maintenance";
         int cpuMax = limit(d.get("cpu_max"), "runner_cpu_max"), memMax = limit(d.get("mem_max"), "runner_mem_max");
         if (cpuMax > 0 && d.get("cpu_pct") instanceof Number c && c.intValue() > cpuMax) return "CPU use " + c.intValue() + "% is above its limit of " + cpuMax + "%";
@@ -47,10 +49,10 @@ public final class RunnerCare {
     }
 
     /** The runner's own limit, or One CommandCenter's when it has none. */
-    int limit(Object own, String setting) { return own instanceof Number n ? n.intValue() : cr.platform.intSetting(setting); }
+    public int limit(Object own, String setting) { return own instanceof Number n ? n.intValue() : cr.platform.intSetting(setting); }
 
     /** Whether the runner takes new work now. */
-    boolean takesWork(String deviceId) {
+    public boolean takesWork(String deviceId) {
         Map<String, Object> d = db.one("SELECT maintenance, cpu_pct, mem_pct, cpu_max, mem_max FROM devices WHERE id = ?", deviceId);
         return d != null && whyNoWork(d) == null;
     }
@@ -126,7 +128,7 @@ public final class RunnerCare {
     }
 
     /** Reads the runner's CPU and memory use from a heartbeat, and adds what it was asked to send. */
-    void heartbeat(Map<String, Object> d, Map<String, Object> info, Map<String, Object> out) {
+    public void heartbeat(Map<String, Object> d, Map<String, Object> info, Map<String, Object> out) {
         String id = (String) d.get("id");
         Integer cpu = percent(info.get("cpu")), mem = percent(info.get("mem"));
         if (cpu != null || mem != null) db.update("UPDATE devices SET cpu_pct = ?, mem_pct = ? WHERE id = ?", cpu, mem, id);

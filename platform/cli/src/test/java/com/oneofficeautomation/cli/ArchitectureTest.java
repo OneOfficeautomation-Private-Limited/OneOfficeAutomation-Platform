@@ -58,6 +58,13 @@ class ArchitectureTest {
         for (String m : FEATURE_MODULES)
             assertEquals(List.of(), violations(m, Pattern.compile("^import com\\.oneofficeautomation\\.controlroom\\.(?!module\\.|ControlRoom\\.User;|Db;|Vault;|MailSource;|DbConfig;|ConsolePlugin;)")),
                     m + " uses only the kernel's module contract (com.oneofficeautomation.controlroom.module) and the types it carries");
+        // the kernel's own packages (phase 8): sign-in, the vault, run dispatch and the repository serve the HTTP layer,
+        // never the other way round, and never the console's server
+        List<String> kernelPackages = new ArrayList<>();
+        for (Path p : sources("control-room"))
+            if (p.getParent().getFileName().toString().matches("auth|vault|runs|repository") && Files.readString(p).contains("ControlRoomServer"))
+                kernelPackages.add(ROOT.relativize(p).toString());
+        assertEquals(List.of(), kernelPackages, "the kernel's packages (auth, vault, runs, repository) do not depend on the HTTP server");
     }
 
     /** Feature modules moved out of the kernel, as source folders (module-map.json). */

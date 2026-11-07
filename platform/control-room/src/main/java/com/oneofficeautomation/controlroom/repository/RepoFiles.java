@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.repository;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.io.IOException;
@@ -17,7 +19,7 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  * files it needs in requires.files, and the runner receives them with the job, at the same path in its workspace.
  */
 public final class RepoFiles {
-    static final long MAX_BYTES = 25L * 1024 * 1024;
+    public static final long MAX_BYTES = 25L * 1024 * 1024;
     static final long MAX_PER_RUN = 50L * 1024 * 1024;
     static final Pattern FILE = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}$");
     private final ControlRoom cr;
@@ -25,17 +27,17 @@ public final class RepoFiles {
     private final Path store;
 
     /** Where contents are kept: the shared folder of the setting repo_files_folder (UNC, DFS or NFS, for several nodes), else the data folder's. */
-    Path store() {
+    public Path store() {
         String shared = cr.tenant != null ? "" : String.valueOf(cr.platform.setting("repo_files_folder")).trim();
         return shared.isEmpty() ? store : Path.of(shared);
     }
 
-    RepoFiles(ControlRoom cr, Path dataDir) {
+    public RepoFiles(ControlRoom cr, Path dataDir) {
         this.cr = cr; this.db = cr.db;
         this.store = dataDir.resolve("repo-files");   // unless repo_files_folder names a shared folder (store())
     }
 
-    static String check(String path) {
+    public static String check(String path) {
         String p = path == null ? "" : path.trim().replace('\\', '/');
         if (!FILE.matcher(p).matches() || p.contains("..") || p.matches(".*\\.(flow|process|form)\\.json$"))
             throw new OoaException("CR.BAD_PATH", "Invalid file path '" + path + "'", "Use folders and a file name, e.g. Finance/Templates/invoice.xlsx (agents are checked in from One AgentStudio).");
@@ -122,7 +124,7 @@ public final class RepoFiles {
      * must be allowed to view each file's folder; a missing or forbidden file fails the run before it starts.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> forJob(Map<String, Object> flow, String username, String role) {
+    public Map<String, Object> forJob(Map<String, Object> flow, String username, String role) {
         List<Object> wanted = new ArrayList<>(flow.get("requires") instanceof Map<?, ?> r && r.get("files") instanceof List<?> l ? (List<Object>) l : List.of());
         // the shared object repositories its steps use (G42) go with it too, without listing them by hand
         for (String repo : com.oneofficeautomation.runner.ObjectRepositories.referenced(flow)) if (!wanted.contains(repo)) wanted.add(repo);

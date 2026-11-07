@@ -34,7 +34,7 @@ class TemplateCatalogueTest {
             String t0 = (String) cr.login("admin", pw, null).get("token");
             cr.changePassword(cr.session(t0), pw, "Admin-Passw0rd-2026", t0, null);
             ControlRoom.User admin = cr.session((String) cr.login("admin", "Admin-Passw0rd-2026", null).get("token"));
-            var t = com.oneofficeautomation.controlroom.Templates.withKey(cr, License.publicKey(kp.get("public")));
+            var t = com.oneofficeautomation.controlroom.repository.Templates.withKey(cr, License.publicKey(kp.get("public")));
             assertEquals(6, ((Number) t.upload(admin, Files.readString(out), null).get("templates")).intValue());
             for (Map<String, Object> tpl : (List<Map<String, Object>>) t.list(admin).get("templates")) {
                 Map<String, Object> r = t.install(admin, "vendor", (String) tpl.get("id"), "Templates", null);

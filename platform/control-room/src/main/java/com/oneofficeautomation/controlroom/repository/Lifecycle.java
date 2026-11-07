@@ -1,5 +1,10 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.repository;
 
+import com.oneofficeautomation.controlroom.NetGuard;
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.Security;
+import com.oneofficeautomation.controlroom.Vault;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -29,7 +34,7 @@ public final class Lifecycle {
     private final ControlRoom cr;
     private final Db db;
 
-    Lifecycle(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public Lifecycle(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> export(User by, List<Object> paths, Object version, boolean withDependencies, String ip) {

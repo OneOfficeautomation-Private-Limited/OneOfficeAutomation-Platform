@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.auth.Directory;
+import com.oneofficeautomation.controlroom.runs.QueueTools;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
 import com.oneofficeautomation.sdk.OoaException;
@@ -24,7 +26,7 @@ public final class Platform {
     private final PackageRegistry registry;
 
     /** Work queue upgrades (G31): tags, unlock, delete by filter, copy and move, unique references, encrypted data, agents' commands. */
-    final QueueTools queueTools;
+    public final QueueTools queueTools;
 
     Platform(ControlRoom cr, PackageRegistry registry) { this.cr = cr; this.db = cr.db; this.registry = registry; this.queueTools = new QueueTools(cr, this); }
 
@@ -282,10 +284,10 @@ public final class Platform {
         System.setProperty("http.nonProxyHosts", direct);
     }
 
-    int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
+    public int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
 
     /** The addresses agents may be promoted to (Settings), without a trailing slash and in lower case; empty: any. */
-    List<String> promotionTargets() {
+    public List<String> promotionTargets() {
         List<String> out = new ArrayList<>();
         for (String t : String.valueOf(setting("promotion_targets")).split("[,;\\s]+"))
             if (!t.isBlank()) out.add(t.trim().replaceAll("/+$", "").toLowerCase(Locale.ROOT));
@@ -776,7 +778,7 @@ public final class Platform {
         return out;
     }
 
-    Map<String, Object> counts(String queueId) {
+    public Map<String, Object> counts(String queueId) {
         Map<String, Object> c = new LinkedHashMap<>();
         for (String s : List.of("new", "in_progress", "review", "retry", "success", "failed", "deferred")) c.put(s, 0L);
         for (Map<String, Object> r : db.query("SELECT status, COUNT(*) AS n FROM queue_items WHERE queue_id = ? GROUP BY status", queueId)) c.put((String) r.get("status"), r.get("n"));
@@ -848,7 +850,7 @@ public final class Platform {
     public Map<String, Object> addItems(User by, String qid, List<Object> items, String ip) { return addItemsAs(by, by.username(), qid, items, ip); }
 
     @SuppressWarnings("unchecked")
-    Map<String, Object> addItemsAs(User by, String actor, String qid, List<Object> items, String ip) {
+    public Map<String, Object> addItemsAs(User by, String actor, String qid, List<Object> items, String ip) {
         cr.require(by, "queues.work", "add work items");
         Map<String, Object> queue = db.one("SELECT id, model_id FROM queues WHERE id = ?", qid);
         if (queue == null) throw notFound("Queue");
@@ -1005,14 +1007,14 @@ public final class Platform {
     }
 
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> modelFields(String modelId) {
+    public List<Map<String, Object>> modelFields(String modelId) {
         if (modelId == null) return null;
         Map<String, Object> m = db.one("SELECT fields FROM work_item_models WHERE id = ?", modelId);
         return m == null ? null : (List<Map<String, Object>>) JsonLite.parse((String) m.get("fields"));
     }
 
     /** An item's data checked against the model: known fields only, required ones present, values of the field's type. */
-    static Map<String, Object> checkItem(List<Map<String, Object>> fields, Map<String, Object> data, String where) {
+    public static Map<String, Object> checkItem(List<Map<String, Object>> fields, Map<String, Object> data, String where) {
         Map<String, Object> out = new LinkedHashMap<>();
         Set<String> known = new HashSet<>();
         for (Map<String, Object> f : fields) {
@@ -1079,7 +1081,7 @@ public final class Platform {
         };
     }
 
-    void requireQueue(User u, String qid, String need, String what) {
+    public void requireQueue(User u, String qid, String need, String what) {
         if (db.one("SELECT id FROM queues WHERE id = ?", qid) == null) throw notFound("Queue");
         if (!queueAllows(u, qid, need)) throw new OoaException("CR.FORBIDDEN", "You do not have permission to " + what,
                 "Ask an owner of the queue to add you as " + (need.equals("add") ? "a participant" : need.equals("process") ? "a consumer" : "an owner") + ".");

@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.auth;
 
+import com.oneofficeautomation.controlroom.NetGuard;
+import com.oneofficeautomation.controlroom.ControlRoom;
 import com.oneofficeautomation.sdk.OoaException;
 
 import javax.naming.AuthenticationException;
@@ -28,17 +30,17 @@ import java.util.*;
  * Several ldap_urls give failover, in order; ldaps:// is required except for a directory on this computer (tests).
  * Uses the JDK's own LDAP client: no third-party library.
  */
-final class Directory {
+public final class Directory {
     /** A person in the directory: their entry, the user name for One CommandCenter, details and group names (CN and DN). */
-    record Person(String dn, String username, String email, String displayName, String firstName, String lastName, List<String> groups) {}
+    public record Person(String dn, String username, String email, String displayName, String firstName, String lastName, List<String> groups) {}
 
     private final ControlRoom cr;
 
-    Directory(ControlRoom cr) { this.cr = cr; }
+    public Directory(ControlRoom cr) { this.cr = cr; }
 
     private String str(String k) { Object v = cr.platform.setting(k); return v == null ? "" : String.valueOf(v).trim(); }
 
-    boolean enabled() { return !str("ldap_urls").isEmpty(); }
+    public boolean enabled() { return !str("ldap_urls").isEmpty(); }
 
     List<String> urls() {
         List<String> out = new ArrayList<>();
@@ -47,7 +49,7 @@ final class Directory {
     }
 
     /** ldaps://host[:port], or ldap:// only to this computer (a test directory); anything else is refused. */
-    static void checkUrl(String url) {
+    public static void checkUrl(String url) {
         if (url.matches("(?i)^ldaps://[A-Za-z0-9.\\-]+(:\\d{1,5})?/?$")) return;
         if (url.matches("(?i)^ldap://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d{1,5})?/?$")) return;
         throw new OoaException("CR.BAD_INPUT", "A directory address is ldaps://host:636 (plain ldap:// only to this computer, for tests): " + url,
@@ -65,7 +67,7 @@ final class Directory {
     }
 
     /** Checks the person's password against the directory; returns who they are, or throws CR.LOGIN_FAILED or LDAP.UNREACHABLE. */
-    Person authenticate(String login, String password) {
+    public Person authenticate(String login, String password) {
         String who = login == null ? "" : login.trim();
         // an empty password would be an anonymous bind, which many directories accept: never a sign-in
         if (who.isEmpty() || password == null || password.isEmpty()) throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password");
@@ -81,7 +83,7 @@ final class Directory {
     }
 
     /** Settings' test: the service account connects; with a name, the person it finds, their groups and the role they get. */
-    Map<String, Object> test(String login) {
+    public Map<String, Object> test(String login) {
         return withService(ctx -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("ok", true);

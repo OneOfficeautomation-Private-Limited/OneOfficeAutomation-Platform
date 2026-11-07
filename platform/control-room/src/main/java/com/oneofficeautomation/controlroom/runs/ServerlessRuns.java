@@ -1,5 +1,8 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.Security;
 import com.oneofficeautomation.runner.*;
 import com.oneofficeautomation.sdk.*;
 
@@ -20,14 +23,14 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * first) and how long a run may last (1 to 60 minutes, five at first) are settings (gap G55: longer integration runs).
  */
 public final class ServerlessRuns {
-    static final String DEVICE = "dev_serverless";
-    static final String NAME = "One CommandCenter (serverless)";
+    public static final String DEVICE = "dev_serverless";
+    public static final String NAME = "One CommandCenter (serverless)";
     static final int PARALLEL = 4, MAX_PARALLEL = 16;
     static final double MAX_SECONDS = 300;
     /** The longest a serverless run may last now (Settings: serverless_max_minutes). */
-    double maxSeconds() { int m = cr.platform.intSetting("serverless_max_minutes"); return m <= 0 ? MAX_SECONDS : m * 60.0; }
+    public double maxSeconds() { int m = cr.platform.intSetting("serverless_max_minutes"); return m <= 0 ? MAX_SECONDS : m * 60.0; }
     /** How many serverless runs at once (Settings: serverless_parallel). */
-    int parallel() { int n = cr.platform.intSetting("serverless_parallel"); return n <= 0 ? PARALLEL : Math.min(MAX_PARALLEL, n); }
+    public int parallel() { int n = cr.platform.intSetting("serverless_parallel"); return n <= 0 ? PARALLEL : Math.min(MAX_PARALLEL, n); }
     private final java.util.concurrent.atomic.AtomicInteger active = new java.util.concurrent.atomic.AtomicInteger();
     /** Toolkits that need no desktop and cannot reach the server's programs, settings or databases. */
     static final Set<String> TOOLKITS = Set.of("core", "ooa.string", "ooa.number", "ooa.boolean", "ooa.datetime", "ooa.list", "ooa.dictionary",
@@ -43,7 +46,7 @@ public final class ServerlessRuns {
     private final ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL, Thread.ofPlatform().daemon().name("ooa-serverless-", 0).factory());
     private final ScheduledExecutorService beat = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().name("ooa-serverless-beat").factory());
 
-    ServerlessRuns(ControlRoom cr, PackageRegistry registry, Path dataDir) {
+    public ServerlessRuns(ControlRoom cr, PackageRegistry registry, Path dataDir) {
         this.cr = cr; this.db = cr.db; this.registry = registry; this.dataDir = dataDir;
     }
 
@@ -53,7 +56,7 @@ public final class ServerlessRuns {
      * When the server starts (every node of a cluster): the virtual runner shows as online, queued runs start, and runs
      * cut off by a stopped node are failed once they are past the longest a serverless run may take.
      */
-    synchronized void start() {
+    public synchronized void start() {
         if (started || db.one("SELECT id FROM devices WHERE id = ?", DEVICE) == null) return;
         started = true;
         beat.scheduleAtFixedRate(() -> {
@@ -67,7 +70,7 @@ public final class ServerlessRuns {
     }
 
     /** The virtual runner's row, made the first time a serverless API task is made. Nobody knows its secret, so no real runner can sign in as it. */
-    synchronized Map<String, Object> device() {
+    public synchronized Map<String, Object> device() {
         Map<String, Object> d = db.one("SELECT * FROM devices WHERE id = ?", DEVICE);
         if (d != null) return d;
         db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by, lifespan, secret_set) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -79,7 +82,7 @@ public final class ServerlessRuns {
 
     /** Refuses an agent (or an agent it calls) that uses a toolkit serverless runs may not use. */
     @SuppressWarnings("unchecked")
-    void check(Map<String, Object> main) {
+    public void check(Map<String, Object> main) {
         if (cr.tenant != null && !cr.serverlessAllowed) throw ControlRoom.notInSaas("Running agents in One CommandCenter (serverless)");
         Map<String, Object> bundle = new LinkedHashMap<>();
         cr.collect(main, bundle, 0);
@@ -97,7 +100,7 @@ public final class ServerlessRuns {
     }
 
     /** Looks for queued serverless runs; at most parallel() threads take runs, each one at a time. */
-    void kick() { if (active.get() < parallel()) pool.submit(this::drain); }
+    public void kick() { if (active.get() < parallel()) pool.submit(this::drain); }
 
     private void drain() {
         if (active.incrementAndGet() > parallel()) { active.decrementAndGet(); return; }

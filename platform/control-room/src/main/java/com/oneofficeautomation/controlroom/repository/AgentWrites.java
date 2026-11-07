@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.repository;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.vault.VaultAdmin;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -33,7 +35,7 @@ public final class AgentWrites {
 
     private final ControlRoom cr;
 
-    AgentWrites(ControlRoom cr) { this.cr = cr; }
+    public AgentWrites(ControlRoom cr) { this.cr = cr; }
 
     /** The run (it must be running on this runner) and the user it runs as. */
     private record RunUser(Map<String, Object> run, User user, String actor, Map<String, Object> details) { }
@@ -90,7 +92,7 @@ public final class AgentWrites {
     }
 
     /** yyyy-MM-dd, or null for "no expiry date"; anything else is refused. */
-    static String expiryDate(Object v, String code) {
+    public static String expiryDate(Object v, String code) {
         if (v == null || String.valueOf(v).isBlank()) return null;
         String s = String.valueOf(v).strip();
         if (s.length() > 10) s = s.substring(0, 10);   // a date and time: its date
@@ -99,7 +101,7 @@ public final class AgentWrites {
     }
 
     /** Expiry facts: the date, days left (negative once past) and whether it has expired or expires soon. */
-    static Map<String, Object> expiryFacts(String expires) {
+    public static Map<String, Object> expiryFacts(String expires) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("expires", expires);
         out.put("has_expiry", expires != null);

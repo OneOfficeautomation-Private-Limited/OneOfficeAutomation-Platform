@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.repository;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.sdk.OoaException;
 import com.oneofficeautomation.sdk.PackageRegistry;
@@ -21,14 +23,14 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * the hash and the signature again before loading it.
  */
 public final class CustomToolkits {
-    static final int MAX_BYTES = 10 * 1024 * 1024;
+    public static final int MAX_BYTES = 10 * 1024 * 1024;
     private final ControlRoom cr;
     private final Db db;
     private final PackageRegistry registry;
     /** Toolkit ids that come with the product; a custom toolkit may not take one. */
     private final Set<String> firstParty = new HashSet<>();
 
-    CustomToolkits(ControlRoom cr, PackageRegistry registry) {
+    public CustomToolkits(ControlRoom cr, PackageRegistry registry) {
         this.cr = cr; this.db = cr.db; this.registry = registry;
         for (Map<String, Object> m : registry.allManifests()) firstParty.add(String.valueOf(m.get("id")));
     }
@@ -75,7 +77,7 @@ public final class CustomToolkits {
     }
 
     /** Whether a toolkit id is a custom one (some version uploaded here). */
-    boolean isCustom(String pid) { return db.one("SELECT id FROM custom_toolkits WHERE toolkit_id = ?", pid) != null; }
+    public boolean isCustom(String pid) { return db.one("SELECT id FROM custom_toolkits WHERE toolkit_id = ?", pid) != null; }
 
     public Map<String, Object> upload(User by, byte[] jar, String ip) {
         cr.require(by, "toolkits.manage", "manage toolkits");
@@ -125,7 +127,7 @@ public final class CustomToolkits {
     }
 
     /** Loads every stored toolkit when One CommandCenter starts; one that no longer checks out is reported and left out. */
-    void loadAll() {
+    public void loadAll() {
         if (cr.tenant != null) return;
         for (Map<String, Object> r : db.query("SELECT toolkit_id, version, publisher, sha256 FROM custom_toolkits")) {
             try {
@@ -161,7 +163,7 @@ public final class CustomToolkits {
 
     /** The custom toolkit versions the agent and the agents it calls resolve to, with their jars, for the runner. */
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> forJob(Map<String, Object> main, Map<String, Object> bundle) {
+    public List<Map<String, Object>> forJob(Map<String, Object> main, Map<String, Object> bundle) {
         List<Map<String, Object>> flows = new ArrayList<>(List.of(main));
         for (Object b : bundle.values()) if (b instanceof Map<?, ?> m) flows.add((Map<String, Object>) m);
         Set<String> wanted = new LinkedHashSet<>();

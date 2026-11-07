@@ -1,4 +1,4 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.repository;
 
 /**
  * The kinds of file in the agent repository, by name: agents (.flow.json), workflows (.process.json, run by the

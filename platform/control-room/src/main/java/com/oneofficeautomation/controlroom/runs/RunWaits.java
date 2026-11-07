@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -36,15 +38,15 @@ public final class RunWaits {
     static final Set<String> KINDS = Set.of("time", "task", "queue_item", "callback", "job");
     /** Longest wait or timeout: a year. Shortest time wait: 1 second (the clock looks every 5 seconds). */
     static final long MAX_SECONDS = 365L * 24 * 3600;
-    static final int MAX_VALUES = 1_000_000, MAX_PAYLOAD = 100_000, MAX_CALLBACK_BODY = 64 * 1024, MAX_CALLBACKS_PER_RUN = 20;
+    public static final int MAX_VALUES = 1_000_000, MAX_PAYLOAD = 100_000, MAX_CALLBACK_BODY = 64 * 1024, MAX_CALLBACKS_PER_RUN = 20;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ControlRoom cr;
     private final Db db;
 
-    RunWaits(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public RunWaits(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
-    static String sha256(String s) {
+    public static String sha256(String s) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8))); }
         catch (Exception e) { throw new IllegalStateException(e); }
     }
@@ -52,7 +54,7 @@ public final class RunWaits {
     // ===================== from a running agent (ControlRoom.runRequest) =====================
 
     /** A one-time callback URL for this run; the token is returned here only and kept as its hash. */
-    Map<String, Object> createCallback(Map<String, Object> run, String actor) {
+    public Map<String, Object> createCallback(Map<String, Object> run, String actor) {
         String runId = (String) run.get("id");
         if (cr.count("SELECT COUNT(*) AS n FROM run_waits WHERE run_id = ? AND kind = 'callback'", runId) >= MAX_CALLBACKS_PER_RUN)
             throw new OoaException("LONGRUN.TOO_MANY", "A run makes at most " + MAX_CALLBACKS_PER_RUN + " callback URLs");
@@ -72,7 +74,7 @@ public final class RunWaits {
 
     /** A task in the Task inbox made by an agent (an approval, or a form to fill); a wait for it may follow. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> createTask(Map<String, Object> run, Map<String, Object> a, String actor) {
+    public Map<String, Object> createTask(Map<String, Object> run, Map<String, Object> a, String actor) {
         String kind = a.get("kind") instanceof String k && !k.isBlank() ? k : "approval";
         if (!Set.of("approval", "form").contains(kind)) throw new OoaException("CR.BAD_INPUT", "A task is an approval or a form");
         String title = text(a.get("title"), 300);
@@ -106,7 +108,7 @@ public final class RunWaits {
 
     /** A task this chain of runs made: its status, outcome and comment (an AI agent waits on it; G44). */
     @SuppressWarnings("unchecked")
-    Map<String, Object> taskStatus(Map<String, Object> run, Map<String, Object> a) {
+    public Map<String, Object> taskStatus(Map<String, Object> run, Map<String, Object> a) {
         String id = text(a.get("task_id"), 100);
         Map<String, Object> t = id == null ? null : db.one("SELECT status, outcome, result, data FROM human_tasks WHERE id = ?", id);
         if (t == null || !(t.get("data") instanceof String d) || !(JsonLite.parse(d) instanceof Map<?, ?> m) || !rootRun((String) run.get("id")).equals(m.get("_run")))
@@ -123,7 +125,7 @@ public final class RunWaits {
      * user; the wait is kept and the run is expected to end with status "suspended" right after.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> suspend(Map<String, Object> run, User as, Map<String, Object> a, String actor) {
+    public Map<String, Object> suspend(Map<String, Object> run, User as, Map<String, Object> a, String actor) {
         String runId = (String) run.get("id");
         if (ServerlessRuns.DEVICE.equals(run.get("device_id"))) throw new OoaException("LONGRUN.NOT_AVAILABLE", "Serverless Agent APIs cannot be suspended");
         String kind = String.valueOf(a.get("kind"));
@@ -225,7 +227,7 @@ public final class RunWaits {
      * The run ended with this status. "suspended" stays only when the run registered its wait (otherwise "failed");
      * any other end cancels the run's unused callbacks and waits.
      */
-    String onRunEnd(String runId, String status) {
+    public String onRunEnd(String runId, String status) {
         if (status.equals("suspended"))
             return db.one("SELECT id FROM run_waits WHERE run_id = ? AND status = 'waiting' AND step_id IS NOT NULL", runId) != null ? "suspended" : "failed";
         db.update("UPDATE run_waits SET status = 'cancelled', finished = ? WHERE run_id = ? AND status = 'waiting'", now(), runId);
@@ -233,7 +235,7 @@ public final class RunWaits {
     }
 
     /** The first run of a chain of resumed runs (the run itself when it was not resumed). */
-    String rootRun(String runId) {
+    public String rootRun(String runId) {
         String id = runId;
         for (int i = 0; i < 1000; i++) {
             Map<String, Object> w = db.one("SELECT run_id FROM run_waits WHERE resumed_run_id = ?", id);
@@ -245,7 +247,7 @@ public final class RunWaits {
 
     /** For a resumed run's job: the step to start at, the saved values and what ended the wait; null for other runs. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> forJob(String runId) {
+    public Map<String, Object> forJob(String runId) {
         Map<String, Object> w = db.one("SELECT step_id, saved_values, payload FROM run_waits WHERE resumed_run_id = ?", runId);
         if (w == null) return null;
         Map<String, Object> out = new LinkedHashMap<>();
@@ -478,7 +480,7 @@ public final class RunWaits {
     }
 
     /** Stops a suspended run and cancels its wait (also from Stop in Activity). False when the run was not suspended. */
-    boolean stopSuspended(String runId, String by, String ip) {
+    public boolean stopSuspended(String runId, String by, String ip) {
         Map<String, Object> run = db.one("SELECT * FROM runs WHERE id = ?", runId);
         Map<String, Object> err = Map.of("code", "RUN.CANCELLED", "message", "Stopped by " + by + " while it was suspended");
         if (run == null || db.update("UPDATE runs SET status = 'stopped', finished = ?, error = ? WHERE id = ? AND status = 'suspended'", now(), JsonLite.write(err), runId) != 1) return false;

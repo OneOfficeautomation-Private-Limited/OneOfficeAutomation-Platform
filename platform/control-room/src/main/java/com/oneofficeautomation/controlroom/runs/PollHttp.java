@@ -1,4 +1,4 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
 import com.oneofficeautomation.sdk.JsonLite;
 
@@ -11,25 +11,25 @@ import java.time.Duration;
 import java.util.*;
 
 /** HTTP for server-side trigger pollers: JSON GET and form POST with a timeout and readable errors. */
-final class PollHttp {
+public final class PollHttp {
     private PollHttp() {}
     static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).followRedirects(HttpClient.Redirect.NORMAL).build();
     static final int MAX_BODY = 5 * 1024 * 1024;
 
-    static Object getJson(String url, Map<String, String> headers) throws IOException {
+    public static Object getJson(String url, Map<String, String> headers) throws IOException {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(60)).GET().header("Accept", "application/json");
         headers.forEach(b::header);
         return send(b.build(), url);
     }
 
-    static Object postForm(String url, Map<String, String> form) throws IOException {
+    public static Object postForm(String url, Map<String, String> form) throws IOException {
         StringJoiner j = new StringJoiner("&");
         form.forEach((k, v) -> j.add(enc(k) + "=" + enc(v)));
         return send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(60)).header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json").POST(HttpRequest.BodyPublishers.ofString(j.toString())).build(), url);
     }
 
-    static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20"); }
+    public static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20"); }
 
     private static Object send(HttpRequest req, String url) throws IOException {
         HttpResponse<byte[]> r;

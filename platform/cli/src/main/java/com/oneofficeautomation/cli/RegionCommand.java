@@ -1,6 +1,7 @@
 package com.oneofficeautomation.cli;
 
 import com.oneofficeautomation.controlroom.*;
+import com.oneofficeautomation.controlroom.auth.*;
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;

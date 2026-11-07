@@ -409,7 +409,7 @@ public interface ModuleContext {
     /** AWS Signature Version 4 headers for a request (calls to AWS APIs), as the kernel's external vaults sign them. */
     static Map<String, String> awsSigV4(String method, java.net.URI uri, Map<String, String> headers, String body, String accessKey, String secretKey,
                                         String region, String service, java.time.ZonedDateTime now) throws Exception {
-        return com.oneofficeautomation.controlroom.ExternalVaults.SigV4.sign(method, uri, headers, body, accessKey, secretKey, region, service, now);
+        return com.oneofficeautomation.controlroom.vault.ExternalVaults.SigV4.sign(method, uri, headers, body, accessKey, secretKey, region, service, now);
     }
 
     /** CR.NOT_FOUND: "{what} not found". */

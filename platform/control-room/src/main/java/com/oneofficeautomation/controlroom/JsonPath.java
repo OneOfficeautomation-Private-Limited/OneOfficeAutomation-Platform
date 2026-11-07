@@ -8,14 +8,14 @@ import java.util.*;
  * A small JSON path subset for the universal poller: $ (root), .name, ['name'], [index], [*] and .* , e.g.
  * $.data.items[*], $.value, results[0].rows. The leading $ is optional.
  */
-final class JsonPath {
+public final class JsonPath {
     private final List<Object> steps;   // String name, Integer index, or WILDCARD
 
     private static final Object WILDCARD = new Object();
 
     private JsonPath(List<Object> steps) { this.steps = steps; }
 
-    static JsonPath compile(String path) {
+    public static JsonPath compile(String path) {
         String p = path == null ? "$" : path.trim();
         List<Object> steps = new ArrayList<>();
         int i = p.startsWith("$") ? 1 : 0;
@@ -65,12 +65,12 @@ final class JsonPath {
     }
 
     /** The items the path points at: a single list is opened up, so $.items and $.items[*] give the same items. */
-    List<Object> items(Object root) {
+    public List<Object> items(Object root) {
         List<Object> r = select(root);
         if (r.size() == 1 && r.get(0) instanceof List<?> l) return new ArrayList<>(l);
         return r;
     }
 
     /** The first value, or null. */
-    Object first(Object root) { List<Object> r = select(root); return r.isEmpty() ? null : r.get(0); }
+    public Object first(Object root) { List<Object> r = select(root); return r.isEmpty() ? null : r.get(0); }
 }

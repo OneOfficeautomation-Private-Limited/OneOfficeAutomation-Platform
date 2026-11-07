@@ -1,5 +1,7 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -33,7 +35,7 @@ public final class EnvironmentLocks {
     private final ControlRoom cr;
     private final Db db;
 
-    EnvironmentLocks(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public EnvironmentLocks(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
     /** A lock's name as typed (trimmed), checked. */
     static String name(Object raw) {
@@ -131,7 +133,7 @@ public final class EnvironmentLocks {
     }
 
     /** Whether the lock is held now, by whom and since when; a lock past its lease or whose run ended counts as free. */
-    Map<String, Object> check(String name, String askingRun) {
+    public Map<String, Object> check(String name, String askingRun) {
         Map<String, Object> row = db.one("SELECT l.*, r.status AS run_status FROM environment_locks l LEFT JOIN runs r ON r.id = l.run_id WHERE l.lock_key = ?", key(name));
         boolean live = row != null && "running".equals(row.get("run_status")) && Instant.parse(row.get("expires").toString()).isAfter(now());
         return held(live, live ? row : null, askingRun);

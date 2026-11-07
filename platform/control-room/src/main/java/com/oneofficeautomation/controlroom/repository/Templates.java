@@ -1,5 +1,9 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.repository;
 
+import com.oneofficeautomation.controlroom.NetGuard;
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.License;
+import com.oneofficeautomation.controlroom.Security;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.sdk.JsonLite;
@@ -52,7 +56,7 @@ public final class Templates {
      */
     static final String DEFAULT_URL = "off";
     static final int MAX_FEED_BYTES = 20 * 1024 * 1024;
-    static final List<String> CATEGORIES = List.of("Finance", "Human resources", "Sales", "Customer service", "IT", "Operations", "Documents", "Other");
+    public static final List<String> CATEGORIES = List.of("Finance", "Human resources", "Sales", "Customer service", "IT", "Operations", "Documents", "Other");
 
     /** The region's shared catalogue of a SaaS tenant (Tenants); null on premises. */
     public interface Shared {
@@ -63,14 +67,14 @@ public final class Templates {
 
     private final ControlRoom cr;
     private final Supplier<PublicKey> key;
-    volatile Shared shared;
+    public volatile Shared shared;
     /** Document Automation, for templates with processes (made when first needed; tests set their own). */
     private volatile List<Map<String, Object>> cached = List.of();
     private volatile long cachedAt;
     private volatile String cachedFrom = "";
 
-    Templates(ControlRoom cr) { this(cr, () -> License.publicKey(License.VENDOR_PUBLIC_KEY)); }
-    Templates(ControlRoom cr, Supplier<PublicKey> key) { this.cr = cr; this.key = key; }
+    public Templates(ControlRoom cr) { this(cr, () -> License.publicKey(License.VENDOR_PUBLIC_KEY)); }
+    public Templates(ControlRoom cr, Supplier<PublicKey> key) { this.cr = cr; this.key = key; }
 
     /** Templates of One CommandCenter that trust another catalogue key (tests of the vendor's catalogue). */
     public static Templates withKey(ControlRoom cr, PublicKey key) { return new Templates(cr, () -> key); }
@@ -127,7 +131,7 @@ public final class Templates {
 
     /** The templates of a signed feed; a feed that is not signed with the key is refused whole. */
     @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> readFeed(String text, PublicKey key) {
+    public static List<Map<String, Object>> readFeed(String text, PublicKey key) {
         Map<String, Object> m;
         try { m = (Map<String, Object>) JsonLite.parse(text.trim()); } catch (RuntimeException e) { throw notAFeed(); }
         if (!FORMAT.equals(m.get("format")) || !(m.get("payload") instanceof String p) || !(m.get("signature") instanceof String s)) throw notAFeed();
@@ -236,7 +240,7 @@ public final class Templates {
     }
 
     /** The names of the Document Automation processes a template's bundle carries. */
-    static List<Object> processNames(Object bundle) {
+    public static List<Object> processNames(Object bundle) {
         List<Object> out = new ArrayList<>();
         if (bundle instanceof Map<?, ?> bm && bm.get("document_processes") instanceof List<?> l)
             for (Object p : l) if (p instanceof Map<?, ?> pm) out.add(pm.get("name"));

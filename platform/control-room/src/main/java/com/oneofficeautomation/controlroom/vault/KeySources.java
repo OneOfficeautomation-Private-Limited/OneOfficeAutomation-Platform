@@ -1,4 +1,4 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.vault;
 
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -32,12 +32,12 @@ public final class KeySources {
     private KeySources() { }
 
     /** Addresses of the metadata and cloud services; tests point them at a local server. */
-    static String azureLogin = "https://login.microsoftonline.com", azureImds = "http://169.254.169.254", gcpMetadata = "http://metadata.google.internal",
+    public static String azureLogin = "https://login.microsoftonline.com", azureImds = "http://169.254.169.254", gcpMetadata = "http://metadata.google.internal",
         gcpSecrets = "https://secretmanager.googleapis.com", awsImds = "http://169.254.169.254", awsEcs = "http://169.254.170.2", awsEndpoint = null;
     /** The environment (tests replace it). */
-    static java.util.function.Function<String, String> env = System::getenv;
+    public static java.util.function.Function<String, String> env = System::getenv;
     /** The operator's typed key for "prompt" (tests replace it). */
-    static java.util.function.Supplier<char[]> prompt = () -> {
+    public static java.util.function.Supplier<char[]> prompt = () -> {
         java.io.Console c = System.console();
         if (c == null) throw new OoaException("CR.VAULT_KEY", "OOA_MASTER_KEY_SOURCE=prompt needs a console to type the key in",
             "Start One CommandCenter in a command window (not as a service), or use another key source");
@@ -60,7 +60,7 @@ public final class KeySources {
     }
 
     /** The 32-byte key from the source. */
-    static byte[] fetch(String source) {
+    public static byte[] fetch(String source) {
         String s = source.trim();
         String text;
         try {

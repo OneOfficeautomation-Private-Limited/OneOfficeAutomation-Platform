@@ -1,5 +1,8 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
+import com.oneofficeautomation.controlroom.repository.Templates;
+import com.oneofficeautomation.controlroom.runs.TriggerKinds;
 import com.oneofficeautomation.modules.integration.McpServer;
 
 import com.oneofficeautomation.modules.docauto.DocFlowConfig;

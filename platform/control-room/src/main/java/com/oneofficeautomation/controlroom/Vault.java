@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.vault.KeySources;
 import com.oneofficeautomation.sdk.OoaException;
 
 import javax.crypto.Cipher;
@@ -20,7 +21,7 @@ public final class Vault {
     private volatile SecretKeySpec key;
     public final String keySource;
     /** The key file, or null when the key comes from OOA_MASTER_KEY. */
-    final Path keyFile;
+    public final Path keyFile;
 
     private Vault(SecretKeySpec key, String keySource, Path keyFile) { this.key = key; this.keySource = keySource; this.keyFile = keyFile; }
 
@@ -31,19 +32,19 @@ public final class Vault {
     }
 
     /** A vault with a new random key (for rotating the master key). */
-    static Vault fresh() {
+    public static Vault fresh() {
         byte[] k = new byte[32];
         Security.RANDOM.nextBytes(k);
         return new Vault(new SecretKeySpec(k, "AES"), "new key", null);
     }
 
-    String keyBase64() { return Base64.getEncoder().encodeToString(key.getEncoded()); }
+    public String keyBase64() { return Base64.getEncoder().encodeToString(key.getEncoded()); }
 
     /** A short fingerprint of the key (SHA-256 of the key, first 12 hex digits), to tell keys apart without showing them. */
-    String fingerprint() { return Security.sha256(keyBase64()).substring(0, 12); }
+    public String fingerprint() { return Security.sha256(keyBase64()).substring(0, 12); }
 
     /** Switches to another vault's key (after every value was re-encrypted with it). */
-    synchronized void adopt(Vault next) { this.key = next.key; }
+    public synchronized void adopt(Vault next) { this.key = next.key; }
 
     public Vault(Path dataDir) {
         String env = System.getenv("OOA_MASTER_KEY"), external = KeySources.env.apply("OOA_MASTER_KEY_SOURCE");

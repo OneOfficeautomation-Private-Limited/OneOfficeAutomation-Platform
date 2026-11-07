@@ -1,4 +1,4 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -47,11 +47,11 @@ import java.util.Set;
  * {@code @hourly @daily @weekly @monthly @yearly}. With five fields and both day fields given, either day matching is
  * enough (as in Unix cron). The seconds field must be one number: schedules start at most once a minute.
  */
-final class ScheduleRules {
+public final class ScheduleRules {
     private ScheduleRules() { }
 
     /** A rule turned into something that can find its times. */
-    interface Rule {
+    public interface Rule {
         /** Whether this local date is a day the rule runs on. */
         boolean day(LocalDate d);
         /** The first time on a matching day at or after {@code from}, or null when there is none that day. */
@@ -62,14 +62,14 @@ final class ScheduleRules {
 
     /** How far ahead a rule is searched before it counts as never running again (covers 29 Feb and Quartz years). */
     static final int HORIZON_YEARS = 30;
-    static final String CRON_EXAMPLE = "Examples: 0 9 * * MON-FRI (09:00 on weekdays); Quartz: 0 30 18 L * ? (18:30 on the last day of the month), "
+    public static final String CRON_EXAMPLE = "Examples: 0 9 * * MON-FRI (09:00 on weekdays); Quartz: 0 30 18 L * ? (18:30 on the last day of the month), "
             + "0 0 9 ? * MON#1 (09:00 on the first Monday).";
-    static final String MONTHLY_EXAMPLE = "Examples: days=1,15,last  or  weekday=first MON;every=3";
+    public static final String MONTHLY_EXAMPLE = "Examples: days=1,15,last  or  weekday=first MON;every=3";
 
     // ===================== the shared search =====================
 
     /** The first time the rule runs strictly after {@code after}, or null when it never runs again within the horizon. */
-    static Instant next(Rule rule, Instant after, ZoneId zone) {
+    public static Instant next(Rule rule, Instant after, ZoneId zone) {
         // Start a little before 'after' in wall-clock time: in the repeated hour a wall-clock time slightly earlier than
         // after's own can still be a later instant.
         LocalDateTime local = after.atZone(zone).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS).minusHours(3);
@@ -87,7 +87,7 @@ final class ScheduleRules {
     }
 
     /** The next n times after {@code after} (fewer when the rule ends). */
-    static List<Instant> nextTimes(Rule rule, Instant after, ZoneId zone, int n) {
+    public static List<Instant> nextTimes(Rule rule, Instant after, ZoneId zone, int n) {
         List<Instant> out = new ArrayList<>();
         Instant t = after;
         while (out.size() < n && (t = next(rule, t, zone)) != null) out.add(t);
@@ -128,7 +128,7 @@ final class ScheduleRules {
     static final List<String> DAY_NAMES = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
 
     /** A monthly rule, parsed. */
-    record Monthly(Set<Integer> days, boolean lastDay, List<int[]> weekdays, int every, YearMonth start, boolean missingToLast, LocalTime at) implements Rule {
+    public record Monthly(Set<Integer> days, boolean lastDay, List<int[]> weekdays, int every, YearMonth start, boolean missingToLast, LocalTime at) implements Rule {
         @Override public boolean day(LocalDate d) {
             YearMonth ym = YearMonth.from(d);
             long months = ChronoUnit.MONTHS.between(start, ym);
@@ -146,7 +146,7 @@ final class ScheduleRules {
         @Override public boolean bothInRepeatedHour() { return false; }
 
         /** The rule written the way it is stored. */
-        String text() {
+        public String text() {
             List<String> parts = new ArrayList<>();
             if (!days.isEmpty() || lastDay) {
                 List<String> ds = new ArrayList<>();
@@ -169,7 +169,7 @@ final class ScheduleRules {
      * Reads a monthly rule. {@code thisMonth} is the month counting starts from when the rule has no start of its own.
      * Throws CR.BAD_SCHEDULE with an example when the text is wrong.
      */
-    static Monthly monthly(String rule, LocalTime at, YearMonth thisMonth) {
+    public static Monthly monthly(String rule, LocalTime at, YearMonth thisMonth) {
         if (rule == null || rule.isBlank()) throw bad("A monthly schedule needs its days, such as days=1,15 or weekday=first MON", MONTHLY_EXAMPLE);
         if (rule.length() > 200) throw bad("The monthly rule is longer than 200 characters", MONTHLY_EXAMPLE);
         Set<Integer> days = new LinkedHashSet<>();
@@ -239,8 +239,8 @@ final class ScheduleRules {
     static final int MIN_YEAR = 1970, MAX_YEAR = 2199;
 
     /** A cron expression, parsed. Days of the week are kept as ISO numbers (1 = Monday ... 7 = Sunday). */
-    static final class Cron implements Rule {
-        final String text;
+    public static final class Cron implements Rule {
+        public final String text;
         int second;
         final boolean[] minutes = new boolean[60], hours = new boolean[24], months = new boolean[13], doms = new boolean[32], dows = new boolean[8];
         boolean[] years;                  // null: any year
@@ -252,7 +252,7 @@ final class ScheduleRules {
         final List<int[]> nthDows = new ArrayList<>();         // x#k as {iso day, k}
         boolean allHours;
 
-        Cron(String text) { this.text = text; }
+        public Cron(String text) { this.text = text; }
 
         @Override public boolean day(LocalDate d) {
             if (!months[d.getMonthValue()]) return false;
@@ -307,7 +307,7 @@ final class ScheduleRules {
     }
 
     /** Reads a cron expression (five, six or seven fields, or a macro such as @daily). Throws CR.BAD_SCHEDULE with examples. */
-    static Cron cron(String expression) {
+    public static Cron cron(String expression) {
         if (expression == null || expression.isBlank()) throw bad("A cron schedule needs its expression", CRON_EXAMPLE);
         String text = expression.trim().replaceAll("\\s+", " ");
         if (text.length() > 200) throw bad("The cron expression is longer than 200 characters", CRON_EXAMPLE);
@@ -457,7 +457,7 @@ final class ScheduleRules {
     // ===================== for ControlRoom =====================
 
     /** The rule of a monthly or cron schedule row ({@code kind}, {@code rule}, {@code at_time}). */
-    static Rule of(String kind, String rule, String atTime, YearMonth thisMonth) {
+    public static Rule of(String kind, String rule, String atTime, YearMonth thisMonth) {
         return switch (kind) {
             case "monthly" -> monthly(rule, LocalTime.parse(atTime), thisMonth);
             case "cron" -> cron(rule);

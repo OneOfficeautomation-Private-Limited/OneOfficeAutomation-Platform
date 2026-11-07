@@ -1,5 +1,9 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.controlroom.runs;
 
+import com.oneofficeautomation.controlroom.ControlRoom;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.Platform;
+import com.oneofficeautomation.controlroom.Vault;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -20,17 +24,17 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  * ignored). Encrypted data is the vault's "v1:..." text bound to "queue-item:" + the item id, so it cannot be moved to
  * another row unnoticed; JSON never starts with "v1:", so plain and encrypted rows are told apart by their text.
  */
-final class QueueTools {
+public final class QueueTools {
     private final ControlRoom cr;
     private final Platform p;
     private final Db db;
 
-    QueueTools(ControlRoom cr, Platform p) { this.cr = cr; this.p = p; this.db = cr.db; }
+    public QueueTools(ControlRoom cr, Platform p) { this.cr = cr; this.p = p; this.db = cr.db; }
 
     /** A work item event's data (G38): the item, its queue and its status; never its data, which may be private. */
-    static Map<String, Object> item(String itemId, String qid, String reference, String status) { return item(itemId, qid, reference, status, null); }
+    public static Map<String, Object> item(String itemId, String qid, String reference, String status) { return item(itemId, qid, reference, status, null); }
 
-    static Map<String, Object> item(String itemId, String qid, String reference, String status, String runId) {
+    public static Map<String, Object> item(String itemId, String qid, String reference, String status, String runId) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("item_id", itemId); m.put("queue_id", qid); m.put("status", status);
         if (reference != null && !reference.isBlank()) m.put("reference", reference);
@@ -44,7 +48,7 @@ final class QueueTools {
     // ----- tags -----
 
     /** Tags as given, trimmed, without repeats (ignoring case); at most 20 of at most 50 characters, without commas. */
-    static List<String> tags(Object v) {
+    public static List<String> tags(Object v) {
         List<String> out = new ArrayList<>();
         if (v == null) return out;
         Collection<?> raw = v instanceof Collection<?> c ? c : Arrays.asList(String.valueOf(v).split(","));
@@ -60,14 +64,14 @@ final class QueueTools {
 
     static String tagsColumn(List<String> tags) { return tags.isEmpty() ? null : "," + String.join(",", tags) + ","; }
 
-    static List<String> tagList(Object column) {
+    public static List<String> tagList(Object column) {
         List<String> out = new ArrayList<>();
         if (column != null) for (String t : String.valueOf(column).split(",")) if (!t.isBlank()) out.add(t);
         return out;
     }
 
     /** SQL that keeps rows with every tag (case ignored); adds its parameters. '!' escapes LIKE's wildcards on every engine. */
-    static String tagFilter(String column, List<String> tags, List<Object> params) {
+    public static String tagFilter(String column, List<String> tags, List<Object> params) {
         StringBuilder sb = new StringBuilder();
         for (String t : tags) {
             sb.append(" AND LOWER(COALESCE(").append(column).append(", '')) LIKE ? ESCAPE '!'");
@@ -78,22 +82,22 @@ final class QueueTools {
 
     // ----- encrypted item data -----
 
-    boolean encrypted(String qid) {
+    public boolean encrypted(String qid) {
         Map<String, Object> q = db.one("SELECT encrypt_data FROM queues WHERE id = ?", qid);
         return q != null && Boolean.TRUE.equals(q.get("encrypt_data"));
     }
 
     /** The data as stored: encrypted with the vault's key when the queue says so. */
-    String seal(boolean encrypt, String itemId, String json) { return encrypt ? cr.vault.encrypt(json, "queue-item:" + itemId) : json; }
+    public String seal(boolean encrypt, String itemId, String json) { return encrypt ? cr.vault.encrypt(json, "queue-item:" + itemId) : json; }
 
     /** The item's data as JSON text, decrypted when it was stored encrypted. */
-    String open(String itemId, Object stored) {
+    public String open(String itemId, Object stored) {
         String s = stored == null ? null : String.valueOf(stored);
         return s != null && s.startsWith("v1:") ? cr.vault.decrypt(s, "queue-item:" + itemId) : s;
     }
 
     /** A stored item row as the API shows it: data decrypted (still JSON text, as before), tags as a list. */
-    Map<String, Object> view(Map<String, Object> row) {
+    public Map<String, Object> view(Map<String, Object> row) {
         Map<String, Object> m = new LinkedHashMap<>(row);
         m.put("data", open((String) row.get("id"), row.get("data")));
         m.put("tags", tagList(row.get("tags")));
@@ -102,7 +106,7 @@ final class QueueTools {
     }
 
     /** Turns encryption of a queue's item data on or off, re-writing its items in the same transaction. */
-    void setEncryption(User by, String qid, boolean on, String ip) {
+    public void setEncryption(User by, String qid, boolean on, String ip) {
         if (encrypted(qid) == on) return;
         int n = db.tx(() -> {
             int k = 0;
@@ -118,7 +122,7 @@ final class QueueTools {
     }
 
     /** Re-encrypts every encrypted item with the next vault key (vault rekey); returns how many. */
-    int reencrypt(Vault next) {
+    public int reencrypt(Vault next) {
         int k = 0;
         for (Map<String, Object> i : db.query("SELECT id, data FROM queue_items WHERE data LIKE 'v1:%'")) {
             String bound = "queue-item:" + i.get("id");
@@ -136,7 +140,7 @@ final class QueueTools {
      * reference is then also kept in unique_ref, which a unique index guards. Without ifExists it is added as before.
      * Returns {id, outcome: added | skipped | updated}.
      */
-    Map<String, Object> addOne(String qid, boolean encrypt, Map<String, Object> data, String ref, Integer priority, List<String> tags, String ifExists) {
+    public Map<String, Object> addOne(String qid, boolean encrypt, Map<String, Object> data, String ref, Integer priority, List<String> tags, String ifExists) {
         if (ref != null && ref.length() > 200) throw new OoaException("CR.BAD_INPUT", "A reference has at most 200 characters");
         if (ifExists != null && ref != null) {
             Map<String, Object> same = db.one("SELECT id, status FROM queue_items WHERE queue_id = ? AND reference = ? ORDER BY created LIMIT 1", qid, ref);
@@ -162,7 +166,7 @@ final class QueueTools {
         return Map.of("id", iid, "outcome", "added");
     }
 
-    static String ifExists(Object v) {
+    public static String ifExists(Object v) {
         if (v == null || "".equals(v)) return null;
         String s = String.valueOf(v);
         if (!Set.of("error", "skip", "update").contains(s)) throw new OoaException("CR.BAD_INPUT", "if_exists is error, skip or update, not '" + s + "'");
@@ -172,7 +176,7 @@ final class QueueTools {
     // ----- tags, unlock, delete, copy and move (people and agents) -----
 
     /** Adds and removes tags on items not being worked on... and on those too: tags are only labels. Returns how many items changed. */
-    int retag(User by, String actor, String qid, List<Object> ids, Object add, Object remove, String ip) {
+    public int retag(User by, String actor, String qid, List<Object> ids, Object add, Object remove, String ip) {
         cr.require(by, "queues.work", "tag work items");
         p.requireQueue(by, qid, "add", "tag work items in this queue");
         List<String> plus = tags(add), minus = tags(remove);
@@ -193,7 +197,7 @@ final class QueueTools {
      * Releases items stuck in progress: back to new, attempts kept. An item whose run is still queued or running stays
      * locked (stop the run first), except for the run asking (an agent unlocking an item it took). Returns how many.
      */
-    int unlock(User by, String actor, String qid, List<Object> ids, String ownRun, String ip) {
+    public int unlock(User by, String actor, String qid, List<Object> ids, String ownRun, String ip) {
         cr.require(by, "queues.work", "unlock work items");
         p.requireQueue(by, qid, "process", "unlock work items in this queue");
         int n = 0;
@@ -228,7 +232,7 @@ final class QueueTools {
      * Without force only succeeded and failed items go. Returns how many.
      */
     @SuppressWarnings("unchecked")
-    int deleteMatching(User by, String actor, String qid, Map<String, Object> b, String ip) {
+    public int deleteMatching(User by, String actor, String qid, Map<String, Object> b, String ip) {
         cr.require(by, "queues.work", "delete work items");
         p.requireQueue(by, qid, "add", "delete work items in this queue");
         boolean force = Boolean.TRUE.equals(b.get("force"));
@@ -268,7 +272,7 @@ final class QueueTools {
      * reference the other queue has is skipped. Returns {count, skipped}.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> transfer(User by, String actor, String qid, String to, Map<String, Object> b, boolean move, String ip) {
+    public Map<String, Object> transfer(User by, String actor, String qid, String to, Map<String, Object> b, boolean move, String ip) {
         cr.require(by, "queues.work", (move ? "move" : "copy") + " work items");
         p.requireQueue(by, qid, move ? "add" : "view", (move ? "move" : "copy") + " work items from this queue");
         String target = queueId(to);
@@ -316,7 +320,7 @@ final class QueueTools {
      * the audit trail as "agent:RUNNER for PERSON".
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> fromBot(Map<String, Object> device, Map<String, Object> body) {
+    public Map<String, Object> fromBot(Map<String, Object> device, Map<String, Object> body) {
         Map<String, Object> run = cr.runOnDevice(device, (String) body.get("run_id"));
         if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use work queues");
         String who = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
