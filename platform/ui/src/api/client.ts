@@ -71,7 +71,7 @@ export type Flow = { kind: string; id: string; name: string; description?: strin
 export type FlowOnError = { as?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
-export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
+export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError };
 
 /** Something the check on save found: the step, the field, what is wrong and how to fix it. */
 export type Problem = { stepId?: string; path?: string; message: string; suggestedFix?: string };
