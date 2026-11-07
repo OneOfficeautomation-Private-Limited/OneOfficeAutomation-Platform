@@ -94,7 +94,7 @@ this release. The card is a warning only and never blocks anything. The Command 
 - `contract`: the API version the Command Center calls (`v1`);
 - `pinned`: the DocFlow version this release is tested with (3.1.0);
 - `minimum`: the oldest DocFlow version that works (3.1.0);
-- `ref`: the oneoffice-docauto commit or tag that CI checks out (a commit until DocFlow has its first tag).
+- `ref`: the oneoffice-docauto release tag that CI checks out (`v3.1.0`, DocFlow's first release, from 7 Nov 2026).
 
 CI's job **"Document Automation with the real DocFlow (Linux)"** checks out DocFlow at `ref`, starts it with
 PostgreSQL and Tesseract, and runs `DocFlowLiveTest` against it. The test covers:
@@ -116,8 +116,5 @@ DocFlow's `DOCAUTO_PLATFORM_URL` must then be `http://127.0.0.1:18766`.
 1. **Events.** DocFlow posts document events to `/api/docflow-callback/events`. The Command Center has no such route
    and answers 404, which DocFlow does not retry. Nothing breaks, because the Command Center reads the review queue
    every 20 s instead. Adding the route is a later phase.
-2. **Which DocFlow branch.** The platform needs DocFlow's `document-automation` branch. Its `main` branch lacks the
-   platform "Start a bot" callback, the email inbox settings, the test lab (`df/test`) and PostgreSQL storage. The
-   first DocFlow release should come from `document-automation` once it is merged into `main`.
-3. **Not packaged yet.** DocFlow isn't in `platform/docker` compose files or the Windows installer yet (phase 5),
+2. **Not packaged yet.** DocFlow isn't in `platform/docker` compose files or the Windows installer yet (phase 5),
    and there is no Helm chart yet (phase 6).

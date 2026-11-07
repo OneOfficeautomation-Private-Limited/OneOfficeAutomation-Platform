@@ -206,7 +206,8 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "DOCFLOW_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           # the test's Command Center listens on 18766: DocFlow's "Start a bot" deliveries call it back there
-          DOCAUTO_API_TOKEN="$TOKEN" DOCAUTO_DATABASE_URL="postgresql://postgres:$PG_PW@localhost:5432/docflow" \
+          # managed mode, as the platform runs it: the token is required and DocFlow does not update itself
+          DOCAUTO_MANAGED=true DOCAUTO_API_TOKEN="$TOKEN" DOCAUTO_DATABASE_URL="postgresql://postgres:$PG_PW@localhost:5432/docflow" \
             DOCAUTO_PLATFORM_URL=http://127.0.0.1:18766 DOCAUTO_DATA_DIR="$RUNNER_TEMP/docflow-data" \
             nohup python -m uvicorn docauto.api.app:app --host 127.0.0.1 --port 8085 > "$RUNNER_TEMP/docflow.log" 2>&1 &
           for i in $(seq 1 90); do
