@@ -247,6 +247,38 @@ elsewhere, load it with `docker load`, and set `DOCFLOW_IMAGE`. The full agreeme
 
 Never let One CommandCenter scale to zero: schedules, triggers and queues run in the background.
 
+### 10.1 The Helm chart
+
+`platform/deploy/helm/oneofficeautomation` installs One CommandCenter on any Kubernetes, and headless runners too when
+you want them. Build the image from `platform/docker/Dockerfile`, push it to your registry, and make the Secrets first:
+
+```
+kubectl create secret generic ooa-master-key --from-literal=key=$(openssl rand -base64 32)
+kubectl create secret generic ooa-db --from-literal=password=...
+helm install ooa platform/deploy/helm/oneofficeautomation \
+  --set image.repository=registry.example.com/ooa-command-center \
+  --set masterKey.existingSecret=ooa-master-key \
+  --set database.url="jdbc:sqlserver://sql.example.com:1433;databaseName=ooa_command_center;encrypt=true" \
+  --set database.existingSecret=ooa-db \
+  --set ingress.enabled=true --set ingress.host=ooa.example.com --set ingress.tlsSecret=ooa-tls
+```
+
+| Value | Default | Meaning |
+| --- | --- | --- |
+| `replicaCount` | 1 | More than one needs `database.url` and `masterKey.existingSecret`; the chart refuses otherwise. The nodes share the database and elect a leader for schedules and triggers |
+| `masterKey.existingSecret`, `.key` | none | The vault key from a Secret. Without it the key is a file on the data volume (evaluation only) |
+| `database.url`, `.user`, `.existingSecret`, `.passwordKey` | built-in database | SQL Server or PostgreSQL. Without it the evaluation database on the volume is used, one pod at a time |
+| `persistence.*` | 10Gi, ReadWriteOnce | The `/data` volume, kept when the release is uninstalled |
+| `ingress.*`, `service.*` | off, ClusterIP 8720 | How people reach it |
+| `networkPolicy.enabled`, `.extraEgressPorts` | off | Allow in 8720; allow out DNS, 443, 1433 and 5432 only (add 587 for e-mail, 514 for syslog) |
+| `podDisruptionBudget.*`, `resources`, `nodeSelector`, `tolerations`, `affinity`, `extraEnv` | | As usual |
+| `runners.enabled`, `.replicas`, `.existingSecret`, `.url` | off, 2 | Headless runners for agents that need no screen. Each pod registers with a registration key from a Secret (make it a **Temporary runner** key, so pods that go away are cleaned up) |
+
+The pods run as user 10001, not root, with every capability dropped, and the probes check `/api/health` (started,
+alive) and `/api/health/ready` (ready for work). The first administrator's one-time password is in the first pod's log.
+The chart is linted and rendered by CI (`helm lint`, `helm template`) on every push; runners that need a desktop stay
+on Windows machines (Runner guide).
+
 ## 11. Limits on Linux
 
 - `ooa service` and `ooa agent install-task` are Windows only; use systemd on Linux.

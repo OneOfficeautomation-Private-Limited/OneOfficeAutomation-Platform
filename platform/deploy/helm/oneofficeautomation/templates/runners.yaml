@@ -1,0 +1,57 @@
+{{- if .Values.runners.enabled }}
+# Headless runners: each pod registers with One CommandCenter (a temporary-runner key) and takes work that needs no screen.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ooa.fullname" . }}-runner
+  labels:
+    {{- include "ooa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runner
+spec:
+  replicas: {{ .Values.runners.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ooa.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: runner
+  template:
+    metadata:
+      labels:
+        {{- include "ooa.labels" . | nindent 8 }}
+        app.kubernetes.io/component: runner
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: register
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          args: [ "agent", "register", "--url", {{ .Values.runners.url | default (printf "http://%s:%v" (include "ooa.fullname" .) .Values.service.port) | quote }},
+                  "--key", "$(OOA_RUNNER_KEY)", "--name", "$(POD_NAME)", "--keep-existing", "--config", "/runner/agent.json" ]
+          env:
+            - name: OOA_RUNNER_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.runners.existingSecret | quote }}, key: {{ .Values.runners.secretKey | quote }} } }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+          volumeMounts:
+            - { name: runner, mountPath: /runner }
+      containers:
+        - name: runner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          args: [ "agent", "start", "--config", "/runner/agent.json", "--workspace", "/runner/workspace" ]
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1g -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true"
+          resources: {{- toYaml .Values.runners.resources | nindent 12 }}
+          volumeMounts:
+            - { name: runner, mountPath: /runner }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: runner, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+{{- end }}

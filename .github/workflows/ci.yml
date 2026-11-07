@@ -253,6 +253,25 @@ jobs:
           pip install -e ".[test]"
           python -m pytest -q
 
+  helm:
+    name: Helm chart (lint and render)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: platform/deploy/helm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint, render the defaults, and refuse set-ups that cannot work
+        run: |
+          helm lint oneofficeautomation
+          helm template t oneofficeautomation > /dev/null
+          helm template t oneofficeautomation --set runners.enabled=true --set ingress.enabled=true --set networkPolicy.enabled=true \
+            --set podDisruptionBudget.enabled=true --set database.url=jdbc:sqlserver://sql:1433 --set database.existingSecret=db \
+            --set masterKey.existingSecret=mk --set replicaCount=2 > /dev/null
+          if helm template t oneofficeautomation --set replicaCount=2 > /dev/null 2>&1; then echo "two replicas without a database must be refused"; exit 1; fi
+
   headless:
     name: Headless runner (${{ matrix.os }})
     strategy:
