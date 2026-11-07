@@ -9,7 +9,7 @@ import { AgentApis } from "./AgentApis";
 import { Audit } from "./Audit";
 import { Connections } from "./Connections";
 import { Devices } from "./Devices";
-import { DocumentAutomation } from "./DocumentAutomation";
+import { DocumentAutomation } from "../modules/document-automation/ConsolePage";
 import { EnvironmentLocks } from "./EnvironmentLocks";
 import { Ideas } from "./Ideas";
 import { DataStore } from "./DataStore";

@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.runner.expr.Expressions;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -408,13 +410,13 @@ public final class Workflows {
         return n;
     }
 
-    /** A document review task shows only to people who may see its process's folder (Document Automation). */
+    /** A module's task (Document Automation's reviews) shows only to whom its module says, such as people who may see its folder. */
     @SuppressWarnings("unchecked")
     private boolean reviewVisible(User u, Map<String, Object> t, Map<String, Map<String, String>> folders) {
-        if (!DocFlowProxy.TASK_KIND.equals(t.get("kind")) || t.get("data") == null) return true;
+        ModuleContext.TaskKind rules = cr.modules == null ? null : cr.modules.taskKind(String.valueOf(t.get("kind")));
+        if (rules == null || t.get("data") == null) return true;
         Object data = JsonLite.parse((String) t.get("data"));
-        String folder = data instanceof Map<?, ?> m ? DocFlowProxy.folderKey(m.get("folder")) : "";
-        return folder.isEmpty() || Folders.atLeast(cr.folders.accessToFolder(u.username(), u.role(), folder, folders), "view");
+        return rules.visible(u, data instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of(), folders);
     }
 
     public void claim(User u, String taskId, boolean release, String ip) {
@@ -438,8 +440,9 @@ public final class Workflows {
         if (!Set.of("open", "claimed").contains(String.valueOf(t.get("status")))) throw new OoaException("CR.CONFLICT", "This task is already " + t.get("status"));
         if (!mayAct(u, t)) throw denied("complete this task");
         String kind = String.valueOf(t.get("kind"));
-        if (kind.equals(DocFlowProxy.TASK_KIND))
-            throw new OoaException("CR.BAD_INPUT", "Open the document to review it", "Approve or reject it on the review screen; the task then closes by itself.");
+        ModuleContext.TaskKind moduleKind = cr.modules == null ? null : cr.modules.taskKind(kind);
+        if (moduleKind != null && moduleKind.completeElsewhere() != null)
+            throw new OoaException("CR.BAD_INPUT", moduleKind.completeElsewhere(), "The task then closes by itself.");
         // One Chat's R3 approvals: never your own request, administrators included
         if (kind.equals("approval") && u.username().equals(Chat.requester(t)))
             throw new OoaException("CR.FORBIDDEN", "You cannot approve your own request", "Someone else among the approvers decides it.");

@@ -26,7 +26,7 @@ class ModuleMapTest {
     static final Path CR = REPO.resolve("platform/control-room/src/main/java/com/oneofficeautomation/controlroom");
     static final Path CONSOLE = REPO.resolve("platform/ui/src/console");
     /** Modules whose boundaries are already enforced: the kernel may not name their classes, nor may other feature modules. */
-    static final Set<String> ENFORCED = Set.of();
+    static final Set<String> ENFORCED = Set.of("document-automation");
 
     record Module(String id, int layer, List<String> paths, List<Pattern> patterns, List<String> dependsOn) {}
 
@@ -148,7 +148,8 @@ class ModuleMapTest {
         Files.writeString(report, md, StandardCharsets.UTF_8);
         System.out.println("Module boundary report: " + all.size() + " crossings in " + byPair.size() + " module pairs -> " + report.toAbsolutePath().normalize());
         // modules that have been moved out keep their boundaries
-        List<Crossing> broken = all.stream().filter(c -> ENFORCED.contains(c.to()) || ENFORCED.contains(c.from())).toList();
+        // (the console shell, module "apps", is the composition root: it may wire a module's pages in)
+        List<Crossing> broken = all.stream().filter(c -> !c.from().equals("apps") && (ENFORCED.contains(c.to()) || ENFORCED.contains(c.from()))).toList();
         assertEquals(List.of(), broken, "modules moved out of the kernel are reached only through the module contract: " + ENFORCED);
     }
 }

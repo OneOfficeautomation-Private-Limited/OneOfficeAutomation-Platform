@@ -7,7 +7,7 @@ import java.util.*;
  * A mailbox folder polled by an email trigger (IMAP or Microsoft Graph). The cursor is the trigger's last_hash:
  * it remembers the newest message seen, so each message fires once.
  */
-interface MailSource {
+public interface MailSource {
     /**
      * Messages newer than the cursor, oldest first, with the cursor to store next. With a null cursor the source
      * only marks the current newest message as seen (no messages), unless fireExisting asks for the recent ones too.

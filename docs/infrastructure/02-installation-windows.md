@@ -119,7 +119,7 @@ Passwords travel only in environment variables, never on the command line or in 
 ### Document Automation (`-DocFlow`)
 
 `-DocFlow` also installs DocFlow, the service behind AI > Document Automation. It installs the version this release
-is tested with (the `ref` in control-room's `docflow-compat.properties`, for example `v3.1.1`), using DocFlow's own
+is tested with (the `ref` in the document-automation module's `docflow-compat.properties`, for example `v3.1.1`), using DocFlow's own
 installer from its GitHub release.
 
 **Needs internet.** DocFlow's installer:

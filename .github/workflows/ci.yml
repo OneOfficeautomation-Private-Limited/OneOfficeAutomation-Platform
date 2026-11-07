@@ -12,6 +12,8 @@
 #   container    Linux: the image alone, with PostgreSQL, backup and restore, and a SaaS region with two tenants (C3),
 #                and the Command Center with the DocFlow container (docker/compose.docflow.yaml)
 #   docflow-windows  Windows: the setup package with -DocFlow (DocFlow from its release, managed), checked end to end
+#   changes      which modules a change touches (module-map.json): docflow and docflow-windows run only when Document
+#                Automation (or what it depends on, or the installer) changed; master always runs every job
 name: CI
 
 on:
@@ -166,15 +168,39 @@ jobs:
           path: platform/control-room/build/reports/tests/
           retention-days: 7
 
+  changes:
+    # which modules this push or pull request touches (module-map.json, platform/scripts/affected_modules.py): jobs that
+    # only test one module run when that module, or something it depends on, changed; master always runs everything
+    name: Which modules changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      modules: ${{ steps.affected.outputs.modules }}
+      document_automation: ${{ steps.affected.outputs.document_automation }}
+      apps: ${{ steps.affected.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Affected modules
+        id: affected
+        working-directory: .
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          # a new branch has no "before": compare with the first commit, so everything counts as changed
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
+          python3 -I platform/scripts/affected_modules.py "$BASE" HEAD
+
   docflow:
     name: Document Automation with the real DocFlow (Linux)
+    needs: changes
+    if: github.ref == 'refs/heads/master' || needs.changes.outputs.document_automation == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Which DocFlow this release is tested with
         id: pin
-        run: echo "ref=$(sed -n 's/^ref=//p' control-room/src/main/resources/docflow-compat.properties | tr -d '\r')" >> "$GITHUB_OUTPUT"
+        run: echo "ref=$(sed -n 's/^ref=//p' modules/document-automation/src/main/resources/docflow-compat.properties | tr -d '\r')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: OneOfficeautomation-Private-Limited/oneoffice-docauto
@@ -220,10 +246,10 @@ jobs:
       - name: Command Center against DocFlow
         run: |
           chmod +x gradlew
-          ./gradlew :control-room:test --tests "*DocFlowLiveTest*" --console=plain -Pooa.test.docflow=http://127.0.0.1:8085 \
+          ./gradlew :document-automation:test --tests "*DocFlowLiveTest*" --console=plain -Pooa.test.docflow=http://127.0.0.1:8085 \
             "-Pooa.test.docflow.token=$DOCFLOW_TOKEN" -Pooa.test.docflow.port=18766 "-Pooa.test.docflow.samples=$GITHUB_WORKSPACE/docauto/samples"
           # the tests skip themselves without a DocFlow: make sure they really ran
-          grep -q 'skipped="0"' control-room/build/test-results/test/TEST-com.oneofficeautomation.controlroom.DocFlowLiveTest.xml
+          grep -q 'skipped="0"' modules/document-automation/build/test-results/test/TEST-com.oneofficeautomation.controlroom.DocFlowLiveTest.xml
       - name: DocFlow's log
         if: always()
         run: tail -n 200 "$RUNNER_TEMP/docflow.log" || true
@@ -232,7 +258,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports-docflow
-          path: platform/control-room/build/reports/tests/
+          path: platform/modules/document-automation/build/reports/tests/
           retention-days: 7
 
   python:
@@ -465,7 +491,7 @@ jobs:
       - name: Command Center with the DocFlow container (Document Automation, as docker/compose.docflow.yaml runs it)
         run: |
           # DocFlow at the release this Command Center is tested with, built from its tag like the compose file does
-          REF=$(sed -n 's/^ref=//p' control-room/src/main/resources/docflow-compat.properties | tr -d '\r')
+          REF=$(sed -n 's/^ref=//p' modules/document-automation/src/main/resources/docflow-compat.properties | tr -d '\r')
           docker build -q -t docflow:ci "https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#$REF"
           PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"; TOK="$(openssl rand -hex 32)"; NEW="Ci-Admin-$(openssl rand -hex 8)"
           echo "::add-mask::$PW"; echo "::add-mask::$KEY"; echo "::add-mask::$TOK"; echo "::add-mask::$NEW"
@@ -636,6 +662,9 @@ jobs:
 
   docflow-windows:
     name: Document Automation installed on Windows (setup -DocFlow)
+    # the module or the installer (module "apps") changed
+    needs: changes
+    if: github.ref == 'refs/heads/master' || needs.changes.outputs.document_automation == 'true' || needs.changes.outputs.apps == 'true'
     runs-on: windows-latest
     timeout-minutes: 60
     steps:

@@ -1,6 +1,6 @@
 package com.oneofficeautomation.cli;
 
-import com.oneofficeautomation.controlroom.DocFlowConfig;
+import com.oneofficeautomation.modules.docauto.DocFlowConfig;
 import com.oneofficeautomation.controlroom.Vault;
 
 import java.nio.file.Path;

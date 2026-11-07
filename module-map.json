@@ -59,26 +59,16 @@
       "id": "document-automation",
       "name": "Document Automation",
       "layer": 3,
-      "description": "Platform side of Document Automation: the DocFlow proxy and its settings, the mail inbox, document events and review tasks, MCP document tools, and the Document Automation screens. The DocFlow service itself is the separate oneoffice-docauto repository.",
+      "description": "Platform side of Document Automation: the DocFlow proxy and its settings, the mail inbox, document events and review tasks, MCP document tools, and the Document Automation screens. The DocFlow service itself is the separate oneoffice-docauto repository. Moved out of the kernel in phase 1: platform/modules/document-automation (Gradle project :document-automation), reached only through the module contract.",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/DocFlowConfig.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/DocFlowProxy.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/DocumentAutomationPlugin.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/McpDocuments.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DocFlowConfig*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DocFlowProxy*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DocumentAutomationPlugin*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/McpDocuments*Test.java",
-        "platform/ui/src/console/DocumentAutomation.tsx",
-        "platform/ui/src/docflow/**",
+        "platform/modules/document-automation/**",
+        "platform/ui/src/modules/document-automation/**",
         "platform/ui/docflow.html",
         "platform/packages/src/main/java/com/oneofficeautomation/packages/DocumentAutomationPackage.java",
-        "platform/control-room/src/main/resources/docflow-compat.properties",
         "docs/DOCUMENT_AUTOMATION.md",
         "docs/integration/document-automation-contract.md",
         "platform/docker/compose.docflow.yaml",
-        "platform/docker/compose.saas.docflow.yaml",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DocFlowLiveTest.java"
+        "platform/docker/compose.saas.docflow.yaml"
       ],
       "dependsOn": [
         "kernel"

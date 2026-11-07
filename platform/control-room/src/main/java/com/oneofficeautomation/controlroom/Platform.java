@@ -1,6 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
 import com.oneofficeautomation.sdk.JsonLite;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
 import com.oneofficeautomation.sdk.OoaException;
 import com.oneofficeautomation.sdk.PackageRegistry;
 
@@ -31,6 +32,16 @@ public final class Platform {
 
     /** Defaults for settings an administrator can change. */
     static final Map<String, Object> DEFAULTS = new LinkedHashMap<>();
+    /** Checks of the settings feature modules define (ModuleContext.defineSetting). */
+    static final Map<String, ModuleContext.SettingCheck> MODULE_CHECKS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** A feature module's setting: its default (the type sets how it is saved) and its check. A kernel setting keeps its own. */
+    static synchronized void defineModuleSetting(String key, Object defaultValue, ModuleContext.SettingCheck check) {
+        if (!key.matches("[a-z][a-z0-9_]{1,79}")) throw new IllegalArgumentException("A setting key is lower case letters, digits and _: " + key);
+        if (DEFAULTS.containsKey(key) && !MODULE_CHECKS.containsKey(key)) throw new IllegalStateException("The setting " + key + " is the kernel's");
+        DEFAULTS.put(key, defaultValue);
+        if (check != null) MODULE_CHECKS.put(key, check);
+    }
     static {
         DEFAULTS.put("announcement", "");
         DEFAULTS.put("inactive_user_days", 0);
@@ -52,7 +63,6 @@ public final class Platform {
         DEFAULTS.put("mcp_agents", "");
         DEFAULTS.put("mcp_runner", "");
         DEFAULTS.put("mcp_timeout_seconds", 120);
-        DEFAULTS.put("mcp_documents", 1);         // Document Automation's tools for AI assistants (McpDocuments)
         DEFAULTS.put("chat_runner", "");
         DEFAULTS.put("chat_mode", "deterministic");
         DEFAULTS.put("chat_connection", "");
@@ -157,8 +167,6 @@ public final class Platform {
         DEFAULTS.put("ldap_user_filter", "(|(sAMAccountName={0})(userPrincipalName={0}))");
         DEFAULTS.put("ldap_name_attribute", "sAMAccountName");   // the user name an account gets
         DEFAULTS.put("ldap_nested_groups", 0);          // AD: groups inside groups count too
-        DEFAULTS.put("docflow_url", "");         // Document Automation: the DocFlow service (empty: http://127.0.0.1:8085)
-        DEFAULTS.put("docflow_token_ref", "");   // and its service token, a vault reference folder/credential/attribute
         // agents may save credentials in the vault (gap G30): off until an administrator switches it on
         DEFAULTS.put("agents_write_credentials", 0);
         // event subscriptions (gap G38): receivers at plain http:// addresses, and at private or local addresses
@@ -179,7 +187,6 @@ public final class Platform {
         Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
         Map.entry("hourly_cost", new long[] { 0, 100000 }),
         Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),
-        Map.entry("mcp_documents", new long[] { 0, 1 }),
         Map.entry("run_retention_days", new long[] { 0, 36500 }),
         Map.entry("run_log_retention_days", new long[] { 0, 36500 }),
         Map.entry("max_sessions_per_user", new long[] { 1, 50 }),
@@ -307,6 +314,8 @@ public final class Platform {
                 long[] r = RANGES.getOrDefault(k, new long[] { 0, 100000 });
                 if (k.equals("audit_retention_days") && n > 0 && n < 90) throw new OoaException("CR.BAD_INPUT", "Keep audit entries for at least 90 days (0 keeps them always)");
                 if (n < r[0] || n > r[1]) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be from " + r[0] + " to " + r[1]);
+                ModuleContext.SettingCheck numberCheck = MODULE_CHECKS.get(k);   // a feature module's own number setting
+                if (numberCheck != null) numberCheck.check(String.valueOf(n), cr.tenant != null);
                 v = n;
             } else {
                 String s = String.valueOf(v == null ? "" : v).trim();
@@ -358,11 +367,9 @@ public final class Platform {
                 if (k.equals("outbound_proxy_bypass") && !s.isEmpty() && !s.matches("[A-Za-z0-9.*\\-|,; ]+"))
                     throw new OoaException("CR.BAD_INPUT", "List host names to reach directly, for example *.example.com, 10.*");
                 if (k.equals("mail_smtp_security") && !List.of("starttls", "ssl", "none").contains(s)) throw new OoaException("CR.BAD_INPUT", "The mail security is starttls, ssl or none");
-                // in the SaaS service the region's operator says where DocFlow is (OOA_DOCFLOW_URL), not the tenant
-                if (cr.tenant != null && k.startsWith("docflow_") && !s.isEmpty()) throw ControlRoom.notInSaas("Choosing the Document Automation service");
-                if (k.equals("docflow_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+/?"))
-                    throw new OoaException("CR.BAD_INPUT", "The Document Automation service is a web address such as http://127.0.0.1:8085");
-                if (k.equals("docflow_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The Document Automation token is a vault reference: vault folder/credential/attribute");
+                // a feature module's own setting: its check (docs/architecture/13-modules.md)
+                ModuleContext.SettingCheck moduleCheck = MODULE_CHECKS.get(k);
+                if (moduleCheck != null) moduleCheck.check(s, cr.tenant != null);
                 if (k.equals("mail_smtp_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The mail password is a vault reference: vault folder/credential/attribute");
                 if (k.equals("mail_smtp_host") && !s.isEmpty() && !s.matches("[A-Za-z0-9.-]+")) throw new OoaException("CR.BAD_INPUT", "The mail server is a host name, for example smtp.office365.com");
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
