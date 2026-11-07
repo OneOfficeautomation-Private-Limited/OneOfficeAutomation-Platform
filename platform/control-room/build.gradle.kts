@@ -2,6 +2,13 @@
 // Storage is JDBC: embedded H2 by default (no setup); SQL Server or PostgreSQL in production (config/ooa-db.properties).
 dependencies {
     implementation(project(":packages"))
+    // every toolkit group: One CommandCenter checks agents against, and runs (serverless), every first-party toolkit
+    runtimeOnly(project(":toolkits-microsoft"))
+    runtimeOnly(project(":toolkits-google"))
+    runtimeOnly(project(":toolkits-enterprise"))
+    runtimeOnly(project(":toolkits-cloud-data"))
+    runtimeOnly(project(":toolkits-ai"))
+    runtimeOnly(project(":toolkits-devops"))
     // One Chat's engines and conversation rules; this module provides its ChatPlatform (Chat.java)
     implementation(project(":conversation"))
     // work items from Excel workbooks
