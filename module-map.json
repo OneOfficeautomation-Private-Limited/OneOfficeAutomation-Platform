@@ -30,9 +30,9 @@
     },
     {
       "id": "toolkits",
-      "name": "Toolkits",
+      "name": "Toolkits (core)",
       "layer": 1,
-      "description": "Built-in and optional toolkits (phase 5 splits them into groups).",
+      "description": "The core first-party toolkits (strings, lists, files, JSON, REST, databases, GenAI, OCR...) and the optional ones (packages-*); FirstPartyPackages finds the toolkit groups with ServiceLoader (phase 5).",
       "paths": [
         "platform/packages/**",
         "platform/packages-*/**",
@@ -40,6 +40,84 @@
       ],
       "dependsOn": [
         "foundation"
+      ]
+    },
+    {
+      "id": "toolkits-microsoft",
+      "name": "Toolkits: microsoft",
+      "layer": 1,
+      "description": "The microsoft toolkit group (Microsoft365, ActiveDirectory, AzureVm, Exchange), in platform/toolkits/microsoft.",
+      "paths": [
+        "platform/toolkits/microsoft/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-google",
+      "name": "Toolkits: google",
+      "layer": 1,
+      "description": "The google toolkit group (Google), in platform/toolkits/google.",
+      "paths": [
+        "platform/toolkits/google/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-enterprise",
+      "name": "Toolkits: enterprise",
+      "layer": 1,
+      "description": "The enterprise toolkit group (Sap, SapBapi, Salesforce, ServiceNow, Workday, Jira, Zendesk, Asana, DocuSign, Box, Slack, Okta), in platform/toolkits/enterprise.",
+      "paths": [
+        "platform/toolkits/enterprise/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-cloud-data",
+      "name": "Toolkits: cloud-data",
+      "layer": 1,
+      "description": "The cloud-data toolkit group (Ec2, AwsAi, Databricks, Snowflake, Kafka), in platform/toolkits/cloud-data.",
+      "paths": [
+        "platform/toolkits/cloud-data/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-ai",
+      "name": "Toolkits: ai",
+      "layer": 1,
+      "description": "The ai toolkit group (AiAgent, AiSkills, AiScreen, Knowledge, Mining), in platform/toolkits/ai.",
+      "paths": [
+        "platform/toolkits/ai/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-devops",
+      "name": "Toolkits: devops",
+      "layer": 1,
+      "description": "The devops toolkit group (GitHub, AzureDevOps), in platform/toolkits/devops.",
+      "paths": [
+        "platform/toolkits/devops/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
       ]
     },
     {
@@ -52,7 +130,13 @@
       ],
       "dependsOn": [
         "foundation",
-        "toolkits"
+        "toolkits",
+        "toolkits-microsoft",
+        "toolkits-google",
+        "toolkits-enterprise",
+        "toolkits-cloud-data",
+        "toolkits-ai",
+        "toolkits-devops"
       ]
     },
     {
@@ -93,34 +177,10 @@
       "id": "orchestration",
       "name": "Orchestration",
       "layer": 3,
-      "description": "Schedules, triggers, long-running agents, environment locks, business calendars, workflows and work queues.",
+      "description": "The workflow engine: workflows (.process.json) and their forms run stage by stage, with agent tasks, human tasks, approvals, decisions and notifications. (Schedules, triggers, queues, environment locks, long-running agents and the Task inbox are run dispatch and stay the kernel's.) Moved out of the kernel: platform/modules/orchestration (Gradle project :orchestration).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ScheduleRules.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TriggerKinds.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TriggerPollers.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunWaits.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/EnvironmentLocks.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Workflows.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/QueueTools.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PollHttp.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ScheduleRules*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TriggerKinds*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TriggerPollers*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunWaits*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/EnvironmentLocks*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Workflows*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/QueueTools*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PollHttp*Test.java",
-        "platform/ui/src/console/Schedules.tsx",
-        "platform/ui/src/console/Triggers.tsx",
-        "platform/ui/src/console/SuspendedRuns.tsx",
-        "platform/ui/src/console/EnvironmentLocks.tsx",
-        "platform/ui/src/console/Workflows.tsx",
-        "platform/ui/src/console/Queues.tsx",
-        "platform/ui/src/console/QueueInsights.tsx",
-        "platform/ui/src/console/Inbox.tsx",
-        "platform/ui/src/console/SuspendedRuns.test.tsx",
-        "platform/ui/src/console/EnvironmentLocks.test.tsx"
+        "platform/modules/orchestration/**",
+        "platform/ui/src/modules/orchestration/**"
       ],
       "dependsOn": [
         "kernel"
@@ -130,20 +190,10 @@
       "id": "governance",
       "name": "Governance",
       "layer": 3,
-      "description": "Code analysis, policies, AI governance, production approval and approval channels.",
+      "description": "Code analysis, folder policies (code rules and AI guardrails) and production approval. (Approval channels, how the Task inbox delivers tasks by e-mail, Teams and phone, are the kernel's.)",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/CodeAnalysis.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Policies.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ProductionApproval.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ApprovalChannels.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/CodeAnalysis*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Policies*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ProductionApproval*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ApprovalChannels*Test.java",
-        "platform/ui/src/console/Policies.tsx",
-        "platform/ui/src/console/Governance.tsx",
-        "platform/ui/src/console/PhoneNotifications.tsx",
-        "platform/ui/src/console/PhoneNotifications.test.tsx"
+        "platform/modules/governance/**",
+        "platform/ui/src/modules/governance/**"
       ],
       "dependsOn": [
         "kernel"
@@ -153,31 +203,10 @@
       "id": "insights",
       "name": "Insights",
       "layer": 3,
-      "description": "Analytics, dashboards, alerts, metrics and events out.",
+      "description": "Business analytics: Operational Insights, dashboards (and KPIs from runs) and alert rules. (Events out, metrics and syslog forwarding, the observability every part feeds, are the kernel's.) Moved out of the kernel: platform/modules/insights (Gradle project :insights).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Analytics.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Dashboards.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Alerts.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Metrics.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/EventSubscriptions.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/SyslogForwarder.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Analytics*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Dashboards*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Alerts*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Metrics*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/EventSubscriptions*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/SyslogForwarder*Test.java",
-        "platform/ui/src/console/Insights.tsx",
-        "platform/ui/src/console/Dashboards.tsx",
-        "platform/ui/src/console/Alerts.tsx",
-        "platform/ui/src/console/Operations.tsx",
-        "platform/ui/src/console/Overview.tsx",
-        "platform/ui/src/console/Value.tsx",
-        "platform/ui/src/console/Capacity.tsx",
-        "platform/ui/src/console/EventSubscriptions.tsx",
-        "platform/ui/src/console/Activity.tsx",
-        "platform/ui/src/console/EventSubscriptions.test.tsx",
-        "platform/ui/src/console/BusinessAgents.tsx"
+        "platform/modules/insights/**",
+        "platform/ui/src/modules/insights/**"
       ],
       "dependsOn": [
         "kernel"
@@ -226,11 +255,10 @@
       "id": "testing",
       "name": "Agent testing",
       "layer": 3,
-      "description": "Test sets and their runs.",
+      "description": "Test sets and their runs. Moved out of the kernel: platform/modules/testing (Gradle project :testing).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TestSets.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TestSets*Test.java",
-        "platform/ui/src/console/Tests.tsx"
+        "platform/modules/testing/**",
+        "platform/ui/src/modules/testing/**"
       ],
       "dependsOn": [
         "kernel"
@@ -240,17 +268,10 @@
       "id": "runner-management",
       "name": "Runner management",
       "layer": 3,
-      "description": "Runner pools, auto-scaling, runner care and updates.",
+      "description": "Auto-scaling runner pools in the customer's cloud. (Runner care and updates, part of every heartbeat and of dispatch, are the kernel's.) Moved out of the kernel: platform/modules/runner-management (Gradle project :runner-management).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PoolScaling.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunnerCare.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunnerUpdates.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PoolScaling*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunnerCare*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunnerUpdates*Test.java",
-        "platform/ui/src/console/Devices.tsx",
-        "platform/ui/src/console/PoolScaling.tsx",
-        "platform/ui/src/console/PoolScaling.test.tsx"
+        "platform/modules/runner-management/**",
+        "platform/ui/src/modules/runner-management/**"
       ],
       "dependsOn": [
         "kernel"
@@ -260,19 +281,10 @@
       "id": "integration",
       "name": "Integration",
       "layer": 3,
-      "description": "Agent APIs and serverless runs, the MCP server, SCIM, Git sync and API tasks.",
+      "description": "Agent APIs, the MCP server for AI assistants, and Git sync of the repository. (The server-side runner that serverless Agent APIs run on, and SCIM provisioning, are the kernel's.)",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ServerlessRuns.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/McpServer.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Scim.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/GitSync.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ApiTasks.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ServerlessRuns*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/McpServer*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Scim*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/GitSync*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ApiTasks*Test.java",
-        "platform/ui/src/console/AgentApis.tsx"
+        "platform/modules/integration/**",
+        "platform/ui/src/modules/integration/**"
       ],
       "dependsOn": [
         "kernel"
@@ -321,7 +333,13 @@
       ],
       "dependsOn": [
         "kernel",
-        "toolkits"
+        "toolkits",
+        "toolkits-microsoft",
+        "toolkits-google",
+        "toolkits-enterprise",
+        "toolkits-cloud-data",
+        "toolkits-ai",
+        "toolkits-devops"
       ]
     }
   ]

@@ -65,7 +65,7 @@ class LicenceTiersTest {
     @Test @Order(2)
     void featuresSeatsAndCitizenLimits() {
         install(List.of("none"), "Community");
-        assertEquals("CR.LICENSE_FEATURE", code(() -> cr.workflows.start(admin, "P/W.process.json", Map.of(), null)), "Community has no workflows");
+        assertEquals("CR.LICENSE_FEATURE", code(() -> cr.licensing.requireFeature("workflows", "Workflows")), "Community has no workflows");
         assertEquals(List.of(), cr.licensing.status(admin).get("features"));
         install(List.of("workflows"), "Standard");
         assertTrue(cr.licensing.feature("workflows"));

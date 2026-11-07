@@ -317,7 +317,7 @@ final class ApprovalChannels {
         Map<String, Object> row = db.one("SELECT * FROM users WHERE username = ? AND enabled = TRUE", a.username());
         if (row == null) return html("Approval link", "<p>The account " + esc(a.username()) + " is not active.</p>");
         try {
-            cr.workflows.complete(ControlRoom.user(row), a.task(), a.decision(), null, comment == null ? null : comment.strip(), ip == null ? "link" : ip);
+            cr.tasks.complete(ControlRoom.user(row), a.task(), a.decision(), null, comment == null ? null : comment.strip(), ip == null ? "link" : ip);
             cr.audit.record(a.username(), "task.link_used", "task", a.task(), Map.of("decision", a.decision()), "ok", ip);
             return html(a.decision().equals("approved") ? "Approved" : "Rejected", "<p>Done: you " + (a.decision().equals("approved") ? "approved" : "rejected")
                     + " the request. You can close this window.</p>");

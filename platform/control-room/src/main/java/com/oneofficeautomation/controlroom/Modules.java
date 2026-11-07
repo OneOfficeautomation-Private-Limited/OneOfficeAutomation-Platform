@@ -36,6 +36,14 @@ public final class Modules {
     final Map<String, ModuleContext.JobPart> jobParts = new LinkedHashMap<>();
     final List<ModuleContext.RunEnded> runEnded = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskStage> taskStages = new LinkedHashMap<>();
+    final List<ModuleContext.CheckinListener> checkins = new CopyOnWriteArrayList<>();
+    volatile ModuleContext.ProductionGate productionGate;
+    final List<ModuleContext.Guardrails> guardrails = new CopyOnWriteArrayList<>();
+    final List<ModuleContext.RepositoryChange> repositoryChanges = new CopyOnWriteArrayList<>();
+    final Map<String, ModuleContext.RunRequest> runRequests = new LinkedHashMap<>();
+    final List<ModuleContext.NoRunner> noRunner = new CopyOnWriteArrayList<>();
+    volatile ModuleContext.WorkflowTasks workflowTasks;
+    final Map<String, ModuleContext.DefinitionCheck> definitionChecks = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
@@ -109,6 +117,32 @@ public final class Modules {
     /** The rules of a task stage a module owns, or null. */
     ModuleContext.TaskStage taskStage(Object stage) { return stage == null ? null : taskStages.get(String.valueOf(stage)); }
 
+    /** Tells repository followers (Git sync) that something changed; their failures never stop the change. */
+    void repositoryChanged(String by, String message) {
+        for (ModuleContext.RepositoryChange l : repositoryChanges) try { l.changed(by, message); } catch (RuntimeException ignored) { /* the next change catches up */ }
+    }
+
+    /** The AI guardrails of an agent's runs from every source, merged (a later source adds to an earlier one); null when none. */
+    Map<String, Object> guardrailsFor(String path) {
+        Map<String, Object> out = null;
+        for (ModuleContext.Guardrails g : guardrails) {
+            Map<String, Object> one = g.forAgent(path);
+            if (one != null) { if (out == null) out = new LinkedHashMap<>(); out.putAll(one); }
+        }
+        return out;
+    }
+
+    /** The module route (by the longest prefix of whole path segments) for a request path, or null. */
+    static <T> Map.Entry<String, T> match(Map<String, T> routes, String route) {
+        Map.Entry<String, T> best = null;
+        for (Map.Entry<String, T> e : routes.entrySet())
+            if ((route.equals(e.getKey()) || route.startsWith(e.getKey() + "/")) && (best == null || e.getKey().length() > best.getKey().length())) best = e;
+        return best;
+    }
+
+    /** Tells the modules a pool has work but no online runner. */
+    void noRunner(String poolId) { for (ModuleContext.NoRunner l : noRunner) try { l.forPool(poolId); } catch (RuntimeException ignored) { } }
+
     /** Tells the modules a run ended; one module failing does not stop the others. */
     void runEnded(Map<String, Object> run, String status, Map<String, Object> result) {
         for (ModuleContext.RunEnded l : runEnded) try { l.ended(run, status, result); } catch (RuntimeException ignored) { /* the module's own clock catches up */ }
@@ -142,6 +176,11 @@ public final class Modules {
         }
         public boolean atLeast(String access, String level) { return Folders.atLeast(access, level); }
         public String normalizeFolder(String path) { return Folders.normalize(path); }
+        public boolean mayView(User u, String path) { return cr.folders.mayView(u, path); }
+        public String folderAccessFor(List<String> principals, String role, String folder, Map<String, Map<String, String>> entries) { return cr.folders.accessToFolder(principals, role, folder, entries); }
+        public String pathAccess(String username, String role, String path) { return cr.folders.access(username, role, path); }
+        public Map<String, Object> getAgent(User by, String path, Object version) { return cr.getBot(by, path, version); }
+        public List<Map<String, Object>> listAgents(User by) { return cr.repoList(by, null); }
         public void requirePathAccess(String username, String role, String path, String level, String what) { cr.folders.require(username, role, path, level, what); }
 
         public String systemCredential(String ref) { return cr.systemCredential(ref); }
@@ -173,6 +212,25 @@ public final class Modules {
         public String onlineRunner() { return cr.platform.onlineRunner(); }
         public Map<String, Object> modelConnectionsFor(List<String> roles) { return cr.platform.connectionsForJob(roles); }
         public void recordAiCalls(Map<String, Object> run, List<?> calls) { cr.platform.recordAiCalls(run, calls); }
+        public List<String> principalsOf(String username, String role) { return cr.teams.principalsOf(username, role); }
+        public String defaultTimeZone() { return cr.defaultTimeZone(); }
+        public boolean queueAllows(User u, String queueId, String level) { return cr.platform.queueAllows(u, queueId, level); }
+        public Map<String, Object> queueCounts(String queueId) { return cr.platform.counts(queueId); }
+        public long tokensThisMonth(String connection) { return cr.platform.tokensThisMonth(connection); }
+        public void emitEvent(String type, Map<String, Object> data) { cr.events.emit(type, data); }
+        public boolean mailConfigured() { return cr.mailer.configured(); }
+        public void sendMail(List<String> to, String subject, String body, List<MailAttachment> attachments) {
+            List<Mailer.Attachment> files = new ArrayList<>();
+            for (MailAttachment a : attachments == null ? List.<MailAttachment>of() : attachments) files.add(new Mailer.Attachment(a.name(), a.contentType(), a.bytes()));
+            cr.mailer.send(to, subject, body, files);
+        }
+        public List<String> addressesOf(java.util.Collection<String> people) { return cr.addressesOf(people); }
+        public String serverlessDevice() { return (String) cr.serverless.device().get("id"); }
+        public void checkServerless(Map<String, Object> flow) { cr.serverless.check(flow); }
+        public Map<String, Object> storeAgentVersion(User by, String path, Map<String, Object> flow, String comment, boolean production, String ip) {
+            return cr.storeVersion(by, path, flow, comment, production, false, ip);
+        }
+        public List<McpTools> mcpTools() { return java.util.Collections.unmodifiableList(mcpTools); }
         public Map<String, Object> triggerConfig(Map<String, Object> trigger) { return TriggerPollers.config(trigger); }
 
         public MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) {
@@ -192,6 +250,8 @@ public final class Modules {
         public Map<String, Object> jsonBody(HttpExchange ex) throws IOException { return ControlRoomServer.map(ControlRoomServer.body(ex)); }
         public int maxBody() { return ControlRoomServer.maxBody.getAsInt(); }
         public Map<String, String> query(HttpExchange ex) { return ControlRoomServer.query(ex); }
+        public Object jsonValue(HttpExchange ex) throws IOException { return ControlRoomServer.body(ex); }
+        public String requestToken(HttpExchange ex) { return ControlRoomServer.token(ex); }
         public void sendFile(HttpExchange ex, byte[] content, String contentType, String fileName) throws IOException { ControlRoomServer.sendBytes(ex, content, contentType, fileName); }
 
         public void route(String prefix, UserRoute handler) { claim(userRoutes, prefix, handler, "the route /api/" + prefix); }
@@ -201,6 +261,27 @@ public final class Modules {
         public void embeddablePage(String path, FrameOrigins origins) { claim(embeddablePages, path, origins, "the page /" + path + "/"); }
         public void onRunEnded(RunEnded listener) { runEnded.add(listener); }
         public void taskStage(String stage, TaskStage rules) { claim(taskStages, stage, rules, "the task stage " + stage); }
+        public void checkinListener(CheckinListener listener) { checkins.add(listener); }
+        public void productionGate(ProductionGate gate) {
+            if (productionGate != null) throw new IllegalStateException("Module " + module + " registers a production gate, which another module has");
+            productionGate = gate;
+        }
+        public void guardrails(Guardrails source) { guardrails.add(source); }
+        public void repositoryChanged(String by, String message) { Modules.this.repositoryChanged(by, message); }
+        public void onRepositoryChanged(RepositoryChange listener) { repositoryChanges.add(listener); }
+        public void runRequest(String call, RunRequest handler) { claim(runRequests, call, handler, "the run request " + call); }
+        public void onNoRunner(NoRunner listener) { noRunner.add(listener); }
+        public void workflowTasks(WorkflowTasks source) {
+            synchronized (Modules.this) {
+                if (workflowTasks != null) throw new IllegalStateException("Module " + module + " registers the workflow engine, which another module has");
+                workflowTasks = source;
+            }
+        }
+        public void definitionCheck(String suffix, DefinitionCheck check) { claim(definitionChecks, suffix, check, "the definition check for " + suffix); }
+        public void requireFeature(String feature, String what) { cr.licensing.requireFeature(feature, what); }
+        public void notifyTaskCreated(String taskId, String kind, String title, String assignee, java.time.Instant due, Map<String, Object> data) {
+            cr.taskChannels.taskCreated(taskId, kind, title, assignee, due, data);
+        }
         public void every(Duration delay, Duration period, Runnable job) { jobs.add(new Job(module, delay, period, job)); }
         public void defineSetting(String key, Object defaultValue, SettingCheck check) { Platform.defineModuleSetting(key, defaultValue, check); }
         public void taskKind(String kind, TaskKind rules) { claim(taskKinds, kind, rules, "the task kind " + kind); }

@@ -44,6 +44,9 @@ public interface ModuleContext {
     /** Refuses with CR.FORBIDDEN, saying what the person may not do, unless they have the permission. */
     void require(User u, String permission, String what);
 
+    /** Refuses when the licence does not include the feature (what names it in the message). */
+    void requireFeature(String feature, String what);
+
     // ------------------------------------------------------------------ folders, vault, audit, settings
 
     /** Every folder's permission entries, read once for a batch of checks. */
@@ -58,8 +61,26 @@ public interface ModuleContext {
     /** A folder path as the repository keeps it ("Finance/AP"); refuses one that is not valid (CR.BAD_PATH). */
     String normalizeFolder(String path);
 
+    /** Whether the person may see a repository path (an agent) by its folder's permissions. */
+    boolean mayView(User u, String path);
+
+    /** What a person may do with a repository path (an agent) by its folder: none, view, run, edit or manage. */
+    String pathAccess(String username, String role, String path);
+
+    /** An agent as the person may see it (content, versions, labels), at a version or "latest" / "production". */
+    Map<String, Object> getAgent(User by, String path, Object version);
+
+    /** The agents the person may see in the repository. */
+    List<Map<String, Object>> listAgents(User by);
+
+    /** What a group of principals (a person's user:, role: and team: entries) may do in a folder path. */
+    String folderAccessFor(List<String> principals, String role, String folder, Map<String, Map<String, String>> entries);
+
     /** Refuses unless the person has the level on the folder of a repository path (an agent). */
     void requirePathAccess(String username, String role, String path, String level, String what);
+
+    /** As above, for a person. */
+    default void requirePathAccess(User u, String path, String level, String what) { requirePathAccess(u.username(), u.role(), path, level, what); }
 
     /** A secret One CommandCenter itself needs, from a vault reference folder/credential/attribute. */
     String systemCredential(String ref);
@@ -124,6 +145,57 @@ public interface ModuleContext {
     /** Records the AI calls a run (or a chat turn) made, for AI governance. */
     void recordAiCalls(Map<String, Object> run, List<?> calls);
 
+    /** The teams and roles a person acts as (user:, role:, team: principals), for sharing checks. */
+    List<String> principalsOf(String username, String role);
+
+    /** One CommandCenter's default time zone (Settings), as an id such as Asia/Kolkata. */
+    String defaultTimeZone();
+
+    /** Whether the person may use a work queue at a level (view, work, manage). */
+    boolean queueAllows(User u, String queueId, String level);
+
+    /** A work queue's item counts by status. */
+    Map<String, Object> queueCounts(String queueId);
+
+    /** The AI tokens a model connection used this month. */
+    long tokensThisMonth(String connection);
+
+    /** Publishes an event to the event subscriptions (events out), as the kernel's own events go. */
+    void emitEvent(String type, Map<String, Object> data);
+
+    /** Whether outgoing mail is set up (Settings > Mail). */
+    boolean mailConfigured();
+
+    /**
+     * Tells the people a new task is given to (Settings: e-mail, phone, Teams; approvals with their own Approve and
+     * Reject links), as the Task inbox does for its own tasks.
+     */
+    void notifyTaskCreated(String taskId, String kind, String title, String assignee, java.time.Instant due, Map<String, Object> data);
+
+    /** A file sent with a mail. */
+    record MailAttachment(String name, String contentType, byte[] bytes) {}
+
+    /** Sends a mail through Settings > Mail. */
+    void sendMail(List<String> to, String subject, String body, List<MailAttachment> attachments);
+
+    /** Sends a mail without attachments. */
+    default void sendMail(List<String> to, String subject, String body) { sendMail(to, subject, body, List.of()); }
+
+    /** The mail addresses of people (user names, role:, team:), as the kernel resolves them. */
+    List<String> addressesOf(java.util.Collection<String> people);
+
+    /** The server-side runner's device id (serverless Agent APIs run there). */
+    String serverlessDevice();
+
+    /** Refuses an agent the server-side runner cannot run (screen steps, toolkits not allowed there). */
+    void checkServerless(Map<String, Object> flow);
+
+    /** Stores a new version of an agent as the person (as an import: no check-out needed), with every check-in check. */
+    Map<String, Object> storeAgentVersion(User by, String path, Map<String, Object> flow, String comment, boolean production, String ip);
+
+    /** Every module's tools for AI assistants (the MCP server lists and calls them). */
+    List<McpTools> mcpTools();
+
     /** A trigger's settings (its config), as the trigger pollers read them. */
     Map<String, Object> triggerConfig(Map<String, Object> trigger);
 
@@ -147,6 +219,12 @@ public interface ModuleContext {
     /** The request body as a JSON object (CR.BAD_JSON otherwise). */
     Map<String, Object> jsonBody(HttpExchange ex) throws IOException;
 
+    /** The request body parsed as JSON (an object, a list or a value; CR.BAD_JSON when it is not JSON). */
+    Object jsonValue(HttpExchange ex) throws IOException;
+
+    /** The bearer token or session cookie of a request, or null (a module checks its own tokens with it). */
+    String requestToken(HttpExchange ex);
+
     /** The request's query parameters (decoded). */
     Map<String, String> query(HttpExchange ex);
 
@@ -164,8 +242,37 @@ public interface ModuleContext {
     /** A call from another service at /api/{route}, before sign-in: the module authenticates it (a service token). Returns the JSON answer. */
     @FunctionalInterface interface CallbackRoute { Object handle(HttpExchange ex, String ip) throws IOException; }
 
-    /** A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key). The route is after the prefix. */
-    @FunctionalInterface interface PublicRoute { void handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
+    /** Told around every check-in (and import) of an agent, workflow or form. */
+    interface CheckinListener {
+        /** Before the version is stored: throws OoaException to refuse it (code analysis rules that block check-in). */
+        default void before(String path, Map<String, Object> flow) { }
+        /** After the version is stored, in the same transaction (code analysis stores its report). */
+        default void checkedIn(User by, String path, int version, Map<String, Object> flow, String comment) { }
+    }
+
+    /** Decides whether making a version live needs someone's approval first (production approval). */
+    interface ProductionGate {
+        /** True when production versions need approval now. */
+        boolean required();
+        /** Asks for a version to go live; returns the request. */
+        Map<String, Object> request(User by, String path, int version, String comment, String ip);
+    }
+
+    /** The AI guardrails for an agent's runs (by its folder), merged into the run's job; null when none. */
+    @FunctionalInterface interface Guardrails { Map<String, Object> forAgent(String path); }
+
+    /** Told when something in the repository changed (a check-in, a version made live), for Git sync. */
+    @FunctionalInterface interface RepositoryChange { void changed(String by, String message); }
+
+    /** A request a running agent makes of One CommandCenter (raise_alert): the run, its user, the step's arguments and the audit actor. */
+    @FunctionalInterface interface RunRequest { Map<String, Object> handle(Map<String, Object> run, User as, Map<String, Object> args, String actor); }
+
+    /**
+     * A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key, a task token). The
+     * route is after the prefix. Returns false when it is not one of the module's public requests, so the kernel goes on
+     * to sign the person in (a prefix may have public and signed-in routes).
+     */
+    @FunctionalInterface interface PublicRoute { boolean handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
 
     /** The sites that may show a page in a frame, as a frame-ancestors list ("https://a.example https://b.example"), or null when there is no such page. */
     @FunctionalInterface interface FrameOrigins { String forPage(String id); }
@@ -180,6 +287,25 @@ public interface ModuleContext {
         /** The task was decided; returns the id of a run it started, or null. */
         String decided(Map<String, Object> task, User u, String outcome, String comment, String ip);
     }
+
+    /** Told when a run for a runner pool finds no online runner of it (demand, for pool auto-scaling). */
+    @FunctionalInterface interface NoRunner { void forPool(String poolId); }
+
+    /**
+     * The workflow engine's side of the Task inbox (the orchestration module): what a workflow task shows (its workflow,
+     * reference and stage bar), where a rejected approval goes, and the workflow continuing once a task is done.
+     */
+    interface WorkflowTasks {
+        /** Fields to add to a workflow task in the inbox; runs caches workflow runs (by id) across one listing. */
+        Map<String, Object> describe(Map<String, Object> task, Map<Object, Map<String, Object>> runs);
+        /** Where a rejected approval goes: "end", "continue" or a stage id. */
+        String onReject(Map<String, Object> task);
+        /** The task is done: the workflow continues (event is approved, rejected or task_completed). */
+        void completed(Map<String, Object> task, String event, Map<String, Object> result, String by, String forcedNext);
+    }
+
+    /** Checks a definition kept in the repository (a workflow, a form) at check-in; returns the problems ({message, stage}). */
+    @FunctionalInterface interface DefinitionCheck { List<Map<String, Object>> problems(Map<String, Object> definition); }
 
     /** Checks a value saved in Settings for a module's setting; throws OoaException (CR.BAD_INPUT) to refuse it. */
     @FunctionalInterface interface SettingCheck { void check(String value, boolean saas); }
@@ -226,7 +352,16 @@ public interface ModuleContext {
 
     // ------------------------------------------------------------------ the kernel's conventions, the same for every module
 
+    /** The server-side runner's device id (to recognise its runs; serverlessDevice() also sets it up). */
+    String SERVERLESS_DEVICE = com.oneofficeautomation.controlroom.ControlRoom.SERVERLESS_DEVICE_ID;
+
+    /** How long after its last heartbeat a runner still counts as online. */
+    java.time.Duration ONLINE = com.oneofficeautomation.controlroom.ControlRoom.ONLINE_WINDOW;
+
     /** A new id with a prefix ("idea_3f2a..."), as the kernel makes them. */
+    /** A form's answers checked against its fields (required, types, choices), as the Task inbox checks a submitted form. */
+    static Map<String, Object> checkAnswers(Map<String, Object> form, Map<String, Object> answers) { return com.oneofficeautomation.controlroom.TaskInbox.checkAnswers(form, answers); }
+
     static String id(String prefix) { return com.oneofficeautomation.controlroom.ControlRoom.newId(prefix); }
 
     /** Now, to the millisecond, as the kernel stores times. */
@@ -246,6 +381,36 @@ public interface ModuleContext {
 
     /** A folder path as the repository keeps it ("Finance/AP"); refuses one that is not valid (CR.BAD_PATH). */
     static String folderPath(String path) { return com.oneofficeautomation.controlroom.ControlRoom.normalizedFolder(path); }
+
+    /** The folder of a repository path ("Finance/AP/Post.flow.json" -> "Finance/AP"). */
+    static String folderOf(String path) { return com.oneofficeautomation.controlroom.ControlRoom.folderOfPath(path); }
+
+    /** One CSV line (with its line break), quoted and protected against spreadsheet formulas, as the kernel's exports write it. */
+    static String csvRow(List<String> cells) { return com.oneofficeautomation.controlroom.ControlRoom.csvLine(cells); }
+
+    /** Checks a mail address (CR.BAD_INPUT when it is not one); returns it trimmed. */
+    static String mailAddress(String address) { return com.oneofficeautomation.controlroom.ControlRoom.mailAddressChecked(address); }
+
+    /** A person as the kernel represents them, from a users row. */
+    static User userOf(Map<String, Object> row) { return com.oneofficeautomation.controlroom.ControlRoom.userFromRow(row); }
+
+    /** A whole number from a request parameter, or the default when it is missing or not a number. */
+    static int intOr(String value, int dflt) { return com.oneofficeautomation.controlroom.ControlRoom.intOrDefault(value, dflt); }
+
+    /** A time from a request parameter (an ISO instant or a date; a date's end with endOfDay), or null; anything else is CR.BAD_INPUT. */
+    static java.time.Instant instant(String value, boolean endOfDay) { return com.oneofficeautomation.controlroom.ControlRoom.instantOf(value, endOfDay); }
+
+    /** A simple PDF of a title and text lines (mailed reports), as the kernel writes them. */
+    static byte[] textPdf(String title, List<String> lines) { return com.oneofficeautomation.controlroom.ControlRoom.textPdfOf(title, lines); }
+
+    /** A comma list or a JSON list as trimmed texts, as the kernel reads them. */
+    static List<String> csv(Object value) { return com.oneofficeautomation.controlroom.ControlRoom.csvList(value); }
+
+    /** AWS Signature Version 4 headers for a request (calls to AWS APIs), as the kernel's external vaults sign them. */
+    static Map<String, String> awsSigV4(String method, java.net.URI uri, Map<String, String> headers, String body, String accessKey, String secretKey,
+                                        String region, String service, java.time.ZonedDateTime now) throws Exception {
+        return com.oneofficeautomation.controlroom.ExternalVaults.SigV4.sign(method, uri, headers, body, accessKey, secretKey, region, service, now);
+    }
 
     /** CR.NOT_FOUND: "{what} not found". */
     static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
@@ -285,6 +450,33 @@ public interface ModuleContext {
 
     /** Tasks whose stage the module owns (One Chat: chat_approval). */
     void taskStage(String stage, TaskStage rules);
+
+    /** Told around every check-in. */
+    void checkinListener(CheckinListener listener);
+
+    /** The production gate (one module at most). */
+    void productionGate(ProductionGate gate);
+
+    /** AI guardrails for runs. */
+    void guardrails(Guardrails source);
+
+    /** Tells whoever follows repository changes (Git sync) that something changed. */
+    void repositoryChanged(String by, String message);
+
+    /** Follows repository changes (Git sync). */
+    void onRepositoryChanged(RepositoryChange listener);
+
+    /** Answers a running agent's request of this name (POST /api/agent/request with call). */
+    void runRequest(String call, RunRequest handler);
+
+    /** Hears when a pool has work but no online runner. */
+    void onNoRunner(NoRunner listener);
+
+    /** The workflow engine behind the Task inbox's workflow tasks (one module may register it). */
+    void workflowTasks(WorkflowTasks source);
+
+    /** Validates repository files whose name ends with suffix (".process.json") at check-in, instead of the agent schema. */
+    void definitionCheck(String suffix, DefinitionCheck check);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

@@ -1,8 +1,10 @@
 # 13. Modules: one platform, separately changed parts
 
 Status: **approved** (2026-11-07). Phase 0 (the module map and the boundary report), phase 1 (the module
-contract, with Document Automation as the first module moved out) and phase 2 (automation ideas, AI services,
-low-code and One Chat moved out) are built. Phases 3 to 8 follow, one module at a time.
+contract, with Document Automation as the first module moved out), phase 2 (automation ideas, AI services,
+low-code and One Chat moved out), phase 3 (testing, governance, insights, integration, runner management), phase 4
+(the workflow engine as the orchestration module; the Task inbox stays in the kernel) and phase 5 (toolkit groups
+found with ServiceLoader) are built. Phases 6 to 8 follow.
 
 ## 1. Why
 
@@ -38,7 +40,7 @@ Five layers; a module uses only modules in lower layers and the kernel:
 | Layer | Modules |
 | --- | --- |
 | 0 Foundation | `sdk`, `runner`, `adapters-jackson`, contracts |
-| 1 Toolkits | `packages` and `packages-*` (phase 5 splits them into groups: core, microsoft, google, enterprise apps, cloud and data, ai, devops) |
+| 1 Toolkits | `packages` (core) and `packages-*`, and the toolkit groups in `platform/toolkits/<group>` (microsoft, google, enterprise, cloud-data, ai, ...), each found with `ServiceLoader` (`ToolkitGroup`) since phase 5 |
 | 2 Command Center kernel | sign-in, users, roles, folders, repository, runs and dispatch, audit, vault, settings, database, cluster, licensing, tenants, and the module contract |
 | 3 Feature modules | document-automation, one-chat, orchestration, governance, insights, ai-services, low-code, coe, testing, runner-management, integration, enterprise-ops |
 | 4 Applications and packaging | `cli` and Studio, `agent` (the runner), the UI shell, installers, containers, Helm |
@@ -86,6 +88,14 @@ What a module adds, in `start`:
 | Runs that end | `onRunEnded(listener)` | tells it after the kernel's own follow-up (One Chat tells the chat at once) |
 | Task inbox stages | `taskStage(stage, rules)` | asks it before such a task is completed and tells it the decision (One Chat's R3 approvals) |
 | Objects for others | `provide(type, object)` | finds it with `Modules.service(type)` (tests, and other modules through a kernel interface) |
+| Check-in rules | `checkinListener(listener)` | asks it before a version is stored (it may refuse) and tells it afterwards (governance's code analysis) |
+| Approval before production | `productionGate(gate)` | turns "make live" into a request the gate keeps (one module) |
+| AI guardrails per run | `guardrails(source)` | puts the run's folder guardrails in its job (governance's policies) |
+| Repository changes | `onRepositoryChanged(listener)` | tells it after every check-in, move or delete (integration's Git sync) |
+| Requests from a running agent | `runRequest(kind, handler)` | sends a runner's request of that kind to it (insights' `raise_alert`) |
+| Work with no runner | `onNoRunner(listener)` | tells it the pool that has waiting work and no runner (runner management scales the pool up) |
+| The workflow engine | `workflowTasks(source)` | asks it what a workflow task shows in the Task inbox, where a rejection goes, and tells it a task is done (orchestration, one module) |
+| Definition rules | `definitionCheck(suffix, check)` | checks files with that ending at check-in instead of the agent schema (orchestration: `.process.json`, `.form.json`); without one they are stored as they are |
 | Its own tables | `schema()`: numbered steps | applies the missing steps after the kernel's schema and records the module's version in `module_schema` (kernel schema 46) |
 
 `GET /api/modules` lists the modules running, with their versions.
@@ -109,6 +119,21 @@ Still to move (later phases): the `docs.*` permissions are still listed in `Rbac
 modules); the console wires the module's page in directly (phase 6: a UI module registry); the toolkit
 `DocumentAutomationPackage` stays in the toolkits layer and talks to the module over HTTP.
 
+### What stays in the kernel (phases 3 and 4)
+
+Some parts the plan first listed under a feature module are part of every run or every sign-in. They stay in the
+kernel, and feature modules plug into them through the contract:
+
+| Stays in the kernel | Why |
+| --- | --- |
+| Schedules, triggers and trigger pollers, run waits (long-running agents), queues, environment locks | Run dispatch: every run passes through them. Modules add trigger kinds (`triggerKind`) |
+| The Task inbox (`TaskInbox`, table `human_tasks`) and its delivery (`ApprovalChannels`: e-mail, phone, Teams) | Every module puts tasks there (workflows, Document Automation reviews, One Chat approvals, AI agents' requests). The workflow engine describes and continues its own tasks through `WorkflowTasks` |
+| Event subscriptions, metrics, syslog forwarding | Observability of the whole platform |
+| SCIM | Identity, with sign-in and users |
+| The server-side runner (`ServerlessRuns`) | A runner, used by runs from any source |
+| Runner care and runner updates | Part of every heartbeat and of dispatch |
+| The savings settings (`analytics/goal`, `analytics/queue-savings`), the setting `production_approval` | Kept with the other settings so existing databases need no change |
+
 ## 5. Phases
 
 | Phase | What | State |
@@ -116,10 +141,10 @@ modules); the console wires the module's page in directly (phase 6: a UI module 
 | P0 | Module map, boundary report (87 crossings on 7 Nov 2026), this record | done |
 | P1 | Module contract, `Modules` registry, schema 46 (`module_schema`), Document Automation moved out, CI `changes` job | done |
 | P2 | coe (automation ideas), ai-services (Prompt Skills, knowledge bases), low-code (apps, embed links, data store), one-chat moved out; contract grows job parts, public routes, embeddable pages, run-ended listeners, task stages, services (boundary crossings 81 -> 59) | done |
-| P3 | Insights, testing, governance, integration, runner-management | next |
-| P4 | Orchestration (schedules, triggers, workflows, run waits), the most joined to runs | |
-| P5 | Toolkit groups, found with ServiceLoader instead of one list (`FirstPartyPackages`) | |
-| P6 | UI: a module registry for menu and routes, the API client, stylesheet and translations split per module, class prefixes checked | |
+| P3 | testing (test sets), governance (code analysis, policies, production approval), insights (analytics, dashboards, alerts), integration (Agent APIs, MCP server, Git sync), runner-management (pool auto-scaling); contract grows check-in listeners, the production gate, guardrails, repository changes, run requests, the no-runner hook; mixed tests move to the CLI's whole-product tests (boundary crossings 59 -> 26) | done |
+| P4 | orchestration: the workflow engine moves out; the Task inbox (`TaskInbox`) and `FlowFiles` stay the kernel's; contract grows the workflow engine hook (`WorkflowTasks`), definition checks, licence features and task notifications | done |
+| P5 | Toolkit groups in `platform/toolkits/<group>`, found with ServiceLoader (`ToolkitGroup`) instead of one list in `FirstPartyPackages`; One CommandCenter ships every group | done |
+| P6 | UI: a module registry for menu and routes, the API client, stylesheet and translations split per module, class prefixes checked | next |
 | P7 | CI runs each module's tests only when it is affected; build cache; CODEOWNERS per module | |
 | P8 | The rest of the kernel into packages (auth, runs, repository, vault, settings); permissions registered by modules; Settings > About lists module versions | |
 

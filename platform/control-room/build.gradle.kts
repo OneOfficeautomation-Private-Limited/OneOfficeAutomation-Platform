@@ -2,12 +2,17 @@
 // Storage is JDBC: embedded H2 by default (no setup); SQL Server or PostgreSQL in production (config/ooa-db.properties).
 dependencies {
     implementation(project(":packages"))
+    // every toolkit group: One CommandCenter checks agents against, and runs (serverless), every first-party toolkit
+    runtimeOnly(project(":toolkits-microsoft"))
+    runtimeOnly(project(":toolkits-google"))
+    runtimeOnly(project(":toolkits-enterprise"))
+    runtimeOnly(project(":toolkits-cloud-data"))
+    runtimeOnly(project(":toolkits-ai"))
+    runtimeOnly(project(":toolkits-devops"))
     // One Chat's engines and conversation rules; this module provides its ChatPlatform (Chat.java)
     implementation(project(":conversation"))
     // work items from Excel workbooks
     implementation("org.apache.poi:poi-ooxml:5.3.0")
-    // Git sync of the agent repository (pure Java: the server needs no git installed)
-    implementation("org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r")
     runtimeOnly("com.h2database:h2:2.2.224")
     runtimeOnly("org.postgresql:postgresql:42.7.4")
     runtimeOnly("com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11")

@@ -192,7 +192,7 @@ public final class RunWaits {
     boolean mayWaitForTask(Map<String, Object> t, User as, String runId) {
         if (cr.can(as, "users.manage")) return true;
         if (t.get("data") instanceof String d && JsonLite.parse(d) instanceof Map<?, ?> m && rootRun(runId).equals(m.get("_run"))) return true;   // made by this chain of runs
-        return cr.workflows.assignedTo((String) t.get("assignee"), as);
+        return cr.tasks.assignedTo((String) t.get("assignee"), as);
     }
 
     static long seconds(Object raw, String what) {

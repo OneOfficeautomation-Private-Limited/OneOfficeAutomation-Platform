@@ -66,7 +66,7 @@ public final class Lifecycle {
             a.put("sha256", row.get("sha256"));
             a.put("content", row.get("content"));
             agents.put(path, a);
-            if (!Workflows.isWorkflow(path) && !Workflows.isForm(path)) toolkits.addAll(ControlRoom.toolkitsOf(flow));
+            if (!FlowFiles.isDefinition(path)) toolkits.addAll(ControlRoom.toolkitsOf(flow));
             if (withDependencies) for (String id : ControlRoom.childBotIds(flow)) {
                 Map<String, Object> b = db.one("SELECT path FROM bots WHERE bot_id = ? AND deleted_at IS NULL", id);
                 if (b == null) throw new OoaException("CR.NOT_FOUND", "Agent " + path + " calls agent id '" + id + "', which is not in this One CommandCenter",

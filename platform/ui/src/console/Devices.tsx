@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { PoolScalingDialog } from "./PoolScaling";
+import { PoolScalingDialog } from "../modules/runner-management/PoolScaling";
 
 /**
  * Manage > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and

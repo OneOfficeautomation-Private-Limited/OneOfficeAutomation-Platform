@@ -31,11 +31,9 @@ public final class ControlRoom {
     public final Vault vault;
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults(this);
-    public final Workflows workflows;
+    public final TaskInbox tasks;
     /** Approving from e-mail, Teams and a phone (G43). */
     final ApprovalChannels taskChannels;
-    public final TestSets testSets;
-    public final Dashboards dashboards;
     public final CustomToolkits customToolkits;
     public final ServerlessRuns serverless;
     /** Repository folders and folder permissions. */
@@ -47,15 +45,6 @@ public final class ControlRoom {
     public final Teams teams;
     /** Vault folder members, credential owners, people's own values and the master key. */
     public final VaultAdmin vaultAdmin;
-    /** Run analytics for Operations. */
-    public final Analytics analytics;
-    /** Alert rules, checked once a minute, and the alerts they raised. */
-    public final Alerts alerts;
-    /** Code analysis against the policy (on demand and at check-in). */
-    public final CodeAnalysis codeAnalysis;
-    final Policies policies;
-    /** Agents behind their own URL and token. */
-    public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
     public final RepoFiles repoFiles;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
@@ -75,7 +64,6 @@ public final class ControlRoom {
     public final Licensing licensing;
     public final Mfa mfa;
     public final Cluster cluster;
-    public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
@@ -83,12 +71,10 @@ public final class ControlRoom {
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Auto-scaling runner pools (G52). */
-    final PoolScaling poolScaling;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
     public final EventSubscriptions events;
     /** The Prometheus metrics (gap G38). */
     public final Metrics metrics;
-    public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
     final Mailer mailer;
@@ -157,15 +143,12 @@ public final class ControlRoom {
         this.licensing = new Licensing(this);
         this.cluster = new Cluster(db);
         this.mfa = new Mfa(this);
-        this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
         this.runWaits = new RunWaits(this);
-        this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);
-        this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
         this.mailer = new Mailer(this);
@@ -175,20 +158,13 @@ public final class ControlRoom {
             events.onAudit(e);
         });
         audit.protect(this::auditKey, dataDir);
-        this.workflows = new Workflows(this);
+        this.tasks = new TaskInbox(this);
         this.taskChannels = new ApprovalChannels(this);
-        this.testSets = new TestSets(this);
-        this.dashboards = new Dashboards(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
         this.lifecycle = new Lifecycle(this);
         this.templates = new Templates(this);
         this.vaultAdmin = new VaultAdmin(this);
-        this.analytics = new Analytics(this);
-        this.alerts = new Alerts(this);
-        this.codeAnalysis = new CodeAnalysis(this);
-        this.policies = new Policies(this);
-        this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
@@ -200,12 +176,27 @@ public final class ControlRoom {
         modules.start();
     }
 
+    /** Something in the repository changed (a check-in, a version made live): Git sync and the modules that follow changes hear of it. */
+    void repositoryChanged(String by, String message) {
+        if (modules != null) modules.repositoryChanged(by, message);   // the integration module's Git sync follows it
+    }
+
     /** The kernel's conventions, published to feature modules through ModuleContext (id, now, denied, notFound). */
     public static String newId(String prefix) { return id(prefix); }
     public static Instant nowMillis() { return now(); }
     public static OoaException deniedTo(String what) { return denied(what); }
     public static OoaException notFoundError(String what) { return notFound(what); }
     public static String normalizedFolder(String path) { return Folders.normalize(path); }
+    public static String folderOfPath(String path) { return Folders.folderOf(path == null ? "" : path); }
+    public static String csvLine(List<String> cells) { return Platform.Csv.row(cells); }
+    public static String mailAddressChecked(String address) { return Mailer.address(address); }
+    public static List<String> csvList(Object value) { return csv(value); }
+    public static int intOrDefault(String value, int dflt) { return intOr(value, dflt); }
+    public static final java.time.Duration ONLINE_WINDOW = ONLINE;
+    public static final String SERVERLESS_DEVICE_ID = ServerlessRuns.DEVICE;
+    public static byte[] textPdfOf(String title, List<String> lines) { return TextPdf.of(title, lines); }
+    public static Instant instantOf(String value, boolean endOfDay) { return instant(value, endOfDay); }
+    public static User userFromRow(Map<String, Object> row) { return user(row); }
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
@@ -989,9 +980,11 @@ public final class ControlRoom {
 
     /** Validates a flow for the path as check-in does (toolkits, schema, workflow or form rules); returns the problems. */
     List<Map<String, Object>> problemsOf(String path, Map<String, Object> flow) {
-        boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
-        if (!workflow && !form) platform.checkToolkits(flow);
-        return workflow ? Workflows.validate(flow) : form ? Workflows.validateForm(flow) : validator.validate(flow);
+        if (!FlowFiles.isDefinition(path)) { platform.checkToolkits(flow); return validator.validate(flow); }
+        // workflows and forms: the module that runs them checks them (orchestration); without it they are kept as they are
+        if (modules != null) for (Map.Entry<String, ModuleContext.DefinitionCheck> c : modules.definitionChecks.entrySet())
+            if (path.endsWith(c.getKey())) return c.getValue().problems(flow);
+        return List.of();
     }
 
     /**
@@ -1001,11 +994,12 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean asProduction, boolean checkedOut, String ip) {
         // with approval before production, "as production" becomes a request that someone else approves
-        boolean askApproval = asProduction && approvals.enabled(), makeProduction = asProduction && !askApproval;
+        ModuleContext.ProductionGate gate = modules == null ? null : modules.productionGate;
+        boolean askApproval = asProduction && gate != null && gate.required(), makeProduction = asProduction && !askApproval;
         Map<String, Object> stored = storeVersionNow(by, path, flow, comment, makeProduction, checkedOut, ip);
         if (!askApproval) return stored;
         Map<String, Object> out = new LinkedHashMap<>(stored);
-        out.put("production_request", approvals.request(by, path, ((Number) stored.get("version")).intValue(), comment, ip));
+        out.put("production_request", gate.request(by, path, ((Number) stored.get("version")).intValue(), comment, ip));
         return out;
     }
 
@@ -1017,11 +1011,12 @@ public final class ControlRoom {
         folders.require(by, path, "edit", "check in agents");
         if (makeProduction) folders.require(by, path, "manage", "set live production versions");
         // Workflows and forms are checked in like agents (versions, check-out, live production version) but validated differently.
-        boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
+        boolean workflow = FlowFiles.isWorkflow(path), form = FlowFiles.isForm(path);
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
                 "Fix the problems in One AgentStudio (Check now lists them) before checking in.", false, Map.of("problems", problems));
-        codeAnalysis.atCheckin(path, flow);
+        // feature modules may refuse it first (governance: code analysis rules that block check-in)
+        if (modules != null) for (ModuleContext.CheckinListener l : modules.checkins) l.before(path, flow);
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
@@ -1050,28 +1045,29 @@ public final class ControlRoom {
             db.update("INSERT INTO bot_versions (path, version, content, sha256, comment, author, created) VALUES (?,?,?,?,?,?,?)",
                     path, version, json, Security.sha256(json), comment == null ? "" : comment, by.username(), now());
             audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
-            gitSync.changed(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
-            // the code analysis report of the new version, against today's policy
-            if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow, codeAnalysis.policyFor(path)), by.username());
+            repositoryChanged(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
+            // feature modules hear of the new version (governance: the code analysis report against today's policy)
+            if (modules != null) for (ModuleContext.CheckinListener l : modules.checkins) l.checkedIn(by, path, version, flow, comment);
             return Map.of("path", path, "version", version, "created", b == null);
         });
     }
 
     /** Makes a version live, or with approval before production asks for it; returns {ok} or {production_request}. */
     public Map<String, Object> setOrRequestProduction(User by, String path, int version, String comment, String ip) {
-        if (approvals.enabled()) return Map.of("production_request", approvals.request(by, path, version, comment, ip));
+        ModuleContext.ProductionGate gate = modules == null ? null : modules.productionGate;
+        if (gate != null && gate.required()) return Map.of("production_request", gate.request(by, path, version, comment, ip));
         setProduction(by, path, version, ip);
         return Map.of("ok", true);
     }
 
     public void setProduction(User by, String path, int version, String ip) {
-        if (approvals.enabled()) throw new OoaException("CR.APPROVAL_REQUIRED", "Production versions need approval", "Ask for approval; another person with the approval right decides.");
+        if (modules != null && modules.productionGate != null && modules.productionGate.required()) throw new OoaException("CR.APPROVAL_REQUIRED", "Production versions need approval", "Ask for approval; another person with the approval right decides.");
         require(by, "repo.production", "set live production versions");
         folders.require(by, path, "manage", "set live production versions");
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
         db.update("UPDATE bots SET production_version = ?, updated = ?, updated_by = ? WHERE path = ?", version, now(), by.username(), path);
         audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version), "ok", ip);
-        gitSync.changed(by.username(), path + ": v" + version + " is live in production");
+        repositoryChanged(by.username(), path + ": v" + version + " is live in production");
     }
 
     /**
@@ -1092,7 +1088,7 @@ public final class ControlRoom {
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
         audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
-        gitSync.changed(by.username(), path + " deleted");
+        repositoryChanged(by.username(), path + " deleted");
         return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
     }
 
@@ -1143,7 +1139,7 @@ public final class ControlRoom {
         if (!to.matches(".*\\.(flow|process|form)\\.json$") || !to.substring(to.indexOf('.', to.lastIndexOf('/') + 1)).equals(path.substring(path.indexOf('.', path.lastIndexOf('/') + 1))))
             throw new OoaException("CR.BAD_PATH", "The copy keeps the kind of file: " + path.substring(path.indexOf('.', path.lastIndexOf('/') + 1)));
         if (db.one("SELECT path FROM bots WHERE path = ?", to) != null) throw new OoaException("CR.CONFLICT", "There is already an agent at " + to);
-        if (!Workflows.isWorkflow(path) && !Workflows.isForm(path)) {
+        if (!FlowFiles.isDefinition(path)) {
             String base = String.valueOf(flow.get("id")) + "_copy", id = base;
             for (int k = 2; db.one("SELECT path FROM bots WHERE bot_id = ?", id) != null; k++) id = base + k;
             flow.put("id", id);
@@ -1509,7 +1505,7 @@ public final class ControlRoom {
             platform.requirePoolUse(requestedBy, role, poolId);
             deviceId = platform.pickDevice(poolId);
             if (deviceId == null) {
-                poolScaling.noRunner(poolId);   // demand for an auto-scaling pool (G52)
+                if (modules != null) modules.noRunner(poolId);   // demand for an auto-scaling pool (G52, runner-management)
                 throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
             }
         }
@@ -1540,7 +1536,7 @@ public final class ControlRoom {
         }
         for (var e : (inputs == null ? Map.<String, Object>of() : inputs).entrySet()) {
             // a test case's mocks (G61) ride in a reserved input, for test-set runs only
-            if (TestSets.MOCKS_INPUT.equals(e.getKey())) {
+            if (com.oneofficeautomation.runner.Runner.MOCKS_INPUT.equals(e.getKey())) {
                 if (source != null && source.startsWith("test:") && e.getValue() instanceof Map<?, ?>) { clean.put(e.getKey(), e.getValue()); continue; }
                 throw new OoaException("CR.BAD_INPUT", "Only test-set runs take mocks", "Put mocks on a test case (Agent tests).");
             }
@@ -1835,7 +1831,7 @@ public final class ControlRoom {
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             moduleParts.forEach((k, v) -> { if (v != null && !v.isEmpty()) job.put(k, v); });
-            Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
+            Map<String, Object> guardrails = modules == null ? null : modules.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (governance)
             // Settings > AI (item 4n): AI switched off for everyone, and full logging of prompts and answers (off at first)
             if (platform.intSetting("ai_enabled") == 0 || platform.intSetting("ai_log_content") == 1) {
                 guardrails = new LinkedHashMap<>(guardrails == null ? Map.of() : guardrails);
@@ -1936,12 +1932,10 @@ public final class ControlRoom {
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
-        if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { testSets.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
-        if (modules != null) modules.runEnded(r, status, result);   // feature modules (One Chat tells the chat at once)
+        // feature modules, with the chain's first run as the kernel's own follow-up gets it (test sets, KPIs, One Chat)
+        if (modules != null) modules.runEnded(first, status, result);
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 
@@ -2095,7 +2089,6 @@ public final class ControlRoom {
                 if (!Set.of("queued", "running").contains(String.valueOf(r.get("status")))) out = Map.of("stopped", false, "status", r.get("status"));
                 else { control(as, job, "stop", null); out = Map.of("stopped", true, "status", "stopping"); }
             }
-            case "raise_alert" -> out = alerts.raiseFromRun(run, (String) args.get("message"), (String) args.get("severity"), (String) args.get("subject"));
             case "calendar" -> {   // gap G34: a holiday calendar for ooa.datetime's working-day actions, read as the run's user
                 String cal = args.get("name") instanceof String s ? s.strip() : "";
                 out = platform.calendarFor(as, cal);
@@ -2109,7 +2102,12 @@ public final class ControlRoom {
             case "suspend" -> out = runWaits.suspend(run, as, args, actor);
             case "create_task" -> out = runWaits.createTask(run, args, actor);
             case "task_status" -> out = runWaits.taskStatus(run, args);   // G44: an AI agent waiting for an approval it asked for
-            default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
+            default -> {
+                // a request a feature module answers (insights: raise_alert); it audits it itself
+                ModuleContext.RunRequest h = modules == null ? null : modules.runRequests.get(call);
+                if (h == null) throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
+                return h.handle(run, as, args, actor);
+            }
         }
         if (!Set.of("raise_alert", "create_callback", "suspend", "create_task", "task_status").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
         return out;
@@ -2311,8 +2309,6 @@ public final class ControlRoom {
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
-        try { alerts.checkIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
-        try { dashboards.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================
@@ -3340,7 +3336,7 @@ public final class ControlRoom {
         m.put("hours_saved_30d", saved == null || saved.get("n") == null ? 0 : Math.round(((Number) saved.get("n")).doubleValue() / 6.0) / 10.0);
         if (can(by, "queues.view"))
             m.put("queue_items_waiting", count("SELECT COUNT(*) AS n FROM queue_items WHERE status IN ('new', 'retry')"));
-        m.put("open_tasks", workflows.openTaskCount(by));
+        m.put("open_tasks", tasks.openTaskCount(by));
         // the person's own recent work, for "Pick up where you left off"
         if (can(by, "repo.view")) {
             Map<String, Map<String, String>> perms = folders.entries();

@@ -144,7 +144,7 @@ class RunWaitsTest {
         suspend(run, Map.of("kind", "task", "ref", task));
         finishSuspended(run);
         assertEquals(0, cr.runWaits.tick());
-        cr.workflows.complete(admin, task, "approved", null, "fine", null);
+        cr.tasks.complete(admin, task, "approved", null, "fine", null);
         assertEquals(1, cr.runWaits.tick());
         Map<String, Object> answer = (Map<String, Object>) JsonLite.parse((String) waitOf(run).get("payload"));
         assertEquals("approved", ((Map<String, Object>) answer.get("result")).get("outcome"));

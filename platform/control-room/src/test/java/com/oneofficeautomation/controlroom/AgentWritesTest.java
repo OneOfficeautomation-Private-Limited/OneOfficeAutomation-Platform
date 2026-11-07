@@ -33,7 +33,7 @@ class AgentWritesTest {
         admin = RepositoryLifecycleTest.boot(cr);
         bob = RepositoryLifecycleTest.person(cr, admin, "bob", "bot_runner");
         carl = RepositoryLifecycleTest.person(cr, admin, "carl", "admin");
-        cr.checkin(admin, "Ops/Reset.flow.json", TeamsVaultAuditAnalyticsTest.flow("reset"), "v1", true, null);
+        cr.checkin(admin, "Ops/Reset.flow.json", KernelTestKit.flow("reset"), "v1", true, null);
         Map<String, Object> d = cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null);
         dev = cr.device((String) d.get("device_id"), (String) d.get("secret"));
         cr.setDefaultDevice(admin, "bob", (String) d.get("device_id"), null);
