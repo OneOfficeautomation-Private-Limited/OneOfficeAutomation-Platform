@@ -73,7 +73,17 @@ public final class Runner {
 
     public RunResult run(Map<String, Object> flow, Map<String, Object> inputs) { return run(flow, inputs, new RunOptions()); }
 
+    /** The input that carries a test case's mocks (One CommandCenter test sets put them there, G61); taken out before the run. */
+    public static final String MOCKS_INPUT = "__ooa_mocks";
+
+    @SuppressWarnings("unchecked")
     public RunResult run(Map<String, Object> flow, Map<String, Object> inputs, RunOptions opts) {
+        if (inputs != null && inputs.containsKey(MOCKS_INPUT)) {
+            Map<String, Object> rest = new LinkedHashMap<>(inputs);
+            Object m = rest.remove(MOCKS_INPUT);
+            if (opts.mocks == null && m instanceof Map<?, ?> mm) opts.mocks((Map<String, Object>) mm);
+            inputs = rest;
+        }
         String runId = opts.runId != null ? opts.runId : "run_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Run r = new Run(flow, runId, opts.cancel != null ? opts.cancel : new AtomicBoolean(), opts.maxRunSeconds, 0);
         r.pause = opts.pause != null ? opts.pause : new AtomicBoolean();
@@ -82,6 +92,7 @@ public final class Runner {
         r.onlyStep = opts.onlyStep;
         r.carryOver = opts.carryOver;
         r.resumeAnswer = opts.resumeAnswer;
+        r.mocks = opts.mocks;
         r.trail = opts.trail;
         r.maxJumps = opts.maxJumps;
         return r.execute(inputs == null ? Map.of() : inputs, true);
@@ -130,7 +141,12 @@ public final class Runner {
      */
     public static final class RunOptions {
         String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger; String startAt; boolean onlyStep;
-        Map<String, Object> carryOver; ValueTrail trail; int maxJumps = DEFAULT_MAX_JUMPS; Map<String, Object> resumeAnswer;
+        Map<String, Object> carryOver; ValueTrail trail; int maxJumps = DEFAULT_MAX_JUMPS; Map<String, Object> resumeAnswer; Map<String, Object> mocks;
+        /**
+         * Test mocks (gap G61): step id to what the step gives instead of running its action, {"outputs": {...}} or
+         * {"error": {"code", "message"}}. Only steps of the agent being run (not of its child agents); blocks are not mocked.
+         */
+        public RunOptions mocks(Map<String, Object> m) { mocks = m == null || m.isEmpty() ? null : m; return this; }
         /** Go to jumps allowed in the run (each child agent gets the same allowance); more fail the run with GOTO.LIMIT. */
         public RunOptions maxJumps(int n) { maxJumps = Math.max(0, n); return this; }
         public RunOptions startAt(String stepId) { startAt = stepId == null || stepId.isBlank() ? null : stepId; return this; }
@@ -273,6 +289,7 @@ public final class Runner {
         Map<String, Object> carryOver;
         /** A resumed run (G36): the answer for the start step's action, handed over once. */
         Map<String, Object> resumeAnswer;
+        Map<String, Object> mocks;
         final java.util.concurrent.atomic.AtomicBoolean resumeGiven = new java.util.concurrent.atomic.AtomicBoolean();
         ValueTrail trail;
         Run parent;
@@ -1535,9 +1552,32 @@ public final class Runner {
                     public Object value(String name) { synchronized (scope) { return scope.values.get(name); } }
                 });
                 m.putIfAbsent(RunSuspension.SERVICE, suspension());
+                // coded agents (G70): a toolkit command the code calls runs as part of the calling step
+                m.putIfAbsent("action_invoker", (java.util.function.Function<Map<String, Object>, Object>) this::invokeForCode);
                 stepServices = java.util.Collections.unmodifiableMap(m);
             }
             return stepServices;
+        }
+
+        /**
+         * A toolkit command called by a coded agent's code (G70): {action: "toolkit/command", inputs, step}. It is checked
+         * and run as a step's command is (inputs, vault references, the agent's toolkit versions), and logged under the
+         * calling step.
+         */
+        @SuppressWarnings("unchecked")
+        Object invokeForCode(Map<String, Object> req) {
+            String action = String.valueOf(req.get("action"));
+            int slash = action.lastIndexOf('/');
+            if (slash <= 0) throw new OoaException("CODE.BAD_CALL", "Name the command as toolkit/command, such as ooa.excel/read_range");
+            String pid = action.substring(0, slash), aid = action.substring(slash + 1);
+            PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
+            ActionSpec spec = pkg.spec("action", aid);
+            if (spec == null) throw new OoaException("FLOW.UNKNOWN_ACTION", pid + "@" + pkg.version() + " has no action '" + aid + "'");
+            registry.recordUsage(pid, pkg.version(), String.valueOf(flow.getOrDefault("id", "?")));
+            String sid = String.valueOf(req.getOrDefault("step", "code"));
+            Map<String, Object> args = prepareArgs(spec, req.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of());
+            emit("log", sid, logData("info", "The code calls " + action));
+            return invoke(pkg, spec, args, ctx(sid));
         }
 
         /** Suspend and resume for this run (G36): where it may stop, what it saves, and the answer when it comes back. */
@@ -1605,6 +1645,8 @@ public final class Runner {
                 Object v = raw == null ? null : raw.get(in.name());
                 if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
                 else if (v != null) refuseVaultReference(in.name(), v, 0);
+                // an element of a shared object repository (G42) is read from its file just before the step runs
+                if ("object".equals(in.name()) && ObjectRepositories.isReference(v)) v = ObjectRepositories.resolve(workDir, v);
                 if (v != null) {
                     if (in.type() == OoaType.FILE && v instanceof com.oneofficeautomation.sdk.ImageValue img && PICTURE_INPUTS.contains(in.name())) v = pictureFile(img);
                     if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {
@@ -1738,6 +1780,15 @@ public final class Runner {
             }
         }
 
+        /** A mocked step's result (G61): its outputs, or its error raised as the action's own. */
+        @SuppressWarnings("unchecked")
+        Object mocked(String sid, Map<String, Object> mock) {
+            log("info", "Mocked by the test: the action did not run", sid);
+            if (mock.get("error") instanceof Map<?, ?> e)
+                throw new ActionException(String.valueOf(((Map<String, Object>) e).getOrDefault("code", "TEST.MOCKED_ERROR")), String.valueOf(((Map<String, Object>) e).getOrDefault("message", "Mocked error")));
+            return mock.get("outputs") instanceof Map<?, ?> o ? new LinkedHashMap<>((Map<String, Object>) o) : new LinkedHashMap<String, Object>();
+        }
+
         @SuppressWarnings("unchecked")
         void execLeaf(Map<String, Object> step, String pid, String aid) {
             String sid = String.valueOf(step.get("id"));
@@ -1759,6 +1810,7 @@ public final class Runner {
                     if (step.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
                     Map<String, Object> args = prepareArgs(spec, raw);
                     ActionContext c = ctx(sid);
+                    if (mocks != null && mocks.get(sid) instanceof Map<?, ?> mock) { result = mocked(sid, (Map<String, Object>) mock); break; }
                     result = callWithTimeout(() -> invoke(pkg, spec, args, c), timeout);
                     break;
                 } catch (OoaException e) {

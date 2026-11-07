@@ -162,7 +162,7 @@ export type VaultStatus = { key_source: string; key_source_detail?: string; key_
 export type AuditRecord = { seq: number; ts: string; actor: string; action: string; object_type?: string | null; object_id?: string | null;
   details?: string | null; result: string; ip?: string | null };
 /** The licence of this One CommandCenter (unlicensed, evaluation, active, expiring, grace, expired …) and its seats. */
-export type LicenseInfo = { state: string; customer?: string; edition?: string; id?: string; issued?: string; expires?: string; days_left?: number; evaluation_ends?: string;
+export type LicenseInfo = { state: string; customer?: string; edition?: string; features?: string[]; id?: string; issued?: string; expires?: string; days_left?: number; evaluation_ends?: string;
   grace_days?: number; grace_until?: string; bound_to?: string; problem?: string; install_id?: string; requires_server_database?: boolean; database_steps?: string;
   seats?: Record<string, { total: number; used: number }> };
 export type LicenseUsage = { seats: Record<string, { label: string; total: number; used: number; idle: number }>;
@@ -174,7 +174,7 @@ export type TaskFormField = { id: string; type: string; label?: string; text?: s
 /** A task a workflow gives a person or role: fill in a form, approve, or read a notice. */
 export type HumanTask = { id: string; title: string; description?: string | null; kind: "form" | "approval" | "notification"; status: string; assignee?: string;
   claimed_by?: string | null; completed_by?: string | null; created?: string; due?: string | null; completed?: string | null; overdue?: boolean; can_act?: boolean; outcome?: string | null;
-  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string;
+  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string; stage?: string | null; stages?: { id: string; name: string }[];
   /** Where it comes from: its workflow's name and the request's reference. */
   workflow?: string | null; reference?: string | null };
 /** A holiday calendar: dates schedules skip, and (gap G34) the weekend agents' working-day steps skip too. */
@@ -221,6 +221,30 @@ export type EventSubscriptionList = { subscriptions: EventSubscription[]; types:
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
   created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
+/** Low-code apps (G67): pages of components; a button's action is kept by the server, the browser sends only which button and the fields. */
+export type AppAction = { kind: string; agent?: string; runner?: string; pool?: string; inputs?: Record<string, unknown>; entity?: string; values?: Record<string, unknown>;
+  queue?: string; data?: Record<string, unknown>; page?: string; success?: string };
+export type AppComponent = { id: string; kind: string; text?: string; name?: string; label?: string; hint?: string; type?: string; required?: boolean; choices?: string[];
+  style?: string; requires?: string[]; action?: AppAction; entity?: string; title?: string; columns?: string[]; sort?: string };
+export type AppDefinition = { pages: { id: string; title: string; components: AppComponent[] }[] };
+export type AppEmbed = { id: string; app_id: string; name: string; origins: string[]; created: string; created_by?: string; last_used?: string | null };
+export type AppInfo = { id: string; name: string; description?: string | null; audience: string[]; published_by: string; updated?: string; definition?: AppDefinition; can_edit?: boolean };
+/** The business data store (G66): entities with typed fields and their records, and storage buckets of files. */
+export type DataField = { name: string; type: string; required?: boolean; unique?: boolean; choices?: string[] };
+export type DataEntity = { id: string; name: string; folder: string; description?: string | null; fields: DataField[]; records: number; updated?: string; updated_by?: string | null };
+export type DataRecord = { id: string; data: Record<string, unknown>; created?: string; created_by?: string | null; updated?: string; updated_by?: string | null };
+export type DataBucket = { id: string; name: string; folder: string; description?: string | null; max_mb: number; files: number; bytes: number };
+export type BucketFile = { path: string; bytes: number; modified: string };
+/** An automation idea (G65): suggested and voted by anyone, assessed by the automation team; the score and savings are worked out by the server. */
+export type Idea = { id: string; title: string; description?: string | null; department?: string | null; process_owner?: string | null; status: string;
+  volume_month?: number | null; minutes_each?: number | null; hourly_cost?: number | null; complexity?: string | null; rules_score?: number | null;
+  structured_score?: number | null; stable_score?: number | null; bot_path?: string | null; notes?: string | null; submitted_by: string; submitted: string;
+  updated?: string; updated_by?: string | null; votes: number; voted: boolean; mine: boolean; hours_year: number; value_year?: number | null; score?: number | null;
+  runs_30_days?: number; hours_saved_30_days?: number | null };
+export type IdeaList = { ideas: Idea[]; can_manage: boolean; statuses: string[] };
+/** A knowledge base (G71): an index kept in One CommandCenter, filled by an indexing agent. */
+export type KnowledgeBase = { id: string; name: string; folder: string; description?: string; passages: number; documents: number; bytes: number;
+  created: string; created_by: string; updated?: string; updated_by_agent?: string; updated_by_run?: string };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -408,6 +432,12 @@ export class CrApi {
   async saveSettings(changes: Record<string, string | number>) { await this.call("PUT", "settings", changes); }
   async syslogTest() { await this.call("POST", "settings/syslog-test"); }
   async siemTest() { await this.call("POST", "settings/siem-test"); }
+  /** G43: a test Adaptive Card to the Teams channel; phone notifications for the signed-in person. */
+  async teamsTest() { await this.call("POST", "settings/teams-test"); }
+  pushStatus() { return this.call<PushStatus>("GET", "me/push"); }
+  pushEnable() { return this.call<PushStatus>("POST", "me/push"); }
+  async pushDisable() { await this.call("DELETE", "me/push"); }
+  async pushTest() { await this.call("POST", "me/push/test"); }
   /** SCIM provisioning tokens (Settings > Single sign-on): listed without the token; a new one returns it this once. */
   async scimTokens() { return (await this.call<{ tokens?: ScimToken[] }>("GET", "settings/scim-tokens")).tokens ?? []; }
   makeScimToken(name: string) { return this.call<{ id: string; name: string; token: string }>("POST", "settings/scim-tokens", { name }); }
@@ -418,6 +448,9 @@ export class CrApi {
   }
   mailTest(to: string) { return this.call<{ to: string }>("POST", "settings/mail-test", { to }); }
   gitStatus() { return this.call<{ configured: boolean; state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("GET", "git/status"); }
+  /** Reads agents changed in Git back as new versions (G70). */
+  gitPull() { return this.call<{ imported: { path: string; version: number; created: boolean }[]; conflicts: { path: string; why: string }[];
+    problems: { path: string; error: string }[]; deleted_in_git: string[] }>("POST", "git/pull"); }
   gitSync() { return this.call<{ state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("POST", "git/sync"); }
   backups() { return this.call<{ folder: string; backups: { file?: string; created: string; size_mb: number }[]; state?: string; error?: string; key_note?: string }>("GET", "backups"); }
   backupNow() { return this.call<{ file: string; size_mb: number }>("POST", "backups"); }
@@ -526,6 +559,58 @@ export class CrApi {
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
   async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
+  async apps() { return (await this.call<{ apps?: AppInfo[] }>("GET", "apps")).apps ?? []; }
+  app(id: string) { return this.call<AppInfo>("GET", "apps/" + encodeURIComponent(id)); }
+  saveApp(id: string | null, body: { name: string; description?: string; audience: string[]; definition: AppDefinition }) {
+    return this.call<AppInfo>(id ? "PUT" : "POST", "apps" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async appEmbeds(id: string) { return (await this.call<{ embeds?: AppEmbed[] }>("GET", "apps/" + encodeURIComponent(id) + "/embeds")).embeds ?? []; }
+  makeAppEmbed(id: string, body: { name: string; origins: string[] }) { return this.call<AppEmbed & { key: string; path: string }>("POST", "apps/" + encodeURIComponent(id) + "/embeds", body); }
+  async deleteAppEmbed(id: string, embed: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed)); }
+  /** A Teams app package (zip) whose tab shows the embed link; the key is needed again, as only its hash is kept. */
+  async teamsPackage(id: string, embed: string, key: string, baseUrl: string) {
+    const res = await this.fetcher(this.base + "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed) + "/teams", { method: "POST", credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify({ key, base_url: baseUrl }) });
+    if (!res.ok) { let d: { error?: CrError } = {}; try { d = JSON.parse(await res.text()); } catch { /* not JSON */ } throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Failed" }); }
+    return res.blob();
+  }
+  async deleteApp(id: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id)); }
+  appAct(id: string, component: string, fields: Record<string, unknown>) {
+    return this.call<{ run_id?: string; record_id?: string; item_id?: string; page?: string; message?: string; outputs?: Record<string, unknown> }>("POST", "apps/" + encodeURIComponent(id) + "/act", { component, fields }); }
+  appRun(id: string, runId: string) { return this.call<{ status: string; outputs?: Record<string, unknown>; error?: string }>("GET", "apps/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(runId)); }
+  appRecords(id: string, component: string, q = "") {
+    return this.call<{ records: { id: string; data: Record<string, unknown> }[]; total: number; fields: { name: string }[] }>("GET", "apps/" + encodeURIComponent(id) + "/records/" + encodeURIComponent(component) + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
+  async dataEntities() { return (await this.call<{ entities?: DataEntity[] }>("GET", "data/entities")).entities ?? []; }
+  saveDataEntity(id: string | null, body: { name: string; folder: string; description?: string; fields: DataField[] }) {
+    return this.call<DataEntity>(id ? "PUT" : "POST", "data/entities" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteDataEntity(id: string) { await this.call("DELETE", "data/entities/" + encodeURIComponent(id)); }
+  dataRecords(entity: string, q = "") { return this.call<{ records: DataRecord[]; total: number }>("GET", "data/entities/" + encodeURIComponent(entity) + "/records" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
+  saveDataRecord(entity: string, id: string | null, data: Record<string, unknown>) {
+    return this.call<DataRecord>(id ? "PUT" : "POST", "data/entities/" + encodeURIComponent(entity) + "/records" + (id ? "/" + encodeURIComponent(id) : ""), { data }); }
+  async deleteDataRecord(entity: string, id: string) { await this.call("DELETE", "data/entities/" + encodeURIComponent(entity) + "/records/" + encodeURIComponent(id)); }
+  async dataBuckets() { return (await this.call<{ buckets?: DataBucket[] }>("GET", "data/buckets")).buckets ?? []; }
+  saveDataBucket(id: string | null, body: { name: string; folder: string; description?: string; max_mb: number }) {
+    return this.call<DataBucket>(id ? "PUT" : "POST", "data/buckets" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteDataBucket(id: string) { await this.call("DELETE", "data/buckets/" + encodeURIComponent(id)); }
+  async bucketFiles(bucket: string) { return (await this.call<{ files?: BucketFile[] }>("GET", "data/buckets/" + encodeURIComponent(bucket) + "/files")).files ?? []; }
+  bucketFileUrl(bucket: string, path: string) { return this.base + "data/buckets/" + encodeURIComponent(bucket) + "/file?path=" + encodeURIComponent(path); }
+  async uploadBucketFile(bucket: string, path: string, file: Blob) {
+    const res = await this.fetcher(this.base + "data/buckets/" + encodeURIComponent(bucket) + "/files?path=" + encodeURIComponent(path), { method: "PUT", credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", "Content-Type": "application/octet-stream" }, body: file });
+    const text = await res.text();
+    let d: { error?: CrError; path?: string } = {};
+    try { d = JSON.parse(text); } catch { /* not JSON */ }
+    if (!res.ok) throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Upload failed" });
+    return d;
+  }
+  async deleteBucketFile(bucket: string, path: string) { await this.call("DELETE", "data/buckets/" + encodeURIComponent(bucket) + "/files?path=" + encodeURIComponent(path)); }
+  async ideas() { return this.call<IdeaList>("GET", "ideas"); }
+  async saveIdea(id: string | null, body: Partial<Idea>) { return this.call<Idea>(id ? "PUT" : "POST", id ? "ideas/" + encodeURIComponent(id) : "ideas", body); }
+  async voteIdea(id: string) { return this.call<Idea>("POST", "ideas/" + encodeURIComponent(id) + "/vote"); }
+  async deleteIdea(id: string) { await this.call("DELETE", "ideas/" + encodeURIComponent(id)); }
+  async knowledgeBases() { return (await this.call<{ knowledge_bases?: KnowledgeBase[] }>("GET", "knowledge-bases")).knowledge_bases ?? []; }
+  saveKnowledgeBase(id: string | null, body: { name: string; folder: string; description: string }) {
+    return this.call<KnowledgeBase>(id ? "PUT" : "POST", "knowledge-bases" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteKnowledgeBase(id: string) { await this.call("DELETE", "knowledge-bases/" + encodeURIComponent(id)); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----
@@ -623,6 +708,9 @@ export class CrApi {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);
   }
   async deletePool(id: string) { await this.call("DELETE", "pools/" + encodeURIComponent(id)); }
+  /** G52: a pool's auto-scaling and what it would ask for now. */
+  poolScaling(id: string) { return this.call<{ scaling: PoolScaling; now: PoolScalingNow }>("GET", "pools/" + encodeURIComponent(id) + "/scaling"); }
+  savePoolScaling(id: string, b: PoolScaling) { return this.call<{ scaling: PoolScaling; now: PoolScalingNow }>("PUT", "pools/" + encodeURIComponent(id) + "/scaling", b); }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
   // ---- Alerts: rules checked once a minute, and the alerts they raised ----
   alerts(params: Record<string, string>) { return this.call<{ alerts: Alert[]; open: number }>("GET", "alerts?" + new URLSearchParams(params).toString()); }
@@ -708,3 +796,8 @@ export class CrApi {
   operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }
+
+/** Phone notifications (G43): whether the server is set, whether this person turned them on, and their private topic. */
+export type PushStatus = { available: boolean; enabled: boolean; server: string; topic?: string; subscribe_url?: string };
+export type PoolScaling = { enabled?: boolean; min?: number | ""; max?: number | ""; runs_per_runner?: number | ""; cooldown_minutes?: number | ""; provider?: string; [k: string]: unknown };
+export type PoolScalingNow = { queued: number; running: number; refused_recently: number; online: number; desired: number };

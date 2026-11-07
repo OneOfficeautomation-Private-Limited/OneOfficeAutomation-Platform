@@ -131,7 +131,25 @@ which tools to call, in which order, with which inputs, until the goal is reache
 3. Outputs: **answer**, **status** (`completed`, `limit_reached` or `stopped`; with output fields also `failed` or
    `cancelled`), **outputs**, **trace** (each model turn and tool call, for review) and **tokens**.
 
-Check the tool agents in to One CommandCenter too. In unattended runs, approvals of sensitive tools are refused.
+Check the tool agents in to One CommandCenter too.
+
+**Approvals when nobody is at the runner.** In an unattended run, a sensitive tool is refused at once, unless you name
+**approvers** (`user:NAME` or `role:NAME`, separated by commas). Then the request goes to their Task inbox: the AI agent
+names the tool and its arguments, and waits up to **approval_timeout_seconds** (at most 1700). Approved, the tool runs.
+Rejected or unanswered, the agent is told no and does not try again. A comment the approver writes is kept in the
+run's log. When approval links are on (Administrator's guide), approvers can also answer from e-mail, Teams or their
+phone.
+
+**Knowledge the agent looks up itself.** Give **knowledge_indexes** (indexes made with Knowledge Q&A > Build index,
+section 7). The agent gets a `search_knowledge` tool: it searches them when it needs a fact or a rule, and the passages
+it finds go back to it with their sources.
+
+**Tools of other systems (MCP).** Give an **mcp_server_url** (a server that speaks the Model Context Protocol over HTTP)
+and its **mcp_token** when it needs one. The server's tools are offered to the agent as `mcp_NAME`. **mcp_tools**
+limits which ones (empty: all), and naming a tool as `mcp:NAME` in **sensitive_tools** makes it need approval like a
+sensitive agent. The **MCP tools** toolkit lists a server's tools (**List MCP tools**) and calls one directly (**Call
+MCP tool**), outside an AI agent. One CommandCenter also offers your agents to outside assistants as an MCP server, the
+other direction.
 
 ## 6. The web goal agent
 
@@ -153,6 +171,50 @@ addresses until the goal is reached.
 Outputs: **success**, **answer**, **data**, **steps** (each step in words), **url**, and the tokens used.
 
 > **Tip:** Always set **Allowed sites** and clear rules in **Instructions** for goal agents that can change data.
+
+## 6a. Decision tables (business rules)
+
+Keep rules that change, such as approval limits or discounts, in a **decision table** instead of If steps. The
+**Business rules** toolkit's **Evaluate decision table** reads it from a CSV file, which you can keep and edit in
+Excel (Save As > CSV), or from a table value. The header row names the columns:
+
+- `in:NAME`: a condition on the input NAME;
+- `out:NAME`: what a matching rule gives;
+- `rule` (optional): the rule's name, returned as **rule**.
+
+A condition cell is empty or `-` for any value; a value for equal (numbers as numbers, text without regard to case);
+`<1000`, `<=1000`, `>1000`, `>=1000` or `!=EU`; a range `1000..5000` (both ends included; `[1000..5000)` leaves the
+upper end out); a list `EU, UK`; or `not EU, UK`. For example:
+
+| rule | in:amount | in:region | out:approver |
+| --- | --- | --- | --- |
+| small | <1000 | - | team lead |
+| eu large | 1000..50000 | EU, UK | finance manager |
+| large | 1000..50000 | - | controller |
+| huge | >50000 | - | CFO |
+
+**Hit policy** says what happens when several rules match: **first** (the first in order, the default), **unique**
+(exactly one must match, else the step fails with `RULES.NOT_UNIQUE`) or **collect** (all of them, in **all**). With no
+match the step gives **default_outputs**, or fails when **fail_when_none** is ticked.
+
+## 6b. Finding controls by sight (AI screen)
+
+For screens without usable selectors, such as remote desktops, Citrix and VDI sessions, or applications that draw their
+own controls, the **AI screen (vision)** toolkit finds a control from a plain description with a model that reads
+pictures:
+
+| Action | What it does |
+| --- | --- |
+| **Find on screen (AI)** | Takes a screenshot, asks the model where "the Submit button below the address" is, and returns **found**, the middle (**x**, **y**), the **box**, the model's **confidence** and the **text** it reads there |
+| **Click described control (AI)** | The same, then a single, double or right click. Below **min_confidence** (0.7 at first) it fails with `VISION.NOT_FOUND` instead of clicking |
+| **Type into described control (AI)** | Clicks into the described field and types the text (pasted, so any language works) |
+| **Read described control (AI)** | Returns the text of the described control |
+
+Describe the control by its text, kind, colour or place. When several match, the model is asked to answer "not found"
+rather than guess. The screenshot is made at most 1600 pixels wide before it goes to the model, and the model's answer
+is checked to lie inside the picture before anything is clicked. Personal-data masking does not apply to pictures, so
+use a model connection your company allows for screen content. Keep captured objects for screens that have them: they
+are faster, cost nothing per step and need no model.
 
 ## 7. Knowledge Q&A
 
@@ -205,6 +267,17 @@ When the agent runs from a work queue and returns `validation` as an output name
 **To validate** in One CommandCenter. A person opens **Validate**, sees the unsure fields in red, corrects them and
 **Approve**s (the item goes back to the agent with `validated_fields`) or **Reject**s it.
 
+### 8.3a Route, extract by rules, and learn from corrections
+
+The **Document processing** toolkit works on a document's text (read it first with the PDF, OCR or Word toolkits):
+
+| Action | What it does |
+| --- | --- |
+| **Classify document** | Decides the document type from a list such as `[{"name": "invoice", "keywords": ["invoice", "VAT", "amount due"], "description": "a supplier invoice"}]`. **keywords** counts each type's words; **ai** asks the model with the descriptions; **keywords_then_ai** (the default) uses the keywords when the best type reaches **min_score** and leads, and asks the model otherwise. A type the model names that is not in the list counts as `unknown` |
+| **Extract by rules** | Per field, a **regex** (its first match, or its first group) or **after** a label (the rest of the line, up to **until**). No AI: nothing leaves the runner. Fields not found are in **missing** |
+| **Save validated example** | After a person checked the values (for example in **To validate**), keeps them with the start of the document's text in an example file per type (the newest 50) |
+| **Extract with examples** | Extracts with AI and sends the newest **max_examples** examples of the same type with the request, so the model follows how your documents are read and gets better as people correct it |
+
 ### 8.4 Ready-made cloud AI services (AWS, Azure, Google)
 
 If your company already pays for a cloud provider's AI services, three toolkits call them directly, with no REST
@@ -238,7 +311,11 @@ The **Assistant** button in the top bar opens **Agent assistant** with two tabs:
   **Generate steps**. Review the proposed steps and click **Insert into the agent**. They go where the canvas hint says;
   new variables come with them. Problems to fix are listed. Always review before running.
 - **Explain this agent**: the agent in plain words (what it needs, what it returns, each step). **Copy** puts it on the
-  clipboard, handy for documentation or a hand-over.
+  clipboard, handy for documentation or a hand-over. **Word (.docx)** downloads a design document for the agent:
+  its purpose, inputs, outputs and variables, the toolkits it uses, its steps in plain words (main steps, each subflow,
+  the error handler) and a table of every step's settings. Credential defaults are never written into it.
+  **Print or PDF** opens the same document for printing; choose **Save as PDF** as the printer to get a PDF. Explain
+  this agent works without a model connection, and so do both exports.
 
 The assistant needs a model connection; without one it offers **Set up a Model Connection**.
 
@@ -272,6 +349,20 @@ The assistant needs a model connection; without one it offers **Set up a Model C
 | Extract fields returns empty values | The text is empty (a scanned PDF needs OCR) or the field descriptions are vague. |
 | The AI agent stops with `limit_reached` | Raise **Max steps** or **Max tokens total**, or give a clearer **Action plan**. |
 | The web goal agent wanders to other sites | Set **Allowed sites**. |
+
+## Knowledge bases kept in One CommandCenter
+
+Instead of each agent carrying its own index file, keep shared documents in a **knowledge base**: make it in
+**AI > Knowledge bases** (a name, the folder whose agents may use it, what it holds), then:
+
+- **Fill and refresh it** with an indexing agent: Knowledge Q&A > **Build index** with **Knowledge base** set to its
+  name. It reads files and folders (a share, a synced SharePoint library), **web pages** (intranet or public pages:
+  HTML, text or PDF) and texts. Schedule that agent (for example every night) so the base stays current; the list
+  shows when it was last refreshed and by which agent.
+- **Ask it** from any agent in its folder: **Search** or **Ask** with **Knowledge base** set. A runner fetches the base
+  once and again only when it has changed.
+- In Studio without One CommandCenter, the same steps keep the base in the work folder (knowledge-bases/), so agents
+  can be tried before they are published.
 
 ## Related guides
 

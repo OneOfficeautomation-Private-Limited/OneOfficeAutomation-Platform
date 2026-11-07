@@ -501,6 +501,121 @@ runner or pool, and each case runs the live production version once. The test ru
 the cases ([04 Running and debugging](04-studio-running-and-debugging.md)); operators run them after changes to
 runners, toolkits or connected systems.
 
+**Mocks.** A case can stand in for toolkit steps that reach other systems, so a test does not book an order or send an
+e-mail. In the case's JSON, `"mocks": {"<step id>": {"outputs": {...}}}` gives the step's outputs without running it, and
+`{"error": {"code": "ERP.DOWN", "message": "..."}}` makes it fail as that error, to test the agent's error handling.
+Only steps of the agent under test are mocked (not of its child agents), and Core's own steps (If, Assign, Log...) are
+not. The run's log says "Mocked by the test" at each mocked step. Mocks travel with the test case's run; other runs
+refuse them.
+
+**Pipelines (CI/CD).** Run a test set from a pipeline and fail the build when a case fails:
+
+- **GitHub Actions**: `uses: OneOfficeautomation-Private-Limited/OneOfficeAutomation-Platform/platform/deploy/ci/github-action@master`
+  with `url`, `token` (an API key in a secret), `test-set`, and `runner` or `pool`. Its outputs are `test-run`, `passed`
+  and `total`.
+- **Azure DevOps**: the step template `platform/deploy/ci/azure-devops/ooa-test-set.yml` with `url`, `testSet`, and
+  `runner` or `pool`, with the API key in the secret variable `OOA_API_KEY`.
+
+Both start the test set, wait for every case (30 minutes at first), print each case's verdict and fail on any failure.
+
+## 10a. Process mining: how a process really runs
+
+Before automating a process, find out how it really runs. Most systems keep an event log: one row per thing that
+happened, with the case (order, ticket, invoice), the activity and the time. Export it to CSV (or read it into a table)
+and use the **Process mining** toolkit in an agent:
+
+- **Discover process** lists the activities, the **variants** (the paths cases take, the commonest first, with their
+  share and average duration), the **flows** (which activity follows which, how often and the average wait between
+  them), where cases start and end, case durations (average, median, 90th percentile, longest) and a **diagram** as a
+  Mermaid flowchart. Paste the diagram into a Markdown file or any Mermaid viewer.
+- **Check conformance** compares every case with the flow you expect: which activity may follow which, and where a
+  case may start and end. It gives the share of cases that follow it (**fitness**) and each deviation, such as
+  "Create order followed by Ship" when an order shipped without approval.
+
+Times may be ISO times or `yyyy-MM-dd HH:mm[:ss]` (also with day first); the column names are settings (`case`,
+`activity` and `time` at first). Long waits between two activities and frequent rework loops are good places to start
+automating.
+
+## 10b. Communications mining: what the inbox is about
+
+When a shared mailbox or ticket queue gets hundreds of messages a day, find out what they are about before deciding
+what to automate. Read the messages into a table (E-mail: Get messages, a ticketing toolkit, or a CSV export) and use
+the **Communications mining** toolkit:
+
+- **Discover topics** groups the messages by the words they use and lists each topic with its top words, how many
+  messages it has and three typical examples. Quoted replies and signatures are left out. It runs on the runner with no
+  AI service, so the mail stays inside the company, and a rerun on the same messages gives the same topics.
+- **Route messages** gives each message the queue whose keywords or phrases it matches best (matches in the subject
+  count double, and "invoice" also matches "invoices"). Messages that match no queue go to a default queue. Discover
+  topics gives a first set of rules: rename its labels to your queues and adjust the words. Then add the routed rows to
+  work queues with Work queues: Add work items from table.
+
+For messages that keywords cannot sort, use Generative AI: Classify on the default queue's messages.
+
+## 10c. Data store: business records and files for agents
+
+**Manage > Data store** keeps business data that agents read and write while they run, in One CommandCenter's database
+and data folder, so nothing extra has to be installed.
+
+- **Entities** are tables of records, such as suppliers, open cases or a price list. An administrator (Define data
+  store entities and buckets) makes an entity and its fields: text, number, yes/no, date (yyyy-MM-dd) or a choice from a
+  list, each required or not and unique or not. Records are checked against the fields every time they are saved, by an
+  agent or by a person here. People with Change data store records and files add, change and delete records on the
+  entity's page; everyone with See the data store can look and search.
+- **Storage buckets** are named file areas. Agents upload, download, list and delete files while they run (repository
+  files, by contrast, are read-only to runs). Each bucket sets its largest file (25 MB at first, up to 200 MB). Files
+  can be uploaded and downloaded here too.
+- **Folder**: an entity or bucket with a folder is only for agents in that folder or below it; leave it empty for every
+  agent. A run that is not allowed gets CR.FORBIDDEN.
+
+Agents use the **Data store** toolkit: Create, Update, Get, Query and Delete record (Query takes filters such as
+`[{"field": "limit", "op": ">", "value": 1000}]`, a sort field and a page), and Upload, Download, List and Delete file.
+In Studio without One CommandCenter, the same steps use the work folder (data-store/ and buckets/), so an agent can be
+tried before it is published. Changes people make here are in the audit trail; records show who changed them last,
+an agent's changes as "agent:<agent> for <person>".
+
+## 10d. Apps: pages for business people
+
+**Build > Apps** makes simple apps that people use in the console without Studio (Make apps: agent creators and
+administrators). An app is one or more pages of components, in order:
+
+- **Heading** and **Text**;
+- **Field**: text, long text, number, date, yes/no or a choice, optionally required; its name is used as `{name}`;
+- **Button**: runs an agent (its inputs from the fields, such as `{"customer": "{customer}"}`, on a runner or a pool;
+  the app follows the run and shows the agent's outputs), adds a data store record, adds a work item to a queue, or
+  opens another page. "Needs fields" keeps it grey until those fields are filled; "Message when done" may use fields;
+- **Records**: a searchable table of a data store entity;
+- **Result**: the message and outputs of the last button pressed.
+
+**Rights.** An app acts with the rights of the person who published it last, checked every time a button is pressed;
+publishing checks they may run its agents (with a production version), change its entities and work its queues. The
+browser sends only which button was pressed and the field values; what the button does is kept in One CommandCenter.
+If the publisher's account is switched off, the app stops working until someone publishes it again.
+
+**Audience**: everyone signed in, or only the roles ticked. Every button press is audited as `app:<name> for <person>`,
+and runs started from an app have the source `app:<id>`; only the person who started a run follows it in the app.
+
+### Apps inside other sites (embed links)
+
+An app can be shown inside another site, so people use it where they work: a Salesforce or ServiceNow record page, a
+Teams tab, an intranet page. In **Build > Apps**, an app's menu > **Embed links…** makes a link and names the sites
+that may show it (https:// addresses, `*.` for every subdomain, up to 10). The link looks like
+`https://<One CommandCenter>/embed/emb_...#k=ooae_...` and is shown once; copy it then.
+
+- **No sign-in**: whoever has the link can use that one app (nothing else), with the publisher's rights as for any use
+  of the app. Make a link only for what the people of that site may do, and remove it in Embed links to stop it.
+- **The key** is the part after `#`. Browsers never send it to servers or in Referer headers; the page sends it with
+  each of its calls. One CommandCenter keeps only its hash.
+- **Framing**: only the sites named may frame the page; the console itself still cannot be framed.
+- **Fields from the site**: add them to the link's query, before the `#`, to fill the app's fields, such as
+  `.../embed/emb_123?caller={!Contact.Phone}#k=...` in a Salesforce Visualforce page or Lightning web tab, or a
+  ServiceNow UI page's iframe with `?ticket=${current.number}`.
+- **Teams**: right after making the link, **Teams app package** downloads a zip (manifest and icons) whose personal tab
+  shows the app. Upload it in Teams admin (Manage apps > Upload) or in Teams (Apps > Manage your apps > Upload).
+  One CommandCenter must be reachable over https:// for Teams.
+- The IP allow list (Settings) applies to embedded apps too: allow the addresses of the people who will use them.
+- Each press is audited as `app:<name> for embed:<link name>`, and the link list shows when each link was last used.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**

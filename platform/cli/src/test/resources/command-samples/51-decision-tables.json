@@ -1,0 +1,21 @@
+[
+ {"command": "ooa.rules/evaluate_decision_table", "name": "approval limits from a CSV kept in Excel: the first matching rule",
+  "files": {"limits.csv": "rule,in:amount,in:region,out:approver,out:needs_second\nsmall,<1000,-,team lead,false\neu large,1000..50000,\"EU, UK\",finance manager,false\nlarge,[1000..50000],-,controller,false\nhuge,>50000,-,CFO,true\n"},
+  "steps": [{"action": "ooa.rules/evaluate_decision_table", "args": {"file": "{tmp}/limits.csv", "inputs": {"amount": 4200, "region": "eu"}}, "out": {"outputs": "o", "rule": "r", "matched": "m"}},
+            {"action": "core/set", "args": {"variable": "who", "value": "${o.approver}"}}],
+  "expect": {"who": "finance manager", "r": "eu large", "m": true}},
+ {"command": "ooa.rules/evaluate_decision_table", "name": "collect: every rule that matches",
+  "files": {"discounts.csv": "in:customer,in:items,out:discount\ngold,-,5\n-,>=10,3\nnot gold,-,0\n"},
+  "steps": [{"action": "ooa.rules/evaluate_decision_table", "args": {"file": "{tmp}/discounts.csv", "inputs": {"customer": "Gold", "items": 12}, "hit_policy": "collect"}, "out": {"all": "all"}},
+            {"action": "core/set", "args": {"variable": "n", "value": {"expr": "len($all)"}}}],
+  "expect": {"n": 2}},
+ {"command": "ooa.rules/evaluate_decision_table", "name": "unique: two matching rules are an error",
+  "files": {"u.csv": "in:x,out:y\n>1,a\n>2,b\n"},
+  "steps": [{"action": "ooa.rules/evaluate_decision_table", "args": {"file": "{tmp}/u.csv", "inputs": {"x": 5}, "hit_policy": "unique"}}],
+  "error": "RULES.NOT_UNIQUE"},
+ {"command": "ooa.rules/evaluate_decision_table", "name": "no match gives the defaults",
+  "files": {"d.csv": "in:x,out:y\n<0,negative\n"},
+  "steps": [{"action": "ooa.rules/evaluate_decision_table", "args": {"file": "{tmp}/d.csv", "inputs": {"x": 5}, "default_outputs": {"y": "other"}}, "out": {"outputs": "o", "matched": "m"}},
+            {"action": "core/set", "args": {"variable": "y", "value": "${o.y}"}}],
+  "expect": {"y": "other", "m": false}}
+]

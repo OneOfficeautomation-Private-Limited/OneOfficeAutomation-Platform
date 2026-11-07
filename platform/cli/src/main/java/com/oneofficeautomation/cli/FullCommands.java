@@ -47,6 +47,17 @@ final class FullCommands {
         c.command("agent install-task", "Start the runner when you sign in to Windows (for runners that need a desktop).", a -> Ooa.agent("install-task", a.o()))
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent uninstall-task", "Stop starting the runner at sign-in.", a -> Ooa.agent("uninstall-task", a.o()));
+        c.command("agent autologon", "Let Windows sign the runner's user in by itself after a restart (as administrator; the password stays a protected Windows secret).",
+                a -> Ooa.agent("autologon", a.o()))
+            .opt("--user", "NAME", "The Windows account, NAME or DOMAIN\\NAME.").opt("--domain", "DOMAIN", "Its domain, when not in --user.")
+            .opt("--password-env", "VAR", "An environment variable holding the password (never typed on the command line).")
+            .flag("--off", "Stop signing in by itself and remove the stored password.").flag("--status", "Show whether it is on, and for whom.");
+        c.command("agent sessions", "Windows Server: open a session for each robot account, each with its own runner, so the server takes several screen runs at once.",
+                a -> Ooa.agent("sessions", a.o()))
+            .required("--users", "LIST", "The robot accounts, separated by commas.")
+            .opt("--password-env-prefix", "PREFIX", "Environment variables holding the passwords: PREFIX + account name in capitals (default OOA_SESSION_PW_).")
+            .opt("--width", "PIXELS", "Screen width of each session (default 1920).").opt("--height", "PIXELS", "Screen height (default 1080).")
+            .flag("--check", "Only show which accounts are signed in.").flag("--watch", "Keep checking every minute and open a session again when one is gone.");
 
         c.group("db", "Set up and look after One CommandCenter database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")
@@ -132,6 +143,12 @@ final class FullCommands {
         c.group("directory", "The global directory of a SaaS service with several regions.");
         c.command("directory start", "Start the directory (config/ooa-directory.properties lists the regions).", a -> RegionCommand.directory(a.o()))
             .opt("--data", "DIR", "Its data folder.").opt("--host", "HOST", "The address to listen on (default 0.0.0.0).").number("--port", "N", "The port (default 8720).");
+
+        // bot migration (G74): AA Task Bots and UiPath workflows to OOA agents, with what is left to do by hand
+        c.command("migrate", "Turn Automation Anywhere bots (JSON) or UiPath workflows (.xaml) into OOA agents, with a report.",
+                a -> Migrate.run(a.pos(0), a.pos(1), a.pos(2)))
+            .param("FROM", "aa or uipath.", "1").param("SOURCE", "A bot file, or a folder of them.", "1")
+            .param("OUT", "The folder for the agents and migration-report.json.", "1");
 
         c.command("check", "Check whether this computer is ready for One CommandCenter.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");

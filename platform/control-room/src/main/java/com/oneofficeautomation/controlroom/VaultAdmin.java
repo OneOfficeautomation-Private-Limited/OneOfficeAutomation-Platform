@@ -332,6 +332,42 @@ public final class VaultAdmin {
         } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot re-encrypt " + file + ": " + e.getMessage()); }
     }
 
+    /**
+     * Keeps the current key as master.key.old-&lt;time&gt; (moved away for rotate, copied for rekey). An old key is never
+     * overwritten: the clock on Windows can give two key changes the same millisecond, so a taken name gets -2, -3, ...
+     */
+    private static Path keepOldKey(Path file, boolean move) throws IOException {
+        return keepOldKey(file, move, now().toString().replace(":", ""));
+    }
+
+    static Path keepOldKey(Path file, boolean move, String stamp) throws IOException {
+        String base = "master.key.old-" + stamp;
+        for (int i = 1; ; i++) {
+            Path old = file.resolveSibling(i == 1 ? base : base + "-" + i);
+            if (Files.exists(old)) continue;
+            try {
+                if (move) withRetry(() -> Files.move(file, old, StandardCopyOption.ATOMIC_MOVE));
+                else withRetry(() -> Files.copy(file, old));
+                return old;
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                if (i >= 100) throw e;   // taken in between: try the next name
+            }
+        }
+    }
+
+    private interface FileOp { void run() throws IOException; }
+
+    /** Retries a file operation briefly when Windows refuses it because another program (virus scan, indexer) has the file open. */
+    private static void withRetry(FileOp op) throws IOException {
+        for (int attempt = 1; ; attempt++) {
+            try { op.run(); return; }
+            catch (java.nio.file.AccessDeniedException e) {
+                if (attempt >= 5) throw e;
+                try { Thread.sleep(50L * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw e; }
+            }
+        }
+    }
+
     public Map<String, Object> rotate(User by, String ip) {
         cr.require(by, "lockers.manage", "administer the vault");
         Path file = cr.vault.keyFile;
@@ -345,8 +381,8 @@ public final class VaultAdmin {
             n = reencryptAll(next);
             String old = cr.vault.fingerprint();
             try {
-                Files.move(file, file.resolveSibling("master.key.old-" + now().toString().replace(":", "")), StandardCopyOption.ATOMIC_MOVE);
-                Files.move(nextFile, file, StandardCopyOption.ATOMIC_MOVE);
+                keepOldKey(file, true);
+                withRetry(() -> Files.move(nextFile, file, StandardCopyOption.ATOMIC_MOVE));
             } catch (IOException e) {
                 cr.vault.adopt(next);
                 cr.audit.record(by.username(), "vault.rotate", "vault", null, Map.of("values", n, "error", String.valueOf(e.getMessage())), "failed", ip);
@@ -375,8 +411,11 @@ public final class VaultAdmin {
             Path file = cr.vault.keyFile;
             if (file != null) {
                 try {
-                    Files.copy(file, file.resolveSibling("master.key.old-" + now().toString().replace(":", "")));
-                    Files.writeString(file, next.keyBase64());
+                    keepOldKey(file, false);
+                    // write the new key beside the old one, then swap it in, so a failure never leaves a half-written key file
+                    Path nextFile = file.resolveSibling("master.key.next");
+                    Files.writeString(nextFile, next.keyBase64());
+                    withRetry(() -> Files.move(nextFile, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE));
                 } catch (IOException e) {
                     cr.vault.adopt(next);
                     throw new OoaException("CR.VAULT_KEY", "The values were re-encrypted, but the key file could not be written: " + e.getMessage(),
@@ -418,6 +457,13 @@ public final class VaultAdmin {
                 if (r == null) continue;
                 String plain = cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), s[1]);
                 db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, s[1])), s[0]);
+                k++;
+            }
+            // people's phone notification topics (G43)
+            for (Map<String, Object> r : db.query("SELECT name, json_value FROM settings WHERE name LIKE 'push_topic:%'")) {
+                String bound = String.valueOf(r.get("name"));
+                String plain = cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), bound);
+                db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, bound)), bound);
                 k++;
             }
             // two-step sign-in secrets

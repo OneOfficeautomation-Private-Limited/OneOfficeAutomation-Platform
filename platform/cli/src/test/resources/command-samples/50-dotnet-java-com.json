@@ -1,0 +1,23 @@
+[
+ {"command": "ooa.dotnet/call_java_method", "name": "a static method of a Java class",
+  "steps": [{"action": "ooa.dotnet/call_java_method", "args": {"class_name": "java.lang.Math", "method": "max", "arguments": [4, 9]}, "out": {"result": "biggest"}}],
+  "expect": {"biggest": 9}},
+ {"command": "ooa.dotnet/call_java_method", "name": "create an object, then call its method",
+  "steps": [{"action": "ooa.dotnet/call_java_method", "args": {"class_name": "java.lang.StringBuilder", "method": "reverse", "create_instance": true, "constructor_arguments": ["abc"]}, "out": {"result": "back"}}],
+  "expect": {"back": "cba"}},
+ {"command": "ooa.dotnet/run_csharp", "name": "C# reads the arguments and returns a value", "requires": "windows",
+  "steps": [{"action": "ooa.dotnet/run_csharp", "args": {"code": "var n = Convert.ToInt32(args[\"count\"]);\nreturn \"x\" + (n * 2);", "arguments": {"count": 21}}, "out": {"result": "r"}}],
+  "expect": {"r": "x42"}},
+ {"command": "ooa.dotnet/run_vbnet", "name": "VB.NET returns text", "requires": "windows",
+  "steps": [{"action": "ooa.dotnet/run_vbnet", "args": {"code": "Return CStr(args(\"name\")).ToUpper()", "arguments": {"name": "asha"}}, "out": {"result": "r"}}],
+  "expect": {"r": "ASHA"}},
+ {"command": "ooa.dotnet/run_csharp", "name": "a compile error names the problem", "requires": "windows",
+  "steps": [{"action": "ooa.dotnet/run_csharp", "args": {"code": "return missing_name;"}}],
+  "error": "DOTNET.COMPILE_FAILED"},
+ {"command": "ooa.dotnet/call_dotnet_method", "name": "a static .NET method", "requires": "windows",
+  "steps": [{"action": "ooa.dotnet/call_dotnet_method", "args": {"type": "System.IO.Path", "member": "GetExtension", "arguments": ["report.final.pdf"]}, "out": {"result": "ext"}}],
+  "expect": {"ext": ".pdf"}},
+ {"command": "ooa.dotnet/call_com_method", "name": "a COM object's method", "requires": "windows",
+  "steps": [{"action": "ooa.dotnet/call_com_method", "args": {"prog_id": "Scripting.FileSystemObject", "member": "GetExtensionName", "arguments": ["invoice.xlsx"]}, "out": {"result": "ext"}}],
+  "expect": {"ext": "xlsx"}}
+]

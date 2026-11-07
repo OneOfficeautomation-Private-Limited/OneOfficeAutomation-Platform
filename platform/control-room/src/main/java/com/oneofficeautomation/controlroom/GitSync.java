@@ -25,6 +25,11 @@ import java.util.concurrent.*;
  * <p>Settings: {@code git_remote_url} (https://, or file: for a local test remote), {@code git_branch} (main),
  * {@code git_username} and {@code git_token_ref} (a vault reference to the access token), {@code git_auto_push}
  * (1: sync after each check-in, production change or deletion). The working copy lives in {@code <data>/git-sync}.
+ * <p>Git as the source of truth (G70): {@link #pullNow} reads the branch back. An agent changed in Git since the last
+ * sync becomes a new version (checked like any check-in, with the Git commit and its author in the comment); a new file
+ * becomes a new agent. An agent changed in both places since the last sync is a conflict and is left alone; a file
+ * deleted in Git is only reported. Then the branch is synced again, so both sides agree. A pipeline can call
+ * POST /api/git/pull with an API key after a merge, so pull requests in Git become versions in One CommandCenter.
  */
 public final class GitSync {
     private final ControlRoom cr;
@@ -58,6 +63,79 @@ public final class GitSync {
         m.put("remote", cr.platform.setting("git_remote_url"));
         m.put("branch", branch());
         return m;
+    }
+
+    /** Reads the branch back into the repository (G70); returns what was read, what conflicted and what failed checks. */
+    public Map<String, Object> pullNow(User by, String ip) throws Exception {
+        cr.require(by, "repo.checkin", "read agents from Git");
+        if (!configured()) throw new OoaException("CR.BAD_INPUT", "Set the Git remote first (Administration > Settings > Git)");
+        try { return worker.submit(() -> pull(by, ip)).get(10, TimeUnit.MINUTES); }
+        catch (ExecutionException e) { throw e.getCause() instanceof Exception x ? x : e; }
+    }
+
+    @SuppressWarnings("unchecked")
+    synchronized Map<String, Object> pull(User by, String ip) throws Exception {
+        String url = String.valueOf(cr.platform.setting("git_remote_url")).trim(), branch = branch();
+        if (cr.tenant != null) NetGuard.check(cr, url, "The Git remote");
+        CredentialsProvider creds = credentials();
+        List<Object> imported = new ArrayList<>(), conflicts = new ArrayList<>(), problems = new ArrayList<>(), deletedInGit = new ArrayList<>();
+        String head;
+        try (Git git = open(url, creds)) {
+            boolean remoteHasBranch = false;
+            for (Ref r : git.lsRemote().setCredentialsProvider(creds).setHeads(true).call()) if (r.getName().equals("refs/heads/" + branch)) remoteHasBranch = true;
+            if (!remoteHasBranch) throw new OoaException("CR.GIT", "The branch " + branch + " is not in Git yet", "Sync to Git first, so the branch holds the agents.");
+            git.fetch().setCredentialsProvider(creds).setRefSpecs(new RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)).call();
+            git.checkout().setName(branch).setCreateBranch(git.getRepository().findRef("refs/heads/" + branch) == null).setForced(true).setStartPoint("origin/" + branch).call();
+            git.reset().setMode(ResetCommand.ResetType.HARD).setRef("origin/" + branch).call();
+            head = git.getRepository().resolve("HEAD").getName();
+            Path tree = git.getRepository().getWorkTree().toPath(), agents = tree.resolve("agents");
+            Map<String, String> pushed = new HashMap<>();
+            Path index = tree.resolve("ooa-repository.json");
+            if (Files.isRegularFile(index) && JsonLite.parse(Files.readString(index, StandardCharsets.UTF_8)) instanceof Map<?, ?> ix && ix.get("agents") instanceof List<?> l)
+                for (Object o : l) if (o instanceof Map<?, ?> e) pushed.put(String.valueOf(e.get("path")), String.valueOf(e.get("sha256")));
+            Set<String> seen = new HashSet<>();
+            if (Files.isDirectory(agents)) try (var walk = Files.walk(agents)) {
+                for (Path f : walk.filter(Files::isRegularFile).sorted().toList()) {
+                    String rel = agents.relativize(f).toString().replace('\\', '/');
+                    if (!rel.endsWith(".json")) continue;
+                    seen.add(rel);
+                    Map<String, Object> flow;
+                    try { flow = (Map<String, Object>) JsonLite.parse(Files.readString(f, StandardCharsets.UTF_8)); }
+                    catch (RuntimeException e) { problems.add(Map.of("path", rel, "error", "Not valid JSON: " + e.getMessage())); continue; }
+                    String sha = Security.sha256(JsonLite.write(flow));
+                    Map<String, Object> cur = db.one("SELECT v.sha256 FROM bots b JOIN bot_versions v ON v.path = b.path AND v.version = b.latest_version WHERE b.path = ? AND b.deleted_at IS NULL", rel);
+                    String curSha = cur == null ? null : (String) cur.get("sha256");
+                    if (sha.equals(curSha)) continue;   // the same as One CommandCenter's latest version
+                    String was = pushed.get(rel);
+                    if (curSha != null && was != null && !was.equals(curSha)) {
+                        conflicts.add(Map.of("path", rel, "why", "Changed in One CommandCenter and in Git since the last sync"));
+                        continue;
+                    }
+                    if (curSha != null && was == null) {
+                        conflicts.add(Map.of("path", rel, "why", "Made in One CommandCenter and in Git separately"));
+                        continue;
+                    }
+                    String comment = "From Git";
+                    for (RevCommit c : git.log().addPath("agents/" + rel).setMaxCount(1).call()) {
+                        String msg = c.getShortMessage();
+                        comment = "From Git " + c.getName().substring(0, 8) + " by " + c.getAuthorIdent().getName() + (msg == null || msg.isBlank() ? "" : ": " + msg);
+                    }
+                    if (comment.length() > 900) comment = comment.substring(0, 900);
+                    try {
+                        Map<String, Object> s = cr.storeVersion(by, rel, flow, comment, false, false, ip);
+                        imported.add(Map.of("path", rel, "version", s.get("version"), "created", Boolean.TRUE.equals(s.get("created"))));
+                    } catch (OoaException e) { problems.add(Map.of("path", rel, "error", e.getMessage())); }
+                }
+            }
+            for (String p : pushed.keySet()) if (!seen.contains(p) && db.one("SELECT path FROM bots WHERE path = ? AND deleted_at IS NULL", p) != null) deletedInGit.add(p);
+        }
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("state", "ok"); r.put("at", Instant.now().toString()); r.put("commit", head);
+        r.put("imported", imported); r.put("conflicts", conflicts); r.put("problems", problems); r.put("deleted_in_git", deletedInGit);
+        cr.audit.record(by.username(), "repo.git_pull", "repository", url, Map.of("commit", head, "imported", imported.size(), "conflicts", conflicts.size(), "problems", problems.size()), "ok", ip);
+        // the branch then holds One CommandCenter's versions and index, so the next pull compares from here
+        if (!imported.isEmpty()) r.put("synced", sync(by.username(), "Read " + imported.size() + " agent(s) from Git (" + head.substring(0, 8) + ")"));
+        return r;
     }
 
     String branch() { String b = String.valueOf(cr.platform.setting("git_branch")).trim(); return b.isEmpty() ? "main" : b; }

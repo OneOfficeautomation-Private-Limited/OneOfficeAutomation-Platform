@@ -130,6 +130,43 @@ In **Manage > Runner Machines** the new runner appears with a green dot and **on
 | Service runner | `ooa service install --mode agent` (administrator prompt) | Starts with Windows and restarts after a failure (three times, a minute apart). Name "OOA Runner" unless `--name`; `--account DOMAIN\user --password-env VAR` to run as an account instead of Local System |
 | By hand | `ooa agent start` | Runs until you press Ctrl+C. Useful for testing |
 
+**Automatic sign-in after a restart.** An unattended runner whose agents use the screen needs a signed-in Windows
+desktop. `ooa agent autologon` makes Windows sign the runner's user in by itself after each restart. Run it on the
+runner from a Command Prompt or PowerShell opened as administrator, with the password in an environment variable so it
+is never typed on the command line:
+
+```
+set OOA_RUNNER_PW=...
+ooa agent autologon --user CORP\robot1 --password-env OOA_RUNNER_PW
+set OOA_RUNNER_PW=
+```
+
+The password is kept as Windows' protected LSA secret, as Microsoft's Autologon tool keeps it, never as plain text in
+the registry, and it never goes to One CommandCenter. `--status` shows whether automatic sign-in is on and for whom
+(never the password), and warns when an old plain-text password is in the registry. `--off` turns it off and removes the
+password. Together with `ooa agent install-task` and **Lock the screen** after unattended runs (Runners > Update
+runners), the runner comes back signed in and taking work after every restart, and its screen is locked between runs.
+Automatic sign-in does not unlock a screen that is already locked: restart the machine, or sign in on its console.
+Use a dedicated runner account, and keep the machine physically and remotely protected, since it signs in by itself.
+
+**Several unattended sessions on one Windows Server.** One runner does one run at a time. To run several screen agents
+at once on a Windows Server with Remote Desktop Services, give each robot a Windows account of its own:
+
+1. Sign in once as each robot account. Register a runner for it with its own registration file (`ooa agent register
+   --url ... --key ... --name SERVER-robot1 --config C:\OOA\robot1\agent.json`) and run `ooa agent install-task
+   --config C:\OOA\robot1\agent.json`, so that account's runner starts when it signs in.
+2. As an administrator on the server, put each password in an environment variable named after the account
+   (`OOA_SESSION_PW_ROBOT1`, `OOA_SESSION_PW_ROBOT2`, ...), then run `ooa agent sessions --users robot1,robot2 --watch`.
+
+`ooa agent sessions` opens a Remote Desktop session from the server to itself for each account that has none. Each
+session goes to its own loopback address (127.0.0.2, 127.0.0.3, ...), so Windows keeps a saved credential for each, in
+the administrator's Credential Manager. `--watch` checks every minute and opens a session again when one is gone
+(disconnected sessions count as gone). `--check` only shows which accounts are signed in. `--width` and `--height` set
+the screen size of each session. The command passes each password to Windows' `cmdkey` once, as a program argument,
+which other administrators on the server could see in the process list at that moment: run it on a server only
+administrators use, and clear the variables afterwards. Each session needs a Remote Desktop licence; a Windows client
+edition allows only one session. In One CommandCenter, put the runners in one pool so work spreads across them.
+
 Manage a service with `ooa service start|stop|status|uninstall --mode agent` or in Windows Services. Its log is
 `<data>\logs\service-agent.log`.
 
@@ -223,6 +260,28 @@ goes to its least busy online runner.
 
 The list shows each pool's runners with a status dot and **Online** "n of m". Put runners with the same applications
 and toolkits in one pool, so any of them can take any run.
+
+### 9.1 Auto-scaling pools
+
+One CommandCenter can make a pool's machines follow its work in your own cloud. On a pool's row menu, choose
+**Auto-scaling** (needs `devices.manage`) and tick **Scale this pool by its work**:
+
+| Setting | Meaning |
+| --- | --- |
+| **Fewest machines**, **Most machines** | The range (0 to 500). With 0 the pool may have no machines when there is no work |
+| **Runs per machine** | How many waiting and running runs one machine takes |
+| **Minutes between changes** | How long after a change before the size changes again |
+| **Where the size goes** | **A webhook** (any cloud or tool): a POST of `{"pool", "desired", "at"}`, signed with HMAC-SHA256 in `X-OOA-Signature: sha256=...` when a signing secret is set. **AWS Auto Scaling group**: its desired capacity is set, with an access key kept in the vault. **Azure virtual machine scale set**: its capacity is set, signed in as an app (client secret in the vault) |
+
+Every minute, One CommandCenter counts the pool's waiting and running runs, plus the runs refused in the last ten
+minutes because no runner of the pool was online, so an empty pool still grows when work arrives. It divides by **Runs
+per machine**, keeps the result within the range, and sends it when it changed. Each change is recorded in Audit Trail as
+`pool.scale`, including failures. The dialog shows the figures and the size it would ask for now.
+
+Machines that start must register as runners of the pool by themselves: make a **Temporary runner** key and use it in
+their start-up script (`ooa agent register --url ... --key ... --keep-existing`, then `ooa agent install-task`), and add
+them to the pool. Removed machines go offline, and temporary runners are cleaned up (section 10). A webhook may be plain
+http only to this computer (a scaling script beside One CommandCenter); otherwise it is https.
 
 ## 10. Temporary runners
 

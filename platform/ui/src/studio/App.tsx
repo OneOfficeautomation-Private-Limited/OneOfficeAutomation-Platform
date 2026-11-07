@@ -6,6 +6,7 @@ import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, 
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, PublicRepository, type CheckInDep } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
+import { ObjectRepositoryEditor } from "./ObjectRepository";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
@@ -36,7 +37,7 @@ type ItemTab = { kind: "item"; path: string; name: string; itemType: WorkspaceNo
 type OpenTab = AgentTab | ItemTab;
 const MAX_TABS = 10;
 const MAX_UNDO = 100;
-const EDITABLE: WorkspaceNode["type"][] = ["form", "process", "document", "skill", "script"];
+const EDITABLE: WorkspaceNode["type"][] = ["form", "process", "document", "objects", "skill", "script"];
 const isDirty = (t: OpenTab) => t.kind === "agent" ? JSON.stringify(t.flow) !== t.saved : t.text !== t.saved;
 const SCRIPT_LANGUAGE: Record<string, string> = { py: "Python script", ps1: "PowerShell script", vbs: "VBScript", js: "JavaScript" };
 /** The Scripts toolkit action that runs each kind of script file. */
@@ -74,6 +75,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [checkInDeps, setCheckInDeps] = useState<CheckInDep[]>([]);   // the agents one checked-in agent runs, for the review
   // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
+  const [simple, setSimple] = usePersistent("mode.simple", false);   // Simple mode for business users (G47)
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
     ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
@@ -381,13 +383,14 @@ export function App({ api: given }: { api?: StudioApi }) {
     const path = await api.create(kind, parent, name);
     if (kind === "AiAgent") await api.saveBot(path, aiAgentTemplate(await api.bot(path)));
     if (from) {
-      // the new agent keeps its own id and name; the blueprint gives its description, variables and steps
+      // the new agent keeps its own id and name; the blueprint gives its description, variables, steps, subflows and error handler
       const flow = await api.bot(path);
-      await api.saveBot(path, { ...flow, description: from.description, variables: structuredClone(from.variables), steps: structuredClone(from.steps) });
+      await api.saveBot(path, { ...flow, description: from.description, variables: structuredClone(from.variables), steps: structuredClone(from.steps),
+        ...(from.subflows ? { subflows: structuredClone(from.subflows) } : {}), ...(from.onError ? { onError: structuredClone(from.onError) } : {}) });
     }
     await reloadTree();
     // the new item opens in a tab, ready to edit
-    const type = ({ TaskBot: "bot", AiAgent: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", skill: "skill",
+    const type = ({ TaskBot: "bot", AiAgent: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", objects: "objects", skill: "skill",
       "script-python": "script", "script-powershell": "script" } as const)[kind];
     await open({ name: path.split("/").pop()!, path, type });
   };
@@ -487,7 +490,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
-        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} onTrigger={(kind, where) => {
+        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} simple={simple} onSimple={setSimple} onTrigger={(kind, where) => {
           if (where === "studio") { setAskTrigger({ kind, n: Date.now() }); return; }
           // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
           const cr = info?.controlRoom;
@@ -545,7 +548,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                 onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
               ? <Automation view={view} tree={tree}
-                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
+                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled([...b.steps, ...(b.subflows ?? []).flatMap((s) => s.steps), ...(b.onError?.steps ?? [])], packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
                   api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
@@ -699,7 +702,7 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
         </>}
         {tab.itemType === "document" && <><span className="st-bar-gap" /><Button kind="secondary" onClick={onExtraction}
           title="An agent that reads a document and extracts these fields with AI">Create extraction agent</Button></>}
-        <span className="st-steps-meta">{{ form: "Form", process: "Workflow", document: "Document type", skill: "Prompt Skill", script: SCRIPT_LANGUAGE[ext] ?? "Script" }[tab.itemType as string] ?? "File"}</span>
+        <span className="st-steps-meta">{{ form: "Form", process: "Workflow", document: "Document type", objects: "Object repository", skill: "Prompt Skill", script: SCRIPT_LANGUAGE[ext] ?? "Script" }[tab.itemType as string] ?? "File"}</span>
       </div>
       {tab.itemType === "script" || !data
         ? <>{!data && tab.itemType !== "script" && <p className="st-alert" role="alert">This file is not valid JSON, so it opens as text. Repair it and save.</p>}
@@ -713,6 +716,7 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
         : tab.itemType === "form" ? <FormEditor data={data} onChange={set} />
         : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} />
         : tab.itemType === "document" ? <DocumentEditor data={data} onChange={set} />
+        : tab.itemType === "objects" ? <ObjectRepositoryEditor data={data} onChange={set} />
         : <SkillEditor data={data} onChange={set} name={tab.path.split("/").pop()!.replace(/\.json$/i, "")} />}
     </div>
   );

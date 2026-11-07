@@ -71,6 +71,7 @@ public final class TestSets {
             if (cn.isEmpty() || !names.add(cn)) throw new OoaException("CR.BAD_INPUT", "Every case needs its own name" + (cn.isEmpty() ? "" : ": " + cn + " is used twice"));
             if (c.get("inputs") != null && !(c.get("inputs") instanceof Map)) throw new OoaException("CR.BAD_INPUT", "Case " + cn + ": inputs is a dictionary");
             checkExpect(cn, c.get("expect"));
+            checkMocks(cn, c.get("mocks"));
         }
         String json = JsonLite.write(cases);
         if (json.length() > 100_000) throw new OoaException("CR.BAD_INPUT", "The test set is too large (100 KB at most)");
@@ -137,6 +138,8 @@ public final class TestSets {
         int started = 0;
         for (Map<String, Object> c : cases) {
             Map<String, Object> inputs = c.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of();
+            // the case's mocks travel with the run itself, so a runner that claims it at once has them (G61)
+            if (c.get("mocks") instanceof Map<?, ?> mk && !mk.isEmpty()) { inputs = new LinkedHashMap<>(inputs); inputs.put(MOCKS_INPUT, mk); }
             try {
                 Map<String, Object> r = cr.startRun(by.username(), by.role(), bot, deviceId, poolId, inputs, "test:" + trId, ip, 0, null, null, null);
                 db.update("INSERT INTO test_results (run_id, test_run_id, case_name, status, passed, detail, finished) VALUES (?,?,?,?,?,?,?)",
@@ -178,6 +181,21 @@ public final class TestSets {
         if (db.update("UPDATE test_runs SET status = ?, passed = ?, total = ?, finished = ? WHERE id = ? AND status = 'running'",
                 passed == total ? "passed" : "failed", passed, total, now(), trId) == 1)
             cr.audit.record("system", "testset.scored", "test_run", trId, Map.of("passed", passed, "total", total), passed == total ? "ok" : "failed", null);
+    }
+
+    /** The reserved input that carries a test case's mocks to the runner, which takes it out before the agent runs. */
+    public static final String MOCKS_INPUT = com.oneofficeautomation.runner.Runner.MOCKS_INPUT;
+
+    /** mocks: step id to {"outputs": {...}} or {"error": {"code", "message"}}. */
+    static void checkMocks(String cn, Object mocks) {
+        if (mocks == null) return;
+        if (!(mocks instanceof Map<?, ?> m)) throw new OoaException("CR.BAD_INPUT", "Case " + cn + ": mocks is a dictionary of step ids");
+        if (m.size() > 100) throw new OoaException("CR.BAD_INPUT", "Case " + cn + ": at most 100 mocked steps");
+        for (Map.Entry<?, ?> e : m.entrySet()) {
+            if (!(e.getValue() instanceof Map<?, ?> v) || (v.get("outputs") != null && !(v.get("outputs") instanceof Map)) || (v.get("error") != null && !(v.get("error") instanceof Map))
+                    || (v.get("outputs") == null && v.get("error") == null))
+                throw new OoaException("CR.BAD_INPUT", "Case " + cn + ": the mock of step " + e.getKey() + " gives outputs (a dictionary) or an error ({code, message})");
+        }
     }
 
     /** What is wrong with a run's result against a case's expectations; empty when it passes. */

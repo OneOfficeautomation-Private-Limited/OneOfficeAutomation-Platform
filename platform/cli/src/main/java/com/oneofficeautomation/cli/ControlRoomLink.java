@@ -260,7 +260,55 @@ final class ControlRoomLink {
         markSynced(local, json.write(flow, true));
         Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local, "production", production));
         if (r.get("production_request") != null) out.put("production_request", r.get("production_request"));   // approval before production is on
+        List<String> sent = sendObjectRepositories(flow);
+        if (!sent.isEmpty()) out.put("files", sent);
         return out;
+    }
+
+    /**
+     * The shared object repositories the agent uses (G42) go to the repository's files at the same path, so runs from
+     * One CommandCenter find them; a file One CommandCenter already has unchanged is not sent again.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> sendObjectRepositories(Map<String, Object> flow) throws IOException {
+        List<String> sent = new ArrayList<>();
+        for (String repo : com.oneofficeautomation.runner.ObjectRepositories.referenced(flow)) {
+            Path f;
+            try { f = ws.resolve(repo); } catch (OoaException outside) { continue; }
+            if (!Files.isRegularFile(f)) throw new OoaException("STUDIO.NOT_FOUND", "The agent uses the object repository " + repo + ", which is not in the workspace",
+                    "Put the repository file back, or choose the elements again.");
+            byte[] bytes = Files.readAllBytes(f);
+            String sha = java.util.HexFormat.of().formatHex(sha256Bytes(bytes));
+            String folder = repo.contains("/") ? repo.substring(0, repo.lastIndexOf('/')) : "";
+            boolean same = false;
+            for (Object o : (List<Object>) call("GET", "repo/files?folder=" + java.net.URLEncoder.encode(folder, StandardCharsets.UTF_8), null, true).getOrDefault("files", List.of()))
+                if (o instanceof Map<?, ?> m && repo.equals(m.get("path")) && sha.equals(m.get("sha256"))) same = true;
+            if (same) continue;
+            putFile(repo, bytes, "application/json");
+            sent.add(repo);
+        }
+        return sent;
+    }
+
+    private static byte[] sha256Bytes(byte[] b) {
+        try { return java.security.MessageDigest.getInstance("SHA-256").digest(b); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
+    /** PUT repo/files?path=...: the body is the file itself. */
+    private void putFile(String path, byte[] bytes, String type) {
+        if (token == null) throw new OoaException("STUDIO.CR_NOT_CONNECTED", "Not connected to One CommandCenter", "Connect from the Explorer's One CommandCenter section.");
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url + "/api/repo/files?path=" + java.net.URLEncoder.encode(path, StandardCharsets.UTF_8).replace("+", "%20")))
+                .timeout(Duration.ofSeconds(120)).PUT(HttpRequest.BodyPublishers.ofByteArray(bytes)).header("Content-Type", type).header("Authorization", "Bearer " + token).build();
+        try {
+            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() >= 400) {
+                String msg = "HTTP " + res.statusCode();
+                try { if (JsonLite.parse(res.body()) instanceof Map<?, ?> m && m.get("error") instanceof Map<?, ?> e) msg = String.valueOf(e.get("message")); } catch (IllegalArgumentException ignored) { }
+                throw new OoaException("STUDIO.CR_FILE", "Cannot send " + path + " to One CommandCenter: " + msg, "Check you may add files to that folder.");
+            }
+        } catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach One CommandCenter at " + url, null); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted"); }
     }
 
     // ---------- what each private copy looked like when it was last checked in or out ----------

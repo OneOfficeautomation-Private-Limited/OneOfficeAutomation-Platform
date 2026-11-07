@@ -40,4 +40,55 @@ class VaultRekeyTest {
             assertEquals(1L, cr.count("SELECT COUNT(*) AS n FROM audit WHERE action = 'vault.rekey'"));
         } finally { db.close(); }
     }
+
+    /** Two key changes in the same clock tick (the Windows clock moves in steps of up to ~16 ms) keep both old keys. */
+    @Test void sameTimestampDoesNotOverwriteAnOldKey() throws Exception {
+        Path dir = Files.createTempDirectory("ooa-oldkey");
+        Path key = dir.resolve("master.key");
+        Files.writeString(key, "first");
+        Path a = VaultAdmin.keepOldKey(key, false, "2026-10-31T050033.557Z");
+        Files.writeString(key, "second");
+        Path b = VaultAdmin.keepOldKey(key, false, "2026-10-31T050033.557Z");
+        Files.writeString(key, "third");
+        Path c = VaultAdmin.keepOldKey(key, true, "2026-10-31T050033.557Z");
+        assertEquals("master.key.old-2026-10-31T050033.557Z", a.getFileName().toString());
+        assertEquals("master.key.old-2026-10-31T050033.557Z-2", b.getFileName().toString());
+        assertEquals("master.key.old-2026-10-31T050033.557Z-3", c.getFileName().toString());
+        assertEquals("first", Files.readString(a), "the first old key is not overwritten");
+        assertEquals("second", Files.readString(b));
+        assertEquals("third", Files.readString(c));
+        assertFalse(Files.exists(key), "rotate moves the key away");
+    }
+
+    /**
+     * Key changes in quick succession each keep their old key: on Windows two changes can share a millisecond, which
+     * once made the second one fail on an existing master.key.old-&lt;time&gt; (and an old key must never be overwritten).
+     */
+    @Test void quickKeyChangesKeepEveryOldKey() throws Exception {
+        Path data = Files.createTempDirectory("ooa-rekey-file");
+        Db db = Db.embedded(data);
+        try {
+            ControlRoom cr = new ControlRoom(db, data, FirstPartyPackages.registry(), null, new Vault(data), null);
+            ControlRoom.User admin = RepositoryLifecycleTest.boot(cr);
+            cr.createLocker(admin, "ops", "Operations", null, null);
+            cr.setCredential(admin, "ops", "erp", "password", "s3cret-erp", null);
+            java.util.Set<String> keys = new java.util.HashSet<>();
+            keys.add(Files.readString(data.resolve("master.key")).trim());
+            for (int i = 0; i < 4; i++) {
+                if (i % 2 == 0) cr.vaultAdmin.rotate(admin, null); else cr.vaultAdmin.rekey(key());
+                keys.add(Files.readString(data.resolve("master.key")).trim());
+            }
+            java.util.List<Path> old;
+            try (var s = Files.list(data)) { old = s.filter(f -> f.getFileName().toString().startsWith("master.key.old-")).toList(); }
+            assertEquals(4, old.size(), "one old key per change: " + old);
+            java.util.Set<String> kept = new java.util.HashSet<>();
+            for (Path f : old) kept.add(Files.readString(f).trim());
+            assertEquals(4, kept.size(), "every old key is a different key");
+            keys.remove(Files.readString(data.resolve("master.key")).trim());
+            assertEquals(keys, kept, "the old keys are exactly the keys used before");
+            assertFalse(Files.exists(data.resolve("master.key.next")), "no new-key file is left behind");
+            String stored = (String) db.one("SELECT ciphertext FROM credentials WHERE locker = 'ops' AND name = 'erp' AND attribute = 'password'").get("ciphertext");
+            assertEquals("s3cret-erp", new Vault(data).decrypt(stored, "ops/erp/password"), "the key file reads the values");
+        } finally { db.close(); }
+    }
 }

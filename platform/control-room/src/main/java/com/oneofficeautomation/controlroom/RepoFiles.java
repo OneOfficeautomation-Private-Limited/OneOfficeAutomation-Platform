@@ -118,12 +118,14 @@ public final class RepoFiles {
     }
 
     /**
-     * The files a run's agent requires (flow.requires.files), as {path: base64}, for the job. The person the run is for
+     * The files a run's agent requires (flow.requires.files, and the object repositories its steps use), as {path: base64}, for the job. The person the run is for
      * must be allowed to view each file's folder; a missing or forbidden file fails the run before it starts.
      */
     @SuppressWarnings("unchecked")
     Map<String, Object> forJob(Map<String, Object> flow, String username, String role) {
-        List<Object> wanted = flow.get("requires") instanceof Map<?, ?> r && r.get("files") instanceof List<?> l ? (List<Object>) l : List.of();
+        List<Object> wanted = new ArrayList<>(flow.get("requires") instanceof Map<?, ?> r && r.get("files") instanceof List<?> l ? (List<Object>) l : List.of());
+        // the shared object repositories its steps use (G42) go with it too, without listing them by hand
+        for (String repo : com.oneofficeautomation.runner.ObjectRepositories.referenced(flow)) if (!wanted.contains(repo)) wanted.add(repo);
         Map<String, Object> out = new LinkedHashMap<>();
         long total = 0;
         for (Object o : wanted) {

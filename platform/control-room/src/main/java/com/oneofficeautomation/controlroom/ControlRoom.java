@@ -28,6 +28,8 @@ public final class ControlRoom {
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults(this);
     public final Workflows workflows;
+    /** Approving from e-mail, Teams and a phone (G43). */
+    final ApprovalChannels taskChannels;
     public final TestSets testSets;
     public final Dashboards dashboards;
     public final CustomToolkits customToolkits;
@@ -54,6 +56,8 @@ public final class ControlRoom {
     public final RepoFiles repoFiles;
     /** Prompt Skills kept in One CommandCenter. */
     public final PromptSkills promptSkills;
+    /** One Chat: plain-language requests to run agents, under the same permissions and with confirmation. */
+    public final Chat chat;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
@@ -76,8 +80,20 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
+    /** Automation ideas (gap G65): suggested, voted, assessed and scored, linked to the agent built. */
+    public final Ideas ideas;
+    /** Business data store (gap G66): entities with records, and storage buckets runs read and write. */
+    public final DataStore dataStore;
+    /** Low-code apps (gap G67): pages of fields and buttons that run agents, add records and work items. */
+    public final Apps apps;
+    /** Apps embedded in other web pages (gap G68): embed links with the sites allowed to frame them. */
+    public final AppEmbeds appEmbeds;
+    /** Knowledge bases (gap G71): knowledge indexes kept here, refreshed by agents, asked by name. */
+    public final KnowledgeBases knowledge;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
+    /** Auto-scaling runner pools (G52). */
+    final PoolScaling poolScaling;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
     public final EventSubscriptions events;
     /** The Prometheus metrics (gap G38). */
@@ -155,7 +171,13 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
+        this.ideas = new Ideas(this);
+        this.dataStore = new DataStore(this);
+        this.apps = new Apps(this);
+        this.appEmbeds = new AppEmbeds(this);
+        this.knowledge = new KnowledgeBases(this);
         this.runWaits = new RunWaits(this);
+        this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);
         this.gitSync = new GitSync(this, dataDir);
@@ -169,6 +191,7 @@ public final class ControlRoom {
         });
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
+        this.taskChannels = new ApprovalChannels(this);
         this.testSets = new TestSets(this);
         this.dashboards = new Dashboards(this);
         this.teams = new Teams(this);
@@ -183,6 +206,7 @@ public final class ControlRoom {
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
+        this.chat = new Chat(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
         this.serverless = new ServerlessRuns(this, registry, dataDir);
@@ -966,6 +990,7 @@ public final class ControlRoom {
     /** Validates and stores a new version. Existing bots must be checked out by the same user. */
     public Map<String, Object> checkin(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, String ip) {
         licensing.requireDeveloper(by);
+        licensing.checkCitizen(by, flow);
         return storeVersion(by, path, flow, comment, makeProduction, true, ip);
     }
 
@@ -1490,7 +1515,10 @@ public final class ControlRoom {
         if ((deviceId == null || deviceId.isBlank()) && poolId != null && !poolId.isBlank()) {
             platform.requirePoolUse(requestedBy, role, poolId);
             deviceId = platform.pickDevice(poolId);
-            if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
+            if (deviceId == null) {
+                poolScaling.noRunner(poolId);   // demand for an auto-scaling pool (G52)
+                throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
+            }
         }
         if (deviceId == null || deviceId.isBlank()) throw new OoaException("CR.BAD_INPUT", "Choose a runner or a runner pool");
         boolean serverlessRun = ServerlessRuns.DEVICE.equals(deviceId);
@@ -1518,6 +1546,11 @@ public final class ControlRoom {
             if (java.util.Arrays.asList("input", "in_out").contains(m.get("direction"))) declared.put(String.valueOf(m.get("name")), m);
         }
         for (var e : (inputs == null ? Map.<String, Object>of() : inputs).entrySet()) {
+            // a test case's mocks (G61) ride in a reserved input, for test-set runs only
+            if (TestSets.MOCKS_INPUT.equals(e.getKey())) {
+                if (source != null && source.startsWith("test:") && e.getValue() instanceof Map<?, ?>) { clean.put(e.getKey(), e.getValue()); continue; }
+                throw new OoaException("CR.BAD_INPUT", "Only test-set runs take mocks", "Put mocks on a test case (Agent tests).");
+            }
             Map<String, Object> var = declared.get(e.getKey());
             if (var == null) throw new OoaException("CR.BAD_INPUT", "The agent has no input named '" + e.getKey() + "'", "Inputs: " + declared.keySet());
             if ("Credential".equals(var.get("type")) && !(e.getValue() instanceof Map<?, ?> m && m.get("$credential") instanceof String))
@@ -1808,6 +1841,12 @@ public final class ControlRoom {
             if (!files.isEmpty()) job.put("files", files);
             if (!skills.isEmpty()) job.put("skills", skills);
             Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
+            // Settings > AI (item 4n): AI switched off for everyone, and full logging of prompts and answers (off at first)
+            if (platform.intSetting("ai_enabled") == 0 || platform.intSetting("ai_log_content") == 1) {
+                guardrails = new LinkedHashMap<>(guardrails == null ? Map.of() : guardrails);
+                if (platform.intSetting("ai_enabled") == 0) guardrails.put("disabled", true);
+                if (platform.intSetting("ai_log_content") == 1) guardrails.put("log_content", true);
+            }
             if (guardrails != null) job.put("guardrails", guardrails);
             if (platform.intSetting("runner_error_screenshots") == 0) job.put("error_screenshots", false);   // Settings: no pictures of the screen
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
@@ -1907,6 +1946,7 @@ public final class ControlRoom {
         try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
+        if ("chat".equals(r.get("source"))) try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* the next clock tick tells the chat */ }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 
@@ -2073,9 +2113,10 @@ public final class ControlRoom {
             case "create_callback" -> out = runWaits.createCallback(run, actor);
             case "suspend" -> out = runWaits.suspend(run, as, args, actor);
             case "create_task" -> out = runWaits.createTask(run, args, actor);
+            case "task_status" -> out = runWaits.taskStatus(run, args);   // G44: an AI agent waiting for an approval it asked for
             default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
         }
-        if (!Set.of("raise_alert", "create_callback", "suspend", "create_task").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
+        if (!Set.of("raise_alert", "create_callback", "suspend", "create_task", "task_status").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
         return out;
     }
 
@@ -2268,6 +2309,7 @@ public final class ControlRoom {
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
+        try { chat.deliverRunUpdates(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }

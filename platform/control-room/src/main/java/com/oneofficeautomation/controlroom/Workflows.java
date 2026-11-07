@@ -67,6 +67,19 @@ public final class Workflows {
         return (Map<String, Object>) JsonLite.parse((String) db.one("SELECT content FROM bot_versions WHERE path = ? AND version = ?", wf.get("path"), wf.get("version")).get("content"));
     }
 
+    /** The stages people see in the stage bar (G48): the workflow's stages in order, without its decisions, as id and name. */
+    private final Map<String, List<Map<String, Object>>> stageBars = new java.util.concurrent.ConcurrentHashMap<>();
+    List<Map<String, Object>> stageBar(Map<String, Object> wf) {
+        return stageBars.computeIfAbsent(wf.get("path") + "@" + wf.get("version"), k -> {
+            List<Map<String, Object>> out = new ArrayList<>();
+            try {
+                for (Map<String, Object> s : stages(definition(wf)))
+                    if (!"decision".equals(s.get("type"))) out.add(Map.of("id", String.valueOf(s.get("id")), "name", String.valueOf(s.getOrDefault("name", s.get("id")))));
+            } catch (RuntimeException e) { return List.of(); }
+            return out;
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> stages(Map<String, Object> def) { return (List<Map<String, Object>>) (List<?>) def.getOrDefault("stages", List.of()); }
 
@@ -79,6 +92,7 @@ public final class Workflows {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> start(User by, String path, Map<String, Object> data, String reference, String ip) {
+        cr.licensing.requireFeature("workflows", "Workflows");
         cr.require(by, "runs.start", "start workflows");
         if (!isWorkflow(path)) throw new OoaException("CR.BAD_INPUT", path + " is not a workflow");
         Map<String, Object> c = cr.content(path, "production");
@@ -190,14 +204,9 @@ public final class Workflows {
                                 String.valueOf(s.get("assignee")), "open", now(), due);
                         data.put("_task", tid);
                         history(wf, h, sid, "task_created", Map.of("task_id", tid, "assignee", s.get("assignee")));
-                        // Settings: the people the task is given to get an e-mail too
-                        if (cr.platform.intSetting("notify_task_assigned") == 1) {
-                            String link = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
-                            cr.mailPeople(List.of(String.valueOf(s.get("assignee")).split(",")), "A task for you: " + title,
-                                    "You have a new " + (type.equals("approval") ? "approval" : "form") + " to complete: " + title + "."
-                                    + (due == null ? "" : "\nIt is due by " + due + ".") + "\n\n"
-                                    + (link.isEmpty() ? "Open One CommandCenter to see it (Workflows > Tasks)." : "See it: " + link + "/next/#/tasks"), "task", tid);
-                        }
+                        // Settings: the people the task is given to hear about it by e-mail, on their phone and in the Teams
+                        // channel; approvals carry each person's own Approve and Reject links when those are on (G43)
+                        cr.taskChannels.taskCreated(tid, type, title, String.valueOf(s.get("assignee")), due, visible(data));
                         save(wfId, "waiting", sid, data, h);
                         return;
                     }
@@ -374,11 +383,12 @@ public final class Workflows {
             if (!reviewVisible(u, t, folders)) continue;
             Map<String, Object> m = new LinkedHashMap<>(t);
             Object runId = t.get("workflow_run_id");
-            Map<String, Object> wf = runId == null ? null : runs.computeIfAbsent(runId, k -> db.one("SELECT path, reference FROM workflow_runs WHERE id = ?", k));
+            Map<String, Object> wf = runId == null ? null : runs.computeIfAbsent(runId, k -> db.one("SELECT path, version, reference FROM workflow_runs WHERE id = ?", k));
             if (wf != null) {   // where the task comes from, as AA's task list shows the request and its reference
                 String path = String.valueOf(wf.get("path"));
                 m.put("workflow", path.substring(path.lastIndexOf('/') + 1).replaceAll("\\.[a-z]+\\.json$", ""));
                 m.put("reference", wf.get("reference"));
+                m.put("stages", stageBar(wf));   // G48: the workflow's stages, for the stage bar above the task
             }
             m.put("form", t.get("form") == null ? null : JsonLite.parse((String) t.get("form")));
             m.put("data", t.get("data") == null ? Map.of() : JsonLite.parse((String) t.get("data")));
@@ -430,6 +440,9 @@ public final class Workflows {
         String kind = String.valueOf(t.get("kind"));
         if (kind.equals(DocFlowProxy.TASK_KIND))
             throw new OoaException("CR.BAD_INPUT", "Open the document to review it", "Approve or reject it on the review screen; the task then closes by itself.");
+        // One Chat's R3 approvals: never your own request, administrators included
+        if (kind.equals("approval") && u.username().equals(Chat.requester(t)))
+            throw new OoaException("CR.FORBIDDEN", "You cannot approve your own request", "Someone else among the approvers decides it.");
         Map<String, Object> result = new LinkedHashMap<>();
         String forcedNext = null;
         String out;
@@ -459,6 +472,10 @@ public final class Workflows {
         if (t.get("workflow_run_id") != null && !kind.equals("notification"))
             resume((String) t.get("workflow_run_id"), String.valueOf(t.get("stage")), result, kind.equals("approval") ? out : "task_completed",
                     Map.of("task_id", taskId, "by", u.username()), forcedNext);
+        if (kind.equals("approval") && Chat.APPROVAL_STAGE.equals(t.get("stage"))) {
+            String runId = cr.chat.decided(t, u, out, comment, ip);
+            if (runId != null) return Map.of("ok", true, "outcome", out, "run_id", runId);
+        }
         return Map.of("ok", true, "outcome", out);
     }
 

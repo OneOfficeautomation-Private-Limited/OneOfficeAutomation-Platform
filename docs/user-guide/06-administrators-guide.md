@@ -517,6 +517,27 @@ The agent repository is the **Public** tab of **Build > Automation**; builders u
 | **Code analysis policy** | The rules agents are checked against (each used or not, an **Error** or a **Warning**, some with a setting such as the most steps an agent may have), and **Refuse check-ins that have errors** | At every check-in and analysis |
 | **AI guardrails policy** | **Mask personal data before it reaches a model**, **Models agents may use**, and a **Content check** on answers | At every AI step, when the agent runs |
 
+Two code analysis rules keep screen work in one place. Both are off until an administrator ticks them:
+
+| Rule | What it checks |
+| --- | --- |
+| **repository_objects** | Web and desktop steps use elements of a shared object repository, not objects captured into the agent itself. |
+| **ui_in_object_agents** | Only agents with the tag set on the rule (`object-agent` at first) contain screen steps. By default these are the Browser, Desktop objects, Mouse/keyboard and Window toolkits; the rule's toolkit list sets which. Other agents ("process agents") call those object agents with **Run agent**, as Blue Prism separates objects from processes. |
+
+The code analysis rule **connector_groups** (off at first) groups toolkits the way Power Automate's data policies group
+connectors:
+
+- **business**: the toolkits for company systems, such as `ooa.sap`, `ooa.microsoft365` or `ooa.aws*`;
+- **blocked**: toolkits no agent in these folders may use;
+- **neutral**: toolkits that only work on the agent's own values (text, numbers, dates, lists, tables, logs). They go
+  with both groups and are filled in at first;
+- every other toolkit is **non-business**.
+
+An agent that uses a business toolkit and a non-business one together is reported, because data could pass from one
+to the other. So is every step of a blocked toolkit. Toolkits are named by id (Agent ToolKits shows them), and a name
+ending in `*` covers every toolkit that starts with it. With **Refuse check-ins that have errors**, such agents cannot be
+checked in to the folders the policy is given to.
+
 A folder follows its own policy of each kind, or else the nearest folder above it that has one; a folder can have one
 policy of each kind. Folders with no code analysis policy anywhere above them follow **Default code analysis**, which
 cannot be deleted (change its rules to change the default). The page is in the menu for people with `settings.manage`,
@@ -603,6 +624,7 @@ test something (**Send a test e-mail** and the like) use the saved settings, so 
 | **AI assistants (MCP)** | | **Agents offered as tools** (paths, or `*`), **Runner or runner pool id**, **Wait for a result**, **Token audience** and **Scope the token must carry** for OAuth sign-in. Assistants connect to `/api/mcp` with a person's API key |
 | **E-mail, proxy and SIEM** | E-mail | **Outgoing mail server**, **Port**, **Security** (STARTTLS, SSL/TLS, None on a trusted network only), **Mail account**, **Mail account password** (a vault reference), **Sender address**, **Also send licence reminders to**; **Send a test e-mail** |
 | | Notifications | **E-mail people when a run they started fails** (the person who started it, or who made its schedule, gets the agent, the reason and a link); **E-mail people when a workflow gives them a task** (forms and approvals; a task for a role goes to each person in it, tasks for everyone stay in the inbox only). People need an e-mail address on their account |
+| | Approvals outside the Task inbox | **Approve and reject from e-mail, Teams and phone** (off at first; needs the **Public address**): each person a task is given to gets their own Approve and Reject links, signed by One CommandCenter. A link opens a page that asks to confirm, so a mail scanner that opens links decides nothing, and the task is decided as that person with the inbox's own checks (`task.link_used` in Audit Trail). **Links work for** (1 to 720 hours, 72 at first). **Teams channel webhook**: a vault reference to the address of a Teams Workflows webhook ("Post to a channel when a webhook request is received"), which must be https://; each new form or approval posts an Adaptive Card there, with Approve and Reject when the task is for one person. **Push server for phones**: an ntfy server (ntfy.sh, or one on your own network) and its token, when it needs one; people turn phone notifications on themselves under their account menu. **Send a test Teams card** checks the channel |
 | | Proxy | **Proxy for outgoing connections** and **Reach these directly**, for One CommandCenter's own connections (single sign-on, Git, AI, external vaults). Runners have their own proxy (`ooa agent network`) |
 | | SIEM | **Syslog target** (`host:port`) and **Syslog protocol** (UDP or TCP); **HTTPS collector** (an address that takes every audit entry as JSON, such as Splunk's HTTP Event Collector, Microsoft Sentinel, Elastic or QRadar), **Collector token** (a vault reference) and **Collector sign-in** (**Bearer token** or **Splunk HTTP Event Collector**). **Send a test syslog message** and **Send a test SIEM entry** check them |
 | **Data retention and backups** | Keep history | **Keep step logs for**, **Keep runs for**, **Keep audit entries for** (at least 90 days, older ones archived to `audit-archive`), **Keep AI call records for**, **Keep finished work-queue items for** (0 = always); **Remove old runs now…** asks first, and uses the saved numbers |
@@ -740,6 +762,28 @@ policy (section 10). It wins over a connection's own content check.
 One CommandCenter and Studio are available in English, Deutsch, Français, Español and 日本語. Each person chooses under
 **Language** in the user menu; the choice is kept per browser, and without one the browser's language is used when
 available. Names, ids, data, code and server messages are not translated.
+
+## Moving bots from Automation Anywhere or UiPath
+
+`ooa migrate` turns existing bots into OOA agents, so a migration starts from working structure instead of a blank
+page:
+
+```
+ooa migrate aa C:\Export\AA-bots C:\Migrated
+ooa migrate uipath C:\Projects\Invoices C:\Migrated
+```
+
+- **Automation Anywhere**: each Task Bot's JSON content (from the Control Room API, or the JSON in a bot export).
+- **UiPath**: each workflow (.xaml) in the folder.
+
+The structure is converted: steps, comments, if / else if / else, loops, try / catch / finally, delays, log lines
+(message boxes become log lines), assignments, variables and arguments with their types and directions, and calls to
+other bots (as Run agent, to point at the migrated agent). AA's `$var$` becomes `${var}`; UiPath's VB.NET expressions
+are kept as expressions to check. Every other command becomes a comment step **TODO migrate:** with the command and
+its settings, in its place, so nothing is lost: search the agents for "TODO migrate" and rebuild each with the matching
+OOA toolkit. `migration-report.json` lists each bot with how many commands were converted and how many are left, by
+command, which is the migration's work list. Check every converted condition and expression before running an agent
+in production. Blue Prism processes are not converted yet.
 
 ## 17. If it goes wrong
 

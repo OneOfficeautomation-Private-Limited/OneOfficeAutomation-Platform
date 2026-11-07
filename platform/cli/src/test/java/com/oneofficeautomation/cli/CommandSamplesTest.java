@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * case is replaced by the case's temporary folder (with forward slashes). Results are written to
  * {@code build/command-samples-results.json} for the progress table. {@code {web}} is the case folder served over HTTP;
  * {@code "requires": "browser"} skips a case when no browser can start, {@code "requires": "desktop"} runs it only with
- * OOA_DESKTOP_SAMPLES=1 because it drives real windows on the screen.
+ * OOA_DESKTOP_SAMPLES=1 because it drives real windows on the screen; {@code "requires": "windows"} runs it only on Windows.
  */
 class CommandSamplesTest {
     @TempDir static Path tmpRoot;
@@ -120,7 +120,8 @@ class CommandSamplesTest {
                 : requires.equals("internet") && "0".equals(System.getenv("OOA_INTERNET_SAMPLES")) ? "public-website samples are off (OOA_INTERNET_SAMPLES=0, as in CI)"
                 : requires.equals("internet") && !browserWorks(runner) ? "no browser can start here"
                 : requires.equals("internet") && !reachable(String.valueOf(raw.get("probe"))) ? "cannot reach " + raw.get("probe")
-                : requires.equals("node") && !onPath("node") ? "Node.js is not installed here" : null;
+                : requires.equals("node") && !onPath("node") ? "Node.js is not installed here"
+                : requires.equals("windows") && !System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win") ? "Windows only" : null;
         if (skip != null) {
             RESULTS.add(new LinkedHashMap<>(Map.of("command", raw.get("command"), "name", raw.getOrDefault("name", ""), "check", "skipped", "detail", skip)));
             org.junit.jupiter.api.Assumptions.abort(skip);

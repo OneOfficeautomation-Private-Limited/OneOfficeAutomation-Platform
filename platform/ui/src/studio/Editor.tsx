@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { simplePackages } from "./simpleMode";
+import { SapImportDialog } from "./sapRecording";
 import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
@@ -42,7 +44,11 @@ const ACTION_DRAG = "application/x-ooa-action";
 /** The triggers in the command list: the workspace's own (Details > Triggers) and One CommandCenter's (after check-in). */
 const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["file", "When a file arrives in a folder"], ["webhook", "When a web address is called (webhook)"]];
 
-export function ActionsPanel({ packages, onAdd, onTrigger }: { packages: PackageManifest[]; onAdd: (action: string) => void; onTrigger?: (kind: string, where: "studio" | "server") => void }) {
+export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, onSimple }: { packages: PackageManifest[]; onAdd: (action: string) => void;
+  onTrigger?: (kind: string, where: "studio" | "server") => void; simple?: boolean; onSimple?: (on: boolean) => void }) {
+  // Simple mode (G47): everyday toolkits under plain names; no triggers
+  const packages = simple ? simplePackages(all) : all;
+  if (simple) onTrigger = undefined;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
@@ -58,11 +64,15 @@ export function ActionsPanel({ packages, onAdd, onTrigger }: { packages: Package
   const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
-    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions" actions={<HelpButton topic={ACTIONS_HELP} />}
+    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
+      actions={<>{onSimple && <button type="button" className={"st-simple-toggle" + (simple ? " is-on" : "")} aria-pressed={simple} onClick={() => onSimple(!simple)}
+        title={simple ? "Simple mode is on: everyday actions only. Press for every action." : "Show everyday actions only (Excel, e-mail, websites, files), for business users"}>Simple</button>}
+        <HelpButton topic={ACTIONS_HELP} /></>}
       style={width ? { width } : undefined} panelRef={(el) => { panel.current = el; }}>
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
-      <p className="st-panel-hint">Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match.</p>
+      <p className="st-panel-hint">{simple ? "Everyday actions. Click one to add it after the selected step, or drag it to where it goes. Turn Simple off for every action."
+        : "Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match."}</p>
       <ul className="st-groups">
         {onTrigger && (() => {
           // as AA's editor, the triggers that start the agent sit beside its actions
@@ -222,7 +232,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const rightPanel = useRef<HTMLElement | null>(null);
   const [drop, setDrop] = useState<{ key: string | null; where: Place } | null>(null);
   const [bottomTab, setBottomTab] = useState("problems");
-  const [tool, setTool] = useState<"connections" | "connectors" | null>(null);
+  const [tool, setTool] = useState<"connections" | "connectors" | "sap" | null>(null);
   const [checking, setChecking] = useState(false);
   /** Checks the agent as it is in the editor, without saving it. */
   const checkNow = async () => {
@@ -307,7 +317,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const longNames = longRecordedVariables(flow).length;
   const [noRename, setNoRename] = useState(false);
   const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); },
-    notice: onNotice, fail: onError, where, openChild: onOpenChild };
+    notice: onNotice, fail: onError, where, openChild: onOpenChild, openPath: onOpenPath };
   const [view, setView] = usePersistent<"list" | "flow">("agent.view", "list");
   const [assistant, setAssistant] = useState<"build" | "explain" | null>(null);
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
@@ -596,6 +606,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               { key: "check", label: "Check the agent", description: "Find problems without saving", separatorBefore: true, onSelect: checkNow },
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
+              { key: "sap", label: "Import SAP GUI recording…", description: "Turn a script recorded in SAP GUI into SAP GUI steps", onSelect: () => setTool("sap") },
             ]} trigger={<button type="button" className="st-tool" aria-label="More" title="More step actions"><Icon name="more" size={16} stroke={3} /></button>} />
             {finding !== null && <span className="st-find">
               <input ref={findBox} type="search" aria-label="Find in this agent" placeholder="Find in this agent" value={finding}
@@ -790,6 +801,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       {tool === "connections" && <SavedConnectionsDialog api={api} packages={packages} onClose={() => setTool(null)} onNotice={onNotice} onError={onError} />}
       {tool === "connectors" && <ConnectorsDialog api={api} onClose={() => setTool(null)} onNotice={onNotice} onError={onError}
         onInsert={(step) => { insertSteps(flow, [step]); onNotice("Added a Call operation step for " + String(step.note ?? "the operation") + "."); }} />}
+      {tool === "sap" && <SapImportDialog onClose={() => setTool(null)} onInsert={(steps, note) => { insertSteps(flow, steps); setTool(null); onNotice(note); }} />}
       {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}
         footer={<Button kind="secondary" onClick={() => { api.recordCancel().catch(() => {}); }}>Cancel</Button>}>
         <p role="status">Recording actions (<strong>{recording.count}</strong>)…</p>

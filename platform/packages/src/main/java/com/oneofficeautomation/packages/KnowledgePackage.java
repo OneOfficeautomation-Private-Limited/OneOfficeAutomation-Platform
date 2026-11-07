@@ -236,20 +236,84 @@ public final class KnowledgePackage {
 
     // ---------- actions ----------
 
+    static final String D_KB = "A knowledge base kept in One CommandCenter (AI > Knowledge bases), by name; in Studio without One CommandCenter, knowledge-bases/<name>.json.gz in the work folder.";
+
+    static boolean blank(String s) { return s == null || s.isBlank(); }
+
+    /**
+     * Knowledge bases (G71): One CommandCenter keeps each base's index; a run publishes a new one (Build index) and
+     * fetches it to search, kept in the work folder by its SHA-256 so it is downloaded again only when it changed.
+     */
+    @SuppressWarnings("unchecked")
+    static java.util.function.Function<Map<String, Object>, Map<String, Object>> kbService(ActionContext ctx) {
+        try { return ctx.service("knowledge_bases", java.util.function.Function.class); } catch (OoaException e) { return null; }
+    }
+
+    static String safeName(String kb) {
+        String n = kb.strip();
+        if (!n.matches("[A-Za-z0-9 _.-]{1,80}") || n.contains("..")) throw new ActionException(P + ".BAD_NAME", "The knowledge base name '" + kb + "' is not allowed");
+        return n;
+    }
+
+    static void publish(ActionContext ctx, String kb, byte[] gz, int passages, int documents) throws IOException {
+        var svc = kbService(ctx);
+        if (svc == null) {
+            Path p = ctx.workDir().resolve("knowledge-bases").resolve(safeName(kb) + ".json.gz");
+            Files.createDirectories(p.getParent());
+            Files.write(p, gz);
+            return;
+        }
+        svc.apply(Map.of("op", "publish", "name", kb, "content", Base64.getEncoder().encodeToString(gz), "passages", passages, "documents", documents));
+    }
+
+    static Path indexPath(ActionContext ctx, String indexFile, String kb) {
+        if (!blank(indexFile)) return ctx.resolvePath(indexFile);
+        if (blank(kb)) throw new ActionException(P + ".NO_INDEX", "Give an index file or a knowledge base");
+        var svc = kbService(ctx);
+        if (svc == null) return ctx.workDir().resolve("knowledge-bases").resolve(safeName(kb) + ".json.gz");
+        Path cache = ctx.workDir().resolve(".ooa-knowledge").resolve(safeName(kb) + ".json.gz"), shaFile = cache.resolveSibling(cache.getFileName() + ".sha256");
+        try {
+            String have = Files.exists(cache) && Files.exists(shaFile) ? Files.readString(shaFile).strip() : "";
+            Map<String, Object> r = svc.apply(Map.of("op", "fetch", "name", kb, "sha256", have));
+            if (!Boolean.TRUE.equals(r.get("not_modified"))) {
+                Files.createDirectories(cache.getParent());
+                Files.write(cache, Base64.getDecoder().decode(String.valueOf(r.get("content"))));
+                Files.writeString(shaFile, String.valueOf(r.get("sha256")));
+            }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot keep the knowledge base: " + e.getMessage(), null, true); }
+        return cache;
+    }
+
+    /** A web page's text (G71): HTML without its tags, plain text as it is, a PDF read as a file. */
+    static String fetch(ActionContext ctx, String url) throws IOException, InterruptedException {
+        if (!url.matches("(?i)https?://\\S+")) throw new ActionException(P + ".BAD_URL", "Not a web address: " + url);
+        var client = java.net.http.HttpClient.newBuilder().followRedirects(java.net.http.HttpClient.Redirect.NORMAL).connectTimeout(java.time.Duration.ofSeconds(20)).build();
+        var res = client.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(url)).timeout(java.time.Duration.ofSeconds(60)).header("User-Agent", "OneOfficeAutomation-Knowledge").GET().build(),
+            java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+        if (res.statusCode() >= 400) throw new ActionException(P + ".FETCH", "HTTP " + res.statusCode());
+        String type = res.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
+        if (type.contains("pdf")) {
+            Path tmp = Files.createTempFile("ooa-kb-", ".pdf");
+            try { Files.write(tmp, res.body()); return pdf(tmp); } finally { Files.deleteIfExists(tmp); }
+        }
+        String text = new String(res.body(), StandardCharsets.UTF_8);
+        return type.contains("html") || text.stripLeading().startsWith("<") ? untag(text) : text;
+    }
+
     private static final String D_INDEX = "The index file, e.g. knowledge/policies.json (.json.gz keeps it smaller).";
     private static final String D_EMBED_CONN = "A saved model connection for embeddings, e.g. one for text-embedding-3-small; without one the index is searched by words only.";
 
     @SuppressWarnings("unchecked")
     @Action(id = "build_index", name = "Build index", category = "Knowledge", timeoutSeconds = 3600, capabilities = {"filesystem", "network", "ai"},
             description = "Read documents (files or folders) and texts, split them into passages and write a knowledge index, with embeddings when a model connection is given.",
-            panel = "files, texts, index_file, (Search by meaning too: A saved connection = connection / Set up here = provider, model, api_key, base_url) | chunk_size, overlap, mask_pii")
+            panel = "files, urls, texts, (Keep it in: A file = index_file / A knowledge base in One CommandCenter = knowledge_base), (Search by meaning too: A saved connection = connection / Set up here = provider, model, api_key, base_url) | chunk_size, overlap, mask_pii")
     @Output(name = "passages", type = OoaType.NUMBER, description = "How many passages the index holds.")
     @Output(name = "documents", type = OoaType.NUMBER, description = "How many documents were read.")
     @Output(name = "skipped", type = OoaType.LIST, description = "Files that could not be read, with the reason.")
     public Map<String, Object> buildIndex(ActionContext ctx,
             @Input(name = "files", type = OoaType.LIST, required = false, description = "Files and folders to read (folders with their sub-folders).") List<Object> files,
             @Input(name = "texts", type = OoaType.LIST, required = false, description = "Texts to add, each a dictionary with source and text (for example from the PDF or OCR toolkit).") List<Object> texts,
-            @Input(name = "index_file", type = OoaType.FILE, description = D_INDEX) String indexFile,
+            @Input(name = "index_file", type = OoaType.FILE, required = false, visibleWhen = "knowledge_base=", description = D_INDEX) String indexFile,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = D_EMBED_CONN) String connection,
             @Input(name = "provider", type = OoaType.STRING, required = false, enumValues = {"openai", "azure_openai", "openai_compatible", "google_vertex", "aws_bedrock"}, description = "Embedding provider, when not using a saved connection.") String provider,
             @Input(name = "model", type = OoaType.STRING, required = false, example = "text-embedding-3-small", description = "Embedding model (the deployment for Azure OpenAI).") String model,
@@ -257,9 +321,18 @@ public final class KnowledgePackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
             @Input(name = "chunk_size", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 200, max = 8000, description = "Passage length in characters.") int size,
             @Input(name = "overlap", type = OoaType.NUMBER, required = false, defaultValue = "150", min = 0, max = 2000, description = "Characters each passage shares with the one before, so no sentence is cut off from its context.") int overlap,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mask emails, phone and card numbers before they are sent for embedding (search by those then works by words only).") boolean mask) {
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mask emails, phone and card numbers before they are sent for embedding (search by those then works by words only).") boolean mask,
+            @Input(name = "knowledge_base", type = OoaType.STRING, required = false, visibleWhen = "index_file=", description = D_KB) String kb,
+            @Input(name = "urls", type = OoaType.LIST, required = false, description = "Web pages to read (https:// addresses of intranet or public pages; HTML, text or PDF).") List<Object> urls) {
+        if (blank(indexFile) && blank(kb)) throw new ActionException(P + ".NO_INDEX", "Say where the index goes: an index file or a knowledge base");
         List<Doc> docs = new ArrayList<>();
         List<Object> skipped = new ArrayList<>();
+        for (Object o : urls == null ? List.of() : urls) {
+            String u = Values.text(o).strip();
+            try { docs.add(new Doc(u, fetch(ctx, u))); }
+            catch (ActionException | IOException e) { skipped.add(Map.of("file", u, "reason", String.valueOf(e.getMessage()))); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped"); }
+        }
         for (Object o : files == null ? List.of() : files) {
             Path p = ctx.resolvePath(Values.text(o));
             List<Path> list = new ArrayList<>();
@@ -269,7 +342,7 @@ public final class KnowledgePackage {
             } else if (Files.isRegularFile(p)) list.add(p);
             else throw new ActionException("FILE.NOT_FOUND", "Not found: " + p, "Check the path.");
             for (Path f : list) {
-                if (f.toAbsolutePath().equals(ctx.resolvePath(indexFile).toAbsolutePath())) continue;
+                if (!blank(indexFile) && f.toAbsolutePath().equals(ctx.resolvePath(indexFile).toAbsolutePath())) continue;
                 try { docs.add(new Doc(Files.isDirectory(p) ? p.relativize(f).toString().replace('\\', '/') : f.getFileName().toString(), read(f))); }
                 catch (ActionException | IOException e) { skipped.add(Map.of("file", f.toString(), "reason", e.getMessage())); }
             }
@@ -303,7 +376,17 @@ public final class KnowledgePackage {
             modelInfo.put("provider", c.provider()); modelInfo.put("model", c.model() == null ? "" : c.model());
             if (c.baseUrl() != null && !c.baseUrl().isBlank() && (connection == null || connection.isBlank())) modelInfo.put("base_url", c.baseUrl());
         }
-        try { write(ctx.resolvePath(indexFile), new Index(modelInfo, chunks)); }
+        try {
+            Index idx = new Index(modelInfo, chunks);
+            if (!blank(indexFile)) write(ctx.resolvePath(indexFile), idx);
+            if (!blank(kb)) {
+                Path tmp = Files.createTempFile("ooa-kb-", ".json.gz");
+                try {
+                    write(tmp, idx);
+                    publish(ctx, kb.strip(), Files.readAllBytes(tmp), chunks.size(), docs.size());
+                } finally { Files.deleteIfExists(tmp); }
+            }
+        }
         catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the index: " + e.getMessage()); }
         return Map.of("passages", BigDecimal.valueOf(chunks.size()), "documents", BigDecimal.valueOf(docs.size()), "skipped", skipped);
     }
@@ -335,15 +418,16 @@ public final class KnowledgePackage {
 
     @Action(id = "search", name = "Search", category = "Knowledge", idempotent = true, timeoutSeconds = 120, capabilities = {"filesystem", "network", "ai"},
             description = "Find the passages of a knowledge index that best answer a question, by words and, when the index has embeddings, by meaning.",
-            panel = "index_file, query, top_k | connection, api_key")
+            panel = "(Index: A file = index_file / A knowledge base = knowledge_base), query, top_k | connection, api_key")
     @Output(name = "results", type = OoaType.LIST, description = "Best passages first: n, source, passage, score (0 to 1), text.")
     public Map<String, Object> search(ActionContext ctx,
-            @Input(name = "index_file", type = OoaType.FILE, description = D_INDEX) String indexFile,
+            @Input(name = "index_file", type = OoaType.FILE, required = false, visibleWhen = "knowledge_base=", description = D_INDEX) String indexFile,
             @Input(name = "query", type = OoaType.STRING, description = "The question or words to look for.") String query,
             @Input(name = "top_k", type = OoaType.NUMBER, required = false, defaultValue = "5", min = 1, max = 50, description = "How many passages to return.") int topK,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = "The embedding connection, when not the one the index was built with.") String connection,
-            @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = "The embedding API key, for an index built without a saved connection.") Object key) {
-        Index idx = load(ctx.resolvePath(indexFile));
+            @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = "The embedding API key, for an index built without a saved connection.") Object key,
+            @Input(name = "knowledge_base", type = OoaType.STRING, required = false, visibleWhen = "index_file=", description = D_KB) String kb) {
+        Index idx = load(indexPath(ctx, indexFile, kb));
         return Map.of("results", results(rank(idx.chunks(), query, queryVector(ctx, idx, query, connection, key), topK)));
     }
 
@@ -352,14 +436,14 @@ public final class KnowledgePackage {
 
     @Action(id = "ask", name = "Ask", category = "Knowledge", timeoutSeconds = 600, capabilities = {"filesystem", "network", "ai"},
             description = "Answer a question from a knowledge index: the best passages go to the model, which answers from them only and cites them.",
-            panel = "index_file, question, top_k, (Model to answer with: A saved connection = connection / Set up here = provider, model, api_key, base_url) | embedding_connection, max_tokens, mask_pii, timeout_seconds")
+            panel = "(Index: A file = index_file / A knowledge base = knowledge_base), question, top_k, (Model to answer with: A saved connection = connection / Set up here = provider, model, api_key, base_url) | embedding_connection, max_tokens, mask_pii, timeout_seconds")
     @Output(name = "answer", type = OoaType.STRING, description = "The answer, citing passages like [1].")
     @Output(name = "sources", type = OoaType.LIST, description = "The passages given to the model: n, source, passage, score, text.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when no passage matched, so the model was not asked.")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request.")
     @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens in the answer.")
     public Map<String, Object> ask(ActionContext ctx,
-            @Input(name = "index_file", type = OoaType.FILE, description = D_INDEX) String indexFile,
+            @Input(name = "index_file", type = OoaType.FILE, required = false, visibleWhen = "knowledge_base=", description = D_INDEX) String indexFile,
             @Input(name = "question", type = OoaType.STRING, description = "The question.") String question,
             @Input(name = "top_k", type = OoaType.NUMBER, required = false, defaultValue = "5", min = 1, max = 20, description = "How many passages the model gets.") int topK,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
@@ -370,8 +454,9 @@ public final class KnowledgePackage {
             @Input(name = "embedding_connection", type = OoaType.STRING, required = false, description = "The embedding connection, when not the one the index was built with.") String embConnection,
             @Input(name = "max_tokens", type = OoaType.NUMBER, required = false, defaultValue = "1024", description = "Maximum answer length in tokens.") int max,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = GenAiPackage.D_MASK) boolean mask,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = GenAiPackage.D_TIMEOUT) int timeout) {
-        Index idx = load(ctx.resolvePath(indexFile));
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = GenAiPackage.D_TIMEOUT) int timeout,
+            @Input(name = "knowledge_base", type = OoaType.STRING, required = false, visibleWhen = "index_file=", description = D_KB) String kb) {
+        Index idx = load(indexPath(ctx, indexFile, kb));
         List<Hit> hits = rank(idx.chunks(), question, queryVector(ctx, idx, question, embConnection, null), topK);
         if (hits.isEmpty())
             return Out.of("answer", "The documents do not say.", "sources", List.of(), "found", false, "input_tokens", BigDecimal.ZERO, "output_tokens", BigDecimal.ZERO);

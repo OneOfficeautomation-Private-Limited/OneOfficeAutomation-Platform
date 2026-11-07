@@ -37,6 +37,8 @@ public final class Platform {
         DEFAULTS.put("session_hours", 8);
         DEFAULTS.put("max_upload_mb", 25);   // Excel work items and licence files travel inside JSON, as Base64
         DEFAULTS.put("queue_poll_seconds", 15);
+        DEFAULTS.put("serverless_max_minutes", 5);      // the longest a serverless Agent API run may last (G55)
+        DEFAULTS.put("serverless_parallel", 4);         // how many serverless runs at once
         DEFAULTS.put("default_minutes_saved", 0);
         DEFAULTS.put("hourly_cost", 0);   // what an hour of the manual work costs, for money saved (Value)
         DEFAULTS.put("currency", "");     // its currency, ISO 4217 (INR, USD, EUR)
@@ -51,6 +53,11 @@ public final class Platform {
         DEFAULTS.put("mcp_runner", "");
         DEFAULTS.put("mcp_timeout_seconds", 120);
         DEFAULTS.put("mcp_documents", 1);         // Document Automation's tools for AI assistants (McpDocuments)
+        DEFAULTS.put("chat_runner", "");
+        DEFAULTS.put("chat_mode", "deterministic");
+        DEFAULTS.put("chat_connection", "");
+        DEFAULTS.put("chat_approvers", "role:admin");
+        DEFAULTS.put("chat_mode_by_role", "");   // lines role=mode (deterministic, llm, hybrid) that override chat_mode for that main role
         DEFAULTS.put("run_retention_days", 0);
         DEFAULTS.put("run_log_retention_days", 0);
         DEFAULTS.put("syslog_target", "");
@@ -79,6 +86,8 @@ public final class Platform {
         DEFAULTS.put("password_history", 0);
         DEFAULTS.put("password_max_days", 0);
         DEFAULTS.put("ai_call_retention_days", 0);
+        DEFAULTS.put("ai_enabled", 1);       // item 4n: AI on; an administrator can switch it off for every agent
+        DEFAULTS.put("ai_log_content", 0);   // item 4n: only metadata is logged unless an administrator turns this on
         DEFAULTS.put("work_item_retention_days", 0);
         DEFAULTS.put("backup_keep_days", 7);
         DEFAULTS.put("backup_folder", "");
@@ -122,6 +131,14 @@ public final class Platform {
         // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
         DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
         DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
+        // approving outside the Task inbox (G43)
+        DEFAULTS.put("task_action_links", 0);           // approvals carry each person's own signed Approve and Reject links (needs public_url)
+        DEFAULTS.put("task_link_hours", 72);            // how long those links work
+        DEFAULTS.put("teams_approval_webhook_ref", ""); // a vault reference to a Teams Workflows webhook address: new tasks post a card there
+        DEFAULTS.put("push_server", "");                // an ntfy server for phone notifications, e.g. https://ntfy.sh or one on the company network
+        DEFAULTS.put("push_token_ref", "");             // a vault reference to that server's access token, when it needs one
+        // G45: what a Citizen Developer seat cannot check in (scripts, code, the command line)
+        DEFAULTS.put("citizen_blocked_toolkits", "ooa.script, ooa.dotnet, ooa.shell, ooa.application");
         DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
         DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
         DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token
@@ -157,6 +174,8 @@ public final class Platform {
         Map.entry("session_hours", new long[] { 1, 720 }),
         Map.entry("max_upload_mb", new long[] { 1, 1024 }),
         Map.entry("queue_poll_seconds", new long[] { 3, 3600 }),
+        Map.entry("serverless_max_minutes", new long[] { 1, 60 }),
+        Map.entry("serverless_parallel", new long[] { 1, 16 }),
         Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
         Map.entry("hourly_cost", new long[] { 0, 100000 }),
         Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),
@@ -179,6 +198,8 @@ public final class Platform {
         Map.entry("password_history", new long[] { 0, 24 }),
         Map.entry("password_max_days", new long[] { 0, 3650 }),
         Map.entry("ai_call_retention_days", new long[] { 0, 36500 }),
+        Map.entry("ai_enabled", new long[] { 0, 1 }),
+        Map.entry("ai_log_content", new long[] { 0, 1 }),
         Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_keep_days", new long[] { 1, 3650 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }),
@@ -203,6 +224,8 @@ public final class Platform {
         Map.entry("events_allow_private", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
+        Map.entry("task_action_links", new long[] { 0, 1 }),
+        Map.entry("task_link_hours", new long[] { 1, 720 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
         Map.entry("ldap_nested_groups", new long[] { 0, 1 }),
         Map.entry("value_goal_money", new long[] { 0, 1_000_000_000_000L }));
@@ -291,6 +314,17 @@ public final class Platform {
                 // a SaaS tenant's files stay in its own folder of the shared server
                 if (cr.tenant != null && (k.equals("repo_files_folder") || k.equals("backup_folder")) && !s.isEmpty())
                     throw ControlRoom.notInSaas("Choosing a folder on the server");
+                if (k.equals("chat_mode") && !Chat.MODES.contains(s))
+                    throw new OoaException("CR.BAD_INPUT", "One Chat's mode is one of " + String.join(", ", Chat.MODES));
+                if (k.equals("chat_mode_by_role") && !s.isEmpty()) for (String line : s.split("[\\n,;]")) {
+                    if (line.isBlank()) continue;
+                    String[] kv = line.split("=", 2);
+                    if (kv.length != 2 || !cr.roleExists(kv[0].trim()) || !Chat.MODES.contains(kv[1].trim()))
+                        throw new OoaException("CR.BAD_INPUT", "Each line is role=mode, with an existing role and a mode of " + String.join(", ", Chat.MODES),
+                                "For example: bot_runner=deterministic, admin=hybrid");
+                }
+                if (k.equals("chat_approvers") && !s.isEmpty() && !Arrays.stream(s.split(",")).map(String::trim).allMatch(a -> a.matches("(user|role):[^\\s,]+")))
+                    throw new OoaException("CR.BAD_INPUT", "Approvers are user:name or role:name entries, comma separated", "For example role:admin, user:fin.lead");
                 if (k.equals("saml_idp_sso_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s]+"))
                     throw new OoaException("CR.BAD_INPUT", "The identity provider's sign-in address starts with https://");
                 if (k.equals("saml_idp_certificate") && !s.isEmpty()) {
@@ -344,6 +378,10 @@ public final class Platform {
                 if (k.equals("siem_https_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
                     throw new OoaException("CR.BAD_INPUT", "The SIEM address starts with https://, for example https://splunk.example.com:8088/services/collector/event");
                 if (k.equals("siem_https_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The SIEM token is a vault reference: vault folder/credential/attribute");
+                if ((k.equals("teams_approval_webhook_ref") || k.equals("push_token_ref")) && !s.isEmpty() && s.split("/").length != 3)
+                    throw new OoaException("CR.BAD_INPUT", "This is a vault reference: vault folder/credential/attribute", "Keep the secret in the vault and give where it is.");
+                if (k.equals("push_server") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s?#]*"))
+                    throw new OoaException("CR.BAD_INPUT", "The push server is a web address such as https://ntfy.sh");
                 if (k.equals("siem_https_auth") && !s.equals("bearer") && !s.equals("splunk")) throw new OoaException("CR.BAD_INPUT", "The SIEM sign-in is bearer or splunk");
                 if (k.equals("promotion_targets") && !s.isEmpty())
                     for (String t : s.split("[,;\\s]+"))
@@ -667,8 +705,17 @@ public final class Platform {
             Instant ts;
             try { ts = Instant.parse(String.valueOf(c.get("ts"))); } catch (RuntimeException e) { ts = now(); }
             Object masked = c.get("masked"), tools = c.get("tool_calls");
+            String callId = id("ai");
+            // full logging (item 4n, off at first): the masked prompt and answer, kept beside the record, removed with it
+            if (c.get("content") instanceof Map<?, ?> content && intSetting("ai_log_content") == 1) {
+                try {
+                    java.nio.file.Path dir = cr.dataDir.resolve("ai-content");
+                    java.nio.file.Files.createDirectories(dir);
+                    java.nio.file.Files.writeString(dir.resolve(callId + ".json"), JsonLite.write(content), java.nio.charset.StandardCharsets.UTF_8);
+                } catch (java.io.IOException ignored) { /* the record itself is still kept */ }
+            }
             db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256, connection) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", callId, run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
                     cut(c.get("purpose"), 80), cut(c.get("provider"), 40), cut(c.get("model"), 200), num(c.get("input_tokens")), num(c.get("output_tokens")),
                     c.get("latency_ms") instanceof Number n ? n.longValue() : null,
                     masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64),
@@ -686,8 +733,13 @@ public final class Platform {
         if (r == null) throw notFound("Run");
         cr.folders.require(by, (String) r.get("bot_path"), "view", "view this agent's runs");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT ts, purpose, provider, model, connection, input_tokens, output_tokens, latency_ms, masked, tool_calls FROM ai_calls WHERE run_id = ? ORDER BY ts", runId)) {
+        boolean seeContent = cr.can(by, "audit.view");
+        for (Map<String, Object> c : db.query("SELECT id, ts, purpose, provider, model, connection, input_tokens, output_tokens, latency_ms, masked, tool_calls FROM ai_calls WHERE run_id = ? ORDER BY ts", runId)) {
             Map<String, Object> m = new LinkedHashMap<>(c);
+            java.nio.file.Path f = cr.dataDir.resolve("ai-content").resolve(c.get("id") + ".json");
+            m.remove("id");
+            // the prompt and answer (full logging, item 4n) only for people who may read the audit trail
+            if (seeContent && java.nio.file.Files.isRegularFile(f)) try { m.put("content", JsonLite.parse(java.nio.file.Files.readString(f))); } catch (Exception ignored) { }
             for (String k : List.of("masked", "tool_calls")) if (c.get(k) instanceof String sv && !sv.isBlank()) { try { m.put(k, JsonLite.parse(sv)); } catch (RuntimeException ignored) { } }
             out.add(m);
         }
@@ -1387,6 +1439,12 @@ public final class Platform {
         if (runDays > 0 || logDays > 0) purge(runDays, logDays, "system", null);
         // AI call records and finished work-queue items (D2)
         int aiDays = intSetting("ai_call_retention_days"), itemDays = intSetting("work_item_retention_days");
+        if (aiDays > 0) {
+            java.nio.file.Path dir = cr.dataDir.resolve("ai-content");
+            if (java.nio.file.Files.isDirectory(dir))
+                for (Map<String, Object> old : db.query("SELECT id FROM ai_calls WHERE ts < ?", now().minus(Duration.ofDays(aiDays))))
+                    try { java.nio.file.Files.deleteIfExists(dir.resolve(old.get("id") + ".json")); } catch (java.io.IOException ignored) { }
+        }
         if (aiDays > 0) { int n = db.update("DELETE FROM ai_calls WHERE ts < ?", now().minus(Duration.ofDays(aiDays))); if (n > 0) cr.audit.record("system", "ai.calls_purged", "ai", null, Map.of("removed", n, "days", aiDays), "ok", null); }
         if (itemDays > 0) { int n = db.update("DELETE FROM queue_items WHERE status IN ('success', 'failed') AND finished < ?", now().minus(Duration.ofDays(itemDays))); if (n > 0) cr.audit.record("system", "queue.items_purged", "queue", null, Map.of("removed", n, "days", itemDays), "ok", null); }
         int auditDays = intSetting("audit_retention_days");
@@ -1891,6 +1949,11 @@ public final class Platform {
             String pid = String.valueOf(s.get("action")).split("/")[0];
             if (off.contains(pid)) throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + pid + "' is switched off in this One CommandCenter (step " + s.get("id") + ")",
                     "Ask an administrator to switch it on under Toolkits, or remove the step.");
+            // a coded agent's step (G70) lists the toolkits its code may call
+            if (s.get("args") instanceof Map<?, ?> a && a.get("uses") instanceof List<?> uses && "ooa.coded".equals(pid))
+                for (Object u : uses) if (off.contains(String.valueOf(u).trim()))
+                    throw new OoaException("CR.TOOLKIT_DISABLED", "The toolkit '" + u + "' is switched off in this One CommandCenter (its code in step " + s.get("id") + " may call it)",
+                        "Ask an administrator to switch it on under Toolkits, or take it out of the step's Toolkits it may call.");
         }
     }
 }

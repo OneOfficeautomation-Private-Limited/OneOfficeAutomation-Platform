@@ -16,14 +16,19 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * Serverless Agent APIs (C7): agents that only call web services and work on data run inside One CommandCenter, with
  * no runner. They run on a virtual runner, "One CommandCenter (serverless)", so they are queued, logged, audited, licensed
  * and finished like any other run. Only the toolkits below may be used (no desktop, browser, programs, scripts or
- * databases), every file path stays inside the run's own temporary workspace, at most four run at once, and a run
- * lasts at most five minutes.
+ * databases), every file path stays inside the run's own temporary workspace. How many run at once (1 to 16, four at
+ * first) and how long a run may last (1 to 60 minutes, five at first) are settings (gap G55: longer integration runs).
  */
 public final class ServerlessRuns {
     static final String DEVICE = "dev_serverless";
     static final String NAME = "One CommandCenter (serverless)";
-    static final int PARALLEL = 4;
+    static final int PARALLEL = 4, MAX_PARALLEL = 16;
     static final double MAX_SECONDS = 300;
+    /** The longest a serverless run may last now (Settings: serverless_max_minutes). */
+    double maxSeconds() { int m = cr.platform.intSetting("serverless_max_minutes"); return m <= 0 ? MAX_SECONDS : m * 60.0; }
+    /** How many serverless runs at once (Settings: serverless_parallel). */
+    int parallel() { int n = cr.platform.intSetting("serverless_parallel"); return n <= 0 ? PARALLEL : Math.min(MAX_PARALLEL, n); }
+    private final java.util.concurrent.atomic.AtomicInteger active = new java.util.concurrent.atomic.AtomicInteger();
     /** Toolkits that need no desktop and cannot reach the server's programs, settings or databases. */
     static final Set<String> TOOLKITS = Set.of("core", "ooa.string", "ooa.number", "ooa.boolean", "ooa.datetime", "ooa.list", "ooa.dictionary",
         "ooa.datatable", "ooa.json", "ooa.csv", "ooa.xml", "ooa.log", "ooa.crypto", "ooa.fuzzy", "ooa.currency", "ooa.global_values", "ooa.vault", "ooa.pgp",
@@ -35,7 +40,7 @@ public final class ServerlessRuns {
     private final Db db;
     private final PackageRegistry registry;
     private final Path dataDir;
-    private final ExecutorService pool = Executors.newFixedThreadPool(PARALLEL, Thread.ofPlatform().daemon().name("ooa-serverless-", 0).factory());
+    private final ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL, Thread.ofPlatform().daemon().name("ooa-serverless-", 0).factory());
     private final ScheduledExecutorService beat = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().name("ooa-serverless-beat").factory());
 
     ServerlessRuns(ControlRoom cr, PackageRegistry registry, Path dataDir) {
@@ -55,7 +60,7 @@ public final class ServerlessRuns {
             try {
                 db.update("UPDATE devices SET last_seen = ? WHERE id = ?", now(), DEVICE);
                 db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE device_id = ? AND status = 'running' AND started < ?", now(),
-                    JsonLite.write(new OoaException("RUN.INTERRUPTED", "One CommandCenter stopped during the run").toMap()), DEVICE, now().minusSeconds((long) MAX_SECONDS + 120));
+                    JsonLite.write(new OoaException("RUN.INTERRUPTED", "One CommandCenter stopped during the run").toMap()), DEVICE, now().minusSeconds((long) maxSeconds() + 120));
             } catch (RuntimeException ignored) { }
         }, 0, 30, TimeUnit.SECONDS);
         kick();
@@ -91,15 +96,16 @@ public final class ServerlessRuns {
             "Run it on a runner, or keep to web services and data toolkits (REST, SOAP, the cloud apps, Excel, PDF, JSON and the like).");
     }
 
-    /** Looks for queued serverless runs; each pool thread runs one at a time. */
-    void kick() { pool.submit(this::drain); }
+    /** Looks for queued serverless runs; at most parallel() threads take runs, each one at a time. */
+    void kick() { if (active.get() < parallel()) pool.submit(this::drain); }
 
     private void drain() {
+        if (active.incrementAndGet() > parallel()) { active.decrementAndGet(); return; }
         try {
             for (Map<String, Object> job; (job = cr.claimNext(device())) != null; ) execute(job);
         } catch (RuntimeException e) {
             cr.audit.record("system", "serverless.run", "device", DEVICE, String.valueOf(e.getMessage()), "failed", null);
-        }
+        } finally { active.decrementAndGet(); }
     }
 
     @SuppressWarnings("unchecked")
@@ -154,7 +160,7 @@ public final class ServerlessRuns {
                     cr.runRequest(d, runId, String.valueOf(req.get("call")), req.get("args") instanceof Map<?, ?> a ? (Map<String, Object>) a : Map.of()))
                 .principal(String.valueOf(job.getOrDefault("principal", "agent"))).build();
             RunResult result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),
-                new Runner.RunOptions().runId(runId).cancel(cancel).maxRunSeconds(MAX_SECONDS));
+                new Runner.RunOptions().runId(runId).cancel(cancel).maxRunSeconds(maxSeconds()));
             resultMap = new LinkedHashMap<>(result.toMap());
             List<Object> ai = aiCalls(ws.resolve("ai-governance.jsonl"));
             if (!ai.isEmpty()) resultMap.put("ai_calls", ai);

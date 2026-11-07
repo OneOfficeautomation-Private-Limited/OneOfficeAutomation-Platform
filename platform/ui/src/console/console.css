@@ -121,6 +121,7 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-describe { display: grid; gap: 6px; margin: 8px 0; }
 .cc-shot { display: block; max-width: 100%; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); margin: 6px 0; }
 .cc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.cc-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }   /* a group of fields turned off together (read-only ideas) */
 @media (max-width: 640px) { .cc-grid2 { grid-template-columns: 1fr; } }
 .cc-status.is-active { color: var(--ui-success); }
 .cc-status.is-locked { color: var(--ui-error-text); }
@@ -836,3 +837,32 @@ a.ov-tab { text-decoration: none; }
 .cc-ev-types { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .cc-ev-types strong { margin-bottom: 2px; }
 .cc-ev-types .st-check-line { display: flex; align-items: center; gap: 6px; }
+/* G43: phone notifications, the server and topic to subscribe to */
+.cc-push-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+.cc-push-facts dt { font-weight: 600; }
+.cc-push-facts dd { margin: 0; overflow-wrap: anywhere; }
+/* G48: the stage bar above a workflow task (done, this task, to come); text #1f2933 / white on #1d6b38, #2f6fde */
+.cc-stagebar { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0 0 10px; padding: 0; }
+.cc-stagebar li { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--ui-border); border-radius: 999px; font-size: 12.5px; background: var(--ui-bg); color: var(--ui-text); }
+.cc-stagebar-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700; background: var(--ui-soft); color: var(--ui-text); }
+.cc-stagebar li.is-done .cc-stagebar-mark { background: #1d6b38; color: #fff; }
+.cc-stagebar li.is-current { border-color: var(--ui-accent); font-weight: 600; }
+.cc-stagebar li.is-current .cc-stagebar-mark { background: var(--ui-accent); color: #fff; }
+
+/* Apps (G67): an app's page, its outputs, and the designer's list of components */
+.cc-app { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.cc-app-out { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 6px 0 0; }
+.cc-app-out div { display: contents; }
+.cc-app-out dt { font-weight: 600; }
+.cc-app-out dd { margin: 0; overflow-wrap: anywhere; }
+.cc-app-design { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
+.cc-app-design > li { border: 1px solid var(--ui-border); border-radius: 4px; padding: 8px; }
+.cc-embed { min-height: 100vh; background: var(--ui-bg); }   /* an app inside another site (G68) */
+/* phones (G69): the open menu lies over the page instead of squeezing it; lists scroll sideways; dialogs use the width */
+@media (max-width: 640px) {
+  .cc-app .st-body { position: relative; }
+  .cc-app .st-menu.is-console:not(.is-mini) { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; width: min(300px, 86vw) !important; box-shadow: 4px 0 16px rgba(0, 0, 0, .25); }
+  .cc-app .st-main { min-width: 0; }
+  .cc-list-scroll { overflow-x: auto; }
+  .ui-dialog { max-width: calc(100vw - 16px) !important; }
+}

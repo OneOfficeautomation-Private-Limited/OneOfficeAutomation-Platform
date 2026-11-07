@@ -262,11 +262,20 @@ final class LlmClient {
         if (check != null && out.text() != null && !out.text().isBlank()) moderate(ctx, cfg, provider, out.text(), check.equals("block"));
         // the AI guardrails policy's toxicity check, for every provider
         Toxicity.check(ctx, Toxicity.policy(ctx), out.text(), "model's answer", "AI.TOXIC_ANSWER", false);
-        govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs);
+        govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs, r.text());
         return out;
     }
 
     static void govern(ActionContext ctx, Config cfg, String provider, String purpose, Reply r, long ms, List<Map<String, Object>> sent) {
+        govern(ctx, cfg, provider, purpose, r, ms, sent, null);
+    }
+
+    /**
+     * The call's governance record. Only what was asked of which model and what it cost, plus a hash of the prompt; the
+     * prompt and the answer themselves only when an administrator turned on full AI logging (Settings, item 4n), and then
+     * as the provider saw them: with personal data masked.
+     */
+    static void govern(ActionContext ctx, Config cfg, String provider, String purpose, Reply r, long ms, List<Map<String, Object>> sent, String maskedAnswer) {
         try {
             Map<String, Object> rec = new LinkedHashMap<>();
             rec.put("ts", Instant.now().toString());
@@ -283,6 +292,13 @@ final class LlmClient {
             rec.put("masked", r.masked());
             rec.put("tool_calls", r.toolCalls().stream().map(ToolCall::name).toList());
             rec.put("prompt_sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(JsonLite.canonical(sent).getBytes(StandardCharsets.UTF_8))));
+            if (Boolean.TRUE.equals(ModelConnections.guardrails(ctx).get("log_content"))) {
+                String p = JsonLite.write(sent);
+                Map<String, Object> content = new LinkedHashMap<>();
+                content.put("prompt", p.length() > 50_000 ? p.substring(0, 50_000) : p);
+                if (maskedAnswer != null) content.put("answer", maskedAnswer.length() > 50_000 ? maskedAnswer.substring(0, 50_000) : maskedAnswer);
+                rec.put("content", content);
+            }
             Files.writeString(ctx.workDir().resolve("ai-governance.jsonl"), JsonLite.write(rec) + "\n", StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (Exception ignored) { /* governance logging must never break a run */ }
         ctx.info("AI call: " + provider + "/" + cfg.model() + ", " + r.inTokens() + "+" + r.outTokens() + " tokens" + (r.masked().isEmpty() ? "" : ", masked " + r.masked()));

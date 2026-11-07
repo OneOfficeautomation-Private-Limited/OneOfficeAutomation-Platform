@@ -1,0 +1,55 @@
+# Run a One CommandCenter test set from a GitHub workflow and fail the job when a case fails (gap G61).
+#
+#   - uses: OneOfficeautomation-Private-Limited/OneOfficeAutomation-Platform/platform/deploy/ci/github-action@master
+#     with:
+#       url: https://ooa.example.com
+#       token: ${{ secrets.OOA_API_KEY }}      # an API key (Administration > API keys) that may run tests in the agent's folder
+#       test-set: tset_1a2b3c
+#       pool: pool_ci                            # or runner: dev_...
+name: Run a One CommandCenter test set
+description: Starts an agent test set on a runner or pool, waits for every case and fails when any case fails.
+inputs:
+  url: { description: One CommandCenter's address, required: true }
+  token: { description: An API key, required: true }
+  test-set: { description: The test set id, required: true }
+  runner: { description: A runner id, required: false, default: "" }
+  pool: { description: A runner pool id, required: false, default: "" }
+  timeout-minutes: { description: How long to wait for the results, required: false, default: "30" }
+outputs:
+  test-run: { description: The test run id, value: "${{ steps.run.outputs.test_run }}" }
+  passed: { description: Cases passed, value: "${{ steps.run.outputs.passed }}" }
+  total: { description: Cases in the run, value: "${{ steps.run.outputs.total }}" }
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        OOA_URL: ${{ inputs.url }}
+        OOA_TOKEN: ${{ inputs.token }}
+        OOA_SET: ${{ inputs.test-set }}
+        OOA_RUNNER: ${{ inputs.runner }}
+        OOA_POOL: ${{ inputs.pool }}
+        OOA_TIMEOUT: ${{ inputs.timeout-minutes }}
+      run: |
+        set -euo pipefail
+        base="${OOA_URL%/}/api"
+        auth=(-H "Authorization: Bearer $OOA_TOKEN" -H "Content-Type: application/json")
+        body=$(jq -nc --arg d "$OOA_RUNNER" --arg p "$OOA_POOL" '{} + (if $d != "" then {device_id: $d} else {} end) + (if $p != "" then {pool_id: $p} else {} end)')
+        started=$(curl -fsS -X POST "${auth[@]}" -d "$body" "$base/test-sets/$OOA_SET/run")
+        tr=$(echo "$started" | jq -r .test_run_id)
+        echo "test_run=$tr" >> "$GITHUB_OUTPUT"
+        echo "Started test run $tr ($(echo "$started" | jq -r .started) of $(echo "$started" | jq -r .cases) cases)"
+        deadline=$(( $(date +%s) + OOA_TIMEOUT * 60 ))
+        while :; do
+          r=$(curl -fsS "${auth[@]}" "$base/test-sets/runs/$tr")
+          status=$(echo "$r" | jq -r .status)
+          if [ "$status" != "running" ]; then break; fi
+          if [ "$(date +%s)" -gt "$deadline" ]; then echo "::error::The test run did not finish in $OOA_TIMEOUT minutes"; exit 1; fi
+          sleep 10
+        done
+        echo "passed=$(echo "$r" | jq -r .passed)" >> "$GITHUB_OUTPUT"
+        echo "total=$(echo "$r" | jq -r .total)" >> "$GITHUB_OUTPUT"
+        echo "$r" | jq -r '.results[] | "\(if .passed then "PASS" else "FAIL" end)  \(.case_name)  \(.detail // "")"'
+        if [ "$status" != "passed" ]; then echo "::error::Test run $tr: $(echo "$r" | jq -r .passed) of $(echo "$r" | jq -r .total) cases passed"; exit 1; fi
+        echo "All $(echo "$r" | jq -r .total) cases passed."

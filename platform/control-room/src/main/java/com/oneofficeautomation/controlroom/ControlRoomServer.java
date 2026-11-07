@@ -75,6 +75,18 @@ public final class ControlRoomServer {
         writeBody(ex, status, b);
     }
 
+    /** A form post (application/x-www-form-urlencoded) as name to value. */
+    static Map<String, String> formFields(String body) {
+        Map<String, String> out = new HashMap<>();
+        for (String pair : body.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            try { out.put(java.net.URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8), java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8)); }
+            catch (IllegalArgumentException ignored) { }
+        }
+        return out;
+    }
+
     private static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
 
     /**
@@ -151,6 +163,7 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
         // long-running agents (G36): resume suspended runs whose wait is over or timed out
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.runWaits.tick(); } catch (RuntimeException ignored) { } }, 6, 5, TimeUnit.SECONDS);
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.poolScaling.tick(); } catch (RuntimeException ignored) { } }, 30, 60, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
         // documents waiting for review in Document Automation become Task inbox tasks
@@ -176,6 +189,7 @@ public final class ControlRoomServer {
             // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
             else if (path.equals("/") && ex.getRequestURI().getRawQuery() == null) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
+            else if (path.startsWith("/embed/")) embedPage(ex, path.substring(7));
             else if (path.equals("/documents") || path.startsWith("/documents/")) documentsPage(ex, path);
             else serveStatic(ex, path);
         } catch (OoaException e) {
@@ -388,6 +402,16 @@ public final class ControlRoomServer {
         }
 
         // ---------- public ----------
+        // apps embedded in other pages (G68): the embed key, never a session, and only for that link's app
+        if (seg.length >= 3 && seg[0].equals("embed")) {
+            String key = ex.getRequestHeaders().getFirst("X-OOA-Embed-Key");
+            if (m.equals("GET") && seg.length == 3 && seg[2].equals("app")) sendJson(ex, 200, cr.appEmbeds.app(seg[1], key));
+            else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.appEmbeds.act(seg[1], key, map(body(ex)), ip));
+            else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.appEmbeds.runStatus(seg[1], key, seg[3]));
+            else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.appEmbeds.records(seg[1], key, seg[3], q.get("q")));
+            else notFound(ex);
+            return;
+        }
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
             // with the sign-in notice set to be accepted, a sign-in without the tick is refused
@@ -491,6 +515,21 @@ public final class ControlRoomServer {
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
             return;
         }
+        // approving from e-mail, Teams or a phone (G43): the signed link is the sign-in; the page asks to confirm first
+        if (seg.length == 2 && seg[0].equals("tasks") && seg[1].equals("act") && (m.equals("GET") || m.equals("POST"))) {
+            String page;
+            if (m.equals("GET")) page = cr.taskChannels.page(q.get("t"));
+            else {
+                Map<String, String> f = formFields(new String(ex.getRequestBody().readNBytes(16_384), StandardCharsets.UTF_8));
+                page = cr.taskChannels.act(f.get("t"), f.get("comment"), ip);
+            }
+            byte[] b = page.getBytes(StandardCharsets.UTF_8);
+            securityHeaders(ex);
+            ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+            ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+            writeBody(ex, 200, b);
+            return;
+        }
         // long-running agents (G36): a one-time callback URL; the token is the secret, the body at most 64 KB
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("callbacks")) {
             byte[] raw = ex.getRequestBody().readNBytes(RunWaits.MAX_CALLBACK_BODY + 1);
@@ -560,6 +599,8 @@ public final class ControlRoomServer {
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
             else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
+            else if (m.equals("POST") && route.equals("agent/data")) sendJson(ex, 200, cr.dataStore.forRun(d, map(body(ex))));   // Data store (G66)
+            else if (m.equals("POST") && route.equals("agent/knowledge")) sendJson(ex, 200, cr.knowledge.forRun(d, map(body(ex))));   // Knowledge bases (G71)
             else if (m.equals("POST") && route.equals("agent/locks")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.locks.forRun(d, (String) b.get("run_id"), b)); }   // Environment locks
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
@@ -674,6 +715,13 @@ public final class ControlRoomServer {
                 Map<String, Object> res = mcp.handle(u, body(ex), ip);
                 if (res == null) ex.sendResponseHeaders(202, -1); else sendJson(ex, 200, res);
             }
+            case "chat" -> {
+                // One Chat: POST {session_id?, message} sends a message; GET chat/{session} reads that chat's messages
+                if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.chat.message(u, (String) b.get("session_id"), (String) b.get("message"), (String) b.get("lang"), ip)); }
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("session_id", seg[1], "messages", cr.chat.history(u, seg[1])));
+                else notFound(ex);
+            }
             case "workflows" -> {
                 if (m.equals("GET") && route.equals("workflows/runs") && q.get("reference") != null) sendJson(ex, 200, cr.workflows.run(u, null, q.get("reference")));
                 else if (m.equals("GET") && route.equals("workflows/runs")) sendJson(ex, 200, Map.of("runs", cr.workflows.runs(u, q.get("status"))));
@@ -699,6 +747,12 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, cr.db.info());
             }
             case "settings" -> {
+                // G43: phone notifications for the signed-in person, and a test card for the Teams channel
+                if (route.equals("me/push") && m.equals("GET")) { sendJson(ex, 200, cr.taskChannels.pushStatus(u)); return; }
+                if (route.equals("me/push") && m.equals("POST")) { sendJson(ex, 200, cr.taskChannels.pushEnable(u, ip)); return; }
+                if (route.equals("me/push") && m.equals("DELETE")) { cr.taskChannels.pushDisable(u, ip); sendJson(ex, 200, Map.of("ok", true)); return; }
+                if (route.equals("me/push/test") && m.equals("POST")) { sendJson(ex, 200, cr.taskChannels.pushTest(u)); return; }
+                if (m.equals("POST") && route.equals("settings/teams-test")) { sendJson(ex, 200, cr.taskChannels.teamsTest(u)); return; }
                 if (m.equals("GET") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, Map.of("tokens", cr.scim.tokens(u))); return; }
                 if (m.equals("POST") && route.equals("settings/scim-tokens")) { sendJson(ex, 200, cr.scim.makeToken(u, (String) map(body(ex)).get("name"), ip)); return; }
                 if (m.equals("DELETE") && route.startsWith("settings/scim-tokens/") && seg.length == 3) { cr.scim.revokeToken(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); return; }
@@ -729,6 +783,8 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
                 else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("scaling")) sendJson(ex, 200, cr.poolScaling.get(u, seg[1]));
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("scaling")) sendJson(ex, 200, cr.poolScaling.put(u, seg[1], map(body(ex)), ip));
                 else notFound(ex);
             }
             case "apitasks" -> {
@@ -986,6 +1042,10 @@ public final class ControlRoomServer {
                     try { sendJson(ex, 200, cr.gitSync.syncNow(u, ip)); }
                     catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Git sync failed: " + e.getMessage()); }
                 }
+                else if (m.equals("POST") && route.equals("git/pull")) {   // G70: Git as the source of truth (a pipeline may call it with an API key)
+                    try { sendJson(ex, 200, cr.gitSync.pullNow(u, ip)); }
+                    catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Reading from Git failed: " + e.getMessage()); }
+                }
                 else notFound(ex);
             }
             case "devices" -> {
@@ -1110,6 +1170,68 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "apps" -> {   // Build > Apps (G67): made by apps.manage; used by their audience, acting with the publisher's rights
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("apps", cr.apps.list(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.apps.save(u, null, map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.apps.get(u, seg[1]));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.apps.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.apps.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.apps.act(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.apps.runStatus(u, seg[1], seg[3]));
+                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.apps.records(u, seg[1], seg[3], q.get("q")));
+                // embed links (G68)
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("embeds")) sendJson(ex, 200, Map.of("embeds", cr.appEmbeds.list(u, seg[1])));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("embeds")) sendJson(ex, 200, cr.appEmbeds.make(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 4 && seg[2].equals("embeds")) { cr.appEmbeds.delete(u, seg[1], seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 5 && seg[2].equals("embeds") && seg[4].equals("teams")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendBytes(ex, cr.appEmbeds.teamsPackage(u, seg[1], seg[3], (String) b.get("key"), (String) b.get("base_url")), "application/zip", "teams-app.zip");
+                }
+                else notFound(ex);
+            }
+            case "data" -> {   // Manage > Data store (G66): entities and their records, storage buckets and their files
+                if (seg.length >= 2 && seg[1].equals("entities")) {
+                    if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("entities", cr.dataStore.entities(u)));
+                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.dataStore.saveEntity(u, null, map(body(ex)), ip));
+                    else if (m.equals("PUT") && seg.length == 3) sendJson(ex, 200, cr.dataStore.saveEntity(u, seg[2], map(body(ex)), ip));
+                    else if (m.equals("DELETE") && seg.length == 3) { cr.dataStore.deleteEntity(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                    else if (m.equals("GET") && seg.length == 4 && seg[3].equals("records")) sendJson(ex, 200, cr.dataStore.records(u, seg[2], q));
+                    else if (m.equals("POST") && seg.length == 4 && seg[3].equals("records")) sendJson(ex, 200, cr.dataStore.saveRecord(u, seg[2], null, map(body(ex)), ip));
+                    else if (m.equals("PUT") && seg.length == 5 && seg[3].equals("records")) sendJson(ex, 200, cr.dataStore.saveRecord(u, seg[2], seg[4], map(body(ex)), ip));
+                    else if (m.equals("DELETE") && seg.length == 5 && seg[3].equals("records")) { cr.dataStore.deleteRecord(u, seg[2], seg[4], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                    else notFound(ex);
+                } else if (seg.length >= 2 && seg[1].equals("buckets")) {
+                    if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("buckets", cr.dataStore.buckets(u)));
+                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.dataStore.saveBucket(u, null, map(body(ex)), ip));
+                    else if (m.equals("PUT") && seg.length == 3) sendJson(ex, 200, cr.dataStore.saveBucket(u, seg[2], map(body(ex)), ip));
+                    else if (m.equals("DELETE") && seg.length == 3) { cr.dataStore.deleteBucket(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                    // files: the path is a query parameter, as it holds slashes; the upload's body is the file itself
+                    else if (m.equals("GET") && seg.length == 4 && seg[3].equals("files")) sendJson(ex, 200, Map.of("files", cr.dataStore.files(u, seg[2], q.get("prefix"))));
+                    else if (m.equals("PUT") && seg.length == 4 && seg[3].equals("files"))
+                        sendJson(ex, 200, cr.dataStore.upload(u, seg[2], q.get("path"), ex.getRequestBody().readNBytes(DataStore.MAX_MB * 1024 * 1024 + 1), ip));
+                    else if (m.equals("GET") && seg.length == 4 && seg[3].equals("file")) {
+                        String p0 = DataStore.filePath(q.get("path"));
+                        sendBytes(ex, cr.dataStore.download(u, seg[2], p0), "application/octet-stream", p0.substring(p0.lastIndexOf('/') + 1));
+                    }
+                    else if (m.equals("DELETE") && seg.length == 4 && seg[3].equals("files")) { cr.dataStore.removeFile(u, seg[2], q.get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                    else notFound(ex);
+                } else notFound(ex);
+            }
+            case "ideas" -> {   // Build > Automation ideas (G65): anyone signed in suggests and votes; ideas.manage assesses
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.ideas.list(u));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.ideas.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.ideas.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("vote")) sendJson(ex, 200, cr.ideas.vote(u, seg[1]));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.ideas.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "knowledge-bases" -> {   // AI > Knowledge bases (G71)
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("knowledge_bases", cr.knowledge.list(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.knowledge.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.knowledge.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.knowledge.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("locks", cr.locks.list(u)));
                 else if (m.equals("DELETE") && seg.length == 1) sendJson(ex, 200, cr.locks.adminRelease(u, q.get("name"), ip));
@@ -1182,6 +1304,16 @@ public final class ControlRoomServer {
      * is still refused. A copy built without Node.js has no page and says how to build one.
      */
     private void nextConsole(HttpExchange ex, String file) throws IOException {
+        // the console as an app on phones (G69): its manifest, icons and service worker, made here
+        if (file.equals("manifest.webmanifest") || file.equals("sw.js") || file.equals("icon-192.png") || file.equals("icon-512.png")) {
+            securityHeaders(ex);
+            switch (file) {
+                case "manifest.webmanifest" -> { ex.getResponseHeaders().set("Content-Type", "application/manifest+json"); writeBody(ex, 200, MobileApp.manifest()); }
+                case "sw.js" -> { ex.getResponseHeaders().set("Content-Type", "text/javascript; charset=utf-8"); writeBody(ex, 200, MobileApp.serviceWorker()); }
+                default -> { ex.getResponseHeaders().set("Content-Type", "image/png"); writeBody(ex, 200, MobileApp.icon(file.equals("icon-192.png") ? 192 : 512)); }
+            }
+            return;
+        }
         boolean page = file.isEmpty() || file.equals("index.html");
         if (!page && !NEXT_FILE.matcher(file).matches()) { sendJson(ex, 404, Map.of("error", "not found")); return; }
         try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/" + (page ? "console.html" : file))) {
@@ -1203,6 +1335,29 @@ public final class ControlRoomServer {
                         + "'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
             }
             ex.getResponseHeaders().set("Content-Type", page ? "text/html; charset=utf-8" : TYPES.getOrDefault(file.substring(file.lastIndexOf('.') + 1), "application/octet-stream"));
+            writeBody(ex, 200, b);
+        }
+    }
+
+    /**
+     * /embed/&lt;link id&gt; (G68): the console's page for an app embedded in another site. Only the sites the link names
+     * may frame it; the key travels in the URL's fragment, never to this server in the page request.
+     */
+    private void embedPage(HttpExchange ex, String id) throws IOException {
+        if (id.startsWith("assets/")) { nextConsole(ex, id); return; }   // the page's files, by the same relative paths as under /next/
+        String origins = cr.appEmbeds.frameAncestors(id);
+        if (origins == null) { securityHeaders(ex); ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8"); writeBody(ex, 404, "No such embed link".getBytes(StandardCharsets.UTF_8)); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/console.html")) {
+            if (in == null) { securityHeaders(ex); writeBody(ex, 503, "The console was not built into this copy".getBytes(StandardCharsets.UTF_8)); return; }
+            byte[] r = new byte[16];
+            NONCES.nextBytes(r);
+            String nonce = Base64.getEncoder().encodeToString(r);
+            byte[] b = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+            securityHeaders(ex);
+            ex.getResponseHeaders().remove("X-Frame-Options");
+            ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce
+                + "'; script-src 'self'; frame-ancestors 'self' " + origins + "; base-uri 'none'; form-action 'self'");
+            ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
             writeBody(ex, 200, b);
         }
     }

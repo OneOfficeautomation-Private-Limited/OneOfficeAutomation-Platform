@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.conversation.BotTools;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -56,10 +57,7 @@ final class McpServer {
     }
 
     /** Tool name from an agent path: Finance/Invoice worker.flow.json -> Finance_Invoice_worker. */
-    static String toolName(String path) {
-        String n = path.replaceAll("\\.flow\\.json$", "").replaceAll("[^A-Za-z0-9_-]+", "_").replaceAll("_+", "_");
-        return n.length() > 64 ? n.substring(0, 64) : n;
-    }
+    static String toolName(String path) { return BotTools.toolName(path); }
 
     private List<String> exposed() {
         String s = String.valueOf(cr.platform.setting("mcp_agents")).trim();
@@ -87,22 +85,7 @@ final class McpServer {
             if (McpDocuments.NAMES.contains(toolName(path))) continue;   // the Document Automation tools keep their names
             Map<String, Object> flow;
             try { flow = (Map<String, Object>) cr.content(path, "production").get("flow"); } catch (OoaException e) { continue; }
-            Map<String, Object> props = new LinkedHashMap<>();
-            List<String> required = new ArrayList<>();
-            for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
-                if (!(o instanceof Map<?, ?> v) || !java.util.Arrays.asList("input", "in_out").contains(v.get("direction"))) continue;
-                String type = String.valueOf(v.get("type"));
-                if (type.equals("Credential")) continue; // secrets never come from an assistant
-                Map<String, Object> s = new LinkedHashMap<>();
-                s.put("type", switch (type) { case "Number" -> "number"; case "Boolean" -> "boolean"; case "List", "Table" -> "array"; case "Dictionary", "Record" -> "object"; default -> "string"; });
-                if (type.equals("Table")) s.put("type", "object");
-                if (v.get("description") instanceof String d) s.put("description", d);
-                if (v.get("enum") instanceof List<?> en) s.put("enum", en);
-                props.put(String.valueOf(v.get("name")), s);
-                if (Boolean.TRUE.equals(v.get("required")) && v.get("default") == null) required.add(String.valueOf(v.get("name")));
-            }
-            Map<String, Object> schema = new LinkedHashMap<>(Map.of("type", "object", "properties", props));
-            if (!required.isEmpty()) schema.put("required", required);
+            Map<String, Object> schema = BotTools.inputSchema(flow);
             String desc = b.get("description") instanceof String d && !d.isBlank() ? d : flow.get("description") instanceof String fd && !fd.isBlank() ? fd : "Runs the agent " + path.replace(".flow.json", "");
             out.add(Map.of("name", toolName(path), "title", path.replace(".flow.json", ""), "description", desc, "inputSchema", schema));
         }

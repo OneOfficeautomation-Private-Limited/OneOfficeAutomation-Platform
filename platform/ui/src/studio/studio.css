@@ -613,3 +613,36 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-html-area { flex-shrink: 0; min-height: 240px; max-height: 52vh; overflow: auto; padding: 8px 10px; border: 1px solid var(--ui-field); border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); }
 .st-html-area:focus { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
 .st-html-source { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; border: 1px solid var(--ui-field); border-radius: 6px; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--ui-bg); color: var(--ui-text); }
+/* G40: the agent's design document, laid out for Print > Save as PDF; only it prints while body has st-printing-doc */
+.st-print-doc { display: none; }
+@media print {
+  body.st-printing-doc > *:not(.st-print-doc) { display: none !important; }
+  body.st-printing-doc .st-print-doc { display: block; color: #000; background: #fff; font: 10pt/1.4 Calibri, "Segoe UI", Arial, sans-serif; }
+  .st-print-doc h1 { font-size: 20pt; margin: 0 0 2pt; }
+  .st-print-doc h2 { font-size: 14pt; color: #1d4ed8; margin: 14pt 0 4pt; break-after: avoid; }
+  .st-print-doc h3 { font-size: 12pt; margin: 10pt 0 4pt; break-after: avoid; }
+  .st-print-doc p { margin: 0 0 4pt; }
+  .st-print-doc .st-print-meta { color: #374151; font-size: 9pt; margin-bottom: 12pt; }
+  .st-print-doc .st-print-item { text-indent: -18px; padding-left: 0; margin-bottom: 2pt; }
+  .st-print-doc .st-print-mark { display: inline-block; width: 18px; text-indent: 0; }
+  .st-print-doc table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt; font-size: 9pt; }
+  .st-print-doc th, .st-print-doc td { border: 1px solid #9ca3af; padding: 2pt 4pt; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  .st-print-doc th { background: #e7ecf3; }
+  .st-print-doc tr { break-inside: avoid; }
+  .st-print-doc thead { display: table-header-group; }
+}
+/* G42: shared object repositories (the editor, the element picker, a step that uses an element from one) */
+.st-objrepo-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.st-objrepo-name { max-width: 320px; font-weight: 600; }
+.st-objrepo-screen { margin: 10px 0 4px 18px; padding-left: 10px; border-left: 2px solid var(--ui-divider); }
+.st-objrepo-pick { list-style: none; margin: 8px 0 0; padding: 0; max-height: 320px; overflow: auto; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.st-objrepo-pick li { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-bottom: 1px solid var(--ui-divider); cursor: pointer; }
+.st-objrepo-pick li:last-child { border-bottom: 0; }
+.st-objrepo-pick li:hover { background: var(--ui-soft); }
+.st-objrepo-pick li.is-selected { background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-bg)); outline: 1px solid var(--ui-accent); }
+.st-objrepo-pick li:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.st-cap-ref code { overflow-wrap: anywhere; }
+/* G47: the Simple mode switch in the Actions panel's header */
+.st-simple-toggle { font: inherit; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ui-border); background: var(--ui-bg); color: var(--ui-text); cursor: pointer; }
+.st-simple-toggle.is-on { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
+.st-simple-toggle:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }

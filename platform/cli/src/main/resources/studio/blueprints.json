@@ -445,5 +445,573 @@
         ]
       }
     ]
+  },
+  {
+    "id": "transactional",
+    "name": "Transactional framework (work queue)",
+    "icon": "queue",
+    "color": "#0f766e",
+    "description": "Init, Get item, Process and End as subflows: takes items from a work queue one by one, completes them, fails business errors at once and retries system errors, then reports what it did.",
+    "variables": [
+      {
+        "name": "queue",
+        "type": "String",
+        "direction": "input",
+        "default": "invoices",
+        "description": "Work queue to take items from."
+      },
+      {
+        "name": "max_attempts",
+        "type": "Number",
+        "direction": "input",
+        "default": 3,
+        "description": "Tries per item for system errors (a central queue uses its own setting)."
+      },
+      {
+        "name": "found",
+        "type": "Boolean",
+        "default": false
+      },
+      {
+        "name": "item_id",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "item_data",
+        "type": "Dictionary",
+        "default": {},
+        "description": "Fields of the item being processed."
+      },
+      {
+        "name": "item_reference",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "attempt",
+        "type": "Number",
+        "default": 0
+      },
+      {
+        "name": "will_retry",
+        "type": "Boolean",
+        "default": false
+      },
+      {
+        "name": "error",
+        "type": "Dictionary",
+        "default": {}
+      },
+      {
+        "name": "processed",
+        "type": "Number",
+        "direction": "output",
+        "default": 0,
+        "description": "Items completed."
+      },
+      {
+        "name": "failed",
+        "type": "Number",
+        "direction": "output",
+        "default": 0,
+        "description": "Items failed (business errors, and system errors with no tries left)."
+      },
+      {
+        "name": "stopped_by",
+        "type": "Dictionary",
+        "default": {}
+      }
+    ],
+    "steps": [
+      {
+        "id": "t1",
+        "action": "core/run_subflow",
+        "args": {
+          "subflow": "Init"
+        }
+      },
+      {
+        "id": "t2",
+        "action": "core/loop",
+        "args": {
+          "iterator": "while",
+          "condition": "true"
+        },
+        "children": [
+          {
+            "id": "t3",
+            "action": "core/run_subflow",
+            "args": {
+              "subflow": "Get item"
+            }
+          },
+          {
+            "id": "t4",
+            "action": "core/if",
+            "args": {
+              "condition": {
+                "op": "eq",
+                "left": "$found",
+                "right": false
+              }
+            },
+            "children": [
+              {
+                "id": "t5",
+                "action": "core/break"
+              }
+            ]
+          },
+          {
+            "id": "t6",
+            "action": "core/try",
+            "children": [
+              {
+                "id": "t7",
+                "action": "core/run_subflow",
+                "args": {
+                  "subflow": "Process"
+                }
+              },
+              {
+                "id": "t8",
+                "action": "ooa.workload/complete",
+                "args": {
+                  "queue": "$queue",
+                  "item_id": "$item_id"
+                }
+              },
+              {
+                "id": "t9",
+                "action": "core/set",
+                "args": {
+                  "variable": "processed",
+                  "value": {
+                    "expr": "$processed + 1"
+                  }
+                }
+              }
+            ],
+            "catch": [
+              {
+                "codes": [
+                  "BUSINESS.*"
+                ],
+                "as": "error",
+                "children": [
+                  {
+                    "id": "t10",
+                    "action": "ooa.workload/fail",
+                    "args": {
+                      "queue": "$queue",
+                      "item_id": "$item_id",
+                      "error": "${error.message}",
+                      "kind": "business"
+                    }
+                  },
+                  {
+                    "id": "t11",
+                    "action": "core/log",
+                    "args": {
+                      "message": "Business error on ${item_reference}: ${error.message}",
+                      "level": "warning"
+                    }
+                  },
+                  {
+                    "id": "t12",
+                    "action": "core/set",
+                    "args": {
+                      "variable": "failed",
+                      "value": {
+                        "expr": "$failed + 1"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "codes": [],
+                "as": "error",
+                "children": [
+                  {
+                    "id": "t13",
+                    "action": "ooa.workload/fail",
+                    "args": {
+                      "queue": "$queue",
+                      "item_id": "$item_id",
+                      "error": "${error.code} ${error.message}",
+                      "kind": "system",
+                      "max_attempts": "$max_attempts"
+                    },
+                    "out": {
+                      "will_retry": "will_retry"
+                    }
+                  },
+                  {
+                    "id": "t14",
+                    "action": "core/log",
+                    "args": {
+                      "message": "System error on ${item_reference} (attempt ${attempt}, retry: ${will_retry}): ${error.code} ${error.message}",
+                      "level": "error"
+                    }
+                  },
+                  {
+                    "id": "t15",
+                    "action": "core/if",
+                    "args": {
+                      "condition": {
+                        "op": "eq",
+                        "left": "$will_retry",
+                        "right": false
+                      }
+                    },
+                    "children": [
+                      {
+                        "id": "t16",
+                        "action": "core/set",
+                        "args": {
+                          "variable": "failed",
+                          "value": {
+                            "expr": "$failed + 1"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "t17",
+        "action": "core/run_subflow",
+        "args": {
+          "subflow": "End"
+        }
+      }
+    ],
+    "subflows": [
+      {
+        "name": "Init",
+        "description": "Runs once: read settings, open applications, sign in.",
+        "steps": [
+          {
+            "id": "i1",
+            "action": "core/log",
+            "args": {
+              "message": "Starting on queue ${queue}"
+            }
+          },
+          {
+            "id": "i2",
+            "action": "core/comment",
+            "args": {
+              "text": "Open the applications and sign in here. An error here stops the agent before any item is taken."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Get item",
+        "description": "Takes the next waiting item; found is false when the queue is empty.",
+        "steps": [
+          {
+            "id": "g1",
+            "action": "ooa.workload/get_next",
+            "args": {
+              "queue": "$queue"
+            },
+            "out": {
+              "found": "found",
+              "item_id": "item_id",
+              "data": "item_data",
+              "attempt": "attempt",
+              "reference": "item_reference"
+            }
+          },
+          {
+            "id": "g2",
+            "action": "core/if",
+            "args": {
+              "condition": {
+                "op": "eq",
+                "left": "$found",
+                "right": true
+              }
+            },
+            "children": [
+              {
+                "id": "g3",
+                "action": "core/log",
+                "args": {
+                  "message": "Item ${item_reference} (${item_id}), attempt ${attempt}"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Process",
+        "description": "Handles one item (item_data). Throw a BUSINESS.* error for a rule the data breaks: the item fails at once. Any other error is retried.",
+        "steps": [
+          {
+            "id": "p1",
+            "action": "core/comment",
+            "args": {
+              "text": "Put the steps for one item here, using item_data. For a business rule the item breaks, use Throw with a code such as BUSINESS.REJECTED."
+            }
+          }
+        ]
+      },
+      {
+        "name": "End",
+        "description": "Runs once at the end: close applications and report.",
+        "steps": [
+          {
+            "id": "e1",
+            "action": "core/log",
+            "args": {
+              "message": "Finished: ${processed} completed, ${failed} failed"
+            }
+          },
+          {
+            "id": "e2",
+            "action": "core/comment",
+            "args": {
+              "text": "Close the applications here."
+            }
+          }
+        ]
+      }
+    ],
+    "onError": {
+      "as": "stopped_by",
+      "then": "fail",
+      "steps": [
+        {
+          "id": "h1",
+          "action": "core/log",
+          "args": {
+            "message": "Stopped by ${stopped_by.code}: ${stopped_by.message}",
+            "level": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "attended_ask",
+    "name": "Attended: ask, confirm, act",
+    "icon": "user",
+    "color": "#7c3aed",
+    "description": "For an agent a person starts at their desk: asks for a value, confirms before acting, and tells them the result.",
+    "variables": [
+      {
+        "name": "reference",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "cancelled",
+        "type": "Boolean",
+        "default": false
+      },
+      {
+        "name": "go_ahead",
+        "type": "Boolean",
+        "default": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "a1",
+        "action": "ooa.desktop/prompt_value",
+        "args": {
+          "question": "Which reference should I work on?",
+          "title": "Assistant"
+        },
+        "out": {
+          "value": "reference",
+          "cancelled": "cancelled"
+        }
+      },
+      {
+        "id": "a2",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "op": "eq",
+            "left": "$cancelled",
+            "right": true
+          }
+        },
+        "children": [
+          {
+            "id": "a3",
+            "action": "core/stop",
+            "args": {
+              "status": "success",
+              "message": "Cancelled by the user"
+            }
+          }
+        ]
+      },
+      {
+        "id": "a4",
+        "action": "ooa.desktop/prompt_yes_no",
+        "args": {
+          "question": "Work on ${reference} now?",
+          "title": "Assistant"
+        },
+        "out": {
+          "answer": "go_ahead"
+        }
+      },
+      {
+        "id": "a5",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "op": "eq",
+            "left": "$go_ahead",
+            "right": true
+          }
+        },
+        "children": [
+          {
+            "id": "a6",
+            "action": "core/comment",
+            "args": {
+              "text": "Put the steps that do the work here."
+            }
+          },
+          {
+            "id": "a7",
+            "action": "ooa.desktop/message_box",
+            "args": {
+              "message": "Done: ${reference}",
+              "title": "Assistant"
+            }
+          }
+        ],
+        "else": [
+          {
+            "id": "a8",
+            "action": "core/log",
+            "args": {
+              "message": "Not confirmed: ${reference}"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "attended_file",
+    "name": "Attended: pick a file and process it",
+    "icon": "file",
+    "color": "#7c3aed",
+    "description": "For an agent a person starts at their desk: they choose a file, the agent works on it and shows the outcome; an error is shown to them and still fails the run.",
+    "variables": [
+      {
+        "name": "file",
+        "type": "File",
+        "default": ""
+      },
+      {
+        "name": "cancelled",
+        "type": "Boolean",
+        "default": false
+      },
+      {
+        "name": "error",
+        "type": "Dictionary",
+        "default": {}
+      }
+    ],
+    "steps": [
+      {
+        "id": "f1",
+        "action": "ooa.desktop/prompt_file",
+        "args": {
+          "title": "Choose the file to process"
+        },
+        "out": {
+          "path": "file",
+          "cancelled": "cancelled"
+        }
+      },
+      {
+        "id": "f2",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "op": "eq",
+            "left": "$cancelled",
+            "right": true
+          }
+        },
+        "children": [
+          {
+            "id": "f3",
+            "action": "core/stop",
+            "args": {
+              "status": "success",
+              "message": "No file chosen"
+            }
+          }
+        ]
+      },
+      {
+        "id": "f4",
+        "action": "core/try",
+        "children": [
+          {
+            "id": "f5",
+            "action": "core/comment",
+            "args": {
+              "text": "Put the steps that process the file here."
+            }
+          },
+          {
+            "id": "f6",
+            "action": "ooa.desktop/message_box",
+            "args": {
+              "message": "Processed ${file}",
+              "title": "Assistant"
+            }
+          }
+        ],
+        "catch": [
+          {
+            "codes": [],
+            "as": "error",
+            "children": [
+              {
+                "id": "f7",
+                "action": "ooa.desktop/message_box",
+                "args": {
+                  "message": "Could not process ${file}: ${error.message}",
+                  "title": "Assistant",
+                  "icon": "error"
+                }
+              },
+              {
+                "id": "f8",
+                "action": "core/throw",
+                "args": {
+                  "code": "${error.code}",
+                  "message": "${error.message}"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 ]

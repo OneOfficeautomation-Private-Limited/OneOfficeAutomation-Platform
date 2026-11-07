@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser, Environment } from "../api/cr";
 import { BrandMark, Icon, is, keyOf, Menu } from "../components";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
+import { PhoneNotificationsDialog } from "./PhoneNotifications";
 
 /**
  * The console's top bar (design plan, step 1: the skeleton): the product name, where you are (section › page), one
@@ -16,6 +17,7 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut, onShor
   onPage: (id: string) => void; onSignOut: () => void; onShortcuts: () => void }) {
   const can = (p: string) => user.permissions.includes(p);
   const [alerts, setAlerts] = useState<number | null>(null);
+  const [phone, setPhone] = useState(false);
   useEffect(() => {
     if (!can("analytics.view")) return;
     const load = () => api.alerts({ status: "open", limit: "1" }).then((r) => setAlerts(r.open), () => {});
@@ -40,9 +42,11 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut, onShor
         <Menu label="Help" align="end" items={[{ key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), onSelect: onShortcuts }, { key: "classic", label: "Classic console", description: "Today's console, until it is retired", onSelect: () => { location.href = classicHref; } }]}
           trigger={<button type="button" className="st-top-icon" aria-label="Help" title="Help"><Icon name="help" size={16} /></button>} />
         <Menu label="Your account" align="end" title={user.display_name + " · " + (user.roles?.length ? user.roles.join(", ") : user.role)}
-          items={[{ key: "out", label: "Sign out", onSelect: onSignOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
+          items={[{ key: "phone", label: "Phone notifications", description: "New tasks on your phone, with Approve and Reject", onSelect: () => setPhone(true) },
+            { key: "out", label: "Sign out", onSelect: onSignOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
           <Icon name="person" size={16} /></button>} />
       </div>
+      {phone && <PhoneNotificationsDialog api={api} onClose={() => setPhone(false)} />}
     </header>
   );
 }

@@ -10,7 +10,7 @@ export class ApiFailure extends Error {
 }
 
 export type WorkspaceNode = {
-  name: string; path: string; type: "folder" | "bot" | "form" | "process" | "document" | "skill" | "script" | "file";
+  name: string; path: string; type: "folder" | "bot" | "form" | "process" | "document" | "objects" | "skill" | "script" | "file";
   kind?: "TaskBot" | "ApiTask"; modified?: string; size?: number; platform?: "Windows" | "Any"; children?: WorkspaceNode[];
 };
 
@@ -71,7 +71,7 @@ export type Flow = { kind: string; id: string; name: string; description?: strin
 export type FlowOnError = { as?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
-export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
+export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError };
 
 /** Something the check on save found: the step, the field, what is wrong and how to fix it. */
 export type Problem = { stepId?: string; path?: string; message: string; suggestedFix?: string };
@@ -129,7 +129,11 @@ export type StudioInfo = { product: string; edition: string; workspace: string; 
 
 /** The kinds of item that "Create" makes, as the Studio API names them. */
 /** AiAgent is an agent file made from the AI agent template (one Run AI agent step); see studio/aiAgent.ts. */
-export type NewItemKind = "TaskBot" | "AiAgent" | "ApiTask" | "form" | "process" | "document" | "skill" | "script-python" | "script-powershell";
+export type NewItemKind = "TaskBot" | "AiAgent" | "ApiTask" | "form" | "process" | "document" | "objects" | "skill" | "script-python" | "script-powershell";
+/** An element of a shared object repository (G42), used by a step in place of its own captured object. */
+export type ObjectRef = { repository: string; element: string };
+/** Every object repository in the workspace with its elements ("Application/Screen/Element"). */
+export type RepoCatalogue = { path: string; name: string; elements: { element: string; description: string; technology: string }[] }[];
 
 export function defaultBase(href = location.href): string {
   // the new Studio is served at <base>/ (the preview was at <base>/next/), its API at <base>/api/
@@ -231,6 +235,10 @@ export class StudioApi {
   recordProgress() { return this.call<{ recording: boolean; count: number }>("GET", "record/progress"); }
   recordCancel() { return this.call<{ ok: boolean }>("POST", "record/cancel", {}); }
   deps(path: string) { return this.call<Dependencies>("GET", "deps?path=" + encodeURIComponent(path)); }
+  async objectCatalogue() { return (await this.call<{ repositories: RepoCatalogue }>("GET", "objects/catalogue")).repositories; }
+  addToRepository(b: { repository: string; application: string; screen: string; name: string; description?: string; object: unknown; replace?: boolean }) {
+    return this.call<ObjectRef>("POST", "objects/add", b);
+  }
   assistantBuild(prompt: string, connection: string, flow: Flow) { return this.call<Proposal>("POST", "assistant/build", { prompt, connection, flow }); }
   async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
   modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }

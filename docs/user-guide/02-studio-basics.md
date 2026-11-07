@@ -124,6 +124,13 @@ lists every action in groups by toolkit, with a count each. Type in **Search act
 match after the selected step, or click an action, or drag it to where it goes. The **Triggers** group lists the triggers
 an agent can have (see [Running and debugging](04-studio-running-and-debugging.md#10-local-triggers)).
 
+**Simple mode** (the **Simple** switch at the top of the Actions panel) is for business users who automate their own
+work. The Actions panel then shows only everyday toolkits under plain names: Excel files, e-mail and Outlook,
+Microsoft 365, websites, files and folders, PDF and Word files, dates, text, asking a person, and forms. The building
+blocks are If, Loop, Assign, Comment, Log, Delay, Break and Try, and triggers are hidden. The agent itself is an
+ordinary agent: with Simple mode off you see and use every action. Studio remembers the choice for you on this
+computer. A Citizen Developer seat cannot check in agents that use scripts or code (Administrator's guide, Licenses).
+
 ### 4.3 The steps
 
 The steps toolbar has **Undo** and **Redo**, the **⋯** menu (**Select all**, **Find in this agent**, **Find and
@@ -194,6 +201,14 @@ The **Create ▾** menu also offers (each opens the same kind of dialog, with **
 
 A blueprint (a ready-made pattern such as Loop through a CSV file or Agent with error handling) is chosen in the
 **New agent** dialog's **Start from**.
+
+Blueprints for common agent shapes:
+
+| Blueprint | What you get |
+|---|---|
+| **Transactional framework (work queue)** | Subflows **Init**, **Get item**, **Process** and **End**. It takes items from the queue named in the `queue` input one at a time, marks each one completed, and marks it failed. A `BUSINESS.*` error (use **Throw**, for example `BUSINESS.REJECTED`) fails the item at once. Any other error puts it back for another try, up to `max_attempts`. The outputs `processed` and `failed` give the counts. An error in Init or End stops the agent through its **On error** handler. Put your steps in **Process**, using `item_data`. |
+| **Attended: ask, confirm, act** | For an agent a person starts at their desk. It asks for a reference, asks for a yes before acting, and shows the result. Cancelling ends the run quietly. |
+| **Attended: pick a file and process it** | The person chooses a file, and the agent works on it and shows the outcome. An error is shown in a message and still fails the run. |
 
 ### 5.2 Create a folder
 

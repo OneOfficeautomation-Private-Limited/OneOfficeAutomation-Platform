@@ -458,6 +458,22 @@ public final class Agent {
                             w.send(Map.of("type", "queue", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }
                     });
+                    case "data" -> io.submit(() -> {   // Data store (G66): One CommandCenter checks the run is this runner's, running, and in the folder
+                        try {
+                            Map<String, Object> r = client.post("data", Map.of("run_id", w.runId, "request", msg.getOrDefault("request", Map.of())));
+                            w.send(Map.of("type", "data", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "data", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
+                    case "knowledge" -> io.submit(() -> {   // Knowledge bases (G71): One CommandCenter checks the run and the base's folder
+                        try {
+                            Map<String, Object> r = client.post("knowledge", Map.of("run_id", w.runId, "request", msg.getOrDefault("request", Map.of())));
+                            w.send(Map.of("type", "knowledge", "id", msg.get("id"), "result", r));
+                        } catch (OoaException e) {
+                            w.send(Map.of("type", "knowledge", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
+                        }
+                    });
                     case "locks" -> io.submit(() -> {   // Environment locks: One CommandCenter checks the run is this runner's and running
                         try {
                             Map<String, Object> body = new LinkedHashMap<>(msg);

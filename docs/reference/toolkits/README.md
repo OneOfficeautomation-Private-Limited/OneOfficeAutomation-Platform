@@ -11,8 +11,10 @@ values and `$variable` references; Credential fields take a credential from the 
 | Toolkit | Id | Actions | Conditions | Loop types | What it does |
 | --- | --- | --- | --- | --- | --- |
 | [Core](core.md) | `core` | 23 | 0 | 0 | Control flow, variables and runtime built-ins. |
+| [.NET, Java and COM](ooa-dotnet.md) | `ooa.dotnet` | 5 | 0 | 0 | Run inline C# or VB.NET code, and call methods of .NET assemblies, COM objects and Java classes. |
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 39 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
+| [AI screen (vision)](ooa-ai_screen.md) | `ooa.ai_screen` | 4 | 0 | 0 | Find and click controls on the screen from a plain description, with a vision model. |
 | [Application](ooa-application.md) | `ooa.application` | 8 | 1 | 0 | Open files, start, run and stop programs on the runner. |
 | [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
 | [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 10 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
@@ -23,10 +25,14 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
+| [Business rules](ooa-rules.md) | `ooa.rules` | 1 | 0 | 0 | Decide with a decision table kept as a CSV file (or a table): conditions in in: columns, results in out: columns. |
+| [Coded agents](ooa-coded.md) | `ooa.coded` | 1 | 0 | 0 | Run an agent written in Python (main(inputs, ooa)) that calls toolkit commands through the run. |
+| [Communications mining](ooa-comms.md) | `ooa.comms` | 2 | 0 | 0 | Find the topics in many e-mails, tickets or messages, and route each message to a queue by keywords. |
 | [Credential vault](ooa-vault.md) | `ooa.vault` | 2 | 1 | 0 | Save a credential's new value in One CommandCenter's vault, for example after a password reset, and check when a credential expires. |
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
 | [Custom Connectors](ooa-connector.md) | `ooa.connector` | 5 | 0 | 0 | Call any REST API imported from an OpenAPI, Swagger or Postman file as named operations with typed inputs and authentication. |
+| [Data store](ooa-data.md) | `ooa.data` | 9 | 0 | 0 | Create, change, read, query and delete records in One CommandCenter's entities; upload, download and list files in storage buckets. |
 | [Data Table](ooa-datatable.md) | `ooa.datatable` | 33 | 5 | 0 | Build, filter, sort, search and change in-memory tables. |
 | [Database](ooa-database.md) | `ooa.database` | 12 | 0 | 1 | Connect to databases and run parameterised queries, updates and transactions. |
 | [Databricks](ooa-databricks.md) | `ooa.databricks` | 14 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
@@ -35,6 +41,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
 | [Document Automation](ooa-documents.md) | `ooa.documents` | 1 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process and get the fields it reads. |
+| [Document processing](ooa-idp.md) | `ooa.idp` | 4 | 0 | 0 | Classify documents by type, extract fields by rules, and extract with AI that learns from validated examples. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
 | [Environment locks](ooa-locks.md) | `ooa.locks` | 3 | 1 | 0 | Named locks that one agent run holds at a time, so two runners never use the same single-user system together. |
@@ -63,11 +70,12 @@ values and `$variable` references; Credential fields take a credential from the 
 | [List](ooa-list.md) | `ooa.list` | 17 | 2 | 0 | Add, read, remove, sort and join list items. |
 | [Log to file](ooa-log.md) | `ooa.log` | 5 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
 | [Long-running agents](ooa-longrunning.md) | `ooa.longrunning` | 8 | 0 | 0 | Suspend an agent until a time, a task, a work item, another run or a callback URL is called, and carry on from the same step; only from One CommandCenter. |
+| [MCP tools](ooa-mcp.md) | `ooa.mcp` | 2 | 0 | 0 | List and call the tools of an MCP server (Model Context Protocol over HTTP). |
 | [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 21 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
-| [OCR](ooa-ocr.md) | `ooa.ocr` | 7 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
+| [OCR](ooa-ocr.md) | `ooa.ocr` | 8 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
 | [Okta](ooa-okta.md) | `ooa.okta` | 14 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
 | [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
 | [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 0 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |
@@ -77,6 +85,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [PowerPoint](ooa-powerpoint.md) | `ooa.powerpoint` | 17 | 0 | 0 | Open or create .pptx presentations, add, copy and delete slides, edit text, pictures and tables, and save. |
 | [PowerPoint (desktop, needs PowerPoint)](ooa-powerpoint_desktop.md) | `ooa.powerpoint_desktop` | 4 | 0 | 0 | Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint. |
 | [Printer](ooa-printer.md) | `ooa.printer` | 5 | 0 | 0 | List printers and print files. |
+| [Process mining](ooa-mining.md) | `ooa.mining` | 2 | 0 | 0 | Discover a process from an event log (cases, activities, times): variants, flows, waiting times and a diagram; check conformance. |
 | [Prompt Skills](ooa-ai_skills.md) | `ooa.ai_skills` | 2 | 0 | 0 | Run saved, reusable prompt templates (Prompt Skills) with your values. |
 | [REST Web Service](ooa-rest.md) | `ooa.rest` | 3 | 0 | 0 | Call HTTP/REST APIs with JSON, headers and authentication. |
 | [Run context](ooa-run_context.md) | `ooa.run_context` | 2 | 0 | 0 | Information about the current run: run id, runner, user and workspace. |
@@ -103,4 +112,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 92 toolkits, 1255 actions, 50 conditions and 15 loop types.
+In all: 101 toolkits, 1286 actions, 50 conditions and 15 loop types.

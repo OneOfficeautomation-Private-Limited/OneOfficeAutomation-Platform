@@ -14,7 +14,7 @@ const VIEW_TITLE: Record<StudioView, [string, (n: WorkspaceNode) => boolean]> = 
 const folderTree = (n: WorkspaceNode): TreeNode => ({ id: n.path, label: n.name, children: (n.children ?? []).filter((c) => c.type === "folder").map(folderTree) });
 
 /** What opens in an editor here: agents and the other items; data files stay as they are. */
-const OPENS: WorkspaceNode["type"][] = ["bot", "form", "process", "document", "skill", "script"];
+const OPENS: WorkspaceNode["type"][] = ["bot", "form", "process", "document", "objects", "skill", "script"];
 
 const everything = (n: WorkspaceNode): WorkspaceNode[] => (n.children ?? []).flatMap((c) => [c, ...everything(c)]);
 

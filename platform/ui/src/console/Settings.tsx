@@ -32,7 +32,9 @@ const SECTIONS: Section[] = [
       { key: "default_time_zone", label: "Time zone for new schedules", hint: "Empty: each person's own.", kind: "text", placeholder: "Asia/Kolkata" }] },
     { title: "Limits", settings: [
       { key: "max_upload_mb", label: "Largest upload", hint: "1 to 1024.", unit: "MB", kind: "number", min: 1, max: 1024 },
-      { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 }] },
+      { key: "queue_poll_seconds", label: "Work queue check interval", hint: "3 to 3600.", unit: "seconds", kind: "number", min: 3, max: 3600 },
+      { key: "serverless_max_minutes", label: "Longest serverless Agent API run", hint: "1 to 60.", unit: "minutes", kind: "number", min: 1, max: 60 },
+      { key: "serverless_parallel", label: "Serverless runs at the same time", hint: "1 to 16.", kind: "number", min: 1, max: 16 }] },
     { title: "Value of automation", settings: [
       { key: "default_minutes_saved", label: "Minutes saved per successful run", hint: "For agents without their own value.", unit: "minutes", kind: "number", min: 0, max: 100000 },
       { key: "hourly_cost", label: "Cost of an hour of the manual work", hint: "For money saved in Value.", kind: "number", min: 0, max: 100000 },
@@ -156,6 +158,12 @@ const SECTIONS: Section[] = [
     { title: "Notifications", settings: [
       { key: "notify_run_failed", label: "E-mail people when a run they started fails", hint: "To the address on their account.", kind: "check" },
       { key: "notify_task_assigned", label: "E-mail people when a workflow gives them a task", hint: "Forms and approvals; not tasks for everyone.", kind: "check" }] },
+    { title: "Approvals outside the Task inbox", settings: [
+      { key: "task_action_links", label: "Approve and reject from e-mail, Teams and phone", hint: "Each person gets their own signed links. Needs the public address.", kind: "check" },
+      { key: "task_link_hours", label: "Links work for", hint: "1 to 720.", unit: "hours", kind: "number", min: 1, max: 720 },
+      { key: "teams_approval_webhook_ref", label: "Teams channel webhook", hint: VAULT_REF + " Empty: no Teams cards.", kind: "text", placeholder: "teams/approvals/url" },
+      { key: "push_server", label: "Push server for phones", hint: "An ntfy server. Empty: no phone notifications.", kind: "text", placeholder: "https://ntfy.sh" },
+      { key: "push_token_ref", label: "Push server token", hint: VAULT_REF + " Empty: none.", kind: "text", placeholder: "push/ntfy/token" }] },
     { title: "Proxy", settings: [
       { key: "outbound_proxy", label: "Proxy for outgoing connections", hint: "http://host:port. Empty: direct.", kind: "text", placeholder: "http://proxy.example.com:8080" },
       { key: "outbound_proxy_bypass", label: "Reach these directly", hint: "Host names; * allowed.", kind: "text", placeholder: "*.example.com, 10.*" }] },
@@ -175,6 +183,8 @@ const SECTIONS: Section[] = [
       { key: "run_retention_days", label: "Keep runs for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
       { key: "audit_retention_days", label: "Keep audit entries for", hint: "At least 90; 0 = always. Older ones are archived first.", unit: "days", kind: "number", min: 0, max: 36500 },
       { key: "ai_call_retention_days", label: "Keep AI call records for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
+      { key: "ai_enabled", label: "AI in agents", hint: "Off: every AI step fails with AI.DISABLED.", kind: "check" },
+      { key: "ai_log_content", label: "Keep AI prompts and answers", hint: "Off: only the model, tokens and time are kept. On: also the prompt and answer, masked.", kind: "check" },
       { key: "work_item_retention_days", label: "Keep finished work-queue items for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 }] },
     { title: "Backups", settings: [
       { key: "backup_hours", label: "Back up every", hint: "0 = never.", unit: "hours", kind: "number", min: 0, max: 168 },
@@ -356,6 +366,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       <Button kind="secondary" onClick={() => api.mailTest(to.trim()).then((r) => onNotice("Test e-mail sent to " + r.to + "."), fail)}>Send a test e-mail</Button>
       <Button kind="secondary" disabled={!form.syslog_target} onClick={() => api.syslogTest().then(() => onNotice("Test message sent to " + form.syslog_target + "."), fail)}>Send a test syslog message</Button>
       <Button kind="secondary" disabled={!form.siem_https_url} onClick={() => api.siemTest().then(() => onNotice("The HTTPS collector accepted a test entry."), fail)}>Send a test SIEM entry</Button>
+      <Button kind="secondary" disabled={!form.teams_approval_webhook_ref} onClick={() => api.teamsTest().then(() => onNotice("Teams accepted a test card."), fail)}>Send a test Teams card</Button>
     </div>}
     {section === "sso" && <ScimTokens api={api} publicUrl={String(form.public_url ?? "")} onNotice={onNotice} fail={fail} />}
     {section === "sso" && <div className="cc-inline cc-test">
@@ -366,6 +377,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
         Test the directory</Button>
     </div>}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
+    {section === "agents" && <Button kind="secondary" onClick={() => api.gitPull().then((r) => onNotice(pullNotice(r)), fail)}>Pull from Git</Button>}
     {section === "data" && <span className="cc-inline">
       <Button kind="secondary" onClick={() => api.backupNow().then((r) => onNotice("Backup made: " + r.file + " (" + r.size_mb + " MB)."), fail)}>Back up now</Button>
       <Button kind="secondary" disabled={!what || asking} title={what ? undefined : "Keep runs for and Keep step logs for are 0 (always): there is nothing to remove"}
@@ -405,4 +417,13 @@ function ScimTokens({ api, publicUrl, onNotice, fail }: { api: CrApi; publicUrl:
       <Button kind="secondary" disabled={!name.trim()} onClick={() => api.makeScimToken(name.trim()).then((r) => { setMade({ name: r.name, token: r.token }); setName(""); load(); }, fail)}>Make a SCIM token</Button>
     </div>
   </section>;
+}
+
+/** What Pull from Git (G70) did, in one line: agents read, and the ones left alone and why. */
+export function pullNotice(r: { imported: { path: string }[]; conflicts: { path: string }[]; problems: { path: string; error: string }[]; deleted_in_git: string[] }) {
+  const parts = [r.imported.length ? "Read " + r.imported.length + " agent" + (r.imported.length === 1 ? "" : "s") + " from Git as new versions." : "Nothing new in Git."];
+  if (r.conflicts.length) parts.push("Left alone, changed in both places: " + r.conflicts.map((c) => c.path).join(", ") + ".");
+  if (r.problems.length) parts.push("Not read: " + r.problems.map((p) => p.path + " (" + p.error + ")").join("; ") + ".");
+  if (r.deleted_in_git.length) parts.push("Deleted in Git but kept here: " + r.deleted_in_git.join(", ") + ".");
+  return parts.join(" ");
 }

@@ -177,6 +177,35 @@ loosen a property (contains, wildcard) or recapture; several matches mean you sh
 the element is from the anchor; when the run cannot find the element, or finds several, it picks the one nearest that
 spot. **Recapture anchor** and **Remove anchor** change it.
 
+### 7.1 Shared object repositories
+
+When several agents work on the same screens, keep each captured object once in an **object repository** and let the
+agents use it from there. When a screen changes, you fix the element in the repository, and every agent that uses it
+picks up the change on its next run.
+
+1. **+ Create > Object repository** makes a file such as `Shared/SAP.objects.json`. It holds **applications**
+   (a program or website), their **screens** (a window or page) and each screen's **elements**.
+2. Capture an element in an agent's step as usual. In the **Captured object** field, choose **Save to repository…** and
+   pick the repository. Type the **Application**, **Screen** and **Element name**: names already in the repository are
+   offered as you type, and a name cannot contain `/`. Saving an element under a name that is already there needs
+   **Replace the element already saved with this name** ticked. The step then uses the element from the repository.
+3. In another agent, a step's **Captured object** field offers **Use from repository…**. It lists the repositories' web
+   or desktop elements, matching the step. Search, choose one, and press **Use this element**.
+
+A step that uses a repository element shows **Repository**, the element's application › screen › element and the file,
+with **Open repository**, **Choose another…** and **Use a copy in this step**. The copy makes the step independent
+again: later changes in the repository no longer reach it.
+
+The repository opens in its own tab. There you rename applications, screens and elements, describe them and remove
+them, and see whether each element is web or desktop and how it is found. Renaming changes the name agents use, so an
+agent that still uses the old name shows a problem when it is saved, as does a step whose repository file is missing.
+
+**Dependencies** lists the repositories an agent uses with its files. When you check the agent in, Studio also sends
+those repository files to One CommandCenter's repository files, at the same path, skipping files that are unchanged.
+Runs from One CommandCenter receive them with the agent's other files, without listing them under the agent's required
+files. Administrators can require repository objects with the code analysis rules **repository_objects** and
+**ui_in_object_agents** (Administrator's guide, Policies).
+
 ## 8. Record
 
 1. Select where the recorded steps should go.
@@ -275,6 +304,18 @@ IntelliJ and other IDEs) are skipped unless you name them in **Process**.
 SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) instead; see its
 [reference](../reference/toolkits/ooa-sap.md).
 
+**Record in SAP GUI.** Record with SAP GUI's own recorder: **Customize Local Layout > Script Recording and Playback**,
+then save the .vbs file. In Studio, the step list's **More** menu has **Import SAP GUI recording…**. Open the file or paste
+its text, and the steps go in after the selected step:
+
+- typed text becomes **Set field**, except a transaction code typed as `/nVA01`, which becomes **Run transaction**;
+- buttons become **Press button**, keys become **Send key** (in the right window), and check boxes **Set check box**;
+- list choices become **Select list item** (by key), radio buttons **Select radio button**, and menu entries **Click**;
+- double-clicks become **Double-click**.
+
+Cursor, focus and window-size lines are left out, and a line it does not know is kept as a **Comment**. Add **Open system
+and log on** first, and change typed passwords to a Credential from the vault.
+
 ### 10.3 Windows, programs, mouse and keyboard
 
 | Group | Typical actions |
@@ -295,6 +336,22 @@ session**: **Open command session** starts cmd.exe, powershell.exe or another co
 session** ends it and any program it started. Sessions left open are stopped when the run ends. Command sessions need no
 desktop.
 
+### 10.4 C#, VB.NET, .NET, COM and Java
+
+The **.NET, Java and COM** toolkit calls code that is not a script:
+
+| Action | What it does |
+|---|---|
+| **Run C# code**, **Run VB.NET code** | Runs statements you type as the body of a method that gets `args` (the step's **arguments**) and returns a value, for example `return Convert.ToInt32(args["count"]) * 2;`. **Members** holds helper methods. **References** adds assemblies, such as `System.Xml` or a DLL path. The .NET Framework on Windows compiles the code (C# 5, VB 11). A compile error fails the step with the compiler's messages. |
+| **Call .NET method** | Calls a static method or property of a type, such as `System.IO.Path` `GetExtension`. It can also create an object first and call a method on that object. Leave **Assembly** empty for .NET's own types, or give a DLL path or assembly name. |
+| **Call COM method** | Creates a COM object by its ProgID, such as `Scripting.FileSystemObject`. It calls a method, or reads or sets a property, and can go through a **path** of properties first. **Quit** closes an Office application at the end. |
+| **Call Java method** | Loads JAR files and calls a method of a class. It can be a static method or a method of an object it creates. Arguments are converted to the method's parameter types. |
+
+Each call runs in a separate process: Windows PowerShell for .NET and COM, and a separate Java for Java. A crash, or
+code that ends its process, fails only that step and never the runner, and the step's time limit stops code that hangs.
+What the code prints is returned as **output**. With **fail on error** off, an exception goes to **error** and the run
+goes on. .NET and COM need a Windows runner. Java uses the runner's own Java, or `java` on the PATH.
+
 Desktop steps need a signed-in Windows desktop. Message boxes and prompts wait for a person; in unattended runs they fail
 at once unless they have a timeout.
 
@@ -308,8 +365,13 @@ When an application cannot be read through its controls (remote desktops, Citrix
   workspace; set **Tolerance** and, to speed things up, **Search only an area**.
 - **OCR (read text in images)**: **Read text from image**, **Read text from image URL**, **Read text from screen**
   (whole screen or one window, optionally an area), **Find text in image**, **Click text on screen**; condition
-  **Text is on screen**. **Keep only part of the text** takes the text after or before a word. OCR needs Tesseract
-  installed on the computer that runs the agent.
+  **Text is on screen**. **Keep only part of the text** takes the text after or before a word. OCR uses Tesseract when
+  it is installed on the computer that runs the agent, and otherwise the OCR built into Windows 10 and 11.
+- **Cloud OCR engines**: **Read text with a cloud engine** reads an image or PDF file, or an area of the screen, with
+  **Azure** (Azure AI Document Intelligence's read model, which also reads handwriting) or **Google** (Vision text
+  detection). Connect first with **Azure AI services > Connect** or **Google Cloud AI > Connect**. The text leaves
+  the computer for that service, so use it where your company allows. ABBYY is not built in; call its API with the
+  REST toolkit.
 
 ## 12. Interrupt handlers for unexpected pop-ups
 

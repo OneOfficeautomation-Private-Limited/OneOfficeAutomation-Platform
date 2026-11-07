@@ -53,7 +53,7 @@ async function page() {
   const navItems = menuPages();
   const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
   check("the menu has short sections by task: Build, Manage, Operational Insights, Administration, AI", groups.join("|") === "Build|Manage|Operational Insights|Administration|AI", groups.join("|"));
-  check("an administrator sees Home and all 27 pages, each once", navItems.length === 28 && new Set(navItems).size === 28 && navItems.includes("Agent Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("Workflow") && navItems.includes("AI governance")
+  check("an administrator sees Home and all 28 pages, each once", navItems.length === 29 && new Set(navItems).size === 29 && navItems.includes("One Chat") && navItems.includes("Agent Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Agent ToolKits", "Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
   check("Administration holds users, roles, the vault, licenses, audit and settings", ["Users", "Roles", "Teams", "Credential vault", "Licenses", "Settings", "Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
@@ -62,7 +62,7 @@ async function page() {
   const insights = [...d.querySelectorAll('#nav .nav-section[aria-label="Operational Insights"] .nav-fly button')].map((b) => b.textContent);
   check("Insights holds Operations and Dashboards", insights.join("|") === "Operations|Dashboards", insights.join("|"));
   const ai = [...d.querySelectorAll('#nav .nav-section[aria-label="AI"] .nav-fly button')].map((b) => b.textContent);
-  check("AI holds model connections, Prompt Skills, Document Automation and AI governance", ai.join("|") === "Model Connections|Prompt Skills|Document Automation|AI governance", ai.join("|"));
+  check("AI holds One Chat, model connections, Prompt Skills, Document Automation and AI governance", ai.join("|") === "One Chat|Model Connections|Prompt Skills|Document Automation|AI governance", ai.join("|"));
   nav("Document Automation");
   check("Document Automation is a plug-in page: the module is installed, so it describes it and opens its pages at /documents/",
     await until(() => d.getElementById("main").textContent.includes("Open Document Automation") && !!d.querySelector('#main a[href="/documents/"]')));

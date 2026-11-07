@@ -162,6 +162,7 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
         <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
       </div>
       <div className="cc-run-body">
+        {t.stages && t.stages.length > 1 && <StageBar stages={t.stages} current={t.stage ?? null} done={!!t.completed} />}
         {error && <p className="st-alert" role="alert">{error}</p>}
         <p className="cc-task-from">{KIND[t.kind] ?? t.kind}{t.workflow_run_id ? <>, from the workflow run <span className="ui-mono">{t.workflow_run_id}</span></> : null}.
           Given to {t.assignee}{t.created ? " on " + when(t.created) : ""}; {t.claimed_by ? "taken by " + t.claimed_by : "nobody has taken it yet"}.
@@ -202,4 +203,22 @@ export function FormField({ field: x, value, disabled, onChange }: { field: Task
     : x.type === "dropdown" ? <Select id={id} value={String(value ?? "")} disabled={disabled} onChange={(e) => onChange(e.target.value)} options={[{ value: "", label: "(choose)" }, ...(x.options ?? []).map((o) => ({ value: o, label: o }))]} />
       : <TextInput id={id} type={x.type === "number" ? "number" : x.type === "date" ? "date" : x.type === "email" ? "email" : "text"} min={x.min} max={x.max} placeholder={x.placeholder}
         value={String(value ?? "")} disabled={disabled} onChange={(e) => onChange(x.type === "number" && e.target.value !== "" ? Number(e.target.value) : e.target.value)} />}</Field>;
+}
+
+/**
+ * Where the request is (G48, as a business process flow's stage bar): the workflow's stages in order, the ones before
+ * this task done, this one current. Read-only: the workflow moves on when the task is completed.
+ */
+export function StageBar({ stages, current, done }: { stages: { id: string; name: string }[]; current: string | null; done: boolean }) {
+  const at = stages.findIndex((s) => s.id === current);
+  return (
+    <ol className="cc-stagebar" aria-label="Stages of this request">
+      {stages.map((s, i) => {
+        const state = at < 0 ? "next" : i < at || (done && i === at) ? "done" : i === at ? "current" : "next";
+        return <li key={s.id} className={"is-" + state} aria-current={state === "current" ? "step" : undefined}>
+          <span className="cc-stagebar-mark" aria-hidden="true">{state === "done" ? "✓" : i + 1}</span>
+          <span>{s.name}</span><span className="st-sr">{state === "done" ? " (done)" : state === "current" ? " (this task)" : " (to come)"}</span></li>;
+      })}
+    </ol>
+  );
 }

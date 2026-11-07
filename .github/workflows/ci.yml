@@ -253,6 +253,62 @@ jobs:
           pip install -e ".[test]"
           python -m pytest -q
 
+  helm:
+    name: Helm chart (lint and render)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: platform/deploy/helm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint, render the defaults, and refuse set-ups that cannot work
+        run: |
+          helm lint oneofficeautomation
+          helm template t oneofficeautomation > /dev/null
+          helm template t oneofficeautomation --set runners.enabled=true --set ingress.enabled=true --set networkPolicy.enabled=true \
+            --set podDisruptionBudget.enabled=true --set database.url=jdbc:sqlserver://sql:1433 --set database.existingSecret=db \
+            --set masterKey.existingSecret=mk --set replicaCount=2 > /dev/null
+          if helm template t oneofficeautomation --set replicaCount=2 > /dev/null 2>&1; then echo "two replicas without a database must be refused"; exit 1; fi
+
+  ci-plugins:
+    name: CI plug-ins (GitHub Action against a stand-in)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Start a stand-in of the test-set API (and wait until it answers)
+        run: |
+          python deploy/ci/github-action/stub_server.py 8799 > "$RUNNER_TEMP/stub.log" 2>&1 &
+          echo "stand-in pid $!"
+          python - <<'PY'
+          import socket, sys, time
+          for i in range(120):
+              try:
+                  socket.create_connection(("127.0.0.1", 8799), 1).close(); print("stand-in answers"); sys.exit(0)
+              except OSError:
+                  time.sleep(0.5)
+          sys.exit("the stand-in did not answer in 60 s")
+          PY
+      - name: The stand-in's log (when a step failed)
+        if: failure()
+        run: |
+          { cat "$RUNNER_TEMP/stub.log"; ps aux | grep -i [s]tub_server; ss -ltnp 2>/dev/null | grep 8799; } | while IFS= read -r l; do echo "::warning title=stand-in::$l"; done
+          true
+      - name: A test set whose cases all pass
+        uses: ./platform/deploy/ci/github-action
+        with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_pass, pool: pool_ci, timeout-minutes: "2" }
+      - name: A test set with a failing case (the step must fail)
+        id: failing
+        continue-on-error: true
+        uses: ./platform/deploy/ci/github-action
+        with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_fail, timeout-minutes: "2" }
+      - name: The failing set failed the step
+        run: test "${{ steps.failing.outcome }}" = "failure"
+
   headless:
     name: Headless runner (${{ matrix.os }})
     strategy:

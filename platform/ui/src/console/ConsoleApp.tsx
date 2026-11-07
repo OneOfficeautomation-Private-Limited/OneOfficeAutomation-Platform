@@ -11,6 +11,10 @@ import { Connections } from "./Connections";
 import { Devices } from "./Devices";
 import { DocumentAutomation } from "./DocumentAutomation";
 import { EnvironmentLocks } from "./EnvironmentLocks";
+import { Ideas } from "./Ideas";
+import { DataStore } from "./DataStore";
+import { Apps } from "./Apps";
+import { KnowledgeBases } from "./KnowledgeBases";
 import { EventSubscriptions } from "./EventSubscriptions";
 import { Globals } from "./Globals";
 import { Governance } from "./Governance";
@@ -40,7 +44,7 @@ import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "events", "globals", "governance", "inbox", "insights", "licenses", "locks", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "apps", "audit", "automation", "connections", "credentials", "data", "devices", "docautomation", "events", "globals", "governance", "ideas", "inbox", "insights", "licenses", "locks", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users", "knowledge"]);
 /** Pages that became tabs of Operations and Business (item 7, 1 Nov 2026): their old addresses open the tab, so links keep working. */
 const MOVED: Record<string, [string, string]> = { capacity: ["operations", "runners"], queueinsights: ["operations", "queues"], value: ["business", "value"], dashboards: ["business", "dashboards"] };
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
@@ -137,6 +141,10 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}
           {page === "locks" && <EnvironmentLocks api={api} user={user} onNotice={setNotice} />}
+          {page === "ideas" && <Ideas api={api} onNotice={setNotice} />}
+          {page === "data" && <DataStore api={api} user={user} onNotice={setNotice} />}
+          {page === "apps" && <Apps api={api} user={user} onNotice={setNotice} />}
+          {page === "knowledge" && <KnowledgeBases api={api} user={user} onNotice={setNotice} />}
           {page === "docautomation" && <DocumentAutomation api={api} />}
           {page === "users" && <Users api={api} user={user} onNotice={setNotice} />}
           {page === "roles" && <Roles api={api} onNotice={setNotice} />}

@@ -1,0 +1,52 @@
+# Azure DevOps step template (gap G61): run a One CommandCenter test set and fail the pipeline when a case fails.
+#
+#   steps:
+#     - template: ooa-test-set.yml
+#       parameters:
+#         url: https://ooa.example.com
+#         testSet: tset_1a2b3c
+#         pool: pool_ci
+#   # with a secret pipeline variable OOA_API_KEY (an API key that may run tests in the agent's folder)
+parameters:
+  - name: url
+    type: string
+  - name: testSet
+    type: string
+  - name: runner
+    type: string
+    default: ''
+  - name: pool
+    type: string
+    default: ''
+  - name: timeoutMinutes
+    type: number
+    default: 30
+
+steps:
+  - task: PowerShell@2
+    displayName: Run One CommandCenter test set ${{ parameters.testSet }}
+    env:
+      OOA_TOKEN: $(OOA_API_KEY)
+    inputs:
+      targetType: inline
+      pwsh: true
+      script: |
+        $ErrorActionPreference = 'Stop'
+        $base = '${{ parameters.url }}'.TrimEnd('/') + '/api'
+        $headers = @{ Authorization = "Bearer $env:OOA_TOKEN" }
+        $body = @{}
+        if ('${{ parameters.runner }}') { $body.device_id = '${{ parameters.runner }}' }
+        if ('${{ parameters.pool }}') { $body.pool_id = '${{ parameters.pool }}' }
+        $started = Invoke-RestMethod -Method Post -Uri "$base/test-sets/${{ parameters.testSet }}/run" -Headers $headers -ContentType 'application/json' -Body ($body | ConvertTo-Json)
+        $tr = $started.test_run_id
+        Write-Host "Started test run $tr ($($started.started) of $($started.cases) cases)"
+        $deadline = (Get-Date).AddMinutes(${{ parameters.timeoutMinutes }})
+        do {
+          Start-Sleep -Seconds 10
+          $r = Invoke-RestMethod -Uri "$base/test-sets/runs/$tr" -Headers $headers
+          if ((Get-Date) -gt $deadline) { Write-Host "##vso[task.logissue type=error]The test run did not finish in time"; exit 1 }
+        } while ($r.status -eq 'running')
+        foreach ($c in $r.results) { Write-Host ("{0}  {1}  {2}" -f ($(if ($c.passed) { 'PASS' } else { 'FAIL' })), $c.case_name, $c.detail) }
+        Write-Host "##vso[task.setvariable variable=OOA_TEST_RUN]$tr"
+        if ($r.status -ne 'passed') { Write-Host "##vso[task.logissue type=error]Test run ${tr}: $($r.passed) of $($r.total) cases passed"; exit 1 }
+        Write-Host "All $($r.total) cases passed."

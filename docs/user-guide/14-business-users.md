@@ -14,6 +14,9 @@ members who start agents themselves from their desktop.
 7. [The assistant in the notification area](#7-the-assistant-in-the-notification-area)
 8. [Start an agent from the assistant](#8-start-an-agent-from-the-assistant)
 9. [Notifications on your desktop](#9-notifications-on-your-desktop)
+9a. [Suggest a process to automate](#9a-suggest-a-process-to-automate)
+9b. [Use an app](#9b-use-an-app)
+9c. [One CommandCenter on your phone](#9c-one-commandcenter-on-your-phone)
 10. [If it goes wrong](#10-if-it-goes-wrong)
 11. [Related guides](#related-guides)
 
@@ -66,6 +69,11 @@ entered.
 
 ## 4. Approve or reject
 
+A task from a workflow shows a **stage bar** at the top: the workflow's stages in order, those before this task ticked
+as done, this task's stage marked as current, and the rest still to come. You see where the request stands and what
+happens after your part.
+
+
 1. Click a task of kind **Approve**. **Workflow data** opens straight away so you can see what you are approving (for
    example the supplier, the amount and the invoice number).
 2. Optionally type a **Comment** ("Comment (optional)"). It is kept with your decision.
@@ -74,6 +82,23 @@ entered.
 What happens after a rejection was decided by whoever designed the workflow: it ends, carries on anyway, or goes back to
 an earlier stage (for example back to the requester to correct the form). Every decision is recorded in Audit Trail
 with your name.
+
+### Approve from e-mail, Teams or your phone
+
+When your administrator allows it, you can approve without opening One CommandCenter:
+
+- **E-mail (Outlook or any mail program):** the e-mail about a new approval has an **Approve** link and a **Reject**
+  link. They are made for you alone, so do not forward the e-mail.
+- **Teams:** an approval given only to you is posted in your team's channel with **Approve** and **Reject** buttons.
+  Tasks for a group show **Open the task**.
+- **Your phone:** open your account menu (top right), choose **Phone notifications** and press **Turn on**. In the free
+  **ntfy** app, subscribe to the server and topic shown. New tasks then appear on your phone, and approvals come with
+  **Approve** and **Reject** buttons. **Send a test** checks it works. **New topic** replaces your topic if the phone
+  is lost (the old topic stops working), and **Turn off** stops the notifications.
+
+Each link or button opens a page that shows what the request is and asks you to confirm, with room for a comment.
+Nothing is decided until you press **Approve** or **Reject** on that page. A link stops working after the time your
+administrator set, after the task is decided, and when the task is no longer yours.
 
 ## 5. Take a task, or give it back
 
@@ -146,6 +171,46 @@ Click the notification (or the icon) to open the matching page in One CommandCen
 
 Your administrator can also have One CommandCenter e-mail you when a run you started fails (with the agent, the
 reason and a link to the run).
+
+## 9a. Suggest a process to automate
+
+If part of your work is repetitive, suggest it: in One CommandCenter open **Build > Automation ideas** and choose
+**Suggest an idea**. Say what should be automated, how it is done today, your department, roughly how many cases a
+month and how many minutes each takes by hand. Everyone signed in can see the ideas and vote for the ones they would
+use (vote again to take a vote back).
+
+The automation team assesses each idea: how rule-based, structured and stable the process is, and how hard it is to
+build. That gives a **score** from 0 to 100, which with the votes decides what is built first. The idea then moves
+through **Assessing**, **Approved**, **Building** and **Live** (or **Rejected** or **On hold**, with the team's notes).
+Once it is live, the list shows the hours the agent actually saved over the last 30 days next to the estimate.
+
+You can change or delete your own idea while it is still **Submitted**.
+
+## 9b. Use an app
+
+Your automation team may give you **apps**: simple pages with fields and buttons, in **Build > Apps**. Open one, fill
+in the fields and press its button. A button may start an agent (the app waits and shows what the agent gave back),
+save a record or add a work item for an agent to pick up. A button stays grey until its required fields are filled.
+
+You do not need the right to start agents yourself: the app does what it was built to do on behalf of the person who
+published it, and the audit trail records that you pressed the button.
+
+## 9c. One CommandCenter on your phone
+
+One CommandCenter works as an app on phones and tablets. Open its address in the phone's browser (Chrome or Edge on
+Android, Safari on iPhone and iPad), sign in, then:
+
+- **Android**: the browser offers **Install app** (or ⋮ > **Add to Home screen**);
+- **iPhone and iPad**: Share > **Add to Home Screen**.
+
+The app opens full screen at your **Task inbox**, so you can approve, reject and fill in tasks; the menu (the narrow
+column of icons on the left; **Expand menu** opens it) leads to **Apps** and, if you may, to starting agents. Pressing and holding the app's icon offers Task inbox
+and Apps directly. On a phone the menu folds away once you pick a page.
+
+The app needs One CommandCenter to be reachable over **https://** from the phone (on the company network, a VPN, or a
+public address your administrator sets up). Nothing from One CommandCenter is kept on the phone; without a connection
+the app says so. For notices on the phone when a task arrives, see [Notifications on your desktop](#9-notifications-on-your-desktop)
+and ask your administrator about push notices and approval links.
 
 ## 10. If it goes wrong
 

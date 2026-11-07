@@ -20,8 +20,11 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const [chosenMini, setChosenMini] = usePersistent("menu.mini", false);
   const [openWhileEditing, setOpenWhileEditing] = useState(false);
   useEffect(() => { if (!editing) setOpenWhileEditing(false); }, [editing]);
-  const mini = editing ? !openWhileEditing : chosenMini;
-  const setMini = (m: boolean) => { if (editing) setOpenWhileEditing(!m); else setChosenMini(m); };
+  // on a phone (G69) the menu starts folded and opens over the page, folding again once a page is picked
+  const narrow = useNarrow();
+  const [openNarrow, setOpenNarrow] = useState(false);
+  const mini = narrow ? !openNarrow : editing ? !openWhileEditing : chosenMini;
+  const setMini = (m: boolean) => { if (narrow) setOpenNarrow(!m); else if (editing) setOpenWhileEditing(!m); else setChosenMini(m); };
   const [closed, setClosed] = usePersistent<string[]>("menu.closed", []);
   const toggleSection = (label: string) => setClosed(closed.includes(label) ? closed.filter((x) => x !== label) : [...closed, label]);
   const shown = sections.map((s) => ({ ...s, pages: s.pages.filter((p) => canSee(p, viewer)) })).filter((s) => s.pages.length);
@@ -52,7 +55,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
     if (local.has(it.id)) {
       const isCurrent = current === it.id;
       return <button type="button" className={`st-menu-item${isCurrent ? " is-current" : ""}`} aria-current={isCurrent ? "page" : undefined}
-        onClick={() => { setFind(""); onLocal(it.id); }}>{it.label}{extra && <span className="st-menu-where">{extra}</span>}</button>;
+        onClick={() => { setFind(""); setOpenNarrow(false); onLocal(it.id); }}>{it.label}{extra && <span className="st-menu-where">{extra}</span>}</button>;
     }
     const href = hrefFor(it.id);
     const isCurrent = current === it.id;   // a page served apart (Document Automation) marks its own entry
@@ -102,4 +105,19 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
     </nav>
     {inConsole && !mini && <Splitter label="Menu width" axis="x" grow={1} value={width} min={WIDTH.min} max={WIDTH.max} measure={() => w} onChange={setWidth} />}
   </>);
+}
+
+/** True on a phone-sized screen (640 px wide or less), following the window as it turns or resizes. */
+function useNarrow() {
+  const query = "(max-width: 640px)";
+  const get = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches;
+  const [narrow, setNarrow] = useState(get);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const m = window.matchMedia(query);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener?.("change", on);
+    return () => m.removeEventListener?.("change", on);
+  }, []);
+  return narrow;
 }

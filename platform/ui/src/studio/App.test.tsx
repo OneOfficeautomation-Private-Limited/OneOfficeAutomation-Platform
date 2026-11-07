@@ -61,8 +61,12 @@ function fakeServer() {
     "GET bot": () => ({ path: "x", flow: lastSaved ?? flow }),
     "GET blueprints": () => ({ blueprints: [
       { id: "excel_rows", name: "Loop through Excel rows", description: "Open a workbook and handle each row.", variables: [{ name: "workbook", type: "File", direction: "input" }],
-        steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }] },
-      { id: "needs_sap", name: "SAP order", description: "Needs a toolkit that is not installed.", variables: [], steps: [{ id: "s1", action: "ooa.sap/connect" }] }] }),
+        steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }],
+        subflows: [{ name: "Process", steps: [{ id: "p1", action: "core/log", args: { message: "row" } }] }],
+        onError: { as: "err", then: "fail", steps: [{ id: "h1", action: "core/log", args: { message: "${err.code}" } }] } },
+      { id: "needs_sap", name: "SAP order", description: "Needs a toolkit that is not installed.", variables: [], steps: [{ id: "s1", action: "ooa.sap/connect" }] },
+      { id: "sap_in_subflow", name: "SAP in a subflow", description: "Its subflow needs a toolkit that is not installed.", variables: [], steps: [],
+        subflows: [{ name: "Post", steps: [{ id: "p1", action: "ooa.sap/connect" }] }] }] }),
     "PUT bot": (b) => {
       created.push({ saved: b }); lastSaved = b;
       const close = (b.steps ?? []).find((x: any) => x.action === "ooa.excel/close");
@@ -454,6 +458,9 @@ describe("new Studio", () => {
     expect(saved.name).toBe("Invoice intake");   // the new agent keeps its own id and name
     expect(saved.description).toBe("Open a workbook and handle each row.");
     expect(saved.steps).toEqual([{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }]);
+    // a blueprint's subflows and error handler come with it (the transactional framework uses both)
+    expect(saved.subflows).toEqual([{ name: "Process", steps: [{ id: "p1", action: "core/log", args: { message: "row" } }] }]);
+    expect(saved.onError).toEqual({ as: "err", then: "fail", steps: [{ id: "h1", action: "core/log", args: { message: "${err.code}" } }] });
   });
 
   it("edits an agent: add from Actions, undo and redo, delete, change a setting, save with problems, ask before closing unsaved", async () => {
