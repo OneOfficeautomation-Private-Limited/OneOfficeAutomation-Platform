@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.runners.PoolScaling;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -40,17 +42,17 @@ class PoolScalingTest {
             cr.setCredential(admin, "ops", "scale", "secret", "hook-secret", null);
             String url = "http://127.0.0.1:" + hook.getAddress().getPort() + "/scale";
 
-            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.poolScaling.put(admin, pool, Map.of("enabled", true, "min", 3, "max", 1, "provider", "webhook", "url", url), null)).code());
-            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.poolScaling.put(admin, pool, Map.of("enabled", true, "provider", "webhook", "url", "http://example.com/x"), null)).code(),
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(PoolScaling.class).put(admin, pool, Map.of("enabled", true, "min", 3, "max", 1, "provider", "webhook", "url", url), null)).code());
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(PoolScaling.class).put(admin, pool, Map.of("enabled", true, "provider", "webhook", "url", "http://example.com/x"), null)).code(),
                     "plain http only to this computer");
-            cr.poolScaling.put(admin, pool, Map.of("enabled", true, "min", 0, "max", 5, "runs_per_runner", 2, "cooldown_minutes", 1, "provider", "webhook", "url", url, "secret_ref", "ops/scale/secret"), null);
+            cr.modules.service(PoolScaling.class).put(admin, pool, Map.of("enabled", true, "min", 0, "max", 5, "runs_per_runner", 2, "cooldown_minutes", 1, "provider", "webhook", "url", url, "secret_ref", "ops/scale/secret"), null);
 
             // no runner online: a run for the pool is refused, and that counts as demand
             db.update("UPDATE devices SET last_seen = NULL WHERE id = ?", dev);
             cr.checkin(admin, "S/A.flow.json", agent("a"), "v1", true, null);
             assertEquals("CR.NO_RUNNER", assertThrows(OoaException.class, () -> cr.startRun("admin", "admin", "S/A.flow.json", null, pool, Map.of(), "manual", null, 0, null, null, null)).code());
-            assertEquals(1, ((Number) ((Map<?, ?>) cr.poolScaling.get(admin, pool).get("now")).get("desired")).intValue(), "scaled up from zero");
-            cr.poolScaling.tick();
+            assertEquals(1, ((Number) ((Map<?, ?>) cr.modules.service(PoolScaling.class).get(admin, pool).get("now")).get("desired")).intValue(), "scaled up from zero");
+            cr.modules.service(PoolScaling.class).tick();
             assertEquals(1, calls.size());
             String body = calls.get(0)[0];
             Map<?, ?> sent = (Map<?, ?>) JsonLite.parse(body);
@@ -59,16 +61,16 @@ class PoolScalingTest {
             assertEquals("sha256=" + PoolScaling.hmacHex("hook-secret", body), calls.get(0)[1], "signed with the vault secret");
 
             // the same size again: nothing sent; queued work on the pool's runner: 5 runs, 2 per machine -> 3 machines, after the cooldown
-            cr.poolScaling.tick();
+            cr.modules.service(PoolScaling.class).tick();
             assertEquals(1, calls.size());
             for (int i = 0; i < 5; i++) cr.startRun("admin", "admin", "S/A.flow.json", dev, Map.of(), "manual", null);
-            @SuppressWarnings("unchecked") Map<String, Object> now = (Map<String, Object>) cr.poolScaling.get(admin, pool).get("now");
+            @SuppressWarnings("unchecked") Map<String, Object> now = (Map<String, Object>) cr.modules.service(PoolScaling.class).get(admin, pool).get("now");
             assertEquals(5L, ((Number) now.get("queued")).longValue());
             assertEquals(3, ((Number) now.get("desired")).intValue());
-            cr.poolScaling.tick();
+            cr.modules.service(PoolScaling.class).tick();
             assertEquals(1, calls.size(), "still within the cooldown");
-            cr.poolScaling.last.put(pool, new Object[]{1, ControlRoom.now().minusSeconds(120)});
-            cr.poolScaling.tick();
+            cr.modules.service(PoolScaling.class).last.put(pool, new Object[]{1, ControlRoom.now().minusSeconds(120)});
+            cr.modules.service(PoolScaling.class).tick();
             assertEquals(2, calls.size());
             assertTrue(calls.get(1)[0].contains("\"desired\":3"), calls.get(1)[0]);
             assertEquals(1L, cr.count("SELECT COUNT(*) AS n FROM audit WHERE action = 'pool.scaling_set'"));

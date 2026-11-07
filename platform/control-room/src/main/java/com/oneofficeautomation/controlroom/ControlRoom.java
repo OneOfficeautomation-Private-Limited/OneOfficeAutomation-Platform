@@ -71,7 +71,6 @@ public final class ControlRoom {
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Auto-scaling runner pools (G52). */
-    final PoolScaling poolScaling;
     /** Event subscriptions (gap G38): events posted to receivers as they happen. */
     public final EventSubscriptions events;
     /** The Prometheus metrics (gap G38). */
@@ -148,7 +147,6 @@ public final class ControlRoom {
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
         this.runWaits = new RunWaits(this);
-        this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);
         this.saml = new Saml(this);
@@ -192,6 +190,7 @@ public final class ControlRoom {
     public static String folderOfPath(String path) { return Folders.folderOf(path == null ? "" : path); }
     public static String csvLine(List<String> cells) { return Platform.Csv.row(cells); }
     public static String mailAddressChecked(String address) { return Mailer.address(address); }
+    public static List<String> csvList(Object value) { return csv(value); }
     public static int intOrDefault(String value, int dflt) { return intOr(value, dflt); }
     public static final java.time.Duration ONLINE_WINDOW = ONLINE;
     public static final String SERVERLESS_DEVICE_ID = ServerlessRuns.DEVICE;
@@ -1504,7 +1503,7 @@ public final class ControlRoom {
             platform.requirePoolUse(requestedBy, role, poolId);
             deviceId = platform.pickDevice(poolId);
             if (deviceId == null) {
-                poolScaling.noRunner(poolId);   // demand for an auto-scaling pool (G52)
+                if (modules != null) modules.noRunner(poolId);   // demand for an auto-scaling pool (G52, runner-management)
                 throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
             }
         }

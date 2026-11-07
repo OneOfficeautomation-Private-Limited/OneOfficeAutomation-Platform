@@ -279,6 +279,9 @@ public interface ModuleContext {
         String decided(Map<String, Object> task, User u, String outcome, String comment, String ip);
     }
 
+    /** Told when a run for a runner pool finds no online runner of it (demand, for pool auto-scaling). */
+    @FunctionalInterface interface NoRunner { void forPool(String poolId); }
+
     /** Checks a value saved in Settings for a module's setting; throws OoaException (CR.BAD_INPUT) to refuse it. */
     @FunctionalInterface interface SettingCheck { void check(String value, boolean saas); }
 
@@ -372,6 +375,15 @@ public interface ModuleContext {
     /** A simple PDF of a title and text lines (mailed reports), as the kernel writes them. */
     static byte[] textPdf(String title, List<String> lines) { return com.oneofficeautomation.controlroom.ControlRoom.textPdfOf(title, lines); }
 
+    /** A comma list or a JSON list as trimmed texts, as the kernel reads them. */
+    static List<String> csv(Object value) { return com.oneofficeautomation.controlroom.ControlRoom.csvList(value); }
+
+    /** AWS Signature Version 4 headers for a request (calls to AWS APIs), as the kernel's external vaults sign them. */
+    static Map<String, String> awsSigV4(String method, java.net.URI uri, Map<String, String> headers, String body, String accessKey, String secretKey,
+                                        String region, String service, java.time.ZonedDateTime now) throws Exception {
+        return com.oneofficeautomation.controlroom.ExternalVaults.SigV4.sign(method, uri, headers, body, accessKey, secretKey, region, service, now);
+    }
+
     /** CR.NOT_FOUND: "{what} not found". */
     static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
 
@@ -428,6 +440,9 @@ public interface ModuleContext {
 
     /** Answers a running agent's request of this name (POST /api/agent/request with call). */
     void runRequest(String call, RunRequest handler);
+
+    /** Hears when a pool has work but no online runner. */
+    void onNoRunner(NoRunner listener);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

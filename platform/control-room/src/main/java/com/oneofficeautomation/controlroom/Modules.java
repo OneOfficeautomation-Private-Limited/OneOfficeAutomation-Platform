@@ -41,6 +41,7 @@ public final class Modules {
     final List<ModuleContext.Guardrails> guardrails = new CopyOnWriteArrayList<>();
     final List<ModuleContext.RepositoryChange> repositoryChanges = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.RunRequest> runRequests = new LinkedHashMap<>();
+    final List<ModuleContext.NoRunner> noRunner = new CopyOnWriteArrayList<>();
     private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
@@ -136,6 +137,9 @@ public final class Modules {
             if ((route.equals(e.getKey()) || route.startsWith(e.getKey() + "/")) && (best == null || e.getKey().length() > best.getKey().length())) best = e;
         return best;
     }
+
+    /** Tells the modules a pool has work but no online runner. */
+    void noRunner(String poolId) { for (ModuleContext.NoRunner l : noRunner) try { l.forPool(poolId); } catch (RuntimeException ignored) { } }
 
     /** Tells the modules a run ended; one module failing does not stop the others. */
     void runEnded(Map<String, Object> run, String status, Map<String, Object> result) {
@@ -264,6 +268,7 @@ public final class Modules {
         public void repositoryChanged(String by, String message) { Modules.this.repositoryChanged(by, message); }
         public void onRepositoryChanged(RepositoryChange listener) { repositoryChanges.add(listener); }
         public void runRequest(String call, RunRequest handler) { claim(runRequests, call, handler, "the run request " + call); }
+        public void onNoRunner(NoRunner listener) { noRunner.add(listener); }
         public void every(Duration delay, Duration period, Runnable job) { jobs.add(new Job(module, delay, period, job)); }
         public void defineSetting(String key, Object defaultValue, SettingCheck check) { Platform.defineModuleSetting(key, defaultValue, check); }
         public void taskKind(String kind, TaskKind rules) { claim(taskKinds, kind, rules, "the task kind " + kind); }

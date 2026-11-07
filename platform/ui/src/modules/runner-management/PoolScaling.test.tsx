@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { CrApi } from "../api/cr";
+import { CrApi } from "../../api/cr";
 import { PoolScalingDialog } from "./PoolScaling";
 
 describe("pool auto-scaling (G52)", () => {

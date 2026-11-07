@@ -20,6 +20,7 @@ dependencies {
     implementation(project(":control-room"))
     // feature modules of One CommandCenter, found by the kernel with ServiceLoader (ooa docflow uses its settings file)
     implementation(project(":document-automation"))
+    implementation(project(":runner-management"))
     implementation(project(":integration"))
     implementation(project(":insights"))
     implementation(project(":governance"))

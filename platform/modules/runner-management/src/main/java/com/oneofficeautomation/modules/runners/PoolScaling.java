@@ -1,6 +1,11 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.runners;
 
 import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
+
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -17,7 +22,7 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.now;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.now;
 
 /**
  * Auto-scaling runner pools (gap G52): One CommandCenter works out how many runner machines a pool needs from its work
@@ -30,30 +35,30 @@ import static com.oneofficeautomation.controlroom.ControlRoom.now;
  * are vault references. The demand is the pool's queued and running runs, plus runs refused in the last minutes because
  * no runner of the pool was online, so a pool can scale up from zero.
  */
-final class PoolScaling {
-    private final ControlRoom cr;
+public final class PoolScaling {
+    private final ModuleContext ctx;
     private final Db db;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NEVER).build();
     /** pool id -> when a run found no runner of it online (demand that has nowhere to go yet). */
     final Map<String, Deque<Instant>> refused = new ConcurrentHashMap<>();
     /** pool id -> the size last asked for and when. */
-    final Map<String, Object[]> last = new ConcurrentHashMap<>();
-    static final List<String> PROVIDERS = List.of("webhook", "aws_asg", "azure_vmss");
+    public final Map<String, Object[]> last = new ConcurrentHashMap<>();
+    public static final List<String> PROVIDERS = List.of("webhook", "aws_asg", "azure_vmss");
 
-    PoolScaling(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public PoolScaling(ModuleContext ctx) { this.ctx = ctx; this.db = ctx.db(); }
 
     private static String key(String pool) { return "pool_scaling:" + pool; }
 
     @SuppressWarnings("unchecked")
-    Map<String, Object> config(String pool) {
+    public Map<String, Object> config(String pool) {
         Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = ?", key(pool));
         return r == null ? null : (Map<String, Object>) JsonLite.parse((String) r.get("json_value"));
     }
 
     /** The pool's scaling with what it would ask for now. */
-    Map<String, Object> get(User by, String pool) {
-        cr.require(by, "devices.manage", "see runner pool scaling");
-        if (db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw ControlRoom.notFound("Runner pool");
+    public Map<String, Object> get(User by, String pool) {
+        ctx.require(by, "devices.manage", "see runner pool scaling");
+        if (db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw notFound("Runner pool");
         Map<String, Object> c = config(pool);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("scaling", c == null ? Map.of("enabled", false) : c);
@@ -62,9 +67,9 @@ final class PoolScaling {
     }
 
     /** Saves a pool's scaling after checking it. */
-    Map<String, Object> put(User by, String pool, Map<String, Object> in, String ip) {
-        cr.require(by, "devices.manage", "set runner pool scaling");
-        if (db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw ControlRoom.notFound("Runner pool");
+    public Map<String, Object> put(User by, String pool, Map<String, Object> in, String ip) {
+        ctx.require(by, "devices.manage", "set runner pool scaling");
+        if (db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw notFound("Runner pool");
         Map<String, Object> c = new LinkedHashMap<>();
         c.put("enabled", Boolean.TRUE.equals(in.get("enabled")));
         int min = num(in.get("min"), 0, 0, 500, "min"), max = num(in.get("max"), 1, 0, 500, "max");
@@ -94,19 +99,19 @@ final class PoolScaling {
             db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", key(pool), json, now(), by.username());
             return null;
         });
-        cr.audit.record(by.username(), "pool.scaling_set", "pool", pool, Map.of("enabled", c.get("enabled"), "min", min, "max", max, "provider", provider), "ok", ip);
+        ctx.audit(by.username(), "pool.scaling_set", "pool", pool, Map.of("enabled", c.get("enabled"), "min", min, "max", max, "provider", provider), "ok", ip);
         return get(by, pool);
     }
 
     /** What the pool needs: its runs waiting and running, runs refused for lack of a runner, and machines online. */
-    Map<String, Object> demand(String pool, Map<String, Object> c) {
+    public Map<String, Object> demand(String pool, Map<String, Object> c) {
         Map<String, Object> p = db.one("SELECT devices FROM device_pools WHERE id = ?", pool);
-        List<String> devs = p == null ? List.of() : ControlRoom.csv(p.get("devices"));
+        List<String> devs = p == null ? List.of() : ModuleContext.csv(p.get("devices"));
         long queued = 0, running = 0, online = 0;
-        Instant fresh = now().minus(ControlRoom.ONLINE);
+        Instant fresh = now().minus(ModuleContext.ONLINE);
         for (String d : devs) {
-            queued += cr.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status = 'queued'", d);
-            running += cr.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status = 'running'", d);
+            queued += ctx.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status = 'queued'", d);
+            running += ctx.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status = 'running'", d);
             Map<String, Object> dev = db.one("SELECT last_seen, enabled FROM devices WHERE id = ?", d);
             if (dev != null && Boolean.TRUE.equals(dev.get("enabled")) && dev.get("last_seen") != null && !Instant.parse(String.valueOf(dev.get("last_seen"))).isBefore(fresh)) online++;
         }
@@ -124,14 +129,14 @@ final class PoolScaling {
     }
 
     /** A run found no runner of the pool online: counted as demand for a few minutes. */
-    void noRunner(String pool) {
+    public void noRunner(String pool) {
         if (config(pool) == null) return;
         Deque<Instant> d = refused.computeIfAbsent(pool, k -> new ArrayDeque<>());
         synchronized (d) { d.add(now()); while (d.size() > 1000) d.removeFirst(); }
     }
 
     /** Every minute on the leader: each pool with scaling on gets the size it needs, at most once per cooldown. */
-    void tick() {
+    public void tick() {
         for (Map<String, Object> row : db.query("SELECT name, json_value FROM settings WHERE name LIKE 'pool_scaling:%'")) {
             String pool = String.valueOf(row.get("name")).substring("pool_scaling:".length());
             try {
@@ -143,22 +148,22 @@ final class PoolScaling {
                 if (was != null && ((Instant) was[1]).plus(Duration.ofMinutes(num(c.get("cooldown_minutes"), 5, 1, 1440, "cooldown"))).isAfter(now())) continue;
                 apply(pool, c, desired);
                 last.put(pool, new Object[]{desired, now()});
-                cr.audit.record("system", "pool.scale", "pool", pool, Map.of("desired", desired, "provider", c.get("provider")), "ok", null);
+                ctx.audit("system", "pool.scale", "pool", pool, Map.of("desired", desired, "provider", c.get("provider")), "ok", null);
             } catch (RuntimeException e) {
-                cr.audit.record("system", "pool.scale", "pool", pool, String.valueOf(e.getMessage()), "failed", null);
+                ctx.audit("system", "pool.scale", "pool", pool, String.valueOf(e.getMessage()), "failed", null);
             }
         }
     }
 
     /** Asks the cloud for the size. */
-    void apply(String pool, Map<String, Object> c, int desired) {
+    public void apply(String pool, Map<String, Object> c, int desired) {
         switch (String.valueOf(c.get("provider"))) {
             case "webhook" -> {
                 String body = JsonLite.write(Map.of("pool", pool, "desired", desired, "at", now().toString()));
                 HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(String.valueOf(c.get("url")))).timeout(Duration.ofSeconds(20))
                         .POST(HttpRequest.BodyPublishers.ofString(body)).header("Content-Type", "application/json");
                 String ref = String.valueOf(c.getOrDefault("secret_ref", ""));
-                if (!ref.isEmpty()) b.header("X-OOA-Signature", "sha256=" + hmacHex(cr.systemCredential(ref), body));
+                if (!ref.isEmpty()) b.header("X-OOA-Signature", "sha256=" + hmacHex(ctx.systemCredential(ref), body));
                 send(b.build(), "The scaling webhook");
             }
             case "aws_asg" -> {
@@ -167,8 +172,8 @@ final class PoolScaling {
                 String body = "Action=SetDesiredCapacity&Version=2011-01-01&AutoScalingGroupName=" + URLEncoder.encode(String.valueOf(c.get("group")), StandardCharsets.UTF_8)
                         + "&DesiredCapacity=" + desired + "&HonorCooldown=false";
                 try {
-                    Map<String, String> h = ExternalVaults.SigV4.sign("POST", uri, Map.of("content-type", "application/x-www-form-urlencoded; charset=utf-8"), body,
-                            cr.systemCredential(String.valueOf(c.get("access_key_ref"))), cr.systemCredential(String.valueOf(c.get("secret_key_ref"))), region, "autoscaling",
+                    Map<String, String> h = ModuleContext.awsSigV4("POST", uri, Map.of("content-type", "application/x-www-form-urlencoded; charset=utf-8"), body,
+                            ctx.systemCredential(String.valueOf(c.get("access_key_ref"))), ctx.systemCredential(String.valueOf(c.get("secret_key_ref"))), region, "autoscaling",
                             ZonedDateTime.now(ZoneOffset.UTC));
                     HttpRequest.Builder b = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(20)).POST(HttpRequest.BodyPublishers.ofString(body));
                     h.forEach((k, v) -> { if (!k.equals("host")) b.header(k, v); });
@@ -191,7 +196,7 @@ final class PoolScaling {
     @SuppressWarnings("unchecked")
     private String azureToken(Map<String, Object> c) {
         String body = "grant_type=client_credentials&client_id=" + URLEncoder.encode(String.valueOf(c.get("client_id")), StandardCharsets.UTF_8)
-                + "&client_secret=" + URLEncoder.encode(cr.systemCredential(String.valueOf(c.get("client_secret_ref"))), StandardCharsets.UTF_8)
+                + "&client_secret=" + URLEncoder.encode(ctx.systemCredential(String.valueOf(c.get("client_secret_ref"))), StandardCharsets.UTF_8)
                 + "&scope=" + URLEncoder.encode("https://management.azure.com/.default", StandardCharsets.UTF_8);
         String r = send(HttpRequest.newBuilder(URI.create(azureLogin + seg(c.get("tenant")) + "/oauth2/v2.0/token")).timeout(Duration.ofSeconds(20))
                 .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(body)).build(), "Azure sign-in");
@@ -201,7 +206,7 @@ final class PoolScaling {
     }
 
     private String send(HttpRequest req, String what) {
-        if (cr.tenant != null) NetGuard.check(cr, req.uri().toString(), what);
+        if (ctx.tenant() != null) ctx.checkHost(req.uri().toString(), what);
         try {
             HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
             if (r.statusCode() / 100 != 2) throw new OoaException("CR.SCALE_FAILED", what + " answered HTTP " + r.statusCode() + ": " + r.body().substring(0, Math.min(300, r.body().length())));
@@ -210,7 +215,7 @@ final class PoolScaling {
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("CR.SCALE_FAILED", "Interrupted"); }
     }
 
-    static String hmacHex(String secret, String body) {
+    public static String hmacHex(String secret, String body) {
         try {
             javax.crypto.Mac m = javax.crypto.Mac.getInstance("HmacSHA256");
             m.init(new javax.crypto.spec.SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

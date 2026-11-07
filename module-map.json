@@ -208,17 +208,10 @@
       "id": "runner-management",
       "name": "Runner management",
       "layer": 3,
-      "description": "Runner pools, auto-scaling, runner care and updates.",
+      "description": "Auto-scaling runner pools in the customer's cloud. (Runner care and updates, part of every heartbeat and of dispatch, are the kernel's.) Moved out of the kernel: platform/modules/runner-management (Gradle project :runner-management).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PoolScaling.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunnerCare.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunnerUpdates.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PoolScaling*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunnerCare*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunnerUpdates*Test.java",
-        "platform/ui/src/console/Devices.tsx",
-        "platform/ui/src/console/PoolScaling.tsx",
-        "platform/ui/src/console/PoolScaling.test.tsx"
+        "platform/modules/runner-management/**",
+        "platform/ui/src/modules/runner-management/**"
       ],
       "dependsOn": [
         "kernel"

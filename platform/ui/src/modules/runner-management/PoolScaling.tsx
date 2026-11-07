@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { CrApi, PoolScaling, PoolScalingNow, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import type { CrApi, PoolScaling, PoolScalingNow, RunnerPool } from "../../api/cr";
+import { Button, Dialog, Field, Select, TextInput } from "../../components";
 
 /**
  * A runner pool's auto-scaling (G52): how many machines it may have and where One CommandCenter sends the size it needs
