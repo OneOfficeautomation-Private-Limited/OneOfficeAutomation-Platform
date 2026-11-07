@@ -50,9 +50,6 @@ public final class ControlRoom {
     public final Analytics analytics;
     /** Alert rules, checked once a minute, and the alerts they raised. */
     public final Alerts alerts;
-    /** Code analysis against the policy (on demand and at check-in). */
-    public final CodeAnalysis codeAnalysis;
-    final Policies policies;
     /** Agents behind their own URL and token. */
     public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
@@ -74,7 +71,6 @@ public final class ControlRoom {
     public final Licensing licensing;
     public final Mfa mfa;
     public final Cluster cluster;
-    public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
@@ -156,7 +152,6 @@ public final class ControlRoom {
         this.licensing = new Licensing(this);
         this.cluster = new Cluster(db);
         this.mfa = new Mfa(this);
-        this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
@@ -184,8 +179,6 @@ public final class ControlRoom {
         this.vaultAdmin = new VaultAdmin(this);
         this.analytics = new Analytics(this);
         this.alerts = new Alerts(this);
-        this.codeAnalysis = new CodeAnalysis(this);
-        this.policies = new Policies(this);
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
@@ -198,12 +191,20 @@ public final class ControlRoom {
         modules.start();
     }
 
+    /** Something in the repository changed (a check-in, a version made live): Git sync and the modules that follow changes hear of it. */
+    void repositoryChanged(String by, String message) {
+        gitSync.changed(by, message);
+        if (modules != null) modules.repositoryChanged(by, message);
+    }
+
     /** The kernel's conventions, published to feature modules through ModuleContext (id, now, denied, notFound). */
     public static String newId(String prefix) { return id(prefix); }
     public static Instant nowMillis() { return now(); }
     public static OoaException deniedTo(String what) { return denied(what); }
     public static OoaException notFoundError(String what) { return notFound(what); }
     public static String normalizedFolder(String path) { return Folders.normalize(path); }
+    public static String folderOfPath(String path) { return Folders.folderOf(path == null ? "" : path); }
+    public static String csvLine(List<String> cells) { return Platform.Csv.row(cells); }
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
@@ -999,11 +1000,12 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean asProduction, boolean checkedOut, String ip) {
         // with approval before production, "as production" becomes a request that someone else approves
-        boolean askApproval = asProduction && approvals.enabled(), makeProduction = asProduction && !askApproval;
+        ModuleContext.ProductionGate gate = modules == null ? null : modules.productionGate;
+        boolean askApproval = asProduction && gate != null && gate.required(), makeProduction = asProduction && !askApproval;
         Map<String, Object> stored = storeVersionNow(by, path, flow, comment, makeProduction, checkedOut, ip);
         if (!askApproval) return stored;
         Map<String, Object> out = new LinkedHashMap<>(stored);
-        out.put("production_request", approvals.request(by, path, ((Number) stored.get("version")).intValue(), comment, ip));
+        out.put("production_request", gate.request(by, path, ((Number) stored.get("version")).intValue(), comment, ip));
         return out;
     }
 
@@ -1019,7 +1021,8 @@ public final class ControlRoom {
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
                 "Fix the problems in One AgentStudio (Check now lists them) before checking in.", false, Map.of("problems", problems));
-        codeAnalysis.atCheckin(path, flow);
+        // feature modules may refuse it first (governance: code analysis rules that block check-in)
+        if (modules != null) for (ModuleContext.CheckinListener l : modules.checkins) l.before(path, flow);
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
@@ -1048,22 +1051,23 @@ public final class ControlRoom {
             db.update("INSERT INTO bot_versions (path, version, content, sha256, comment, author, created) VALUES (?,?,?,?,?,?,?)",
                     path, version, json, Security.sha256(json), comment == null ? "" : comment, by.username(), now());
             audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
-            gitSync.changed(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
-            // the code analysis report of the new version, against today's policy
-            if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow, codeAnalysis.policyFor(path)), by.username());
+            repositoryChanged(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
+            // feature modules hear of the new version (governance: the code analysis report against today's policy)
+            if (modules != null) for (ModuleContext.CheckinListener l : modules.checkins) l.checkedIn(by, path, version, flow, comment);
             return Map.of("path", path, "version", version, "created", b == null);
         });
     }
 
     /** Makes a version live, or with approval before production asks for it; returns {ok} or {production_request}. */
     public Map<String, Object> setOrRequestProduction(User by, String path, int version, String comment, String ip) {
-        if (approvals.enabled()) return Map.of("production_request", approvals.request(by, path, version, comment, ip));
+        ModuleContext.ProductionGate gate = modules == null ? null : modules.productionGate;
+        if (gate != null && gate.required()) return Map.of("production_request", gate.request(by, path, version, comment, ip));
         setProduction(by, path, version, ip);
         return Map.of("ok", true);
     }
 
     public void setProduction(User by, String path, int version, String ip) {
-        if (approvals.enabled()) throw new OoaException("CR.APPROVAL_REQUIRED", "Production versions need approval", "Ask for approval; another person with the approval right decides.");
+        if (modules != null && modules.productionGate != null && modules.productionGate.required()) throw new OoaException("CR.APPROVAL_REQUIRED", "Production versions need approval", "Ask for approval; another person with the approval right decides.");
         require(by, "repo.production", "set live production versions");
         folders.require(by, path, "manage", "set live production versions");
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
@@ -1833,7 +1837,7 @@ public final class ControlRoom {
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             moduleParts.forEach((k, v) -> { if (v != null && !v.isEmpty()) job.put(k, v); });
-            Map<String, Object> guardrails = policies.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (Policies)
+            Map<String, Object> guardrails = modules == null ? null : modules.guardrailsFor(String.valueOf(run.get("bot_path")));   // the folder's AI guardrails (governance)
             // Settings > AI (item 4n): AI switched off for everyone, and full logging of prompts and answers (off at first)
             if (platform.intSetting("ai_enabled") == 0 || platform.intSetting("ai_log_content") == 1) {
                 guardrails = new LinkedHashMap<>(guardrails == null ? Map.of() : guardrails);

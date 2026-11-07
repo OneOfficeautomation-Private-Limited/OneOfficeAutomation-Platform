@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.governance.CodeAnalysis;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import org.junit.jupiter.api.*;
@@ -25,7 +27,7 @@ class ConnectorGroupsTest {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> policy(List<String> business, List<String> blocked) {
-        Map<String, Object> p = (Map<String, Object>) JsonLite.parse(JsonLite.write(cr.codeAnalysis.policy()));
+        Map<String, Object> p = (Map<String, Object>) JsonLite.parse(JsonLite.write(cr.modules.service(CodeAnalysis.class).policy()));
         Map<String, Object> rules = (Map<String, Object>) p.get("rules");
         for (Object r : rules.values()) ((Map<String, Object>) r).put("enabled", false);
         Map<String, Object> r = (Map<String, Object>) rules.get("connector_groups");
@@ -44,19 +46,19 @@ class ConnectorGroupsTest {
     }
 
     @Test void offByDefault() {
-        assertEquals(false, ((Map<?, ?>) ((Map<?, ?>) cr.codeAnalysis.policy().get("rules")).get("connector_groups")).get("enabled"));
+        assertEquals(false, ((Map<?, ?>) ((Map<?, ?>) cr.modules.service(CodeAnalysis.class).policy().get("rules")).get("connector_groups")).get("enabled"));
     }
 
     @Test void businessAndNonBusinessDoNotMixBlockedIsRefusedNeutralGoesWithBoth() {
         Map<String, Object> pol = policy(List.of("ooa.sap", "ooa.microsoft365", "ooa.aws*"), List.of("ooa.ftp"));
-        assertTrue(cr.codeAnalysis.check(agent("ooa.sap/login", "ooa.microsoft365/send_mail", "ooa.aws_ai/detect_text", "ooa.string/trim", "core/log"), pol).isEmpty(),
+        assertTrue(cr.modules.service(CodeAnalysis.class).check(agent("ooa.sap/login", "ooa.microsoft365/send_mail", "ooa.aws_ai/detect_text", "ooa.string/trim", "core/log"), pol).isEmpty(),
                 "business toolkits with neutral ones are fine");
-        assertTrue(cr.codeAnalysis.check(agent("ooa.http/request", "ooa.string/trim", "core/log"), pol).isEmpty(), "non-business with neutral ones is fine");
-        List<Map<String, Object>> mixed = cr.codeAnalysis.check(agent("ooa.sap/login", "core/log", "ooa.http/request"), pol);
+        assertTrue(cr.modules.service(CodeAnalysis.class).check(agent("ooa.http/request", "ooa.string/trim", "core/log"), pol).isEmpty(), "non-business with neutral ones is fine");
+        List<Map<String, Object>> mixed = cr.modules.service(CodeAnalysis.class).check(agent("ooa.sap/login", "core/log", "ooa.http/request"), pol);
         assertEquals(1, mixed.size(), String.valueOf(mixed));
         assertEquals("s3", mixed.get(0).get("step"));
         assertTrue(String.valueOf(mixed.get(0).get("message")).contains("ooa.sap") && String.valueOf(mixed.get(0).get("message")).contains("ooa.http"));
-        List<Map<String, Object>> blocked = cr.codeAnalysis.check(agent("ooa.ftp/upload", "ooa.ftp/download"), pol);
+        List<Map<String, Object>> blocked = cr.modules.service(CodeAnalysis.class).check(agent("ooa.ftp/upload", "ooa.ftp/download"), pol);
         assertEquals(List.of("s1", "s2"), blocked.stream().map(v -> v.get("step")).toList());
         assertEquals("error", blocked.get(0).get("severity"));
     }

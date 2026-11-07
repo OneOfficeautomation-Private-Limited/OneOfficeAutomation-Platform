@@ -1,12 +1,15 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.governance;
 
 import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.util.*;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Administration > Policies, as AA's (checked 1 Nov 2026): named policies given to folders, of two kinds. Code analysis
@@ -16,22 +19,24 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * use the default one (code_policy, "Default code analysis"); folders with no AI guardrails keep each AI step's settings.
  * Seeing policies needs repo.view; changing them needs settings.manage, as the default policy did.
  */
-final class Policies {
-    static final String DEFAULT_ID = "default", DEFAULT_NAME = "Default code analysis";
-    static final Map<String, String> KINDS = Map.of("code", "Code analysis", "ai", "AI guardrails");
+public final class Policies {
+    public static final String DEFAULT_ID = "default", DEFAULT_NAME = "Default code analysis";
+    public static final Map<String, String> KINDS = Map.of("code", "Code analysis", "ai", "AI guardrails");
     /** Personal data an AI guardrails policy may mask: names and places, contact details, payment, government ids, network addresses. */
-    static final List<String> MASK_KINDS = List.of("names", "contacts", "payment", "government", "network");
+    public static final List<String> MASK_KINDS = List.of("names", "contacts", "payment", "government", "network");
     /** The error codes an AI guardrails policy stops a step with. */
-    static final Set<String> STOPS = Set.of("AI.MODEL_NOT_ALLOWED", "AI.CONTENT_FLAGGED");
+    public static final Set<String> STOPS = Set.of("AI.MODEL_NOT_ALLOWED", "AI.CONTENT_FLAGGED");
 
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    Policies(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    private final CodeAnalysis codeAnalysis;
+
+    public Policies(ModuleContext ctx, CodeAnalysis codeAnalysis) { this.ctx = ctx; this.db = ctx.db(); this.codeAnalysis = codeAnalysis; }
 
     /** Every policy, the default code analysis one first. */
-    List<Map<String, Object>> list(User by) {
-        cr.require(by, "repo.view", "see policies");
+    public List<Map<String, Object>> list(User by) {
+        ctx.require(by, "repo.view", "see policies");
         List<Map<String, Object>> out = new ArrayList<>();
         out.add(defaultPolicy());
         for (Map<String, Object> r : db.query("SELECT id, name, kind, description, rules, folders, created, created_by, updated, updated_by FROM policies ORDER BY kind, name"))
@@ -39,8 +44,8 @@ final class Policies {
         return out;
     }
 
-    Map<String, Object> get(User by, String id) {
-        cr.require(by, "repo.view", "see policies");
+    public Map<String, Object> get(User by, String id) {
+        ctx.require(by, "repo.view", "see policies");
         if (DEFAULT_ID.equals(id)) return defaultPolicy();
         Map<String, Object> r = db.one("SELECT id, name, kind, description, rules, folders, created, created_by, updated, updated_by FROM policies WHERE id = ?", id);
         if (r == null) throw notFound("Policy " + id);
@@ -49,10 +54,10 @@ final class Policies {
 
     /** Makes (no id) or changes a policy; the default code analysis policy keeps its name and covers every other folder. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> save(User by, String id, Map<String, Object> body, String ip) {
-        cr.require(by, "settings.manage", "change policies");
+    public Map<String, Object> save(User by, String id, Map<String, Object> body, String ip) {
+        ctx.require(by, "settings.manage", "change policies");
         Map<String, Object> rulesIn = body.get("rules") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
-        if (DEFAULT_ID.equals(id)) { cr.codeAnalysis.savePolicy(by, rulesIn, ip); return defaultPolicy(); }
+        if (DEFAULT_ID.equals(id)) { codeAnalysis.savePolicy(by, rulesIn, ip); return defaultPolicy(); }
         Map<String, Object> old = id == null ? null : db.one("SELECT kind FROM policies WHERE id = ?", id);
         if (id != null && old == null) throw notFound("Policy " + id);
         String kind = old != null ? (String) old.get("kind") : String.valueOf(body.get("kind"));
@@ -63,7 +68,7 @@ final class Policies {
             throw new OoaException("CR.CONFLICT", "A policy is already called '" + name + "'", "Choose another name.");
         List<String> folders = new ArrayList<>();
         if (body.get("folders") instanceof List<?> l) for (Object f : l) {
-            String p = Folders.normalize(String.valueOf(f));
+            String p = ctx.normalizeFolder(String.valueOf(f));
             if (!folders.contains(p)) folders.add(p);
         }
         // one policy of each kind per folder, so a folder's rules are never in doubt
@@ -74,30 +79,30 @@ final class Policies {
         Map<String, Object> rules = kind.equals("code") ? CodeAnalysis.clean(rulesIn) : cleanGuardrails(rulesIn);
         String description = body.get("description") == null ? "" : String.valueOf(body.get("description")).trim();
         if (description.length() > 500) throw new OoaException("CR.BAD_INPUT", "The description is up to 500 characters");
-        String pid = id == null ? ControlRoom.id("pol") : id;
+        String pid = id == null ? id("pol") : id;
         if (id == null) db.update("INSERT INTO policies (id, name, kind, description, rules, folders, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 pid, name, kind, description, JsonLite.write(rules), JsonLite.write(folders), now(), by.username(), now(), by.username());
         else db.update("UPDATE policies SET name = ?, description = ?, rules = ?, folders = ?, updated = ?, updated_by = ? WHERE id = ?",
                 name, description, JsonLite.write(rules), JsonLite.write(folders), now(), by.username(), pid);
-        cr.audit.record(by.username(), id == null ? "policy.create" : "policy.update", "policy", pid, Map.of("name", name, "kind", kind, "folders", folders), "ok", ip);
+        ctx.audit(by.username(), id == null ? "policy.create" : "policy.update", "policy", pid, Map.of("name", name, "kind", kind, "folders", folders), "ok", ip);
         return get(by, pid);
     }
 
-    void delete(User by, String id, String ip) {
-        cr.require(by, "settings.manage", "change policies");
+    public void delete(User by, String id, String ip) {
+        ctx.require(by, "settings.manage", "change policies");
         if (DEFAULT_ID.equals(id)) throw new OoaException("CR.BAD_INPUT", "The default code analysis policy cannot be deleted", "Change its rules instead.");
         Map<String, Object> r = db.one("SELECT name, kind FROM policies WHERE id = ?", id);
         if (r == null) throw notFound("Policy " + id);
         db.update("DELETE FROM policies WHERE id = ?", id);
-        cr.audit.record(by.username(), "policy.delete", "policy", id, Map.of("name", r.get("name"), "kind", r.get("kind")), "ok", ip);
+        ctx.audit(by.username(), "policy.delete", "policy", id, Map.of("name", r.get("name"), "kind", r.get("kind")), "ok", ip);
     }
 
     /** The policy of a kind for a folder: its own, or the nearest folder's above it; null when there is none. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> find(String kind, String folder) {
+    public Map<String, Object> find(String kind, String folder) {
         List<Map<String, Object>> all = db.query("SELECT id, name, kind, description, rules, folders, created, created_by, updated, updated_by FROM policies WHERE kind = ?", kind);
         if (all.isEmpty()) return null;
-        for (String f = folder == null ? "" : folder; ; f = Folders.parentOf(f)) {
+        for (String f = folder == null ? "" : folder; ; f = ModuleContext.folderOf(f)) {
             for (Map<String, Object> r : all) if (((List<Object>) JsonLite.parse((String) r.get("folders"))).contains(f)) return row(r);
             if (f.isEmpty()) return null;
         }
@@ -108,7 +113,7 @@ final class Policies {
      * agents may use; empty: any) and content (how answers are checked for harmful content: off, log or block).
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> cleanGuardrails(Map<String, Object> in) {
+    public Map<String, Object> cleanGuardrails(Map<String, Object> in) {
         Map<String, Object> g = new LinkedHashMap<>();
         g.put("mask", !Boolean.FALSE.equals(in.get("mask")));
         // the kinds of personal data masked (all by default)
@@ -150,12 +155,12 @@ final class Policies {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> stopped(User by, String id, Map<String, String> q) {
-        cr.require(by, "settings.manage", "see what a policy stopped");
+        ctx.require(by, "settings.manage", "see what a policy stopped");
         Map<String, Object> p = get(by, id);
         if (!"ai".equals(p.get("kind"))) throw new OoaException("CR.BAD_INPUT", "Only AI guardrails stop steps");
         java.time.Instant since = now().minus(java.time.Duration.ofDays(Math.max(1, Math.min(365, intOr(q.get("days"), 30)))));
         Map<String, Boolean> mine = new HashMap<>();   // agent path -> this policy applies to it
-        java.util.function.Predicate<String> applies = path -> mine.computeIfAbsent(path, x -> { Map<String, Object> f = find("ai", Folders.folderOf(x)); return f != null && id.equals(f.get("id")); });
+        java.util.function.Predicate<String> applies = path -> mine.computeIfAbsent(path, x -> { Map<String, Object> f = find("ai", ModuleContext.folderOf(x)); return f != null && id.equals(f.get("id")); });
         List<Map<String, Object>> steps = new ArrayList<>();
         int total = 0;
         for (Map<String, Object> r : db.query("SELECT id, bot_path, created, error FROM runs WHERE status = 'failed' AND created >= ? AND error IS NOT NULL ORDER BY created DESC", since)) {
@@ -185,8 +190,8 @@ final class Policies {
 
     /** The AI guardrails for an agent, by its folder, with the policy's name, as sent with its runs; null when there are none. */
     @SuppressWarnings("unchecked")
-    Map<String, Object> guardrailsFor(String agentPath) {
-        Map<String, Object> p = find("ai", Folders.folderOf(agentPath == null ? "" : agentPath));
+    public Map<String, Object> guardrailsFor(String agentPath) {
+        Map<String, Object> p = find("ai", ModuleContext.folderOf(agentPath == null ? "" : agentPath));
         if (p == null) return null;
         Map<String, Object> g = new LinkedHashMap<>((Map<String, Object>) p.get("rules"));
         g.put("name", p.get("name"));
@@ -199,7 +204,7 @@ final class Policies {
         d.put("name", DEFAULT_NAME);
         d.put("kind", "code");
         d.put("description", "Rules for every folder without its own code analysis policy.");
-        d.put("rules", cr.codeAnalysis.policy());
+        d.put("rules", codeAnalysis.policy());
         d.put("folders", List.of());
         d.put("built_in", true);
         Map<String, Object> row = db.one("SELECT updated, updated_by FROM code_policy WHERE id = 1");
@@ -216,4 +221,6 @@ final class Policies {
         m.put("built_in", false);
         return m;
     }
+
+    private static int intOr(String v, int dflt) { try { return v == null ? dflt : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return dflt; } }
 }

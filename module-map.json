@@ -130,20 +130,10 @@
       "id": "governance",
       "name": "Governance",
       "layer": 3,
-      "description": "Code analysis, policies, AI governance, production approval and approval channels.",
+      "description": "Code analysis, folder policies (code rules and AI guardrails) and production approval. (Approval channels, how the Task inbox delivers tasks by e-mail, Teams and phone, are the kernel's.)",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/CodeAnalysis.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Policies.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ProductionApproval.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ApprovalChannels.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/CodeAnalysis*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Policies*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ProductionApproval*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ApprovalChannels*Test.java",
-        "platform/ui/src/console/Policies.tsx",
-        "platform/ui/src/console/Governance.tsx",
-        "platform/ui/src/console/PhoneNotifications.tsx",
-        "platform/ui/src/console/PhoneNotifications.test.tsx"
+        "platform/modules/governance/**",
+        "platform/ui/src/modules/governance/**"
       ],
       "dependsOn": [
         "kernel"

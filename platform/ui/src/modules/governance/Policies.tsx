@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CodePolicy, CrApi, CrUser, ModelConnection, Policy, RepoFolder } from "../api/cr";
-import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
-import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "./RepoTools";
+import type { CodePolicy, CrApi, CrUser, ModelConnection, Policy, RepoFolder } from "../../api/cr";
+import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
+import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "../../console/RepoTools";
 
 /**
  * Administration > Policies, as AA's (item 5, drawn on the design canvas and approved 1 Nov 2026): named policies given

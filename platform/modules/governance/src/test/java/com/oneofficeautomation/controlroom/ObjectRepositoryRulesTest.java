@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.governance.CodeAnalysis;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -41,7 +43,7 @@ class ObjectRepositoryRulesTest {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> policyWith(String... rules) {
-        Map<String, Object> p = (Map<String, Object>) JsonLite.parse(JsonLite.write(cr.codeAnalysis.policy()));
+        Map<String, Object> p = (Map<String, Object>) JsonLite.parse(JsonLite.write(cr.modules.service(CodeAnalysis.class).policy()));
         Map<String, Object> all = (Map<String, Object>) p.get("rules");
         for (String id : all.keySet()) ((Map<String, Object>) all.get(id)).put("enabled", false);
         for (String id : rules) ((Map<String, Object>) all.get(id)).put("enabled", true);
@@ -54,25 +56,25 @@ class ObjectRepositoryRulesTest {
 
     @Test void rulesAreOffByDefaultAndListed() {
         @SuppressWarnings("unchecked")
-        Map<String, Object> rules = (Map<String, Object>) cr.codeAnalysis.policy().get("rules");
+        Map<String, Object> rules = (Map<String, Object>) cr.modules.service(CodeAnalysis.class).policy().get("rules");
         for (String id : List.of("repository_objects", "ui_in_object_agents")) {
             assertTrue(rules.containsKey(id), id);
             assertEquals(false, ((Map<?, ?>) rules.get(id)).get("enabled"), id + " is off until an administrator turns it on");
         }
-        assertTrue(stepsOf(cr.codeAnalysis.check(PROCESS), "repository_objects").isEmpty());
+        assertTrue(stepsOf(cr.modules.service(CodeAnalysis.class).check(PROCESS), "repository_objects").isEmpty());
     }
 
     @Test void capturedObjectsMustComeFromARepository() {
-        List<Map<String, Object>> v = cr.codeAnalysis.check(PROCESS, policyWith("repository_objects"));
+        List<Map<String, Object>> v = cr.modules.service(CodeAnalysis.class).check(PROCESS, policyWith("repository_objects"));
         assertEquals(List.of("s2"), stepsOf(v, "repository_objects"));
         assertEquals("error", v.get(0).get("severity"));
     }
 
     @Test void screenStepsOnlyInObjectAgents() {
-        assertEquals(List.of("s1", "s2", "s4"), stepsOf(cr.codeAnalysis.check(PROCESS, policyWith("ui_in_object_agents")), "ui_in_object_agents"));
+        assertEquals(List.of("s1", "s2", "s4"), stepsOf(cr.modules.service(CodeAnalysis.class).check(PROCESS, policyWith("ui_in_object_agents")), "ui_in_object_agents"));
         Map<String, Object> objectAgent = new LinkedHashMap<>(PROCESS);
         objectAgent.put("tags", List.of("Object-Agent"));
-        assertTrue(cr.codeAnalysis.check(objectAgent, policyWith("ui_in_object_agents")).isEmpty(), "the tag is matched without regard to case");
+        assertTrue(cr.modules.service(CodeAnalysis.class).check(objectAgent, policyWith("ui_in_object_agents")).isEmpty(), "the tag is matched without regard to case");
     }
 
     @Test void aRunGetsTheRepositoriesItsAgentUses() {

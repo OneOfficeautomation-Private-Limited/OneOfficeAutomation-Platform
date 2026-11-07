@@ -61,6 +61,15 @@ public interface ModuleContext {
     /** Whether the person may see a repository path (an agent) by its folder's permissions. */
     boolean mayView(User u, String path);
 
+    /** What a person may do with a repository path (an agent) by its folder: none, view, run, edit or manage. */
+    String pathAccess(String username, String role, String path);
+
+    /** An agent as the person may see it (content, versions, labels), at a version or "latest" / "production". */
+    Map<String, Object> getAgent(User by, String path, Object version);
+
+    /** The agents the person may see in the repository. */
+    List<Map<String, Object>> listAgents(User by);
+
     /** Refuses unless the person has the level on the folder of a repository path (an agent). */
     void requirePathAccess(String username, String role, String path, String level, String what);
 
@@ -167,6 +176,28 @@ public interface ModuleContext {
     /** A call from another service at /api/{route}, before sign-in: the module authenticates it (a service token). Returns the JSON answer. */
     @FunctionalInterface interface CallbackRoute { Object handle(HttpExchange ex, String ip) throws IOException; }
 
+    /** Told around every check-in (and import) of an agent, workflow or form. */
+    interface CheckinListener {
+        /** Before the version is stored: throws OoaException to refuse it (code analysis rules that block check-in). */
+        default void before(String path, Map<String, Object> flow) { }
+        /** After the version is stored, in the same transaction (code analysis stores its report). */
+        default void checkedIn(User by, String path, int version, Map<String, Object> flow, String comment) { }
+    }
+
+    /** Decides whether making a version live needs someone's approval first (production approval). */
+    interface ProductionGate {
+        /** True when production versions need approval now. */
+        boolean required();
+        /** Asks for a version to go live; returns the request. */
+        Map<String, Object> request(User by, String path, int version, String comment, String ip);
+    }
+
+    /** The AI guardrails for an agent's runs (by its folder), merged into the run's job; null when none. */
+    @FunctionalInterface interface Guardrails { Map<String, Object> forAgent(String path); }
+
+    /** Told when something in the repository changed (a check-in, a version made live), for Git sync. */
+    @FunctionalInterface interface RepositoryChange { void changed(String by, String message); }
+
     /** A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key). The route is after the prefix. */
     @FunctionalInterface interface PublicRoute { void handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
 
@@ -250,6 +281,12 @@ public interface ModuleContext {
     /** A folder path as the repository keeps it ("Finance/AP"); refuses one that is not valid (CR.BAD_PATH). */
     static String folderPath(String path) { return com.oneofficeautomation.controlroom.ControlRoom.normalizedFolder(path); }
 
+    /** The folder of a repository path ("Finance/AP/Post.flow.json" -> "Finance/AP"). */
+    static String folderOf(String path) { return com.oneofficeautomation.controlroom.ControlRoom.folderOfPath(path); }
+
+    /** One CSV line (with its line break), quoted and protected against spreadsheet formulas, as the kernel's exports write it. */
+    static String csvRow(List<String> cells) { return com.oneofficeautomation.controlroom.ControlRoom.csvLine(cells); }
+
     /** CR.NOT_FOUND: "{what} not found". */
     static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
 
@@ -288,6 +325,21 @@ public interface ModuleContext {
 
     /** Tasks whose stage the module owns (One Chat: chat_approval). */
     void taskStage(String stage, TaskStage rules);
+
+    /** Told around every check-in. */
+    void checkinListener(CheckinListener listener);
+
+    /** The production gate (one module at most). */
+    void productionGate(ProductionGate gate);
+
+    /** AI guardrails for runs. */
+    void guardrails(Guardrails source);
+
+    /** Tells whoever follows repository changes (Git sync) that something changed. */
+    void repositoryChanged(String by, String message);
+
+    /** Follows repository changes (Git sync). */
+    void onRepositoryChanged(RepositoryChange listener);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

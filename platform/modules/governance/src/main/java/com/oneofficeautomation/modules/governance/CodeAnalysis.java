@@ -1,4 +1,8 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.governance;
+
+import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.runner.Steps;
 import com.oneofficeautomation.sdk.JsonLite;
@@ -7,8 +11,7 @@ import com.oneofficeautomation.sdk.OoaException;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
-import com.oneofficeautomation.controlroom.ControlRoom.User;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Code analysis: checks agents against One CommandCenter's policy, a set of rules each switched on with a severity
@@ -18,7 +21,7 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class CodeAnalysis {
     /** The rules with their defaults: enabled, severity and settings. */
-    static final Map<String, Map<String, Object>> RULES = new LinkedHashMap<>();
+    public static final Map<String, Map<String, Object>> RULES = new LinkedHashMap<>();
     static {
         rule("hardcoded_secrets", true, "error", Map.of(), "Passwords, tokens and keys typed into steps instead of coming from the vault");
         rule("forbidden_actions", false, "error", Map.of("actions", List.of()), "Actions (or whole toolkits, e.g. ooa.shell/) agents may not use");
@@ -41,11 +44,11 @@ public final class CodeAnalysis {
                 "Toolkits are grouped as business, non-business (the rest) and blocked; an agent may not mix business and non-business ones");
     }
     /** Toolkits that only work on the agent's own values (text, numbers, dates, lists): in no group, so they mix with both. */
-    static List<String> neutralToolkits() { return List.of("core", "ooa.string", "ooa.number", "ooa.datetime", "ooa.boolean", "ooa.list", "ooa.dictionary",
+    public static List<String> neutralToolkits() { return List.of("core", "ooa.string", "ooa.number", "ooa.datetime", "ooa.boolean", "ooa.list", "ooa.dictionary",
             "ooa.datatable", "ooa.log", "ooa.json", "ooa.xml", "ooa.csv", "ooa.locks", "ooa.jobs"); }
 
     /** True when the action belongs to one of the toolkits listed (a toolkit id, or a prefix ending in * such as ooa.aws*). */
-    static boolean inGroup(String action, List<String> group) {
+    public static boolean inGroup(String action, List<String> group) {
         String pid = action.contains("/") ? action.substring(0, action.indexOf('/')) : action;
         for (String g : group) {
             String t = g.trim();
@@ -62,12 +65,15 @@ public final class CodeAnalysis {
         RULES.put(id, r);
     }
 
-    static final Pattern SECRET_NAME = Pattern.compile("(?i).*(password|passwd|pwd|secret|token|api_?key|apikey|client_secret|private_key).*");
+    public static final Pattern SECRET_NAME = Pattern.compile("(?i).*(password|passwd|pwd|secret|token|api_?key|apikey|client_secret|private_key).*");
 
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    CodeAnalysis(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public CodeAnalysis(ModuleContext ctx) { this.ctx = ctx; this.db = ctx.db(); }
+
+    /** The folders' code analysis policies (set once the module has made both). */
+    Policies policies;
 
     /** The default policy (for folders without their own, Administration > Policies): the defaults with the saved changes, plus enforce_at_checkin. */
     @SuppressWarnings("unchecked")
@@ -81,7 +87,7 @@ public final class CodeAnalysis {
     /** The policy for an agent: its folder's code analysis policy (or the nearest folder's above it), else the default, with its name. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> policyFor(String path) {
-        Map<String, Object> own = cr.policies.find("code", Folders.folderOf(path == null ? "" : path));
+        Map<String, Object> own = policies.find("code", ModuleContext.folderOf(path == null ? "" : path));
         Map<String, Object> p = new LinkedHashMap<>(own == null ? policy() : effective((Map<String, Object>) own.get("rules")));
         p.put("name", own == null ? Policies.DEFAULT_NAME : own.get("name"));
         return p;
@@ -89,7 +95,7 @@ public final class CodeAnalysis {
 
     /** A saved policy (only what differs from the rules' defaults) as the full set of rules in force. */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> effective(Map<String, Object> saved) {
+    public static Map<String, Object> effective(Map<String, Object> saved) {
         Map<String, Object> rules = new LinkedHashMap<>();
         Map<String, Object> changed = saved.get("rules") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         for (var e : RULES.entrySet()) {
@@ -106,18 +112,18 @@ public final class CodeAnalysis {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> savePolicy(User by, Map<String, Object> p, String ip) {
-        cr.require(by, "settings.manage", "change the code analysis policy");
+        ctx.require(by, "settings.manage", "change the code analysis policy");
         Map<String, Object> clean = clean(p);
         String json = JsonLite.write(clean);
         if (db.update("UPDATE code_policy SET json_value = ?, updated = ?, updated_by = ? WHERE id = 1", json, now(), by.username()) == 0)
             db.update("INSERT INTO code_policy (id, json_value, updated, updated_by) VALUES (1,?,?,?)", json, now(), by.username());
-        cr.audit.record(by.username(), "analysis.policy", "policy", null, clean, "ok", ip);
+        ctx.audit(by.username(), "analysis.policy", "policy", null, clean, "ok", ip);
         return policy();
     }
 
     /** A policy as it is saved: enforce_at_checkin and each rule's changes, checked (known rules, error or warning, a valid pattern). */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> clean(Map<String, Object> p) {
+    public static Map<String, Object> clean(Map<String, Object> p) {
         Map<String, Object> clean = new LinkedHashMap<>();
         clean.put("enforce_at_checkin", Boolean.TRUE.equals(p.get("enforce_at_checkin")));
         Map<String, Object> rules = new LinkedHashMap<>();
@@ -270,11 +276,11 @@ public final class CodeAnalysis {
         return out.stream().map(Violation::map).toList();
     }
 
-    static String id(Map<String, Object> s) { return s.get("id") == null ? null : String.valueOf(s.get("id")); }
-    static int num(Object v, int d) { return v instanceof Number n ? n.intValue() : d; }
+    public static String id(Map<String, Object> s) { return s.get("id") == null ? null : String.valueOf(s.get("id")); }
+    public static int num(Object v, int d) { return v instanceof Number n ? n.intValue() : d; }
 
     @SuppressWarnings("unchecked")
-    static void secrets(Object args, String path, Map<String, Object> step, String sev, List<Violation> out) {
+    public static void secrets(Object args, String path, Map<String, Object> step, String sev, List<Violation> out) {
         if (!(args instanceof Map<?, ?> m)) return;
         for (var e : ((Map<String, Object>) m).entrySet()) {
             String k = e.getKey();
@@ -286,7 +292,7 @@ public final class CodeAnalysis {
     }
 
     @SuppressWarnings("unchecked")
-    static int depth(List<Object> steps, int d) {
+    public static int depth(List<Object> steps, int d) {
         int max = d;
         for (Object o : steps == null ? List.of() : steps) {
             if (!(o instanceof Map<?, ?> m)) continue;
@@ -300,24 +306,24 @@ public final class CodeAnalysis {
         return max;
     }
 
-    static boolean analysable(String path) { return path != null && path.endsWith(".flow.json"); }
+    public static boolean analysable(String path) { return path != null && path.endsWith(".flow.json"); }
 
     /** Analyses a stored version and keeps the report. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> analyze(User by, String path, Object version) {
-        Map<String, Object> c = cr.getBot(by, path, version == null ? "latest" : version);
+        Map<String, Object> c = ctx.getAgent(by, path, version == null ? "latest" : version);
         if (!analysable(path)) throw new OoaException("CR.BAD_INPUT", "Only agents are analysed (not workflows or forms)");
         return store(path, ((Number) c.get("version")).intValue(), check((Map<String, Object>) c.get("flow"), policyFor(path)), by.username());
     }
 
     /** Analyses a flow that is not stored (for example from Studio before check-in). */
     public Map<String, Object> analyzeFlow(User by, Map<String, Object> flow) {
-        cr.require(by, "repo.view", "analyse agents");
+        ctx.require(by, "repo.view", "analyse agents");
         List<Map<String, Object>> v = check(flow);
         return report(null, null, v);
     }
 
-    Map<String, Object> store(String path, int version, List<Map<String, Object>> violations, String by) {
+    public Map<String, Object> store(String path, int version, List<Map<String, Object>> violations, String by) {
         Map<String, Object> rep = report(path, version, violations);
         db.tx(() -> {
             db.update("DELETE FROM code_analysis WHERE path = ? AND version = ?", path, version);
@@ -328,7 +334,7 @@ public final class CodeAnalysis {
         return rep;
     }
 
-    static Map<String, Object> report(String path, Integer version, List<Map<String, Object>> v) {
+    public static Map<String, Object> report(String path, Integer version, List<Map<String, Object>> v) {
         long errors = v.stream().filter(x -> "error".equals(x.get("severity"))).count();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("path", path); m.put("version", version);
@@ -341,7 +347,7 @@ public final class CodeAnalysis {
     /** The stored report of a version (analysed now when there is none yet). */
     @SuppressWarnings("unchecked")
     public Map<String, Object> stored(User by, String path, Object version) {
-        Map<String, Object> c = cr.getBot(by, path, version == null ? "latest" : version);
+        Map<String, Object> c = ctx.getAgent(by, path, version == null ? "latest" : version);
         int v = ((Number) c.get("version")).intValue();
         Map<String, Object> r = db.one("SELECT * FROM code_analysis WHERE path = ? AND version = ?", path, v);
         if (r == null) return analyze(by, path, v);
@@ -352,21 +358,21 @@ public final class CodeAnalysis {
 
     /** Every agent the caller may see, analysed at its latest version against today's policy, as CSV. */
     public String repositoryCsv(User by) {
-        StringBuilder sb = new StringBuilder(Platform.Csv.row(List.of("agent", "version", "rule", "severity", "step", "message")));
-        for (Map<String, Object> b : cr.repoList(by, null)) {
+        StringBuilder sb = new StringBuilder(ModuleContext.csvRow(List.of("agent", "version", "rule", "severity", "step", "message")));
+        for (Map<String, Object> b : ctx.listAgents(by)) {
             String path = (String) b.get("path");
             if (!analysable(path)) continue;
             Map<String, Object> rep = analyze(by, path, "latest");
             @SuppressWarnings("unchecked") List<Map<String, Object>> v = (List<Map<String, Object>>) rep.get("violations");
-            if (v.isEmpty()) sb.append(Platform.Csv.row(List.of(path, String.valueOf(rep.get("version")), "", "passed", "", "")));
-            for (Map<String, Object> x : v) sb.append(Platform.Csv.row(Arrays.asList(path, String.valueOf(rep.get("version")), String.valueOf(x.get("rule")), String.valueOf(x.get("severity")),
+            if (v.isEmpty()) sb.append(ModuleContext.csvRow(List.of(path, String.valueOf(rep.get("version")), "", "passed", "", "")));
+            for (Map<String, Object> x : v) sb.append(ModuleContext.csvRow(Arrays.asList(path, String.valueOf(rep.get("version")), String.valueOf(x.get("rule")), String.valueOf(x.get("severity")),
                     x.get("step") == null ? "" : String.valueOf(x.get("step")), String.valueOf(x.get("message")))));
         }
         return sb.toString();
     }
 
     /** At check-in: the violations, and whether the policy refuses the check-in for them. */
-    void atCheckin(String path, Map<String, Object> flow) {
+    public void atCheckin(String path, Map<String, Object> flow) {
         if (!analysable(path)) return;
         Map<String, Object> policy = policyFor(path);
         if (!Boolean.TRUE.equals(policy.get("enforce_at_checkin"))) return;
@@ -374,5 +380,13 @@ public final class CodeAnalysis {
         List<Map<String, Object>> errors = v.stream().filter(x -> "error".equals(x.get("severity"))).toList();
         if (!errors.isEmpty()) throw new OoaException("CR.POLICY_VIOLATION", errors.size() + " code analysis error(s): " + errors.get(0).get("message"),
                 "Fix them, or ask an administrator about the code analysis policy '" + policy.get("name") + "'.", false, Map.of("violations", v));
+    }
+
+    /** A comma list or a JSON list as trimmed texts (as the kernel reads them). */
+    public static List<String> csv(Object v) {
+        List<String> out = new ArrayList<>();
+        if (v instanceof List<?> l) for (Object o : l) out.add(String.valueOf(o).trim());
+        else if (v != null) for (String s : String.valueOf(v).split(",")) if (!s.isBlank()) out.add(s.trim());
+        return out;
     }
 }

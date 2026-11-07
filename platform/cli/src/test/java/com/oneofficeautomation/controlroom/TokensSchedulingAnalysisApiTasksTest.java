@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.governance.CodeAnalysis;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -138,28 +140,28 @@ class TokensSchedulingAnalysisApiTasksTest {
                 + "{\"id\":\"1\",\"action\":\"ooa.rest/request\",\"args\":{\"url\":\"https://x.test\",\"method\":\"POST\",\"headers\":{\"api_key\":\"abc123\"}}},"
                 + "{\"id\":\"2\",\"action\":\"core/delay\",\"args\":{\"seconds\":3600}},"
                 + "{\"id\":\"3\",\"action\":\"core/comment\",\"disabled\":true,\"args\":{\"text\":\"old\"}}]}");
-        Map<String, Object> rep = cr.codeAnalysis.analyzeFlow(admin, bad);
+        Map<String, Object> rep = cr.modules.service(CodeAnalysis.class).analyzeFlow(admin, bad);
         List<String> rules = ((List<Map<String, Object>>) rep.get("violations")).stream().map(v -> String.valueOf(v.get("rule"))).toList();
         assertTrue(rules.containsAll(List.of("hardcoded_secrets", "require_description", "unused_variables", "disabled_steps", "long_waits")), rules.toString());
         assertEquals(false, rep.get("passed"));
         // with the policy enforced, a check-in with errors is refused; switching the rule off lets it in
-        cr.codeAnalysis.savePolicy(admin, Map.of("enforce_at_checkin", true), null);
+        cr.modules.service(CodeAnalysis.class).savePolicy(admin, Map.of("enforce_at_checkin", true), null);
         assertEquals("CR.POLICY_VIOLATION", code(() -> cr.checkin(admin, "Ops/Login.flow.json", bad, "v1", true, null)));
-        cr.codeAnalysis.savePolicy(admin, Map.of("enforce_at_checkin", true, "rules", Map.of("hardcoded_secrets", Map.of("severity", "warning"))), null);
+        cr.modules.service(CodeAnalysis.class).savePolicy(admin, Map.of("enforce_at_checkin", true, "rules", Map.of("hardcoded_secrets", Map.of("severity", "warning"))), null);
         cr.checkin(admin, "Ops/Login.flow.json", bad, "v1", true, null);
-        Map<String, Object> stored = cr.codeAnalysis.stored(admin, "Ops/Login.flow.json", "latest");
+        Map<String, Object> stored = cr.modules.service(CodeAnalysis.class).stored(admin, "Ops/Login.flow.json", "latest");
         assertEquals(1, stored.get("version"));
         assertEquals(0, stored.get("errors"));
         assertTrue(((Number) stored.get("warnings")).intValue() >= 5);
         // forbidden actions by toolkit prefix
-        cr.codeAnalysis.savePolicy(admin, Map.of("rules", Map.of("forbidden_actions", Map.of("enabled", true, "params", Map.of("actions", List.of("ooa.rest/"))))), null);
-        assertTrue(((List<Map<String, Object>>) cr.codeAnalysis.analyze(admin, "Ops/Login.flow.json", "latest").get("violations")).stream().anyMatch(v -> "forbidden_actions".equals(v.get("rule"))));
-        String csv = cr.codeAnalysis.repositoryCsv(admin);
+        cr.modules.service(CodeAnalysis.class).savePolicy(admin, Map.of("rules", Map.of("forbidden_actions", Map.of("enabled", true, "params", Map.of("actions", List.of("ooa.rest/"))))), null);
+        assertTrue(((List<Map<String, Object>>) cr.modules.service(CodeAnalysis.class).analyze(admin, "Ops/Login.flow.json", "latest").get("violations")).stream().anyMatch(v -> "forbidden_actions".equals(v.get("rule"))));
+        String csv = cr.modules.service(CodeAnalysis.class).repositoryCsv(admin);
         assertTrue(csv.startsWith("agent,version,rule,severity,step,message\r\n"));
         assertTrue(csv.contains("Ops/Login.flow.json,1,forbidden_actions,error,1,"), csv);
-        assertEquals("CR.BAD_INPUT", code(() -> cr.codeAnalysis.savePolicy(admin, Map.of("rules", Map.of("nope", Map.of())), null)));
-        assertEquals("CR.FORBIDDEN", code(() -> cr.codeAnalysis.savePolicy(jane, Map.of(), null)));
-        cr.codeAnalysis.savePolicy(admin, Map.of(), null);
+        assertEquals("CR.BAD_INPUT", code(() -> cr.modules.service(CodeAnalysis.class).savePolicy(admin, Map.of("rules", Map.of("nope", Map.of())), null)));
+        assertEquals("CR.FORBIDDEN", code(() -> cr.modules.service(CodeAnalysis.class).savePolicy(jane, Map.of(), null)));
+        cr.modules.service(CodeAnalysis.class).savePolicy(admin, Map.of(), null);
     }
 
     @Test @Order(4)

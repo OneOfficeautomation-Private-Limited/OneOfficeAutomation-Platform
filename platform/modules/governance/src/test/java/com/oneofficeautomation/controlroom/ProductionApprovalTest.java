@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.governance.ProductionApproval;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -44,32 +46,32 @@ class ProductionApprovalTest {
 
             // nobody sets production directly, and the requester cannot decide
             assertEquals("CR.APPROVAL_REQUIRED", code(() -> cr.setProduction(admin, path, 2, null)));
-            assertEquals("CR.FORBIDDEN", code(() -> cr.approvals.decide(dana, (String) req.get("id"), true, null, null)), "dana has no approval right");
+            assertEquals("CR.FORBIDDEN", code(() -> cr.modules.service(ProductionApproval.class).decide(dana, (String) req.get("id"), true, null, null)), "dana has no approval right");
             Map<String, Object> mine = cr.setOrRequestProduction(admin, path, 2, "admin asks too", null);
             @SuppressWarnings("unchecked") String adminReq = (String) ((Map<String, Object>) mine.get("production_request")).get("id");
-            assertEquals("replaced", cr.approvals.get((String) req.get("id")).get("status"), "a newer request replaces the older one");
-            assertEquals("CR.FORBIDDEN", code(() -> cr.approvals.decide(admin, adminReq, true, null, null)), "never your own request");
+            assertEquals("replaced", cr.modules.service(ProductionApproval.class).get((String) req.get("id")).get("status"), "a newer request replaces the older one");
+            assertEquals("CR.FORBIDDEN", code(() -> cr.modules.service(ProductionApproval.class).decide(admin, adminReq, true, null, null)), "never your own request");
 
             // another administrator approves: v2 is live
-            List<Map<String, Object>> pending = cr.approvals.list(otherAdmin, "pending");
+            List<Map<String, Object>> pending = cr.modules.service(ProductionApproval.class).list(otherAdmin, "pending");
             assertEquals(1, pending.size());
             assertEquals(true, pending.get(0).get("can_decide"));
-            Map<String, Object> done = cr.approvals.decide(otherAdmin, adminReq, true, "checked the mapping", null);
+            Map<String, Object> done = cr.modules.service(ProductionApproval.class).decide(otherAdmin, adminReq, true, "checked the mapping", null);
             assertEquals("approved", done.get("status"));
             assertEquals("olga", done.get("decided_by"));
             assertEquals(2, live(path));
-            assertEquals("CR.CONFLICT", code(() -> cr.approvals.decide(otherAdmin, adminReq, false, null, null)), "decided once");
+            assertEquals("CR.CONFLICT", code(() -> cr.modules.service(ProductionApproval.class).decide(otherAdmin, adminReq, false, null, null)), "decided once");
 
             // rejected and withdrawn requests change nothing
             cr.checkout(dana, path, null);
             Map<String, Object> v3 = cr.checkin(dana, path, LicensingAndChecksTest.agent("pay"), "v3", true, null);
             @SuppressWarnings("unchecked") String r3 = (String) ((Map<String, Object>) v3.get("production_request")).get("id");
-            assertEquals("rejected", cr.approvals.decide(otherAdmin, r3, false, "missing tests", null).get("status"));
+            assertEquals("rejected", cr.modules.service(ProductionApproval.class).decide(otherAdmin, r3, false, "missing tests", null).get("status"));
             assertEquals(2, live(path));
-            String r3b = (String) cr.approvals.request(dana, path, 3, "fixed", null).get("id");
-            assertEquals("withdrawn", cr.approvals.withdraw(dana, r3b, null).get("status"));
+            String r3b = (String) cr.modules.service(ProductionApproval.class).request(dana, path, 3, "fixed", null).get("id");
+            assertEquals("withdrawn", cr.modules.service(ProductionApproval.class).withdraw(dana, r3b, null).get("status"));
             assertEquals(2, live(path));
-            assertEquals("CR.CONFLICT", code(() -> cr.approvals.request(dana, path, 2, null, null)), "already live");
+            assertEquals("CR.CONFLICT", code(() -> cr.modules.service(ProductionApproval.class).request(dana, path, 2, null, null)), "already live");
 
             // every step is in the audit trail
             List<Object> actions = new ArrayList<>();

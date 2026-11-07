@@ -7,11 +7,18 @@ plugins { application }
 val optionalModules = ((findProperty("ooa.optionalModules") as String?) ?: "")
     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
+// Whole-product tests (src/test/java/com/oneofficeautomation/controlroom): tests that span the kernel and several
+// feature modules live here, where every module is on the class path, with the kernel's test kit.
+evaluationDependsOn(":control-room")
+val kernelTestKit = project(":control-room").the<SourceSetContainer>()["test"].output
+
 dependencies {
+    testImplementation(kernelTestKit)
     implementation(project(":packages"))
     implementation(project(":control-room"))
     // feature modules of One CommandCenter, found by the kernel with ServiceLoader (ooa docflow uses its settings file)
     implementation(project(":document-automation"))
+    implementation(project(":governance"))
     implementation(project(":testing"))
     implementation(project(":one-chat"))
     implementation(project(":low-code"))

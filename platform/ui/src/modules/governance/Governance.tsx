@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AiGovernance, CrApi } from "../api/cr";
-import { Button, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, rowClick } from "./ListParts";
+import type { AiGovernance, CrApi } from "../../api/cr";
+import { Button, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, rowClick } from "../../console/ListParts";
 
 /**
  * AI > AI governance, built as AA's AI governance (prompt logs) and UiPath's AI Trust Layer audit (checked against their

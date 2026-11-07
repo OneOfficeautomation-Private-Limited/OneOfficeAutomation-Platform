@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.governance.Policies;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -25,12 +27,12 @@ class PolicyStoppedTest {
     @AfterAll void stop() { db.close(); }
 
     @Test @SuppressWarnings("unchecked") void kindsAndWhatItStopped() {
-        String id = (String) cr.policies.save(admin, null, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance"),
+        String id = (String) cr.modules.service(Policies.class).save(admin, null, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance"),
             "rules", Map.of("mask", true, "mask_kinds", List.of("payment", "contacts"), "content", "block")), null).get("id");
-        assertEquals(List.of("payment", "contacts"), cr.policies.guardrailsFor("Finance/Pay.flow.json").get("mask_kinds"));
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.policies.save(admin, id, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance"),
+        assertEquals(List.of("payment", "contacts"), cr.modules.service(Policies.class).guardrailsFor("Finance/Pay.flow.json").get("mask_kinds"));
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(Policies.class).save(admin, id, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance"),
             "rules", Map.of("mask", true, "mask_kinds", List.of("shoe sizes"))), null)).code());
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.policies.save(admin, id, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance"),
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(Policies.class).save(admin, id, Map.of("name", "Finance AI", "kind", "ai", "folders", List.of("Finance"),
             "rules", Map.of("mask", true, "mask_kinds", List.of())), null)).code(), "masking on with no kind");
 
         Instant t = Instant.now().minus(Duration.ofHours(1));
@@ -39,7 +41,7 @@ class PolicyStoppedTest {
         run("r3", "Sales/Quote.flow.json", "{\"code\":\"AI.CONTENT_FLAGGED\",\"message\":\"flagged\"}", t.plusSeconds(2));   // another folder
         db.update("INSERT INTO ai_calls (id, run_id, bot_path, ts, masked) VALUES (?,?,?,?,?)", "c1", "r1", "Finance/Pay.flow.json", t, "{\"EMAIL\":2,\"CREDIT_CARD\":1}");
         db.update("INSERT INTO ai_calls (id, run_id, bot_path, ts, masked) VALUES (?,?,?,?,?)", "c2", "r3", "Sales/Quote.flow.json", t, "{\"EMAIL\":5}");
-        Map<String, Object> s = cr.policies.stopped(admin, id, Map.of("days", "30"));
+        Map<String, Object> s = cr.modules.service(Policies.class).stopped(admin, id, Map.of("days", "30"));
         assertEquals(1, s.get("stopped_total"));
         assertEquals("AI.MODEL_NOT_ALLOWED", ((List<Map<String, Object>>) s.get("stopped")).get(0).get("code"));
         assertEquals(Map.of("CREDIT_CARD", 1L, "EMAIL", 2L), s.get("masked"));
