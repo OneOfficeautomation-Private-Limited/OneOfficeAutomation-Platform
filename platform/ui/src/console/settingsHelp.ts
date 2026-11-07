@@ -83,6 +83,8 @@ export const SETTING_HELP: Record<string, string> = {
   git_remote_url: "A Git repository that keeps a copy of every agent version, written as its https address. Use it for a second copy or for review in your Git tools. Leave it empty for no Git copy.",
   git_branch: "The branch the copies go to, for example main.",
   git_username: "The user name for the Git server. With a personal access token most servers accept any name.",
+  docflow_url: "Where the DocFlow service answers (it reads the documents). It usually runs next to One CommandCenter. In the SaaS service the region sets it, not the tenant.",
+  docflow_token_ref: "Where DocFlow's service token is kept in the Credential vault, written as folder/credential/attribute. Put the same token in DocFlow's DOCAUTO_API_TOKEN.",
   git_token_ref: "Where the Git access token is kept in the Credential vault, written as folder/credential/attribute.",
   git_auto_push: "Pushes to Git after every check-in, live-version change and deletion. Switched off, use Sync Git now below when you want a copy.",
   repo_files_folder: "Where repository files (such as Excel templates) are kept. Leave it empty for one server; with several servers, give a shared folder that all of them can reach.",
@@ -90,6 +92,7 @@ export const SETTING_HELP: Record<string, string> = {
   mcp_agents: "Which agents AI assistants (such as Claude or Copilot) may run as tools, as repository paths separated by commas, or * for all. Each person can still run only the agents their roles allow.",
   mcp_runner: "The runner or runner pool that runs agents asked for by AI assistants. Leave it empty to use any free runner.",
   mcp_timeout_seconds: "How long an AI assistant waits for an agent's result before it is told the run is still going.",
+  mcp_documents: "Offers AI assistants Document Automation's tools: list processes, send a document (answered at once with its id), ask its status and result, list the reviews waiting and approve or reject one. Each person can do only what their permissions and the processes' folders allow; every call is in the Audit Trail.",
   mcp_oauth_audience: "To let assistants sign in with tokens from your identity provider instead of API keys, type the audience the tokens are issued for, such as api://ooa-mcp. Empty allows API keys only.",
   mcp_oauth_scope: "A scope the token must carry, such as mcp.use, so only apps you allowed can call. Optional.",
   // E-mail, proxy and SIEM

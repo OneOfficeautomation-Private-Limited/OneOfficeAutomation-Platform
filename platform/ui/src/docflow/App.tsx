@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Icon, usePersistent } from "../components";
+import { Icon, Menu, usePersistent } from "../components";
 import { CommandMenu } from "../studio/CommandMenu";
 import type { DocFlowApi } from "./api";
 import { Builder } from "./Builder";
@@ -20,20 +20,35 @@ import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
  */
 const TAB_IDS = ["overview", "inbox", "processes", "types", "refdata", "engines", "testlab"] as const;
 /** process: a process page; design: a process open in the builder (#/processes/<id>); document: a review. */
-export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; stage?: string; document?: string };
+/** section / item: a part of a page and what is open in it, e.g. #/overview/dashboard, #/engines/catalog/onemind, #/testlab/sets/<set>. */
+export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; stage?: string; document?: string; section?: string; item?: string };
 
 export function parseRoute(hash: string): Route {
   const [first, second, third] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
   if (first === "process" && second) return { tab: "inbox", process: second };
   if (first === "review" && second) return { tab: "review", document: second };
   if (first === "processes" && second) return { tab: "processes", design: second, ...(third ? { stage: third } : {}) };
+  if (first === "overview" && second) return { tab: "overview", section: second };
+  if (first === "engines" && second) return { tab: "engines", section: second, ...(third ? { item: third } : {}) };
+  if (first === "testlab" && second) return { tab: "testlab", section: second, ...(third ? { item: third } : {}) };
   return { tab: (TAB_IDS as readonly string[]).includes(first) ? first as typeof TAB_IDS[number] : "overview" };
 }
 
-const TABS: { tab: Route["tab"]; label: string }[] = [
-  { tab: "overview", label: "Overview" }, { tab: "inbox", label: "Inbox" }, { tab: "processes", label: "Processes" },
-  { tab: "types", label: "Document types" }, { tab: "refdata", label: "Reference data" }, { tab: "engines", label: "Engines" }, { tab: "testlab", label: "Test lab" },
+type Tab = { tab: Route["tab"]; label: string; about?: string };
+/**
+ * The tabs: Overview first (where things stand), then the Inbox (the documents) and Processes (each built step by
+ * step, from where documents come in); the Libraries the process steps use are in a small menu.
+ */
+export const TAB_GROUPS: { label: string; tabs: Tab[]; menu?: boolean }[] = [
+  { label: "Pages", tabs: [{ tab: "overview", label: "Overview" }, { tab: "inbox", label: "Inbox" }, { tab: "processes", label: "Processes" }] },
+  { label: "Libraries", menu: true, tabs: [
+    { tab: "types", label: "Document types", about: "What to read from each kind of document" },
+    { tab: "refdata", label: "Reference data", about: "Lists that checks look values up in" },
+    { tab: "engines", label: "Engines", about: "Which engines read the pages; cloud opt-in; cost" },
+    { tab: "testlab", label: "Test lab", about: "Try a document, or compare engines on test sets" },
+  ] },
 ];
+const TABS = TAB_GROUPS.flatMap((g) => g.tabs);
 
 export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], user = "Sara Khan" }:
   { api: DocFlowApi; controlRoom?: string | null; tenants?: string[]; user?: string }) {
@@ -52,7 +67,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route]);
 
   const reviewing = route.tab === "review";
-  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab as HelpPage;
+  const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab === "testlab" && route.section === "sets" ? "testsets"
+    : route.tab === "overview" && route.section === "dashboard" ? "dashboard" : route.tab as HelpPage;
   const helpOpen = !helpHidden[helpPage];
   const toggleHelp = () => setHelpHidden({ ...helpHidden, [helpPage]: helpOpen });
   const help = helpOpen && <HelpPanel {...HELP[helpPage]} onHide={toggleHelp} />;
@@ -95,8 +111,12 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
                 <HelpButton open={helpOpen} onToggle={toggleHelp} />
               </div>
               <nav className="df-tabs" aria-label="Document Automation">
-                {TABS.map((t) => (
-                  <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
+                {TAB_GROUPS.map((g) => (
+                  <div key={g.label} className={`df-tab-group${g.menu ? " is-menu" : ""}`} role="group" aria-label={g.label}>
+                    {g.menu ? <LibraryMenu tabs={g.tabs} current={route.tab} /> : g.tabs.map((t) => (
+                      <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
+                    ))}
+                  </div>
                 ))}
               </nav>
             </div>
@@ -117,6 +137,17 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   );
 }
 
+/** Libraries: one button that names the library open now (with "Libraries" beside it), and a menu of all of them. */
+function LibraryMenu({ tabs, current }: { tabs: Tab[]; current: Route["tab"] }) {
+  const open = tabs.find((t) => t.tab === current);
+  return (<>
+    {open && <span className="df-tab-group-label" aria-hidden="true">Libraries</span>}
+    <Menu label="Libraries" align="start"
+      trigger={<button type="button" className="df-tab" aria-current={open ? "page" : undefined}>{open ? open.label : "Libraries"}<Icon name="chevronDown" size={12} stroke={2.4} /></button>}
+      items={tabs.map((t) => ({ key: t.tab, label: t.label, description: t.about, onSelect: () => { location.hash = "#/" + t.tab; } }))} />
+  </>);
+}
+
 function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptIn: (on: boolean) => void }) {
   if (route.process) return <ProcessPage api={api} processId={route.process} />;
   switch (route.tab) {
@@ -125,8 +156,8 @@ function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptI
     case "processes": return <Builder key={route.design ?? ""} api={api} processId={route.design} stage={route.stage} />;
     case "types": return <DocTypes api={api} />;
     case "refdata": return <RefData api={api} />;
-    case "engines": return <Engines api={api} onOptIn={onOptIn} />;
-    case "testlab": return <TestLab api={api} />;
-    default: return <OverviewPage api={api} />;
+    case "engines": return <Engines api={api} onOptIn={onOptIn} section={route.section} option={route.item} />;
+    case "testlab": return <TestLab api={api} section={route.section} item={route.item} />;
+    default: return <OverviewPage api={api} section={route.section} />;
   }
 }

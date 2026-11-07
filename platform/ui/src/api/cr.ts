@@ -249,7 +249,11 @@ export type RepoVersion = { version: number; comment?: string | null; author?: s
 export type ProductionRequest = { id: string; path: string; version: number; requested_by: string; requested?: string; comment?: string | null; status: string;
   can_decide?: boolean; decided_by?: string | null; decided?: string | null; note?: string | null };
 export type FlowVariable = { name: string; type?: string; direction?: string; required?: boolean; description?: string; default?: unknown; enum?: unknown[] };
-export type AgentTemplate = { id: string; source: string; name: string; description?: string; category: string; publisher: string; agents: string[]; folder?: string };
+export type AgentTemplate = { id: string; source: string; name: string; description?: string; category: string; publisher: string; agents: string[]; folder?: string;
+  /** Document Automation processes that install with it (as drafts). */
+  processes?: string[] };
+/** How installing one of a template's Document Automation processes went. */
+export type TemplateProcessResult = { name: string; folder?: string; status: "created" | "skipped" | "failed"; error?: string; note?: string };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -605,9 +609,14 @@ export class CrApi {
   /** The template folders (nested with /) and the folder of each template, by "source:id" ("" is the top). Administrators. */
   async saveTemplateFolders(folders: string[], placed: Record<string, string>) { await this.call("PUT", "templates/folders", { folders, placed }); }
   installTemplate(source: string, id: string, folder: string) {
-    return this.call<{ ok: boolean; folder: string; results: { path: string; status: string; error?: { message?: string } }[] }>("POST", "templates/install", { source, id, folder });
+    return this.call<{ ok: boolean; folder: string; results: { path: string; status: string; error?: { message?: string } }[]; processes?: TemplateProcessResult[]; processes_ok?: boolean }>(
+      "POST", "templates/install", { source, id, folder });
   }
-  async shareTemplate(b: { path: string; name: string; description: string; category: string }) { await this.call("POST", "templates/share", b); }
+  async shareTemplate(b: { path: string; name: string; description: string; category: string; processes?: string[] }) { await this.call("POST", "templates/share", b); }
+  /** Document Automation's processes the person may see (none when it is not set up or not allowed). */
+  async documentProcesses() {
+    try { const f = await this.call<{ id: string; name: string; folder?: string; isInbox?: boolean }[]>("GET", "docflow/df/flows"); return Array.isArray(f) ? f : []; } catch { return []; }
+  }
   uploadCatalogue(text: string) { return this.call<{ templates: number }>("POST", "templates/catalogue", { text }); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {

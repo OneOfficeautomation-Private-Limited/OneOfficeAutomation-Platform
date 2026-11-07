@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { Button, Icon } from "../components";
-import type { DocFlowApi, DocStatus, Source } from "./api";
-import { AddDocumentsDialog, NewProcessDialog } from "./dialogs";
+import { INBOX_ID, type DocFlowApi, type DocStatus, type Source } from "./api";
+import { folderLabel } from "./dialogs";
 import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad } from "./ui";
+import { UploadFiles } from "./upload";
 
 const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Bot", split: "Split from a batch" };
 
-/** One process: what it is, its numbers, and every document with full details. */
+/** One process: what it is, its numbers, adding documents to it, and every document with full details. */
 export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: string }) {
   const [data, reload] = useLoad(() => Promise.all([api.processes(), api.documents(processId)]), [api, processId]);
-  const [adding, setAdding] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | DocStatus>("all");
   const [source, setSource] = useState<"all" | Source>("all");
@@ -37,12 +36,14 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
         <Chip tone={p.state === "live" ? "ok" : "mute"}>{p.state === "live" ? `Live · version ${p.version}` : "Draft"}</Chip>
         <span className="df-grow" />
         <a className="ui-btn ui-btn-secondary" href={"#/processes/" + encodeURIComponent(p.id)}>Process settings</a>
-        <Button kind="primary" onClick={() => setAdding(true)}>Add documents</Button>
+        <Button kind="primary" onClick={() => document.getElementById("df-add-files")?.click()}>Add documents</Button>
       </div>
+
+      <UploadFiles api={api} process={p} inbox={p.id === INBOX_ID} inputId="df-add-files" onAdded={reload} />
 
       <div className="df-card df-pad df-grid df-g4">
         <div><div className="df-small">Document type</div>{p.docType}</div>
-        <div><div className="df-small">Folder</div>{p.folder}</div>
+        <div><div className="df-small">Folder</div>{p.folder ? folderLabel(p.folder) : "None (open to all)"}</div>
         <div><div className="df-small">Documents come in from</div>{p.sources.map((s) => SOURCE_LABEL[s]).join(", ")}</div>
         <div><div className="df-small">Delivers to</div>{p.deliversTo.join(", ") || "Not set yet"}</div>
       </div>
@@ -91,10 +92,6 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
           {!rows.length && <div className="df-empty">No document matches these filters. <button type="button" className="df-link" onClick={clear}>Clear filters</button></div>}
         </div>
       </section>
-
-      {adding && <AddDocumentsDialog api={api} open onClose={() => setAdding(false)} processes={processes} initialProcess={p.id}
-        onNewProcess={() => { setAdding(false); setCreating(true); }} onAdded={() => { setAdding(false); reload(); }} />}
-      <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
     </div>
   );
 }

@@ -44,7 +44,7 @@ public final class ControlRoomServer {
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
-        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr); this.docflow = new DocFlowProxy(cr);
+        this.cr = cr; this.host = host; this.port = port; this.docflow = new DocFlowProxy(cr); this.mcp = new McpServer(cr, docflow); this.sso = new Sso(cr);
         // a SaaS region sets one request limit for all its tenants (TenantHost)
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
@@ -414,6 +414,8 @@ public final class ControlRoomServer {
         if (m.equals("GET") && route.equals("auth/token")) { sendJson(ex, 200, cr.verifyToken(token(ex))); return; }
         // Document Automation's "Start a bot" delivery: DocFlow calls back with the service token (DocFlowProxy.startBot)
         if (m.equals("POST") && route.equals("docflow-callback/start-bot")) { sendJson(ex, 200, docflow.startBot(ex, ip)); return; }
+        // and its document events, which start the "On Document Automation" triggers (DocFlowProxy.onEvent)
+        if (m.equals("POST") && route.equals("docflow-callback/events")) { sendJson(ex, 200, docflow.event(ex, ip)); return; }
         if (seg[0].equals("apitasks") && seg.length >= 3 && (seg[2].equals("run") || seg[2].equals("runs"))) {
             String t = ex.getRequestHeaders().getFirst("X-OOA-Task-Token");
             if (t == null) t = token(ex);
@@ -804,7 +806,8 @@ public final class ControlRoomServer {
                     sendJson(ex, 200, cr.templates.install(u, (String) b.get("source"), (String) b.get("id"), (String) b.get("folder"), ip));
                 } else if (m.equals("POST") && route.equals("templates/share")) {
                     Map<String, Object> b = map(body(ex));
-                    sendJson(ex, 200, cr.templates.share(u, (String) b.get("path"), (String) b.get("name"), (String) b.get("description"), (String) b.get("category"), ip));
+                    List<String> processes = b.get("processes") instanceof List<?> pl ? pl.stream().map(String::valueOf).toList() : List.of();   // Document Automation processes
+                    sendJson(ex, 200, cr.templates.share(u, (String) b.get("path"), (String) b.get("name"), (String) b.get("description"), (String) b.get("category"), processes, ip));
                 } else if (m.equals("POST") && route.equals("templates/catalogue")) sendJson(ex, 200, cr.templates.upload(u, (String) map(body(ex)).get("text"), ip));
                 else if (m.equals("PUT") && route.equals("templates/folders")) {
                     Map<String, Object> b = map(body(ex));

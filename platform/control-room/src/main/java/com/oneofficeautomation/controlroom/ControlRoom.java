@@ -2641,13 +2641,21 @@ public final class ControlRoom {
         audit.record(by.username(), "trigger.delete", "trigger", tid, null, "ok", ip);
     }
 
+    /** The names of an agent's inputs (variables with direction input or in_out): only these are passed to a run started for an event. */
+    @SuppressWarnings("unchecked")
+    static Set<String> declaredInputs(Map<String, Object> flow) {
+        Set<String> declared = new HashSet<>();
+        for (Object v : (List<Object>) flow.getOrDefault("variables", List.of()))
+            if (v instanceof Map<?, ?> m && java.util.Arrays.asList("input", "in_out").contains(m.get("direction"))) declared.add(String.valueOf(m.get("name")));
+        return declared;
+    }
+
     /** Starts the trigger's agent with the event values it declares as inputs, and records the firing (or why it failed). */
     @SuppressWarnings("unchecked")
     Map<String, Object> fireTrigger(Map<String, Object> t, Map<String, Object> event, String source, String ip) {
         try {
             Map<String, Object> flow = (Map<String, Object>) content((String) t.get("bot_path"), "production").get("flow");
-            Set<String> declared = new HashSet<>();
-            for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) if (java.util.Arrays.asList("input", "in_out").contains(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
+            Set<String> declared = declaredInputs(flow);
             Map<String, Object> in = new LinkedHashMap<>();
             event.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
             Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { HINTS } from "./help";
 import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
@@ -44,6 +45,12 @@ export function IntakeStage({ s, set, inbox, live }: { s: ProcessSettings; set: 
           options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }, { value: "900", label: "15 minutes" }]} />}
       </Field>
       <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Upload is always on. Agents send documents with the "Send document to process" action.</p>
+    </div>
+    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+      <button type="button" role="switch" className="df-switch" aria-checked={s.einvoiceFirst} aria-labelledby="df-einvoice-label"
+        onClick={() => set({ einvoiceFirst: !s.einvoiceFirst })} />
+      <span><b id="df-einvoice-label">Read e-invoice data first (ZATCA XML, QR codes)</b>
+        <span className="df-small" style={{ display: "block" }}>{HINTS.einvoiceFirst}</span></span>
     </div>
     <div className={`df-way${email?.enabled ? " is-on" : ""}`}>
       <label style={{ display: "flex", gap: 10 }}>
@@ -109,7 +116,55 @@ export function ExtractStage({ s, set }: { s: ProcessSettings; set: SetSettings 
   );
 }
 
-export function ReviewStage({ s, set }: { s: ProcessSettings; set: SetSettings }) {
+/** The thresholds a field can have of its own (70–99%), and the saved one when it is another. */
+const FIELD_LEVELS = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99];
+const levelOptions = (saved: number) => [...new Set([...FIELD_LEVELS, saved])].sort((a, b) => a - b)
+  .map((v) => ({ value: String(v), label: Math.round(v * 100) + "%" }));
+
+export function ReviewStage({ s, set, fields }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[] }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <ReviewLevels s={s} set={set} />
+      <FieldThresholds s={s} set={set} fields={fields} />
+    </div>
+  );
+}
+
+/** Some fields matter more (a total, a VAT number): they can go to review under a higher confidence than the rest. */
+function FieldThresholds({ s, set, fields }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[] }) {
+  const entries = Object.entries(s.fieldThresholds ?? {});
+  const write = (list: [string, number][]) => set({ fieldThresholds: Object.fromEntries(list) });
+  const free = fields.filter((f) => !(f.name in (s.fieldThresholds ?? {})));
+  const labelOf = (name: string) => fields.find((f) => f.name === name)?.label ?? name;
+  return (
+    <section aria-label="Field thresholds" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div><b>Field thresholds</b><span className="df-small" style={{ display: "block" }}>{HINTS.fieldThresholds}</span></div>
+      {entries.length > 0 && (
+        <table className="df-table df-thresholds">
+          <thead><tr><th>Field</th><th>Send to review under</th><th><span className="sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            {entries.map(([name, level], i) => (
+              <tr key={name}>
+                <td><select className="ui-input ui-select" aria-label={`Field ${i + 1}`} value={name}
+                  onChange={(e) => write(entries.map(([n, v]) => (n === name ? [e.target.value, v] : [n, v])))}>
+                  {[{ name, label: labelOf(name) }, ...free].map((f) => <option key={f.name} value={f.name}>{f.label}</option>)}
+                </select></td>
+                <td><select className="ui-input ui-select" aria-label={`Threshold for ${labelOf(name)}`} value={String(level)}
+                  onChange={(e) => write(entries.map(([n, v]) => [n, n === name ? Number(e.target.value) : v]))}>
+                  {levelOptions(level).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select></td>
+                <td className="df-right"><Button kind="plain" aria-label={`Remove threshold for ${labelOf(name)}`} onClick={() => write(entries.filter(([n]) => n !== name))}>Remove</Button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div><Button icon="plus" disabled={!free.length} onClick={() => write([...entries, [free[0].name, 0.95]])}>Add field threshold</Button></div>
+    </section>
+  );
+}
+
+function ReviewLevels({ s, set }: { s: ProcessSettings; set: SetSettings }) {
   return (
     <div className="df-grid df-g2">
       <Field label="Send to review when a field is under" hint="Lower: fewer reviews, more risk. Higher: more reviews.">

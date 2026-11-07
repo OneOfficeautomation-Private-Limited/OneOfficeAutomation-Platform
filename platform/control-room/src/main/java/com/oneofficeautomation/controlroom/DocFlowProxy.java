@@ -37,6 +37,11 @@ import java.util.regex.Pattern;
  * And one more way in: a live process's email inbox (intake.email, IMAP or Microsoft 365) is read here, with the
  * mailbox's vault secret as the person who set it up, and new PDF and image attachments go to the process
  * ({@link #pollMail}); /api/docflow/mail-status says how each inbox's last check went.
+ * <p>
+ * Folder access: a process's folder ("Finance / Accounts payable") is the platform folder of that path, and its folder
+ * permissions apply on top of the docs.* permissions: view to see the process, its documents and its review tasks, run
+ * to add documents (also from bots), edit to change the process. A process without a folder is open to everyone with
+ * the docs.* permissions. Lists are filtered; the overview's totals stay those of the whole tenant.
  */
 final class DocFlowProxy {
     static final String DEFAULT_URL = "http://127.0.0.1:8085";
@@ -47,6 +52,10 @@ final class DocFlowProxy {
             + "|documents/[A-Za-z0-9_-]+/(result|page/\\d{1,4}\\.png|file))$");
     private static final Pattern REVIEW = Pattern.compile("^df/documents/([A-Za-z0-9_-]+)/(review|reclassify)$");
     private static final Pattern FLOW_WRITE = Pattern.compile("^df/flows(/[A-Za-z0-9._-]+)?$");
+    private static final Pattern FLOW_ROUTE = Pattern.compile("^df/flows/([A-Za-z0-9._-]+)(/.*)?$");
+    private static final Pattern DOC_ROUTE = Pattern.compile("^(?:df/)?documents/([A-Za-z0-9_-]+)(/.*)?$");
+    /** Adding a reviewed document to a test set copies its file and values: the document is named in the body. */
+    private static final Pattern TESTSET_DOC = Pattern.compile("^df/testsets/[A-Za-z0-9._-]+/documents$");
     private static final Set<String> REQUEST_HEADERS = Set.of("Content-Type", "Accept");
     private static final List<String> RESPONSE_HEADERS = List.of("Content-Type", "Content-Disposition");
 
@@ -68,6 +77,16 @@ final class DocFlowProxy {
         return "docs.manage";
     }
 
+    private void requirePermission(ControlRoom.User u, String method, String route) {
+        String perm = permission(method, route);
+        cr.require(u, perm, switch (perm) {
+            case "docs.engines" -> "change Document Automation's engines";
+            case "docs.review" -> "review documents";
+            case "docs.manage" -> "change Document Automation";
+            default -> "see Document Automation";
+        });
+    }
+
     void forward(HttpExchange ex, ControlRoom.User u, String method, String route) throws IOException {
         if (route.equals("mail-status") && method.equals("GET")) {
             cr.require(u, "docs.view", "see Document Automation");
@@ -80,20 +99,11 @@ final class DocFlowProxy {
             return;
         }
         if (!ROUTES.matcher(route).matches() || route.contains("..")) throw new OoaException("CR.NOT_FOUND", "Not found");
-        String perm = permission(method, route);
-        cr.require(u, perm, switch (perm) {
-            case "docs.engines" -> "change Document Automation's engines";
-            case "docs.review" -> "review documents";
-            case "docs.manage" -> "change Document Automation";
-            default -> "see Document Automation";
-        });
+        requirePermission(u, method, route);   // before the upload is read
         byte[] in = method.equals("GET") || method.equals("DELETE") ? null : body(ex);
-        String type = ex.getRequestHeaders().getFirst("Content-Type");
-        if (in != null && FLOW_WRITE.matcher(route).matches() && type != null && type.startsWith("application/json")) in = stampBotDeliveries(u, in);
         Map<String, String> headers = new HashMap<>();
         for (String h : REQUEST_HEADERS) { String v = ex.getRequestHeaders().getFirst(h); if (v != null) headers.put(h, v); }
-        HttpResponse<byte[]> r = send(method, route, ex.getRequestURI().getRawQuery(), in, headers, person(u));
-        if (r.statusCode() < 300) afterReview(u, method, route, in);
+        Answer r = exchange(u, method, route, ex.getRequestURI().getRawQuery(), in, headers, person(u));
 
         var h = ex.getResponseHeaders();
         h.set("X-Content-Type-Options", "nosniff");
@@ -101,9 +111,135 @@ final class DocFlowProxy {
         h.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
         for (String name : RESPONSE_HEADERS) r.headers().firstValue(name).ifPresent(v -> h.set(name, v));
         byte[] b = r.body();
-        if ("HEAD".equalsIgnoreCase(ex.getRequestMethod())) { ex.sendResponseHeaders(r.statusCode(), -1); return; }
-        ex.sendResponseHeaders(r.statusCode(), b.length == 0 ? -1 : b.length);
+        if ("HEAD".equalsIgnoreCase(ex.getRequestMethod())) { ex.sendResponseHeaders(r.status(), -1); return; }
+        ex.sendResponseHeaders(r.status(), b.length == 0 ? -1 : b.length);
         if (b.length > 0) try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+    }
+
+    /** DocFlow's answer to one request made for a person: status, headers and the body as the person may see it. */
+    record Answer(int status, java.net.http.HttpHeaders headers, byte[] body) {
+        /** The body as JSON; an answer that is not a success says what DocFlow said. */
+        Object json() {
+            Object parsed;
+            try { parsed = JsonLite.parse(new String(body, StandardCharsets.UTF_8)); } catch (IllegalArgumentException e) { parsed = null; }
+            if (status >= 300) {
+                Object msg = parsed instanceof Map<?, ?> m ? (m.get("message") != null ? m.get("message") : m.get("detail")) : null;
+                throw new OoaException(status == 404 ? "CR.NOT_FOUND" : "DOCS.REFUSED", "Document Automation refused it: " + (msg == null ? "HTTP " + status : msg));
+            }
+            return parsed;
+        }
+    }
+
+    /**
+     * One request to DocFlow for a person, with every check the screens get: the docs.* permission of the route, the
+     * process folder's permission, "Start a bot" deliveries and email inboxes stamped with the person, the Task inbox
+     * task closed after a review, and lists without what the person may not see. The screens (forward), AI assistants
+     * (McpServer) and templates (Templates) all come through here.
+     */
+    Answer exchange(ControlRoom.User u, String method, String route, String rawQuery, byte[] in, Map<String, String> headers, String person) {
+        requirePermission(u, method, route);
+        String type = headers == null ? null : headers.get("Content-Type");
+        if (in != null && FLOW_WRITE.matcher(route).matches() && type != null && type.startsWith("application/json")) in = stampBotDeliveries(u, in);
+        Map<String, Map<String, String>> all = cr.folders.entries();
+        Map<String, String> folders = checkFolder(u, method, route, in, all);
+        HttpResponse<byte[]> r = send(method, route, rawQuery, in, headers, person);
+        if (r.statusCode() < 300) afterReview(u, method, route, in);
+        byte[] b = r.statusCode() == 200 && method.equals("GET") ? onlyVisible(u, route, r.body(), folders, all) : r.body();
+        return new Answer(r.statusCode(), r.headers(), b);
+    }
+
+    /** A JSON request to DocFlow for a person (exchange), its answer parsed. */
+    Object json(ControlRoom.User u, String method, String route, Object body) {
+        byte[] in = body == null ? null : JsonLite.write(body).getBytes(StandardCharsets.UTF_8);
+        return exchange(u, method, route, null, in, in == null ? Map.of() : Map.of("Content-Type", "application/json"), person(u)).json();
+    }
+
+    // ------------------------------------------------------------------ folder access
+
+    /** A process's folder as a platform folder path: "Finance / Accounts payable" is Finance/Accounts payable. */
+    static String folderKey(Object folder) {
+        return folder == null ? "" : String.valueOf(folder).trim().replaceAll("\\s*/\\s*", "/").replaceAll("^/+|/+$", "");
+    }
+
+    /** What the person may do with a process in this folder (none, view, run, edit, manage); without a folder: manage. */
+    String folderAccess(ControlRoom.User u, Object folder, Map<String, Map<String, String>> all) {
+        String key = folderKey(folder);
+        return key.isEmpty() ? "manage" : cr.folders.accessToFolder(u.username(), u.role(), key, all);
+    }
+
+    /** Process id -> folder, from DocFlow. */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> processFolders() {
+        Map<String, String> out = new HashMap<>();
+        HttpResponse<byte[]> r = send("GET", "df/flows", null, null, null, "Command Center");
+        if (r.statusCode() == 200)
+            for (Object o : (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8))) {
+                Map<String, Object> f = (Map<String, Object>) o;
+                out.put(String.valueOf(f.get("id")), f.get("folder") == null ? "" : String.valueOf(f.get("folder")));
+            }
+        return out;
+    }
+
+    private void need(ControlRoom.User u, Object folder, String level, Map<String, Map<String, String>> all, String what) {
+        if (!Folders.atLeast(folderAccess(u, folder, all), level))
+            throw new OoaException("CR.FORBIDDEN", "You do not have permission to " + what + " in the folder '" + folderKey(folder) + "'",
+                    "Ask someone who manages the folder's permissions for " + level + " access.");
+    }
+
+    /**
+     * Refuses a request on a process or document in a folder the person may not use at the level it needs. Returns the
+     * processes' folders when the answer will be filtered (or null when nothing was looked up).
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> checkFolder(ControlRoom.User u, String method, String route, byte[] in, Map<String, Map<String, String>> all) {
+        boolean listing = method.equals("GET") && List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview").contains(route);
+        Matcher f = FLOW_ROUTE.matcher(route), d = DOC_ROUTE.matcher(route);
+        boolean flow = f.matches() && !f.group(1).equals("all"), doc = d.matches();
+        Object newFolder = null;
+        if (in != null && FLOW_WRITE.matcher(route).matches()) {
+            try { if (JsonLite.parse(new String(in, StandardCharsets.UTF_8)) instanceof Map<?, ?> b && b.containsKey("folder")) newFolder = b.get("folder"); }
+            catch (IllegalArgumentException ignored) { }
+        }
+        String docId = doc ? d.group(1) : null;
+        if (in != null && method.equals("POST") && TESTSET_DOC.matcher(route).matches()) {
+            try { if (JsonLite.parse(new String(in, StandardCharsets.UTF_8)) instanceof Map<?, ?> b && b.get("documentId") != null) docId = String.valueOf(b.get("documentId")); }
+            catch (IllegalArgumentException ignored) { }
+            if (docId != null && !docId.matches("[A-Za-z0-9_-]+")) throw new OoaException("CR.NOT_FOUND", "Not found");
+        }
+        if (!listing && !flow && docId == null && newFolder == null) return null;
+        Map<String, String> folders = processFolders();
+        if (newFolder != null) need(u, newFolder, "edit", all, "put a process");
+        if (flow) {
+            String rest = f.group(2) == null ? "" : f.group(2);
+            String level = method.equals("GET") ? "view" : method.equals("POST") && (rest.equals("/documents") || rest.equals("/intake/scan")) ? "run" : "edit";
+            need(u, folders.getOrDefault(f.group(1), ""), level, all, level.equals("view") ? "see this process" : level.equals("run") ? "add documents" : "change this process");
+        }
+        if (docId != null) {
+            HttpResponse<byte[]> r = send("GET", "df/documents/" + docId, null, null, null, "Command Center");
+            if (r.statusCode() == 200 && JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> m)
+                need(u, folders.getOrDefault(String.valueOf(m.get("flowId")), ""), "view", all, "see this document");
+        }
+        return folders;
+    }
+
+    /** Lists without what the person may not see: processes, documents and review queue items in other folders. */
+    @SuppressWarnings("unchecked")
+    private byte[] onlyVisible(ControlRoom.User u, String route, byte[] body, Map<String, String> folders, Map<String, Map<String, String>> all) {
+        if (folders == null || !List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview").contains(route)) return body;
+        java.util.function.Predicate<Object> visible = id -> Folders.atLeast(folderAccess(u, folders.getOrDefault(String.valueOf(id), ""), all), "view");
+        Object parsed = JsonLite.parse(new String(body, StandardCharsets.UTF_8));
+        Object out = switch (route) {
+            case "df/flows" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("id"))).toList();
+            case "df/flows/all/documents" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("instance_id"))).toList();
+            case "df/review" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("flowId"))).toList();
+            default -> {
+                Map<String, Object> o = new LinkedHashMap<>((Map<String, Object>) parsed);
+                if (o.get("flows") instanceof List<?> l) o.put("flows", l.stream().filter(x -> visible.test(((Map<String, Object>) x).get("id"))).toList());
+                if (o.get("recent") instanceof List<?> l) o.put("recent", l.stream().filter(x -> visible.test(((Map<String, Object>) x).get("instance_id"))).toList());
+                yield o;
+            }
+        };
+        return JsonLite.write(out).getBytes(StandardCharsets.UTF_8);
     }
 
     private static String person(ControlRoom.User u) { return u.displayName() == null || u.displayName().isBlank() ? u.username() : u.displayName(); }
@@ -207,6 +343,7 @@ final class DocFlowProxy {
         if (r.statusCode() != 200) return new int[] {0, 0};
         List<Object> queue = (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
         Map<String, List<Map<String, Object>>> open = openTasks();
+        syncFolders = null;
         Set<String> waiting = new HashSet<>();
         int opened = 0, closed = 0;
         for (Object o : queue) {
@@ -222,6 +359,7 @@ final class DocFlowProxy {
             data.put("document_id", doc);
             data.put("process_id", d.get("flowId"));
             data.put("process", d.get("flowName"));
+            data.put("folder", folderOfProcess(String.valueOf(d.get("flowId"))));
             data.put("document_type", d.get("doctypeName"));
             data.put("link", "/documents/#/review/" + doc);
             cr.db.update("INSERT INTO human_tasks (id, kind, title, description, data, assignee, status, created, due) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -232,6 +370,13 @@ final class DocFlowProxy {
         for (var e : open.entrySet())
             if (!waiting.contains(e.getKey())) for (Map<String, Object> t : e.getValue()) { close((String) t.get("id"), "done", "docflow"); closed++; }
         return new int[] {opened, closed};
+    }
+
+    private Map<String, String> syncFolders;   // the processes' folders during one review sync
+
+    private String folderOfProcess(String id) {
+        if (syncFolders == null) syncFolders = processFolders();
+        return syncFolders.getOrDefault(id, "");
     }
 
     @SuppressWarnings("unchecked")
@@ -252,7 +397,7 @@ final class DocFlowProxy {
     // ------------------------------------------------------------------ email inbox
 
     /** The attachment types a process reads from email (as Add documents accepts). */
-    private static final Pattern READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?)$");
+    static final Pattern READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?)$");
 
     /**
      * Reads the email inbox of every live process that has one, at most every interval_seconds (60 by default): new
@@ -337,16 +482,22 @@ final class DocFlowProxy {
 
     private void upload(String processId, MailSource.Attachment a, Map<String, Object> msg) {
         String boundary = "ooa" + UUID.randomUUID().toString().replace("-", "");
-        String name = a.name().replaceAll("[\\r\\n\"]", "_");
-        byte[] head = ("--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + name + "\"\r\nContent-Type: " + a.contentType() + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
-        byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
-        byte[] body = new byte[head.length + a.data().length + tail.length];
-        System.arraycopy(head, 0, body, 0, head.length);
-        System.arraycopy(a.data(), 0, body, head.length, a.data().length);
-        System.arraycopy(tail, 0, body, head.length + a.data().length, tail.length);
-        HttpResponse<byte[]> r = send("POST", "df/flows/" + java.net.URLEncoder.encode(processId, StandardCharsets.UTF_8) + "/documents", "source=email&requireLive=true", body,
-                Map.of("Content-Type", "multipart/form-data; boundary=" + boundary), "Email from " + String.valueOf(msg.getOrDefault("from", "")).replaceAll("[\\r\\n]", " "));
+        HttpResponse<byte[]> r = send("POST", "df/flows/" + java.net.URLEncoder.encode(processId, StandardCharsets.UTF_8) + "/documents", "source=email&requireLive=true",
+                multipart(boundary, a.name(), a.contentType(), a.data()), Map.of("Content-Type", "multipart/form-data; boundary=" + boundary),
+                "Email from " + String.valueOf(msg.getOrDefault("from", "")).replaceAll("[\\r\\n]", " "));
         if (r.statusCode() >= 300) throw new OoaException("DOCS.EMAIL", "DocFlow refused " + a.name() + " (HTTP " + r.statusCode() + ")");
+    }
+
+    /** One file as the multipart form Add documents sends (field "files"). */
+    static byte[] multipart(String boundary, String fileName, String contentType, byte[] data) {
+        String name = fileName.replaceAll("[\\r\\n\"]", "_");
+        byte[] head = ("--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + name + "\"\r\nContent-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+        byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+        byte[] body = new byte[head.length + data.length + tail.length];
+        System.arraycopy(head, 0, body, 0, head.length);
+        System.arraycopy(data, 0, body, head.length, data.length);
+        System.arraycopy(tail, 0, body, head.length + data.length, tail.length);
+        return body;
     }
 
     // ------------------------------------------------------------------ from a bot
@@ -369,6 +520,8 @@ final class DocFlowProxy {
         Map<String, Object> flow = flows.statusCode() != 200 ? null : ((List<Object>) JsonLite.parse(new String(flows.body(), StandardCharsets.UTF_8))).stream()
                 .map(o -> (Map<String, Object>) o).filter(f -> process.equals(f.get("id")) || process.equalsIgnoreCase(String.valueOf(f.get("name")))).findFirst().orElse(null);
         if (flow == null) throw new OoaException("CR.NOT_FOUND", "No Document Automation process '" + process + "'", "Use the process's name or id as shown in Document Automation.");
+        need(new ControlRoom.User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false), flow.get("folder"), "run",
+                cr.folders.entries(), "add documents");
         boolean wait = "true".equals(q.get("wait"));
         String id = String.valueOf(flow.get("id"));
         Map<String, String> headers = Map.of("Content-Type", String.valueOf(ex.getRequestHeaders().getFirst("Content-Type")));
@@ -405,34 +558,23 @@ final class DocFlowProxy {
      */
     @SuppressWarnings("unchecked")
     Map<String, Object> startBot(HttpExchange ex, String ip) throws IOException {
-        String auth = ex.getRequestHeaders().getFirst("Authorization");
-        String token = token();
-        if (token.isEmpty() || auth == null || !MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8), ("Bearer " + token).getBytes(StandardCharsets.UTF_8)))
-            throw new OoaException("CR.UNAUTHENTICATED", "Not the Document Automation service", null);
-        if (!tenant().equals(String.valueOf(ex.getRequestHeaders().getFirst("X-OOA-Tenant")))) throw new OoaException("CR.FORBIDDEN", "Another tenant's process");
+        fromDocFlow(ex);
         Map<String, Object> b = ControlRoomServer.map(ControlRoomServer.body(ex));
         String bot = String.valueOf(b.getOrDefault("bot", ""));
         String by = String.valueOf(b.getOrDefault("requestedBy", ""));
         Map<String, Object> user = cr.db.one("SELECT username, role FROM users WHERE username = ? AND enabled = TRUE", by);
         if (user == null) throw new OoaException("CR.NOT_FOUND", "The person who set up this delivery (" + by + ") is not an active user", "Open the process and save its delivery again.");
         Map<String, Object> doc = b.get("input") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of();
-        Map<String, Object> inputs = new LinkedHashMap<>();
         Map<String, Object> flow = (Map<String, Object>) cr.content(bot, "production").get("flow");
-        Map<String, Object> fields = doc.get("fields") instanceof Map<?, ?> f ? (Map<String, Object>) f : Map.of();
-        for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) {
-            Map<String, Object> var = (Map<String, Object>) v;
-            if (!List.of("input", "in_out").contains(var.get("direction"))) continue;
-            String name = String.valueOf(var.get("name"));
-            Object value = switch (name) {
-                case "document" -> doc;
-                case "document_id" -> doc.get("documentId");
-                case "process" -> doc.get("flowName");
-                case "status" -> doc.get("status");
-                case "file_name" -> doc.get("fileName");
-                default -> fields.get(name);
-            };
-            if (value != null) inputs.put(name, value);
-        }
+        Map<String, Object> named = new LinkedHashMap<>();
+        named.put("document", doc);
+        named.put("document_id", doc.get("documentId"));
+        named.put("process", doc.get("flowName"));
+        named.put("status", doc.get("status"));
+        named.put("file_name", doc.get("fileName"));
+        Set<String> declared = ControlRoom.declaredInputs(flow);
+        Map<String, Object> inputs = new LinkedHashMap<>();
+        documentValues(named, doc.get("fields")).forEach((k, v) -> { if (declared.contains(k)) inputs.put(k, v); });
         String pool = b.get("pool") instanceof String s && !s.isBlank() ? s : null;
         return cr.startRun(by, (String) user.get("role"), bot, null, pool, inputs, "docflow:" + doc.getOrDefault("flowId", ""), ip, 0, null, pool == null ? by : null, null);
     }
@@ -495,6 +637,18 @@ final class DocFlowProxy {
     }
 
     /**
+     * What an agent started for a document may get as inputs (it gets those it declares): the named values (those that
+     * are not null) and each field by its name. A field never hides a named value (a field called status, say).
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> documentValues(Map<String, Object> named, Object fields) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (fields instanceof Map<?, ?> f) ((Map<String, Object>) f).forEach((k, v) -> { if (v != null && !named.containsKey(k)) out.put(k, v); });
+        named.forEach((k, v) -> { if (v != null) out.put(k, v); });
+        return out;
+    }
+
+    /**
      * How a DocFlow version compares with this release: compatible (from the minimum up to the tested version), newer
      * (same major version, newer than tested), too_old, other_contract (another major version), or unknown.
      */
@@ -512,6 +666,81 @@ final class DocFlowProxy {
     }
 
     private static int order(int[] a, int[] b) { for (int i = 0; i < 3; i++) if (a[i] != b[i]) return Integer.compare(a[i], b[i]); return 0; }
+
+    /**
+     * A call back from DocFlow (Start a bot, document events): it must carry the service token and be for this tenant
+     * (X-OOA-Tenant, URL-encoded as the Command Center sends it).
+     */
+    private void fromDocFlow(HttpExchange ex) {
+        String auth = ex.getRequestHeaders().getFirst("Authorization");
+        String token = token();
+        if (token.isEmpty() || auth == null || !MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8), ("Bearer " + token).getBytes(StandardCharsets.UTF_8)))
+            throw new OoaException("CR.UNAUTHENTICATED", "Not the Document Automation service", null);
+        String t = ex.getRequestHeaders().getFirst("X-OOA-Tenant");
+        if (t == null || !tenant().equals(java.net.URLDecoder.decode(t, StandardCharsets.UTF_8))) throw new OoaException("CR.FORBIDDEN", "Another tenant's process");
+    }
+
+    // ------------------------------------------------------------------ document events (triggers "On Document Automation")
+
+    /** A document event DocFlow reports at /api/docflow-callback/events (service token, tenant): starts the matching triggers' agents. */
+    Map<String, Object> event(HttpExchange ex, String ip) throws IOException {
+        fromDocFlow(ex);
+        return onEvent(ControlRoomServer.map(ControlRoomServer.body(ex)), ip);
+    }
+
+    /**
+     * Starts the agent of every enabled trigger of the event's kind whose process and document type match. The trigger's
+     * owner must still be active, have docs.view and may see the process's folder; otherwise the trigger is skipped, which
+     * the audit trail and the trigger's last problem say. The agent gets the inputs it declares among document_id,
+     * process, process_id, status, event, file_name, doc_type, each field by its name, and trigger_event (everything).
+     * Returns how many agents started and how many matching triggers were skipped.
+     */
+    Map<String, Object> onEvent(Map<String, Object> e, String ip) {
+        String name = String.valueOf(e.getOrDefault("event", ""));
+        String kind = TriggerKinds.DOCUMENT_EVENTS.get(name);
+        if (kind == null) throw new OoaException("CR.BAD_INPUT", "Unknown document event '" + name + "'; use one of " + String.join(", ", TriggerKinds.DOCUMENT_EVENTS.keySet()));
+        List<Map<String, Object>> matching = new ArrayList<>();
+        for (Map<String, Object> t : cr.db.query("SELECT * FROM triggers WHERE enabled = TRUE AND kind = ?", kind))
+            if (TriggerKinds.documentMatches(TriggerPollers.config(t), e)) matching.add(t);
+        int started = 0, skipped = 0;
+        if (!matching.isEmpty()) {
+            String folder = processFolders().getOrDefault(String.valueOf(e.get("process_id")), "");
+            Map<String, Map<String, String>> all = cr.folders.entries();
+            Map<String, Object> named = new LinkedHashMap<>();
+            for (String k : List.of("document_id", "process", "process_id", "status", "event", "file_name", "doc_type")) named.put(k, e.get(k));
+            for (Map<String, Object> t : matching) {
+                String id = (String) t.get("id");
+                Map<String, Object> owner = cr.db.one("SELECT id, username, role, display_name FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));
+                ControlRoom.User u = owner == null ? null : new ControlRoom.User((String) owner.get("id"), (String) owner.get("username"), (String) owner.get("role"), (String) owner.get("display_name"), false);
+                String why = u == null ? "The trigger's owner " + t.get("created_by") + " is not an active user"
+                        : !cr.can(u, "docs.view") ? "The trigger's owner " + u.username() + " may not see Document Automation (docs.view)"
+                        : !Folders.atLeast(folderAccess(u, folder, all), "view") ? "The trigger's owner " + u.username() + " may not see the process's folder '" + folderKey(folder) + "'"
+                        : null;
+                Map<String, Object> audited = new LinkedHashMap<>(Map.of("event", name, "process", String.valueOf(e.get("process_id")), "document", String.valueOf(e.get("document_id"))));
+                if (why != null) {
+                    audited.put("reason", why);
+                    cr.audit.record("trigger:" + id + " for " + t.get("created_by"), "trigger.fire", "trigger", id, audited, "denied", ip);
+                    cr.db.update("UPDATE triggers SET last_error = ? WHERE id = ?", why, id);
+                    skipped++;
+                    continue;
+                }
+                Map<String, Object> ev = new LinkedHashMap<>(e);
+                ev.put("kind", kind);
+                ev.put("trigger_id", id);
+                ev.put("trigger_name", t.get("name"));
+                ev.put("time", Instant.now().toString());
+                Map<String, Object> in = documentValues(named, e.get("fields"));
+                in.put("trigger_event", ev);
+                try { cr.fireTrigger(t, in, "trigger:" + id, ip); started++; }
+                catch (OoaException x) {
+                    audited.put("error", String.valueOf(x.getMessage()));
+                    cr.audit.record("trigger:" + id + " for " + t.get("created_by"), "trigger.fire", "trigger", id, audited, "failed", ip);
+                    skipped++;
+                }
+            }
+        }
+        return Map.of("event", name, "started", started, "skipped", skipped);
+    }
 
     // ------------------------------------------------------------------ where DocFlow is
 

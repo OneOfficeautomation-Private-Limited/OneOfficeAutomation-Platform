@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AgentTemplate, CrApi, CrUser } from "../api/cr";
+import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { FolderIcon } from "./Repository";
@@ -152,6 +152,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                 return <tr key={a} className="is-static"><td><span className="cc-aico" aria-hidden="true">A</span><strong>{agentName(a)}</strong></td>
                   <td>{at.length ? at.map((p) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "(top)").join(", ") : <span className="cc-none">Not installed</span>}</td></tr>; })}</tbody>
             </table>
+            {!!open.processes?.length && <p>Document Automation processes: {open.processes.join(", ")} (installed as drafts, in the same folder).</p>}
             <p className="cc-none">Installing puts the template's agents into the folder you choose, as new agents you can change. Agents already there are kept as they are.</p>
           </div>
         </div>
@@ -251,8 +252,11 @@ function Install({ api, t, onClose, onDone }: { api: CrApi; t: AgentTemplate; on
   const [folder, setFolder] = useState("Templates");
   const [results, setResults] = useState<Awaited<ReturnType<CrApi["installTemplate"]>>["results"] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [processes, setProcesses] = useState<TemplateProcessResult[] | null>(null);
   const install = () => api.installTemplate(t.source, t.id, folder.trim() || "Templates").then((r) => {
-    if (r.ok) onDone("Installed " + t.name + " in " + r.folder + ": open it in Automation.");
+    if (r.ok && r.processes_ok !== false && !r.processes?.some((p) => p.note)) onDone("Installed " + t.name + " in " + r.folder + ": open it in Automation."
+      + (r.processes?.length ? " Its document processes are drafts in Document Automation." : ""));
+    else if (r.ok) setProcesses(r.processes ?? []);
     else setResults(r.results);
   }, (e) => setError(message(e)));
   return (
@@ -260,6 +264,9 @@ function Install({ api, t, onClose, onDone }: { api: CrApi; t: AgentTemplate; on
       {error && <p className="st-alert" role="alert">{error}</p>}
       <p className="st-muted">The template's agents go into the agent repository under this folder, as new agents you can change. Agents already there are kept as they are.</p>
       <Field label="Folder">{(id) => <TextInput id={id} value={folder} onChange={(e) => setFolder(e.target.value)} />}</Field>
+      {!!t.processes?.length && <p className="st-muted">It also creates {t.processes.length === 1 ? "a Document Automation process" : t.processes.length + " Document Automation processes"} ({t.processes.join(", ")}) as drafts in the same folder; one already there is kept. You need permission to change Document Automation.</p>}
+      {processes && <><p className="st-alert">The agents were installed. Document processes:</p>
+        <table className="st-table" aria-label="Document processes"><tbody>{processes.map((x) => <tr key={x.name}><td>{x.name}</td><td>{x.status}</td><td>{x.error ?? x.note ?? ""}</td></tr>)}</tbody></table></>}
       {results && <><p className="st-alert">Nothing was installed: fix the problems listed.</p>
         <table className="st-table" aria-label="Install results"><tbody>{results.map((x) => <tr key={x.path}><td>{agentName(x.path)}</td><td>{x.status}</td><td>{x.error?.message ?? ""}</td></tr>)}</tbody></table></>}
     </Dialog>
@@ -270,11 +277,14 @@ function Share({ api, categories, onClose, onDone }: { api: CrApi; categories: s
   const [agents, setAgents] = useState<string[]>([]);
   const [v, setV] = useState({ path: "", name: "", description: "", category: categories[0] ?? "Other" });
   const [error, setError] = useState<string | null>(null);
+  const [flows, setFlows] = useState<{ id: string; name: string }[]>([]);
+  const [chosen, setChosen] = useState<string[]>([]);
   useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, path: o.path || b[0]?.path || "" })); }, () => {}); }, [api]);
+  useEffect(() => { api.documentProcesses().then((f) => setFlows(f.filter((x) => !x.isInbox))); }, [api]);
   return (
     <Dialog open title="Share an agent as a template" width={600} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
-      <Button kind="primary" disabled={!v.path} onClick={() => api.shareTemplate({ ...v, name: v.name.trim() || agentName(v.path), description: v.description.trim() })
+      <Button kind="primary" disabled={!v.path} onClick={() => api.shareTemplate({ ...v, name: v.name.trim() || agentName(v.path), description: v.description.trim(), ...(chosen.length ? { processes: chosen } : {}) })
         .then(() => onDone("Sent for approval: it shows in Agent Templates once approved."), (e) => setError(message(e)))}>Share</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <p className="st-muted">Its live version and the agents it calls go to your region's template catalogue. Once the service's operators approve it, every company in the region can install it.</p>
@@ -282,6 +292,10 @@ function Share({ api, categories, onClose, onDone }: { api: CrApi; categories: s
       <Field label="Template name">{(id) => <TextInput id={id} value={v.name} maxLength={120} placeholder={v.path ? agentName(v.path) : ""} onChange={(e) => setV({ ...v, name: e.target.value })} />}</Field>
       <Field label="What it does">{(id) => <TextArea id={id} rows={3} maxLength={2000} value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} />}</Field>
       <Field label="Category">{(id) => <Select id={id} value={v.category} onChange={(e) => setV({ ...v, category: e.target.value })} options={categories.map((c) => ({ value: c, label: c }))} />}</Field>
+      {!!flows.length && <fieldset><legend>Document Automation processes that go with it (optional)</legend>
+        {flows.map((f) => <label key={f.id} className="st-check-line"><input type="checkbox" checked={chosen.includes(f.id)}
+          onChange={(e) => setChosen(e.target.checked ? [...chosen, f.id] : chosen.filter((x) => x !== f.id))} /> {f.name}</label>)}
+        <p className="st-muted">Their settings and document types go along; their email inbox, watched folder, delivery passwords and what they learned stay here.</p></fieldset>}
     </Dialog>
   );
 }

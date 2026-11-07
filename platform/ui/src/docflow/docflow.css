@@ -14,6 +14,16 @@
   border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font-weight: 600; text-decoration: none; }
 .df-tab:hover { border-color: var(--ui-accent); color: var(--ui-accent-text); background: var(--ui-tint); }
 .df-tab[aria-current="page"] { background: var(--ui-accent); border-color: var(--ui-accent); color: #ffffff; }
+.df-tab { gap: 6px; }
+.df-tab-group { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.df-tab-group + .df-tab-group { padding-left: 12px; border-left: 1px solid var(--ui-divider); }
+.df-tab-group.is-menu { flex: 0 1 auto; }
+.df-tab-group.is-menu .df-tab { flex: none; }
+.df-tab-group-label { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-text-2); }
+.df-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.df-steps { display: flex; gap: 8px; flex-wrap: wrap; }
+.df-steps .df-stage { min-width: 132px; }
+.df-step-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ui-text-2); }
 .df-page { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
 .df-page-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .df-page-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
@@ -85,6 +95,15 @@
 .df-table tbody tr:hover { background: var(--ui-row-hover); }
 .df-table .df-right { text-align: right; }
 .df-table a { font-weight: 600; text-decoration: none; }
+/* a wide table (the Overview's) scrolls sideways inside its card; its first column stays in view */
+.df-wide-table { min-width: 1900px; }
+.df-wide-table td { white-space: nowrap; }
+.df-wide-table th:first-child, .df-wide-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--ui-bg); box-shadow: 1px 0 0 var(--ui-divider); }
+.df-wide-table th:first-child { z-index: 2; background: var(--ui-soft); }
+.df-sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.df-sort:hover { color: var(--ui-accent-text); }
+.df-row-link { cursor: pointer; }
+.df-table-wrap:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
 .df-table-foot { display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--ui-text-2); }
 
 /* 4. Screens */
@@ -95,6 +114,7 @@
   border: 1px solid var(--ui-border); border-top-width: 4px; background: var(--ui-bg); font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-option[aria-selected="true"] { border-color: var(--ui-accent); border-top-color: inherit; background: var(--ui-tint); box-shadow: 0 0 0 1px var(--ui-accent); }
 .df-list { display: flex; flex-direction: column; gap: 6px; padding: 10px; align-self: start; }
+.df-list > * { flex: none; }   /* the search box grows along a row (filter bars), not down this column */
 .df-list-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--ui-radius); border: 1px solid transparent;
   background: transparent; text-align: left; font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-list-item:hover { background: var(--ui-row-hover); }
@@ -108,6 +128,7 @@
 .df-files > div { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--ui-divider); }
 .df-stage { flex: 1 1 0; min-width: 150px; display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 8px;
   border: 1px solid var(--ui-border); background: var(--ui-bg); font: inherit; color: var(--ui-text); cursor: pointer; }
+.df-stage:disabled { opacity: .55; cursor: not-allowed; }
 .df-stage[aria-selected="true"] { border-color: var(--ui-accent); background: var(--ui-tint); box-shadow: 0 0 0 2px #c9dafb; }
 .df-stage-n { flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; background: var(--ui-divider); color: var(--ui-text); }
@@ -123,18 +144,74 @@
 .df-paper .is-ok { outline: 2px solid var(--ui-run); outline-offset: 3px; }
 .df-review-fields { flex: 1 1 420px; max-width: 540px; min-width: 0; border-left: 1px solid var(--ui-border); display: flex; flex-direction: column; }
 .df-flag { border: 2px solid #b86e00; border-radius: 8px; padding: 12px; background: #fffaf1; }
+.df-review-why { padding: 10px 12px; border-radius: 8px; background: var(--ui-running-bg); color: var(--ui-warning-text); }
+.df-review-why ul { margin: 4px 0 0; padding-left: 18px; }
 .df-field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: center; }
 .df-mark { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #ffffff; flex: none; }
 .df-bars { display: flex; align-items: flex-end; gap: 10px; height: 200px; margin-top: 16px; border-bottom: 1px solid var(--ui-border); padding: 0 4px; }
 .df-bar { flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
 .df-bar-labels { display: flex; gap: 10px; padding: 6px 4px 0; color: var(--ui-text-2); font-size: 11.5px; }
 .df-bar-labels span { flex: 1 1 0; text-align: center; }
+.df-bars-small { height: 140px; }
+.df-hbars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.df-hbars li { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.df-hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.df-hbar-track { height: 10px; border-radius: 5px; background: var(--ui-divider); overflow: hidden; }
+.df-hbar-track > span { display: flex; justify-content: flex-end; height: 100%; border-radius: 5px; min-width: 2px; }
+.df-hbar-track > span > span { display: block; height: 100%; }
 .df-legend { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-text-2); }
 .df-swatch { width: 10px; height: 10px; border-radius: 2px; }
 .df-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-soft); }
 .df-seg button { height: 30px; padding: 0 16px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-weight: 600; color: var(--ui-text-2); cursor: pointer; }
 .df-seg button[aria-pressed="true"] { background: var(--ui-bg); color: var(--ui-accent-text); box-shadow: 0 1px 2px rgba(23, 32, 43, .12); }
 .df-row-flag { background: #fffaf1; }
+/* Review: the page image with a box over each value; the chosen field and its box stand out */
+.df-page-view { flex: 1; min-height: 0; overflow: auto; padding: 20px; }
+/* the page and the fields each scroll on their own, so a chosen box and the field typed in are both in view */
+@media (min-width: 861px) {
+  .df-review { height: calc(100vh - 110px); min-height: 520px; flex: none; flex-wrap: nowrap; }
+  .df-review-page, .df-review-fields { height: 100%; min-height: 0; }
+  .df-review-fields > div:nth-child(2) { min-height: 0; }
+}
+.df-sheet { position: relative; margin: 0 auto; max-width: none; min-height: 200px; background: #ffffff; box-shadow: 0 2px 10px rgba(15, 20, 29, .18); }
+.df-sheet img { display: block; width: 100%; height: auto; }
+.df-sheet-wait { position: absolute; inset: 0; display: grid; place-items: center; color: #5b6472; }
+.df-box { position: absolute; padding: 0; border: 2px solid rgba(47, 111, 222, .55); border-radius: 2px; background: rgba(47, 111, 222, .07); cursor: pointer; }
+.df-box:hover { background: rgba(47, 111, 222, .16); }
+.df-box:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.df-box.is-flag { border-color: #b86e00; background: rgba(245, 179, 61, .2); }
+.df-box.is-row { border-style: dashed; }
+.df-box.is-selected { z-index: 2; border: 3px solid var(--ui-accent); border-style: solid; background: rgba(47, 111, 222, .18); box-shadow: 0 0 0 4px rgba(47, 111, 222, .25); }
+.df-tool-sep { width: 1px; height: 20px; margin: 0 4px; background: var(--ui-divider); }
+.df-flag.is-selected, .df-field-row.is-selected, .df-review-tablefield.is-selected { outline: 2px solid var(--ui-accent); outline-offset: 3px; border-radius: 6px; }
+.df-review-tablefield { display: flex; flex-direction: column; gap: 8px; }
+.df-review-table td { padding: 4px 6px; }
+.df-review-table input { min-width: 64px; }
+.df-review-table tr.is-selected { background: var(--ui-tint); }
+.df-thresholds td { padding: 6px 8px; }
+
+/* Engines: sections, engine cards, cost */
+.df-section-title { margin: 0; font-size: 16px; font-weight: 600; }
+.df-optin { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); }
+.df-seg-wide { display: flex; align-self: flex-start; }
+.df-seg a { display: inline-flex; align-items: center; height: 32px; padding: 0 18px; border-radius: 6px; font-weight: 600; color: var(--ui-text-2); text-decoration: none; }
+.df-seg a[aria-current="page"] { background: var(--ui-bg); color: var(--ui-accent-text); box-shadow: 0 1px 2px rgba(23, 32, 43, .12); }
+.df-option-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.df-engine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.df-engine { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); min-width: 0; }
+.df-engine-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 8px 0; border-top: 1px solid var(--ui-divider); border-bottom: 1px solid var(--ui-divider); }
+.df-engine-facts dt { font-size: 11px; color: var(--ui-text-2); }
+.df-engine-facts dd { margin: 0; overflow-wrap: anywhere; }
+.df-cost { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.df-row-current { background: var(--ui-tint); }
+@media (max-width: 1100px) { .df-cost { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* Test lab: test sets (right values, results, best per column) */
+.df-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.df-pair { display: inline-flex; gap: 4px; margin-right: 10px; white-space: nowrap; }
+.df-best { display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.df-wrong { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 860px) { .df-cost, .df-option-row { grid-template-columns: minmax(0, 1fr); } }
 
 /* 5. Narrow screens: grids stack, the review page and its fields stack */
 @media (max-width: 1100px) { .df-g6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -162,4 +239,6 @@
 .df-help-row .df-help { align-self: stretch; margin: 0; }
 .df-hint-bubble.is-left { left: auto; right: -8px; }
 .df-title-select { height: 34px; max-width: 360px; font-size: 18px; font-weight: 600; }
+.df-langs { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.df-langs label { display: inline-flex; gap: 6px; align-items: center; }
 .df-learned { display: inline-flex; gap: 2px; align-items: center; margin-right: 8px; }
