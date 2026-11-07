@@ -39,6 +39,8 @@ class DocumentAutomationModuleTest {
             assertEquals(1, ((Number) cr.platform.setting("mcp_documents")).intValue());
             assertEquals(1, cr.modules.mcpTools.size());
             assertEquals(1, cr.modules.templateParts.size());
+            // ooa db migrate also brings each module's own tables up to date (it has none yet: version 0)
+            assertEquals(List.of(Map.of("module", "document-automation", "from", 0, "to", 0)), Modules.migrateAll(db));
         }
     }
 }

@@ -60,8 +60,19 @@ public final class Modules {
         out.add(m);
     }
 
-    /** Brings every module's own tables up to date (ooa db migrate, with the setup account; and at start-up). */
-    public static void migrateAll(Db db) { for (CommandCenterModule m : discover()) db.migrateModule(m.id(), m.schema()); }
+    /**
+     * Brings every installed module's own tables up to date (ooa db migrate, with the setup account, after the kernel's
+     * schema). Returns each module with the version it was at and is at now.
+     */
+    public static List<Map<String, Object>> migrateAll(Db db) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (CommandCenterModule m : discover()) {
+            int from = db.moduleVersion(m.id());
+            db.migrateModule(m.id(), m.schema());
+            out.add(Map.of("module", m.id(), "from", from, "to", db.moduleVersion(m.id())));
+        }
+        return out;
+    }
 
     /** Starts the modules: their schema first, then each one's start, which registers what it adds. */
     void start() {

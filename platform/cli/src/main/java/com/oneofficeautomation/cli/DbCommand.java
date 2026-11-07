@@ -170,6 +170,10 @@ final class DbCommand {
             int before = db.schemaVersion();
             db.migrate();
             System.out.println(before == Db.LATEST ? "Schema is current (version " + Db.LATEST + ")." : "Schema upgraded from version " + before + " to " + Db.LATEST + ".");
+            // then each feature module's own tables (docs/architecture/13-modules.md), with the same setup account
+            for (Map<String, Object> m : com.oneofficeautomation.controlroom.Modules.migrateAll(db))
+                System.out.println("Module " + m.get("module") + ": " + (m.get("from").equals(m.get("to")) ? "schema is current (version " + m.get("to") + ")."
+                        : "schema upgraded from version " + m.get("from") + " to " + m.get("to") + "."));
         }
         if (cfg.engine().equals("postgresql")) grantRuntime(cfg, data, new Vault(data), name(cfg.get("user"), "The user"));
         else if (cfg.windowsAuth() && !cfg.get("windows.login").isEmpty()) grantRuntime(cfg, data, new Vault(data), windowsLogin(cfg.get("windows.login")));
