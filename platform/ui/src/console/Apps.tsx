@@ -127,7 +127,7 @@ export function AppView({ api, appId, onBack, initial }: { api: AppApi; appId: s
           {app.definition.pages.map((p) => <Button key={p.id} kind={p.id === page ? "secondary" : "plain"} role="tab" aria-selected={p.id === page} onClick={() => setPage(p.id)}>{p.title || p.id}</Button>)}</span>}
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      {current && <div className="cc-list-panel cc-app" role="form" aria-label={current.title || app?.name}>
+      {current && <div className="cc-list-panel cc-app-page" role="form" aria-label={current.title || app?.name}>
         {current.components.map((c) => <AppPart key={c.id} api={api} appId={appId} c={c} fields={fields} setFields={setFields} result={result} busy={busy} onPress={press} />)}
       </div>}
     </section>

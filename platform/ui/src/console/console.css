@@ -850,7 +850,7 @@ a.ov-tab { text-decoration: none; }
 .cc-stagebar li.is-current .cc-stagebar-mark { background: var(--ui-accent); color: #fff; }
 
 /* Apps (G67): an app's page, its outputs, and the designer's list of components */
-.cc-app { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.cc-app-page { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; max-width: 760px; }   /* not .cc-app: that is the whole console */
 .cc-app-out { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 6px 0 0; }
 .cc-app-out div { display: contents; }
 .cc-app-out dt { font-weight: 600; }
