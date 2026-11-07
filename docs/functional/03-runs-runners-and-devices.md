@@ -152,7 +152,7 @@ to 1,000,000 characters, 20 callback URLs per run. Every suspend, callback, resu
 | `RUN.TOOLKIT_LOAD` | A custom toolkit's checksum or signature did not verify on the runner |
 | `RUN.NO_DESKTOP` | The agent uses the screen but the runner is locked or has no desktop |
 | `RUN.NEEDS_PERSON` | An unattended run reached a message box, prompt or file picker with no timeout, or a form |
-| `RUN.TIMEOUT` | The run passed its maximum duration (24 hours on a runner, 5 minutes serverless) |
+| `RUN.TIMEOUT` | The run passed its maximum duration (24 hours on a runner; serverless 5 minutes at first, up to 60 in Settings) |
 | `STEP.TIMEOUT` | One action passed its time limit |
 | `AGENT.LOST` | The runner stopped reporting for 2 minutes |
 | `AGENT.STOPPED` | The agent ran Stop agent with status failed |
@@ -224,7 +224,7 @@ An API task (Build > Agent APIs, `apitasks.manage`) puts an agent behind its own
 | Refused | Any other toolkit (desktop, browser, programs, scripts, databases, server files, custom toolkits) in the agent or any agent it calls: `CR.NOT_SERVERLESS` |
 | Files | Every path stays inside the run's own temporary workspace (`FILE.OUTSIDE_WORKSPACE`), removed afterwards |
 | Concurrency | At most 4 serverless runs at once per One CommandCenter node; more wait queued |
-| Duration | At most 5 minutes |
+| Duration | At most 5 minutes at first; **Longest serverless Agent API run** in Settings (1 to 60 minutes) |
 | Licence | The virtual runner needs an Unattended Runner seat while a licence is installed |
 | Node stops | A run cut off by a stopped node is failed once it is past the longest time a run may take |
 

@@ -37,6 +37,8 @@ public final class Platform {
         DEFAULTS.put("session_hours", 8);
         DEFAULTS.put("max_upload_mb", 25);   // Excel work items and licence files travel inside JSON, as Base64
         DEFAULTS.put("queue_poll_seconds", 15);
+        DEFAULTS.put("serverless_max_minutes", 5);      // the longest a serverless Agent API run may last (G55)
+        DEFAULTS.put("serverless_parallel", 4);         // how many serverless runs at once
         DEFAULTS.put("default_minutes_saved", 0);
         DEFAULTS.put("hourly_cost", 0);   // what an hour of the manual work costs, for money saved (Value)
         DEFAULTS.put("currency", "");     // its currency, ISO 4217 (INR, USD, EUR)
@@ -167,6 +169,8 @@ public final class Platform {
         Map.entry("session_hours", new long[] { 1, 720 }),
         Map.entry("max_upload_mb", new long[] { 1, 1024 }),
         Map.entry("queue_poll_seconds", new long[] { 3, 3600 }),
+        Map.entry("serverless_max_minutes", new long[] { 1, 60 }),
+        Map.entry("serverless_parallel", new long[] { 1, 16 }),
         Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
         Map.entry("hourly_cost", new long[] { 0, 100000 }),
         Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),

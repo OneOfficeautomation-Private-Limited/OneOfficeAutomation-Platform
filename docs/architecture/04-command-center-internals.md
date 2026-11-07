@@ -357,7 +357,7 @@ the form. Completing a task or finishing a run calls `resume`, and `tick()` move
 runner `dev_serverless` named "One CommandCenter (serverless)" whose secret nobody knows. They are queued, logged,
 audited and licensed like other runs. Limits: only data, web-service and document toolkits (`ServerlessRuns.TOOLKITS`:
 no desktop, browser, programs, scripts or databases), file paths confined to the run's temporary workspace, 4 runs at
-once, 5 minutes per run. In SaaS they are off unless the region sets `serverless=true` (see
+once and 5 minutes per run at first (Settings `serverless_parallel`, up to 16; `serverless_max_minutes`, up to 60). In SaaS they are off unless the region sets `serverless=true` (see
 [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md)).
 
 ## 12. Several nodes and the leader lease
