@@ -494,6 +494,37 @@ Goal: read `data/orders.csv`, and log every order above 1,000.
 | "Unknown condition … (is its toolkit installed?)" / "Unknown iterator …" | The toolkit is missing or switched off. Ask your administrator. |
 | "Invalid JSON: …" after **Apply JSON** | Fix the JSON text, or use **Format** to find the error. |
 
+## Agents written in code (Python)
+
+Developers can write an agent's work in Python and still run it like any agent: from schedules, triggers, queues
+and the API, with its runs, logs and audit in One CommandCenter. Add the **Coded agents** toolkit's **Run Python
+agent** step and give it a module, as a file in the agent's files or typed in the step:
+
+```python
+def main(inputs, ooa):
+    rows = ooa.call("ooa.csv/read", path=inputs["file"])["table"]["rows"]
+    ooa.log("Read %d rows" % len(rows))
+    for row in rows:
+        ooa.call("ooa.workload/add_item", queue="Invoices", data={"number": row[0], "amount": row[3]})
+    return {"queued": len(rows)}
+```
+
+- `main(inputs, ooa)` gets the step's **inputs** and returns a dictionary, the step's **outputs** (anything else comes
+  back as `result`). **Entry** names another function.
+- `ooa.call("toolkit/command", name=value, ...)` runs any toolkit command as part of the step, with the same checks,
+  vault references and logging as a step. Only the toolkits listed in **Toolkits it may call** can be called, so
+  toolkits switched off in One CommandCenter stay off for code too. A failing command raises `OoaError` with its `code`.
+- `ooa.log(message, level)` and `print(...)` write to the run's log.
+- Python 3 must be on the runner (or name it in **Interpreter**, such as a virtual environment's python).
+- Test the module with plain Python and pytest by passing your own stand-in for `ooa` with `call` and `log`.
+
+**Git as the source of truth.** With Git set up (Administration > Settings > Agents and repository), developers can
+work on agents in Git: **Pull from Git** reads every agent changed on the branch since the last sync as a new version
+(checked like a check-in; production stays as it was), with the Git commit and its author in the version's comment, and
+makes new files new agents. An agent changed both in One CommandCenter and in Git since the last sync is left alone and
+listed, as is a file that is not valid JSON; a file deleted in Git is only listed. A pipeline can do the same after a
+merge with `POST /api/git/pull` and an API key (Bearer), so reviewed pull requests become versions.
+
 ## Related guides
 
 - [Studio basics](02-studio-basics.md)

@@ -1034,6 +1034,10 @@ public final class ControlRoomServer {
                     try { sendJson(ex, 200, cr.gitSync.syncNow(u, ip)); }
                     catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Git sync failed: " + e.getMessage()); }
                 }
+                else if (m.equals("POST") && route.equals("git/pull")) {   // G70: Git as the source of truth (a pipeline may call it with an API key)
+                    try { sendJson(ex, 200, cr.gitSync.pullNow(u, ip)); }
+                    catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Reading from Git failed: " + e.getMessage()); }
+                }
                 else notFound(ex);
             }
             case "devices" -> {
