@@ -501,6 +501,23 @@ runner or pool, and each case runs the live production version once. The test ru
 the cases ([04 Running and debugging](04-studio-running-and-debugging.md)); operators run them after changes to
 runners, toolkits or connected systems.
 
+**Mocks.** A case can stand in for toolkit steps that reach other systems, so a test does not book an order or send an
+e-mail. In the case's JSON, `"mocks": {"<step id>": {"outputs": {...}}}` gives the step's outputs without running it, and
+`{"error": {"code": "ERP.DOWN", "message": "..."}}` makes it fail as that error, to test the agent's error handling.
+Only steps of the agent under test are mocked (not of its child agents), and Core's own steps (If, Assign, Log...) are
+not. The run's log says "Mocked by the test" at each mocked step. Mocks travel with the test case's run; other runs
+refuse them.
+
+**Pipelines (CI/CD).** Run a test set from a pipeline and fail the build when a case fails:
+
+- **GitHub Actions**: `uses: OneOfficeautomation-Private-Limited/OneOfficeAutomation-Platform/platform/deploy/ci/github-action@master`
+  with `url`, `token` (an API key in a secret), `test-set`, and `runner` or `pool`. Its outputs are `test-run`, `passed`
+  and `total`.
+- **Azure DevOps**: the step template `platform/deploy/ci/azure-devops/ooa-test-set.yml` with `url`, `testSet`, and
+  `runner` or `pool`, with the API key in the secret variable `OOA_API_KEY`.
+
+Both start the test set, wait for every case (30 minutes at first), print each case's verdict and fail on any failure.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**
