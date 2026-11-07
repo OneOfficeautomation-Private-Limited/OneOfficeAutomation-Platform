@@ -26,6 +26,8 @@ class DocFlowProxyTest {
     volatile String reviewQueue = "[]";
     /** What the fake DocFlow lists as processes. */
     volatile String flowsJson = "[]";
+    /** What the fake DocFlow says its version is. */
+    volatile String versionJson = "{\"version\":\"3.1.0\"}";
 
     @BeforeAll void start() throws Exception {
         Path data = Files.createTempDirectory("ooa-docflow-proxy");
@@ -53,6 +55,7 @@ class DocFlowProxyTest {
             String path = ex.getRequestURI().getPath();
             byte[] b = (path.endsWith("/documents") && ex.getRequestMethod().equals("POST") ? "{\"documents\":[{\"documentId\":\"d7\",\"status\":\"processing\"}]}"
                     : path.endsWith("/df/documents/d7") ? "{\"id\":\"d7\",\"status\":\"validation\",\"fields\":{\"total\":115}}"
+                    : path.endsWith("/admin/version") ? versionJson
                     : path.endsWith("/df/review") ? reviewQueue : path.endsWith("/df/flows") && ex.getRequestMethod().equals("GET") && ex.getRequestURI().getQuery() == null ? flowsJson : path.contains("/df/flows") && in.length > 0 ? new String(in, StandardCharsets.UTF_8)
                     : "{\"ok\":true}").getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().set("Content-Type", "application/json");
@@ -107,6 +110,35 @@ class DocFlowProxyTest {
         assertEquals(404, call("GET", "/api/docflow/admin/installer.bat", null).statusCode());
         assertEquals(404, call("GET", "/api/docflow/df/../admin/update", null).statusCode());
         assertTrue(seen.isEmpty());
+    }
+
+    @Test void docFlowVersionsAreComparedWithTheTestedOne() {
+        assertEquals("compatible", DocFlowProxy.compare("3.1.0", "3.1.0", "3.1.0"));
+        assertEquals("compatible", DocFlowProxy.compare("3.1.4", "3.1.0", "3.2.0"));     // between the minimum and the tested version
+        assertEquals("newer", DocFlowProxy.compare("3.4.0", "3.1.0", "3.1.0"));
+        assertEquals("too_old", DocFlowProxy.compare("3.0.9", "3.1.0", "3.1.0"));
+        assertEquals("too_old", DocFlowProxy.compare("2.5.0", "3.1.0", "3.1.0"));
+        assertEquals("other_contract", DocFlowProxy.compare("4.0.0", "3.1.0", "3.1.0"));
+        assertEquals("compatible", DocFlowProxy.compare("v3.1", "3.1.0", "3.1.0"));
+        assertEquals("unknown", DocFlowProxy.compare("dev", "3.1.0", "3.1.0"));
+    }
+
+    @Test void thePageSaysWhetherTheDocFlowInUseFits() throws Exception {
+        try {
+            HttpResponse<String> r = call("GET", "/api/docflow/version", null);
+            assertEquals(200, r.statusCode(), r.body());
+            Map<?, ?> v = (Map<?, ?>) JsonLite.parse(r.body());
+            assertEquals(List.of("compatible", true, "3.1.0", "3.1.0"), List.of(v.get("status"), v.get("compatible"), v.get("version"), v.get("tested")));
+            versionJson = "{\"version\":\"4.0.0\"}";
+            Map<String, Object> other = new DocFlowProxy(cr).version();
+            assertEquals(List.of("other_contract", false), List.of(other.get("status"), other.get("compatible")));
+            assertTrue(String.valueOf(other.get("message")).contains("Install DocFlow 3.1.0"));
+            versionJson = "{\"version\":\"3.0.0\"}";
+            assertEquals("too_old", new DocFlowProxy(cr).version().get("status"));
+            versionJson = "{}";
+            assertEquals("unknown", new DocFlowProxy(cr).version().get("status"));
+        } finally { versionJson = "{\"version\":\"3.1.0\"}"; }
+        assertTrue(Rbac.allowed("viewer", "docs.view"));                       // everyone who may see the page may see this
     }
 
     @Test void permissionsPerRoute() {

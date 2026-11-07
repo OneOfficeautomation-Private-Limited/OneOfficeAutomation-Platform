@@ -120,6 +120,11 @@ export type AiCall = { ts: string; purpose?: string; provider?: string; model?: 
 export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
 export type ConsolePlugin = { id: string; name: string; description: string; path: string };
+/** GET /api/docflow/version: the DocFlow in use against the one this release is tested with. */
+export interface DocFlowVersion {
+  status: "compatible" | "newer" | "too_old" | "other_contract" | "unreachable" | "not_set_up" | "unknown";
+  compatible: boolean; version: string | null; tested: string; minimum: string; contract: string; message: string;
+}
 /** A machine running the OneRunner (AA: a device), as GET devices gives it. */
 export type Runner = { id: string; name: string; hostname?: string; os?: string; agent_version?: string; enabled: boolean;
   status: "online" | "offline" | "disabled"; last_seen?: string | null; registered?: string; registered_by?: string; log_level?: string;
@@ -290,6 +295,8 @@ export class CrApi {
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
+  /** Whether the Document Automation service (DocFlow) in use is a version this One CommandCenter works with. */
+  docflowVersion() { return this.call<DocFlowVersion>("GET", "docflow/version"); }
   /** Runs: filter=active (queued, running) or history (finished), with status, bot, device, user, source, q, from, to, limit, offset. */
   runs(params: Record<string, string>) { return this.call<{ runs: Run[]; total: number }>("GET", "runs?" + new URLSearchParams(params).toString()); }
   /** One run with its events (only those after event number `after`, to follow a run as it goes). */

@@ -4,6 +4,8 @@
 #   ui           Linux: the console and Studio UI tests (jsdom) against real servers started from the build
 #   msi          Windows: builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls
 #   postgres     Linux: the Command Center tests against a real PostgreSQL 16 (a throwaway container)
+#   docflow      Linux: Document Automation against the real DocFlow service (oneoffice-docauto at the ref pinned in
+#                docflow-compat.properties): proxy routes, an upload, the review queue and a "Start a bot" callback
 #   headless     Linux (every push) and macOS (master): a Command Center and a headless runner end to end, the runner and
 #                SDK tests and the shared conformance cases, so runners for API, data and browser-free work run there (R14)
 #   native       Linux and Windows: the native executable (GraalVM), checked against the Java program (Q13)
@@ -159,6 +161,75 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports-postgres
+          path: platform/control-room/build/reports/tests/
+          retention-days: 7
+
+  docflow:
+    name: Document Automation with the real DocFlow (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Which DocFlow this release is tested with
+        id: pin
+        run: echo "ref=$(sed -n 's/^ref=//p' control-room/src/main/resources/docflow-compat.properties | tr -d '\r')" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: OneOfficeautomation-Private-Limited/oneoffice-docauto
+          ref: ${{ steps.pin.outputs.ref }}
+          path: docauto
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start PostgreSQL 16 for DocFlow
+        run: |
+          PW="Ci-$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "PG_PW=$PW" >> "$GITHUB_ENV"
+          docker run -d --name pg -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_DB=docflow -e "POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C" -p 5432:5432 postgres:16
+          for i in $(seq 1 60); do
+            docker exec pg pg_isready -U postgres -d docflow >/dev/null 2>&1 && echo "PostgreSQL is up" && exit 0
+            sleep 2
+          done
+          docker logs pg; exit 1
+      - name: Start DocFlow
+        working-directory: docauto
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr tesseract-ocr-ara
+          pip install -q -r requirements.txt
+          TOKEN="ci-$(openssl rand -hex 16)"
+          echo "::add-mask::$TOKEN"
+          echo "DOCFLOW_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          # the test's Command Center listens on 18766: DocFlow's "Start a bot" deliveries call it back there
+          # managed mode, as the platform runs it: the token is required and DocFlow does not update itself
+          DOCAUTO_MANAGED=true DOCAUTO_API_TOKEN="$TOKEN" DOCAUTO_DATABASE_URL="postgresql://postgres:$PG_PW@localhost:5432/docflow" \
+            DOCAUTO_PLATFORM_URL=http://127.0.0.1:18766 DOCAUTO_DATA_DIR="$RUNNER_TEMP/docflow-data" \
+            nohup python -m uvicorn docauto.api.app:app --host 127.0.0.1 --port 8085 > "$RUNNER_TEMP/docflow.log" 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:8085/api/docs/v1/admin/version && echo && echo "DocFlow is up" && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/docflow.log"; exit 1
+      - name: Command Center against DocFlow
+        run: |
+          chmod +x gradlew
+          ./gradlew :control-room:test --tests "*DocFlowLiveTest*" --console=plain -Pooa.test.docflow=http://127.0.0.1:8085 \
+            "-Pooa.test.docflow.token=$DOCFLOW_TOKEN" -Pooa.test.docflow.port=18766 "-Pooa.test.docflow.samples=$GITHUB_WORKSPACE/docauto/samples"
+          # the tests skip themselves without a DocFlow: make sure they really ran
+          grep -q 'skipped="0"' control-room/build/test-results/test/TEST-com.oneofficeautomation.controlroom.DocFlowLiveTest.xml
+      - name: DocFlow's log
+        if: always()
+        run: tail -n 200 "$RUNNER_TEMP/docflow.log" || true
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-docflow
           path: platform/control-room/build/reports/tests/
           retention-days: 7
 

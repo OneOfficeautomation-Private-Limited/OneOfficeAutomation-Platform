@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ConsolePlugin, CrApi } from "../api/cr";
+import type { ConsolePlugin, CrApi, DocFlowVersion } from "../api/cr";
 import { HelpButton, type HelpTopic } from "../components";
 
 /**
@@ -14,17 +14,33 @@ const HELP: HelpTopic = { title: "Document Automation", about: "Reads documents 
     { name: "Installed, Not installed", text: "Whether the Document Automation module is installed on this One CommandCenter. "
       + "When it is not, ask your administrator about it." },
     { name: "Open Document Automation", text: "Shows once the module is installed, and opens its own pages." },
+    { name: "Service", text: "The Document Automation service (DocFlow) this One CommandCenter uses: its version, and whether it is the "
+      + "version this release was tested with. A newer version of the same series should work; an older one should be updated." },
     { name: "Learning instance", text: "One for each kind of document: the fields to extract, how the text is read, and the AI model that extracts it." },
     { name: "Validation queue", text: "Where people check the extracted results before agents use them." },
     { name: "Accuracy", text: "Measured on sample documents before a learning instance goes live." },
   ] };
 
+const LABEL: Record<DocFlowVersion["status"], string> = {
+  compatible: "Compatible", newer: "Newer than tested", too_old: "Needs an update", other_contract: "Not compatible",
+  unreachable: "Not reachable", not_set_up: "Not set up", unknown: "Version unknown",
+};
+const PILL: Record<DocFlowVersion["status"], string> = {
+  compatible: "active", newer: "pending", too_old: "failed", other_contract: "failed", unreachable: "failed", not_set_up: "disabled", unknown: "pending",
+};
+
 export function DocumentAutomation({ api }: { api: CrApi }) {
   const [plugin, setPlugin] = useState<ConsolePlugin | null | undefined>(undefined);   // undefined: still asking
   const [error, setError] = useState<string | null>(null);
+  const [service, setService] = useState<DocFlowVersion | null>(null);
   useEffect(() => {
     api.plugins().then((all) => setPlugin(all.find((p) => p.id === "document-automation") ?? null), (e) => setError(e instanceof Error ? e.message : String(e)));
   }, [api]);
+  useEffect(() => {
+    if (!plugin) return;
+    // only a hint: when it cannot be asked (an older server, no permission) the page simply does not show it
+    api.docflowVersion().then(setService, () => setService(null));
+  }, [api, plugin]);
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-da-title">
@@ -39,6 +55,16 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
       {plugin === undefined && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {plugin && (
         <div className="cc-card"><p>{plugin.description}</p></div>
+      )}
+      {plugin && service && (
+        <div className="cc-card" aria-label="Document Automation service">
+          <h2>
+            Service{service.version ? ": DocFlow " + service.version : ""}{" "}
+            <span className={"cc-pill is-" + PILL[service.status]}><span className="cc-pill-dot" />{LABEL[service.status]}</span>
+          </h2>
+          <p>{service.message}</p>
+          <p className="st-muted">This release is tested with DocFlow {service.tested} (works from {service.minimum}).</p>
+        </div>
       )}
       {plugin === null && (
         <div className="cc-card">
