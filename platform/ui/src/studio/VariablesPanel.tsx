@@ -24,7 +24,9 @@ export type VarsCtx = { api: StudioApi; flow: Flow; builtins: Builtins; agents: 
   /** Asks where to capture or record (an open browser tab, a new page, a desktop application); null when cancelled. */
   where?: (mode: "capture" | "record", named?: { title?: string; url?: string }) => Promise<WhereChoice | null>;
   /** Opens the agent a Run agent step runs, with the way back. */
-  openChild?: (stepId: string) => void };
+  openChild?: (stepId: string) => void;
+  /** Opens a workspace item (an object repository) in a tab. */
+  openPath?: (path: string) => void };
 /** Where a capture or a recording happens. */
 /** Where to capture or record: a tab, a new page, or (target desktop) an application window by its title and program. */
 export type WhereChoice = { tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string; url?: string; browser?: string; target?: "desktop";

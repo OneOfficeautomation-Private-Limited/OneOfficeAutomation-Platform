@@ -31,6 +31,10 @@ public final class CodeAnalysis {
         rule("long_waits", true, "warning", Map.of("max_seconds", 600), "Fixed delays longer than the limit");
         rule("max_steps", true, "warning", Map.of("limit", 300), "Very long agents are hard to maintain; split them into child agents");
         rule("max_nesting", true, "warning", Map.of("limit", 6), "Blocks nested deeper than the limit");
+        // G42: captured objects kept once in a shared object repository, and (as Blue Prism enforces) screen steps only in object agents
+        rule("repository_objects", false, "error", Map.of(), "Web and desktop steps use elements of a shared object repository, not objects captured into the agent");
+        rule("ui_in_object_agents", false, "error", Map.of("tag", "object-agent", "toolkits", List.of("ooa.browser/", "ooa.desktop_ui/", "ooa.desktop/", "ooa.window/")),
+                "Only agents with the tag work on screens; process agents call them with Run agent");
     }
     private static void rule(String id, boolean on, String severity, Map<String, Object> params, String description) {
         Map<String, Object> r = new LinkedHashMap<>();
@@ -208,6 +212,22 @@ public final class CodeAnalysis {
                     int depth = Math.max(depth(top, 0), depth(Steps.onErrorSteps(flow), 0));
                     for (List<Object> sub : Steps.subflows(flow).values()) depth = Math.max(depth, depth(sub, 0));
                     if (depth > limit) out.add(new Violation("max_nesting", sev, null, "Blocks are nested " + depth + " deep (limit " + limit + ")"));
+                }
+                case "repository_objects" -> {
+                    for (Map<String, Object> s : all)
+                        if (s.get("args") instanceof Map<?, ?> a && a.get("object") instanceof Map<?, ?> o && !com.oneofficeautomation.runner.ObjectRepositories.isReference(o))
+                            out.add(new Violation("repository_objects", sev, id(s), "The step has its own captured object; save it to an object repository and use it from there"));
+                }
+                case "ui_in_object_agents" -> {
+                    String tag = String.valueOf(p.getOrDefault("tag", "object-agent"));
+                    boolean objectAgent = flow.get("tags") instanceof List<?> tags && tags.stream().anyMatch(t -> tag.equalsIgnoreCase(String.valueOf(t)));
+                    if (objectAgent) break;
+                    List<String> ui = csv(p.get("toolkits"));
+                    for (Map<String, Object> s : all) {
+                        String a = String.valueOf(s.get("action"));
+                        if (ui.stream().anyMatch(t -> !t.isBlank() && (t.endsWith("/") ? a.startsWith(t) : a.equals(t))))
+                            out.add(new Violation("ui_in_object_agents", sev, id(s), "The screen step " + a + " belongs in an object agent (tag " + tag + "); call that agent with Run agent"));
+                    }
                 }
                 default -> { }
             }

@@ -22,6 +22,8 @@ import java.util.stream.Stream;
 final class Workspace {
     static final String BOT_SUFFIX = ".flow.json";
     static final String SKILLS_FOLDER = "ai-skills";
+    /** Shared object repositories (G42): captured objects many agents use. */
+    static final String OBJECTS_SUFFIX = com.oneofficeautomation.runner.ObjectRepositories.SUFFIX;
     private static final long MAX_ITEM = 2L * 1024 * 1024;
     /** Text files Studio can open and save in its editors (bots have their own endpoint). */
     private static final List<String> EDITABLE = List.of(".form.json", ".process.json", ".doc.json", ".py", ".ps1", ".vbs", ".js", ".json",
@@ -95,6 +97,7 @@ final class Workspace {
         if (n.endsWith(".form.json")) return "form";
         if (n.endsWith(".process.json")) return "process";
         if (n.endsWith(".doc.json")) return "document";
+        if (n.endsWith(OBJECTS_SUFFIX)) return "objects";
         if (n.endsWith(".json") && p.getParent() != null && p.getParent().equals(root.resolve(SKILLS_FOLDER))) return "skill";
         if (n.endsWith(".py") || n.endsWith(".ps1") || n.endsWith(".vbs") || n.endsWith(".js")) return "script";
         return "file";
@@ -139,6 +142,10 @@ final class Workspace {
                         "fields", List.of(ordered("name", "document_number", "description", "The document or invoice number", "type", "String", "required", true),
                                 ordered("name", "total", "description", "Total amount as a number", "type", "Number", "required", false)));
             }
+            case "objects" -> {
+                dir = resolve(parent); file = base + OBJECTS_SUFFIX;
+                content = ordered("kind", com.oneofficeautomation.runner.ObjectRepositories.KIND, "name", base, "description", "", "applications", new ArrayList<>());
+            }
             case "skill" -> {
                 // The AI Skills package reads skills from the workspace's ai-skills folder, so skills always live there.
                 dir = root.resolve(SKILLS_FOLDER);
@@ -159,7 +166,7 @@ final class Workspace {
                     default -> "// JavaScript run by the Run JavaScript action (Node.js).\n// The step's 'input' arrives on standard input; print JSON to return values in the 'json' output.\nlet data = \"\";\nprocess.stdin.on(\"data\", (c) => (data += c));\nprocess.stdin.on(\"end\", () => console.log(JSON.stringify({ received: data })));\n";
                 };
             }
-            default -> throw new OoaException("WORKSPACE.BAD_TYPE", "Unknown item type '" + type + "'", "Use form, process, document, skill or script-python/powershell/vbscript/javascript.");
+            default -> throw new OoaException("WORKSPACE.BAD_TYPE", "Unknown item type '" + type + "'", "Use form, process, document, objects, skill or script-python/powershell/vbscript/javascript.");
         }
         if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
         Path p = dir.resolve(file);
@@ -245,9 +252,9 @@ final class Workspace {
         // Keep the item type: "Invoice" for a form stays "Invoice.form.json"; a file keeps its extension unless a new one is typed.
         if (!Files.isDirectory(p)) {
             String old = p.getFileName().toString(), lower = old.toLowerCase(Locale.ROOT);
-            String suffix = Stream.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json").filter(lower::endsWith).findFirst()
+            String suffix = Stream.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json", OBJECTS_SUFFIX).filter(lower::endsWith).findFirst()
                     .orElse(old.lastIndexOf('.') > 0 ? old.substring(old.lastIndexOf('.')) : "");
-            boolean typedExtension = suffix.length() > 0 && !Stream.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json").anyMatch(suffix::equals) && n.matches(".*\\.[A-Za-z0-9]{1,8}$");
+            boolean typedExtension = suffix.length() > 0 && !Stream.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json", OBJECTS_SUFFIX).anyMatch(suffix::equals) && n.matches(".*\\.[A-Za-z0-9]{1,8}$");
             if (!suffix.isEmpty() && !n.toLowerCase(Locale.ROOT).endsWith(suffix.toLowerCase(Locale.ROOT)) && !typedExtension) n = n + suffix;
         }
         Path target = p.resolveSibling(checkName(n, true));
@@ -307,7 +314,7 @@ final class Workspace {
     static String suffixOf(String name, boolean folder) {
         if (folder) return "";
         String lower = name.toLowerCase(Locale.ROOT);
-        for (String s : List.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json")) if (lower.endsWith(s)) return name.substring(name.length() - s.length());
+        for (String s : List.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json", OBJECTS_SUFFIX)) if (lower.endsWith(s)) return name.substring(name.length() - s.length());
         int dot = name.lastIndexOf('.');
         return dot > 0 ? name.substring(dot) : "";
     }

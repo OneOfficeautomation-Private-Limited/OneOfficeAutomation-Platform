@@ -6,6 +6,8 @@ import {
   DESKTOP_LABELS, desktopWindowVariable, fillWindowFromCapture, MATCHES, shareDesktopWindow, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
 } from "./capture";
 import { useVars, type WhereChoice } from "./VariablesPanel";
+import { isObjectRef, PickElementDialog, SaveElementDialog } from "./ObjectRepository";
+import type { ObjectRef } from "../api/client";
 
 // "only the selected properties" or "all properties", remembered across steps as in Classic
 const VIEW_KEY = "ooa.studio.captureView2";
@@ -17,9 +19,11 @@ const readView = () => { try { return localStorage.getItem(VIEW_KEY) === "all" ?
  * window it lives in. A nested editor (the anchor) has no head, tabs or page.
  */
 export function CaptureEditor({ step, value, onChange, nested, parent }:
-  { step: FlowStep; value: unknown; onChange: (v: Captured | undefined) => void; nested?: boolean; parent?: Captured }) {
+  { step: FlowStep; value: unknown; onChange: (v: Captured | ObjectRef | undefined) => void; nested?: boolean; parent?: Captured }) {
   const vars = useVars();
-  const obj = value && typeof value === "object" && !Array.isArray(value) ? value as Captured : null;
+  const [repoDialog, setRepoDialog] = useState<"pick" | "save" | null>(null);
+  const ref = !nested && isObjectRef(value) ? value : null;
+  const obj = !ref && value && typeof value === "object" && !Array.isArray(value) ? value as Captured : null;
   const desktop = step.action.startsWith("ooa.desktop_ui/") || obj?.technology === "desktop";
   const labels = desktop ? DESKTOP_LABELS : WEB_LABELS;
   const [tab, setTab] = useState<"main" | "anchor">("main");
@@ -83,10 +87,48 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
     } catch (e) { vars.fail?.(e); }
   };
 
+  // shared object repositories (G42): choose an element, or save this step's capture there
+  const repoDialogs = repoDialog === "pick" ? <PickElementDialog api={vars.api} technology={desktop ? "desktop" : "web"} onClose={() => setRepoDialog(null)}
+      onPick={(r) => { setRepoDialog(null); onChange(r); vars.notice?.("The step uses " + r.element.split("/").join(" › ") + " from the repository."); }} />
+    : repoDialog === "save" && obj ? <SaveElementDialog api={vars.api} object={obj} suggested={(obj.properties ?? []).find((p) => ["label", "name", "aria-label", "text", "id"].includes(p.name) && p.value)?.value?.toString().slice(0, 60) ?? ""}
+      onClose={() => setRepoDialog(null)} onSaved={(r) => { setRepoDialog(null); onChange(r); vars.notice?.("Saved to the repository; the step uses it from there."); }} />
+    : null;
+
+  if (ref) {
+    const useCopy = async () => {
+      try {
+        const it = await vars.api.item(ref.repository);
+        const [a, s, e] = ref.element.split("/");
+        const repo = JSON.parse(it.text) as { applications?: { name: string; screens?: { name: string; elements?: { name: string; object?: Captured }[] }[] }[] };
+        const o = repo.applications?.find((x) => x.name === a)?.screens?.find((x) => x.name === s)?.elements?.find((x) => x.name === e)?.object;
+        if (!o) { vars.notice?.("The repository has no element " + ref.element + "."); return; }
+        onChange(structuredClone(o));
+        vars.notice?.("The step now has its own copy; changes in the repository no longer reach it.");
+      } catch (err) { vars.fail?.(err); }
+    };
+    return (
+      <div className="st-cap st-cap-ref">
+        <div className="st-cap-head">
+          <span className="st-badge-soft">Repository</span>
+          <span className="st-cap-where" title={ref.repository}>{ref.element.split("/").join(" › ")}</span>
+        </div>
+        <p className="st-muted">From <code>{ref.repository}</code>. Change the element there and every agent that uses it picks the change up on its next run.</p>
+        <div className="st-row-tight">
+          {vars.openPath && <Button kind="secondary" onClick={() => vars.openPath!(ref.repository)}>Open repository</Button>}
+          <Button kind="secondary" onClick={() => setRepoDialog("pick")}>Choose another…</Button>
+          <Button kind="plain" onClick={useCopy}>Use a copy in this step</Button>
+        </div>
+        {repoDialogs}
+      </div>
+    );
+  }
+
   if (!obj) return (
     <div className="st-cap st-cap-empty">
       <span>Nothing captured yet.</span>
       <Button kind="secondary" onClick={() => capture()} disabled={busy}>{busy ? "Capturing…" : desktop ? "Capture desktop object" : "Capture element"}</Button>
+      {!nested && <Button kind="plain" onClick={() => setRepoDialog("pick")}>Use from repository…</Button>}
+      {repoDialogs}
     </div>
   );
 
@@ -163,7 +205,10 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
         <span className="st-cap-where" title={desktop ? "" : obj.page?.url ?? ""}>{where}</span>
         <Button kind="secondary" onClick={() => capture()} disabled={busy}>Recapture</Button>
         {!desktop && <Button kind="secondary" onClick={test}>Test</Button>}
+        <Button kind="plain" onClick={() => setRepoDialog("save")} title="Keep this object in a shared object repository, so other agents can use it and it is fixed in one place">Save to repository…</Button>
+        <Button kind="plain" onClick={() => setRepoDialog("pick")}>Use from repository…</Button>
       </div>}
+      {repoDialogs}
       {!nested && <div className="st-seg" role="tablist" aria-label="Element or anchor">
         {(["main", "anchor"] as const).map((k) => <button key={k} type="button" role="tab" aria-selected={tab === k} className="st-seg-btn" onClick={() => setTab(k)}>
           {k === "main" ? "Main" : "Anchor" + (obj.anchor ? " ✓" : "")}</button>)}

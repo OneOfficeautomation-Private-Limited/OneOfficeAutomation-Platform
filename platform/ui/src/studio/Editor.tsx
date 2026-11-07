@@ -307,7 +307,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const longNames = longRecordedVariables(flow).length;
   const [noRename, setNoRename] = useState(false);
   const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); },
-    notice: onNotice, fail: onError, where, openChild: onOpenChild };
+    notice: onNotice, fail: onError, where, openChild: onOpenChild, openPath: onOpenPath };
   const [view, setView] = usePersistent<"list" | "flow">("agent.view", "list");
   const [assistant, setAssistant] = useState<"build" | "explain" | null>(null);
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };

@@ -517,6 +517,13 @@ The agent repository is the **Public** tab of **Build > Automation**; builders u
 | **Code analysis policy** | The rules agents are checked against (each used or not, an **Error** or a **Warning**, some with a setting such as the most steps an agent may have), and **Refuse check-ins that have errors** | At every check-in and analysis |
 | **AI guardrails policy** | **Mask personal data before it reaches a model**, **Models agents may use**, and a **Content check** on answers | At every AI step, when the agent runs |
 
+Two code analysis rules keep screen work in one place. Both are off until an administrator ticks them:
+
+| Rule | What it checks |
+| --- | --- |
+| **repository_objects** | Web and desktop steps use elements of a shared object repository, not objects captured into the agent itself. |
+| **ui_in_object_agents** | Only agents with the tag set on the rule (`object-agent` at first) contain screen steps. By default these are the Browser, Desktop objects, Mouse/keyboard and Window toolkits; the rule's toolkit list sets which. Other agents ("process agents") call those object agents with **Run agent**, as Blue Prism separates objects from processes. |
+
 A folder follows its own policy of each kind, or else the nearest folder above it that has one; a folder can have one
 policy of each kind. Folders with no code analysis policy anywhere above them follow **Default code analysis**, which
 cannot be deleted (change its rules to change the default). The page is in the menu for people with `settings.manage`,
