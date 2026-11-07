@@ -271,6 +271,7 @@ public final class Modules {
         public void onRepositoryChanged(RepositoryChange listener) { repositoryChanges.add(listener); }
         public void runRequest(String call, RunRequest handler) { claim(runRequests, call, handler, "the run request " + call); }
         public void onNoRunner(NoRunner listener) { noRunner.add(listener); }
+        public void permission(String name, String... builtInRoles) { Rbac.register(module, name, List.of(builtInRoles)); }
         public void workflowTasks(WorkflowTasks source) {
             synchronized (Modules.this) {
                 if (workflowTasks != null) throw new IllegalStateException("Module " + module + " registers the workflow engine, which another module has");

@@ -18,6 +18,8 @@ public final class CoeModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("ideas.manage");
         Ideas ideas = new Ideas(ctx);
         ctx.provide(Ideas.class, ideas);
         // /api/ideas: GET list, POST new; /api/ideas/{id}: PUT change, DELETE; /api/ideas/{id}/vote: POST

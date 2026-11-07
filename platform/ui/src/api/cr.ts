@@ -44,6 +44,9 @@ export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_off
 export type Alert = { id: string; rule_id: string; rule_name?: string; kind: AlertKind; subject: string; subject_label?: string; message: string; severity: "warning" | "critical";
   status: "open" | "acknowledged" | "cleared"; raised: string; cleared?: string | null; acknowledged?: string | null; acknowledged_by?: string | null; link?: string | null;
   delivery?: { inbox?: string[]; emailed?: string[]; not_emailed?: string[]; note?: string; webhook?: string } | null };
+/** A feature module running in this One CommandCenter (Settings > This One CommandCenter). */
+export type ModuleInfo = { id: string; name: string; version: string; schema: number };
+
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
 /** A run of an agent, as the runs list gives it; a running run carries its progress. */
 export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
@@ -355,6 +358,8 @@ export class CrApi {
   cluster() { return this.call<{ nodes: { node_id: string; leader?: boolean; this_node?: boolean }[] }>("GET", "cluster"); }
   purgeRuns(runDays: number, logDays: number) { return this.call<{ runs_removed: number; log_lines_removed: number }>("POST", "runs/purge", { run_days: runDays, log_days: logDays }); }
   database() { return this.call<Record<string, string | number | boolean | null>>("GET", "database"); }
+  /** The feature modules running (docs/architecture/13-modules.md), each with its own version and database steps. */
+  async modules() { return (await this.call<{ modules?: ModuleInfo[] }>("GET", "modules")).modules ?? []; }
   /** Human tasks from workflows: status open (open and claimed) or completed; all: everyone's (users.manage). */
   async tasks(status: "open" | "completed", all = false) { return (await this.call<{ tasks?: HumanTask[] }>("GET", "tasks?status=" + status + (all ? "&all=true" : ""))).tasks ?? []; }
   async claimTask(id: string, release = false) { await this.call("POST", "tasks/" + encodeURIComponent(id) + (release ? "/release" : "/claim")); }

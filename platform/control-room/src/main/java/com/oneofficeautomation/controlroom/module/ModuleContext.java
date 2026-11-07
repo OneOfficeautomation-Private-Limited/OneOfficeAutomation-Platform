@@ -472,6 +472,13 @@ public interface ModuleContext {
     /** Hears when a pool has work but no online runner. */
     void onNoRunner(NoRunner listener);
 
+    /**
+     * A permission of this module (area.action, such as docs.review), for its routes' checks and custom roles; the
+     * built-in roles named (viewer, bot_runner, bot_creator) have it, administrators always do. Without the module the
+     * permission is not offered.
+     */
+    void permission(String name, String... builtInRoles);
+
     /** The workflow engine behind the Task inbox's workflow tasks (one module may register it). */
     void workflowTasks(WorkflowTasks source);
 

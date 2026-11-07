@@ -34,6 +34,11 @@ public final class DocumentAutomationModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("docs.view", "viewer", "bot_runner", "bot_creator");
+        ctx.permission("docs.review", "bot_runner", "bot_creator");
+        ctx.permission("docs.manage", "bot_creator");
+        ctx.permission("docs.engines");
         ctx.defineSetting("docflow_url", "", (v, saas) -> {
             // in the SaaS service the region's operator says where DocFlow is (OOA_DOCFLOW_URL), not the tenant
             if (saas && !v.isEmpty()) throw notInSaas();

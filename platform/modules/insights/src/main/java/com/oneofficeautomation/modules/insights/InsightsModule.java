@@ -23,6 +23,11 @@ public final class InsightsModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("analytics.view", "viewer", "bot_runner", "bot_creator");
+        ctx.permission("alerts.manage");
+        ctx.permission("insights.design");
+        ctx.permission("insights.admin");
         Analytics analytics = new Analytics(ctx);
         Dashboards dashboards = new Dashboards(ctx);
         Alerts alerts = new Alerts(ctx);

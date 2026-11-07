@@ -19,6 +19,11 @@ public final class AiServicesModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("skills.view", "viewer", "bot_runner", "bot_creator");
+        ctx.permission("skills.manage", "bot_creator");
+        ctx.permission("skills.all");
+        ctx.permission("knowledge.manage", "bot_creator");
         PromptSkills skills = new PromptSkills(ctx);
         KnowledgeBases knowledge = new KnowledgeBases(ctx);
         ctx.provide(PromptSkills.class, skills);

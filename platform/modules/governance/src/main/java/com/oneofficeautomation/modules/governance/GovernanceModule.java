@@ -24,6 +24,8 @@ public final class GovernanceModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("repo.approve");
         CodeAnalysis analysis = new CodeAnalysis(ctx);
         Policies policies = new Policies(ctx, analysis);
         analysis.policies = policies;

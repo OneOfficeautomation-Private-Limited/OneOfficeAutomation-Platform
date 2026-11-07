@@ -21,6 +21,8 @@ public final class IntegrationModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("apitasks.manage", "bot_creator");
         ApiTasks apiTasks = new ApiTasks(ctx);
         McpServer mcp = new McpServer(ctx);
         GitSync git = new GitSync(ctx, ctx.dataDir());
