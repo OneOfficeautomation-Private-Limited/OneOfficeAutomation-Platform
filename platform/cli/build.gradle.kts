@@ -97,7 +97,21 @@ dependencies { nativeLibs("com.microsoft.sqlserver:mssql-jdbc_auth:12.8.1.x64@dl
 fun libraryPath(bat: File) = bat.writeText(bat.readText().replace(Regex("(?m)^set DEFAULT_JVM_OPTS=(.*?)\r?$")) {
     "set DEFAULT_JVM_OPTS=" + it.groupValues[1] + " \"-Djava.library.path=%APP_HOME%\\lib\"\r" })
 
-tasks.named<CreateStartScripts>("startScripts") { doLast { libraryPath(outputDir!!.resolve("ooa.bat")) } }
+/**
+ * One wildcard (lib\*) instead of a path per jar in a generated ooa.bat: with the feature modules and toolkit groups
+ * (about 90 jars) the expanded line passes cmd's 8191-character limit when the folder path is long ("The input line is
+ * too long"). The jars are all in lib\, so the class path is the same.
+ */
+fun shortClassPath(bat: File) = bat.writeText(bat.readText().replace(Regex("(?m)^set CLASSPATH=.*?(\r?)$")) {
+    "set CLASSPATH=%APP_HOME%\\lib\\*" + it.groupValues[1] })
+
+tasks.named<CreateStartScripts>("startScripts") {
+    doLast {
+        val bat = outputDir!!.resolve("ooa.bat")
+        shortClassPath(bat)
+        libraryPath(bat)
+    }
+}
 
 // the sample tasks run whole agents (browser, OCR on screen images, mail and directory servers) in the test JVM
 // 3g since the gap branches were merged (665 samples): the cases with child agents or credentials each build their
