@@ -749,6 +749,28 @@ One CommandCenter and Studio are available in English, Deutsch, Fran√ßais, Espa√
 **Language** in the user menu; the choice is kept per browser, and without one the browser's language is used when
 available. Names, ids, data, code and server messages are not translated.
 
+## Moving bots from Automation Anywhere or UiPath
+
+`ooa migrate` turns existing bots into OOA agents, so a migration starts from working structure instead of a blank
+page:
+
+```
+ooa migrate aa C:\Export\AA-bots C:\Migrated
+ooa migrate uipath C:\Projects\Invoices C:\Migrated
+```
+
+- **Automation Anywhere**: each Task Bot's JSON content (from the Control Room API, or the JSON in a bot export).
+- **UiPath**: each workflow (.xaml) in the folder.
+
+The structure is converted: steps, comments, if / else if / else, loops, try / catch / finally, delays, log lines
+(message boxes become log lines), assignments, variables and arguments with their types and directions, and calls to
+other bots (as Run agent, to point at the migrated agent). AA's `$var$` becomes `${var}`; UiPath's VB.NET expressions
+are kept as expressions to check. Every other command becomes a comment step **TODO migrate:** with the command and
+its settings, in its place, so nothing is lost: search the agents for "TODO migrate" and rebuild each with the matching
+OOA toolkit. `migration-report.json` lists each bot with how many commands were converted and how many are left, by
+command, which is the migration's work list. Check every converted condition and expression before running an agent
+in production. Blue Prism processes are not converted yet.
+
 ## 17. If it goes wrong
 
 | Problem | What to do |
