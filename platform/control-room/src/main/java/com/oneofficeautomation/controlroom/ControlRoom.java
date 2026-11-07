@@ -78,6 +78,14 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
+    /** Automation ideas (gap G65): suggested, voted, assessed and scored, linked to the agent built. */
+    public final Ideas ideas;
+    /** Business data store (gap G66): entities with records, and storage buckets runs read and write. */
+    public final DataStore dataStore;
+    /** Low-code apps (gap G67): pages of fields and buttons that run agents, add records and work items. */
+    public final Apps apps;
+    /** Apps embedded in other web pages (gap G68): embed links with the sites allowed to frame them. */
+    public final AppEmbeds appEmbeds;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Auto-scaling runner pools (G52). */
@@ -159,6 +167,10 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
+        this.ideas = new Ideas(this);
+        this.dataStore = new DataStore(this);
+        this.apps = new Apps(this);
+        this.appEmbeds = new AppEmbeds(this);
         this.runWaits = new RunWaits(this);
         this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);

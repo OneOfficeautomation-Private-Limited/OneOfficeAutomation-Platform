@@ -221,6 +221,27 @@ export type EventSubscriptionList = { subscriptions: EventSubscription[]; types:
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
   created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
+/** Low-code apps (G67): pages of components; a button's action is kept by the server, the browser sends only which button and the fields. */
+export type AppAction = { kind: string; agent?: string; runner?: string; pool?: string; inputs?: Record<string, unknown>; entity?: string; values?: Record<string, unknown>;
+  queue?: string; data?: Record<string, unknown>; page?: string; success?: string };
+export type AppComponent = { id: string; kind: string; text?: string; name?: string; label?: string; hint?: string; type?: string; required?: boolean; choices?: string[];
+  style?: string; requires?: string[]; action?: AppAction; entity?: string; title?: string; columns?: string[]; sort?: string };
+export type AppDefinition = { pages: { id: string; title: string; components: AppComponent[] }[] };
+export type AppEmbed = { id: string; app_id: string; name: string; origins: string[]; created: string; created_by?: string; last_used?: string | null };
+export type AppInfo = { id: string; name: string; description?: string | null; audience: string[]; published_by: string; updated?: string; definition?: AppDefinition; can_edit?: boolean };
+/** The business data store (G66): entities with typed fields and their records, and storage buckets of files. */
+export type DataField = { name: string; type: string; required?: boolean; unique?: boolean; choices?: string[] };
+export type DataEntity = { id: string; name: string; folder: string; description?: string | null; fields: DataField[]; records: number; updated?: string; updated_by?: string | null };
+export type DataRecord = { id: string; data: Record<string, unknown>; created?: string; created_by?: string | null; updated?: string; updated_by?: string | null };
+export type DataBucket = { id: string; name: string; folder: string; description?: string | null; max_mb: number; files: number; bytes: number };
+export type BucketFile = { path: string; bytes: number; modified: string };
+/** An automation idea (G65): suggested and voted by anyone, assessed by the automation team; the score and savings are worked out by the server. */
+export type Idea = { id: string; title: string; description?: string | null; department?: string | null; process_owner?: string | null; status: string;
+  volume_month?: number | null; minutes_each?: number | null; hourly_cost?: number | null; complexity?: string | null; rules_score?: number | null;
+  structured_score?: number | null; stable_score?: number | null; bot_path?: string | null; notes?: string | null; submitted_by: string; submitted: string;
+  updated?: string; updated_by?: string | null; votes: number; voted: boolean; mine: boolean; hours_year: number; value_year?: number | null; score?: number | null;
+  runs_30_days?: number; hours_saved_30_days?: number | null };
+export type IdeaList = { ideas: Idea[]; can_manage: boolean; statuses: string[] };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -532,6 +553,54 @@ export class CrApi {
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
   async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
+  async apps() { return (await this.call<{ apps?: AppInfo[] }>("GET", "apps")).apps ?? []; }
+  app(id: string) { return this.call<AppInfo>("GET", "apps/" + encodeURIComponent(id)); }
+  saveApp(id: string | null, body: { name: string; description?: string; audience: string[]; definition: AppDefinition }) {
+    return this.call<AppInfo>(id ? "PUT" : "POST", "apps" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async appEmbeds(id: string) { return (await this.call<{ embeds?: AppEmbed[] }>("GET", "apps/" + encodeURIComponent(id) + "/embeds")).embeds ?? []; }
+  makeAppEmbed(id: string, body: { name: string; origins: string[] }) { return this.call<AppEmbed & { key: string; path: string }>("POST", "apps/" + encodeURIComponent(id) + "/embeds", body); }
+  async deleteAppEmbed(id: string, embed: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed)); }
+  /** A Teams app package (zip) whose tab shows the embed link; the key is needed again, as only its hash is kept. */
+  async teamsPackage(id: string, embed: string, key: string, baseUrl: string) {
+    const res = await this.fetcher(this.base + "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed) + "/teams", { method: "POST", credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify({ key, base_url: baseUrl }) });
+    if (!res.ok) { let d: { error?: CrError } = {}; try { d = JSON.parse(await res.text()); } catch { /* not JSON */ } throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Failed" }); }
+    return res.blob();
+  }
+  async deleteApp(id: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id)); }
+  appAct(id: string, component: string, fields: Record<string, unknown>) {
+    return this.call<{ run_id?: string; record_id?: string; item_id?: string; page?: string; message?: string; outputs?: Record<string, unknown> }>("POST", "apps/" + encodeURIComponent(id) + "/act", { component, fields }); }
+  appRun(id: string, runId: string) { return this.call<{ status: string; outputs?: Record<string, unknown>; error?: string }>("GET", "apps/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(runId)); }
+  appRecords(id: string, component: string, q = "") {
+    return this.call<{ records: { id: string; data: Record<string, unknown> }[]; total: number; fields: { name: string }[] }>("GET", "apps/" + encodeURIComponent(id) + "/records/" + encodeURIComponent(component) + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
+  async dataEntities() { return (await this.call<{ entities?: DataEntity[] }>("GET", "data/entities")).entities ?? []; }
+  saveDataEntity(id: string | null, body: { name: string; folder: string; description?: string; fields: DataField[] }) {
+    return this.call<DataEntity>(id ? "PUT" : "POST", "data/entities" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteDataEntity(id: string) { await this.call("DELETE", "data/entities/" + encodeURIComponent(id)); }
+  dataRecords(entity: string, q = "") { return this.call<{ records: DataRecord[]; total: number }>("GET", "data/entities/" + encodeURIComponent(entity) + "/records" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
+  saveDataRecord(entity: string, id: string | null, data: Record<string, unknown>) {
+    return this.call<DataRecord>(id ? "PUT" : "POST", "data/entities/" + encodeURIComponent(entity) + "/records" + (id ? "/" + encodeURIComponent(id) : ""), { data }); }
+  async deleteDataRecord(entity: string, id: string) { await this.call("DELETE", "data/entities/" + encodeURIComponent(entity) + "/records/" + encodeURIComponent(id)); }
+  async dataBuckets() { return (await this.call<{ buckets?: DataBucket[] }>("GET", "data/buckets")).buckets ?? []; }
+  saveDataBucket(id: string | null, body: { name: string; folder: string; description?: string; max_mb: number }) {
+    return this.call<DataBucket>(id ? "PUT" : "POST", "data/buckets" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteDataBucket(id: string) { await this.call("DELETE", "data/buckets/" + encodeURIComponent(id)); }
+  async bucketFiles(bucket: string) { return (await this.call<{ files?: BucketFile[] }>("GET", "data/buckets/" + encodeURIComponent(bucket) + "/files")).files ?? []; }
+  bucketFileUrl(bucket: string, path: string) { return this.base + "data/buckets/" + encodeURIComponent(bucket) + "/file?path=" + encodeURIComponent(path); }
+  async uploadBucketFile(bucket: string, path: string, file: Blob) {
+    const res = await this.fetcher(this.base + "data/buckets/" + encodeURIComponent(bucket) + "/files?path=" + encodeURIComponent(path), { method: "PUT", credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", "Content-Type": "application/octet-stream" }, body: file });
+    const text = await res.text();
+    let d: { error?: CrError; path?: string } = {};
+    try { d = JSON.parse(text); } catch { /* not JSON */ }
+    if (!res.ok) throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Upload failed" });
+    return d;
+  }
+  async deleteBucketFile(bucket: string, path: string) { await this.call("DELETE", "data/buckets/" + encodeURIComponent(bucket) + "/files?path=" + encodeURIComponent(path)); }
+  async ideas() { return this.call<IdeaList>("GET", "ideas"); }
+  async saveIdea(id: string | null, body: Partial<Idea>) { return this.call<Idea>(id ? "PUT" : "POST", id ? "ideas/" + encodeURIComponent(id) : "ideas", body); }
+  async voteIdea(id: string) { return this.call<Idea>("POST", "ideas/" + encodeURIComponent(id) + "/vote"); }
+  async deleteIdea(id: string) { await this.call("DELETE", "ideas/" + encodeURIComponent(id)); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----

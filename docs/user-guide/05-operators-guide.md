@@ -552,6 +552,70 @@ the **Communications mining** toolkit:
 
 For messages that keywords cannot sort, use Generative AI: Classify on the default queue's messages.
 
+## 10c. Data store: business records and files for agents
+
+**Manage > Data store** keeps business data that agents read and write while they run, in One CommandCenter's database
+and data folder, so nothing extra has to be installed.
+
+- **Entities** are tables of records, such as suppliers, open cases or a price list. An administrator (Define data
+  store entities and buckets) makes an entity and its fields: text, number, yes/no, date (yyyy-MM-dd) or a choice from a
+  list, each required or not and unique or not. Records are checked against the fields every time they are saved, by an
+  agent or by a person here. People with Change data store records and files add, change and delete records on the
+  entity's page; everyone with See the data store can look and search.
+- **Storage buckets** are named file areas. Agents upload, download, list and delete files while they run (repository
+  files, by contrast, are read-only to runs). Each bucket sets its largest file (25 MB at first, up to 200 MB). Files
+  can be uploaded and downloaded here too.
+- **Folder**: an entity or bucket with a folder is only for agents in that folder or below it; leave it empty for every
+  agent. A run that is not allowed gets CR.FORBIDDEN.
+
+Agents use the **Data store** toolkit: Create, Update, Get, Query and Delete record (Query takes filters such as
+`[{"field": "limit", "op": ">", "value": 1000}]`, a sort field and a page), and Upload, Download, List and Delete file.
+In Studio without One CommandCenter, the same steps use the work folder (data-store/ and buckets/), so an agent can be
+tried before it is published. Changes people make here are in the audit trail; records show who changed them last,
+an agent's changes as "agent:<agent> for <person>".
+
+## 10d. Apps: pages for business people
+
+**Build > Apps** makes simple apps that people use in the console without Studio (Make apps: agent creators and
+administrators). An app is one or more pages of components, in order:
+
+- **Heading** and **Text**;
+- **Field**: text, long text, number, date, yes/no or a choice, optionally required; its name is used as `{name}`;
+- **Button**: runs an agent (its inputs from the fields, such as `{"customer": "{customer}"}`, on a runner or a pool;
+  the app follows the run and shows the agent's outputs), adds a data store record, adds a work item to a queue, or
+  opens another page. "Needs fields" keeps it grey until those fields are filled; "Message when done" may use fields;
+- **Records**: a searchable table of a data store entity;
+- **Result**: the message and outputs of the last button pressed.
+
+**Rights.** An app acts with the rights of the person who published it last, checked every time a button is pressed;
+publishing checks they may run its agents (with a production version), change its entities and work its queues. The
+browser sends only which button was pressed and the field values; what the button does is kept in One CommandCenter.
+If the publisher's account is switched off, the app stops working until someone publishes it again.
+
+**Audience**: everyone signed in, or only the roles ticked. Every button press is audited as `app:<name> for <person>`,
+and runs started from an app have the source `app:<id>`; only the person who started a run follows it in the app.
+
+### Apps inside other sites (embed links)
+
+An app can be shown inside another site, so people use it where they work: a Salesforce or ServiceNow record page, a
+Teams tab, an intranet page. In **Build > Apps**, an app's menu > **Embed links…** makes a link and names the sites
+that may show it (https:// addresses, `*.` for every subdomain, up to 10). The link looks like
+`https://<One CommandCenter>/embed/emb_...#k=ooae_...` and is shown once; copy it then.
+
+- **No sign-in**: whoever has the link can use that one app (nothing else), with the publisher's rights as for any use
+  of the app. Make a link only for what the people of that site may do, and remove it in Embed links to stop it.
+- **The key** is the part after `#`. Browsers never send it to servers or in Referer headers; the page sends it with
+  each of its calls. One CommandCenter keeps only its hash.
+- **Framing**: only the sites named may frame the page; the console itself still cannot be framed.
+- **Fields from the site**: add them to the link's query, before the `#`, to fill the app's fields, such as
+  `.../embed/emb_123?caller={!Contact.Phone}#k=...` in a Salesforce Visualforce page or Lightning web tab, or a
+  ServiceNow UI page's iframe with `?ticket=${current.number}`.
+- **Teams**: right after making the link, **Teams app package** downloads a zip (manifest and icons) whose personal tab
+  shows the app. Upload it in Teams admin (Manage apps > Upload) or in Teams (Apps > Manage your apps > Upload).
+  One CommandCenter must be reachable over https:// for Teams.
+- The IP allow list (Settings) applies to embedded apps too: allow the addresses of the people who will use them.
+- Each press is audited as `app:<name> for embed:<link name>`, and the link list shows when each link was last used.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**

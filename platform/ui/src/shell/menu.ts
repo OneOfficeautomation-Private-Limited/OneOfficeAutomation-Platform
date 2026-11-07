@@ -11,13 +11,14 @@ export type MenuSection = { id: string; label: string; color: string; icon: Icon
 export const MENU_SECTIONS: MenuSection[] = [
   { id: "build", label: "BUILD", color: "#2f6fde", icon: "folder", pages: [
     { id: "automation", label: "Automation", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" },
-    { id: "apitasks", label: "Agent APIs", perm: "apitasks.manage" }, { id: "tests", label: "Agent tests", perm: "repo.view" }] },
+    { id: "apitasks", label: "Agent APIs", perm: "apitasks.manage" }, { id: "tests", label: "Agent tests", perm: "repo.view" },
+    { id: "ideas", label: "Automation ideas" }, { id: "apps", label: "Apps" }] },
   { id: "manage", label: "MANAGE", color: "#0f766e", icon: "pulse", pages: [
     { id: "activity", label: "Agent Activity", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
     { id: "locks", label: "Environment locks", perm: "devices.view" },
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
     { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "workflows", label: "Workflow", perm: "runs.view" },
-    { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
+    { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "data", label: "Data store", perm: "data.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
     { id: "credentials", label: "Credential vault" }, { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
   { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [
     { id: "insights", label: "Overview", perm: "analytics.view" }, { id: "alerts", label: "Alerts", perm: "analytics.view" }, { id: "operations", label: "Operations", perm: "analytics.view|queues.view|audit.view" },
