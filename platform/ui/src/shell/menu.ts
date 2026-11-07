@@ -1,4 +1,5 @@
 import type { IconName } from "../components";
+import { UI_MODULES, withModules } from "../modules/registry";
 
 /**
  * One CommandCenter menu (V6.1), shared by Studio and the console so the two never differ: Home, then five sections
@@ -8,32 +9,30 @@ import type { IconName } from "../components";
 export type MenuPage = { id: string; label: string; perm?: string };
 export type MenuSection = { id: string; label: string; color: string; icon: IconName; pages: MenuPage[] };
 
-export const MENU_SECTIONS: MenuSection[] = [
+/** The kernel's own pages; feature modules add theirs (modules/<id>/module.ts). */
+export const KERNEL_SECTIONS: MenuSection[] = [
   { id: "build", label: "BUILD", color: "#2f6fde", icon: "folder", pages: [
-    { id: "automation", label: "Automation", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" },
-    { id: "apitasks", label: "Agent APIs", perm: "apitasks.manage" }, { id: "tests", label: "Agent tests", perm: "repo.view" },
-    { id: "ideas", label: "Automation ideas" }, { id: "apps", label: "Apps" }] },
+    { id: "automation", label: "Automation", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" }] },
   { id: "manage", label: "MANAGE", color: "#0f766e", icon: "pulse", pages: [
     { id: "activity", label: "Agent Activity", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
     { id: "locks", label: "Environment locks", perm: "devices.view" },
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
-    { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "workflows", label: "Workflow", perm: "runs.view" },
-    { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "data", label: "Data store", perm: "data.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
+    { id: "queues", label: "Work queues", perm: "queues.view" },
+    { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
     { id: "credentials", label: "Credential vault" }, { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
-  { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [
-    { id: "insights", label: "Overview", perm: "analytics.view" }, { id: "alerts", label: "Alerts", perm: "analytics.view" }, { id: "operations", label: "Operations", perm: "analytics.view|queues.view|audit.view" },
-    { id: "business", label: "Business", perm: "analytics.view" }] },
+  { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [] },
   { id: "administration", label: "ADMINISTRATION", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
-    { id: "teams", label: "Teams", perm: "teams.manage|team_lead" }, { id: "policies", label: "Policies", perm: "settings.manage" },
+    { id: "teams", label: "Teams", perm: "teams.manage|team_lead" },
     { id: "audit", label: "Audit Trail", perm: "audit.view" }, { id: "events", label: "Event subscriptions", perm: "events.manage" },
     { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }] },
   { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [
-    { id: "chat", label: "One Chat", perm: "runs.view" }, { id: "connections", label: "Model Connections", perm: "connections.manage" }, { id: "skills", label: "Prompt Skills", perm: "skills.view" },
-    { id: "docautomation", label: "Document Automation", perm: "repo.view" }, { id: "knowledge", label: "Knowledge bases", perm: "repo.view" },
-    { id: "governance", label: "AI governance", perm: "audit.view" }] },
+    { id: "connections", label: "Model Connections", perm: "connections.manage" }] },
 ];
+
+/** The menu: the kernel's sections with the pages of every module found (modules/registry.ts). */
+export const MENU_SECTIONS: MenuSection[] = withModules(KERNEL_SECTIONS, UI_MODULES);
 
 /** What a signed-in person may see; Studio, which has no sign-in of its own, shows every page. */
 export type MenuViewer = { permissions: string[]; leadsTeam?: boolean } | null;

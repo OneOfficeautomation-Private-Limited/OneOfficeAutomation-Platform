@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
 import com.oneofficeautomation.modules.coe.Ideas;
 
 import com.oneofficeautomation.packages.FirstPartyPackages;

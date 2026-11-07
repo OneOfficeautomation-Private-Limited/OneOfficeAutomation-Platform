@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
 import com.oneofficeautomation.modules.governance.CodeAnalysis;
 import com.oneofficeautomation.modules.governance.Policies;
 

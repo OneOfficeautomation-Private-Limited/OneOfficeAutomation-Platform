@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AiGovernance, CrApi } from "../../api/cr";
+import type { CrApi } from "../../api/cr";
+import type { AiGovernance } from "./consoleApi";
 import { Button, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, rowClick } from "../../console/ListParts";
 

@@ -62,12 +62,12 @@ final class ReleaseCommand {
                 m.put("description", d.getOrDefault("description", ""));
                 m.put("category", d.getOrDefault("category", "Other"));
                 m.put("version", String.valueOf(d.getOrDefault("version", "1")));
-                m.put("bundle", com.oneofficeautomation.controlroom.Templates.bundleOf(agents, "ONEOFFICEAUTOMATION templates"));
+                m.put("bundle", com.oneofficeautomation.controlroom.repository.Templates.bundleOf(agents, "ONEOFFICEAUTOMATION templates"));
                 list.add(m);
             }
         }
         if (list.isEmpty()) throw new OoaException("TEMPLATES.EMPTY", "No template folders (with template.json) in " + dir);
-        String feed = com.oneofficeautomation.controlroom.Templates.makeFeed("ONEOFFICEAUTOMATION", list, License.privateKey(Files.readString(Path.of(o.get("key")))));
+        String feed = com.oneofficeautomation.controlroom.repository.Templates.makeFeed("ONEOFFICEAUTOMATION", list, License.privateKey(Files.readString(Path.of(o.get("key")))));
         Path out = Path.of(o.get("out"));
         Files.writeString(out, feed, StandardCharsets.UTF_8);
         System.out.println("Template catalogue written: " + out + " (" + list.size() + " templates)");

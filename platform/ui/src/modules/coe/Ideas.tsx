@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, Idea, IdeaList } from "../../api/cr";
+import type { CrApi } from "../../api/cr";
+import type { Idea, IdeaList } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 

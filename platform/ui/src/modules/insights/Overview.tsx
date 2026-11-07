@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { Alert, AlertRule, CrApi, CrUser, Dashboard, ModelConnection, Operations, Run, Runner, Schedule, WorkQueue } from "../../api/cr";
+import type { Alert, CrApi, CrUser, Dashboard, ModelConnection, Run, Runner, Schedule, WorkQueue } from "../../api/cr";
+import type { AlertRule, Operations } from "./consoleApi";
 import { HelpButton, type HelpTopic } from "../../components";
 import { rowClick } from "../../console/ListParts";
 

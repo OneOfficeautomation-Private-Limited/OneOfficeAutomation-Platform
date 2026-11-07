@@ -3,51 +3,39 @@ import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
 import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, ShortcutsDialog, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
+import { MODULE_PAGES } from "../modules/pages";
+import { MOVED_PAGES } from "../modules/registry";
 import { enableTableTools } from "./TableTools";
 import { Activity } from "./Activity";
-import { AgentApis } from "../modules/integration/AgentApis";
 import { Audit } from "./Audit";
 import { Connections } from "./Connections";
 import { Devices } from "./Devices";
-import { DocumentAutomation } from "../modules/document-automation/ConsolePage";
 import { EnvironmentLocks } from "./EnvironmentLocks";
-import { Ideas } from "../modules/coe/Ideas";
-import { DataStore } from "../modules/low-code/DataStore";
-import { Apps } from "../modules/low-code/Apps";
-import { KnowledgeBases } from "../modules/ai-services/KnowledgeBases";
-import { Chat } from "../modules/one-chat/Chat";
 import { EventSubscriptions } from "./EventSubscriptions";
 import { Globals } from "./Globals";
-import { Governance } from "../modules/governance/Governance";
 import { Home } from "./Home";
 import { Inbox } from "./Inbox";
 import { Licenses } from "./Licenses";
 import { ModelConnections } from "./ModelConnections";
 import { Queues } from "./Queues";
-import { Policies } from "../modules/governance/Policies";
 import { Roles } from "./Roles";
 import { Schedules } from "./Schedules";
 import { Settings } from "./Settings";
-import { Skills } from "../modules/ai-services/Skills";
 import { Repository } from "./Repository";
 import { Teams } from "./Teams";
 import { Templates } from "./Templates";
-import { Tests } from "../modules/testing/Tests";
 import { Toolkits } from "./Toolkits";
 import { Triggers } from "./Triggers";
 import { Users } from "./Users";
-import { Alerts } from "../modules/insights/Alerts";
-import { BusinessPage, OperationsPage } from "../modules/insights/Insights";
-import { Overview } from "../modules/insights/Overview";
 import { EnvironmentLabel, TopBar } from "./TopBar";
 import { listKeys } from "./listKeys";
 import { Vault } from "./Vault";
-import { Workflows } from "../modules/orchestration/Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "apps", "audit", "automation", "chat", "connections", "credentials", "data", "devices", "docautomation", "events", "globals", "governance", "ideas", "inbox", "insights", "licenses", "locks", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users", "knowledge"]);
-/** Pages that became tabs of Operations and Business (item 7, 1 Nov 2026): their old addresses open the tab, so links keep working. */
-const MOVED: Record<string, [string, string]> = { capacity: ["operations", "runners"], queueinsights: ["operations", "queues"], value: ["business", "value"], dashboards: ["business", "dashboards"] };
+/** The kernel's pages this console shows itself, and every module page (modules/<id>/pages.tsx); other pages open in today's console. */
+const LOCAL = new Set<string>(["activity", "audit", "automation", "connections", "credentials", "devices", "events", "globals", "inbox", "licenses", "locks", "queues", "roles", "savedconn", "schedules", "settings", "teams", "templates", "toolkits", "triggers", "users"].concat(Object.keys(MODULE_PAGES)));
+/** Pages that became tabs of another page (insights: item 7, 1 Nov 2026): their old addresses open the tab, so links keep working. */
+const MOVED = MOVED_PAGES;
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => {
   const [id, query] = hash.replace(/^#\/?/, "").split("?");
@@ -135,22 +123,12 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console />
         <main className="st-main cc-main" onKeyDown={listKeys}>
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
-          {page === "insights" && <Overview api={api} user={user} />}
-          {page === "alerts" && <Alerts api={api} user={user} onNotice={setNotice} />}
-          {page === "operations" && <OperationsPage api={api} user={user} />}
-          {page === "business" && <BusinessPage api={api} user={user} onNotice={setNotice} />}
+          {MODULE_PAGES[page]?.({ api, user, onNotice: setNotice, setPage, studio })}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}
           {page === "locks" && <EnvironmentLocks api={api} user={user} onNotice={setNotice} />}
-          {page === "ideas" && <Ideas api={api} onNotice={setNotice} />}
-          {page === "data" && <DataStore api={api} user={user} onNotice={setNotice} />}
-          {page === "apps" && <Apps api={api} user={user} onNotice={setNotice} />}
-          {page === "knowledge" && <KnowledgeBases api={api} user={user} onNotice={setNotice} />}
-          {page === "chat" && <Chat api={api} onOpenRuns={() => setPage("activity")} />}
-          {page === "docautomation" && <DocumentAutomation api={api} />}
           {page === "users" && <Users api={api} user={user} onNotice={setNotice} />}
           {page === "roles" && <Roles api={api} onNotice={setNotice} />}
-          {page === "policies" && <Policies api={api} user={user} onNotice={setNotice} />}
           {page === "teams" && <Teams api={api} user={user} onNotice={setNotice} />}
           {page === "credentials" && <Vault api={api} user={user} onNotice={setNotice} />}
           {page === "audit" && <Audit api={api} onNotice={setNotice} />}
@@ -161,16 +139,11 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "schedules" && <Schedules api={api} user={user} onNotice={setNotice} />}
           {page === "triggers" && <Triggers api={api} user={user} onNotice={setNotice} />}
           {page === "queues" && <Queues api={api} user={user} onNotice={setNotice} />}
-          {page === "workflows" && <Workflows api={api} user={user} onNotice={setNotice} />}
           {page === "globals" && <Globals api={api} user={user} onNotice={setNotice} />}
           {page === "savedconn" && <Connections api={api} user={user} onNotice={setNotice} />}
           {page === "toolkits" && <Toolkits api={api} user={user} onNotice={setNotice} />}
           {page === "connections" && <ModelConnections api={api} user={user} onNotice={setNotice} />}
-          {page === "skills" && <Skills api={api} user={user} onNotice={setNotice} />}
-          {page === "governance" && <Governance api={api} onNotice={setNotice} />}
-          {page === "apitasks" && <AgentApis api={api} user={user} onNotice={setNotice} />}
           {page === "automation" && <Repository api={api} user={user} onNotice={setNotice} studio={studio} />}
-          {page === "tests" && <Tests api={api} user={user} onNotice={setNotice} />}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
         </main>
         <HelpPanel page={page} />

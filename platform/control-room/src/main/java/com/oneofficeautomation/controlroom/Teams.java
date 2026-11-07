@@ -14,7 +14,7 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  * them all of it. Administrators (teams.manage) create teams; leads change their own team's members.
  */
 public final class Teams {
-    static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
+    public static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
     static final Set<String> ROLES = Set.of("member", "lead");
     private final ControlRoom cr;
     private final Db db;
@@ -29,7 +29,7 @@ public final class Teams {
     }
 
     /** Every way a rule can name this user: user:x, role:r, role:* and team:t for each of their teams. */
-    List<String> principalsOf(String username, String role) {
+    public List<String> principalsOf(String username, String role) {
         List<String> p = new ArrayList<>(List.of("user:" + username));
         for (String r : cr.rolesOf(username, role)) p.add("role:" + r);
         p.add("role:*");
@@ -38,7 +38,7 @@ public final class Teams {
     }
 
     /** Checks a principal written in a rule: user:x, role:r (or role:*) or team:t, and that it exists. */
-    void checkPrincipal(String principal) {
+    public void checkPrincipal(String principal) {
         if (principal.startsWith("user:")) { if (db.one("SELECT id FROM users WHERE username = ?", principal.substring(5)) == null) throw notFound("User " + principal.substring(5)); }
         else if (principal.startsWith("role:")) { String r = principal.substring(5); if (!r.equals("*") && !cr.roleExists(r)) throw notFound("Role " + r); }
         else if (principal.startsWith("team:")) { if (db.one("SELECT id FROM teams WHERE name = ?", principal.substring(5)) == null) throw notFound("Team " + principal.substring(5)); }

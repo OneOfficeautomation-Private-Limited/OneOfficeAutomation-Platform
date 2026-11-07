@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.runs.PollHttp;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -10,18 +11,18 @@ import java.util.*;
  * Microsoft 365 Outlook mail through Microsoft Graph. The cursor is "receivedDateTime|hash,hash": the newest
  * received time seen and short hashes of the message ids received at that same time (Graph ids are too long to keep).
  */
-final class GraphMailSource implements MailSource {
+public final class GraphMailSource implements MailSource {
     static final String GRAPH = "https://graph.microsoft.com/v1.0", LOGIN = "https://login.microsoftonline.com";
     private final String base, mailbox, folder, token;
 
-    GraphMailSource(String graphUrl, String mailbox, String folder, String token) {
+    public GraphMailSource(String graphUrl, String mailbox, String folder, String token) {
         this.base = graphUrl == null ? GRAPH : graphUrl.replaceAll("/+$", "");
         this.mailbox = mailbox; this.folder = folder == null ? "inbox" : folder; this.token = token;
     }
 
     /** An app-only token with the client credentials flow (needs Mail.Read application permission and a mailbox). */
     @SuppressWarnings("unchecked")
-    static String clientCredentialsToken(String loginUrl, String tenant, String clientId, String secret) throws IOException {
+    public static String clientCredentialsToken(String loginUrl, String tenant, String clientId, String secret) throws IOException {
         Object r = PollHttp.postForm((loginUrl == null ? LOGIN : loginUrl.replaceAll("/+$", "")) + "/" + PollHttp.enc(tenant) + "/oauth2/v2.0/token",
                 Map.of("grant_type", "client_credentials", "client_id", clientId, "client_secret", secret, "scope", "https://graph.microsoft.com/.default"));
         Object t = r instanceof Map<?, ?> m ? m.get("access_token") : null;

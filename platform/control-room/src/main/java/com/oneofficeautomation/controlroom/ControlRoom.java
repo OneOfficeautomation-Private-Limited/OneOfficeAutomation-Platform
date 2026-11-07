@@ -1,5 +1,27 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.auth.Sso;
+import com.oneofficeautomation.controlroom.auth.Directory;
+import com.oneofficeautomation.controlroom.auth.Mfa;
+import com.oneofficeautomation.controlroom.auth.Saml;
+import com.oneofficeautomation.controlroom.auth.Scim;
+import com.oneofficeautomation.controlroom.repository.AgentWrites;
+import com.oneofficeautomation.controlroom.repository.CustomToolkits;
+import com.oneofficeautomation.controlroom.repository.FlowFiles;
+import com.oneofficeautomation.controlroom.repository.Folders;
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
+import com.oneofficeautomation.controlroom.repository.RepoFiles;
+import com.oneofficeautomation.controlroom.repository.Templates;
+import com.oneofficeautomation.controlroom.runs.EnvironmentLocks;
+import com.oneofficeautomation.controlroom.runs.RunWaits;
+import com.oneofficeautomation.controlroom.runs.RunnerCare;
+import com.oneofficeautomation.controlroom.runs.RunnerUpdates;
+import com.oneofficeautomation.controlroom.runs.ScheduleRules;
+import com.oneofficeautomation.controlroom.runs.ServerlessRuns;
+import com.oneofficeautomation.controlroom.runs.TriggerKinds;
+import com.oneofficeautomation.controlroom.runs.TriggerPollers;
+import com.oneofficeautomation.controlroom.vault.ExternalVaults;
+import com.oneofficeautomation.controlroom.vault.VaultAdmin;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.runner.FlowSchemaValidator;
@@ -37,7 +59,7 @@ public final class ControlRoom {
     public final CustomToolkits customToolkits;
     public final ServerlessRuns serverless;
     /** Repository folders and folder permissions. */
-    final Folders folders;
+    public final Folders folders;
     /** Export, import and promotion of agents between One CommandCenter installations. */
     public final Lifecycle lifecycle;
     public final Templates templates;
@@ -55,9 +77,9 @@ public final class ControlRoom {
     private final PackageRegistry registry;
     static final Duration ONLINE = Duration.ofSeconds(60);
     static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.(flow|process|form)\\.json$");
-    static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
+    public static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
 
-    final Path dataDir;
+    public final Path dataDir;
     final SyslogForwarder syslog;
     final Directory directory = new Directory(this);
     final Scim scim;
@@ -119,7 +141,7 @@ public final class ControlRoom {
     /** A SaaS tenant's seats from the region's catalog (license type -> count; empty: no limit). */
     public volatile Map<String, Integer> tenantSeats = Map.of();
 
-    static OoaException notInSaas(String what) {
+    public static OoaException notInSaas(String what) {
         return new OoaException("SAAS.NOT_AVAILABLE", what + " is not available in the SaaS service", "Use a runner in your own network for it.");
     }
 
@@ -198,10 +220,10 @@ public final class ControlRoom {
     public static Instant instantOf(String value, boolean endOfDay) { return instant(value, endOfDay); }
     public static User userFromRow(Map<String, Object> row) { return user(row); }
 
-    static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
-    static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
-    static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask One CommandCenter administrator for the right role."); }
-    static OoaException notFound(String what) { return new OoaException("CR.NOT_FOUND", what + " not found"); }
+    public static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
+    public static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
+    public static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask One CommandCenter administrator for the right role."); }
+    public static OoaException notFound(String what) { return new OoaException("CR.NOT_FOUND", what + " not found"); }
 
     public void require(User u, String permission, String what) { if (!can(u, permission)) throw denied(what); }
 
@@ -279,7 +301,7 @@ public final class ControlRoom {
         return pw;
     }
 
-    static User user(Map<String, Object> r) {
+    public static User user(Map<String, Object> r) {
         return new User((String) r.get("id"), (String) r.get("username"), (String) r.get("role"), (String) r.get("display_name"), Boolean.TRUE.equals(r.get("must_change")),
                 Boolean.TRUE.equals(r.get("mfa_enabled")), r.get("sso_subject") != null);
     }
@@ -389,7 +411,7 @@ public final class ControlRoom {
      * A wrong password or too many wrong codes: after lockout_attempts of them (5 by default; 0: never) the account is
      * locked for lockout_minutes (15 by default), as AA's and UiPath's lockout settings.
      */
-    void countFailedSignIn(Map<String, Object> r, String ip) {
+    public void countFailedSignIn(Map<String, Object> r, String ip) {
         int attempts = platform.intSetting("lockout_attempts"), minutes = Math.max(1, platform.intSetting("lockout_minutes"));
         int failed = ((Number) db.one("SELECT failed FROM users WHERE id = ?", r.get("id")).get("failed")).intValue() + 1;
         boolean lock = attempts > 0 && failed >= attempts;
@@ -454,7 +476,7 @@ public final class ControlRoom {
      * Where to go after a single sign-on: a page of this One CommandCenter (a path starting with one "/", no scheme, host
      * or backslash), else its start page, so a sign-in link can never send people to another site.
      */
-    static String safeReturn(String to) {
+    public static String safeReturn(String to) {
         if (to == null || to.isBlank() || to.length() > 200 || !to.startsWith("/") || to.startsWith("//") || to.contains("\\") || to.contains(":")
                 || !to.matches("[A-Za-z0-9/._#?=&-]*")) return "/";
         return to;
@@ -466,7 +488,7 @@ public final class ControlRoom {
      * group rules do, the mapping decides the role at every sign-in, so a change of group in the identity provider
      * reaches One CommandCenter the next time the person signs in.
      */
-    String roleFromGroups(Object groups) {
+    public String roleFromGroups(Object groups) {
         String rules = String.valueOf(platform.setting("sso_group_roles")).trim();
         if (rules.isEmpty() || groups == null) return null;
         Set<String> have = new HashSet<>();
@@ -490,7 +512,7 @@ public final class ControlRoom {
         return m;
     }
 
-    Map<String, Object> ssoLogin(Map<String, Object> claims, String defaultRole, String ip) {
+    public Map<String, Object> ssoLogin(Map<String, Object> claims, String defaultRole, String ip) {
         String subject = claims.get("iss") + "|" + claims.get("sub");
         String mapped = roleFromGroups(claims.get("groups") != null ? claims.get("groups") : claims.get("roles"));
         String email = claims.get("email") instanceof String e && !Boolean.FALSE.equals(claims.get("email_verified")) ? e.trim().toLowerCase(Locale.ROOT) : null;
@@ -563,7 +585,7 @@ public final class ControlRoom {
     }
 
     /** A credential One CommandCenter itself needs (for example the SSO client secret), from a vault folder or its external vault. */
-    String systemCredential(String ref) {
+    public String systemCredential(String ref) {
         String[] p = ref.split("/");
         if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "Use a vault reference: vault folder/credential/attribute");
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
@@ -979,7 +1001,7 @@ public final class ControlRoom {
     }
 
     /** Validates a flow for the path as check-in does (toolkits, schema, workflow or form rules); returns the problems. */
-    List<Map<String, Object>> problemsOf(String path, Map<String, Object> flow) {
+    public List<Map<String, Object>> problemsOf(String path, Map<String, Object> flow) {
         if (!FlowFiles.isDefinition(path)) { platform.checkToolkits(flow); return validator.validate(flow); }
         // workflows and forms: the module that runs them checks them (orchestration); without it they are kept as they are
         if (modules != null) for (Map.Entry<String, ModuleContext.DefinitionCheck> c : modules.definitionChecks.entrySet())
@@ -992,7 +1014,7 @@ public final class ControlRoom {
      * it (import), the agent must not be checked out by someone else.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean asProduction, boolean checkedOut, String ip) {
+    public Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean asProduction, boolean checkedOut, String ip) {
         // with approval before production, "as production" becomes a request that someone else approves
         ModuleContext.ProductionGate gate = modules == null ? null : modules.productionGate;
         boolean askApproval = asProduction && gate != null && gate.required(), makeProduction = asProduction && !askApproval;
@@ -1183,7 +1205,7 @@ public final class ControlRoom {
 
     /** Agent ids an agent calls: Run Agent steps and the tools of AI agent steps. */
     @SuppressWarnings("unchecked")
-    static List<String> childBotIds(Map<String, Object> flow) {
+    public static List<String> childBotIds(Map<String, Object> flow) {
         List<String> ids = new ArrayList<>();
         for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             Map<String, Object> a = s.get("args") instanceof Map ? (Map<String, Object>) s.get("args") : Map.of();
@@ -1197,7 +1219,7 @@ public final class ControlRoom {
 
     /** Toolkits (packages) an agent's steps use. */
     @SuppressWarnings("unchecked")
-    static List<String> toolkitsOf(Map<String, Object> flow) {
+    public static List<String> toolkitsOf(Map<String, Object> flow) {
         TreeSet<String> ids = new TreeSet<>();
         for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
             String a = String.valueOf(s.get("action"));
@@ -1719,7 +1741,7 @@ public final class ControlRoom {
     }
 
     /** Wakes runners waiting for work: a run was queued, or a run of theirs needs controlling (deviceId null: all). */
-    void wake(String deviceId, boolean control) {
+    public void wake(String deviceId, boolean control) {
         if (control && deviceId != null) checkNow.add(deviceId);
         synchronized (wakeUp) { wakeUp.notifyAll(); }
     }
@@ -1851,7 +1873,7 @@ public final class ControlRoom {
 
     /** Adds production versions of child bots (Run bot) and AI agent tools, transitively. */
     @SuppressWarnings("unchecked")
-    void collect(Map<String, Object> flow, Map<String, Object> bundle, int depth) {
+    public void collect(Map<String, Object> flow, Map<String, Object> bundle, int depth) {
         if (depth > 10 || bundle.size() > 100) return;
         for (String botId : childBotIds(flow)) {
             if (bundle.containsKey(botId)) continue;
@@ -1865,7 +1887,7 @@ public final class ControlRoom {
         }
     }
 
-    Map<String, Object> runOnDevice(Map<String, Object> d, String runId) {
+    public Map<String, Object> runOnDevice(Map<String, Object> d, String runId) {
         Map<String, Object> r = db.one("SELECT * FROM runs WHERE id = ?", runId);
         if (r == null || !d.get("id").equals(r.get("device_id"))) throw notFound("Run");
         return r;
@@ -1924,7 +1946,7 @@ public final class ControlRoom {
      * What follows the end of a run, or of a chain of suspended and resumed runs (G36): its work item, KPIs, test case,
      * workflow, failing trigger, failure mail and callback. A workflow and a test know the chain by its first run.
      */
-    void afterRunEnded(Map<String, Object> r, String status, Map<String, Object> result) {
+    public void afterRunEnded(Map<String, Object> r, String status, Map<String, Object> result) {
         String runId = (String) r.get("id");
         String root = runWaits.rootRun(runId);
         Map<String, Object> first = r;
@@ -1960,7 +1982,7 @@ public final class ControlRoom {
      * workflow. people are user names, or user:name / role:name as a workflow assigns tasks; disabled accounts and
      * people with no e-mail address are left out. Returns the addresses written to (empty when e-mail is not set up).
      */
-    List<String> mailPeople(Collection<String> people, String subject, String body, String objectType, String objectId) {
+    public List<String> mailPeople(Collection<String> people, String subject, String body, String objectType, String objectId) {
         if (!mailer.configured()) return List.of();
         List<String> to = addressesOf(people);
         if (to.isEmpty()) return to;
@@ -2199,7 +2221,7 @@ public final class ControlRoom {
         return Map.of("runs", out, "total", total, "offset", offset, "limit", limit);
     }
 
-    static int intOr(String v, int dflt) { try { return v == null ? dflt : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return dflt; } }
+    public static int intOr(String v, int dflt) { try { return v == null ? dflt : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return dflt; } }
 
     /** An ISO time (2026-11-02T09:00:00Z) from a request, or null when none is given; anything else is refused. */
     static Instant instantOr(Object v) {
@@ -2684,7 +2706,7 @@ public final class ControlRoom {
 
     /** Starts the trigger's agent with the event values it declares as inputs, and records the firing (or why it failed). */
     @SuppressWarnings("unchecked")
-    Map<String, Object> fireTrigger(Map<String, Object> t, Map<String, Object> event, String source, String ip) {
+    public Map<String, Object> fireTrigger(Map<String, Object> t, Map<String, Object> event, String source, String ip) {
         try {
             Map<String, Object> flow = (Map<String, Object>) content((String) t.get("bot_path"), "production").get("flow");
             Set<String> declared = declaredInputs(flow);
@@ -2751,14 +2773,14 @@ public final class ControlRoom {
 
     // ===================== lockers, credentials, global values =====================
 
-    static List<String> csv(Object v) {
+    public static List<String> csv(Object v) {
         List<String> out = new ArrayList<>();
         if (v instanceof List<?> l) for (Object o : l) out.add(String.valueOf(o).trim());
         else if (v != null) for (String s : String.valueOf(v).split(",")) if (!s.isBlank()) out.add(s.trim());
         return out;
     }
 
-    boolean ownsLocker(User u, Map<String, Object> locker) {
+    public boolean ownsLocker(User u, Map<String, Object> locker) {
         return can(u, "lockers.manage") || csv(locker.get("owners")).contains(u.username());
     }
 
@@ -2767,7 +2789,7 @@ public final class ControlRoom {
      * participant (sees the folder; adds credentials and changes their own), consumer (agents use its credentials),
      * or null. Managers, participants and consumers can be users, roles or teams.
      */
-    String lockerRole(User u, Map<String, Object> locker) {
+    public String lockerRole(User u, Map<String, Object> locker) {
         if (ownsLocker(u, locker)) return "owner";
         List<String> mine = teams.principalsOf(u.username(), u.role());
         if (csv(locker.get("managers")).stream().anyMatch(mine::contains)) return "manager";
@@ -2777,7 +2799,7 @@ public final class ControlRoom {
     }
 
     /** Owners and managers change every credential; a participant creates credentials and changes the ones they own. */
-    boolean canChangeCredential(User u, Map<String, Object> locker, String credential) {
+    public boolean canChangeCredential(User u, Map<String, Object> locker, String credential) {
         String r = lockerRole(u, locker);
         if ("owner".equals(r) || "manager".equals(r)) return true;
         if (!"participant".equals(r)) return false;
@@ -2825,7 +2847,7 @@ public final class ControlRoom {
     }
 
     /** Whether a user (directly, by role, or through a team) may use a vault folder's credentials in agents. */
-    boolean consumes(String username, String role, Map<String, Object> locker) {
+    public boolean consumes(String username, String role, Map<String, Object> locker) {
         List<String> c = csv(locker.get("consumers"));
         return teams.principalsOf(username, role).stream().anyMatch(c::contains);
     }
@@ -2998,7 +3020,7 @@ public final class ControlRoom {
     static final List<String> GLOBAL_TYPES = List.of("text", "number", "boolean", "date", "list", "record", "any");
 
     /** Checks a value against its shared value's type; returns it in canonical form (numbers as numbers, dates as yyyy-MM-dd or ISO date-time). */
-    static Object typedGlobal(String name, String type, Object value) {
+    public static Object typedGlobal(String name, String type, Object value) {
         String t = type == null ? "any" : type;
         String bad = "The value of " + name + " must be ";
         return switch (t) {
@@ -3355,5 +3377,5 @@ public final class ControlRoom {
         return m;
     }
 
-    long count(String sql, Object... p) { return ((Number) db.one(sql, p).get("n")).longValue(); }
+    public long count(String sql, Object... p) { return ((Number) db.one(sql, p).get("n")).longValue(); }
 }

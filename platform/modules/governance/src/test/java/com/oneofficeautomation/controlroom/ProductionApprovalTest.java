@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
 import com.oneofficeautomation.modules.governance.ProductionApproval;
 
 import com.oneofficeautomation.packages.FirstPartyPackages;
@@ -83,7 +84,7 @@ class ProductionApprovalTest {
     }
 
     @Test void approvingNeedsTheApprovalRight() {
-        assertTrue(Rbac.ADMIN_ONLY.contains("repo.approve"));
+        assertEquals("governance", Rbac.moduleOf("repo.approve"));   // the module registers it (phase 8)
         assertTrue(Rbac.permissions("admin").contains("repo.approve"));
         assertFalse(Rbac.permissions("bot_creator").contains("repo.approve"));
     }

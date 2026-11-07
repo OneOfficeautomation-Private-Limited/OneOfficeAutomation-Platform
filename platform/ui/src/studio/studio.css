@@ -1,7 +1,5 @@
 /* The new Studio's layout (docs/architecture/12-ui-redesign.md, section 4). Colours come from theme.css. */
-
 .st-app { height: 100%; display: flex; flex-direction: column; }
-
 /* Top bar */
 .st-top { background: var(--ui-frame); color: var(--ui-frame-text); display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 0 12px; min-height: 48px; }
 .st-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; }
@@ -14,12 +12,9 @@
   background: var(--ui-bg); color: var(--ui-text-2); }
 .st-search input { flex: 1; border: 0; outline: none; background: transparent; color: var(--ui-text); }
 .st-top-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
-
 .st-alert { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--ui-debug); color: var(--ui-on-debug); font-weight: 600; }
 .st-alert span { flex: 1; }
-
 .st-body { flex: 1; display: flex; min-height: 0; }
-
 /* One CommandCenter menu */
 .st-menu { background: var(--ui-frame-2); width: 200px; flex: none; padding: 8px 6px; overflow-y: auto; display: flex; flex-direction: column; }
 .st-menu-home { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--ui-radius); color: var(--ui-frame-text); font-weight: 700; text-decoration: none; }
@@ -43,7 +38,6 @@
 .st-menu-item:hover { background: rgba(255, 255, 255, .08); color: var(--ui-frame-text); }
 .st-menu-item.is-current { background: var(--ui-accent); color: #ffffff; font-weight: 700; }
 .st-menu-item.is-off { cursor: not-allowed; }
-
 /* Main area, tabs */
 .st-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .st-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--ui-border); min-height: 40px; padding-left: 4px; }
@@ -54,7 +48,6 @@
 .st-tab-close { border: 0; background: transparent; width: 26px; height: 26px; margin-right: 6px; border-radius: 4px; color: var(--ui-text); cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; }
 .st-tab-close:hover { background: var(--ui-row-hover); }
-
 /* Automation page */
 .st-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .st-page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--ui-border); }
@@ -76,7 +69,6 @@
 .st-folder-line { display: flex; align-items: center; gap: 8px; height: var(--ui-h); padding: 0 4px 0 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
 .st-folder-name { flex: 1; }
 .st-error { margin: 0; color: var(--ui-error-text); font-weight: 600; }
-
 /* Agent: actions, steps, right panel */
 .st-actions { width: 272px; flex: none; border-right: 1px solid var(--ui-border); display: flex; flex-direction: column; min-height: 0; }
 .st-panel-search { padding: 8px 10px; border-bottom: 1px solid var(--ui-divider); }
@@ -87,7 +79,6 @@
 .st-count { color: var(--ui-text-3); font-variant-numeric: tabular-nums; }
 .st-group-actions { list-style: none; margin: 0; padding: 0; }
 .st-group-actions li { padding: 5px 10px 5px 50px; }
-
 .st-agent-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .st-agent { flex: 1; display: flex; min-height: 0; }
 .st-steps { flex: 1; min-width: 0; overflow: auto; padding: 0 0 16px; }
@@ -131,7 +122,6 @@ button.st-marker-row { cursor: pointer; }
 .st-cols { display: flex; flex-direction: column; gap: 6px; }
 .st-status.is-checked_in, .st-status.is-linked { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
 .st-badge { margin-left: auto; padding: 1px 7px; border-radius: 4px; background: #353e4c; color: #ffffff; font-size: 11px; font-weight: 700; }
-
 .st-right { width: 340px; flex: none; border-left: 1px solid var(--ui-border); display: flex; flex-direction: column; min-height: 0; }
 .st-prop-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--ui-border); }
 .st-prop-head div div { color: var(--ui-text-2); font-size: 12px; }
@@ -144,7 +134,6 @@ button.st-marker-row { cursor: pointer; }
 .st-dir { margin-left: auto; color: var(--ui-text-2); font-size: 12px; }
 .st-muted { color: var(--ui-text-2); }
 .st-pad { padding: 12px; margin: 0; }
-
 /* Editing (P2) */
 .st-edit-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 40px; padding: 0 8px;
   margin-bottom: 8px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
@@ -176,27 +165,24 @@ button.st-marker-row { cursor: pointer; }
 .st-var-form { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; }
 .st-var-form .ui-btn { align-self: flex-start; }
 .st-vars li .ui-btn { margin-left: 4px; }
-
 /* narrower screens: slimmer side panels, so the steps keep their room */
 @media (max-width: 1280px) {
-  .st-actions { width: 230px; }
-  .st-right { width: 290px; }
+.st-actions { width: 230px; }
+.st-right { width: 290px; }
 }
 @media (max-width: 1000px) {
-  .st-actions { width: 200px; }
-  .st-agent { flex-direction: column; }
-  .st-agent > .st-right { width: auto; max-height: 45%; border-left: 0; border-top: 1px solid var(--ui-border); }
-  .st-agent > .ui-panel-strip-right { width: auto; flex-direction: row; padding: 4px 8px; border-left: 0; border-top: 1px solid var(--ui-border); }
-  .st-agent > .ui-panel-strip-right .ui-panel-strip-title { writing-mode: horizontal-tb; }
+.st-actions { width: 200px; }
+.st-agent { flex-direction: column; }
+.st-agent > .st-right { width: auto; max-height: 45%; border-left: 0; border-top: 1px solid var(--ui-border); }
+.st-agent > .ui-panel-strip-right { width: auto; flex-direction: row; padding: 4px 8px; border-left: 0; border-top: 1px solid var(--ui-border); }
+.st-agent > .ui-panel-strip-right .ui-panel-strip-title { writing-mode: horizontal-tb; }
 }
-
 /* Drag and drop: where a dragged step or action will land */
 .st-step.drop-before { box-shadow: inset 0 3px 0 var(--ui-accent); }
 .st-step.drop-after { box-shadow: inset 0 -3px 0 var(--ui-accent); }
 .st-step.drop-inside { background: var(--ui-selected); outline: 2px dashed var(--ui-accent); outline-offset: -2px; }
 .st-marker.drop-end { outline: 2px dashed var(--ui-accent); outline-offset: 2px; }
 .st-step[draggable="true"], .st-action[draggable="true"] { cursor: grab; }
-
 /* Condition builder */
 .st-cond { display: flex; flex-direction: column; gap: 8px; }
 .st-cond-row { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
@@ -217,7 +203,6 @@ button.st-marker-row { cursor: pointer; }
 .st-op-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; }
 .st-op { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--ui-divider); }
 .st-op-main { flex: 1; min-width: 0; }
-
 /* P3: the bottom panel (Problems, Run output, Debug values), running and debugging */
 .st-bottom { border-top: 1px solid var(--ui-border); height: 34%; min-height: 150px; flex: none; display: flex; flex-direction: column; }
 .st-bottom > .ui-tabs { flex: 1; min-height: 0; }
@@ -248,7 +233,6 @@ button.st-marker-row { cursor: pointer; }
 .st-trigger-list li { padding: 8px 0; border-bottom: 1px solid var(--ui-divider); display: flex; flex-direction: column; gap: 4px; }
 .st-trigger-actions { display: flex; flex-wrap: wrap; gap: 2px; }
 .st-secret { margin: 8px 12px; padding: 8px; border-radius: var(--ui-radius); background: var(--ui-selected); word-break: break-all; }
-
 /* P4: item editors (forms, workflows, document types, Prompt Skills, scripts) */
 .st-item-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .st-item-bar { margin-bottom: 0; }
@@ -267,14 +251,13 @@ button.st-marker-row { cursor: pointer; }
 .st-chips legend { font-weight: 600; margin-bottom: 6px; }
 .st-doc-fields td { padding: 4px 8px; height: auto; }
 .st-center { text-align: center; }
-.st-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }   /* at the corner: never widens the page */
+.st-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* at the corner: never widens the page */
 .st-code { flex: 1; }
 .st-code-area { flex: 1; min-height: 360px; line-height: 1.5; white-space: pre; tab-size: 4; }
 .st-item-wrap .st-alert { margin: 8px 16px 0; }
-
 /* delete in the items table */
 .st-row-actions { width: 1%; white-space: nowrap; text-align: right; }
-
 /* P5: AI agent editor and the model connection wizard */
 .st-ai { flex: 1; display: flex; min-height: 0; }
 .st-ai-main { flex: 1; min-width: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -297,10 +280,12 @@ button.st-marker-row { cursor: pointer; }
 .st-summary dd { margin: 0; word-break: break-word; }
 .st-ok { color: var(--ui-ok-text); font-weight: 600; }
 .ui-dialog-foot .st-bar-fill { flex: 1; }
-@media (max-width: 1100px) { .st-ai { flex-direction: column; } .st-ai-try { width: auto; border-left: 0; border-top: 1px solid var(--ui-border); } }
+@media (max-width: 1100px) {
+.st-ai { flex-direction: column; }
+.st-ai-try { width: auto; border-left: 0; border-top: 1px solid var(--ui-border); }
+}
 .st-step-tools .ui-icon-btn { width: 28px; height: 28px; border-color: transparent; background: transparent; color: var(--ui-text); }
 .st-step-tools .ui-icon-btn:hover, .st-step-tools .ui-icon-btn:focus-visible, .st-step-tools .ui-icon-btn[data-state="open"] { border-color: var(--ui-accent); background: var(--ui-bg); }
-
 /* E2 variables: type badges, the {x} picker, the variables panel, value sources */
 .st-type-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 20px; padding: 0 4px; border-radius: 4px;
   color: #ffffff; font-size: 10.5px; font-weight: 700; letter-spacing: .2px; }
@@ -359,7 +344,6 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-assignment > :nth-child(2) { grid-area: value; }
 .st-assignment > .st-assignment-tools { grid-area: tools; display: flex; gap: 2px; }
 .st-sub { margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; color: var(--ui-text-2); }
-
 /* E3 settings by kind: the time-out box, the window editor, links in hints */
 .st-timeout { margin: 8px 12px; border: 1px solid var(--ui-divider); border-radius: 8px; }
 .st-timeout-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--ui-divider); background: var(--ui-soft); border-radius: 8px 8px 0 0; }
@@ -369,7 +353,6 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-win-link { margin: 0; font-size: 12px; color: var(--ui-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-win-case { padding-left: 116px; }
 .st-link { padding: 0; border: 0; background: none; color: var(--ui-accent-text); font: inherit; text-decoration: underline; cursor: pointer; }
-
 /* E4 Explorer: selection bar, selected rows, folders in the table */
 .st-items-bar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 36px; padding: 0 8px;
   border-bottom: 1px solid var(--ui-divider); background: var(--ui-bg); }
@@ -382,7 +365,6 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-row-more { width: 28px; height: 28px; border-color: transparent; background: transparent; color: var(--ui-text); }
 .st-row-more:hover, .st-row-more[data-state="open"] { border-color: var(--ui-accent); background: var(--ui-bg); }
 .st-delete-list { margin: 0; padding-left: 20px; max-height: 160px; overflow: auto; }
-
 /* E6 capture: the captured object editor, the window dialog, the recorder */
 .st-cap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .st-cap.is-nested { margin-top: 6px; padding: 8px; border: 1px solid var(--ui-divider); border-radius: 8px; }
@@ -428,7 +410,6 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-offer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 12px; padding: 8px 12px; border: 1px solid #f5b33d; border-radius: 8px; background: var(--ui-offer-bg); color: var(--ui-text); }
 .st-offer span { flex: 1; min-width: 200px; }
 .st-rec-dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: #b91c1c; }
-
 /* E7 agents together: breadcrumb back to a parent, Dependencies, the flow diagram, the assistant, script output */
 .st-crumb-link { padding: 0; border: 0; background: none; color: #cfe0ff; font: inherit; text-decoration: underline; cursor: pointer; }
 .st-crumb-link:hover { color: #ffffff; }
@@ -472,7 +453,6 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 /* four tabs in the Details panel stay on one line */
 .st-right .ui-tab-list { flex-wrap: nowrap; overflow-x: auto; }
 .st-right .ui-tab { flex: 1 1 auto; padding: 0 8px; white-space: nowrap; }
-
 /* Automation page: Private (the workspace) and Public (One CommandCenter agent repository) */
 .st-page-tabs { display: flex; gap: 0; padding: 0 16px; border-bottom: 1px solid var(--ui-border); background: var(--ui-bg); }
 .st-page-tab { height: 34px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ui-text); font: inherit; font-weight: 600; cursor: pointer; }
@@ -486,7 +466,6 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-cr-search { width: 260px; height: 28px; }
 .st-cr-row-acts { white-space: nowrap; text-align: right; }
 .st-cr-row-acts .ui-btn + .ui-btn { margin-left: 6px; }
-
 /* The output panel's place: bottom (default), right, floating, or minimised to a bar */
 .st-agent-wrap.is-out-right { flex-direction: row; }
 .is-out-right > .st-bottom { height: auto; width: 400px; min-width: 0; min-height: 0; border-top: 0; border-left: 1px solid var(--ui-border); }
@@ -502,20 +481,18 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-out-mini .st-check { margin-left: 0; }
 .st-out-mini .ui-btn { margin-left: auto; }
 @media (max-width: 1000px) {
-  .st-agent > .st-right { width: auto !important; }
-  .st-agent > .ui-splitter { display: none; }
-  /* no room beside the steps: a right-docked output panel goes back to the bottom */
-  .st-agent-wrap.is-out-right { flex-direction: column; }
-  .is-out-right > .st-bottom { width: auto !important; height: 34%; border-left: 0; border-top: 1px solid var(--ui-border); }
-  .is-out-right > .ui-splitter { display: none; }
+.st-agent > .st-right { width: auto !important; }
+.st-agent > .ui-splitter { display: none; }
+/* no room beside the steps: a right-docked output panel goes back to the bottom */
+.st-agent-wrap.is-out-right { flex-direction: column; }
+.is-out-right > .st-bottom { width: auto !important; height: 34%; border-left: 0; border-top: 1px solid var(--ui-border); }
+.is-out-right > .ui-splitter { display: none; }
 }
-
 /* Theme menu (light or dark) in the top bar */
 .st-top-icon { width: var(--ui-h); height: var(--ui-h); flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #6b7890;
   border-radius: var(--ui-radius); background: transparent; color: var(--ui-frame-text); cursor: pointer; }
 .st-top-icon:hover, .st-top-icon[data-state="open"] { background: var(--ui-frame-line); }
 .st-menu-tick { width: 16px; text-align: center; font-weight: 700; color: var(--ui-accent-text); }
-
 /* Record / Capture: which window */
 .st-where-list { max-height: 52vh; overflow: auto; margin: 0 -4px; padding: 0 4px; }
 .st-where-intro { margin: 2px 0 6px; color: var(--ui-text-2); font-size: 12.5px; }
@@ -523,15 +500,14 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-where-help { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ui-debug); border-radius: 8px; background: var(--ui-offer-bg); }
 .st-where-help p { margin: 0 0 8px; }
 .st-where-new { display: grid; grid-template-columns: 1fr 200px; gap: 10px; margin-top: 10px; }
-
 /* Full screen canvas: the browser's own full screen, or the whole page area when it is not offered */
 .st-agent-wrap.is-full { position: fixed; inset: 0; z-index: 50; background: var(--ui-bg); }
 .st-agent-wrap.is-full:fullscreen { position: static; }
 .st-edit-bar { padding-right: 44px; }
-.st-edit-bar .st-full-btn { position: absolute; top: 4px; right: 6px; }   /* always the top right corner of the canvas */
+.st-edit-bar .st-full-btn { position: absolute; top: 4px; right: 6px; }
+/* always the top right corner of the canvas */
 /* Column lines in every table of the product (31 Oct 2026), so cells line up by eye as in AA's and UiPath's grids */
 .st-table th + th, .st-table td + td, .st-cap-table th + th, .st-cap-table td + td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
-
 /* The menu's console look (find a page, favourites, one section open, Collapse and width at the foot), used by the console and, since 1 Nov 2026, by Studio. */
 .st-menu-home.is-current { background: var(--ui-accent); color: #fff; }
 button.st-menu-home { border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; }
@@ -579,14 +555,17 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .st-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 8px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-selected); color: var(--ui-text); }
 .st-ask > span { flex: 1 1 200px; }
 .st-var-row .st-tool, .st-trigger-list .st-tool { flex: none; }
-
 /* narrow lists (item 2, 1 Nov 2026): the ⋮ column stays at the list's right edge, and Changed, then Type, give way */
 .st-items { container-type: inline-size; }
 .st-items .st-row-actions, .st-items .st-cr-row-acts, .st-items thead th:last-child { position: sticky; right: 0; background: var(--ui-bg); box-shadow: -1px 0 0 var(--ui-divider); }
 .st-items tbody tr:hover .st-row-actions, .st-items tbody tr:hover .st-cr-row-acts { background: var(--ui-row-hover); }
 .st-items tbody tr.is-selected .st-row-actions, .st-items tbody tr.is-selected:hover .st-row-actions { background: var(--ui-selected); }
-@container (max-width: 560px) { .st-col-changed { display: none; } }
-@container (max-width: 420px) { .st-col-type { display: none; } }
+@container (max-width: 560px) {
+.st-col-changed { display: none; }
+}
+@container (max-width: 420px) {
+.st-col-type { display: none; }
+}
 /* the Triggers group of the command list: where each set of triggers listens */
 .st-trigger-where { display: block; padding: 6px 10px 2px 36px; font-size: 11px; font-weight: 700; color: var(--ui-text-2); text-transform: none; }
 /* Find in this agent (Ctrl+Shift+F): a small box in the steps toolbar; the steps found are selected */
@@ -616,20 +595,20 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 /* G40: the agent's design document, laid out for Print > Save as PDF; only it prints while body has st-printing-doc */
 .st-print-doc { display: none; }
 @media print {
-  body.st-printing-doc > *:not(.st-print-doc) { display: none !important; }
-  body.st-printing-doc .st-print-doc { display: block; color: #000; background: #fff; font: 10pt/1.4 Calibri, "Segoe UI", Arial, sans-serif; }
-  .st-print-doc h1 { font-size: 20pt; margin: 0 0 2pt; }
-  .st-print-doc h2 { font-size: 14pt; color: #1d4ed8; margin: 14pt 0 4pt; break-after: avoid; }
-  .st-print-doc h3 { font-size: 12pt; margin: 10pt 0 4pt; break-after: avoid; }
-  .st-print-doc p { margin: 0 0 4pt; }
-  .st-print-doc .st-print-meta { color: #374151; font-size: 9pt; margin-bottom: 12pt; }
-  .st-print-doc .st-print-item { text-indent: -18px; padding-left: 0; margin-bottom: 2pt; }
-  .st-print-doc .st-print-mark { display: inline-block; width: 18px; text-indent: 0; }
-  .st-print-doc table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt; font-size: 9pt; }
-  .st-print-doc th, .st-print-doc td { border: 1px solid #9ca3af; padding: 2pt 4pt; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-  .st-print-doc th { background: #e7ecf3; }
-  .st-print-doc tr { break-inside: avoid; }
-  .st-print-doc thead { display: table-header-group; }
+body.st-printing-doc > *:not(.st-print-doc) { display: none !important; }
+body.st-printing-doc .st-print-doc { display: block; color: #000; background: #fff; font: 10pt/1.4 Calibri, "Segoe UI", Arial, sans-serif; }
+.st-print-doc h1 { font-size: 20pt; margin: 0 0 2pt; }
+.st-print-doc h2 { font-size: 14pt; color: #1d4ed8; margin: 14pt 0 4pt; break-after: avoid; }
+.st-print-doc h3 { font-size: 12pt; margin: 10pt 0 4pt; break-after: avoid; }
+.st-print-doc p { margin: 0 0 4pt; }
+.st-print-doc .st-print-meta { color: #374151; font-size: 9pt; margin-bottom: 12pt; }
+.st-print-doc .st-print-item { text-indent: -18px; padding-left: 0; margin-bottom: 2pt; }
+.st-print-doc .st-print-mark { display: inline-block; width: 18px; text-indent: 0; }
+.st-print-doc table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt; font-size: 9pt; }
+.st-print-doc th, .st-print-doc td { border: 1px solid #9ca3af; padding: 2pt 4pt; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.st-print-doc th { background: #e7ecf3; }
+.st-print-doc tr { break-inside: avoid; }
+.st-print-doc thead { display: table-header-group; }
 }
 /* G42: shared object repositories (the editor, the element picker, a step that uses an element from one) */
 .st-objrepo-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }

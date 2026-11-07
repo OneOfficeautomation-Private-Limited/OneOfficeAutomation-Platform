@@ -345,7 +345,8 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
         : "Git: last sync failed " + new Date(g.at!).toLocaleString() + ": " + g.error}</p>), () => {});
     if (section === "data") api.backups().then((b) => setInfo(<p className="st-muted">{b.backups.length ? b.backups.length + " backup(s) in " + b.folder + ", newest " + new Date(b.backups[0].created).toLocaleString() + " (" + b.backups[0].size_mb + " MB)."
       : "No backups in " + b.folder + " yet."}{b.state === "failed" ? " Last attempt failed: " + b.error : ""} {b.key_note}</p>), () => {});
-    if (section === "about") Promise.all([api.database().catch(() => null), api.cluster().catch(() => null)]).then(([d, c]) => setInfo(<>
+    if (section === "about") Promise.all([api.database().catch(() => null), api.cluster().catch(() => null),
+      Promise.resolve().then(() => api.modules()).catch(() => null)]).then(([d, c, mods]) => setInfo(<>
       {d && <dl className="cc-facts">
         <dt>Database</dt><dd>{str(d.engine)} {str(d.version)}{d.edition ? " (" + d.edition + ")" : ""}</dd>
         {d.server && <><dt>Server</dt><dd>{str(d.server)}</dd></>}
@@ -357,6 +358,14 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
       </dl>}
       {c && <p className="st-muted">{c.nodes.length} node(s): {c.nodes.map((n) => n.node_id + (n.leader ? " (leads background work)" : "") + (n.this_node ? " (this one)" : "")).join(", ")}.
         More nodes on the same database behind a load balancer give high availability.</p>}
+      {mods && mods.length > 0 && <>
+        <h3 className="cc-log-title">Modules</h3>
+        <table className="st-table" aria-label="Modules">
+          <thead><tr><th>Module</th><th>Version</th><th>Own database steps</th></tr></thead>
+          <tbody>{mods.map((m) => <tr key={m.id}><td>{m.name}</td><td>{m.version}</td><td>{m.schema || "none (kernel tables)"}</td></tr>)}</tbody>
+        </table>
+        <p className="st-muted">Each feature module has its own version, so a fix in one module ships without the others changing.</p>
+      </>}
     </>));
   }, [api, section]);
   return <>

@@ -501,5 +501,5 @@ public final class EventSubscriptions {
         return out;
     }
 
-    static List<String> csv(Object v) { return v == null ? List.of() : list(String.valueOf(v)); }
+    public static List<String> csv(Object v) { return v == null ? List.of() : list(String.valueOf(v)); }
 }

@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useEffect, useState } from "react";
-import type { CrApi, PoolScaling, PoolScalingNow, RunnerPool } from "../../api/cr";
+import type { CrApi, RunnerPool } from "../../api/cr";
+import type { PoolScaling, PoolScalingNow } from "./consoleApi";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 
 /**

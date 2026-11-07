@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, ValueReport, ValueRow } from "../../api/cr";
+import type { CrApi, CrUser } from "../../api/cr";
+import type { ValueReport, ValueRow } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 

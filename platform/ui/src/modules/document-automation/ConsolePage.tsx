@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useEffect, useState } from "react";
-import type { ConsolePlugin, CrApi, DocFlowVersion } from "../../api/cr";
+import type { ConsolePlugin, CrApi } from "../../api/cr";
+import type { DocFlowVersion } from "./consoleApi";
 import { HelpButton, type HelpTopic } from "../../components";
 
 /**

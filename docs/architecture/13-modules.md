@@ -1,10 +1,10 @@
 # 13. Modules: one platform, separately changed parts
 
-Status: **approved** (2026-11-07). Phase 0 (the module map and the boundary report), phase 1 (the module
-contract, with Document Automation as the first module moved out), phase 2 (automation ideas, AI services,
-low-code and One Chat moved out), phase 3 (testing, governance, insights, integration, runner management), phase 4
-(the workflow engine as the orchestration module; the Task inbox stays in the kernel) and phase 5 (toolkit groups
-found with ServiceLoader) are built. Phases 6 to 8 follow.
+Status: **approved** (2026-11-07); **phases 0 to 8 built** (2026-11-07). Feature modules are Gradle projects found
+with ServiceLoader (server) and `import.meta.glob` (console), own their permissions, routes, settings, API client
+part and styles, and are checked by `ArchitectureTest`, `ModuleMapTest` and the console's registry and style tests.
+The kernel itself is split into packages (`auth`, `vault`, `runs`, `repository`). What could follow is listed in
+section 7.
 
 ## 1. Why
 
@@ -31,7 +31,7 @@ Further decisions (2026-11-07, chosen for future development and upgrades):
 | --- | --- | --- |
 | One repository or one per module | One repository, one Gradle project per module | One build and one CI see every module together, so a kernel change is tested against all modules at once; boundaries are enforced by tests, not by repository walls. Separate repositories would bring version skew between kernel and modules on every release |
 | Turn modules on and off by licence | Not now: every edition ships every module (as decided for Document Automation's engine packs). The contract already allows it later: a module missing from the class path simply is not there | Avoids a licence check in every module; one licence covers the platform |
-| Who owns a module's permissions | The module, through the contract (phase 8 adds `ModuleContext.permission`). Until then `docs.*` stays listed in `Rbac` | Moving permissions touches custom roles in existing databases, so it gets its own careful step |
+| Who owns a module's permissions | The module, through the contract (`ModuleContext.permission(name, roles...)`, phase 8): it names the built-in roles that have it; administrators have all. Shared permissions (`runs.start`, `repo.view`, `settings.manage`) stay the kernel's | Each module's permissions come and go with it; the built-in roles keep exactly what they had (`ModulePermissionsTest`) |
 | The classic console (`cr.js`) | Frozen: no new features; new screens only in the new console, under `ui/src/modules/<name>` | One place per screen; the classic console retires once nothing needs it |
 | Version numbers | Each module has its own (`version()`), the platform release lists them; the DocFlow pin stays in the module | A fix in one module ships without renumbering the rest |
 
@@ -144,9 +144,9 @@ kernel, and feature modules plug into them through the contract:
 | P3 | testing (test sets), governance (code analysis, policies, production approval), insights (analytics, dashboards, alerts), integration (Agent APIs, MCP server, Git sync), runner-management (pool auto-scaling); contract grows check-in listeners, the production gate, guardrails, repository changes, run requests, the no-runner hook; mixed tests move to the CLI's whole-product tests (boundary crossings 59 -> 26) | done |
 | P4 | orchestration: the workflow engine moves out; the Task inbox (`TaskInbox`) and `FlowFiles` stay the kernel's; contract grows the workflow engine hook (`WorkflowTasks`), definition checks, licence features and task notifications | done |
 | P5 | Toolkit groups in `platform/toolkits/<group>`, found with ServiceLoader (`ToolkitGroup`) instead of one list in `FirstPartyPackages`; One CommandCenter ships every group | done |
-| P6 | UI: a module registry for menu and routes, the API client, stylesheet and translations split per module, class prefixes checked | next |
-| P7 | CI runs each module's tests only when it is affected; build cache; CODEOWNERS per module | |
-| P8 | The rest of the kernel into packages (auth, runs, repository, vault, settings); permissions registered by modules; Settings > About lists module versions | |
+| P6 | UI: modules found with `import.meta.glob` (`ui/src/modules/<id>/module.ts`: menu entries; `pages.tsx`: pages and parts such as the pool auto-scaling dialog and the embed page); each module's part of the API client (`consoleApi.ts`, added to `CrApi` when its pages load) and of the styles (`<id>.css`); tests keep the menu order, each stylesheet with its owner and module class prefixes (`df-` for Document Automation). The console has no translation files yet, so there was nothing to split | done |
+| P7 | Gradle build cache on (tests declare the repository files, contracts and examples they read; local folders stay out of the cache key), so on a branch an unchanged module's tests come from the cache; CI keeps the cache (`gradle/actions/setup-gradle`), master re-runs every task; the SQL Server and PostgreSQL jobs run when the kernel is affected; `.github/CODEOWNERS` generated from the owners in `module-map.json` (`platform/scripts/codeowners.py`, checked in CI) | done |
+| P8 | The kernel into packages: `controlroom.auth` (two-step sign-in, SAML, OpenID Connect, directory, SCIM, sign-in limits), `controlroom.vault` (vault administration, external vaults, key sources), `controlroom.runs` (schedules, triggers, queues, run waits, locks, runner care and updates, the server-side runner), `controlroom.repository` (folders, lifecycle, repository files, templates, custom toolkits); `ControlRoom`, `Platform`, the HTTP server, the database and the types the module contract carries stay in the root package; permissions registered by modules; Settings > This One CommandCenter lists the modules and their versions | done |
 
 Each phase moves one module at a time on a short branch, keeps behaviour the same, and merges only with CI green.
 New feature work pauses only for the module being moved.
@@ -165,5 +165,18 @@ New feature work pauses only for the module being moved.
    `cr.modules.service(Type.class)`. Then add the module to `ENFORCED` in
    `ModuleMapTest` and to `FEATURE_MODULES` in `ArchitectureTest`.
 6. Give CI jobs that test only this module `needs: changes` and an `if:` on its output.
+7. Register its permissions in `start` (`ctx.permission`), give it `module.ts` and `pages.tsx` in its UI folder (and
+   `consoleApi.ts` and `<id>.css` when it has API calls or styles of its own), and add its `owners` to the map, then
+   run `python -I platform/scripts/codeowners.py`.
 
 `python -I platform/scripts/affected_modules.py <base> [<head>]` shows which modules a change affects.
+
+## 7. What could follow
+
+- Settings that belong to one module (the DocFlow address, Git sync, MCP) are still listed in the console's Settings
+  page; a module could describe its own settings section.
+- The kernel's large classes (`ControlRoom`, `Platform`, `ControlRoomServer`) are still large; the next step is to move
+  their route groups and services next to the packages they serve.
+- A few kernel pages show a module's data through the HTTP API (Settings shows Git sync, Repository shows code
+  analysis and production requests, Home shows alerts); a module could add those parts through the registry.
+- CODEOWNERS names one owner for every module until GitHub teams exist for them.

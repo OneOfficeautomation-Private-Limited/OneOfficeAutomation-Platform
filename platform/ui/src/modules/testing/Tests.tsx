@@ -1,3 +1,4 @@
+import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../../api/cr";
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../../components";

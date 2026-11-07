@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Lifecycle;
 import com.oneofficeautomation.modules.orchestration.Workflows;
 import com.oneofficeautomation.modules.integration.ApiTasks;
 

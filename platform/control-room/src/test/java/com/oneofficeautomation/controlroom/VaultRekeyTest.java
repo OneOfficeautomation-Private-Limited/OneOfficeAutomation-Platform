@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.vault.VaultAdmin;
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import org.junit.jupiter.api.Test;
 

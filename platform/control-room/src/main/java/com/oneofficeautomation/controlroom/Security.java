@@ -11,7 +11,7 @@ import java.util.HexFormat;
 /** Password hashing (PBKDF2-HMAC-SHA256, 210,000 iterations, random salt), random tokens and SHA-256. */
 public final class Security {
     private Security() {}
-    static final SecureRandom RANDOM = new SecureRandom();
+    public static final SecureRandom RANDOM = new SecureRandom();
     static final int ITERATIONS = 210_000;
 
     public static String token(int bytes) {

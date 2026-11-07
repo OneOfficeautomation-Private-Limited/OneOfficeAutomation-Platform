@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatMessage, CrApi } from "../../api/cr";
+import type { CrApi } from "../../api/cr";
+import type { ChatMessage } from "./consoleApi";
 import { Button, HelpButton, TextInput, type HelpTopic } from "../../components";
 
 /**

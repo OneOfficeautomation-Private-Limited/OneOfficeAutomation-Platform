@@ -1,5 +1,8 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.repository.Folders;
+import com.oneofficeautomation.controlroom.runs.TriggerKinds;
+import com.oneofficeautomation.controlroom.runs.TriggerPollers;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.controlroom.module.CommandCenterModule;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
@@ -32,7 +35,7 @@ public final class Modules {
     final List<Job> jobs = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskKind> taskKinds = new LinkedHashMap<>();
     final List<ModuleContext.McpTools> mcpTools = new CopyOnWriteArrayList<>();
-    final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
+    public final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.JobPart> jobParts = new LinkedHashMap<>();
     final List<ModuleContext.RunEnded> runEnded = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskStage> taskStages = new LinkedHashMap<>();
@@ -271,6 +274,7 @@ public final class Modules {
         public void onRepositoryChanged(RepositoryChange listener) { repositoryChanges.add(listener); }
         public void runRequest(String call, RunRequest handler) { claim(runRequests, call, handler, "the run request " + call); }
         public void onNoRunner(NoRunner listener) { noRunner.add(listener); }
+        public void permission(String name, String... builtInRoles) { Rbac.register(module, name, List.of(builtInRoles)); }
         public void workflowTasks(WorkflowTasks source) {
             synchronized (Modules.this) {
                 if (workflowTasks != null) throw new IllegalStateException("Module " + module + " registers the workflow engine, which another module has");

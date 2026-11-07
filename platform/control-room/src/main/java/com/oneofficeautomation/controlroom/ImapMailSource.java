@@ -15,14 +15,14 @@ import java.util.regex.Pattern;
  * A minimal IMAP4rev1 client for email triggers (no third-party library): LOGIN, SELECT, UID SEARCH and UID FETCH of
  * a few headers and the start of the text. The cursor is "uidvalidity:last uid"; a new UIDVALIDITY starts over.
  */
-final class ImapMailSource implements MailSource {
+public final class ImapMailSource implements MailSource {
     static final int MAX_PER_POLL = 25, PREVIEW_BYTES = 8192;
     private final String host, user, password, folder;
     private final int port;
     private final boolean ssl;
     private final int timeoutMs;
 
-    ImapMailSource(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMs) {
+    public ImapMailSource(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMs) {
         this.host = host; this.port = port; this.ssl = ssl; this.user = user; this.password = password; this.folder = folder; this.timeoutMs = timeoutMs;
     }
 

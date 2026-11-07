@@ -1,6 +1,7 @@
 package com.oneofficeautomation.cli;
 
 import com.oneofficeautomation.controlroom.*;
+import com.oneofficeautomation.controlroom.vault.*;
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.sun.net.httpserver.HttpServer;

@@ -3,6 +3,7 @@ package com.oneofficeautomation.cli;
 import com.oneofficeautomation.agent.Agent;
 import com.oneofficeautomation.agent.Diagnose;
 import com.oneofficeautomation.controlroom.*;
+import com.oneofficeautomation.controlroom.repository.*;
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import org.junit.jupiter.api.Test;

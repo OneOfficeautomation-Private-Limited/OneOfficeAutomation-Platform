@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.runs.TriggerKinds;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

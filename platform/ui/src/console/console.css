@@ -1,9 +1,7 @@
 /* The rebuilt One CommandCenter console (C0). Layout and menu come from studio.css; colours from theme.css. */
-
 .cc-loading { padding: 24px; color: var(--ui-text-2); }
 .cc-preview { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--ui-frame-2); color: var(--ui-frame-text); }
 .cc-main { overflow-y: auto; background: var(--ui-soft); }
-
 /* Sign-in */
 .cc-signin { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--ui-soft); }
 .cc-signin-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid var(--ui-border);
@@ -20,7 +18,6 @@
 .cc-signin-logo { display: block; width: 180px; height: auto; margin: 0 auto 8px; }
 .cc-error { margin: 0; color: var(--ui-error-text); font-weight: 600; }
 .cc-signin-alt { font-size: 12px; color: var(--ui-text-2); }
-
 /* Home */
 .cc-home { padding-bottom: 20px; }
 .cc-home .st-page-head { background: var(--ui-bg); }
@@ -43,7 +40,6 @@
 .cc-dot.is-ok { background: var(--ui-success); }
 .cc-dot.is-bad { background: #d14343; }
 .cc-dot.is-busy { background: #b45309; }
-
 /* Runs per day: stacked bars. Their colours are fixed, and each has 3:1 or more on the card in both themes (white #ffffff and dark #1b2230), checked by calculation */
 .cc-chart { display: flex; align-items: flex-end; gap: 10px; height: 150px; padding-top: 4px; }
 .cc-chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
@@ -58,7 +54,6 @@
 .cc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; color: var(--ui-text-2); }
 .cc-legend .cc-seg { width: 10px; height: 10px; border-radius: 2px; }
 .cc-pad { padding: 16px 20px; }
-
 /* Agent Activity */
 .cc-sums { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 20px 0; }
 .cc-sum { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 150px; padding: 8px 12px; border: 1px solid var(--ui-border);
@@ -104,14 +99,12 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-log li { padding: 1px 0; }
 .cc-log li.is-bad { color: var(--ui-error-text); font-weight: 600; }
 .cc-log-step { display: inline-block; min-width: 60px; color: var(--ui-text-2); }
-
 /* Sign-in: single sign-on, a new password, two-step setup */
 .cc-or { display: flex; align-items: center; gap: 8px; color: var(--ui-text-2); font-size: 12px; }
 .cc-or::before, .cc-or::after { content: ""; flex: 1; border-top: 1px solid var(--ui-divider); }
 .cc-sso { display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
 .cc-key, .cc-codes { display: block; padding: 8px 10px; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); background: var(--ui-soft);
   font-family: var(--ui-mono); word-break: break-all; margin: 0; }
-
 /* Runners */
 .cc-status.is-online { color: var(--ui-success); }
 .cc-status.is-disabled, .cc-status.is-busy { color: var(--ui-error-text); }
@@ -121,8 +114,10 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-describe { display: grid; gap: 6px; margin: 8px 0; }
 .cc-shot { display: block; max-width: 100%; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); margin: 6px 0; }
 .cc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-.cc-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }   /* a group of fields turned off together (read-only ideas) */
-@media (max-width: 640px) { .cc-grid2 { grid-template-columns: 1fr; } }
+/* a group of fields turned off together (read-only ideas) */
+@media (max-width: 640px) {
+.cc-grid2 { grid-template-columns: 1fr; }
+}
 .cc-status.is-active { color: var(--ui-success); }
 .cc-status.is-locked { color: var(--ui-error-text); }
 .cc-status.is-pending { color: var(--ui-text-2); }
@@ -132,7 +127,7 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-test { margin-top: 8px; flex-wrap: wrap; }
 .cc-clip { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cc-clip.cc-clip-sm { max-width: 220px; }
-@media (max-width: 1440px) { .cc-list-table .cc-wide-only { display: none; } }   /* columns that are also on another page */
+/* columns that are also on another page */
 .cc-meter { display: inline-block; width: 120px; height: 8px; border-radius: 4px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; vertical-align: middle; }
 .cc-meter > span { display: block; height: 100%; background: var(--ui-success); }
 .cc-meter > span.is-high { background: var(--ui-warning-text); }
@@ -147,7 +142,9 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-settings-fields > .st-check-line, .cc-settings-fields > div:has(textarea) { grid-column: 1 / -1; }
 .cc-changed { box-shadow: inset 3px 0 0 var(--ui-accent); padding-left: 6px; }
 .cc-found { display: grid; grid-template-columns: 180px 1fr; gap: 8px; align-items: center; border-bottom: 1px solid var(--ui-divider); padding: 4px 0; }
-@media (max-width: 760px) { .cc-settings, .cc-settings-fields, .cc-found { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+.cc-settings, .cc-settings-fields, .cc-found { grid-template-columns: 1fr; }
+}
 .cc-roles-off { grid-column: 1 / -1; border: 0; padding: 0; margin: 6px 0; }
 .cc-roles-off legend { padding: 0; margin-bottom: 4px; }
 .cc-taskform { display: grid; gap: 4px; margin: 8px 0; }
@@ -155,7 +152,9 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-facts-wide { grid-template-columns: 130px 1fr 130px 1fr; }
 .cc-counts { flex-wrap: wrap; margin: 8px 0; }
 .cc-unsure input { border-color: var(--ui-error-text); }
-@media (max-width: 760px) { .cc-facts-wide { grid-template-columns: 110px 1fr; } }
+@media (max-width: 760px) {
+.cc-facts-wide { grid-template-columns: 110px 1fr; }
+}
 /* Agent Templates: one card per template */
 .cc-tpls { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 12px 20px 0; }
 .cc-tpl { display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
@@ -168,18 +167,17 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-repo-tree .cc-settings-tab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-log li.cc-add { color: var(--ui-success); }
 .cc-log li.cc-del { color: var(--ui-error-text); }
-@media (max-width: 760px) { .cc-repo { grid-template-columns: minmax(0, 1fr); } .cc-repo-tree { position: static; max-height: none; border-right: 0; } }
+@media (max-width: 760px) {
+.cc-repo { grid-template-columns: minmax(0, 1fr); }
+.cc-repo-tree { position: static; max-height: none; border-right: 0; }
+}
 /* Operational Insights > Overview */
 a.cc-sum { text-decoration: none; }
 .cc-card-flat { margin: 0; }
-.cc-card-foot { margin: 8px 0 0; font-size: 12.5px; }
-.cc-use { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.cc-use progress { width: 56px; height: 8px; accent-color: var(--ui-accent); }
 .cc-updated { padding-top: 0; font-size: 12px; }
 /* Operational Insights > Alerts */
 .cc-sev.is-warning { color: var(--ui-warning-text); }
 .cc-sev.is-critical { color: var(--ui-error-text); }
-.cc-list-table td.cc-alert-msg { max-width: 420px; }
 .cc-table td.cc-wrap { white-space: normal; min-width: 220px; max-width: 520px; }
 .cc-gap { margin-top: 12px; }
 button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: var(--ui-accent-text); text-decoration: underline; cursor: pointer; }
@@ -192,22 +190,11 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .cc-card-head h2 { margin: 0; }
 .cc-pad-x { margin: 0 20px; }
-.cc-ops-charts { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) auto; gap: 10px; padding: 10px 20px 0; }
-.cc-ops-charts > .cc-card { margin: 0; padding: 10px 12px; min-width: 0; }
-.cc-ops-charts > .cc-card h2 { margin-bottom: 6px; font-size: 13px; }
-.cc-ops-charts .cc-card-foot { margin: 4px 0 0; font-size: 11.5px; }
-@media (max-width: 1250px) { .cc-ops-charts { grid-template-columns: 1fr 1fr; } .cc-ops-charts > .cc-card:nth-child(3) { grid-column: 1 / -1; } }
 .cc-ops-lists { margin: 10px 20px 16px; }
 .cc-cap-runners { margin: 10px 20px 0; }
-.cc-val-chart { margin: 10px 20px 0; padding: 10px 12px; }
-.cc-val-chart h2 { margin-bottom: 6px; font-size: 13px; }
 .cc-val-only { align-self: center; margin-left: 12px; font-size: 12.5px; }
-.cc-gov-tools { display: inline-flex; align-items: center; gap: 8px; }
-.cc-gov-tools .ui-input { width: 260px; height: 28px; }
 .cc-qi-foot { margin: 0; padding: 6px 12px; border-top: 1px solid var(--ui-line, var(--ui-divider)); }
-.cc-cap-title { margin: 0; padding: 8px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
 .cc-ops-lists > .ov-tabs { align-items: center; padding-right: 8px; }
-.cc-scroll { overflow-x: auto; }
 .cc-hbars { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .cc-hbars li { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 8px; font-size: 12.5px; }
 .cc-hbar-label { color: var(--ui-text-2); white-space: nowrap; }
@@ -216,52 +203,12 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-hbar-value { white-space: nowrap; min-width: 32px; text-align: right; }
 /* Operational Insights with tabs (item 7): the tab strip under the title, bars that set a filter, runs by week split by how they ended */
 .cc-ins-tabs { padding: 0 16px; }
-.cc-ins-out { color: var(--ui-accent-text); text-decoration: none; }
-.cc-ins-head { cursor: default; font-weight: 600; }
-.cc-ins-more { align-self: center; padding: 0 8px; font-size: 12.5px; }
-.cc-ins-bars li { grid-template-columns: 130px 1fr auto; }
-.cc-ins-pick { border: 0; background: none; padding: 0; font: inherit; text-align: left; color: var(--ui-accent-text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
-.cc-ins-pick:hover { text-decoration: underline; }
-.cc-ins-pick:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
-.cc-ins-charts > .cc-card h2.cc-ins-h2 { margin-top: 10px; }
 .cc-hbar-fill.is-bad { background: #c62828; }
 .cc-hbar-fill.is-warn { background: #b45309; }
-.cc-week .cc-hbar-track { display: flex; }
-.cc-week .cc-seg { height: 100%; width: auto; }
 .cc-seg.is-ok { background: #1d6b38; }
 .cc-seg.is-bad { background: #c62828; }
 .cc-seg.is-off { background: #7d8797; }
-.cc-week-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 0; font-size: 12px; color: var(--ui-text-2); }
-.cc-week-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.cc-week-legend .cc-seg { width: 10px; height: 10px; border-radius: 2px; }
-/* Business (item 7 step 2): an agent's values as small chips (KPI-marked bold), figures and charts inside an agent's page, the yearly goal */
-.cc-chip-s { display: inline-block; margin-right: 4px; padding: 0 7px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; line-height: 18px; }
-.cc-chip-s.is-kpi { font-weight: 700; }
-.cc-sums-flush, .cc-charts-flush { padding-left: 0; padding-right: 0; }
-.cc-goal { margin: 10px 20px 0; padding: 10px 12px; }
-.cc-goal h2 { margin: 0 0 6px; font-size: 13px; }
-.cc-goal-bar { display: block; height: 12px; border-radius: 6px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; }
-.cc-goal-bar > span { display: block; height: 100%; background: #1d6b38; }
-.cc-goal p { margin: 4px 0 0; font-size: 12.5px; color: var(--ui-text-2); }
-/* a dashboard printed or saved as PDF (item 7 step 3): only the dashboard, with its name and the time */
-.cc-print-only { display: none; }
-.cc-dlg-h { margin: 14px 0 6px; font-size: 13px; }
-@media print {
-  body.cc-printing .cc-top, body.cc-printing nav, body.cc-printing .cc-list-head, body.cc-printing .ov-tabs, body.cc-printing .cc-list-tools,
-  body.cc-printing .st-notice, body.cc-printing .st-alert, body.cc-printing .ui-help-panel, body.cc-printing .cc-dash .cc-card-head button { display: none !important; }
-  body.cc-printing .cc-print-only { display: block; margin: 0 0 8px; font-size: 16px; }
-  body.cc-printing .cc-dash { break-inside: auto; }
-  body.cc-printing .cc-dash > * { break-inside: avoid; }
-}
-.cc-heat { border-collapse: separate; border-spacing: 2px; font-size: 11px; }
-.cc-heat th { font-weight: 400; color: var(--ui-text-2); padding: 0 2px; text-align: left; }
-.cc-heat td { width: 22px; height: 18px; border-radius: 3px; border: 1px solid var(--ui-divider); }
-.cc-heat td.cc-heat-l0 { background: var(--ui-bg); }
-.cc-heat td.cc-heat-l1 { background: color-mix(in srgb, var(--ui-accent) 20%, var(--ui-bg)); }
-.cc-heat td.cc-heat-l2 { background: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-bg)); }
-.cc-heat td.cc-heat-l3 { background: color-mix(in srgb, var(--ui-accent) 70%, var(--ui-bg)); }
-.cc-heat td.cc-heat-l4 { background: var(--ui-accent); }
-.cc-heat td.has-failed { border: 2px solid var(--ui-error-text); }
+.cc-sums-flush { padding-left: 0; padding-right: 0; }
 /* Operational Insights > Runner capacity */
 .cc-advice { margin-top: 10px; margin-bottom: 0; padding: 8px 12px; border: 1px solid var(--ui-border); border-left: 4px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
 /* Operational Insights > Work queue insights */
@@ -269,21 +216,6 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-hbars-two li { grid-template-columns: 50px 1fr auto; }
 .cc-hbar-pair { display: grid; gap: 2px; }
 .cc-hbar-fill.is-done { background: var(--ui-success); }
-/* Operational Insights > Dashboards. Pie colours: the accent and Home's chart colours, each 3:1 or more on the card in both themes */
-.cc-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; padding: 12px 20px 20px; }
-.cc-dash-card { display: flex; flex-direction: column; min-width: 0; }
-.cc-dash-number { font-size: 30px; font-weight: 700; line-height: 1.2; padding: 8px 0; }
-.cc-dash-line { margin: 0; }
-.cc-dash-line svg { width: 100%; height: 130px; }
-.cc-dash-line polyline { stroke: var(--ui-accent); }
-.cc-dash-line circle { fill: var(--ui-accent); }
-.cc-dash-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ui-text-2); }
-.cc-pie { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.cc-pie svg { width: 120px; height: 120px; flex: none; }
-.cc-pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
-.cc-pie-legend li { display: flex; align-items: center; gap: 6px; }
-.cc-pie-legend .st-muted { margin-left: 6px; }
-.cc-pie-key { width: 10px; height: 10px; border-radius: 2px; flex: none; }
 .cc-pie-0 { fill: var(--ui-accent); background: var(--ui-accent); }
 .cc-pie-1 { fill: #2e8b57; background: #2e8b57; }
 .cc-pie-2 { fill: #bd7a1c; background: #bd7a1c; }
@@ -344,50 +276,26 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 :root:not([data-theme="dark"]) .cc-app .cc-main h1, :root:not([data-theme="dark"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
 :root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: var(--ui-line); }
 .cc-app .st-page-head, .cc-app .st-table th { border-bottom-color: var(--ui-line, var(--ui-border)); }
-/* Overview, dense and clean (design plan step 2b): one grid, four text styles (18 / 14 / 13 / 12, numbers 20), 12 px spacing, 32 px rows */
-.ov { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
-.ov-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
-.ov-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .ov-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: help; }
 .ov-fill { flex: 1; }
-.ov-meta { font-size: 12px; color: var(--ui-text-3); }
 .ov-seg { display: inline-flex; height: var(--ui-h); border: 1px solid var(--ui-field); border-radius: var(--ui-radius); overflow: hidden; }
 .ov-seg button { border: 0; padding: 0 10px; background: var(--ui-bg); color: var(--ui-text); font: inherit; cursor: pointer; }
 .ov-seg button + button { border-left: 1px solid var(--ui-field); }
 .ov-seg button[aria-pressed="true"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
-.ov-icon-btn { width: var(--ui-h); height: var(--ui-h); box-sizing: border-box; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-accent-text);
-  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .ov-panel { background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); min-width: 0; }
-.ov-figs { display: grid; }
-.ov-fig { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-right: 1px solid var(--ui-divider); color: var(--ui-text); text-decoration: none; min-width: 0; }
-.ov-fig:last-child { border-right: 0; }
-.ov-fig:hover { background: var(--ui-row-hover); }
-.ov-fig:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
-.ov-fig-l { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ov-fig-v { font-size: 20px; font-weight: 600; line-height: 26px; }
-.ov-fig-v.is-bad, .ov-bad { color: var(--ui-error-text); }
-.ov-good { color: var(--ui-ok-text); }
-.ov-fig-m { font-size: 12px; color: var(--ui-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ov-ic { width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .ov-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .ov-main { grid-column: span 8; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ov-side { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-@media (max-width: 1100px) { .ov-main, .ov-side { grid-column: 1 / -1; } .ov-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+@media (max-width: 1100px) {
+.ov-main, .ov-side { grid-column: 1 / -1; }
+}
 .ov-ph { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
 .ov-ph h2 { margin: 0; font-size: 14px; font-weight: 600; }
-.ov-more { margin-left: auto; font-size: 12px; }
 .ov-tabs { display: flex; align-items: stretch; height: 40px; padding: 0 4px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); overflow-x: auto; }
 .ov-tab { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ui-text); font: inherit; cursor: pointer; white-space: nowrap; }
 .ov-tab[aria-selected="true"] { border-bottom-color: var(--ui-accent); font-weight: 600; }
 .ov-cnt { min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 11px; font-weight: 700; text-align: center; }
 .ov-cnt.is-bad { background: var(--ui-error-bg); color: var(--ui-error-text); }
-.ov-ok { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 12px; min-height: 36px; color: var(--ui-ok-text); }
-.ov-rows { list-style: none; margin: 0; padding: 0; }
-.ov-rows li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
-.ov-rows li:last-child { border-bottom: 0; }
-.ov-r { margin-left: auto; padding-left: 8px; font-size: 12px; white-space: nowrap; }
-.ov-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ui-success); flex: none; }
-.ov-dot.is-bad { background: #d14343; }
 .ov-t { width: 100%; border-collapse: collapse; }
 .ov-t th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); white-space: nowrap; }
 .ov-t td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
@@ -395,11 +303,6 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .ov-t tr.is-open { cursor: pointer; }
 .ov-t tr.is-open:hover td { background: var(--ui-hover, var(--ui-selected)); }
 .ov-t .n { text-align: right; }
-.ov-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--ui-selected); color: var(--ui-pill-text); }
-.ov-pill.is-success { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
-.ov-pill.is-failed, .ov-pill.is-critical { background: var(--ui-error-bg); color: var(--ui-error-text); }
-.ov-pill.is-warning, .ov-pill.is-queued { background: var(--ui-running-bg); color: var(--ui-warning-text); }
-.ov-pill.is-stopped { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }
 /* The list page pattern (design plan step 3, approved on the canvas; Users first): title row, one toolbar, a bulk bar only
    while rows are ticked, a compact table with one status pill style and a row menu, a pager. Same grid and type as Overview. */
 .cc-list { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -424,7 +327,8 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-bulk .ui-btn { height: 26px; }
 .cc-list-scroll { overflow-x: auto; }
 .cc-list-table { width: 100%; border-collapse: collapse; }
-.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); line-height: 1.2; }   /* wraps only when the list is short of room */
+.cc-list-table th { text-align: left; font-size: 12px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); line-height: 1.2; }
+/* wraps only when the list is short of room */
 .cc-list-table td { padding: 0 12px; height: 32px; border-bottom: 1px solid var(--ui-divider); white-space: nowrap; }
 .cc-list-table tbody tr { cursor: pointer; }
 .cc-list-table tbody tr:hover td { background: var(--ui-row-hover); }
@@ -483,7 +387,10 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-held-none { color: var(--ui-text-2); }
 .cc-who { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 3px; border-radius: 11px; background: var(--ui-selected); color: var(--ui-pill-text); }
 .cc-who-av { width: 16px; height: 16px; border-radius: 50%; background: var(--ui-accent); color: #ffffff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
-@media (max-width: 760px) { .cc-role-fields { grid-template-columns: 1fr; } .cc-mx-area { width: 140px; } }
+@media (max-width: 760px) {
+.cc-role-fields { grid-template-columns: 1fr; }
+.cc-mx-area { width: 140px; }
+}
 /* Teams, Credential vault and Licenses in the list pattern (31 Oct 2026): page tabs under the title, a tick-box chip,
    each person's own value as set or missing, rule names in a code chip, panels as on Overview */
 .cc-list-tabs { height: 36px; padding: 0; }
@@ -548,7 +455,10 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-au-links a.ui-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .cc-au-seal { display: flex; align-items: flex-start; gap: 8px; margin: auto 0 0; padding-top: 8px; border-top: 1px solid var(--ui-divider); font-size: 12px; color: var(--ui-text-2); }
 .cc-au-seal svg { color: var(--ui-success); flex: none; margin-top: 1px; }
-@media (max-width: 1100px) { .cc-au.has-panel { padding-right: 16px; } .cc-au-panel { width: min(470px, 100vw); } }
+@media (max-width: 1100px) {
+.cc-au.has-panel { padding-right: 16px; }
+.cc-au-panel { width: min(470px, 100vw); }
+}
 /* Settings (design plan step 6, approved on the canvas 31 Oct 2026): sections with icons, one row per setting (name,
    hint, control with its unit), groups, a changed row marked with what it was, a save bar only while something changed */
 .cc-set { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 12px; align-items: start; }
@@ -588,7 +498,11 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-set-extras:empty { display: none; }
 .cc-set-save { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--ui-running-bg); border-top: 1px solid var(--ui-line, var(--ui-divider)); position: sticky; bottom: 0; }
 .cc-set-foot { margin: 0; padding: 10px 16px; font-size: 12.5px; color: var(--ui-text-2); }
-@media (max-width: 900px) { .cc-set { grid-template-columns: 1fr; } .cc-set-nav { position: static; } .cc-set-row { grid-template-columns: 1fr; gap: 6px; } }
+@media (max-width: 900px) {
+.cc-set { grid-template-columns: 1fr; }
+.cc-set-nav { position: static; }
+.cc-set-row { grid-template-columns: 1fr; gap: 6px; }
+}
 /* Column lines in the console's tables too (31 Oct 2026), the same light step as the row lines */
 .cc-list-table th + th, .cc-list-table td + td, .ov-t th + th, .ov-t td + td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
 .cc-au-kv td { border-left: 1px solid var(--ui-col-line, var(--ui-divider)); }
@@ -643,7 +557,10 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-run-err { display: block; margin-top: 2px; font: 11.5px var(--ui-mono); color: var(--ui-error-text); white-space: normal; }
 .cc-run-steps .cc-num { text-align: right; }
 .cc-run-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--ui-line, var(--ui-divider)); }
-@media (max-width: 1100px) { .cc-list.has-run { padding-right: 16px; } .cc-run-panel { width: min(540px, 100vw); } }
+@media (max-width: 1100px) {
+.cc-list.has-run { padding-right: 16px; }
+.cc-run-panel { width: min(540px, 100vw); }
+}
 /* Task inbox and Workflow (design plan step 8, approved on the canvas 31 Oct 2026): a tile per kind of task, and the
    run side panel with a workflow's stages as a track */
 .cc-task-tile { display: inline-flex; width: 22px; height: 22px; border-radius: 5px; color: #ffffff; font-size: 11px; font-weight: 700; align-items: center; justify-content: center; margin-right: 8px; vertical-align: -6px; flex: none; }
@@ -652,16 +569,6 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-task-panel .cc-run-head .cc-task-tile { margin-right: 0; }
 .cc-task-from { margin: 0 0 10px; font-size: 12.5px; color: var(--ui-text-2); }
 .cc-task-panel .cc-au-kv, .cc-task-panel .cc-taskform { margin-bottom: 12px; }
-.cc-wf-track { list-style: none; margin: 0 0 12px; padding: 0; display: flex; }
-.cc-wf-track li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; font-size: 12px; position: relative; min-width: 0; }
-.cc-wf-track li::before { content: ""; position: absolute; top: 13px; left: -50%; right: 50%; height: 2px; background: var(--ui-success); }
-.cc-wf-track li:first-child::before { display: none; }
-.cc-wf-dot { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; position: relative; z-index: 1;
-  background: var(--ui-success); color: #ffffff; border: 2px solid var(--ui-success); box-sizing: border-box; }
-.cc-wf-track li.is-now .cc-wf-dot { background: var(--ui-running-bg); color: var(--ui-warning-text); border-color: var(--ui-warning-text); }
-.cc-wf-track li.is-bad .cc-wf-dot { background: var(--ui-error-text); border-color: var(--ui-error-text); }
-.cc-wf-name { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cc-wf-detail { color: var(--ui-text-2); }
 a.cc-btn-link { text-decoration: none; display: inline-flex; align-items: center; }
 /* Automation, AA's way, edge to edge (review round 2, approved on the canvas 31 Oct 2026): a folder tree pane and a
    files-and-folders pane filling the page, split by a line; no floating boxes */
@@ -697,9 +604,13 @@ span.cc-tree-chev { cursor: default; }
 .cc-folder-row td { background: var(--ui-tint); }
 .cc-files-pane .cc-list-scroll { border-bottom: 0; }
 .cc-files-pane .cc-files { margin: 0; border: 0; border-top: 1px solid var(--ui-line, var(--ui-divider)); border-radius: 0; box-shadow: none; }
-@media (max-width: 900px) { .cc-explorer-body { grid-template-columns: 1fr; } .cc-tree-pane { border-right: 0; border-bottom: 1px solid var(--ui-border); }
-  /* stacked in a short window, the folder pane keeps its full height instead of spilling over the list */
-  .cc-tree-pane { min-height: auto; } .cc-tree-pane > * { flex-shrink: 0; } }
+@media (max-width: 900px) {
+.cc-explorer-body { grid-template-columns: 1fr; }
+.cc-tree-pane { border-right: 0; border-bottom: 1px solid var(--ui-border); }
+/* stacked in a short window, the folder pane keeps its full height instead of spilling over the list */
+.cc-tree-pane { min-height: auto; }
+.cc-tree-pane > * { flex-shrink: 0; }
+}
 /* An agent line by line, as AA's View (review round 2, approved on the canvas 31 Oct 2026): it opens as a page in place of the
    folder panes, read-only, with numbered steps, open and close on blocks, and the chosen line's settings beside them */
 .cc-agent { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 48px); background: var(--ui-bg); }
@@ -730,7 +641,10 @@ span.cc-code-tw { cursor: default; }
 .cc-code-kw { font-weight: 700; color: #6d28d9; white-space: nowrap; }
 .cc-code-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ui-text-2); font: 12px var(--ui-mono); }
 .cc-code-id { margin-left: auto; padding-right: 10px; font: 11px var(--ui-mono); color: var(--ui-text-3); flex: none; }
-@media (max-width: 1000px) { .cc-agent-steps { grid-template-columns: 1fr; } .cc-agent-code { border-right: 0; border-bottom: 1px solid var(--ui-border); } }
+@media (max-width: 1000px) {
+.cc-agent-steps { grid-template-columns: 1fr; }
+.cc-agent-code { border-right: 0; border-bottom: 1px solid var(--ui-border); }
+}
 /* The agent's steps as One AgentStudio's step list (same classes, read-only), and the list grows with the agent: the
    page scrolls, never a one-line box with its own scroll bar */
 .cc-agent-steps { flex: 1 0 auto; min-height: 0; align-items: stretch; }
@@ -753,7 +667,8 @@ span.cc-code-tw { cursor: default; }
 .cc-col-filter:hover { border-color: var(--ui-border); background: var(--ui-bg); color: var(--ui-text); }
 .cc-col-filter.is-on { opacity: 1; color: #ffffff; background: var(--ui-accent); border-color: var(--ui-accent); }
 .cc-col-grip { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
-th:last-child > .cc-col-grip { right: 0; }   /* inside the table: past its edge it made a sideways scroll bar */
+th:last-child > .cc-col-grip { right: 0; }
+/* inside the table: past its edge it made a sideways scroll bar */
 .cc-col-grip:hover, .cc-col-grip:active { background: linear-gradient(to right, transparent 3px, var(--ui-accent) 3px, var(--ui-accent) 4px, transparent 4px); }
 table.cc-cols-fixed { table-layout: fixed; }
 table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow: ellipsis; }
@@ -772,38 +687,20 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-aico.is-template { background: #0e7490; }
 /* Agent APIs laid out as Automation (review round 2, 31 Oct 2026): the address to copy in its row */
 .cc-aico.is-api { width: 24px; background: #c2410c; font-size: 8.5px; }
-.cc-api-addr { white-space: nowrap; }
-.cc-api-addr .ui-mono { font-size: 12px; margin-right: 6px; }
-.cc-api-copy { height: 22px !important; padding: 0 6px !important; font-size: 12px; }
-.cc-api-empty { display: block; white-space: normal; max-width: 760px; color: var(--ui-text-2); line-height: 1.5; padding: 8px 0; }
-.cc-api-empty strong { color: var(--ui-text); }
-
 /* Agent tests (review round 2): a test set's page, its checks with a mark each */
 .cc-aico.is-test { background: #be185d; }
-.cc-tests-sub { border-top: 1px solid var(--ui-border); margin-top: 14px; }
-.cc-checks { list-style: none; margin: 0; padding: 0; }
-.cc-checks li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--ui-divider); }
-.cc-check-mark { font-weight: 700; text-align: center; }
-.cc-checks li.is-ok .cc-check-mark { color: var(--ui-ok-text); }
-.cc-checks li.is-bad .cc-check-mark, .cc-check-got { color: var(--ui-error-text); }
-.cc-check-got { display: block; font-family: var(--ui-mono, Consolas, monospace); font-size: 12px; word-break: break-word; }
-
 /* Schedules (review round 2): the last run, its result and when, opens the run */
 .cc-last-run { color: inherit; text-decoration: none; white-space: nowrap; }
 .cc-last-run:hover { text-decoration: underline; }
-
 /* Triggers (review round 2): one line per trigger; the watched place and the last problem cut, whole on hover */
 .cc-trig-details { max-width: 220px; }
 .cc-trig-problem { display: inline-block; max-width: 240px; vertical-align: bottom; }
-
 /* Work queues (review round 2): a queue's own page; the status chips on one row, an item's data cut, whole on hover */
 .cc-queue-chips { padding: 8px 16px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
 .cc-queue-data { max-width: 260px; }
 /* a policy's folders (Administration > Policies) */
 .cc-policy-folders { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-policy-folders li { display: flex; align-items: center; gap: 8px; }
-/* an AI guardrails policy (Administration > Policies) */
-.cc-guard { display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
 .cc-guard-models { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 6px 12px 8px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-guard-models legend { font-weight: 600; padding: 0 4px; }
 /* the sign-in page's notice (Settings) and why someone was signed out */
@@ -820,7 +717,6 @@ a.ov-tab { text-decoration: none; }
 .cc-scim-token { min-width: 360px; }
 /* a list row reached with the arrow keys (item 9) */
 .cc-list-table tbody tr:focus { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
-
 /* Schedules (gap G35): the days of a monthly schedule as a dense grid of toggles, and the next runs of a draft */
 .cc-monthly { margin: 4px 0 2px; }
 .cc-mdays { display: grid; grid-template-columns: repeat(8, minmax(30px, 1fr)); gap: 3px; margin: 6px 0 4px; max-width: 360px; }
@@ -832,7 +728,6 @@ a.ov-tab { text-decoration: none; }
 .cc-nextruns li { padding: 1px 0; font-variant-numeric: tabular-nums; }
 .cc-nextruns li.is-holiday > span:first-child { text-decoration: line-through; }
 .cc-nextruns-error { margin: 0; padding: 6px 10px; color: var(--ui-error-text); background: var(--ui-error-bg); border: 1px solid var(--ui-error-line); border-radius: var(--ui-radius); }
-
 /* Event subscriptions (G38): the event tick boxes, one per line under their family */
 .cc-ev-types { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .cc-ev-types strong { margin-bottom: 2px; }
@@ -848,37 +743,12 @@ a.ov-tab { text-decoration: none; }
 .cc-stagebar li.is-done .cc-stagebar-mark { background: #1d6b38; color: #fff; }
 .cc-stagebar li.is-current { border-color: var(--ui-accent); font-weight: 600; }
 .cc-stagebar li.is-current .cc-stagebar-mark { background: var(--ui-accent); color: #fff; }
-
-/* Apps (G67): an app's page, its outputs, and the designer's list of components */
-.cc-app-page { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; max-width: 760px; }   /* not .cc-app: that is the whole console */
-.cc-app-out { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 6px 0 0; }
-.cc-app-out div { display: contents; }
-.cc-app-out dt { font-weight: 600; }
-.cc-app-out dd { margin: 0; overflow-wrap: anywhere; }
-.cc-app-design { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
-.cc-app-design > li { border: 1px solid var(--ui-border); border-radius: 4px; padding: 8px; }
-.cc-embed { min-height: 100vh; background: var(--ui-bg); }   /* an app inside another site (G68) */
+/* an app inside another site (G68) */
 /* phones (G69): the open menu lies over the page instead of squeezing it; lists scroll sideways; dialogs use the width */
 @media (max-width: 640px) {
-  .cc-app .st-body { position: relative; }
-  .cc-app .st-menu.is-console:not(.is-mini) { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; width: min(300px, 86vw) !important; box-shadow: 4px 0 16px rgba(0, 0, 0, .25); }
-  .cc-app .st-main { min-width: 0; }
-  .cc-list-scroll { overflow-x: auto; }
-  .ui-dialog { max-width: calc(100vw - 16px) !important; }
+.cc-app .st-body { position: relative; }
+.cc-app .st-menu.is-console:not(.is-mini) { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; width: min(300px, 86vw) !important; box-shadow: 4px 0 16px rgba(0, 0, 0, .25); }
+.cc-app .st-main { min-width: 0; }
+.cc-list-scroll { overflow-x: auto; }
+.ui-dialog { max-width: calc(100vw - 16px) !important; }
 }
-
-/* AI > One Chat: the conversation fills the page height; the person's messages on the right, the chat's on the left */
-.cc-chat-intro { margin: 0 0 8px; color: var(--ui-text); }
-.cc-chat { display: flex; flex-direction: column; gap: 8px; height: calc(100vh - 210px); min-height: 320px; max-width: 980px; }
-.cc-chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius); background: var(--ui-bg); }
-.cc-chat-empty { margin: 0; color: var(--ui-text); }
-.cc-chat-msg { max-width: 78%; padding: 8px 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg);
-  color: var(--ui-text); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; align-self: flex-start; }
-.cc-chat-msg.is-user { align-self: flex-end; background: var(--ui-selected); border-color: var(--ui-accent); }
-.cc-chat-msg.is-error { border-left: 4px solid var(--ui-error-text); color: var(--ui-error-text); font-weight: 600; }
-.cc-chat-msg.is-busy { min-width: 40px; text-align: center; }
-.cc-chat-actions { display: flex; gap: 8px; margin-top: 8px; white-space: normal; }
-.cc-chat-form { display: flex; gap: 8px; }
-.cc-chat-form .ui-input { flex: 1; }
-@media (max-width: 640px) { .cc-chat { height: calc(100vh - 170px); } .cc-chat-msg { max-width: 92%; } }

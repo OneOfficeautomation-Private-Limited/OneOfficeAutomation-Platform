@@ -19,6 +19,11 @@ public final class LowCodeModule implements CommandCenterModule {
     public String version() { return VERSION; }
 
     public void start(ModuleContext ctx) {
+        // its permissions (administrators have them all; the built-in roles named here too)
+        ctx.permission("data.view", "viewer", "bot_runner", "bot_creator");
+        ctx.permission("data.edit", "bot_creator");
+        ctx.permission("apps.manage", "bot_creator");
+        ctx.permission("data.manage");
         DataStore data = new DataStore(ctx);
         Apps apps = new Apps(ctx, data);
         AppEmbeds embeds = new AppEmbeds(ctx, apps);
