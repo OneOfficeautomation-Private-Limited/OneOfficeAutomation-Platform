@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 import com.sun.net.httpserver.HttpExchange;
@@ -33,7 +35,6 @@ public final class ControlRoomServer {
     private final ControlRoom cr;
     private final McpServer mcp;
     private final Sso sso;
-    private final DocFlowProxy docflow;
     private final String host;
     private final int port;
     private HttpServer server;
@@ -44,7 +45,7 @@ public final class ControlRoomServer {
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
-        this.cr = cr; this.host = host; this.port = port; this.docflow = new DocFlowProxy(cr); this.mcp = new McpServer(cr, docflow); this.sso = new Sso(cr);
+        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
         // a SaaS region sets one request limit for all its tenants (TenantHost)
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
@@ -166,10 +167,10 @@ public final class ControlRoomServer {
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.poolScaling.tick(); } catch (RuntimeException ignored) { } }, 30, 60, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
-        // documents waiting for review in Document Automation become Task inbox tasks
-        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.syncReviews(); } catch (RuntimeException ignored) { } }, 10, 20, TimeUnit.SECONDS);
-        // and their email inboxes
-        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) docflow.pollMail(); } catch (RuntimeException ignored) { } }, 15, 30, TimeUnit.SECONDS);
+        // jobs feature modules added (Document Automation: review tasks every 20 s, email inboxes every 30 s), on the leader only
+        for (Modules.Job j : cr.modules.jobs)
+            clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) j.run().run(); } catch (RuntimeException ignored) { } },
+                    j.delay().toMillis(), j.period().toMillis(), TimeUnit.MILLISECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -436,10 +437,8 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("GET") && route.equals("auth/token")) { sendJson(ex, 200, cr.verifyToken(token(ex))); return; }
-        // Document Automation's "Start a bot" delivery: DocFlow calls back with the service token (DocFlowProxy.startBot)
-        if (m.equals("POST") && route.equals("docflow-callback/start-bot")) { sendJson(ex, 200, docflow.startBot(ex, ip)); return; }
-        // and its document events, which start the "On Document Automation" triggers (DocFlowProxy.onEvent)
-        if (m.equals("POST") && route.equals("docflow-callback/events")) { sendJson(ex, 200, docflow.event(ex, ip)); return; }
+        // calls from other services that feature modules handle (Document Automation's DocFlow), authenticated by the module
+        if (m.equals("POST") && cr.modules.callbacks.get(route) instanceof ModuleContext.CallbackRoute cb) { sendJson(ex, 200, cb.handle(ex, ip)); return; }
         if (seg[0].equals("apitasks") && seg.length >= 3 && (seg[2].equals("run") || seg[2].equals("runs"))) {
             String t = ex.getRequestHeaders().getFirst("X-OOA-Task-Token");
             if (t == null) t = token(ex);
@@ -597,7 +596,8 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
-            else if (m.equals("POST") && route.equals("agent/docflow/documents")) sendJson(ex, 200, docflow.fromBot(ex, d, q));   // "Send document to process"
+            // runner routes feature modules add (Document Automation's "Send document to process")
+            else if (m.equals("POST") && cr.modules.agentRoutes.get(route.substring("agent/".length())) instanceof ModuleContext.AgentRoute ar) sendJson(ex, 200, ar.handle(ex, d, q));
             else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
             else if (m.equals("POST") && route.equals("agent/data")) sendJson(ex, 200, cr.dataStore.forRun(d, map(body(ex))));   // Data store (G66)
             else if (m.equals("POST") && route.equals("agent/knowledge")) sendJson(ex, 200, cr.knowledge.forRun(d, map(body(ex))));   // Knowledge bases (G71)
@@ -645,10 +645,11 @@ public final class ControlRoomServer {
         }
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
-            case "docflow" -> docflow.forward(ex, u, m, route.startsWith("docflow/") ? route.substring(8) : "");   // Document Automation (DocFlowProxy)
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
             // pages optional modules add (Document Automation): what is installed, for the menu's plug-in pages
             case "plugins" -> sendJson(ex, 200, Map.of("plugins", ConsolePlugin.installed()));
+            // the feature modules running here (Settings > About)
+            case "modules" -> sendJson(ex, 200, Map.of("modules", cr.modules.list()));
             case "changes" -> sendJson(ex, 200, cr.changes(u, q.get("since"), ControlRoom.intOr(q.get("wait"), 0)));
             case "license" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));
@@ -1243,7 +1244,12 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && route.equals("audit/verify")) { cr.require(u, "audit.view", "view the audit trail"); sendJson(ex, 200, cr.audit.verify()); }
                 else notFound(ex);
             }
-            default -> notFound(ex);
+            default -> {
+                // a feature module's routes (Document Automation's /api/docflow/...); the kernel's own routes come first
+                ModuleContext.UserRoute mr = cr.modules.userRoutes.get(seg[0]);
+                if (mr == null) notFound(ex);
+                else mr.handle(ex, u, m, route.startsWith(seg[0] + "/") ? route.substring(seg[0].length() + 1) : "", ip);
+            }
         }
     }
 
@@ -1367,7 +1373,7 @@ public final class ControlRoomServer {
 
     /**
      * AI > Document Automation at /documents/. The page signs in like the console (it asks /api/auth/me) and reaches
-     * DocFlow only through /api/docflow/ (DocFlowProxy). A build made without Node.js has no page and says so.
+     * DocFlow only through /api/docflow/ (the document-automation module). A build made without Node.js has no page and says so.
      */
     private void documentsPage(HttpExchange ex, String path) throws IOException {
         if (path.equals("/documents")) { ex.getResponseHeaders().set("Location", "/documents/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); return; }

@@ -51,7 +51,17 @@ class ArchitectureTest {
                 "the Bot Agent talks to Control Room only over HTTP, never through its code");
         assertEquals(List.of(), violations("runner", Pattern.compile("^import com\\.oneofficeautomation\\.(controlroom|agent)\\.")),
                 "the Runner is the same everywhere: Studio, agents and Control Room validation");
+        // feature modules (docs/architecture/13-modules.md): the kernel never names one, and a module uses only the
+        // kernel's published contract (controlroom.module) and the few kernel types it carries
+        assertEquals(List.of(), violations("control-room", Pattern.compile("^import com\\.oneofficeautomation\\.modules\\.")),
+                "the kernel reaches feature modules only through the module contract (ServiceLoader), never by their classes");
+        for (String m : FEATURE_MODULES)
+            assertEquals(List.of(), violations(m, Pattern.compile("^import com\\.oneofficeautomation\\.controlroom\\.(?!module\\.|ControlRoom\\.User;|Db;|Vault;|MailSource;|DbConfig;|ConsolePlugin;)")),
+                    m + " uses only the kernel's module contract (com.oneofficeautomation.controlroom.module) and the types it carries");
     }
+
+    /** Feature modules moved out of the kernel, as source folders (module-map.json). */
+    static final List<String> FEATURE_MODULES = List.of("modules/document-automation");
 
     static String pkgOf(String module) {
         return switch (module) { case "packages-office" -> "office"; case "packages-email" -> "email"; case "packages-pdf" -> "pdf";

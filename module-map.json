@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "about": "Which module owns each file. The most specific match wins (a feature module's path beats the kernel's platform/control-room/**). Used by the module boundary report (ArchitectureTest) and, from phase 7, by CI to test only what changed. See docs/architecture/13-modules.md.",
+  "layers": {
+    "0": "foundation",
+    "1": "toolkits",
+    "2": "Command Center kernel",
+    "3": "Command Center feature modules",
+    "4": "applications and packaging"
+  },
+  "rules": [
+    "A module uses only modules in lower layers, and the kernel.",
+    "A feature module never uses another feature module's classes; they talk through kernel events.",
+    "The kernel never names a feature module's classes; it reaches them through the module contract."
+  ],
+  "modules": [
+    {
+      "id": "foundation",
+      "name": "Foundation",
+      "layer": 0,
+      "description": "The SDK, the agent engine and the JSON adapters: the same everywhere.",
+      "paths": [
+        "platform/sdk/**",
+        "platform/runner/**",
+        "platform/adapters-jackson/**",
+        "contracts/**",
+        "reference/**"
+      ],
+      "dependsOn": []
+    },
+    {
+      "id": "toolkits",
+      "name": "Toolkits",
+      "layer": 1,
+      "description": "Built-in and optional toolkits (phase 5 splits them into groups).",
+      "paths": [
+        "platform/packages/**",
+        "platform/packages-*/**",
+        "docs/reference/toolkits/**"
+      ],
+      "dependsOn": [
+        "foundation"
+      ]
+    },
+    {
+      "id": "kernel",
+      "name": "Command Center kernel",
+      "layer": 2,
+      "description": "Sign-in, users, roles, folders, repository, runs and dispatch, audit, vault, settings, database, cluster, licensing, and the module contract every feature module plugs into. Anything in platform/control-room not claimed by a feature module.",
+      "paths": [
+        "platform/control-room/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "document-automation",
+      "name": "Document Automation",
+      "layer": 3,
+      "description": "Platform side of Document Automation: the DocFlow proxy and its settings, the mail inbox, document events and review tasks, MCP document tools, and the Document Automation screens. The DocFlow service itself is the separate oneoffice-docauto repository. Moved out of the kernel in phase 1: platform/modules/document-automation (Gradle project :document-automation), reached only through the module contract.",
+      "paths": [
+        "platform/modules/document-automation/**",
+        "platform/ui/src/modules/document-automation/**",
+        "platform/ui/docflow.html",
+        "platform/packages/src/main/java/com/oneofficeautomation/packages/DocumentAutomationPackage.java",
+        "docs/DOCUMENT_AUTOMATION.md",
+        "docs/integration/document-automation-contract.md",
+        "platform/docker/compose.docflow.yaml",
+        "platform/docker/compose.saas.docflow.yaml"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "one-chat",
+      "name": "One Chat",
+      "layer": 3,
+      "description": "Running agents and checking runs in plain words.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Chat.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ChatModel.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Chat*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ChatModel*Test.java",
+        "platform/ui/src/console/Chat.tsx",
+        "platform/ui/src/console/Chat.test.tsx",
+        "platform/conversation/**",
+        "docs/user-guide/16-one-chat.md",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/LlmChatTest.java"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "orchestration",
+      "name": "Orchestration",
+      "layer": 3,
+      "description": "Schedules, triggers, long-running agents, environment locks, business calendars, workflows and work queues.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ScheduleRules.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TriggerKinds.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TriggerPollers.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunWaits.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/EnvironmentLocks.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Workflows.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/QueueTools.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PollHttp.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ScheduleRules*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TriggerKinds*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TriggerPollers*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunWaits*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/EnvironmentLocks*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Workflows*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/QueueTools*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PollHttp*Test.java",
+        "platform/ui/src/console/Schedules.tsx",
+        "platform/ui/src/console/Triggers.tsx",
+        "platform/ui/src/console/SuspendedRuns.tsx",
+        "platform/ui/src/console/EnvironmentLocks.tsx",
+        "platform/ui/src/console/Workflows.tsx",
+        "platform/ui/src/console/Queues.tsx",
+        "platform/ui/src/console/QueueInsights.tsx",
+        "platform/ui/src/console/Inbox.tsx",
+        "platform/ui/src/console/SuspendedRuns.test.tsx",
+        "platform/ui/src/console/EnvironmentLocks.test.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "governance",
+      "name": "Governance",
+      "layer": 3,
+      "description": "Code analysis, policies, AI governance, production approval and approval channels.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/CodeAnalysis.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Policies.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ProductionApproval.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ApprovalChannels.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/CodeAnalysis*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Policies*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ProductionApproval*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ApprovalChannels*Test.java",
+        "platform/ui/src/console/Policies.tsx",
+        "platform/ui/src/console/Governance.tsx",
+        "platform/ui/src/console/PhoneNotifications.tsx",
+        "platform/ui/src/console/PhoneNotifications.test.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "insights",
+      "name": "Insights",
+      "layer": 3,
+      "description": "Analytics, dashboards, alerts, metrics and events out.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Analytics.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Dashboards.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Alerts.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Metrics.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/EventSubscriptions.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/SyslogForwarder.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Analytics*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Dashboards*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Alerts*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Metrics*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/EventSubscriptions*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/SyslogForwarder*Test.java",
+        "platform/ui/src/console/Insights.tsx",
+        "platform/ui/src/console/Dashboards.tsx",
+        "platform/ui/src/console/Alerts.tsx",
+        "platform/ui/src/console/Operations.tsx",
+        "platform/ui/src/console/Overview.tsx",
+        "platform/ui/src/console/Value.tsx",
+        "platform/ui/src/console/Capacity.tsx",
+        "platform/ui/src/console/EventSubscriptions.tsx",
+        "platform/ui/src/console/Activity.tsx",
+        "platform/ui/src/console/EventSubscriptions.test.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "ai-services",
+      "name": "AI services",
+      "layer": 3,
+      "description": "Prompt skills, model connections and knowledge bases.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PromptSkills.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/KnowledgeBases.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PromptSkills*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/KnowledgeBases*Test.java",
+        "platform/ui/src/console/Skills.tsx",
+        "platform/ui/src/console/ModelConnections.tsx",
+        "platform/ui/src/console/KnowledgeBases.tsx",
+        "platform/ui/src/console/Connections.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "low-code",
+      "name": "Low-code apps",
+      "layer": 3,
+      "description": "Apps, apps embedded in other sites, the business data store and the console as a phone app.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Apps.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/AppEmbeds.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/DataStore.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/MobileApp.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Apps*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/AppEmbeds*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DataStore*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/MobileApp*Test.java",
+        "platform/ui/src/console/Apps.tsx",
+        "platform/ui/src/console/EmbedApp.tsx",
+        "platform/ui/src/console/DataStore.tsx",
+        "platform/ui/src/console/Apps.test.tsx",
+        "platform/ui/src/console/EmbedApp.test.tsx",
+        "platform/ui/src/console/DataStore.test.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "coe",
+      "name": "Automation ideas",
+      "layer": 3,
+      "description": "Ideas suggested, voted, assessed and linked to the agent built.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Ideas.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Ideas*Test.java",
+        "platform/ui/src/console/Ideas.tsx",
+        "platform/ui/src/console/BusinessAgents.tsx",
+        "platform/ui/src/console/Ideas.test.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "testing",
+      "name": "Agent testing",
+      "layer": 3,
+      "description": "Test sets and their runs.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TestSets.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TestSets*Test.java",
+        "platform/ui/src/console/Tests.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "runner-management",
+      "name": "Runner management",
+      "layer": 3,
+      "description": "Runner pools, auto-scaling, runner care and updates.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PoolScaling.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunnerCare.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RunnerUpdates.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PoolScaling*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunnerCare*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RunnerUpdates*Test.java",
+        "platform/ui/src/console/Devices.tsx",
+        "platform/ui/src/console/PoolScaling.tsx",
+        "platform/ui/src/console/PoolScaling.test.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "integration",
+      "name": "Integration",
+      "layer": 3,
+      "description": "Agent APIs and serverless runs, the MCP server, SCIM, Git sync and API tasks.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ServerlessRuns.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/McpServer.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Scim.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/GitSync.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ApiTasks.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ServerlessRuns*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/McpServer*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Scim*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/GitSync*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ApiTasks*Test.java",
+        "platform/ui/src/console/AgentApis.tsx"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "enterprise-ops",
+      "name": "Enterprise operations",
+      "layer": 3,
+      "description": "Backups, SaaS regions and tenants, IP allow lists.",
+      "paths": [
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Backups.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RegionConfig.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/RegionDirectory.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Tenants.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TenantHost.java",
+        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/IpAllowList.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Backups*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RegionConfig*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/RegionDirectory*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Tenants*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TenantHost*Test.java",
+        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/IpAllowList*Test.java"
+      ],
+      "dependsOn": [
+        "kernel"
+      ]
+    },
+    {
+      "id": "apps",
+      "name": "Applications and packaging",
+      "layer": 4,
+      "description": "The CLI and Studio, the runner program, the UI shell, installers, containers and Helm.",
+      "paths": [
+        "platform/cli/**",
+        "platform/agent/**",
+        "platform/vendor-tools/**",
+        "platform/ui/**",
+        "platform/customer/**",
+        "platform/customer-setup/**",
+        "platform/docker/**",
+        "platform/linux/**",
+        "platform/deploy/**",
+        "platform/scripts/**",
+        "platform/browser-extension/**"
+      ],
+      "dependsOn": [
+        "kernel",
+        "toolkits"
+      ]
+    }
+  ]
+}

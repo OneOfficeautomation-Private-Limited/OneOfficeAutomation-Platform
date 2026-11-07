@@ -790,9 +790,49 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX chat_runs_notified ON chat_runs (notified)",
     };
 
+    /**
+     * Version 46 (modularisation phase 1, 7 Nov 2026): module_schema, where each feature module's own schema is
+     * (module id, its version). The kernel's versions 1-46 stay one list; a module adds its tables as its own numbered
+     * steps (CommandCenterModule.schema), so two modules never compete for a version number.
+     */
+    private static final String[] SCHEMA_V46 = {
+        "CREATE TABLE module_schema (module VARCHAR(80) PRIMARY KEY, version INT NOT NULL, updated TIMESTAMP NOT NULL)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 45;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45 };
+    public static final int LATEST = 46;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46 };
+
+    /** A feature module's schema version recorded in module_schema (0 when it has none yet). */
+    public int moduleVersion(String module) {
+        Map<String, Object> r = one("SELECT version FROM module_schema WHERE module = ?", module);
+        return r == null ? 0 : ((Number) r.get("version")).intValue();
+    }
+
+    /**
+     * Applies the steps of a feature module's schema the database does not have yet, in one transaction, and records
+     * the module's version. Refuses when the database is newer than the module (a downgrade), and, like the kernel's
+     * schema, when the account may not change tables (then `ooa db migrate` does it with the setup account).
+     */
+    public void migrateModule(String module, List<List<String>> steps) {
+        int current = moduleVersion(module);
+        if (current > steps.size()) throw new OoaException("CR.DB_NEWER", "The database holds schema version " + current + " of module " + module
+            + ", made by a newer release of it; this one knows version " + steps.size(), "Install the module's newer release, or restore a backup taken before the upgrade");
+        if (current == steps.size()) return;
+        try {
+            tx(() -> {
+                for (int v = current + 1; v <= steps.size(); v++) for (String ddl : steps.get(v - 1)) execute(ddl(ddl, sqlServer));
+                if (current == 0) update("INSERT INTO module_schema (module, version, updated) VALUES (?,?,?)", module, steps.size(), java.time.Instant.now());
+                else update("UPDATE module_schema SET version = ?, updated = ? WHERE module = ?", steps.size(), java.time.Instant.now(), module);
+                return null;
+            });
+        } catch (OoaException e) {
+            if (!h2 && e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("permission"))
+                throw new OoaException("CR.DB_UPGRADE_NEEDED", "Module " + module + " needs schema version " + steps.size() + " (the database has " + current
+                    + "); the account " + user + " may not change tables", "Run: ooa db migrate (it signs in with the setup account)");
+            throw e;
+        }
+    }
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

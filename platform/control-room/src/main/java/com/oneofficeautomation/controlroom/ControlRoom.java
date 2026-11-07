@@ -23,6 +23,8 @@ public final class ControlRoom {
     }
 
     public final Db db;
+    /** The feature modules running here and what they registered. */
+    public final Modules modules;
     public final Audit audit;
     public final Vault vault;
     public final Platform platform;
@@ -212,6 +214,9 @@ public final class ControlRoom {
         this.serverless = new ServerlessRuns(this, registry, dataDir);
         loadRoles();
         loadUserRoles();
+        // feature modules last: they use the kernel through their ModuleContext (docs/architecture/13-modules.md)
+        this.modules = new Modules(this);
+        modules.start();
     }
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }

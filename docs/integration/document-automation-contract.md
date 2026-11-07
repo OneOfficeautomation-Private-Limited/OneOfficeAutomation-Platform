@@ -16,7 +16,7 @@ DocFlow ──> /api/docflow-callback/events     (not built here yet: see Known 
 
 - **Proxy**: `DocFlowProxy.java` forwards only an allow-list of routes and adds the token, tenant and person.
   The browser never sees DocFlow's address or token.
-- **Screens**: `platform/ui/src/docflow` (`docflow.html`, served at `/documents/`). The data calls are in `http.ts`.
+- **Screens**: `platform/ui/src/modules/document-automation` (`docflow.html`, served at `/documents/`). The data calls are in `http.ts`.
 - **Background**: Task inbox tasks from DocFlow's review queue (every 20 s) and email inboxes (every 30 s). Both run
   only on the cluster leader. Inbox state is the `docflow_mail` table, schema version 33.
 - **Runner**: toolkit `ooa.documents`, action "Send document to process".
@@ -90,7 +90,7 @@ this release. The card is a warning only and never blocks anything. The Command 
 
 ### Where the pin lives
 
-`platform/control-room/src/main/resources/docflow-compat.properties` holds the pin:
+`platform/modules/document-automation/src/main/resources/docflow-compat.properties` holds the pin:
 - `contract`: the API version the Command Center calls (`v1`);
 - `pinned`: the DocFlow version this release is tested with (3.1.1);
 - `minimum`: the oldest DocFlow version that works (3.1.0);
@@ -108,7 +108,7 @@ PostgreSQL and Tesseract, and runs `DocFlowLiveTest` against it. The test covers
 
 To move to a newer DocFlow, change `ref`, and `pinned` if the version changed, on a branch of its own. Then let this
 job pass before asking for the merge. To run the test on a PC that has a DocFlow running:
-`gradlew :control-room:test --tests "*DocFlowLiveTest*" -Pooa.test.docflow=http://127.0.0.1:8085 -Pooa.test.docflow.token=<token> -Pooa.test.docflow.port=18766 -Pooa.test.docflow.samples=<oneoffice-docauto>/samples`.
+`gradlew :document-automation:test --tests "*DocFlowLiveTest*" -Pooa.test.docflow=http://127.0.0.1:8085 -Pooa.test.docflow.token=<token> -Pooa.test.docflow.port=18766 -Pooa.test.docflow.samples=<oneoffice-docauto>/samples`.
 DocFlow's `DOCAUTO_PLATFORM_URL` must then be `http://127.0.0.1:18766`.
 
 ## Known gaps (2026-11-07)

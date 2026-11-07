@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.conversation.BotTools;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -13,15 +15,23 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * Model Context Protocol server over HTTP (JSON-RPC 2.0 on POST /api/mcp). Outside AI assistants list the agents an
  * administrator exposed (Settings: mcp_agents) as tools and run them as the calling user, with that user's role and
  * vault access. Each call starts a normal run (source "mcp"), so it shows in Agent Activity and the Audit Trail.
- * Document Automation's tools (McpDocuments) come first, for people allowed to use it.
+ * Tools feature modules offer (Document Automation's documents_ tools) come first, for people allowed to use them.
  */
 final class McpServer {
     static final String PROTOCOL = "2025-06-18";
     private final ControlRoom cr;
-    private final McpDocuments documents;
 
-    McpServer(ControlRoom cr) { this(cr, new DocFlowProxy(cr)); }
-    McpServer(ControlRoom cr, DocFlowProxy docflow) { this.cr = cr; this.documents = new McpDocuments(cr, docflow); }
+    McpServer(ControlRoom cr) { this.cr = cr; }
+
+    /** Tools feature modules offer (Document Automation's documents_ tools first), as registered at start-up. */
+    private List<ModuleContext.McpTools> moduleTools() { return cr.modules == null ? List.of() : cr.modules.mcpTools; }
+
+    /** What the assistant is told: the agent tools, then what each module's tools are for. */
+    private String instructions() {
+        StringBuilder b = new StringBuilder("Each agent tool runs a live production agent of ONEOFFICEAUTOMATION as the signed-in user; its result is the agent's outputs.");
+        for (ModuleContext.McpTools t : moduleTools()) if (!t.instructions().isBlank()) b.append(' ').append(t.instructions());
+        return b.toString();
+    }
 
     /** Handles one JSON-RPC message; returns null for notifications (no response body). */
     @SuppressWarnings("unchecked")
@@ -37,9 +47,7 @@ final class McpServer {
                 case "initialize" -> result(id, Map.of("protocolVersion", params.get("protocolVersion") instanceof String v ? v : PROTOCOL,
                         "capabilities", Map.of("tools", Map.of("listChanged", false)),
                         "serverInfo", Map.of("name", "ONEOFFICEAUTOMATION One CommandCenter", "version", "0.2.0"),
-                        "instructions", "Each agent tool runs a live production agent of ONEOFFICEAUTOMATION as the signed-in user; its result is the agent's outputs. "
-                                + "The documents_ tools use Document Automation as the signed-in user: documents_send returns a document id at once, "
-                                + "then ask documents_status until it is read and documents_result for its fields."));
+                        "instructions", instructions()));
                 case "ping" -> result(id, Map.of());
                 case "tools/list" -> result(id, Map.of("tools", tools(u)));
                 case "tools/call" -> result(id, call(u, String.valueOf(params.get("name")),
@@ -66,9 +74,10 @@ final class McpServer {
         return Arrays.stream(s.split("[,\\n]")).map(String::trim).filter(x -> !x.isEmpty()).toList();
     }
 
-    /** The tools this person may use: Document Automation's (McpDocuments), then the agents exposed. */
+    /** The tools this person may use: the modules' (Document Automation's documents_ tools), then the agents exposed. */
     private List<Map<String, Object>> tools(User u) {
-        List<Map<String, Object>> out = new ArrayList<>(documents.tools(u));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (ModuleContext.McpTools t : moduleTools()) out.addAll(t.tools(u));
         out.addAll(agentTools(u));
         return out;
     }
@@ -82,7 +91,7 @@ final class McpServer {
             String path = (String) b.get("path");
             if (!path.endsWith(".flow.json")) continue;
             if (allow != null && !allow.contains(path) && !allow.contains(toolName(path))) continue;
-            if (McpDocuments.NAMES.contains(toolName(path))) continue;   // the Document Automation tools keep their names
+            if (moduleTools().stream().anyMatch(t -> t.names().contains(toolName(path)))) continue;   // modules' tools keep their names
             Map<String, Object> flow;
             try { flow = (Map<String, Object>) cr.content(path, "production").get("flow"); } catch (OoaException e) { continue; }
             Map<String, Object> schema = BotTools.inputSchema(flow);
@@ -95,7 +104,7 @@ final class McpServer {
     /** Runs the agent on the configured runner or pool (or any online runner) and waits for its outputs. */
     @SuppressWarnings("unchecked")
     private Map<String, Object> call(User u, String name, Map<String, Object> args, String ip) {
-        if (McpDocuments.NAMES.contains(name)) return documents.call(u, name, args, ip);
+        for (ModuleContext.McpTools t : moduleTools()) if (t.names().contains(name)) return t.call(u, name, args, ip);
         Map<String, Object> tool = agentTools(u).stream().filter(t -> t.get("name").equals(name)).findFirst()
                 .orElseThrow(() -> new OoaException("MCP.UNKNOWN_TOOL", "No exposed agent is called " + name));
         String path = String.valueOf(tool.get("title")) + ".flow.json";

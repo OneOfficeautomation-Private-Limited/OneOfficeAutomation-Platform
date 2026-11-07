@@ -193,8 +193,8 @@ function Ooa([string[]]$a) {
 # Returns $true when it is set up; problems are logged and leave One CommandCenter as it is.
 function Install-DocFlow($dataArgs) {
     try {
-        $jar = Get-ChildItem (Join-Path $InstallDir "lib") -Filter "control-room-*.jar" | Select-Object -First 1
-        if (-not $jar) { throw "lib\control-room-*.jar is missing" }
+        $jar = Get-ChildItem (Join-Path $InstallDir "lib") -Filter "document-automation-*.jar" | Select-Object -First 1
+        if (-not $jar) { throw "lib\document-automation-*.jar is missing (the Document Automation module)" }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $zip = [IO.Compression.ZipFile]::OpenRead($jar.FullName)
         try { $r = New-Object IO.StreamReader($zip.GetEntry("docflow-compat.properties").Open()); $compat = $r.ReadToEnd(); $r.Close() } finally { $zip.Dispose() }
