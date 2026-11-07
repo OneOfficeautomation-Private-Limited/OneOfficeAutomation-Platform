@@ -19,6 +19,12 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
                                -DbPasswordEnv VAR and -DbSetupPasswordEnv VAR (environment variables holding the passwords;
                                asked for when not silent), -DbTrustCertificate (a test server's self-signed certificate)
   -SkipCheck                   install even when the prerequisite check (ooa check) finds a problem
+  -DocFlow                     also install Document Automation (AI > Document Automation): the DocFlow service at the
+                               version this release is tested with, downloaded from its GitHub release. Needs internet:
+                               it fetches Python 3.12 and Tesseract (winget) and Python packages. Asked when not silent.
+                               It runs in managed mode beside One CommandCenter on 127.0.0.1, starts with Windows (with
+                               -Service) or at sign-in, and keeps its documents in One CommandCenter's data folder
+                               (DATA\docflow). -DocFlowPort N (default 8085), -DocFlowDir DIR (default INSTALLDIR\DocFlow)
   Runner:
   -Url URL                     One CommandCenter address, for example https://ooa.example.com:8720
   -RegistrationKey KEY         a one-time key from One CommandCenter > Runners > Register a runner (not needed
@@ -33,7 +39,7 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -NoStart                     do not start anything after installing
 
 Exit codes: 0 installed, 1 a parameter is missing or wrong, 2 the install failed, 3 administrator rights are needed,
-4 the prerequisite check failed. An update in place stops the services, replaces the files, upgrades the database and
+4 the prerequisite check failed, 5 installed but Document Automation could not be set up (see the log). An update in place stops the services, replaces the files, upgrades the database and
 starts the services again.
 Everything is logged to %TEMP%\ooa-install.log.
 #>
@@ -59,6 +65,9 @@ param(
     [string]$DbSetupPasswordEnv = "",
     [switch]$DbTrustCertificate,
     [switch]$SkipCheck,
+    [switch]$DocFlow,
+    [int]$DocFlowPort = 8085,
+    [string]$DocFlowDir = "",
     [switch]$NoShortcuts,
     [switch]$NoStart,
     # used by the MSI: the files are already in place; only set up the role. ServiceFlag 1 = -Service.
@@ -178,6 +187,77 @@ function Ooa([string[]]$a) {
     if ($out) { Log $out }
     return $LASTEXITCODE
 }
+# Document Automation: installs DocFlow with its own installer (windows\get-docflow.ps1 of the release this
+# One CommandCenter is tested with), sets it to managed mode with a new service token, records the address and the
+# token (encrypted) for One CommandCenter (ooa docflow configure) and starts it with Windows or at sign-in.
+# Returns $true when it is set up; problems are logged and leave One CommandCenter as it is.
+function Install-DocFlow($dataArgs) {
+    try {
+        $jar = Get-ChildItem (Join-Path $InstallDir "lib") -Filter "control-room-*.jar" | Select-Object -First 1
+        if (-not $jar) { throw "lib\control-room-*.jar is missing" }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [IO.Compression.ZipFile]::OpenRead($jar.FullName)
+        try { $r = New-Object IO.StreamReader($zip.GetEntry("docflow-compat.properties").Open()); $compat = $r.ReadToEnd(); $r.Close() } finally { $zip.Dispose() }
+        $ref = [regex]::Match($compat, '(?m)^ref=(\S+)').Groups[1].Value
+        if (-not $ref) { throw "docflow-compat.properties names no DocFlow release" }
+        $repo = "OneOfficeautomation-Private-Limited/oneoffice-docauto"
+        $dir = if ($DocFlowDir) { $DocFlowDir } else { Join-Path $InstallDir "DocFlow" }
+        # its documents and database live with One CommandCenter's data, which uninstalling keeps
+        $data = Join-Path $(if ($DataDir) { $DataDir } else { Join-Path $env:USERPROFILE "OOA Command Center" }) "docflow"
+        Log "Installing Document Automation (DocFlow $ref) into $dir from GitHub; its documents go to $data"
+        $script = Join-Path $env:TEMP "get-docflow-$ref.ps1"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest "https://raw.githubusercontent.com/$repo/$ref/windows/get-docflow.ps1" -OutFile $script -UseBasicParsing
+        $env:DOCFLOW_REPO = $repo; $env:DOCFLOW_REF = $ref; $env:DOCFLOW_DIR = $dir; $env:DOCFLOW_NO_START = "1"
+        $ErrorActionPreference = "Continue"
+        $out = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script 2>&1 | ForEach-Object { "$_" } | Out-String).Trim()
+        $code = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
+        Log $out
+        if ($code -ne 0 -or -not (Test-Path (Join-Path $dir ".venv\Scripts\python.exe"))) { throw "DocFlow's installer stopped (exit $code); its output is above" }
+
+        # managed mode, the token both sides share, where the Command Center is, and where the documents go
+        $envFile = Join-Path $dir "config\local.env"
+        $lines = if (Test-Path $envFile) { @(Get-Content $envFile) } else { @() }
+        $old = $lines | ForEach-Object { if ($_ -match '^\s*DOCAUTO_API_TOKEN=(.+)$') { $matches[1].Trim() } } | Select-Object -First 1
+        if ($old) { $token = $old } else { $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $token = -join ($b | ForEach-Object { $_.ToString("x2") }) }
+        $want = [ordered]@{ DOCAUTO_MANAGED = "true"; DOCAUTO_API_TOKEN = $token; DOCAUTO_PORT = "$DocFlowPort"
+                            DOCAUTO_PLATFORM_URL = "http://127.0.0.1:$Port"; DOCAUTO_DATA_DIR = $data; DOCFLOW_REF = $ref }
+        foreach ($k in $want.Keys) {
+            $found = $false
+            $lines = @(foreach ($l in $lines) { if ($l -match "^\s*$k=") { $found = $true; "$k=$($want[$k])" } else { $l } })
+            if (-not $found) { $lines += "$k=$($want[$k])" }
+        }
+        New-Item -ItemType Directory -Force (Split-Path $envFile), $data | Out-Null
+        Set-Content -Path $envFile -Value $lines -Encoding UTF8
+        # the token is a secret: only administrators, the system account and the installing user may read the file
+        & icacls $envFile /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F" "$($env:USERDOMAIN)\$($env:USERNAME):F" | Out-Null
+
+        $env:OOA_SETUP_DOCFLOW_TOKEN = $token
+        try { if ((Ooa (@("docflow", "configure", "--url", "http://127.0.0.1:$DocFlowPort", "--token-env", "OOA_SETUP_DOCFLOW_TOKEN") + $dataArgs)) -ne 0) { throw "ooa docflow configure failed" } }
+        finally { Remove-Item Env:OOA_SETUP_DOCFLOW_TOKEN -ErrorAction SilentlyContinue }
+
+        # start it with Windows (as the system account, beside the service) or when this user signs in
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$dir\windows\start.ps1`"" -WorkingDirectory $dir
+        $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+        if ($Service) {
+            $trigger = New-ScheduledTaskTrigger -AtStartup
+            $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        } else {
+            $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$($env:USERDOMAIN)\$($env:USERNAME)"
+            $principal = New-ScheduledTaskPrincipal -UserId "$($env:USERDOMAIN)\$($env:USERNAME)" -LogonType Interactive
+        }
+        Register-ScheduledTask -TaskName "OOA DocFlow" -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+        if (-not $NoStart) { Start-ScheduledTask -TaskName "OOA DocFlow"; Log "DocFlow started (task 'OOA DocFlow')." }
+        Log "Document Automation installed: DocFlow $ref on http://127.0.0.1:$DocFlowPort, managed by this One CommandCenter."
+        return $true
+    } catch {
+        $ErrorActionPreference = "Stop"
+        Log "Warning: Document Automation could not be set up: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 if ($Role -eq "CommandCenter") {
     $dataArgs = @(); if ($DataDir) { $dataArgs = @("--data", $DataDir) }
     # prerequisites (I10)
@@ -209,6 +289,11 @@ if ($Role -eq "CommandCenter") {
             Log "The service listens on $ListenAddress, port $Port, so other machines can reach it. Set up HTTPS before they do: bin\ooa.bat tls (see docs\infrastructure\04-network-ports-proxies-and-certificates.md)."
         }
     }
+    # ---------- Document Automation (optional): DocFlow from its GitHub release, beside One CommandCenter ----------
+    if (-not $DocFlow -and -not $Silent -and -not $ConfigureOnly) {
+        $DocFlow = [switch]((Ask "Also install Document Automation (DocFlow)? It downloads Python, Tesseract and packages from the internet (y/n)" "n") -match '^(y|yes)$')
+    }
+    if ($DocFlow) { $docflowOk = Install-DocFlow $dataArgs }
     Log "One CommandCenter installed. $(if ($Service) { "It runs as the Windows service 'OOA Command Center' on port $Port." } else { "Start it from the Start menu (ONEOFFICEAUTOMATION) or with START-OOA.cmd." })"
 } else {
     $a = @("agent", "register", "--url", $Url, "--keep-existing")
@@ -231,5 +316,6 @@ if ($Role -eq "CommandCenter") {
     Log "Runner installed and registered with $Url."
 }
 foreach ($svc in $restart) { if ($svc) { Start-Service -Name $svc -ErrorAction SilentlyContinue; Log "Started the service $svc again" } }
+if ($DocFlow -and -not $docflowOk) { Log "Done, but Document Automation is not set up (see above). One CommandCenter works without it; run setup again with -DocFlow to retry."; exit 5 }
 Log "Done."
 exit 0

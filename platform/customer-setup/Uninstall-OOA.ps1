@@ -1,7 +1,8 @@
 <#
-Removes ONEOFFICEAUTOMATION from this computer: its Windows services, the runner's sign-in task, the Start menu entries,
-the Apps and Features entry and the program folder. Data is kept: One CommandCenter data folder, runner settings
-(.ooa-agent in the user profile) and workspaces. -Silent asks nothing. Log: %TEMP%\ooa-install.log.
+Removes ONEOFFICEAUTOMATION from this computer: its Windows services, the runner's sign-in task, Document Automation's
+DocFlow task, the Start menu entries, the Apps and Features entry and the program folder. Data is kept: One CommandCenter
+data folder (with DocFlow's documents in its docflow folder), runner settings (.ooa-agent in the user profile) and
+workspaces. -Silent asks nothing. Log: %TEMP%\ooa-install.log.
 #>
 param([switch]$Silent, [switch]$KeepFiles)   # -KeepFiles: used by the MSI, which removes its own files, shortcut and Apps entry
 $ErrorActionPreference = "Continue"
@@ -24,6 +25,15 @@ if (Get-ScheduledTask -TaskName "OOA Runner" -ErrorAction SilentlyContinue) {
     Stop-ScheduledTask -TaskName "OOA Runner" -ErrorAction SilentlyContinue
     $out = (& $ooa agent uninstall-task 2>&1 | Out-String).Trim(); Log $out
 }
+# Document Automation (setup -DocFlow): stop DocFlow and its start-up task; its documents stay in the data folder
+if (Get-ScheduledTask -TaskName "OOA DocFlow" -ErrorAction SilentlyContinue) {
+    Stop-ScheduledTask -TaskName "OOA DocFlow" -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName "OOA DocFlow" -Confirm:$false -ErrorAction SilentlyContinue
+    Log "Removed the task 'OOA DocFlow'"
+}
+Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'postgres.exe' OR Name = 'pg_ctl.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith((Join-Path $dir "DocFlow"), [StringComparison]::OrdinalIgnoreCase) } |
+    ForEach-Object { Log "Ending $($_.Name) ($($_.ProcessId))"; Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 # a runner started at sign-in is a javaw from this folder: end it so the files can go
 Get-CimInstance Win32_Process -Filter "Name = 'javaw.exe' OR Name = 'java.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase) } |

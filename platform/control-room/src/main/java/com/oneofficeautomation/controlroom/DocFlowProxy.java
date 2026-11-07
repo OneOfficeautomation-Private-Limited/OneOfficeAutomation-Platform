@@ -190,7 +190,7 @@ final class DocFlowProxy {
     boolean configured() {
         if (cr.tenant != null) return env.apply("OOA_DOCFLOW_URL") != null;
         return !String.valueOf(cr.platform.setting("docflow_url")).isBlank() || !String.valueOf(cr.platform.setting("docflow_token_ref")).isBlank()
-                || !blank(env.apply("OOA_DOCFLOW_URL"));
+                || !blank(env.apply("OOA_DOCFLOW_URL")) || !DocFlowConfig.url(cr.dataDir).isEmpty();
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }
@@ -527,22 +527,27 @@ final class DocFlowProxy {
 
     /**
      * DocFlow's address. On premises Settings > Document Automation wins; when it is empty, OOA_DOCFLOW_URL (set by the
-     * platform's containers and installer, which start DocFlow beside the Command Center), else 127.0.0.1:8085.
+     * platform's containers), then config/ooa-docflow.properties (written by the Windows installer), else 127.0.0.1:8085.
      */
     String baseUrl() {
         String u = cr.tenant != null ? env.apply("OOA_DOCFLOW_URL") : String.valueOf(cr.platform.setting("docflow_url")).trim();
         if (cr.tenant == null && blank(u)) u = env.apply("OOA_DOCFLOW_URL");
+        if (cr.tenant == null && blank(u)) u = DocFlowConfig.url(cr.dataDir);
         return (blank(u) ? DEFAULT_URL : u.trim()).replaceAll("/+$", "");
     }
 
-    /** The service token: on premises the vault credential Settings names, else OOA_DOCFLOW_TOKEN (as in SaaS). */
+    /**
+     * The service token: on premises the vault credential Settings names, else OOA_DOCFLOW_TOKEN (as in SaaS), else the
+     * token the Windows installer stored (encrypted) in config/ooa-docflow.properties.
+     */
     private String token() {
         if (cr.tenant == null) {
             String ref = String.valueOf(cr.platform.setting("docflow_token_ref")).trim();
             if (!ref.isEmpty()) return cr.systemCredential(ref);
         }
         String t = env.apply("OOA_DOCFLOW_TOKEN");
-        return t == null ? "" : t.trim();
+        if (!blank(t) || cr.tenant != null) return t == null ? "" : t.trim();
+        return DocFlowConfig.token(cr.dataDir, cr.vault);
     }
 
     /** The environment (tests replace it). */

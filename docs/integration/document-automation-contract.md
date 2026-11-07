@@ -26,8 +26,8 @@ DocFlow ──> /api/docflow-callback/events     (not built here yet: see Known 
 
 | | On premises | SaaS (each region) |
 |---|---|---|
-| Address | Settings `docflow_url`; when empty, `OOA_DOCFLOW_URL` (set by the platform's containers); else `http://127.0.0.1:8085` | `OOA_DOCFLOW_URL`, set by the region's operator |
-| Token | Settings `docflow_token_ref`, a vault reference `folder/credential/attribute`; when empty, `OOA_DOCFLOW_TOKEN` | `OOA_DOCFLOW_TOKEN` |
+| Address | Settings `docflow_url`; when empty, `OOA_DOCFLOW_URL` (set by the containers), then `DATA\config\ooa-docflow.properties` (set by Windows setup `-DocFlow`); else `http://127.0.0.1:8085` | `OOA_DOCFLOW_URL`, set by the region's operator |
+| Token | Settings `docflow_token_ref`, a vault reference `folder/credential/attribute`; when empty, `OOA_DOCFLOW_TOKEN`, then the token in that file, encrypted with the vault key | `OOA_DOCFLOW_TOKEN` |
 | Tenant sent | `default` | The tenant's id |
 
 DocFlow has the same token in `DOCAUTO_API_TOKEN`, and the Command Center's address in `DOCAUTO_PLATFORM_URL` for
@@ -117,5 +117,7 @@ DocFlow's `DOCAUTO_PLATFORM_URL` must then be `http://127.0.0.1:18766`.
    and answers 404, which DocFlow does not retry. Nothing breaks, because the Command Center reads the review queue
    every 20 s instead. Adding the route is a later phase.
 2. **Packaging.** DocFlow is in the containers through the add-on files `docker/compose.docflow.yaml` and
-   `docker/compose.saas.docflow.yaml`, which CI tests in the "Container image" job. It is not yet in the Windows
-   installer (phase 5, second part), and there is no Helm chart yet (phase 6).
+   `docker/compose.saas.docflow.yaml`, which CI tests in the "Container image" job. On Windows, setup's `-DocFlow`
+   option installs it online, and CI's "Document Automation installed on Windows" job tests that option. There is
+   no Helm chart yet (phase 6), and no offline Windows pack. DocFlow's installer still makes its own desktop
+   shortcuts and runs its tests during a managed install; asking DocFlow to skip those is a follow-up.

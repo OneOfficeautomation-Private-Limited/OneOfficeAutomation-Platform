@@ -170,6 +170,36 @@ class DocFlowProxyTest {
         }
     }
 
+    @Test void theWindowsInstallersFileIsUsedLastAndKeepsTheTokenEncrypted() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String url = "http://127.0.0.1:" + docflow.getAddress().getPort();
+        var before = DocFlowProxy.env;
+        Path file = DocFlowConfig.file(cr.dataDir);
+        try {
+            cr.platform.updateSettings(admin, Map.of("docflow_url", "", "docflow_token_ref", ""), null);
+            DocFlowProxy.env = k -> null;
+            DocFlowConfig.save(cr.dataDir, cr.vault, url, "file-tok");    // what ooa docflow configure writes
+            String saved = Files.readString(file);
+            assertTrue(saved.contains("token=enc:"), saved);
+            assertFalse(saved.contains("file-tok"), "the token is never kept in clear text");
+            DocFlowProxy p = new DocFlowProxy(cr);
+            assertTrue(p.configured());
+            assertEquals(url, p.baseUrl());
+            seen.clear();
+            assertEquals(200, call("GET", "/api/docflow/df/flows", null).statusCode());
+            assertEquals("Bearer file-tok", seen.get(0).get("auth"));
+            // the containers' variables come before the file, and Settings before both
+            DocFlowProxy.env = k -> k.equals("OOA_DOCFLOW_TOKEN") ? "env-tok" : null;
+            seen.clear();
+            call("GET", "/api/docflow/df/flows", null);
+            assertEquals("Bearer env-tok", seen.get(0).get("auth"));
+        } finally {
+            DocFlowProxy.env = before;
+            Files.deleteIfExists(file);
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", "docflow/service/token"), null);
+        }
+    }
+
     @Test void permissionsPerRoute() {
         assertEquals("docs.view", DocFlowProxy.permission("GET", "df/flows"));
         assertEquals("docs.review", DocFlowProxy.permission("POST", "df/documents/x1/review"));
