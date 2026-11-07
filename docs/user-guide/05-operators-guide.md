@@ -518,6 +518,24 @@ refuse them.
 
 Both start the test set, wait for every case (30 minutes at first), print each case's verdict and fail on any failure.
 
+## 10a. Process mining: how a process really runs
+
+Before automating a process, find out how it really runs. Most systems keep an event log: one row per thing that
+happened, with the case (order, ticket, invoice), the activity and the time. Export it to CSV (or read it into a table)
+and use the **Process mining** toolkit in an agent:
+
+- **Discover process** lists the activities, the **variants** (the paths cases take, the commonest first, with their
+  share and average duration), the **flows** (which activity follows which, how often and the average wait between
+  them), where cases start and end, case durations (average, median, 90th percentile, longest) and a **diagram** as a
+  Mermaid flowchart. Paste the diagram into a Markdown file or any Mermaid viewer.
+- **Check conformance** compares every case with the flow you expect: which activity may follow which, and where a
+  case may start and end. It gives the share of cases that follow it (**fitness**) and each deviation, such as
+  "Create order followed by Ship" when an order shipped without approval.
+
+Times may be ISO times or `yyyy-MM-dd HH:mm[:ss]` (also with day first); the column names are settings (`case`,
+`activity` and `time` at first). Long waits between two activities and frequent rework loops are good places to start
+automating.
+
 ## 11. Operational Insights: Overview, Alerts and Operations
 
 The **Operational Insights** section of the menu has four pages. **Operations** looks at how the work ran; **Business**
