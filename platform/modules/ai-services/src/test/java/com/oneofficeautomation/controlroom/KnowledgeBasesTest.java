@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.ai.KnowledgeBases;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -34,21 +36,21 @@ class KnowledgeBasesTest {
     }
 
     @Test void filledByOneRunFetchedByAnotherKeptToItsFolder() {
-        Map<String, Object> kb = cr.knowledge.save(admin, null, Map.of("name", "HR policies", "folder", "HR", "description", "Leave and travel"), null);
-        assertEquals("CR.CONFLICT", assertThrows(OoaException.class, () -> cr.knowledge.save(admin, null, Map.of("name", "hr POLICIES"), null)).code());
+        Map<String, Object> kb = cr.modules.service(KnowledgeBases.class).save(admin, null, Map.of("name", "HR policies", "folder", "HR", "description", "Leave and travel"), null);
+        assertEquals("CR.CONFLICT", assertThrows(OoaException.class, () -> cr.modules.service(KnowledgeBases.class).save(admin, null, Map.of("name", "hr POLICIES"), null)).code());
         String run = running("HR/Answer.flow.json");
-        assertEquals("KNOWLEDGE.EMPTY", assertThrows(OoaException.class, () -> cr.knowledge.forRun(dev, Map.of("run_id", run, "request", Map.of("op", "fetch", "name", "HR policies")))).code());
+        assertEquals("KNOWLEDGE.EMPTY", assertThrows(OoaException.class, () -> cr.modules.service(KnowledgeBases.class).forRun(dev, Map.of("run_id", run, "request", Map.of("op", "fetch", "name", "HR policies")))).code());
         String content = Base64.getEncoder().encodeToString("index bytes".getBytes());
-        cr.knowledge.forRun(dev, Map.of("run_id", run, "request", Map.of("op", "publish", "name", "hr policies", "content", content, "passages", 12, "documents", 3)));
-        Map<String, Object> got = cr.knowledge.forRun(dev, Map.of("run_id", run, "request", Map.of("op", "fetch", "name", "HR policies", "sha256", "")));
+        cr.modules.service(KnowledgeBases.class).forRun(dev, Map.of("run_id", run, "request", Map.of("op", "publish", "name", "hr policies", "content", content, "passages", 12, "documents", 3)));
+        Map<String, Object> got = cr.modules.service(KnowledgeBases.class).forRun(dev, Map.of("run_id", run, "request", Map.of("op", "fetch", "name", "HR policies", "sha256", "")));
         assertEquals(content, got.get("content"));
-        assertEquals(true, cr.knowledge.forRun(dev, Map.of("run_id", run, "request", Map.of("op", "fetch", "name", "HR policies", "sha256", got.get("sha256")))).get("not_modified"));
-        Map<String, Object> listed = cr.knowledge.list(admin).get(0);
+        assertEquals(true, cr.modules.service(KnowledgeBases.class).forRun(dev, Map.of("run_id", run, "request", Map.of("op", "fetch", "name", "HR policies", "sha256", got.get("sha256")))).get("not_modified"));
+        Map<String, Object> listed = cr.modules.service(KnowledgeBases.class).list(admin).get(0);
         assertEquals(12, ((Number) listed.get("passages")).intValue());
         assertEquals("HR/Answer.flow.json", listed.get("updated_by_agent"));
         String other = running("Finance/Other.flow.json");
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.knowledge.forRun(dev, Map.of("run_id", other, "request", Map.of("op", "fetch", "name", "HR policies")))).code());
-        cr.knowledge.delete(admin, (String) kb.get("id"), null);
-        assertEquals(List.of(), cr.knowledge.list(admin));
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(KnowledgeBases.class).forRun(dev, Map.of("run_id", other, "request", Map.of("op", "fetch", "name", "HR policies")))).code());
+        cr.modules.service(KnowledgeBases.class).delete(admin, (String) kb.get("id"), null);
+        assertEquals(List.of(), cr.modules.service(KnowledgeBases.class).list(admin));
     }
 }

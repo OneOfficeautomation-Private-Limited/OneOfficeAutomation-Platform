@@ -600,7 +600,6 @@ public final class ControlRoomServer {
             else if (m.equals("POST") && cr.modules.agentRoutes.get(route.substring("agent/".length())) instanceof ModuleContext.AgentRoute ar) sendJson(ex, 200, ar.handle(ex, d, q));
             else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
             else if (m.equals("POST") && route.equals("agent/data")) sendJson(ex, 200, cr.dataStore.forRun(d, map(body(ex))));   // Data store (G66)
-            else if (m.equals("POST") && route.equals("agent/knowledge")) sendJson(ex, 200, cr.knowledge.forRun(d, map(body(ex))));   // Knowledge bases (G71)
             else if (m.equals("POST") && route.equals("agent/locks")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.locks.forRun(d, (String) b.get("run_id"), b)); }   // Environment locks
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
@@ -1022,15 +1021,6 @@ public final class ControlRoomServer {
                     sendJson(ex, 200, seg[3].equals("withdraw") ? cr.approvals.withdraw(u, seg[2], ip) : cr.approvals.decide(u, seg[2], seg[3].equals("approve"), (String) b.get("note"), ip));
                 } else notFound(ex);
             }
-            case "skills" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("skills", cr.promptSkills.list(u)));
-                else if (m.equals("GET") && route.equals("skills/templates")) sendJson(ex, 200, Map.of("templates", cr.promptSkills.templates(u)));
-                else if (m.equals("POST") && route.equals("skills/from-template")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.promptSkills.fromTemplate(u, (String) b.get("template"), (String) b.get("name"), ip)); }
-                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.promptSkills.get(u, seg[1], q.get("version") == null ? null : Integer.valueOf(q.get("version"))));
-                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.promptSkills.save(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else notFound(ex);
-            }
             case "cluster" -> { cr.require(u, "settings.manage", "see One CommandCenter nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
             case "backups" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
@@ -1217,13 +1207,6 @@ public final class ControlRoomServer {
                     else if (m.equals("DELETE") && seg.length == 4 && seg[3].equals("files")) { cr.dataStore.removeFile(u, seg[2], q.get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                     else notFound(ex);
                 } else notFound(ex);
-            }
-            case "knowledge-bases" -> {   // AI > Knowledge bases (G71)
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("knowledge_bases", cr.knowledge.list(u)));
-                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.knowledge.save(u, null, map(body(ex)), ip));
-                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.knowledge.save(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("DELETE") && seg.length == 2) { cr.knowledge.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else notFound(ex);
             }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("locks", cr.locks.list(u)));

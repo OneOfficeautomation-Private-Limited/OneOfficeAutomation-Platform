@@ -123,6 +123,9 @@ public interface ModuleContext {
     /** The request body as a JSON object (CR.BAD_JSON otherwise). */
     Map<String, Object> jsonBody(HttpExchange ex) throws IOException;
 
+    /** The request's query parameters (decoded). */
+    Map<String, String> query(HttpExchange ex);
+
     /** Settings > Largest upload, in bytes. */
     int maxBody();
 
@@ -193,6 +196,18 @@ public interface ModuleContext {
 
     /** CR.NOT_FOUND: "{what} not found". */
     static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
+
+    /** A part a module adds to every run's job when a runner takes it (Prompt Skills: the skills the agent names). */
+    @FunctionalInterface interface JobPart {
+        /**
+         * The part for this run: the agent's flow, its bundle (the agents it calls) and the person it runs as. Empty
+         * when there is nothing to add; an OoaException fails the run before it starts, with the reason.
+         */
+        Map<String, Object> forJob(Map<String, Object> flow, Map<String, Object> bundle, String principal);
+    }
+
+    /** Adds a part, under this key, to the job of every run (the runner reads it there). */
+    void jobPart(String key, JobPart part);
 
     /** Requests under /api/{prefix}/ from signed-in people. */
     void route(String prefix, UserRoute handler);

@@ -1,12 +1,15 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.ai;
+
+import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.util.*;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
-import com.oneofficeautomation.controlroom.ControlRoom.User;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Prompt Skills kept in One CommandCenter: named, reviewed prompt templates ({system, prompt, connection, output,
@@ -16,10 +19,10 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class PromptSkills {
     static final int MAX_DEFINITION = 100_000;
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    PromptSkills(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public PromptSkills(ModuleContext ctx) { this.ctx = ctx; this.db = ctx.db(); }
 
     /** Starting points shipped with the product (our own wording). */
     static final List<Map<String, Object>> BUILT_IN_TEMPLATES = List.of(
@@ -43,11 +46,11 @@ public final class PromptSkills {
     }
 
     private boolean visible(User by, Map<String, Object> s) {
-        return Boolean.TRUE.equals(s.get("shared")) || Boolean.TRUE.equals(s.get("template")) || by.username().equals(s.get("owner")) || cr.can(by, "skills.all");
+        return Boolean.TRUE.equals(s.get("shared")) || Boolean.TRUE.equals(s.get("template")) || by.username().equals(s.get("owner")) || ctx.can(by, "skills.all");
     }
 
     public List<Map<String, Object>> list(User by) {
-        cr.require(by, "skills.view", "view Prompt Skills");
+        ctx.require(by, "skills.view", "view Prompt Skills");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> s : db.query("SELECT name, description, version, shared, template, owner, updated, updated_by FROM prompt_skills ORDER BY name"))
             if (visible(by, s)) out.add(s);
@@ -55,7 +58,7 @@ public final class PromptSkills {
     }
 
     public List<Map<String, Object>> templates(User by) {
-        cr.require(by, "skills.view", "view Prompt Skills");
+        ctx.require(by, "skills.view", "view Prompt Skills");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> t : BUILT_IN_TEMPLATES) { Map<String, Object> m = new LinkedHashMap<>(t); m.put("built_in", true); out.add(m); }
         for (Map<String, Object> s : db.query("SELECT name, description, definition FROM prompt_skills WHERE template = TRUE ORDER BY name")) {
@@ -68,7 +71,7 @@ public final class PromptSkills {
     }
 
     public Map<String, Object> get(User by, String name, Integer version) {
-        cr.require(by, "skills.view", "view Prompt Skills");
+        ctx.require(by, "skills.view", "view Prompt Skills");
         Map<String, Object> s = db.one("SELECT * FROM prompt_skills WHERE name = ?", checkName(name));
         if (s == null || !visible(by, s)) throw notFound("Prompt Skill " + name);
         Map<String, Object> out = new LinkedHashMap<>(s);
@@ -102,13 +105,13 @@ public final class PromptSkills {
 
     /** Creates the skill or saves a new version of it. Only the owner (or someone with skills.all) changes a skill. */
     public Map<String, Object> save(User by, String name, Map<String, Object> b, String ip) {
-        cr.require(by, "skills.manage", "change Prompt Skills");
+        ctx.require(by, "skills.manage", "change Prompt Skills");
         String n = checkName(name);
         Object def = b.get("definition");
         checkDefinition(def);
         String json = JsonLite.write(def);
         boolean shared = Boolean.TRUE.equals(b.get("shared")), template = Boolean.TRUE.equals(b.get("template"));
-        if (template && !cr.can(by, "skills.all")) throw denied("publish skill templates");
+        if (template && !ctx.can(by, "skills.all")) throw denied("publish skill templates");
         Map<String, Object> r = db.tx(() -> {
             Map<String, Object> old = db.one("SELECT owner, version FROM prompt_skills WHERE name = ?", n);
             int v;
@@ -117,7 +120,7 @@ public final class PromptSkills {
                 db.update("INSERT INTO prompt_skills (name, description, definition, version, shared, template, created, updated, updated_by, owner) VALUES (?,?,?,?,?,?,?,?,?,?)",
                         n, b.get("description"), json, v, shared, template, now(), now(), by.username(), by.username());
             } else {
-                if (!by.username().equals(old.get("owner")) && !cr.can(by, "skills.all")) throw denied("change a skill someone else owns");
+                if (!by.username().equals(old.get("owner")) && !ctx.can(by, "skills.all")) throw denied("change a skill someone else owns");
                 v = ((Number) old.get("version")).intValue() + 1;
                 db.update("UPDATE prompt_skills SET description = ?, definition = ?, version = ?, shared = ?, template = ?, updated = ?, updated_by = ? WHERE name = ?",
                         b.get("description"), json, v, shared, template, now(), by.username(), n);
@@ -125,7 +128,7 @@ public final class PromptSkills {
             db.update("INSERT INTO prompt_skill_versions (name, version, definition, updated, updated_by, comment) VALUES (?,?,?,?,?,?)", n, v, json, now(), by.username(), b.get("comment"));
             return Map.of("name", (Object) n, "version", v);
         });
-        cr.audit.record(by.username(), "skill.save", "skill", n, Map.of("version", r.get("version"), "shared", shared, "template", template), "ok", ip);
+        ctx.audit(by.username(), "skill.save", "skill", n, Map.of("version", r.get("version"), "shared", shared, "template", template), "ok", ip);
         return r;
     }
 
@@ -138,17 +141,17 @@ public final class PromptSkills {
     }
 
     public void delete(User by, String name, String ip) {
-        cr.require(by, "skills.manage", "change Prompt Skills");
+        ctx.require(by, "skills.manage", "change Prompt Skills");
         String n = checkName(name);
         Map<String, Object> s = db.one("SELECT owner FROM prompt_skills WHERE name = ?", n);
         if (s == null) throw notFound("Prompt Skill " + n);
-        if (!by.username().equals(s.get("owner")) && !cr.can(by, "skills.all")) throw denied("delete a skill someone else owns");
+        if (!by.username().equals(s.get("owner")) && !ctx.can(by, "skills.all")) throw denied("delete a skill someone else owns");
         db.tx(() -> {
             db.update("DELETE FROM prompt_skill_versions WHERE name = ?", n);
             db.update("DELETE FROM prompt_skills WHERE name = ?", n);
             return null;
         });
-        cr.audit.record(by.username(), "skill.delete", "skill", n, null, "ok", ip);
+        ctx.audit(by.username(), "skill.delete", "skill", n, null, "ok", ip);
     }
 
     /**

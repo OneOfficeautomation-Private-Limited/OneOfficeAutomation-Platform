@@ -31,6 +31,7 @@ public final class Modules {
     final Map<String, ModuleContext.TaskKind> taskKinds = new LinkedHashMap<>();
     final List<ModuleContext.McpTools> mcpTools = new CopyOnWriteArrayList<>();
     final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
+    final Map<String, ModuleContext.JobPart> jobParts = new LinkedHashMap<>();
     private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
@@ -172,6 +173,7 @@ public final class Modules {
         }
         public Map<String, Object> jsonBody(HttpExchange ex) throws IOException { return ControlRoomServer.map(ControlRoomServer.body(ex)); }
         public int maxBody() { return ControlRoomServer.maxBody.getAsInt(); }
+        public Map<String, String> query(HttpExchange ex) { return ControlRoomServer.query(ex); }
 
         public void route(String prefix, UserRoute handler) { claim(userRoutes, prefix, handler, "the route /api/" + prefix); }
         public void agentRoute(String route, AgentRoute handler) { claim(agentRoutes, route, handler, "the runner route /api/agent/" + route); }
@@ -182,6 +184,7 @@ public final class Modules {
         public void triggerKind(String kind, String label, TriggerKind rules) { TriggerKinds.defineModuleKind(kind, label, rules); }
         public void mcpTools(McpTools tools) { mcpTools.add(tools); }
         public void templatePart(TemplatePart part) { templateParts.add(part); }
+        public void jobPart(String key, JobPart part) { claim(jobParts, key, part, "the job part " + key); }
         public <T> void provide(Class<T> type, T service) { claim(services, type, service, "the service " + type.getName()); }
         public <T> T service(Class<T> type) { return Modules.this.service(type); }
 

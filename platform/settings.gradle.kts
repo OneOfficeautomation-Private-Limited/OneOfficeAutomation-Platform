@@ -12,3 +12,5 @@ val optionalModules = (providers.gradleProperty("ooa.optionalModules").orNull ?:
 optionalModules.forEach { include(it) }
 include("coe")
 project(":coe").projectDir = file("modules/coe")
+include("ai-services")
+project(":ai-services").projectDir = file("modules/ai-services")

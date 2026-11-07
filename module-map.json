@@ -192,16 +192,10 @@
       "id": "ai-services",
       "name": "AI services",
       "layer": 3,
-      "description": "Prompt skills, model connections and knowledge bases.",
+      "description": "Prompt skills and knowledge bases. (Model connections, the AI gateway, are the kernel's.) Moved out of the kernel: platform/modules/ai-services (Gradle project :ai-services).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/PromptSkills.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/KnowledgeBases.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/PromptSkills*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/KnowledgeBases*Test.java",
-        "platform/ui/src/console/Skills.tsx",
-        "platform/ui/src/console/ModelConnections.tsx",
-        "platform/ui/src/console/KnowledgeBases.tsx",
-        "platform/ui/src/console/Connections.tsx"
+        "platform/modules/ai-services/**",
+        "platform/ui/src/modules/ai-services/**"
       ],
       "dependsOn": [
         "kernel"

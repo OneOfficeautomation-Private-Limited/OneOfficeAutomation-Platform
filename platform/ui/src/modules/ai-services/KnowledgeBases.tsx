@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { CrApi, CrUser, KnowledgeBase } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, when } from "./ListParts";
+import type { CrApi, CrUser, KnowledgeBase } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, TextArea, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, when } from "../../console/ListParts";
 
 /**
  * AI > Knowledge bases (gap G71): knowledge indexes kept in One CommandCenter. An indexing agent fills and refreshes a
