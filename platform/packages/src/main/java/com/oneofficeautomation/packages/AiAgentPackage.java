@@ -141,7 +141,7 @@ public final class AiAgentPackage {
         List<Object> found = new ArrayList<>();
         KnowledgePackage kp = new KnowledgePackage();
         for (Path ix : indexes) {
-            try { found.addAll((List<Object>) kp.search(ctx, ix.toString(), q, 4, null, null).get("results")); }
+            try { found.addAll((List<Object>) kp.search(ctx, ix.toString(), q, 4, null, null, null).get("results")); }
             catch (ActionException e) { found.add(Map.of("source", ix.getFileName().toString(), "error", e.getMessage())); }
         }
         trace.add(Out.of("type", "knowledge", "query", q, "passages", found.size()));

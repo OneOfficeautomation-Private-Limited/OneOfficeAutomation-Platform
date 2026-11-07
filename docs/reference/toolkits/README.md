@@ -26,6 +26,8 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
 | [Business rules](ooa-rules.md) | `ooa.rules` | 1 | 0 | 0 | Decide with a decision table kept as a CSV file (or a table): conditions in in: columns, results in out: columns. |
+| [Coded agents](ooa-coded.md) | `ooa.coded` | 1 | 0 | 0 | Run an agent written in Python (main(inputs, ooa)) that calls toolkit commands through the run. |
+| [Communications mining](ooa-comms.md) | `ooa.comms` | 2 | 0 | 0 | Find the topics in many e-mails, tickets or messages, and route each message to a queue by keywords. |
 | [Credential vault](ooa-vault.md) | `ooa.vault` | 2 | 1 | 0 | Save a credential's new value in One CommandCenter's vault, for example after a password reset, and check when a credential expires. |
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
@@ -110,4 +112,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 93 toolkits, 1260 actions, 50 conditions and 15 loop types.
+In all: 101 toolkits, 1286 actions, 50 conditions and 15 loop types.

@@ -7,7 +7,7 @@ describe("pool auto-scaling (G52)", () => {
   afterEach(cleanup);
   it("shows what the pool would ask for, and saves the cloud's details for the chosen provider", async () => {
     const puts: unknown[] = [];
-    const f = (async (url: string, init: RequestInit = {}) => {
+    const f = (async (_url: string, init: RequestInit = {}) => {
       const now = { queued: 4, running: 1, refused_recently: 0, online: 2, desired: 3 };
       if (init.method === "PUT") { puts.push(JSON.parse(init.body as string)); return new Response(JSON.stringify({ scaling: puts[0], now }), { status: 200 }); }
       return new Response(JSON.stringify({ scaling: { enabled: false }, now }), { status: 200 });

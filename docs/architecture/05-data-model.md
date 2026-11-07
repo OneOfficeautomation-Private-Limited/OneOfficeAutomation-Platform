@@ -108,6 +108,11 @@ and a **runtime** account with data read/write rights only.
 | 38 | timing_rule on schedules (monthly and cron schedules, gap G35) |
 | 39 | run_waits (suspended runs of long-running agents and what they wait for, gap G36) |
 | 40 | event_subscriptions (where One CommandCenter posts its events, gap G38) |
+| 41 | ideas (automation ideas: suggested, voted, assessed, gap G65) |
+| 42 | entities, entity_records, buckets (business data store, gap G66) |
+| 43 | apps, app_runs (low-code apps, gap G67) |
+| 44 | app_embeds (apps shown inside other sites, gap G68) |
+| 45 | chat_sessions, chat_runs (One Chat's conversations and the runs they started; numbered 25 on the One Chat branch) |
 
 ## 4. Tables by area
 

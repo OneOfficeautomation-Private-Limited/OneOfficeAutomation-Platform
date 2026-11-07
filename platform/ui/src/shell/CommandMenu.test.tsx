@@ -9,7 +9,7 @@ function screenWidth(px: number) {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: /max-width: 640px/.test(q) && px <= 640, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
 }
 
-const menu = (onLocal = () => {}) => <CommandMenu sections={MENU_SECTIONS} current="home" local={new Set(["inbox", "apps", "activity"])} onLocal={onLocal}
+const menu = (onLocal: (id: string) => void = () => {}) => <CommandMenu sections={MENU_SECTIONS} current="home" local={new Set(["inbox", "apps", "activity"])} onLocal={onLocal}
   hrefFor={() => undefined} home={{ onClick: () => {}, current: true }} viewer={{ permissions: ["runs.view"] }} console />;
 
 describe("The menu on a phone (G69)", () => {
