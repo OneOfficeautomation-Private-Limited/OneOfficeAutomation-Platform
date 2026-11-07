@@ -130,6 +130,8 @@ public final class Platform {
         DEFAULTS.put("teams_approval_webhook_ref", ""); // a vault reference to a Teams Workflows webhook address: new tasks post a card there
         DEFAULTS.put("push_server", "");                // an ntfy server for phone notifications, e.g. https://ntfy.sh or one on the company network
         DEFAULTS.put("push_token_ref", "");             // a vault reference to that server's access token, when it needs one
+        // G45: what a Citizen Developer seat cannot check in (scripts, code, the command line)
+        DEFAULTS.put("citizen_blocked_toolkits", "ooa.script, ooa.dotnet, ooa.shell, ooa.application");
         DEFAULTS.put("default_time_zone", "");          // for new schedules; empty: the person's own time zone (UTC through the API)
         DEFAULTS.put("siem_https_url", "");             // audit entries also go to this HTTPS collector (Splunk HEC, Sentinel, Elastic...)
         DEFAULTS.put("siem_https_token_ref", "");       // a vault reference to its token

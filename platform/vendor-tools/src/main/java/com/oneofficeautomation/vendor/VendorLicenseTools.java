@@ -73,11 +73,19 @@ public final class VendorLicenseTools {
         seats.put("citizen_developer", Integer.parseInt(o.getOrDefault("citizen-developer", "0")));
         seats.put("attended_runner", Integer.parseInt(o.getOrDefault("attended", "0")));
         seats.put("unattended_runner", Integer.parseInt(o.getOrDefault("unattended", "0")));
+        seats.put("nonproduction_runner", Integer.parseInt(o.getOrDefault("nonproduction", "0")));
+        seats.put("testing_runner", Integer.parseInt(o.getOrDefault("testing", "0")));
+        // G45: --features a,b (or the edition's own list for Community and Standard); Enterprise and no list: everything
+        String edition = o.getOrDefault("edition", "Enterprise");
+        List<String> features = o.containsKey("features") ? Arrays.stream(o.get("features").split("[,\\s]+")).filter(f -> !f.isBlank()).toList()
+                : edition.equals("Enterprise") ? List.of() : License.EDITION_FEATURES.getOrDefault(edition, List.of());
+        for (String f : features) if (!License.FEATURES.contains(f)) throw new OoaException("LICENSE.BAD_INPUT", "Unknown feature " + f + "; features: " + License.FEATURES);
         LocalDate expires = LocalDate.parse(o.get("expires"));
         if (expires.isBefore(LocalDate.now())) throw new OoaException("LICENSE.BAD_INPUT", "The expiry date is in the past");
         String id = o.getOrDefault("id", "LIC-" + LocalDate.now().toString().replace("-", "") + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
-        License l = new License(id, o.get("customer"), o.getOrDefault("edition", "Enterprise"), LocalDate.now(), expires,
-            Integer.parseInt(o.getOrDefault("grace-days", "14")), seats, o.getOrDefault("notes", ""), installId);
+        License l = new License(id, o.get("customer"), edition, LocalDate.now(), expires,
+            Integer.parseInt(o.getOrDefault("grace-days", "14")), seats, o.getOrDefault("notes", ""), installId,
+            edition.equals("Community") && features.isEmpty() ? List.of("none") : features);
         String text = l.sign(License.privateKey(Files.readString(Path.of(o.get("key")))));
         Path out = Path.of(o.get("out"));
         if (out.getParent() != null) Files.createDirectories(out.getParent());

@@ -42,7 +42,8 @@ public final class Licensing {
         + "bin\\ooa.bat db copy --from \"%USERPROFILE%\\OOA Command Center\" (keeps the evaluation's data). Start it again and install the license. See INSTALL.md, section 5.";
 
     static final int EVALUATION_DAYS = 60;
-    static final Map<String, Integer> EVALUATION_SEATS = Map.of("developer", 2, "citizen_developer", 0, "attended_runner", 2, "unattended_runner", 2);
+    static final Map<String, Integer> EVALUATION_SEATS = Map.of("developer", 2, "citizen_developer", 0, "attended_runner", 2, "unattended_runner", 2,
+            "nonproduction_runner", 0, "testing_runner", 0);
 
     /** The vendor build carries META-INF/ooa-vendor (the vendor-tools module); the customer distribution does not. */
     boolean vendorBuild() {
@@ -193,6 +194,7 @@ public final class Licensing {
         }
         if (isAdmin(cr, by) || cr.can(by, "users.manage")) {
             if (l != null) { m.put("id", l.id()); m.put("customer", l.customer()); m.put("edition", l.edition()); m.put("issued", l.issued().toString()); m.put("grace_days", l.graceDays());
+                m.put("features", l.features().isEmpty() ? License.FEATURES : l.features().stream().filter(License.FEATURES::contains).toList());
                 m.put("bound_to", l.installId().isEmpty() ? "any installation" : l.installId()); }
             m.put("install_id", installId());
             Map<String, Object> seats = new LinkedHashMap<>();
@@ -267,6 +269,38 @@ public final class Licensing {
         return db.one("SELECT principal FROM license_assignments WHERE principal_type = ? AND principal = ? AND license_type = ?", kind, principal, type) != null;
     }
 
+    /**
+     * Whether the license in force includes a feature (G45 feature tiers). Without a license (evaluation, vendor build) and
+     * with a license that lists no features, everything is included.
+     */
+    boolean feature(String f) {
+        if (!enforcing()) return true;
+        License l;
+        try { l = current(); } catch (OoaException e) { return true; }   // an expired or unreadable license is handled where runs and sign-ins are checked
+        return l == null || l.features().isEmpty() || l.features().contains(f);
+    }
+
+    void requireFeature(String f, String what) {
+        if (!feature(f)) throw new OoaException("CR.LICENSE_FEATURE", what + " is not part of this license",
+                "Ask ONEOFFICEAUTOMATION for a license that includes " + f.replace('_', ' ') + ".");
+    }
+
+    /**
+     * A person with a Citizen Developer seat and no Developer seat builds with the simpler toolkits only (G45): an agent
+     * using one of citizen_blocked_toolkits (scripts, code, the command line at first) cannot be checked in by them.
+     */
+    void checkCitizen(User by, Map<String, Object> flow) {
+        if (!enforcing() || !has("user", by.username(), "citizen_developer") || has("user", by.username(), "developer")) return;
+        List<String> blocked = ControlRoom.csv(cr.platform.setting("citizen_blocked_toolkits"));
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walkFlow(flow)) {
+            String a = String.valueOf(s.get("action"));
+            String pid = a.contains("/") ? a.substring(0, a.indexOf('/')) : a;
+            if (blocked.stream().map(b -> b.replaceAll("/+$", "")).anyMatch(b -> b.endsWith("*") ? pid.startsWith(b.substring(0, b.length() - 1)) : pid.equals(b)))
+                throw new OoaException("CR.LICENSE_CITIZEN", "A Citizen Developer seat does not include " + a + " (step " + s.get("id") + ")",
+                        "Ask a developer to check this agent in, or build it without that toolkit.");
+        }
+    }
+
     /** Checking in agents needs a Developer or Citizen Developer seat while a license is in force. */
     void requireDeveloper(User by) {
         if (!enforcing()) { if (expired()) throw expiredError(); return; }
@@ -283,6 +317,17 @@ public final class Licensing {
     String runProblem(String deviceId, String requestedBy, String source) {
         if (expired()) return "The license has expired, so runs are stopped";
         if (!enforcing() || has("device", deviceId, "unattended_runner") || autoSeat("device", deviceId, "unattended_runner")) return null;
+        // G45: a testing runner takes the runs of test sets only; a non-production runner runs for development and test
+        // (by hand, from Studio, test sets), never the scheduled, triggered or queued work of production
+        String src = source == null ? "" : source;
+        if (has("device", deviceId, "testing_runner")) {
+            if (src.startsWith("test:")) return null;
+            return "This runner has a Testing Runner license, which takes the runs of test sets only";
+        }
+        if (has("device", deviceId, "nonproduction_runner")) {
+            if (src.equals("manual") || src.equals("studio") || src.startsWith("test:")) return null;
+            return "This runner has a Non-production Runner license: it takes runs started by hand, from Studio or by test sets, not " + src + " runs";
+        }
         boolean byHand = "manual".equals(source) || "studio".equals(source);
         boolean seat = has("user", requestedBy, "attended_runner") || has("user", requestedBy, "developer") || has("user", requestedBy, "citizen_developer");
         boolean own = db.one("SELECT device_id FROM user_devices WHERE username = ? AND device_id = ?", requestedBy, deviceId) != null;
@@ -441,7 +486,8 @@ public final class Licensing {
 
     static String label(String type) {
         return switch (type) {
-            case "developer" -> "Developer"; case "citizen_developer" -> "Citizen Developer"; case "attended_runner" -> "Attended Runner"; default -> "Unattended Runner";
+            case "developer" -> "Developer"; case "citizen_developer" -> "Citizen Developer"; case "attended_runner" -> "Attended Runner";
+            case "nonproduction_runner" -> "Non-production Runner"; case "testing_runner" -> "Testing Runner"; default -> "Unattended Runner";
         };
     }
 }

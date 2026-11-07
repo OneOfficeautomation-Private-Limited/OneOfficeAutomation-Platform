@@ -162,7 +162,7 @@ export type VaultStatus = { key_source: string; key_source_detail?: string; key_
 export type AuditRecord = { seq: number; ts: string; actor: string; action: string; object_type?: string | null; object_id?: string | null;
   details?: string | null; result: string; ip?: string | null };
 /** The licence of this One CommandCenter (unlicensed, evaluation, active, expiring, grace, expired …) and its seats. */
-export type LicenseInfo = { state: string; customer?: string; edition?: string; id?: string; issued?: string; expires?: string; days_left?: number; evaluation_ends?: string;
+export type LicenseInfo = { state: string; customer?: string; edition?: string; features?: string[]; id?: string; issued?: string; expires?: string; days_left?: number; evaluation_ends?: string;
   grace_days?: number; grace_until?: string; bound_to?: string; problem?: string; install_id?: string; requires_server_database?: boolean; database_steps?: string;
   seats?: Record<string, { total: number; used: number }> };
 export type LicenseUsage = { seats: Record<string, { label: string; total: number; used: number; idle: number }>;

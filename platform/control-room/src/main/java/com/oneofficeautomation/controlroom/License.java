@@ -18,9 +18,25 @@ import java.util.*;
  * {@code installId} ties the license to one One CommandCenter (its install id, shown in Administration > Licenses); an
  * empty one lets the file work on any installation.
  */
-public record License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes, String installId) {
+public record License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes, String installId,
+                      List<String> features) {
 
-    public License { installId = installId == null ? "" : installId.trim(); }
+    public License { installId = installId == null ? "" : installId.trim(); features = features == null ? List.of() : List.copyOf(features); }
+
+    /** A license with every feature (no features list: G45 feature tiers are only for licenses that name them). */
+    public License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes, String installId) {
+        this(id, customer, edition, issued, expires, graceDays, seats, notes, installId, List.of());
+    }
+
+    /**
+     * Features a license can leave out (G45 feature tiers). A license that lists features has only those; one that lists
+     * none has all. Editions as the vendor sells them: Community (free, for individuals and learning), Standard, Enterprise.
+     */
+    public static final List<String> FEATURES = List.of("workflows", "ai_agents", "event_subscriptions", "git_sync", "insights_business", "sso");
+    public static final Map<String, List<String>> EDITION_FEATURES = Map.of(
+            "Community", List.of(),
+            "Standard", List.of("workflows", "insights_business", "sso"),
+            "Enterprise", FEATURES);
 
     /** A license for any installation. */
     public License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes) {
@@ -29,8 +45,8 @@ public record License(String id, String customer, String edition, LocalDate issu
 
     /** Seat types: three per person, one per runner. */
     public static final List<String> USER_TYPES = List.of("developer", "citizen_developer", "attended_runner");
-    public static final List<String> DEVICE_TYPES = List.of("unattended_runner");
-    public static final List<String> TYPES = List.of("developer", "citizen_developer", "attended_runner", "unattended_runner");
+    public static final List<String> DEVICE_TYPES = List.of("unattended_runner", "nonproduction_runner", "testing_runner");
+    public static final List<String> TYPES = List.of("developer", "citizen_developer", "attended_runner", "unattended_runner", "nonproduction_runner", "testing_runner");
 
     /** The vendor's public key (Ed25519, X.509, Base64) that every license must be signed with. */
     public static final String VENDOR_PUBLIC_KEY = "MCowBQYDK2VwAyEA5izC9CueL5Ke+I+88gmudgf4fs1wlxELhf9qRZ7J+uI=";
@@ -62,7 +78,8 @@ public record License(String id, String customer, String edition, LocalDate issu
             return new License(String.valueOf(t.get("id")), String.valueOf(t.get("customer")), String.valueOf(t.getOrDefault("edition", "Enterprise")),
                 LocalDate.parse(String.valueOf(t.get("issued"))), LocalDate.parse(String.valueOf(t.get("expires"))),
                 t.get("grace_days") instanceof Number g ? Math.max(0, Math.min(90, g.intValue())) : 14, seats, t.get("notes") == null ? "" : String.valueOf(t.get("notes")),
-                t.get("install_id") == null ? "" : String.valueOf(t.get("install_id")));
+                t.get("install_id") == null ? "" : String.valueOf(t.get("install_id")),
+                t.get("features") instanceof List<?> fl ? fl.stream().map(String::valueOf).filter(f -> FEATURES.contains(f) || f.equals("none")).toList() : List.of());
         } catch (RuntimeException e) { throw bad("The license terms are incomplete (id, customer, issued and expires are needed)"); }
     }
 
@@ -72,6 +89,7 @@ public record License(String id, String customer, String edition, LocalDate issu
         t.put("grace_days", graceDays); t.put("seats", new LinkedHashMap<>(seats));
         if (!notes.isEmpty()) t.put("notes", notes);
         if (!installId.isEmpty()) t.put("install_id", installId);
+        if (!features.isEmpty()) t.put("features", new ArrayList<>(features));
         return t;
     }
 

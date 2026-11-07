@@ -19,10 +19,16 @@ const TYPES: [string, string, "user" | "device", string][] = [
   ["citizen_developer", "Citizen Developer", "user", "Checks in simpler agents"],
   ["attended_runner", "Attended Runner", "user", "Runs agents on their own runner"],
   ["unattended_runner", "Unattended Runner", "device", "A runner that takes scheduled, triggered, API and queue work"],
+  ["nonproduction_runner", "Non-production Runner", "device", "A runner for development and test: runs started by hand, from Studio or by test sets"],
+  ["testing_runner", "Testing Runner", "device", "A runner that takes the runs of test sets only"],
 ];
+/** Features a licence can leave out (G45), in words. */
+const FEATURE_NAMES: Record<string, string> = { workflows: "Workflows", ai_agents: "AI agents", event_subscriptions: "Event subscriptions", git_sync: "Git sync",
+  insights_business: "Business insights", sso: "Single sign-on" };
 /** What a holder can no longer do once a seat of the type is taken back. */
 const LOSES: Record<string, string> = { developer: "They can no longer check in agents", citizen_developer: "They can no longer check in simpler agents",
-  attended_runner: "They can no longer run agents on their own runner", unattended_runner: "It no longer takes scheduled, triggered, API and queue work" };
+  attended_runner: "They can no longer run agents on their own runner", unattended_runner: "It no longer takes scheduled, triggered, API and queue work",
+  nonproduction_runner: "It no longer takes development and test runs", testing_runner: "It no longer takes test set runs" };
 const STATE: Record<string, [string, string]> = { unlicensed: ["No licence installed", "pending"], evaluation: ["Evaluation", "pending"], evaluation_ended: ["Evaluation ended", "failed"],
   active: ["Active", "success"], expiring: ["Expiring soon", "pending"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"], database_required: ["Needs SQL Server", "failed"] };
 const typeName = (t: string) => TYPES.find(([k]) => k === t)?.[1] ?? t;
@@ -155,6 +161,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                     : <dl className="cc-facts">
                       <dt>Licensed to</dt><dd>{lic.customer}</dd>
                       <dt>Edition</dt><dd>{lic.edition}</dd>
+                      {lic.features && <><dt>Features</dt><dd>{lic.features.length ? lic.features.map((f) => FEATURE_NAMES[f] ?? f).join(", ") : "None beyond agents and runners"}</dd></>}
                       <dt>Licence id</dt><dd className="ui-mono">{lic.id}</dd>
                       <dt>Valid</dt><dd>{lic.issued} to {lic.expires}</dd>
                       {lic.grace_days !== undefined && <><dt>Grace period</dt><dd>{lic.grace_days} days, until {lic.grace_until}</dd></>}
@@ -209,6 +216,7 @@ function Allocation({ people, runners, held, seats, canAssign, onAssign }: { peo
     return <input type="checkbox" aria-label={typeName(type) + " seat for " + label} checked={on} disabled={!canAssign || (!on && full(type))}
       title={!on && full(type) ? "No seats left" : undefined} onChange={(e) => onAssign(type, principal, e.target.checked, label)} />;
   };
+  const runnerTypes = TYPES.filter(([t, , k]) => k === "device" && (t === "unattended_runner" || (seats[t]?.total ?? 0) > 0 || (seats[t]?.used ?? 0) > 0));
   return (
     <>
       <div className="cc-list-tools">
@@ -233,10 +241,11 @@ function Allocation({ people, runners, held, seats, canAssign, onAssign }: { peo
         <div className="ov-ph"><h2 id="cc-lic-runners">Runner Machines</h2><span className="ov-cnt">{rs.length}</span></div>
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Runner seats">
-            <thead><tr><th scope="col">Runner</th><th scope="col">Status</th><th scope="col">Unattended Runner{seats.unattended_runner && seats.unattended_runner.total >= 0 ? " (" + seats.unattended_runner.used + "/" + seats.unattended_runner.total + ")" : ""}</th></tr></thead>
+            <thead><tr><th scope="col">Runner</th><th scope="col">Status</th>
+              {runnerTypes.map(([t, name]) => <th key={t} scope="col">{name}{seats[t] && seats[t].total >= 0 ? " (" + seats[t].used + "/" + seats[t].total + ")" : ""}</th>)}</tr></thead>
             <tbody>
-              {rs.map((r) => <tr key={r.id} className="is-static"><td><strong>{r.name}</strong></td><td>{r.status}</td><td>{box("unattended_runner", "device", r.id, r.name)}</td></tr>)}
-              {!rs.length && <tr className="is-static"><td colSpan={3} className="cc-none">No runners.</td></tr>}
+              {rs.map((r) => <tr key={r.id} className="is-static"><td><strong>{r.name}</strong></td><td>{r.status}</td>{runnerTypes.map(([t]) => <td key={t}>{box(t, "device", r.id, r.name)}</td>)}</tr>)}
+              {!rs.length && <tr className="is-static"><td colSpan={2 + runnerTypes.length} className="cc-none">No runners.</td></tr>}
             </tbody>
           </table>
         </div>
