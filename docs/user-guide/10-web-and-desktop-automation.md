@@ -295,6 +295,22 @@ session**: **Open command session** starts cmd.exe, powershell.exe or another co
 session** ends it and any program it started. Sessions left open are stopped when the run ends. Command sessions need no
 desktop.
 
+### 10.4 C#, VB.NET, .NET, COM and Java
+
+The **.NET, Java and COM** toolkit calls code that is not a script:
+
+| Action | What it does |
+|---|---|
+| **Run C# code**, **Run VB.NET code** | Runs statements you type as the body of a method that gets `args` (the step's **arguments**) and returns a value, for example `return Convert.ToInt32(args["count"]) * 2;`. **Members** holds helper methods. **References** adds assemblies, such as `System.Xml` or a DLL path. The .NET Framework on Windows compiles the code (C# 5, VB 11). A compile error fails the step with the compiler's messages. |
+| **Call .NET method** | Calls a static method or property of a type, such as `System.IO.Path` `GetExtension`. It can also create an object first and call a method on that object. Leave **Assembly** empty for .NET's own types, or give a DLL path or assembly name. |
+| **Call COM method** | Creates a COM object by its ProgID, such as `Scripting.FileSystemObject`. It calls a method, or reads or sets a property, and can go through a **path** of properties first. **Quit** closes an Office application at the end. |
+| **Call Java method** | Loads JAR files and calls a method of a class. It can be a static method or a method of an object it creates. Arguments are converted to the method's parameter types. |
+
+Each call runs in a separate process: Windows PowerShell for .NET and COM, and a separate Java for Java. A crash, or
+code that ends its process, fails only that step and never the runner, and the step's time limit stops code that hangs.
+What the code prints is returned as **output**. With **fail on error** off, an exception goes to **error** and the run
+goes on. .NET and COM need a Windows runner. Java uses the runner's own Java, or `java` on the PATH.
+
 Desktop steps need a signed-in Windows desktop. Message boxes and prompts wait for a person; in unattended runs they fail
 at once unless they have a timeout.
 
