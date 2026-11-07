@@ -26,8 +26,8 @@ class DocumentAutomationModuleTest {
         java.nio.file.Path data = java.nio.file.Files.createTempDirectory("ooa-docauto-module");
         try (Db db = Db.embedded(data)) {
             ControlRoom cr = new ControlRoom(db, data, com.oneofficeautomation.packages.FirstPartyPackages.registry(), null);
-            assertEquals(List.of(Map.of("id", "document-automation", "name", "Document Automation",
-                    "version", com.oneofficeautomation.modules.docauto.DocumentAutomationModule.VERSION, "schema", 0)), cr.modules.list());
+            assertTrue(cr.modules.list().contains(Map.of("id", "document-automation", "name", "Document Automation",
+                    "version", com.oneofficeautomation.modules.docauto.DocumentAutomationModule.VERSION, "schema", 0)), String.valueOf(cr.modules.list()));
             assertTrue(cr.modules.userRoutes.containsKey("docflow"));
             assertTrue(cr.modules.agentRoutes.containsKey("docflow/documents"));
             assertTrue(cr.modules.callbacks.keySet().containsAll(List.of("docflow-callback/start-bot", "docflow-callback/events")));
@@ -37,10 +37,10 @@ class DocumentAutomationModuleTest {
             for (String kind : com.oneofficeautomation.modules.docauto.DocFlowProxy.DOCUMENT_EVENTS.values()) assertTrue(TriggerKinds.pushed(kind), kind);
             assertEquals("", cr.platform.setting("docflow_url"));
             assertEquals(1, ((Number) cr.platform.setting("mcp_documents")).intValue());
-            assertEquals(1, cr.modules.mcpTools.size());
+            assertEquals(1, cr.modules.mcpTools.size(), "its documents_ tools");
             assertEquals(1, cr.modules.templateParts.size());
             // ooa db migrate also brings each module's own tables up to date (it has none yet: version 0)
-            assertEquals(List.of(Map.of("module", "document-automation", "from", 0, "to", 0)), Modules.migrateAll(db));
+            assertTrue(Modules.migrateAll(db).contains(Map.of("module", "document-automation", "from", 0, "to", 0)));
         }
     }
 }

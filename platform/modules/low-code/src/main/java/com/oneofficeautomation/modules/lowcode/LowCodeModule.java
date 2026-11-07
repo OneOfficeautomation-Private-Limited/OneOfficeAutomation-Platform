@@ -100,6 +100,7 @@ public final class LowCodeModule implements CommandCenterModule {
             else if (m.equals("GET") && seg.length == 3 && seg[1].equals("records")) out = embeds.records(seg[0], key, seg[2], ctx.query(ex).get("q"));
             else throw ModuleContext.notFound("The route /api/embed/" + route);
             ctx.sendJson(ex, 200, out);
+            return true;
         });
         // /embed/{link}: only the sites the link names may frame the page
         ctx.embeddablePage("embed", embeds::frameAncestors);

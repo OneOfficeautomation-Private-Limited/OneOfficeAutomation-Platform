@@ -228,19 +228,10 @@
       "id": "integration",
       "name": "Integration",
       "layer": 3,
-      "description": "Agent APIs and serverless runs, the MCP server, SCIM, Git sync and API tasks.",
+      "description": "Agent APIs, the MCP server for AI assistants, and Git sync of the repository. (The server-side runner that serverless Agent APIs run on, and SCIM provisioning, are the kernel's.)",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ServerlessRuns.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/McpServer.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Scim.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/GitSync.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ApiTasks.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ServerlessRuns*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/McpServer*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Scim*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/GitSync*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ApiTasks*Test.java",
-        "platform/ui/src/console/AgentApis.tsx"
+        "platform/modules/integration/**",
+        "platform/ui/src/modules/integration/**"
       ],
       "dependsOn": [
         "kernel"

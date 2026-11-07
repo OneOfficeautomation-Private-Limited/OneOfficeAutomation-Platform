@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.integration.McpServer;
+
 import com.oneofficeautomation.modules.docauto.DocFlowConfig;
 import com.oneofficeautomation.modules.docauto.DocFlowProxy;
 import com.oneofficeautomation.modules.docauto.DocTemplates;
@@ -616,7 +618,7 @@ class DocFlowProxyTest {
     @Test @SuppressWarnings("unchecked")
     void assistantsSendADocumentAndAskForItsResultWithoutWaiting() {
         ControlRoom.User admin = cr.session(token);
-        McpServer s = new McpServer(cr);
+        McpServer s = cr.modules.service(McpServer.class);
         cr.createUser(admin, "val", "Val Viewer", "viewer", null);
         ControlRoom.User val = new ControlRoom.User("val", "val", "viewer", "Val Viewer", false);
         assertEquals(List.of("documents_list_processes", "documents_send", "documents_status", "documents_result", "documents_my_reviews", "documents_review"), toolNames(s, admin));
@@ -661,7 +663,7 @@ class DocFlowProxyTest {
     @Test @SuppressWarnings("unchecked")
     void assistantsReviewOnlyWhatThePersonMayReview() throws Exception {
         ControlRoom.User admin = cr.session(token);
-        McpServer s = new McpServer(cr);
+        McpServer s = cr.modules.service(McpServer.class);
         String now = java.time.Instant.now().toString().replace("Z", "+00:00");
         flowsJson = "[{\"id\":\"ap\",\"name\":\"AP\",\"folder\":\"Finance / Accounts payable\",\"status\":\"live\"},{\"id\":\"open\",\"name\":\"Open\",\"folder\":\"\",\"status\":\"live\"}]";
         reviewQueue = "[{\"id\":\"rAP\",\"file_name\":\"AP-1.pdf\",\"created_at\":\"" + now + "\",\"flowId\":\"ap\",\"flowName\":\"AP\",\"doctypeName\":\"Invoice\",\"slaHours\":8,\"flags\":[{\"message\":\"Totals differ\"}]},"

@@ -175,6 +175,18 @@ public interface ModuleContext {
     /** The mail addresses of people (user names, role:, team:), as the kernel resolves them. */
     List<String> addressesOf(java.util.Collection<String> people);
 
+    /** The server-side runner's device id (serverless Agent APIs run there). */
+    String serverlessDevice();
+
+    /** Refuses an agent the server-side runner cannot run (screen steps, toolkits not allowed there). */
+    void checkServerless(Map<String, Object> flow);
+
+    /** Stores a new version of an agent as the person (as an import: no check-out needed), with every check-in check. */
+    Map<String, Object> storeAgentVersion(User by, String path, Map<String, Object> flow, String comment, boolean production, String ip);
+
+    /** Every module's tools for AI assistants (the MCP server lists and calls them). */
+    List<McpTools> mcpTools();
+
     /** A trigger's settings (its config), as the trigger pollers read them. */
     Map<String, Object> triggerConfig(Map<String, Object> trigger);
 
@@ -197,6 +209,12 @@ public interface ModuleContext {
 
     /** The request body as a JSON object (CR.BAD_JSON otherwise). */
     Map<String, Object> jsonBody(HttpExchange ex) throws IOException;
+
+    /** The request body parsed as JSON (an object, a list or a value; CR.BAD_JSON when it is not JSON). */
+    Object jsonValue(HttpExchange ex) throws IOException;
+
+    /** The bearer token or session cookie of a request, or null (a module checks its own tokens with it). */
+    String requestToken(HttpExchange ex);
 
     /** The request's query parameters (decoded). */
     Map<String, String> query(HttpExchange ex);
@@ -240,8 +258,12 @@ public interface ModuleContext {
     /** A request a running agent makes of One CommandCenter (raise_alert): the run, its user, the step's arguments and the audit actor. */
     @FunctionalInterface interface RunRequest { Map<String, Object> handle(Map<String, Object> run, User as, Map<String, Object> args, String actor); }
 
-    /** A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key). The route is after the prefix. */
-    @FunctionalInterface interface PublicRoute { void handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
+    /**
+     * A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key, a task token). The
+     * route is after the prefix. Returns false when it is not one of the module's public requests, so the kernel goes on
+     * to sign the person in (a prefix may have public and signed-in routes).
+     */
+    @FunctionalInterface interface PublicRoute { boolean handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
 
     /** The sites that may show a page in a frame, as a frame-ancestors list ("https://a.example https://b.example"), or null when there is no such page. */
     @FunctionalInterface interface FrameOrigins { String forPage(String id); }
@@ -301,6 +323,9 @@ public interface ModuleContext {
     <T> T service(Class<T> type);
 
     // ------------------------------------------------------------------ the kernel's conventions, the same for every module
+
+    /** The server-side runner's device id (to recognise its runs; serverlessDevice() also sets it up). */
+    String SERVERLESS_DEVICE = com.oneofficeautomation.controlroom.ControlRoom.SERVERLESS_DEVICE_ID;
 
     /** How long after its last heartbeat a runner still counts as online. */
     java.time.Duration ONLINE = com.oneofficeautomation.controlroom.ControlRoom.ONLINE_WINDOW;

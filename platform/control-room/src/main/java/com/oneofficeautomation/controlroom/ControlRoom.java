@@ -45,8 +45,6 @@ public final class ControlRoom {
     public final Teams teams;
     /** Vault folder members, credential owners, people's own values and the master key. */
     public final VaultAdmin vaultAdmin;
-    /** Agents behind their own URL and token. */
-    public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
     public final RepoFiles repoFiles;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
@@ -78,7 +76,6 @@ public final class ControlRoom {
     public final EventSubscriptions events;
     /** The Prometheus metrics (gap G38). */
     public final Metrics metrics;
-    public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
     final Mailer mailer;
@@ -154,7 +151,6 @@ public final class ControlRoom {
         this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);
         this.metrics = new Metrics(this);
-        this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
         this.mailer = new Mailer(this);
@@ -171,7 +167,6 @@ public final class ControlRoom {
         this.lifecycle = new Lifecycle(this);
         this.templates = new Templates(this);
         this.vaultAdmin = new VaultAdmin(this);
-        this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
         customToolkits.loadAll();
@@ -185,8 +180,7 @@ public final class ControlRoom {
 
     /** Something in the repository changed (a check-in, a version made live): Git sync and the modules that follow changes hear of it. */
     void repositoryChanged(String by, String message) {
-        gitSync.changed(by, message);
-        if (modules != null) modules.repositoryChanged(by, message);
+        if (modules != null) modules.repositoryChanged(by, message);   // the integration module's Git sync follows it
     }
 
     /** The kernel's conventions, published to feature modules through ModuleContext (id, now, denied, notFound). */
@@ -200,6 +194,7 @@ public final class ControlRoom {
     public static String mailAddressChecked(String address) { return Mailer.address(address); }
     public static int intOrDefault(String value, int dflt) { return intOr(value, dflt); }
     public static final java.time.Duration ONLINE_WINDOW = ONLINE;
+    public static final String SERVERLESS_DEVICE_ID = ServerlessRuns.DEVICE;
     public static byte[] textPdfOf(String title, List<String> lines) { return TextPdf.of(title, lines); }
     public static Instant instantOf(String value, boolean endOfDay) { return instant(value, endOfDay); }
     public static User userFromRow(Map<String, Object> row) { return user(row); }
@@ -1071,7 +1066,7 @@ public final class ControlRoom {
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
         db.update("UPDATE bots SET production_version = ?, updated = ?, updated_by = ? WHERE path = ?", version, now(), by.username(), path);
         audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version), "ok", ip);
-        gitSync.changed(by.username(), path + ": v" + version + " is live in production");
+        repositoryChanged(by.username(), path + ": v" + version + " is live in production");
     }
 
     /**
@@ -1092,7 +1087,7 @@ public final class ControlRoom {
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
         audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
-        gitSync.changed(by.username(), path + " deleted");
+        repositoryChanged(by.username(), path + " deleted");
         return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
     }
 

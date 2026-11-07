@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.integration.ApiTasks;
+
 import com.oneofficeautomation.modules.governance.CodeAnalysis;
 
 import com.oneofficeautomation.packages.FirstPartyPackages;
@@ -188,7 +190,7 @@ class TokensSchedulingAnalysisApiTasksTest {
     @SuppressWarnings("unchecked")
     void apiTasks() throws Exception {
         db.update("UPDATE runs SET status = 'stopped' WHERE status IN ('queued', 'running')");
-        Map<String, Object> t = cr.apiTasks.create(admin, Map.of("name", "Echo service", "bot_path", "Ops/Echo.flow.json", "device_id", device, "timeout_seconds", 10), null);
+        Map<String, Object> t = cr.modules.service(ApiTasks.class).create(admin, Map.of("name", "Echo service", "bot_path", "Ops/Echo.flow.json", "device_id", device, "timeout_seconds", 10), null);
         String id = (String) t.get("id"), token = (String) t.get("token");
         // a runner that answers: claims the run and finishes it with the agent's output
         Thread runner = new Thread(() -> {
@@ -207,18 +209,18 @@ class TokensSchedulingAnalysisApiTasksTest {
         assertEquals("hello", ((Map<String, Object>) r.body().get("outputs")).get("answer"));
         assertEquals(200, http("GET", "/api/apitasks/" + id + "/runs/" + r.body().get("run_id"), null, Map.of("Authorization", "Bearer " + token)).status());
         // nobody answers within the limit: 202 with the run id
-        Map<String, Object> slow = cr.apiTasks.create(admin, Map.of("name", "Slow", "bot_path", "Ops/Echo.flow.json", "device_id", device, "timeout_seconds", 1), null);
+        Map<String, Object> slow = cr.modules.service(ApiTasks.class).create(admin, Map.of("name", "Slow", "bot_path", "Ops/Echo.flow.json", "device_id", device, "timeout_seconds", 1), null);
         R w = http("POST", "/api/apitasks/" + slow.get("id") + "/run", Map.of("inputs", Map.of("text", "x")), Map.of("X-OOA-Task-Token", (String) slow.get("token")));
         assertEquals(202, w.status());
         assertEquals("queued", w.body().get("status"));
         // wrong token, a token of another task, a new token, switched off
         assertEquals(401, http("POST", "/api/apitasks/" + id + "/run", Map.of(), Map.of("X-OOA-Task-Token", "ooat_wrong")).status());
         assertEquals(401, http("POST", "/api/apitasks/" + id + "/run", Map.of(), Map.of("X-OOA-Task-Token", (String) slow.get("token"))).status());
-        String token2 = (String) cr.apiTasks.newToken(admin, id, null).get("token");
+        String token2 = (String) cr.modules.service(ApiTasks.class).newToken(admin, id, null).get("token");
         assertEquals(401, http("GET", "/api/apitasks/" + id + "/runs/" + r.body().get("run_id"), null, Map.of("X-OOA-Task-Token", token)).status());
-        cr.apiTasks.setEnabled(admin, id, false, null);
+        cr.modules.service(ApiTasks.class).setEnabled(admin, id, false, null);
         assertEquals(403, http("POST", "/api/apitasks/" + id + "/run", Map.of(), Map.of("X-OOA-Task-Token", token2)).status());
-        assertEquals(2, cr.apiTasks.list(admin).size());
-        assertEquals("CR.FORBIDDEN", code(() -> cr.apiTasks.list(RepositoryLifecycleTest.person(cr, admin, "val", "viewer"))));
+        assertEquals(2, cr.modules.service(ApiTasks.class).list(admin).size());
+        assertEquals("CR.FORBIDDEN", code(() -> cr.modules.service(ApiTasks.class).list(RepositoryLifecycleTest.person(cr, admin, "val", "viewer"))));
     }
 }

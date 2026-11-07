@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.integration.GitSync;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -56,15 +58,15 @@ class GitPullTest {
     void changesMadeInGitBecomeVersionsAndConflictsAreLeftAlone() throws Exception {
         cr.checkin(admin, "Finance/Post.flow.json", LicensingAndChecksTest.agent("post"), "v1", true, null);
         cr.checkin(admin, "Finance/Pay.flow.json", LicensingAndChecksTest.agent("pay"), "v1", true, null);
-        assertEquals("CR.GIT", assertThrows(OoaException.class, () -> cr.gitSync.pullNow(admin, null)).code(), "nothing in Git yet");
-        cr.gitSync.syncNow(admin, null);
+        assertEquals("CR.GIT", assertThrows(OoaException.class, () -> cr.modules.service(GitSync.class).pullNow(admin, null)).code(), "nothing in Git yet");
+        cr.modules.service(GitSync.class).syncNow(admin, null);
 
-        Map<String, Object> nothing = cr.gitSync.pullNow(admin, null);
+        Map<String, Object> nothing = cr.modules.service(GitSync.class).pullNow(admin, null);
         assertEquals(List.of(), nothing.get("imported"), "the same as One CommandCenter");
 
         developer("dev1", "Explain the posting rule", Map.of("Finance/Post.flow.json", withDescription("post", "Posts invoices over 1,000 for review"),
             "Finance/Refund.flow.json", withDescription("refund", "New in Git"), "Finance/Broken.flow.json", "{ not json"));
-        Map<String, Object> r = cr.gitSync.pullNow(admin, "127.0.0.1");
+        Map<String, Object> r = cr.modules.service(GitSync.class).pullNow(admin, "127.0.0.1");
         List<Map<String, Object>> imported = (List<Map<String, Object>>) r.get("imported");
         assertEquals(Set.of("Finance/Post.flow.json", "Finance/Refund.flow.json"), new HashSet<>(imported.stream().map(i -> (String) i.get("path")).toList()));
         Map<String, Object> v = db.one("SELECT version, comment, author FROM bot_versions WHERE path = 'Finance/Post.flow.json' ORDER BY version DESC LIMIT 1");
@@ -81,21 +83,21 @@ class GitPullTest {
         here.put("description", "changed in One CommandCenter");
         cr.checkin(admin, "Finance/Pay.flow.json", here, "v2 here", true, null);
         developer("dev2", "Change pay", Map.of("Finance/Pay.flow.json", withDescription("pay", "changed in Git")));
-        Map<String, Object> c = cr.gitSync.pullNow(admin, null);
+        Map<String, Object> c = cr.modules.service(GitSync.class).pullNow(admin, null);
         assertEquals(List.of("Finance/Pay.flow.json"), ((List<Map<String, Object>>) c.get("conflicts")).stream().map(x -> x.get("path")).toList());
         assertEquals(2, ((Number) db.one("SELECT latest_version FROM bots WHERE path = 'Finance/Pay.flow.json'").get("latest_version")).intValue());
 
         // deleted in Git: only reported
-        cr.gitSync.syncNow(admin, null);
+        cr.modules.service(GitSync.class).syncNow(admin, null);
         Path dir = tmp.resolve("dev3");
         try (Git g = Git.cloneRepository().setURI(remote.toUri().toString()).setDirectory(dir.toFile()).setBranch("main").call()) {
             g.rm().addFilepattern("agents/Finance/Refund.flow.json").call();
             g.commit().setMessage("drop refund").setAuthor(new PersonIdent("Dev Asha", "asha@example.com")).call();
             g.push().call();
         }
-        Map<String, Object> d = cr.gitSync.pullNow(admin, null);
+        Map<String, Object> d = cr.modules.service(GitSync.class).pullNow(admin, null);
         assertEquals(List.of("Finance/Refund.flow.json"), d.get("deleted_in_git"));
         assertNotNull(db.one("SELECT path FROM bots WHERE path = 'Finance/Refund.flow.json' AND deleted_at IS NULL"));
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.gitSync.pullNow(new ControlRoom.User("v", "vic", "viewer", "V", false), null)).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(GitSync.class).pullNow(new ControlRoom.User("v", "vic", "viewer", "V", false), null)).code());
     }
 }

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { FolderIcon } from "./Repository";
+import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { FolderIcon } from "../../console/Repository";
 
 /**
  * Build > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an

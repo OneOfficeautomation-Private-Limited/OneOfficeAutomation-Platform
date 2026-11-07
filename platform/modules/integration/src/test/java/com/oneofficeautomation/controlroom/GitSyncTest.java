@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.integration.GitSync;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -45,7 +47,7 @@ class GitSyncTest {
 
         cr.checkin(admin, "Finance/Invoices.flow.json", LicensingAndChecksTest.agent("invoices"), "first", true, null);
         cr.checkin(admin, "HR/Onboard.flow.json", LicensingAndChecksTest.agent("onboard"), "first", true, null);
-        Map<String, Object> first = cr.gitSync.syncNow(admin, null);
+        Map<String, Object> first = cr.modules.service(GitSync.class).syncNow(admin, null);
         assertEquals("ok", first.get("state"));
         assertEquals(2, first.get("agents"));
         assertEquals(true, first.get("changed"));
@@ -61,7 +63,7 @@ class GitSyncTest {
         assertTrue(Files.exists(c1.resolve("README.md")));
 
         // nothing changed: no new commit
-        assertEquals(false, cr.gitSync.syncNow(admin, null).get("changed"));
+        assertEquals(false, cr.modules.service(GitSync.class).syncNow(admin, null).get("changed"));
 
         // automatic push after a check-in, with its comment and author
         cr.platform.updateSettings(admin, Map.of("git_auto_push", 1), null);
@@ -86,7 +88,7 @@ class GitSyncTest {
         Path c2 = cloneRemote("c2");
         Files.writeString(c2.resolve("agents/Finance/Invoices.flow.json"), "{\"hand\": \"edited\"}");
         try (Git g = Git.open(c2.toFile())) { g.commit().setAll(true).setMessage("edited in Git").call(); g.push().call(); }
-        assertEquals(true, cr.gitSync.syncNow(admin, null).get("changed"));
+        assertEquals(true, cr.modules.service(GitSync.class).syncNow(admin, null).get("changed"));
         Path c3 = cloneRemote("c3");
         assertFalse(Files.exists(c3.resolve("agents/HR/Onboard.flow.json")));
         assertTrue(Files.readString(c3.resolve("agents/Finance/Invoices.flow.json")).contains("now with VAT"), "One CommandCenter is the source of truth");
@@ -95,15 +97,15 @@ class GitSyncTest {
             for (RevCommit c : g.log().call()) messages.add(c.getShortMessage());
             assertTrue(messages.contains("edited in Git"), "earlier history stays: " + messages);
         }
-        assertEquals("ok", cr.gitSync.status(admin).get("state"));
+        assertEquals("ok", cr.modules.service(GitSync.class).status(admin).get("state"));
     }
 
     @Test void syncNeedsTheSettingsRightAndAReachableRemote() throws Exception {
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.gitSync.syncNow(RepositoryLifecycleTest.person(cr, admin, "vic", "viewer"), null)).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(GitSync.class).syncNow(RepositoryLifecycleTest.person(cr, admin, "vic", "viewer"), null)).code());
         cr.platform.updateSettings(admin, Map.of("git_remote_url", tmp.resolve("missing.git").toUri().toString()), null);
         try {
-            assertEquals("CR.GIT", assertThrows(OoaException.class, () -> cr.gitSync.syncNow(admin, null)).code());
-            assertEquals("failed", cr.gitSync.status(admin).get("state"));
+            assertEquals("CR.GIT", assertThrows(OoaException.class, () -> cr.modules.service(GitSync.class).syncNow(admin, null)).code());
+            assertEquals("failed", cr.modules.service(GitSync.class).status(admin).get("state"));
         } finally {
             cr.platform.updateSettings(admin, Map.of("git_remote_url", remote.toUri().toString()), null);
         }

@@ -219,6 +219,12 @@ public final class Modules {
             cr.mailer.send(to, subject, body, files);
         }
         public List<String> addressesOf(java.util.Collection<String> people) { return cr.addressesOf(people); }
+        public String serverlessDevice() { return (String) cr.serverless.device().get("id"); }
+        public void checkServerless(Map<String, Object> flow) { cr.serverless.check(flow); }
+        public Map<String, Object> storeAgentVersion(User by, String path, Map<String, Object> flow, String comment, boolean production, String ip) {
+            return cr.storeVersion(by, path, flow, comment, production, false, ip);
+        }
+        public List<McpTools> mcpTools() { return java.util.Collections.unmodifiableList(mcpTools); }
         public Map<String, Object> triggerConfig(Map<String, Object> trigger) { return TriggerPollers.config(trigger); }
 
         public MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) {
@@ -238,6 +244,8 @@ public final class Modules {
         public Map<String, Object> jsonBody(HttpExchange ex) throws IOException { return ControlRoomServer.map(ControlRoomServer.body(ex)); }
         public int maxBody() { return ControlRoomServer.maxBody.getAsInt(); }
         public Map<String, String> query(HttpExchange ex) { return ControlRoomServer.query(ex); }
+        public Object jsonValue(HttpExchange ex) throws IOException { return ControlRoomServer.body(ex); }
+        public String requestToken(HttpExchange ex) { return ControlRoomServer.token(ex); }
         public void sendFile(HttpExchange ex, byte[] content, String contentType, String fileName) throws IOException { ControlRoomServer.sendBytes(ex, content, contentType, fileName); }
 
         public void route(String prefix, UserRoute handler) { claim(userRoutes, prefix, handler, "the route /api/" + prefix); }

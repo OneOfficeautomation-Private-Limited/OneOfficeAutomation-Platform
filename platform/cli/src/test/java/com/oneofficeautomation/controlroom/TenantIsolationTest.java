@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.integration.GitSync;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.Test;
@@ -78,7 +80,7 @@ class TenantIsolationTest {
             NetGuard.check(null, "http://127.0.0.1/", "On premises everything is allowed");
             assertEquals("CR.GIT", assertThrows(OoaException.class, () -> {
                 g.platform.updateSettings(ga, Map.of("git_remote_url", "file:///etc"), null);
-                g.gitSync.syncNow(ga, null);
+                g.modules.service(GitSync.class).syncNow(ga, null);
             }).code());
         } finally { base.close(); }
     }

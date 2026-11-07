@@ -1,4 +1,8 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.integration;
+
+import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.controlroom.module.ModuleContext;
 
@@ -9,7 +13,7 @@ import com.oneofficeautomation.sdk.OoaException;
 import java.time.Instant;
 import java.util.*;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Model Context Protocol server over HTTP (JSON-RPC 2.0 on POST /api/mcp). Outside AI assistants list the agents an
@@ -17,14 +21,14 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  * vault access. Each call starts a normal run (source "mcp"), so it shows in Agent Activity and the Audit Trail.
  * Tools feature modules offer (Document Automation's documents_ tools) come first, for people allowed to use them.
  */
-final class McpServer {
-    static final String PROTOCOL = "2025-06-18";
-    private final ControlRoom cr;
+public final class McpServer {
+    public static final String PROTOCOL = "2025-06-18";
+    private final ModuleContext ctx;
 
-    McpServer(ControlRoom cr) { this.cr = cr; }
+    public McpServer(ModuleContext ctx) { this.ctx = ctx; }
 
     /** Tools feature modules offer (Document Automation's documents_ tools first), as registered at start-up. */
-    private List<ModuleContext.McpTools> moduleTools() { return cr.modules == null ? List.of() : cr.modules.mcpTools; }
+    private List<ModuleContext.McpTools> moduleTools() { return ctx.mcpTools(); }
 
     /** What the assistant is told: the agent tools, then what each module's tools are for. */
     private String instructions() {
@@ -35,7 +39,7 @@ final class McpServer {
 
     /** Handles one JSON-RPC message; returns null for notifications (no response body). */
     @SuppressWarnings("unchecked")
-    Map<String, Object> handle(User u, Object message, String ip) {
+    public Map<String, Object> handle(User u, Object message, String ip) {
         if (!(message instanceof Map<?, ?> raw)) return error(null, -32600, "Invalid request");
         Map<String, Object> m = (Map<String, Object>) raw;
         Object id = m.get("id");
@@ -65,10 +69,10 @@ final class McpServer {
     }
 
     /** Tool name from an agent path: Finance/Invoice worker.flow.json -> Finance_Invoice_worker. */
-    static String toolName(String path) { return BotTools.toolName(path); }
+    public static String toolName(String path) { return BotTools.toolName(path); }
 
     private List<String> exposed() {
-        String s = String.valueOf(cr.platform.setting("mcp_agents")).trim();
+        String s = String.valueOf(ctx.setting("mcp_agents")).trim();
         if (s.isEmpty()) return List.of();
         if (s.equals("*")) return null;
         return Arrays.stream(s.split("[,\\n]")).map(String::trim).filter(x -> !x.isEmpty()).toList();
@@ -84,16 +88,16 @@ final class McpServer {
 
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> agentTools(User u) {
-        if (!cr.can(u, "runs.start")) return List.of();
+        if (!ctx.can(u, "runs.start")) return List.of();
         List<String> allow = exposed();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> b : cr.db.query("SELECT path, description FROM bots WHERE production_version IS NOT NULL ORDER BY path")) {
+        for (Map<String, Object> b : ctx.db().query("SELECT path, description FROM bots WHERE production_version IS NOT NULL ORDER BY path")) {
             String path = (String) b.get("path");
             if (!path.endsWith(".flow.json")) continue;
             if (allow != null && !allow.contains(path) && !allow.contains(toolName(path))) continue;
             if (moduleTools().stream().anyMatch(t -> t.names().contains(toolName(path)))) continue;   // modules' tools keep their names
             Map<String, Object> flow;
-            try { flow = (Map<String, Object>) cr.content(path, "production").get("flow"); } catch (OoaException e) { continue; }
+            try { flow = (Map<String, Object>) ctx.agentContent(path, "production").get("flow"); } catch (OoaException e) { continue; }
             Map<String, Object> schema = BotTools.inputSchema(flow);
             String desc = b.get("description") instanceof String d && !d.isBlank() ? d : flow.get("description") instanceof String fd && !fd.isBlank() ? fd : "Runs the agent " + path.replace(".flow.json", "");
             out.add(Map.of("name", toolName(path), "title", path.replace(".flow.json", ""), "description", desc, "inputSchema", schema));
@@ -108,17 +112,17 @@ final class McpServer {
         Map<String, Object> tool = agentTools(u).stream().filter(t -> t.get("name").equals(name)).findFirst()
                 .orElseThrow(() -> new OoaException("MCP.UNKNOWN_TOOL", "No exposed agent is called " + name));
         String path = String.valueOf(tool.get("title")) + ".flow.json";
-        String target = String.valueOf(cr.platform.setting("mcp_runner")).trim();
+        String target = String.valueOf(ctx.setting("mcp_runner")).trim();
         String device = null, pool = null;
-        if (target.startsWith("pool_") || cr.db.one("SELECT id FROM device_pools WHERE id = ?", target) != null) pool = target;
+        if (target.startsWith("pool_") || ctx.db().one("SELECT id FROM device_pools WHERE id = ?", target) != null) pool = target;
         else if (!target.isEmpty()) device = target;
-        else device = cr.platform.onlineRunner();
+        else device = ctx.onlineRunner();
         if (device == null && pool == null) throw new OoaException("MCP.NO_RUNNER", "No runner is online to run " + name);
-        Map<String, Object> run = cr.startRun(u.username(), u.role(), path, device, pool, args, "mcp", ip, 5, null);
+        Map<String, Object> run = ctx.startRun(u.username(), u.role(), path, device, pool, args, "mcp", ip, 5, null, null, null);
         String runId = (String) run.get("run_id");
-        long deadline = System.currentTimeMillis() + 1000L * Math.max(10, cr.platform.intSetting("mcp_timeout_seconds"));
+        long deadline = System.currentTimeMillis() + 1000L * Math.max(10, ctx.intSetting("mcp_timeout_seconds"));
         while (System.currentTimeMillis() < deadline) {
-            Map<String, Object> r = cr.db.one("SELECT status, outputs, error FROM runs WHERE id = ?", runId);
+            Map<String, Object> r = ctx.db().one("SELECT status, outputs, error FROM runs WHERE id = ?", runId);
             String st = String.valueOf(r.get("status"));
             if (Set.of("success", "failed", "stopped").contains(st)) {
                 Object outputs = r.get("outputs") == null ? Map.of() : JsonLite.parse((String) r.get("outputs"));

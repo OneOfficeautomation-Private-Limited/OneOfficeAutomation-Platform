@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.integration.ApiTasks;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -90,7 +92,7 @@ class SchedulesQueuesDeleteTest {
 
     @Test void anAgentAnApiTaskUsesIsNotDeleted() {
         cr.checkin(admin, "Ops/Api.flow.json", RepositoryLifecycleTest.flow("api"), "v1", true, null);
-        Map<String, Object> t = cr.apiTasks.create(admin, new HashMap<>(Map.of("name", "Quote API", "bot_path", "Ops/Api.flow.json", "device_id", device)), null);
+        Map<String, Object> t = cr.modules.service(ApiTasks.class).create(admin, new HashMap<>(Map.of("name", "Quote API", "bot_path", "Ops/Api.flow.json", "device_id", device)), null);
         OoaException e = assertThrows(OoaException.class, () -> cr.deleteBot(admin, "Ops/Api.flow.json", null));
         assertEquals("CR.IN_USE", e.code());
         assertTrue(e.getMessage().contains("API task Quote API"), e.getMessage());

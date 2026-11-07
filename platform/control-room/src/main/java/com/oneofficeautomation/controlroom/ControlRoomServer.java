@@ -33,7 +33,6 @@ public final class ControlRoomServer {
     static volatile java.util.function.IntSupplier maxBody = () -> 5 * 1024 * 1024;
     public static final String COOKIE = "ooa_cr";
     private final ControlRoom cr;
-    private final McpServer mcp;
     private final Sso sso;
     private final String host;
     private final int port;
@@ -45,7 +44,7 @@ public final class ControlRoomServer {
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
-        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
+        this.cr = cr; this.host = host; this.port = port; this.sso = new Sso(cr);
         // a SaaS region sets one request limit for all its tenants (TenantHost)
         if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
@@ -404,10 +403,8 @@ public final class ControlRoomServer {
 
         // ---------- public ----------
         // public routes feature modules add, which they authenticate themselves (low-code: /api/embed/..., with the embed key)
-        if (cr.modules.publicRoutes.get(seg[0]) instanceof ModuleContext.PublicRoute pr) {
-            pr.handle(ex, m, route.startsWith(seg[0] + "/") ? route.substring(seg[0].length() + 1) : "", ip);
-            return;
-        }
+        if (cr.modules.publicRoutes.get(seg[0]) instanceof ModuleContext.PublicRoute pr
+                && pr.handle(ex, m, route.startsWith(seg[0] + "/") ? route.substring(seg[0].length() + 1) : "", ip)) return;
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
             // with the sign-in notice set to be accepted, a sign-in without the tick is refused
@@ -434,17 +431,6 @@ public final class ControlRoomServer {
         if (m.equals("GET") && route.equals("auth/token")) { sendJson(ex, 200, cr.verifyToken(token(ex))); return; }
         // calls from other services that feature modules handle (Document Automation's DocFlow), authenticated by the module
         if (m.equals("POST") && cr.modules.callbacks.get(route) instanceof ModuleContext.CallbackRoute cb) { sendJson(ex, 200, cb.handle(ex, ip)); return; }
-        if (seg[0].equals("apitasks") && seg.length >= 3 && (seg[2].equals("run") || seg[2].equals("runs"))) {
-            String t = ex.getRequestHeaders().getFirst("X-OOA-Task-Token");
-            if (t == null) t = token(ex);
-            if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) {
-                Map<String, Object> b = map(body(ex));
-                Map.Entry<Boolean, Map<String, Object>> r = cr.apiTasks.run(seg[1], t, b.get("inputs") instanceof Map<?, ?> im ? (Map<String, Object>) im : Map.of(), ip);
-                sendJson(ex, r.getKey() ? 200 : 202, r.getValue());
-            } else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.apiTasks.poll(seg[1], t, seg[3], ip));
-            else notFound(ex);
-            return;
-        }
         if (m.equals("GET") && route.equals("auth/sso")) {
             Map<String, Object> info = new LinkedHashMap<>(sso.info());
             info.put("saml", cr.saml.info());
@@ -662,11 +648,6 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
-            case "mcp" -> {
-                if (!m.equals("POST")) { ex.getResponseHeaders().set("Allow", "POST"); ex.sendResponseHeaders(405, -1); return; }
-                Map<String, Object> res = mcp.handle(u, body(ex), ip);
-                if (res == null) ex.sendResponseHeaders(202, -1); else sendJson(ex, 200, res);
-            }
             case "workflows" -> {
                 if (m.equals("GET") && route.equals("workflows/runs") && q.get("reference") != null) sendJson(ex, 200, cr.workflows.run(u, null, q.get("reference")));
                 else if (m.equals("GET") && route.equals("workflows/runs")) sendJson(ex, 200, Map.of("runs", cr.workflows.runs(u, q.get("status"))));
@@ -730,14 +711,6 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("scaling")) sendJson(ex, 200, cr.poolScaling.get(u, seg[1]));
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("scaling")) sendJson(ex, 200, cr.poolScaling.put(u, seg[1], map(body(ex)), ip));
-                else notFound(ex);
-            }
-            case "apitasks" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("tasks", cr.apiTasks.list(u)));
-                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.apiTasks.create(u, map(body(ex)), ip));
-                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("token")) sendJson(ex, 200, cr.apiTasks.newToken(u, seg[1], ip));
-                else if (m.equals("PATCH") && seg.length == 2) { cr.apiTasks.setEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("DELETE") && seg.length == 2) { cr.apiTasks.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "teams" -> {
@@ -941,18 +914,6 @@ public final class ControlRoomServer {
             case "backups" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.backups.backupNow(u, ip));
-                else notFound(ex);
-            }
-            case "git" -> {
-                if (m.equals("GET") && route.equals("git/status")) sendJson(ex, 200, cr.gitSync.status(u));
-                else if (m.equals("POST") && route.equals("git/sync")) {
-                    try { sendJson(ex, 200, cr.gitSync.syncNow(u, ip)); }
-                    catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Git sync failed: " + e.getMessage()); }
-                }
-                else if (m.equals("POST") && route.equals("git/pull")) {   // G70: Git as the source of truth (a pipeline may call it with an API key)
-                    try { sendJson(ex, 200, cr.gitSync.pullNow(u, ip)); }
-                    catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Reading from Git failed: " + e.getMessage()); }
-                }
                 else notFound(ex);
             }
             case "devices" -> {

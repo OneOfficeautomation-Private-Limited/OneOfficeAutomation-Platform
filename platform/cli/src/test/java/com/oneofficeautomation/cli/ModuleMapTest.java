@@ -26,7 +26,7 @@ class ModuleMapTest {
     static final Path CR = REPO.resolve("platform/control-room/src/main/java/com/oneofficeautomation/controlroom");
     static final Path CONSOLE = REPO.resolve("platform/ui/src/console");
     /** Modules whose boundaries are already enforced: the kernel may not name their classes, nor may other feature modules. */
-    static final Set<String> ENFORCED = Set.of("document-automation", "coe", "ai-services", "low-code", "one-chat", "testing", "governance", "insights");
+    static final Set<String> ENFORCED = Set.of("document-automation", "coe", "ai-services", "low-code", "one-chat", "testing", "governance", "insights", "integration");
 
     record Module(String id, int layer, List<String> paths, List<Pattern> patterns, List<String> dependsOn) {}
 

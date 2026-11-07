@@ -1,4 +1,8 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.integration;
+
+import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
 
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -6,8 +10,7 @@ import com.oneofficeautomation.sdk.OoaException;
 import java.util.*;
 import java.util.concurrent.Semaphore;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
-import com.oneofficeautomation.controlroom.ControlRoom.User;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Agent APIs: an agent behind its own address and token, for other systems to call like a web service. A call runs the
@@ -17,21 +20,21 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  * shown once, stored as a hash, can be replaced, and works only for its own task.
  */
 public final class ApiTasks {
-    static final int MAX_WAIT_SECONDS = 300;
+    public static final int MAX_WAIT_SECONDS = 300;
     /** Calls that wait for their result at the same time; more get 202 at once (the HTTP server has 16 threads). */
     private final Semaphore waiting = new Semaphore(8);
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    ApiTasks(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public ApiTasks(ModuleContext ctx) { this.ctx = ctx; this.db = ctx.db(); }
 
     public List<Map<String, Object>> list(User by) {
-        cr.require(by, "apitasks.manage", "manage Agent APIs");
+        ctx.require(by, "apitasks.manage", "manage Agent APIs");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> t : db.query("SELECT id, name, bot_path, device_id, pool_id, timeout_seconds, enabled, created_by, created, last_used, calls FROM api_tasks ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(t);
             m.put("url", "/api/apitasks/" + t.get("id") + "/run");
-            m.put("serverless", ServerlessRuns.DEVICE.equals(t.get("device_id")));
+            m.put("serverless", ModuleContext.SERVERLESS_DEVICE.equals(t.get("device_id")));
             out.add(m);
         }
         return out;
@@ -39,19 +42,19 @@ public final class ApiTasks {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> create(User by, Map<String, Object> b, String ip) {
-        cr.require(by, "apitasks.manage", "manage Agent APIs");
-        cr.require(by, "runs.start", "start runs");
+        ctx.require(by, "apitasks.manage", "manage Agent APIs");
+        ctx.require(by, "runs.start", "start runs");
         String name = String.valueOf(b.getOrDefault("name", "")).trim();
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "API task names have 1 to 120 characters");
         String path = (String) b.get("bot_path");
         if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.BAD_INPUT", "Choose an agent");
-        cr.content(path, "production");
-        cr.folders.require(by, path, "run", "make Agent APIs for agents");
+        ctx.agentContent(path, "production");
+        ctx.requirePathAccess(by, path, "run", "make Agent APIs for agents");
         String device = b.get("device_id") instanceof String d && !d.isBlank() ? d : null, pool = b.get("pool_id") instanceof String p && !p.isBlank() ? p : null;
-        if (Boolean.TRUE.equals(b.get("serverless")) || ServerlessRuns.DEVICE.equals(device)) {
+        if (Boolean.TRUE.equals(b.get("serverless")) || ModuleContext.SERVERLESS_DEVICE.equals(device)) {
             // run inside One CommandCenter: only agents that keep to web services and data toolkits
-            cr.serverless.check((Map<String, Object>) cr.content(path, "production").get("flow"));
-            device = (String) cr.serverless.device().get("id");
+            ctx.checkServerless((Map<String, Object>) ctx.agentContent(path, "production").get("flow"));
+            device = ctx.serverlessDevice();
             pool = null;
         }
         if (device == null && pool == null) throw new OoaException("CR.BAD_INPUT", "Choose the runner or runner pool that runs the calls");
@@ -59,14 +62,14 @@ public final class ApiTasks {
         if (pool != null && db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw notFound("Runner pool");
         int timeout = b.get("timeout_seconds") instanceof Number n ? n.intValue() : 60;
         if (timeout < 1 || timeout > MAX_WAIT_SECONDS) throw new OoaException("CR.BAD_INPUT", "The time limit is 1 to " + MAX_WAIT_SECONDS + " seconds");
-        String id = id("task"), token = "ooat_" + Security.token(32);
+        String id = id("task"), token = "ooat_" + ModuleContext.secureToken(32);
         db.update("INSERT INTO api_tasks (id, name, bot_path, device_id, pool_id, token_hash, timeout_seconds, enabled, created_by, created, calls) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                id, name, path, device, pool, Security.sha256(token), timeout, true, by.username(), now(), 0);
-        cr.audit.record(by.username(), "apitask.create", "apitask", id, Map.of("name", name, "bot", path), "ok", ip);
+                id, name, path, device, pool, ModuleContext.sha256(token), timeout, true, by.username(), now(), 0);
+        ctx.audit(by.username(), "apitask.create", "apitask", id, Map.of("name", name, "bot", path), "ok", ip);
         return Map.of("id", id, "url", "/api/apitasks/" + id + "/run", "token", token);
     }
 
-    Map<String, Object> task(String id) {
+    public Map<String, Object> task(String id) {
         Map<String, Object> t = db.one("SELECT * FROM api_tasks WHERE id = ?", id);
         if (t == null) throw notFound("API task");
         return t;
@@ -74,33 +77,33 @@ public final class ApiTasks {
 
     /** A new token; the old one stops working at once. */
     public Map<String, Object> newToken(User by, String id, String ip) {
-        cr.require(by, "apitasks.manage", "manage Agent APIs");
+        ctx.require(by, "apitasks.manage", "manage Agent APIs");
         task(id);
-        String token = "ooat_" + Security.token(32);
-        db.update("UPDATE api_tasks SET token_hash = ? WHERE id = ?", Security.sha256(token), id);
-        cr.audit.record(by.username(), "apitask.new_token", "apitask", id, null, "ok", ip);
+        String token = "ooat_" + ModuleContext.secureToken(32);
+        db.update("UPDATE api_tasks SET token_hash = ? WHERE id = ?", ModuleContext.sha256(token), id);
+        ctx.audit(by.username(), "apitask.new_token", "apitask", id, null, "ok", ip);
         return Map.of("id", id, "token", token);
     }
 
     public void setEnabled(User by, String id, boolean on, String ip) {
-        cr.require(by, "apitasks.manage", "manage Agent APIs");
+        ctx.require(by, "apitasks.manage", "manage Agent APIs");
         task(id);
         db.update("UPDATE api_tasks SET enabled = ? WHERE id = ?", on, id);
-        cr.audit.record(by.username(), on ? "apitask.enable" : "apitask.disable", "apitask", id, null, "ok", ip);
+        ctx.audit(by.username(), on ? "apitask.enable" : "apitask.disable", "apitask", id, null, "ok", ip);
     }
 
     public void delete(User by, String id, String ip) {
-        cr.require(by, "apitasks.manage", "manage Agent APIs");
+        ctx.require(by, "apitasks.manage", "manage Agent APIs");
         if (db.update("DELETE FROM api_tasks WHERE id = ?", id) == 0) throw notFound("API task");
-        cr.audit.record(by.username(), "apitask.delete", "apitask", id, null, "ok", ip);
+        ctx.audit(by.username(), "apitask.delete", "apitask", id, null, "ok", ip);
     }
 
     /** Checks the task's token (constant time); a wrong token and an unknown task look the same. */
-    Map<String, Object> authorise(String id, String token, String ip) {
+    public Map<String, Object> authorise(String id, String token, String ip) {
         Map<String, Object> t = db.one("SELECT * FROM api_tasks WHERE id = ?", id);
-        String h = token == null ? "" : Security.sha256(token);
-        if (t == null || !Security.constantEquals(h, (String) t.get("token_hash"))) {
-            cr.audit.record("api task", "apitask.call", "apitask", id, null, "denied", ip);
+        String h = token == null ? "" : ModuleContext.sha256(token);
+        if (t == null || !ModuleContext.constantEquals(h, (String) t.get("token_hash"))) {
+            ctx.audit("api task", "apitask.call", "apitask", id, null, "denied", ip);
             throw new OoaException("CR.UNAUTHENTICATED", "Unknown API task or wrong token", null);
         }
         if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.FORBIDDEN", "This API task is switched off");
@@ -116,8 +119,8 @@ public final class ApiTasks {
         Map<String, Object> t = authorise(id, token, ip);
         Map<String, Object> owner = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));
         if (owner == null) throw new OoaException("CR.FORBIDDEN", "The person who made this API task is disabled", "Make the API task again as an active user.");
-        Map<String, Object> r = cr.startRun((String) t.get("created_by"), (String) owner.get("role"), (String) t.get("bot_path"), (String) t.get("device_id"), (String) t.get("pool_id"),
-                inputs == null ? Map.of() : inputs, "api_task:" + id, ip, 5, null);
+        Map<String, Object> r = ctx.startRun((String) t.get("created_by"), (String) owner.get("role"), (String) t.get("bot_path"), (String) t.get("device_id"), (String) t.get("pool_id"),
+                inputs == null ? Map.of() : inputs, "api_task:" + id, ip, 5, null, null, null);
         db.update("UPDATE api_tasks SET last_used = ?, calls = calls + 1 WHERE id = ?", now(), id);
         String runId = (String) r.get("run_id");
         if (!waiting.tryAcquire()) return Map.entry(false, result(runId));
@@ -140,7 +143,7 @@ public final class ApiTasks {
         return result(runId);
     }
 
-    Map<String, Object> result(String runId) {
+    public Map<String, Object> result(String runId) {
         Map<String, Object> r = db.one("SELECT id, status, outputs, error, duration_ms FROM runs WHERE id = ?", runId);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("run_id", runId);

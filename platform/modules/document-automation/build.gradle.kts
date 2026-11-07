@@ -6,6 +6,8 @@ dependencies {
     implementation(project(":sdk"))
     // tests start a whole One CommandCenter with the module on its class path
     testImplementation(project(":packages"))
+    // its AI-assistant tools are tested through the MCP server, which the integration module serves (tests only)
+    testImplementation(project(":integration"))
     testImplementation(project(":runner"))
     testRuntimeOnly("com.h2database:h2:2.2.224")
 }

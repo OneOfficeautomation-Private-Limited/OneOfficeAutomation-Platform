@@ -5,7 +5,7 @@ import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
 import { enableTableTools } from "./TableTools";
 import { Activity } from "./Activity";
-import { AgentApis } from "./AgentApis";
+import { AgentApis } from "../modules/integration/AgentApis";
 import { Audit } from "./Audit";
 import { Connections } from "./Connections";
 import { Devices } from "./Devices";

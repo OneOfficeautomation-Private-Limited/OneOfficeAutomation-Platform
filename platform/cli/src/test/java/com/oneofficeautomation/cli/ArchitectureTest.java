@@ -61,7 +61,7 @@ class ArchitectureTest {
     }
 
     /** Feature modules moved out of the kernel, as source folders (module-map.json). */
-    static final List<String> FEATURE_MODULES = List.of("modules/document-automation", "modules/coe", "modules/ai-services", "modules/low-code", "modules/one-chat", "modules/testing", "modules/governance", "modules/insights");
+    static final List<String> FEATURE_MODULES = List.of("modules/document-automation", "modules/coe", "modules/ai-services", "modules/low-code", "modules/one-chat", "modules/testing", "modules/governance", "modules/insights", "modules/integration");
 
     static String pkgOf(String module) {
         return switch (module) { case "packages-office" -> "office"; case "packages-email" -> "email"; case "packages-pdf" -> "pdf";
