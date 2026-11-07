@@ -243,6 +243,9 @@ export type Idea = { id: string; title: string; description?: string | null; dep
   runs_30_days?: number; hours_saved_30_days?: number | null };
 export type IdeaList = { ideas: Idea[]; can_manage: boolean; statuses: string[] };
 /** A knowledge base (G71): an index kept in One CommandCenter, filled by an indexing agent. */
+/** One Chat: a message in a chat, as the server keeps it; kind says what the reply is (confirm waits for yes or no; started, run_* and approval_* follow a run). */
+export type ChatMessage = { role: "user" | "assistant"; text: string; kind?: string; run_id?: string };
+export type ChatReply = { session_id: string; reply: string; kind: string; run_id?: string };
 export type KnowledgeBase = { id: string; name: string; folder: string; description?: string; passages: number; documents: number; bytes: number;
   created: string; created_by: string; updated?: string; updated_by_agent?: string; updated_by_run?: string };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
@@ -607,6 +610,10 @@ export class CrApi {
   async saveIdea(id: string | null, body: Partial<Idea>) { return this.call<Idea>(id ? "PUT" : "POST", id ? "ideas/" + encodeURIComponent(id) : "ideas", body); }
   async voteIdea(id: string) { return this.call<Idea>("POST", "ideas/" + encodeURIComponent(id) + "/vote"); }
   async deleteIdea(id: string) { await this.call("DELETE", "ideas/" + encodeURIComponent(id)); }
+  /** One Chat: sends a message (a new chat when sessionId is null); the reply comes in the person's language. */
+  chat(sessionId: string | null, message: string, lang: string) { return this.call<ChatReply>("POST", "chat", { session_id: sessionId, message, lang }); }
+  /** One Chat: the messages of a chat, including what One CommandCenter added since (a run finished, an approval decided). */
+  async chatHistory(sessionId: string) { return (await this.call<{ messages?: ChatMessage[] }>("GET", "chat/" + encodeURIComponent(sessionId))).messages ?? []; }
   async knowledgeBases() { return (await this.call<{ knowledge_bases?: KnowledgeBase[] }>("GET", "knowledge-bases")).knowledge_bases ?? []; }
   saveKnowledgeBase(id: string | null, body: { name: string; folder: string; description: string }) {
     return this.call<KnowledgeBase>(id ? "PUT" : "POST", "knowledge-bases" + (id ? "/" + encodeURIComponent(id) : ""), body); }

@@ -866,3 +866,19 @@ a.ov-tab { text-decoration: none; }
   .cc-list-scroll { overflow-x: auto; }
   .ui-dialog { max-width: calc(100vw - 16px) !important; }
 }
+
+/* AI > One Chat: the conversation fills the page height; the person's messages on the right, the chat's on the left */
+.cc-chat-intro { margin: 0 0 8px; color: var(--ui-text); }
+.cc-chat { display: flex; flex-direction: column; gap: 8px; height: calc(100vh - 210px); min-height: 320px; max-width: 980px; }
+.cc-chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius); background: var(--ui-bg); }
+.cc-chat-empty { margin: 0; color: var(--ui-text); }
+.cc-chat-msg { max-width: 78%; padding: 8px 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg);
+  color: var(--ui-text); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; align-self: flex-start; }
+.cc-chat-msg.is-user { align-self: flex-end; background: var(--ui-selected); border-color: var(--ui-accent); }
+.cc-chat-msg.is-error { border-left: 4px solid var(--ui-error-text); color: var(--ui-error-text); font-weight: 600; }
+.cc-chat-msg.is-busy { min-width: 40px; text-align: center; }
+.cc-chat-actions { display: flex; gap: 8px; margin-top: 8px; white-space: normal; }
+.cc-chat-form { display: flex; gap: 8px; }
+.cc-chat-form .ui-input { flex: 1; }
+@media (max-width: 640px) { .cc-chat { height: calc(100vh - 170px); } .cc-chat-msg { max-width: 92%; } }
