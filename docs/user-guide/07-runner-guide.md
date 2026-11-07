@@ -149,6 +149,24 @@ runners), the runner comes back signed in and taking work after every restart, a
 Automatic sign-in does not unlock a screen that is already locked: restart the machine, or sign in on its console.
 Use a dedicated runner account, and keep the machine physically and remotely protected, since it signs in by itself.
 
+**Several unattended sessions on one Windows Server.** One runner does one run at a time. To run several screen agents
+at once on a Windows Server with Remote Desktop Services, give each robot a Windows account of its own:
+
+1. Sign in once as each robot account. Register a runner for it with its own registration file (`ooa agent register
+   --url ... --key ... --name SERVER-robot1 --config C:\OOA\robot1\agent.json`) and run `ooa agent install-task
+   --config C:\OOA\robot1\agent.json`, so that account's runner starts when it signs in.
+2. As an administrator on the server, put each password in an environment variable named after the account
+   (`OOA_SESSION_PW_ROBOT1`, `OOA_SESSION_PW_ROBOT2`, ...), then run `ooa agent sessions --users robot1,robot2 --watch`.
+
+`ooa agent sessions` opens a Remote Desktop session from the server to itself for each account that has none. Each
+session goes to its own loopback address (127.0.0.2, 127.0.0.3, ...), so Windows keeps a saved credential for each, in
+the administrator's Credential Manager. `--watch` checks every minute and opens a session again when one is gone
+(disconnected sessions count as gone). `--check` only shows which accounts are signed in. `--width` and `--height` set
+the screen size of each session. The command passes each password to Windows' `cmdkey` once, as a program argument,
+which other administrators on the server could see in the process list at that moment: run it on a server only
+administrators use, and clear the variables afterwards. Each session needs a Remote Desktop licence; a Windows client
+edition allows only one session. In One CommandCenter, put the runners in one pool so work spreads across them.
+
 Manage a service with `ooa service start|stop|status|uninstall --mode agent` or in Windows Services. Its log is
 `<data>\logs\service-agent.log`.
 

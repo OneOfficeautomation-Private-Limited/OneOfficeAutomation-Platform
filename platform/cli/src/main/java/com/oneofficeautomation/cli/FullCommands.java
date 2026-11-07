@@ -52,6 +52,12 @@ final class FullCommands {
             .opt("--user", "NAME", "The Windows account, NAME or DOMAIN\\NAME.").opt("--domain", "DOMAIN", "Its domain, when not in --user.")
             .opt("--password-env", "VAR", "An environment variable holding the password (never typed on the command line).")
             .flag("--off", "Stop signing in by itself and remove the stored password.").flag("--status", "Show whether it is on, and for whom.");
+        c.command("agent sessions", "Windows Server: open a session for each robot account, each with its own runner, so the server takes several screen runs at once.",
+                a -> Ooa.agent("sessions", a.o()))
+            .required("--users", "LIST", "The robot accounts, separated by commas.")
+            .opt("--password-env-prefix", "PREFIX", "Environment variables holding the passwords: PREFIX + account name in capitals (default OOA_SESSION_PW_).")
+            .opt("--width", "PIXELS", "Screen width of each session (default 1920).").opt("--height", "PIXELS", "Screen height (default 1080).")
+            .flag("--check", "Only show which accounts are signed in.").flag("--watch", "Keep checking every minute and open a session again when one is gone.");
 
         c.group("db", "Set up and look after One CommandCenter database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")
