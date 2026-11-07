@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.orchestration.Workflows;
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import org.junit.jupiter.api.Test;
@@ -22,8 +23,8 @@ class WorkflowStageBarTest {
                     + "{\"id\":\"check\",\"type\":\"decision\",\"name\":\"Big?\",\"condition\":\"true\"},"
                     + "{\"id\":\"approve\",\"type\":\"approval\",\"name\":\"Approve\",\"assignee\":\"user:admin\"},"
                     + "{\"id\":\"tell\",\"type\":\"notify\",\"name\":\"Tell the buyer\",\"to\":\"user:admin\",\"message\":\"ok\"}]}"), "v1", true, null);
-            cr.workflows.start(admin, "P/Buy.process.json", Map.of("order", "PO-9"), null);
-            Map<String, Object> t = cr.workflows.tasks(admin, "open", false).stream().filter(x -> "approval".equals(x.get("kind"))).findFirst().orElseThrow();
+            cr.modules.service(Workflows.class).start(admin, "P/Buy.process.json", Map.of("order", "PO-9"), null);
+            Map<String, Object> t = cr.tasks.tasks(admin, "open", false).stream().filter(x -> "approval".equals(x.get("kind"))).findFirst().orElseThrow();
             assertEquals(List.of(Map.of("id", "approve", "name", "Approve"), Map.of("id", "tell", "name", "Tell the buyer")), t.get("stages"));
             assertEquals("approve", t.get("stage"));
         } finally { db.close(); }

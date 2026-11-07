@@ -44,6 +44,9 @@ public interface ModuleContext {
     /** Refuses with CR.FORBIDDEN, saying what the person may not do, unless they have the permission. */
     void require(User u, String permission, String what);
 
+    /** Refuses when the licence does not include the feature (what names it in the message). */
+    void requireFeature(String feature, String what);
+
     // ------------------------------------------------------------------ folders, vault, audit, settings
 
     /** Every folder's permission entries, read once for a batch of checks. */
@@ -162,6 +165,12 @@ public interface ModuleContext {
 
     /** Whether outgoing mail is set up (Settings > Mail). */
     boolean mailConfigured();
+
+    /**
+     * Tells the people a new task is given to (Settings: e-mail, phone, Teams; approvals with their own Approve and
+     * Reject links), as the Task inbox does for its own tasks.
+     */
+    void notifyTaskCreated(String taskId, String kind, String title, String assignee, java.time.Instant due, Map<String, Object> data);
 
     /** A file sent with a mail. */
     record MailAttachment(String name, String contentType, byte[] bytes) {}
@@ -282,6 +291,22 @@ public interface ModuleContext {
     /** Told when a run for a runner pool finds no online runner of it (demand, for pool auto-scaling). */
     @FunctionalInterface interface NoRunner { void forPool(String poolId); }
 
+    /**
+     * The workflow engine's side of the Task inbox (the orchestration module): what a workflow task shows (its workflow,
+     * reference and stage bar), where a rejected approval goes, and the workflow continuing once a task is done.
+     */
+    interface WorkflowTasks {
+        /** Fields to add to a workflow task in the inbox; runs caches workflow runs (by id) across one listing. */
+        Map<String, Object> describe(Map<String, Object> task, Map<Object, Map<String, Object>> runs);
+        /** Where a rejected approval goes: "end", "continue" or a stage id. */
+        String onReject(Map<String, Object> task);
+        /** The task is done: the workflow continues (event is approved, rejected or task_completed). */
+        void completed(Map<String, Object> task, String event, Map<String, Object> result, String by, String forcedNext);
+    }
+
+    /** Checks a definition kept in the repository (a workflow, a form) at check-in; returns the problems ({message, stage}). */
+    @FunctionalInterface interface DefinitionCheck { List<Map<String, Object>> problems(Map<String, Object> definition); }
+
     /** Checks a value saved in Settings for a module's setting; throws OoaException (CR.BAD_INPUT) to refuse it. */
     @FunctionalInterface interface SettingCheck { void check(String value, boolean saas); }
 
@@ -334,6 +359,9 @@ public interface ModuleContext {
     java.time.Duration ONLINE = com.oneofficeautomation.controlroom.ControlRoom.ONLINE_WINDOW;
 
     /** A new id with a prefix ("idea_3f2a..."), as the kernel makes them. */
+    /** A form's answers checked against its fields (required, types, choices), as the Task inbox checks a submitted form. */
+    static Map<String, Object> checkAnswers(Map<String, Object> form, Map<String, Object> answers) { return com.oneofficeautomation.controlroom.TaskInbox.checkAnswers(form, answers); }
+
     static String id(String prefix) { return com.oneofficeautomation.controlroom.ControlRoom.newId(prefix); }
 
     /** Now, to the millisecond, as the kernel stores times. */
@@ -443,6 +471,12 @@ public interface ModuleContext {
 
     /** Hears when a pool has work but no online runner. */
     void onNoRunner(NoRunner listener);
+
+    /** The workflow engine behind the Task inbox's workflow tasks (one module may register it). */
+    void workflowTasks(WorkflowTasks source);
+
+    /** Validates repository files whose name ends with suffix (".process.json") at check-in, instead of the agent schema. */
+    void definitionCheck(String suffix, DefinitionCheck check);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

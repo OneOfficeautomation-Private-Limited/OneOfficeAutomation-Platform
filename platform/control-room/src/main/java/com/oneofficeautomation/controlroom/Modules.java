@@ -42,6 +42,8 @@ public final class Modules {
     final List<ModuleContext.RepositoryChange> repositoryChanges = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.RunRequest> runRequests = new LinkedHashMap<>();
     final List<ModuleContext.NoRunner> noRunner = new CopyOnWriteArrayList<>();
+    volatile ModuleContext.WorkflowTasks workflowTasks;
+    final Map<String, ModuleContext.DefinitionCheck> definitionChecks = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
@@ -269,6 +271,17 @@ public final class Modules {
         public void onRepositoryChanged(RepositoryChange listener) { repositoryChanges.add(listener); }
         public void runRequest(String call, RunRequest handler) { claim(runRequests, call, handler, "the run request " + call); }
         public void onNoRunner(NoRunner listener) { noRunner.add(listener); }
+        public void workflowTasks(WorkflowTasks source) {
+            synchronized (Modules.this) {
+                if (workflowTasks != null) throw new IllegalStateException("Module " + module + " registers the workflow engine, which another module has");
+                workflowTasks = source;
+            }
+        }
+        public void definitionCheck(String suffix, DefinitionCheck check) { claim(definitionChecks, suffix, check, "the definition check for " + suffix); }
+        public void requireFeature(String feature, String what) { cr.licensing.requireFeature(feature, what); }
+        public void notifyTaskCreated(String taskId, String kind, String title, String assignee, java.time.Instant due, Map<String, Object> data) {
+            cr.taskChannels.taskCreated(taskId, kind, title, assignee, due, data);
+        }
         public void every(Duration delay, Duration period, Runnable job) { jobs.add(new Job(module, delay, period, job)); }
         public void defineSetting(String key, Object defaultValue, SettingCheck check) { Platform.defineModuleSetting(key, defaultValue, check); }
         public void taskKind(String kind, TaskKind rules) { claim(taskKinds, kind, rules, "the task kind " + kind); }

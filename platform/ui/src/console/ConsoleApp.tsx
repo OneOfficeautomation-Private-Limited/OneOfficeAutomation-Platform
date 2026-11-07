@@ -42,7 +42,7 @@ import { Overview } from "../modules/insights/Overview";
 import { EnvironmentLabel, TopBar } from "./TopBar";
 import { listKeys } from "./listKeys";
 import { Vault } from "./Vault";
-import { Workflows } from "./Workflows";
+import { Workflows } from "../modules/orchestration/Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
 const LOCAL = new Set<string>(["policies", "activity", "alerts", "apitasks", "apps", "audit", "automation", "chat", "connections", "credentials", "data", "devices", "docautomation", "events", "globals", "governance", "ideas", "inbox", "insights", "licenses", "locks", "operations", "business", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users", "knowledge"]);

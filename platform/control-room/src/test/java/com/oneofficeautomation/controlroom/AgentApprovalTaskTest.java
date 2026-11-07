@@ -24,7 +24,7 @@ class AgentApprovalTaskTest {
             assertEquals("open", cr.runWaits.taskStatus(run, Map.of("task_id", task)).get("status"));
             assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> cr.runWaits.taskStatus(Map.of("id", "run_b"), Map.of("task_id", task))).code(),
                     "another run cannot read it");
-            cr.workflows.complete(sue, task, "rejected", null, "Not this customer", null);
+            cr.tasks.complete(sue, task, "rejected", null, "Not this customer", null);
             Map<String, Object> st = cr.runWaits.taskStatus(run, Map.of("task_id", task));
             assertEquals("completed", st.get("status"));
             assertEquals("rejected", st.get("outcome"));

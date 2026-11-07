@@ -280,7 +280,7 @@ public final class Licensing {
         return l == null || l.features().isEmpty() || l.features().contains(f);
     }
 
-    void requireFeature(String f, String what) {
+    public void requireFeature(String f, String what) {
         if (!feature(f)) throw new OoaException("CR.LICENSE_FEATURE", what + " is not part of this license",
                 "Ask ONEOFFICEAUTOMATION for a license that includes " + f.replace('_', ' ') + ".");
     }

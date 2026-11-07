@@ -288,15 +288,15 @@ class DocFlowProxyTest {
         cr.createUser(admin, "vera", "Vera Viewer", "viewer", null);
         ControlRoom.User rita = new ControlRoom.User("rita", "rita", "bot_runner", "Rita Reviewer", false);
         ControlRoom.User vera = new ControlRoom.User("vera", "vera", "viewer", "Vera Viewer", false);
-        List<Map<String, Object>> ritas = cr.workflows.tasks(rita, "open", false);
+        List<Map<String, Object>> ritas = cr.tasks.tasks(rita, "open", false);
         assertEquals(2, ritas.size());
         Map<String, Object> t = ritas.stream().filter(x -> x.get("title").toString().contains("INV-1")).findFirst().orElseThrow();
         assertEquals("document_review", t.get("kind"));
         assertEquals("Invoice · Totals do not add up", t.get("description"));
         assertEquals("/documents/#/review/doc1", ((Map<?, ?>) t.get("data")).get("link"));
         assertNotNull(t.get("due"));
-        assertTrue(cr.workflows.tasks(vera, "open", false).isEmpty());        // viewers do not review
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.workflows.complete(rita, (String) t.get("id"), "done", Map.of(), null, null)).code());
+        assertTrue(cr.tasks.tasks(vera, "open", false).isEmpty());        // viewers do not review
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.tasks.complete(rita, (String) t.get("id"), "done", Map.of(), null, null)).code());
 
         // approved on the review screen: the task closes as that person
         assertEquals(200, call("POST", "/api/docflow/df/documents/doc1/review", "{\"action\":\"submit\"}").statusCode());
@@ -306,7 +306,7 @@ class DocFlowProxyTest {
         // doc2 left the queue some other way: the next sync closes its task
         reviewQueue = "[]";
         assertArrayEquals(new int[] {0, 1}, p.syncReviews());
-        assertTrue(cr.workflows.tasks(rita, "open", false).isEmpty());
+        assertTrue(cr.tasks.tasks(rita, "open", false).isEmpty());
     }
 
     @Test void aStartABotDeliveryRunsAsThePersonWhoSavesIt() throws Exception {
@@ -464,8 +464,8 @@ class DocFlowProxyTest {
             reviewQueue = "[{\"id\":\"docAP\",\"file_name\":\"AP-1.pdf\",\"created_at\":\"" + now + "\",\"flowId\":\"ap\",\"flowName\":\"AP\",\"doctypeName\":\"Invoice\",\"slaHours\":8,\"flags\":[]}]";
             proxy(cr).syncReviews();
             ControlRoom.User f = cr.session(fiona), r = cr.session(rob);
-            assertTrue(cr.workflows.tasks(f, "open", false).stream().anyMatch(t -> t.get("title").toString().contains("AP-1.pdf")));
-            assertTrue(cr.workflows.tasks(r, "open", false).stream().noneMatch(t -> t.get("title").toString().contains("AP-1.pdf")));
+            assertTrue(cr.tasks.tasks(f, "open", false).stream().anyMatch(t -> t.get("title").toString().contains("AP-1.pdf")));
+            assertTrue(cr.tasks.tasks(r, "open", false).stream().noneMatch(t -> t.get("title").toString().contains("AP-1.pdf")));
         } finally {
             reviewQueue = "[]";
             proxy(cr).syncReviews();

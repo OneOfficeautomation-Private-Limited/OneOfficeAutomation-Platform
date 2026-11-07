@@ -31,7 +31,7 @@ public final class ControlRoom {
     public final Vault vault;
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults(this);
-    public final Workflows workflows;
+    public final TaskInbox tasks;
     /** Approving from e-mail, Teams and a phone (G43). */
     final ApprovalChannels taskChannels;
     public final CustomToolkits customToolkits;
@@ -158,7 +158,7 @@ public final class ControlRoom {
             events.onAudit(e);
         });
         audit.protect(this::auditKey, dataDir);
-        this.workflows = new Workflows(this);
+        this.tasks = new TaskInbox(this);
         this.taskChannels = new ApprovalChannels(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
@@ -980,9 +980,11 @@ public final class ControlRoom {
 
     /** Validates a flow for the path as check-in does (toolkits, schema, workflow or form rules); returns the problems. */
     List<Map<String, Object>> problemsOf(String path, Map<String, Object> flow) {
-        boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
-        if (!workflow && !form) platform.checkToolkits(flow);
-        return workflow ? Workflows.validate(flow) : form ? Workflows.validateForm(flow) : validator.validate(flow);
+        if (!FlowFiles.isDefinition(path)) { platform.checkToolkits(flow); return validator.validate(flow); }
+        // workflows and forms: the module that runs them checks them (orchestration); without it they are kept as they are
+        if (modules != null) for (Map.Entry<String, ModuleContext.DefinitionCheck> c : modules.definitionChecks.entrySet())
+            if (path.endsWith(c.getKey())) return c.getValue().problems(flow);
+        return List.of();
     }
 
     /**
@@ -1009,7 +1011,7 @@ public final class ControlRoom {
         folders.require(by, path, "edit", "check in agents");
         if (makeProduction) folders.require(by, path, "manage", "set live production versions");
         // Workflows and forms are checked in like agents (versions, check-out, live production version) but validated differently.
-        boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
+        boolean workflow = FlowFiles.isWorkflow(path), form = FlowFiles.isForm(path);
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
                 "Fix the problems in One AgentStudio (Check now lists them) before checking in.", false, Map.of("problems", problems));
@@ -1137,7 +1139,7 @@ public final class ControlRoom {
         if (!to.matches(".*\\.(flow|process|form)\\.json$") || !to.substring(to.indexOf('.', to.lastIndexOf('/') + 1)).equals(path.substring(path.indexOf('.', path.lastIndexOf('/') + 1))))
             throw new OoaException("CR.BAD_PATH", "The copy keeps the kind of file: " + path.substring(path.indexOf('.', path.lastIndexOf('/') + 1)));
         if (db.one("SELECT path FROM bots WHERE path = ?", to) != null) throw new OoaException("CR.CONFLICT", "There is already an agent at " + to);
-        if (!Workflows.isWorkflow(path) && !Workflows.isForm(path)) {
+        if (!FlowFiles.isDefinition(path)) {
             String base = String.valueOf(flow.get("id")) + "_copy", id = base;
             for (int k = 2; db.one("SELECT path FROM bots WHERE bot_id = ?", id) != null; k++) id = base + k;
             flow.put("id", id);
@@ -1930,7 +1932,6 @@ public final class ControlRoom {
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
-        try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
         // feature modules, with the chain's first run as the kernel's own follow-up gets it (test sets, KPIs, One Chat)
@@ -3335,7 +3336,7 @@ public final class ControlRoom {
         m.put("hours_saved_30d", saved == null || saved.get("n") == null ? 0 : Math.round(((Number) saved.get("n")).doubleValue() / 6.0) / 10.0);
         if (can(by, "queues.view"))
             m.put("queue_items_waiting", count("SELECT COUNT(*) AS n FROM queue_items WHERE status IN ('new', 'retry')"));
-        m.put("open_tasks", workflows.openTaskCount(by));
+        m.put("open_tasks", tasks.openTaskCount(by));
         // the person's own recent work, for "Pick up where you left off"
         if (can(by, "repo.view")) {
             Map<String, Map<String, String>> perms = folders.entries();

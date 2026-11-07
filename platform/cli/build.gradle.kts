@@ -21,6 +21,7 @@ dependencies {
     // feature modules of One CommandCenter, found by the kernel with ServiceLoader (ooa docflow uses its settings file)
     implementation(project(":document-automation"))
     implementation(project(":runner-management"))
+    implementation(project(":orchestration"))
     implementation(project(":integration"))
     implementation(project(":insights"))
     implementation(project(":governance"))

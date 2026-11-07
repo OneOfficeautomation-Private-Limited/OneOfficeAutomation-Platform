@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { FormField } from "./Inbox";
+import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { FormField } from "../../console/Inbox";
 
 /**
  * Manage > Workflow, built as AA's Process Composer requests and UiPath Maestro's instances (checked against their docs

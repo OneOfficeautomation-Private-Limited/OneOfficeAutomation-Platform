@@ -160,7 +160,6 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { cr.cluster.tick(); } catch (RuntimeException ignored) { } }, Cluster.RENEW_SECONDS, Cluster.RENEW_SECONDS, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
         // long-running agents (G36): resume suspended runs whose wait is over or timed out
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.runWaits.tick(); } catch (RuntimeException ignored) { } }, 6, 5, TimeUnit.SECONDS);
         cr.serverless.start();
@@ -647,21 +646,12 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
-            case "workflows" -> {
-                if (m.equals("GET") && route.equals("workflows/runs") && q.get("reference") != null) sendJson(ex, 200, cr.workflows.run(u, null, q.get("reference")));
-                else if (m.equals("GET") && route.equals("workflows/runs")) sendJson(ex, 200, Map.of("runs", cr.workflows.runs(u, q.get("status"))));
-                else if (m.equals("GET") && seg.length == 3 && seg[1].equals("runs")) sendJson(ex, 200, cr.workflows.run(u, seg[2], null));
-                else if (m.equals("GET") && route.equals("workflows/form")) sendJson(ex, 200, cr.workflows.startForm(u, q.get("path")));
-                else if (m.equals("POST") && route.equals("workflows/start")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.workflows.start(u, (String) b.get("path"), b.get("data") instanceof Map<?, ?> dm ? (Map<String, Object>) dm : Map.of(), (String) b.get("reference"), ip)); }
-                else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("cancel")) sendJson(ex, 200, cr.workflows.cancel(u, seg[2], ip));
-                else notFound(ex);
-            }
             case "tasks" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("tasks", cr.workflows.tasks(u, q.get("status"), "true".equals(q.get("all")))));
-                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("claim") || seg[2].equals("release"))) { cr.workflows.claim(u, seg[1], seg[2].equals("release"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("tasks", cr.tasks.tasks(u, q.get("status"), "true".equals(q.get("all")))));
+                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("claim") || seg[2].equals("release"))) { cr.tasks.claim(u, seg[1], seg[2].equals("release"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("complete")) {
                     Map<String, Object> b = map(body(ex));
-                    sendJson(ex, 200, cr.workflows.complete(u, seg[1], (String) b.get("outcome"), b.get("answers") instanceof Map<?, ?> a ? (Map<String, Object>) a : Map.of(), (String) b.get("comment"), ip));
+                    sendJson(ex, 200, cr.tasks.complete(u, seg[1], (String) b.get("outcome"), b.get("answers") instanceof Map<?, ?> a ? (Map<String, Object>) a : Map.of(), (String) b.get("comment"), ip));
                 }
                 else notFound(ex);
             }

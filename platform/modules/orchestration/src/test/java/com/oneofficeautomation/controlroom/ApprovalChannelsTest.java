@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.orchestration.Workflows;
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -62,7 +63,7 @@ class ApprovalChannelsTest {
             // off: no links in the e-mail, no push, no card
             cr.platform.updateSettings(admin, Map.of("mail_smtp_host", "127.0.0.1", "mail_smtp_port", smtp.port(), "mail_smtp_security", "none",
                     "mail_from", "ooa@example.com", "notify_task_assigned", 1), null);
-            cr.workflows.start(admin, "Proc/Buy.process.json", Map.of("order", "PO-1", "amount", 1200), null);
+            cr.modules.service(Workflows.class).start(admin, "Proc/Buy.process.json", Map.of("order", "PO-1", "amount", 1200), null);
             waitFor(() -> smtp.messages.size() == 1);
             assertFalse(body(smtp.messages.get(0)).contains("/api/tasks/act"), "links are off by default");
             assertTrue(body(smtp.messages.get(0)).contains("order: PO-1"), body(smtp.messages.get(0)));
@@ -89,7 +90,7 @@ class ApprovalChannelsTest {
             hits.clear();
 
             // a new approval: e-mail with jane's own links; a push with Approve and Reject; nothing to Teams over http
-            cr.workflows.start(admin, "Proc/Buy.process.json", Map.of("order", "PO-2", "amount", 900), null);
+            cr.modules.service(Workflows.class).start(admin, "Proc/Buy.process.json", Map.of("order", "PO-2", "amount", 900), null);
             waitFor(() -> smtp.messages.size() == 2 && hits.stream().anyMatch(h -> h.path().equals("/" + topic)));
             String mail = body(smtp.messages.get(1));
             Matcher yes = Pattern.compile("Approve: https://ooa\\.example\\.com/api/tasks/act\\?t=(\\S+)").matcher(mail);

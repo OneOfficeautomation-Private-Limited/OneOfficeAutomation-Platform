@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.orchestration.Workflows;
 import com.oneofficeautomation.modules.integration.ApiTasks;
 
 import com.oneofficeautomation.modules.governance.CodeAnalysis;
@@ -172,16 +173,16 @@ class TokensSchedulingAnalysisApiTasksTest {
         cr.checkin(admin, "Proc/Request.form.json", json("{\"title\":\"Request\",\"fields\":[{\"id\":\"amount\",\"label\":\"Amount\",\"type\":\"number\",\"required\":true,\"min\":1}]}"), "v1", true, null);
         cr.checkin(admin, "Proc/Purchase.process.json", json("{\"name\":\"Purchase\",\"start_form\":\"Proc/Request.form.json\",\"stages\":["
                 + "{\"id\":\"n\",\"type\":\"notify\",\"name\":\"Tell\",\"to\":\"user:admin\",\"message\":\"New request\"}]}"), "v1", true, null);
-        assertEquals("Proc/Request.form.json", cr.workflows.startForm(admin, "Proc/Purchase.process.json").get("form_path"));
-        assertEquals("CR.BAD_INPUT", code(() -> cr.workflows.start(admin, "Proc/Purchase.process.json", Map.of(), "PO-1", null)));
-        assertEquals("CR.BAD_INPUT", code(() -> cr.workflows.start(admin, "Proc/Purchase.process.json", Map.of("amount", 0), "PO-1", null)));
-        Map<String, Object> started = cr.workflows.start(admin, "Proc/Purchase.process.json", Map.of("amount", 250), "PO-1", null);
-        Map<String, Object> byRef = cr.workflows.run(admin, null, "PO-1");
+        assertEquals("Proc/Request.form.json", cr.modules.service(Workflows.class).startForm(admin, "Proc/Purchase.process.json").get("form_path"));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.modules.service(Workflows.class).start(admin, "Proc/Purchase.process.json", Map.of(), "PO-1", null)));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.modules.service(Workflows.class).start(admin, "Proc/Purchase.process.json", Map.of("amount", 0), "PO-1", null)));
+        Map<String, Object> started = cr.modules.service(Workflows.class).start(admin, "Proc/Purchase.process.json", Map.of("amount", 250), "PO-1", null);
+        Map<String, Object> byRef = cr.modules.service(Workflows.class).run(admin, null, "PO-1");
         assertEquals(started.get("id"), byRef.get("id"));
         assertEquals(1, ((List<Object>) byRef.get("tasks")).size());
-        assertEquals(started.get("id"), cr.workflows.run(admin, (String) started.get("id"), null).get("id"));
+        assertEquals(started.get("id"), cr.modules.service(Workflows.class).run(admin, (String) started.get("id"), null).get("id"));
         // the inbox says where a task comes from: its workflow and the request's reference
-        Map<String, Object> told = cr.workflows.tasks(admin, "open", false).stream().filter(x -> started.get("id").equals(x.get("workflow_run_id"))).findFirst().orElseThrow();
+        Map<String, Object> told = cr.tasks.tasks(admin, "open", false).stream().filter(x -> started.get("id").equals(x.get("workflow_run_id"))).findFirst().orElseThrow();
         assertEquals("Purchase", told.get("workflow"));
         assertEquals("PO-1", told.get("reference"));
     }
