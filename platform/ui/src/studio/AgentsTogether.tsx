@@ -1,13 +1,30 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, PackageManifest, Proposal, StudioApi } from "../api/client";
 import { ApiFailure } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
 import { ON_ERROR, stateLists, type Place } from "./flowEdit";
 import { caseText, conditionText, describeAction, plainValue, startState, stateText, summarize, transitionText } from "./toolkits";
 import { isInput, isOutput } from "./variables";
+import { designDocument, designDocx, docFileName, type DocBlock } from "./designDoc";
 
 /** The agent in plain words: what it needs and returns, then its steps, blocks indented (Classic's Explain this agent). */
 export function explainAgent(flow: Flow, packages: PackageManifest[] = []): string {
+  const lines = explainSteps(flow.steps, packages);
+  if (flow.onError) {
+    lines.push("If an error ends the agent" + (flow.onError.as ? " (kept in $" + flow.onError.as + ")" : "") + ", then the run "
+      + (flow.onError.then === "succeed" ? "succeeds" : "fails") + ":");
+    lines.push(...explainSteps(flow.onError.steps, packages, 1));
+  }
+  const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
+  return [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
+    ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
+    outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:",
+    ...(lines.length ? lines : ["(no steps yet)"])].join("\n");
+}
+
+/** Steps in plain words, one line each: top-level steps numbered, inner ones indented two spaces per level with "- ". */
+export function explainSteps(steps: FlowStep[] | undefined, packages: PackageManifest[] = [], start = 0): string[] {
   const lines: string[] = [];
   const walk = (steps: FlowStep[] | undefined, depth: number) => (steps ?? []).forEach((s, i) => {
     if (s.disabled) return;
@@ -41,17 +58,8 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
       (st.transitions ?? []).forEach((t, j) => { lines.push("  ".repeat(depth + 2) + transitionText(st.transitions!, j, packages) + ":"); walk(t.steps, depth + 3); });
     });
   });
-  const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
-  walk(flow.steps, 0);
-  if (flow.onError) {
-    lines.push("If an error ends the agent" + (flow.onError.as ? " (kept in $" + flow.onError.as + ")" : "") + ", then the run "
-      + (flow.onError.then === "succeed" ? "succeeds" : "fails") + ":");
-    walk(flow.onError.steps, 1);
-  }
-  return [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
-    ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
-    outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:",
-    ...(lines.length ? lines : ["(no steps yet)"])].join("\n");
+  walk(steps, start);
+  return lines;
 }
 
 /**
@@ -199,6 +207,7 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
   const [busy, setBusy] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
   useEffect(() => { api.modelConnections().then((c) => { setConns(c); setConnection(c.default || c.connections[0]?.name || ""); }, () => setConns({ default: "", connections: [] })); }, [api]);
   const text = tab === "explain" ? explainAgent(flow, packages) : "";
   const generate = async () => {
@@ -214,6 +223,8 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
     <Dialog open onClose={onClose} title="Agent assistant" width={720}
       footer={<><Button kind="secondary" onClick={onClose}>Close</Button><span className="st-bar-fill" />
         {tab === "explain" && <Button kind="secondary" onClick={() => { navigator.clipboard?.writeText(text).catch(() => {}); }}>Copy</Button>}
+        {tab === "explain" && <Button kind="secondary" onClick={() => saveDocx(flow, packages)}>Word (.docx)</Button>}
+        {tab === "explain" && <Button kind="secondary" onClick={() => setPrinting(true)}>Print or PDF</Button>}
         {tab === "build" && proposal && <Button kind="primary" onClick={() => onInsert(proposal)}>Insert into the agent</Button>}
         {tab === "build" && !proposal && !!conns?.connections.length && <Button kind="primary" icon="spark" onClick={generate} disabled={busy}>{busy ? "Thinking…" : "Generate steps"}</Button>}</>}>
       <div className="st-seg" role="tablist" aria-label="Assistant">
@@ -236,6 +247,39 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
           {!!proposal.problems?.length && <p className="st-alert">{proposal.problems.length} problem{proposal.problems.length > 1 ? "s" : ""} to fix after inserting: {proposal.problems.slice(0, 3).map((p) => p.message).join("; ")}</p>}
         </>}
       </div>}
+      {printing && <DesignDocPrint blocks={designDocument(flow, packages)} onDone={() => setPrinting(false)} />}
     </Dialog>
   );
+}
+
+/** The design document (G40) as a Word file, downloaded by the browser. */
+function saveDocx(flow: Flow, packages: PackageManifest[]) {
+  const blob = new Blob([designDocx(designDocument(flow, packages)) as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = docFileName(flow, "docx");
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/** The design document laid out for printing; only it prints (Print > Save as PDF gives the PDF), then it goes away. */
+export function DesignDocPrint({ blocks, onDone }: { blocks: DocBlock[]; onDone: () => void }) {
+  useEffect(() => {
+    document.body.classList.add("st-printing-doc");
+    const done = () => { document.body.classList.remove("st-printing-doc"); onDone(); };
+    window.addEventListener("afterprint", done, { once: true });
+    const t = setTimeout(() => window.print(), 50);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", done); document.body.classList.remove("st-printing-doc"); };
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  return createPortal(<article className="st-print-doc" aria-label="Design document">{blocks.map((b, i) => {
+    switch (b.kind) {
+      case "title": return <h1 key={i}>{b.text}</h1>;
+      case "meta": return <p key={i} className="st-print-meta">{b.text}</p>;
+      case "h1": return <h2 key={i}>{b.text}</h2>;
+      case "h2": return <h3 key={i}>{b.text}</h3>;
+      case "p": return <p key={i}>{b.text}</p>;
+      case "item": return <p key={i} className="st-print-item" style={{ marginLeft: (b.depth * 18 + 18) + "px" }}>{b.mark && <span className="st-print-mark">{b.mark}</span>}{b.text}</p>;
+      case "table": return <table key={i}><thead><tr>{b.head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <tbody>{b.rows.map((r, j) => <tr key={j}>{r.map((c, k) => <td key={k}>{c}</td>)}</tr>)}</tbody></table>;
+    }
+  })}</article>, document.body);
 }

@@ -238,7 +238,11 @@ The **Assistant** button in the top bar opens **Agent assistant** with two tabs:
   **Generate steps**. Review the proposed steps and click **Insert into the agent**. They go where the canvas hint says;
   new variables come with them. Problems to fix are listed. Always review before running.
 - **Explain this agent**: the agent in plain words (what it needs, what it returns, each step). **Copy** puts it on the
-  clipboard, handy for documentation or a hand-over.
+  clipboard, handy for documentation or a hand-over. **Word (.docx)** downloads a design document for the agent:
+  its purpose, inputs, outputs and variables, the toolkits it uses, its steps in plain words (main steps, each subflow,
+  the error handler) and a table of every step's settings. Credential defaults are never written into it.
+  **Print or PDF** opens the same document for printing; choose **Save as PDF** as the printer to get a PDF. Explain
+  this agent works without a model connection, and so do both exports.
 
 The assistant needs a model connection; without one it offers **Set up a Model Connection**.
 
