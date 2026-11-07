@@ -79,6 +79,8 @@ public final class Platform {
         DEFAULTS.put("password_history", 0);
         DEFAULTS.put("password_max_days", 0);
         DEFAULTS.put("ai_call_retention_days", 0);
+        DEFAULTS.put("ai_enabled", 1);       // item 4n: AI on; an administrator can switch it off for every agent
+        DEFAULTS.put("ai_log_content", 0);   // item 4n: only metadata is logged unless an administrator turns this on
         DEFAULTS.put("work_item_retention_days", 0);
         DEFAULTS.put("backup_keep_days", 7);
         DEFAULTS.put("backup_folder", "");
@@ -179,6 +181,8 @@ public final class Platform {
         Map.entry("password_history", new long[] { 0, 24 }),
         Map.entry("password_max_days", new long[] { 0, 3650 }),
         Map.entry("ai_call_retention_days", new long[] { 0, 36500 }),
+        Map.entry("ai_enabled", new long[] { 0, 1 }),
+        Map.entry("ai_log_content", new long[] { 0, 1 }),
         Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_keep_days", new long[] { 1, 3650 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }),
@@ -667,8 +671,17 @@ public final class Platform {
             Instant ts;
             try { ts = Instant.parse(String.valueOf(c.get("ts"))); } catch (RuntimeException e) { ts = now(); }
             Object masked = c.get("masked"), tools = c.get("tool_calls");
+            String callId = id("ai");
+            // full logging (item 4n, off at first): the masked prompt and answer, kept beside the record, removed with it
+            if (c.get("content") instanceof Map<?, ?> content && intSetting("ai_log_content") == 1) {
+                try {
+                    java.nio.file.Path dir = cr.dataDir.resolve("ai-content");
+                    java.nio.file.Files.createDirectories(dir);
+                    java.nio.file.Files.writeString(dir.resolve(callId + ".json"), JsonLite.write(content), java.nio.charset.StandardCharsets.UTF_8);
+                } catch (java.io.IOException ignored) { /* the record itself is still kept */ }
+            }
             db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256, connection) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", callId, run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
                     cut(c.get("purpose"), 80), cut(c.get("provider"), 40), cut(c.get("model"), 200), num(c.get("input_tokens")), num(c.get("output_tokens")),
                     c.get("latency_ms") instanceof Number n ? n.longValue() : null,
                     masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64),
@@ -686,8 +699,13 @@ public final class Platform {
         if (r == null) throw notFound("Run");
         cr.folders.require(by, (String) r.get("bot_path"), "view", "view this agent's runs");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT ts, purpose, provider, model, connection, input_tokens, output_tokens, latency_ms, masked, tool_calls FROM ai_calls WHERE run_id = ? ORDER BY ts", runId)) {
+        boolean seeContent = cr.can(by, "audit.view");
+        for (Map<String, Object> c : db.query("SELECT id, ts, purpose, provider, model, connection, input_tokens, output_tokens, latency_ms, masked, tool_calls FROM ai_calls WHERE run_id = ? ORDER BY ts", runId)) {
             Map<String, Object> m = new LinkedHashMap<>(c);
+            java.nio.file.Path f = cr.dataDir.resolve("ai-content").resolve(c.get("id") + ".json");
+            m.remove("id");
+            // the prompt and answer (full logging, item 4n) only for people who may read the audit trail
+            if (seeContent && java.nio.file.Files.isRegularFile(f)) try { m.put("content", JsonLite.parse(java.nio.file.Files.readString(f))); } catch (Exception ignored) { }
             for (String k : List.of("masked", "tool_calls")) if (c.get(k) instanceof String sv && !sv.isBlank()) { try { m.put(k, JsonLite.parse(sv)); } catch (RuntimeException ignored) { } }
             out.add(m);
         }
@@ -1387,6 +1405,12 @@ public final class Platform {
         if (runDays > 0 || logDays > 0) purge(runDays, logDays, "system", null);
         // AI call records and finished work-queue items (D2)
         int aiDays = intSetting("ai_call_retention_days"), itemDays = intSetting("work_item_retention_days");
+        if (aiDays > 0) {
+            java.nio.file.Path dir = cr.dataDir.resolve("ai-content");
+            if (java.nio.file.Files.isDirectory(dir))
+                for (Map<String, Object> old : db.query("SELECT id FROM ai_calls WHERE ts < ?", now().minus(Duration.ofDays(aiDays))))
+                    try { java.nio.file.Files.deleteIfExists(dir.resolve(old.get("id") + ".json")); } catch (java.io.IOException ignored) { }
+        }
         if (aiDays > 0) { int n = db.update("DELETE FROM ai_calls WHERE ts < ?", now().minus(Duration.ofDays(aiDays))); if (n > 0) cr.audit.record("system", "ai.calls_purged", "ai", null, Map.of("removed", n, "days", aiDays), "ok", null); }
         if (itemDays > 0) { int n = db.update("DELETE FROM queue_items WHERE status IN ('success', 'failed') AND finished < ?", now().minus(Duration.ofDays(itemDays))); if (n > 0) cr.audit.record("system", "queue.items_purged", "queue", null, Map.of("removed", n, "days", itemDays), "ok", null); }
         int auditDays = intSetting("audit_retention_days");

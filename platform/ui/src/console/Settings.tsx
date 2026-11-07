@@ -175,6 +175,8 @@ const SECTIONS: Section[] = [
       { key: "run_retention_days", label: "Keep runs for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
       { key: "audit_retention_days", label: "Keep audit entries for", hint: "At least 90; 0 = always. Older ones are archived first.", unit: "days", kind: "number", min: 0, max: 36500 },
       { key: "ai_call_retention_days", label: "Keep AI call records for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 },
+      { key: "ai_enabled", label: "AI in agents", hint: "Off: every AI step fails with AI.DISABLED.", kind: "check" },
+      { key: "ai_log_content", label: "Keep AI prompts and answers", hint: "Off: only the model, tokens and time are kept. On: also the prompt and answer, masked.", kind: "check" },
       { key: "work_item_retention_days", label: "Keep finished work-queue items for", hint: "0 = always.", unit: "days", kind: "number", min: 0, max: 36500 }] },
     { title: "Backups", settings: [
       { key: "backup_hours", label: "Back up every", hint: "0 = never.", unit: "hours", kind: "number", min: 0, max: 168 },

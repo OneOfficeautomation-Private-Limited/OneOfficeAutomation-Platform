@@ -82,6 +82,9 @@ final class ModelConnections {
      */
     static LlmClient.Config config(ActionContext ctx, String connection, String provider, String model, Object key, String base, double temp, int max, boolean mask,
                                    Object accessKeyId, String region) {
+        // Settings > AI (item 4n): an administrator can switch AI off for every agent; then no step calls a model
+        if (Boolean.TRUE.equals(guardrails(ctx).get("disabled")))
+            throw new ActionException("AI.DISABLED", "AI is switched off in One CommandCenter", "Ask an administrator to switch it on (Administration > Settings > AI).");
         Map<String, Object> c = find(ctx, connection);
         // the folder's AI guardrails: only the models allowed, and personal data always masked
         Map<String, Object> g = guardrails(ctx);
