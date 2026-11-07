@@ -257,8 +257,10 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
     api.defaultRunners().then(setPeople, () => {});
     api.calendars().then((c) => setCals(c.map((x) => x.name)), () => {});
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
-  const setM = (m: Partial<MonthlyParts>) => setV({ ...v, monthly: { ...v.monthly, ...m } });
+  // functional updates: the agent list fills in the agent when it arrives, and a change made before React re-renders
+  // must not put back the empty agent of an older render (that left Create disabled)
+  const set = (k: keyof typeof v) => (e: { target: { value: string } }) => { const x = e.target.value; setV((o) => ({ ...o, [k]: x })); };
+  const setM = (m: Partial<MonthlyParts>) => setV((o) => ({ ...o, monthly: { ...o.monthly, ...m } }));
   /** The timing part of the schedule, as the server and its preview read it. */
   const timing = useMemo(() => {
     const t: Record<string, unknown> = { kind: v.kind, time_zone: v.tz.trim(), holiday_calendar: v.cal || null };
@@ -290,7 +292,7 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
       <h3 className="cc-log-title">Where</h3>
       <div role="radiogroup" aria-label="Where it runs" className="cc-inline">
         {([["runner", "A runner"], ["pool", "A runner pool"], ["default", "The run-as user's default runner"]] as const).map(([k, l]) =>
-          <label key={k} className="st-check-line"><input type="radio" name="where" checked={v.where === k} disabled={k === "default" && !v.runAs} onChange={() => setV({ ...v, where: k })} /> {l}</label>)}
+          <label key={k} className="st-check-line"><input type="radio" name="where" checked={v.where === k} disabled={k === "default" && !v.runAs} onChange={() => setV((o) => ({ ...o, where: k }))} /> {l}</label>)}
       </div>
       {v.where === "runner" && <Field label="Runner">{(id) => <Select id={id} value={v.device} onChange={set("device")} options={[{ value: "", label: "Choose a runner" }, ...runners.map((r) => ({ value: r.id, label: r.name + " (" + r.status + ")" }))]} />}</Field>}
       {v.where === "pool" && <Field label="Runner pool">{(id) => <Select id={id} value={v.pool} onChange={set("pool")} options={[{ value: "", label: "Choose a pool" }, ...pools.map((p) => ({ value: p.id, label: p.name }))]} />}</Field>}
@@ -304,14 +306,14 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
           : <Field label="Time (HH:MM)">{(id) => <TextInput id={id} value={v.at} placeholder="08:30" onChange={set("at")} />}</Field>}
       </div>
       {v.kind === "weekly" && <div className="cc-inline" role="group" aria-label="Days">{DAYS.map((d) =>
-        <label key={d} className="st-check-line"><input type="checkbox" checked={v.days.includes(d)} onChange={(e) => setV({ ...v, days: e.target.checked ? [...v.days, d] : v.days.filter((x) => x !== d) })} /> {d.charAt(0) + d.slice(1).toLowerCase()}</label>)}</div>}
+        <label key={d} className="st-check-line"><input type="checkbox" checked={v.days.includes(d)} onChange={(e) => { const on = e.target.checked; setV((o) => ({ ...o, days: on ? [...o.days, d] : o.days.filter((x) => x !== d) })); }} /> {d.charAt(0) + d.slice(1).toLowerCase()}</label>)}</div>}
       {v.kind === "monthly" && <MonthlyFields m={v.monthly} onChange={setM} />}
       <div className="cc-grid2">
         <Field label="Time zone">{(id) => <TextInput id={id} value={v.tz} onChange={set("tz")} />}</Field>
         <Field label="Skip the dates of a holiday calendar">{(id) => <Select id={id} value={v.cal} onChange={set("cal")} options={[{ value: "", label: "None" }, ...cals.map((c) => ({ value: c, label: c }))]} />}</Field>
       </div>
       <NextRuns api={api} timing={timing} />
-      <RuleFields missed={v.missed} overlap={v.overlap} onMissed={(x) => setV({ ...v, missed: x })} onOverlap={(x) => setV({ ...v, overlap: x })} />
+      <RuleFields missed={v.missed} overlap={v.overlap} onMissed={(x) => setV((o) => ({ ...o, missed: x }))} onOverlap={(x) => setV((o) => ({ ...o, overlap: x }))} />
       <Field label="Inputs (JSON, optional)">{(id) => <TextArea id={id} rows={2} value={v.inputs} placeholder="{}" onChange={set("inputs")} />}</Field>
     </Dialog>
   );
