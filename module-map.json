@@ -205,22 +205,10 @@
       "id": "low-code",
       "name": "Low-code apps",
       "layer": 3,
-      "description": "Apps, apps embedded in other sites, the business data store and the console as a phone app.",
+      "description": "Low-code apps, apps embedded in other sites and the business data store. (The console as a phone app, MobileApp, is the kernel's shell.) Moved out of the kernel: platform/modules/low-code (Gradle project :low-code).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Apps.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/AppEmbeds.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/DataStore.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/MobileApp.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Apps*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/AppEmbeds*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/DataStore*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/MobileApp*Test.java",
-        "platform/ui/src/console/Apps.tsx",
-        "platform/ui/src/console/EmbedApp.tsx",
-        "platform/ui/src/console/DataStore.tsx",
-        "platform/ui/src/console/Apps.test.tsx",
-        "platform/ui/src/console/EmbedApp.test.tsx",
-        "platform/ui/src/console/DataStore.test.tsx"
+        "platform/modules/low-code/**",
+        "platform/ui/src/modules/low-code/**"
       ],
       "dependsOn": [
         "kernel"

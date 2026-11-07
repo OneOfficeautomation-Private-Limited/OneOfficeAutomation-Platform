@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { CrApi, type CrUser } from "../api/cr";
-import { HelpProvider } from "../components";
+import { CrApi, type CrUser } from "../../api/cr";
+import { HelpProvider } from "../../components";
 import { Apps, AppView } from "./Apps";
 import { EmbedApi, readEmbedLocation } from "./EmbedApp";
 

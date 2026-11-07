@@ -1,8 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { CrApi, type CrUser } from "../api/cr";
-import { HelpProvider } from "../components";
-import { MENU_SECTIONS } from "../shell/menu";
+import { CrApi, type CrUser } from "../../api/cr";
+import { HelpProvider } from "../../components";
+import { MENU_SECTIONS } from "../../shell/menu";
 import { DataStore } from "./DataStore";
 
 afterEach(cleanup);

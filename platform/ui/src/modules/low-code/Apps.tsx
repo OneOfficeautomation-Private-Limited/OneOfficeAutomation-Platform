@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppComponent, AppDefinition, AppEmbed, AppInfo, CrApi, CrUser } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import type { AppComponent, AppDefinition, AppEmbed, AppInfo, CrApi, CrUser } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
  * Build > Apps (gap G67, after UiPath Apps): low-code apps that business people use in the console. An app is pages of

@@ -1,6 +1,11 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.lowcode;
 
 import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
+
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -36,10 +41,12 @@ public final class AppEmbeds {
     static final Pattern ORIGIN = Pattern.compile("^https://(\\*\\.)?[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+(:\\d{1,5})?$|^http://localhost(:\\d{1,5})?$");
     static final int MAX_ORIGINS = 10;
 
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    AppEmbeds(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    private final Apps apps;
+
+    public AppEmbeds(ModuleContext ctx, Apps apps) { this.ctx = ctx; this.db = ctx.db(); this.apps = apps; }
 
     static List<String> origins(Object raw) {
         List<String> out = new ArrayList<>();
@@ -63,8 +70,8 @@ public final class AppEmbeds {
     }
 
     public List<Map<String, Object>> list(User by, String appId) {
-        cr.require(by, "apps.manage", "manage embed links");
-        cr.apps.app(appId);
+        ctx.require(by, "apps.manage", "manage embed links");
+        apps.app(appId);
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT id, app_id, name, origins, created, created_by, last_used FROM app_embeds WHERE app_id = ? ORDER BY created", appId)) out.add(row(r));
         return out;
@@ -72,16 +79,16 @@ public final class AppEmbeds {
 
     /** A new embed link; its key is in the answer this once. */
     public Map<String, Object> make(User by, String appId, Map<String, Object> b, String ip) {
-        cr.require(by, "apps.manage", "manage embed links");
-        Map<String, Object> app = cr.apps.app(appId);
+        ctx.require(by, "apps.manage", "manage embed links");
+        Map<String, Object> app = apps.app(appId);
         String name = b.get("name") == null ? "" : String.valueOf(b.get("name")).trim();
         if (name.isEmpty() || name.length() > 80) throw new OoaException("CR.BAD_INPUT", "Give the embed link a name (up to 80 characters), such as Salesforce account page");
         List<String> origins = origins(b.get("origins"));
-        if (cr.count("SELECT COUNT(*) AS n FROM app_embeds WHERE app_id = ?", appId) >= 20) throw new OoaException("CR.BAD_INPUT", "An app has at most 20 embed links");
-        String id = ControlRoom.id("emb"), key = "ooae_" + Security.token(24);
+        if (ctx.count("SELECT COUNT(*) AS n FROM app_embeds WHERE app_id = ?", appId) >= 20) throw new OoaException("CR.BAD_INPUT", "An app has at most 20 embed links");
+        String id = id("emb"), key = "ooae_" + ModuleContext.secureToken(24);
         db.update("INSERT INTO app_embeds (id, app_id, name, key_hash, origins, created, created_by) VALUES (?,?,?,?,?,?,?)",
-            id, appId, name, Security.sha256(key), String.join(" ", origins), ControlRoom.now(), by.username());
-        cr.audit.record(by.username(), "app.embed_create", "app", appId, Map.of("embed", id, "name", name, "origins", origins, "app", app.get("name")), "ok", ip);
+            id, appId, name, ModuleContext.sha256(key), String.join(" ", origins), now(), by.username());
+        ctx.audit(by.username(), "app.embed_create", "app", appId, Map.of("embed", id, "name", name, "origins", origins, "app", app.get("name")), "ok", ip);
         Map<String, Object> m = new LinkedHashMap<>(row(db.one("SELECT id, app_id, name, origins, created, created_by, last_used FROM app_embeds WHERE id = ?", id)));
         m.put("key", key);
         m.put("path", "/embed/" + id + "#k=" + key);
@@ -89,11 +96,11 @@ public final class AppEmbeds {
     }
 
     public void delete(User by, String appId, String embedId, String ip) {
-        cr.require(by, "apps.manage", "manage embed links");
+        ctx.require(by, "apps.manage", "manage embed links");
         Map<String, Object> r = db.one("SELECT name FROM app_embeds WHERE id = ? AND app_id = ?", embedId, appId);
-        if (r == null) throw ControlRoom.notFound("Embed link " + embedId);
+        if (r == null) throw notFound("Embed link " + embedId);
         db.update("DELETE FROM app_embeds WHERE id = ?", embedId);
-        cr.audit.record(by.username(), "app.embed_delete", "app", appId, Map.of("embed", embedId, "name", r.get("name")), "ok", ip);
+        ctx.audit(by.username(), "app.embed_delete", "app", appId, Map.of("embed", embedId, "name", r.get("name")), "ok", ip);
     }
 
     /** The sites that may frame the embed page, for its Content-Security-Policy; null when there is no such link. */
@@ -105,44 +112,44 @@ public final class AppEmbeds {
     /** The link and its app, when the key is right (compared by hash, in constant time). */
     Map<String, Object> resolve(String embedId, String key) {
         Map<String, Object> r = embedId == null ? null : db.one("SELECT id, app_id, name, key_hash FROM app_embeds WHERE id = ?", embedId);
-        if (r == null || key == null || !Security.constantEquals(Security.sha256(key), (String) r.get("key_hash")))
+        if (r == null || key == null || !ModuleContext.constantEquals(ModuleContext.sha256(key), (String) r.get("key_hash")))
             throw new OoaException("CR.UNAUTHENTICATED", "This embed link is not valid any more", "Ask the app's maker for a new link.");
-        db.update("UPDATE app_embeds SET last_used = ? WHERE id = ?", ControlRoom.now(), embedId);
+        db.update("UPDATE app_embeds SET last_used = ? WHERE id = ?", now(), embedId);
         return r;
     }
 
     // what the embed page may do: exactly what a person using the app may, for this one app
     public Map<String, Object> app(String embedId, String key) {
         Map<String, Object> e = resolve(embedId, key);
-        Map<String, Object> a = cr.apps.app((String) e.get("app_id"));
+        Map<String, Object> a = apps.app((String) e.get("app_id"));
         return Map.of("id", a.get("id"), "name", a.get("name"), "definition", JsonLite.parse((String) a.get("definition")), "audience", List.of(), "published_by", a.get("published_by"));
     }
 
     public Map<String, Object> act(String embedId, String key, Map<String, Object> body, String ip) {
         Map<String, Object> e = resolve(embedId, key);
-        return cr.apps.actAs(cr.apps.app((String) e.get("app_id")), "embed:" + e.get("id"), "embed:" + e.get("name"), body, ip);
+        return apps.actAs(apps.app((String) e.get("app_id")), "embed:" + e.get("id"), "embed:" + e.get("name"), body, ip);
     }
 
     public Map<String, Object> runStatus(String embedId, String key, String runId) {
         Map<String, Object> e = resolve(embedId, key);
-        return cr.apps.runStatusFor((String) e.get("app_id"), "embed:" + e.get("id"), runId);
+        return apps.runStatusFor((String) e.get("app_id"), "embed:" + e.get("id"), runId);
     }
 
     public Map<String, Object> records(String embedId, String key, String comp, String search) {
         Map<String, Object> e = resolve(embedId, key);
-        return cr.apps.recordsFor(cr.apps.app((String) e.get("app_id")), comp, search);
+        return apps.recordsFor(apps.app((String) e.get("app_id")), comp, search);
     }
 
     // ===================== Teams =====================
 
     /** A Teams app package: manifest.json with a static tab showing the embed link, and the two icons Teams asks for. */
     public byte[] teamsPackage(User by, String appId, String embedId, String key, String baseUrl) {
-        cr.require(by, "apps.manage", "manage embed links");
+        ctx.require(by, "apps.manage", "manage embed links");
         Map<String, Object> e = resolve(embedId, key);
-        if (!appId.equals(e.get("app_id"))) throw ControlRoom.notFound("Embed link " + embedId);
+        if (!appId.equals(e.get("app_id"))) throw notFound("Embed link " + embedId);
         String base = baseUrl == null ? "" : baseUrl.trim().replaceAll("/+$", "");
         if (!base.startsWith("https://")) throw new OoaException("CR.BAD_INPUT", "Teams needs One CommandCenter's https:// address", "Set Public address in Settings, or open the console over https.");
-        Map<String, Object> app = cr.apps.app(appId);
+        Map<String, Object> app = apps.app(appId);
         String host = base.replaceFirst("^https://", "").replaceAll("[:/].*$", "");
         String name = String.valueOf(app.get("name"));
         String shortName = name.length() > 30 ? name.substring(0, 30) : name;
@@ -167,7 +174,7 @@ public final class AppEmbeds {
             z.putNextEntry(new ZipEntry("color.png")); z.write(icon(192, true)); z.closeEntry();
             z.putNextEntry(new ZipEntry("outline.png")); z.write(icon(32, false)); z.closeEntry();
         } catch (IOException ex) { throw new OoaException("CR.INTERNAL", "Cannot make the Teams package: " + ex.getMessage()); }
-        cr.audit.record(by.username(), "app.embed_teams", "app", appId, Map.of("embed", embedId), "ok", null);
+        ctx.audit(by.username(), "app.embed_teams", "app", appId, Map.of("embed", embedId), "ok", null);
         return out.toByteArray();
     }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BucketFile, CrApi, CrUser, DataBucket, DataEntity, DataField, DataRecord } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TabPanel, Tabs, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import type { BucketFile, CrApi, CrUser, DataBucket, DataEntity, DataField, DataRecord } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TabPanel, Tabs, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
  * Manage > Data store (gap G66, after UiPath's Data Service and Storage Buckets): entities (tables of business records

@@ -1,5 +1,9 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.lowcode.AppEmbeds;
+import com.oneofficeautomation.modules.lowcode.Apps;
+import com.oneofficeautomation.modules.lowcode.DataStore;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -42,7 +46,7 @@ class DataStoreTest {
     Map<String, Object> ask(String run, Object... kv) {
         Map<String, Object> req = new LinkedHashMap<>();
         for (int i = 0; i < kv.length; i += 2) req.put((String) kv[i], kv[i + 1]);
-        return cr.dataStore.forRun(dev, Map.of("run_id", run, "request", req));
+        return cr.modules.service(DataStore.class).forRun(dev, Map.of("run_id", run, "request", req));
     }
 
     static Map<String, Object> field(String name, String type, boolean required, boolean unique, String... choices) {
@@ -53,12 +57,12 @@ class DataStoreTest {
 
     @Test @SuppressWarnings("unchecked")
     void recordsAreCheckedQueriedAndKeptForTheirFolder() {
-        Map<String, Object> e = cr.dataStore.saveEntity(admin, null, Map.of("name", "Suppliers", "folder", "Finance", "fields", List.of(
+        Map<String, Object> e = cr.modules.service(DataStore.class).saveEntity(admin, null, Map.of("name", "Suppliers", "folder", "Finance", "fields", List.of(
             field("name", "text", true, true), field("country", "choice", false, false, "IN", "US", "DE"), field("limit", "number", false, false),
             field("active", "boolean", false, false), field("since", "date", false, false))), "127.0.0.1");
         assertEquals(0L, e.get("records"));
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.dataStore.saveEntity(cara, null, Map.of("name", "X", "fields", List.of(field("a", "text", false, false))), null)).code());
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.dataStore.saveEntity(admin, null, Map.of("name", "Bad", "fields", List.of(field("1x", "text", false, false))), null)).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(DataStore.class).saveEntity(cara, null, Map.of("name", "X", "fields", List.of(field("a", "text", false, false))), null)).code());
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(DataStore.class).saveEntity(admin, null, Map.of("name", "Bad", "fields", List.of(field("1x", "text", false, false))), null)).code());
 
         String run = running("Finance/Post.flow.json");
         Map<String, Object> acme = ask(run, "op", "create", "entity", "suppliers", "data", Map.of("name", "ACME", "country", "IN", "limit", "5000", "active", "yes", "since", "2024-03-01"));
@@ -92,20 +96,20 @@ class DataStoreTest {
         assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> ask(other, "op", "query", "entity", "Suppliers")).code());
 
         // people: viewers see, creators change records, the console's records page searches
-        assertEquals(2L, ((Map<String, Object>) cr.dataStore.entities(vic).get(0)).get("records"));
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.dataStore.saveRecord(vic, "Suppliers", null, Map.of("data", Map.of("name", "V")), null)).code());
-        Map<String, Object> made = cr.dataStore.saveRecord(cara, "Suppliers", null, Map.of("data", Map.of("name", "Umbrella", "country", "DE")), "127.0.0.1");
-        assertEquals(1, cr.dataStore.records(vic, (String) e.get("id"), Map.of("q", "umbrel")).get("total"));
-        cr.dataStore.deleteRecord(cara, "Suppliers", (String) made.get("id"), null);
+        assertEquals(2L, ((Map<String, Object>) cr.modules.service(DataStore.class).entities(vic).get(0)).get("records"));
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(DataStore.class).saveRecord(vic, "Suppliers", null, Map.of("data", Map.of("name", "V")), null)).code());
+        Map<String, Object> made = cr.modules.service(DataStore.class).saveRecord(cara, "Suppliers", null, Map.of("data", Map.of("name", "Umbrella", "country", "DE")), "127.0.0.1");
+        assertEquals(1, cr.modules.service(DataStore.class).records(vic, (String) e.get("id"), Map.of("q", "umbrel")).get("total"));
+        cr.modules.service(DataStore.class).deleteRecord(cara, "Suppliers", (String) made.get("id"), null);
         assertEquals(1L, ((Number) db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'data.record_delete'").get("n")).longValue());
 
-        cr.dataStore.deleteEntity(admin, (String) e.get("id"), null);
+        cr.modules.service(DataStore.class).deleteEntity(admin, (String) e.get("id"), null);
         assertEquals(0L, ((Number) db.one("SELECT COUNT(*) AS n FROM entity_records").get("n")).longValue());
     }
 
     @Test @SuppressWarnings("unchecked")
     void bucketsKeepFilesThatRunsReadAndWrite() {
-        Map<String, Object> b = cr.dataStore.saveBucket(admin, null, Map.of("name", "Invoices", "folder", "", "max_mb", 1), null);
+        Map<String, Object> b = cr.modules.service(DataStore.class).saveBucket(admin, null, Map.of("name", "Invoices", "folder", "", "max_mb", 1), null);
         String run = running("HR/Hire.flow.json");
         String content = Base64.getEncoder().encodeToString("hello".getBytes(StandardCharsets.UTF_8));
         assertEquals(5, ask(run, "op", "upload", "bucket", "invoices", "path", "2026/acme.pdf", "content", content).get("bytes"));
@@ -116,12 +120,12 @@ class DataStoreTest {
         assertEquals("DATA.BAD_PATH", assertThrows(OoaException.class, () -> ask(run, "op", "download", "bucket", "Invoices", "path", "../../secret.txt")).code());
         String big = Base64.getEncoder().encodeToString(new byte[1024 * 1024 + 1]);
         assertEquals("DATA.TOO_LARGE", assertThrows(OoaException.class, () -> ask(run, "op", "upload", "bucket", "Invoices", "path", "big.bin", "content", big)).code());
-        assertEquals(1L, ((Number) cr.dataStore.buckets(vic).get(0).get("files")).longValue());
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.dataStore.upload(vic, "Invoices", "a.txt", new byte[1], null)).code());
-        cr.dataStore.upload(cara, "Invoices", "notes/a.txt", "x".getBytes(StandardCharsets.UTF_8), null);
-        assertArrayEquals("x".getBytes(StandardCharsets.UTF_8), cr.dataStore.download(vic, "Invoices", "notes/a.txt"));
+        assertEquals(1L, ((Number) cr.modules.service(DataStore.class).buckets(vic).get(0).get("files")).longValue());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(DataStore.class).upload(vic, "Invoices", "a.txt", new byte[1], null)).code());
+        cr.modules.service(DataStore.class).upload(cara, "Invoices", "notes/a.txt", "x".getBytes(StandardCharsets.UTF_8), null);
+        assertArrayEquals("x".getBytes(StandardCharsets.UTF_8), cr.modules.service(DataStore.class).download(vic, "Invoices", "notes/a.txt"));
         assertEquals(true, ask(run, "op", "delete_file", "bucket", "Invoices", "path", "2026/acme.pdf").get("deleted"));
-        cr.dataStore.deleteBucket(admin, (String) b.get("id"), null);
+        cr.modules.service(DataStore.class).deleteBucket(admin, (String) b.get("id"), null);
         assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> ask(run, "op", "list_files", "bucket", "Invoices")).code());
     }
 }

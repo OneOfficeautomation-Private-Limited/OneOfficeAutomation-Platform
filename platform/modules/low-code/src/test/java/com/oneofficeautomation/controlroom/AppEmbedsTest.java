@@ -1,5 +1,9 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.lowcode.AppEmbeds;
+import com.oneofficeautomation.modules.lowcode.Apps;
+import com.oneofficeautomation.modules.lowcode.DataStore;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -28,34 +32,34 @@ class AppEmbedsTest {
         admin = RepositoryLifecycleTest.boot(cr);
         cr.createUser(admin, "cara", "Cara Creator", "bot_creator", null);
         cara = new ControlRoom.User("cara", "cara", "bot_creator", "Cara Creator", false);
-        cr.dataStore.saveEntity(admin, null, Map.of("name", "Calls", "fields", List.of(Map.of("name", "caller", "type", "text", "required", true))), null);
-        appId = (String) cr.apps.save(cara, null, Map.of("name", "Call notes", "definition", Map.of("pages", List.of(Map.of("id", "p", "title", "Notes", "components", List.of(
+        cr.modules.service(DataStore.class).saveEntity(admin, null, Map.of("name", "Calls", "fields", List.of(Map.of("name", "caller", "type", "text", "required", true))), null);
+        appId = (String) cr.modules.service(Apps.class).save(cara, null, Map.of("name", "Call notes", "definition", Map.of("pages", List.of(Map.of("id", "p", "title", "Notes", "components", List.of(
             Map.of("id", "who", "kind", "input", "name", "caller"),
             Map.of("id", "save", "kind", "button", "label", "Save", "action", Map.of("kind", "create_record", "entity", "Calls", "values", Map.of("caller", "{caller}"))),
             Map.of("id", "list", "kind", "records", "entity", "Calls")))))), null).get("id");
-        otherApp = (String) cr.apps.save(cara, null, Map.of("name", "Other", "definition", Map.of("pages", List.of(Map.of("id", "p", "components", List.of(
+        otherApp = (String) cr.modules.service(Apps.class).save(cara, null, Map.of("name", "Other", "definition", Map.of("pages", List.of(Map.of("id", "p", "components", List.of(
             Map.of("id", "t", "kind", "text", "text", "hi")))))), null).get("id");
     }
     @AfterAll void stop() { cr.triggerPollers.stop(); db.close(); }
 
     @Test @SuppressWarnings("unchecked")
     void anEmbedLinkUsesOnlyItsAppWithItsKey() throws Exception {
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.appEmbeds.make(cara, appId, Map.of("name", "SF", "origins", List.of("http://evil.example")), null)).code(),
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(AppEmbeds.class).make(cara, appId, Map.of("name", "SF", "origins", List.of("http://evil.example")), null)).code(),
             "only https sites (and localhost)");
-        Map<String, Object> e = cr.appEmbeds.make(cara, appId, Map.of("name", "Salesforce", "origins", "https://acme.lightning.force.com https://*.my.salesforce.com"), "127.0.0.1");
+        Map<String, Object> e = cr.modules.service(AppEmbeds.class).make(cara, appId, Map.of("name", "Salesforce", "origins", "https://acme.lightning.force.com https://*.my.salesforce.com"), "127.0.0.1");
         String id = (String) e.get("id"), key = (String) e.get("key");
         assertTrue(((String) e.get("path")).endsWith("#k=" + key), "the key travels in the fragment");
         assertNotEquals(key, db.one("SELECT key_hash FROM app_embeds WHERE id = ?", id).get("key_hash"));
-        assertFalse(cr.appEmbeds.list(cara, appId).get(0).containsKey("key"), "the key is shown once");
-        assertEquals("https://acme.lightning.force.com https://*.my.salesforce.com", cr.appEmbeds.frameAncestors(id));
-        assertNull(cr.appEmbeds.frameAncestors("emb_0000000000000000"));
+        assertFalse(cr.modules.service(AppEmbeds.class).list(cara, appId).get(0).containsKey("key"), "the key is shown once");
+        assertEquals("https://acme.lightning.force.com https://*.my.salesforce.com", cr.modules.service(AppEmbeds.class).frameAncestors(id));
+        assertNull(cr.modules.service(AppEmbeds.class).frameAncestors("emb_0000000000000000"));
 
-        assertEquals("CR.UNAUTHENTICATED", assertThrows(OoaException.class, () -> cr.appEmbeds.app(id, "ooae_wrong")).code());
-        assertEquals("Call notes", cr.appEmbeds.app(id, key).get("name"));
-        Map<String, Object> r = cr.appEmbeds.act(id, key, Map.of("component", "save", "fields", Map.of("caller", "+91 98450 00000")), null);
-        Map<String, Object> rec = cr.dataStore.record(cr.dataStore.entity("Calls"), (String) r.get("record_id"));
+        assertEquals("CR.UNAUTHENTICATED", assertThrows(OoaException.class, () -> cr.modules.service(AppEmbeds.class).app(id, "ooae_wrong")).code());
+        assertEquals("Call notes", cr.modules.service(AppEmbeds.class).app(id, key).get("name"));
+        Map<String, Object> r = cr.modules.service(AppEmbeds.class).act(id, key, Map.of("component", "save", "fields", Map.of("caller", "+91 98450 00000")), null);
+        Map<String, Object> rec = cr.modules.service(DataStore.class).record(cr.modules.service(DataStore.class).entity("Calls"), (String) r.get("record_id"));
         assertEquals("app:Call notes for embed:Salesforce", rec.get("created_by"));
-        assertEquals(1, cr.appEmbeds.records(id, key, "list", null).get("total"));
+        assertEquals(1, cr.modules.service(AppEmbeds.class).records(id, key, "list", null).get("total"));
         assertNotNull(db.one("SELECT last_used FROM app_embeds WHERE id = ?", id).get("last_used"));
 
         // over HTTP: no session needed, the key as a header, the page framed only by the sites named
@@ -83,8 +87,8 @@ class AppEmbedsTest {
         } finally { server.stop(); }
 
         // a Teams package with the link in a tab
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.appEmbeds.teamsPackage(cara, appId, id, key, "http://cr.local")).code());
-        byte[] zip = cr.appEmbeds.teamsPackage(cara, appId, id, key, "https://cr.acme.com/");
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(AppEmbeds.class).teamsPackage(cara, appId, id, key, "http://cr.local")).code());
+        byte[] zip = cr.modules.service(AppEmbeds.class).teamsPackage(cara, appId, id, key, "https://cr.acme.com/");
         Map<String, byte[]> files = new HashMap<>();
         try (ZipInputStream z = new ZipInputStream(new ByteArrayInputStream(zip))) { for (var en = z.getNextEntry(); en != null; en = z.getNextEntry()) files.put(en.getName(), z.readAllBytes()); }
         assertEquals(Set.of("manifest.json", "color.png", "outline.png"), files.keySet());
@@ -95,9 +99,9 @@ class AppEmbedsTest {
         assertEquals((byte) 0x89, files.get("color.png")[0], "a PNG");
 
         // the link opens only its own app; removing it stops it
-        assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> cr.appEmbeds.teamsPackage(cara, otherApp, id, key, "https://cr.acme.com")).code());
-        cr.appEmbeds.delete(cara, appId, id, null);
-        assertEquals("CR.UNAUTHENTICATED", assertThrows(OoaException.class, () -> cr.appEmbeds.app(id, key)).code());
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.appEmbeds.list(new ControlRoom.User("v", "vic", "viewer", "V", false), appId)).code());
+        assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> cr.modules.service(AppEmbeds.class).teamsPackage(cara, otherApp, id, key, "https://cr.acme.com")).code());
+        cr.modules.service(AppEmbeds.class).delete(cara, appId, id, null);
+        assertEquals("CR.UNAUTHENTICATED", assertThrows(OoaException.class, () -> cr.modules.service(AppEmbeds.class).app(id, key)).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(AppEmbeds.class).list(new ControlRoom.User("v", "vic", "viewer", "V", false), appId)).code());
     }
 }

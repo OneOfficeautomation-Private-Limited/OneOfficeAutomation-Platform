@@ -1,6 +1,9 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.lowcode;
 
 import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -14,7 +17,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Business data store (gap G66, after UiPath's Data Service and Storage Buckets, and Power Automate's Dataverse):
@@ -35,17 +38,17 @@ public final class DataStore {
     static final Pattern FILE_PART = Pattern.compile("^[A-Za-z0-9 _.()@+-]{1,120}$");
     static final int MAX_FIELDS = 100, MAX_RECORDS = 200_000, MAX_QUERY = 5000, DEFAULT_MB = 25, MAX_MB = 200;
 
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
     private final Path root;
 
-    DataStore(ControlRoom cr) { this.cr = cr; this.db = cr.db; this.root = cr.dataDir.resolve("buckets"); }
+    public DataStore(ModuleContext ctx) { this.ctx = ctx; this.db = ctx.db(); this.root = ctx.dataDir().resolve("buckets"); }
 
     // ===================== definitions =====================
 
     static String folder(Object raw) {
         String f = raw == null ? "" : String.valueOf(raw).trim();
-        return f.isEmpty() || f.equals("/") ? "" : Folders.normalize(f);
+        return f.isEmpty() || f.equals("/") ? "" : ModuleContext.folderPath(f);
     }
 
     static String name(Object raw, String what) {
@@ -86,18 +89,18 @@ public final class DataStore {
     private Map<String, Object> entityRow(Map<String, Object> r) {
         Map<String, Object> m = new LinkedHashMap<>(r);
         m.put("fields", JsonLite.parse((String) r.get("fields")));
-        m.put("records", cr.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", r.get("id")));
+        m.put("records", ctx.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", r.get("id")));
         return m;
     }
 
     public List<Map<String, Object>> entities(User by) {
-        cr.require(by, "data.view", "see the data store");
+        ctx.require(by, "data.view", "see the data store");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT id, name, folder, description, fields, created, created_by, updated, updated_by FROM entities ORDER BY name")) out.add(entityRow(r));
         return out;
     }
 
-    Map<String, Object> entity(String idOrName) {
+    public Map<String, Object> entity(String idOrName) {
         Map<String, Object> r = db.one("SELECT id, name, folder, description, fields, created, created_by, updated, updated_by FROM entities WHERE id = ? OR LOWER(name) = ?",
             idOrName, String.valueOf(idOrName).toLowerCase(Locale.ROOT));
         if (r == null) throw new OoaException("CR.NOT_FOUND", "No entity '" + idOrName + "' in the data store", "Use the entity's name as shown in Manage > Data store.");
@@ -106,30 +109,30 @@ public final class DataStore {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> saveEntity(User by, String id, Map<String, Object> b, String ip) {
-        cr.require(by, "data.manage", "define data store entities");
+        ctx.require(by, "data.manage", "define data store entities");
         String n = name(b.get("name"), "entity"), f = folder(b.get("folder"));
         String desc = b.get("description") == null ? null : String.valueOf(b.get("description")).trim();
         if (desc != null && desc.length() > 500) throw new OoaException("CR.BAD_INPUT", "The description is up to 500 characters");
         List<Map<String, Object>> fs = fields(b.get("fields"));
         if (db.one("SELECT id FROM entities WHERE LOWER(name) = ? AND id <> ?", n.toLowerCase(Locale.ROOT), id == null ? "" : id) != null)
             throw new OoaException("CR.CONFLICT", "An entity is already called '" + n + "'");
-        String eid = id == null ? ControlRoom.id("ent") : id;
+        String eid = id == null ? id("ent") : id;
         if (id == null) db.update("INSERT INTO entities (id, name, folder, description, fields, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
             eid, n, f, desc, JsonLite.write(fs), now(), by.username(), now(), by.username());
         else {
             if (db.one("SELECT id FROM entities WHERE id = ?", id) == null) throw notFound("Entity " + id);
             db.update("UPDATE entities SET name = ?, folder = ?, description = ?, fields = ?, updated = ?, updated_by = ? WHERE id = ?", n, f, desc, JsonLite.write(fs), now(), by.username(), id);
         }
-        cr.audit.record(by.username(), id == null ? "data.entity_create" : "data.entity_update", "entity", eid, Map.of("name", n, "folder", f, "fields", fs.size()), "ok", ip);
+        ctx.audit(by.username(), id == null ? "data.entity_create" : "data.entity_update", "entity", eid, Map.of("name", n, "folder", f, "fields", fs.size()), "ok", ip);
         return entityRow(entity(eid));
     }
 
     public void deleteEntity(User by, String id, String ip) {
-        cr.require(by, "data.manage", "define data store entities");
+        ctx.require(by, "data.manage", "define data store entities");
         Map<String, Object> e = entity(id);
-        long n = cr.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", e.get("id"));
+        long n = ctx.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", e.get("id"));
         db.tx(() -> { db.update("DELETE FROM entity_records WHERE entity_id = ?", e.get("id")); db.update("DELETE FROM entities WHERE id = ?", e.get("id")); return null; });
-        cr.audit.record(by.username(), "data.entity_delete", "entity", (String) e.get("id"), Map.of("name", e.get("name"), "records", n), "ok", ip);
+        ctx.audit(by.username(), "data.entity_delete", "entity", (String) e.get("id"), Map.of("name", e.get("name"), "records", n), "ok", ip);
     }
 
     // ===================== records =====================
@@ -206,9 +209,9 @@ public final class DataStore {
     }
 
     Map<String, Object> create(Map<String, Object> entity, Map<String, Object> given, String who) {
-        if (cr.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", entity.get("id")) >= MAX_RECORDS)
+        if (ctx.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", entity.get("id")) >= MAX_RECORDS)
             throw new OoaException("DATA.FULL", "The entity " + entity.get("name") + " has " + MAX_RECORDS + " records, the most it can hold");
-        String id = ControlRoom.id("rec");
+        String id = id("rec");
         Map<String, Object> data = checked(entity, id, given, null);
         db.update("INSERT INTO entity_records (id, entity_id, data, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?)", id, entity.get("id"), JsonLite.write(data), now(), who, now(), who);
         return record(entity, id);
@@ -222,7 +225,7 @@ public final class DataStore {
         return record(entity, id);
     }
 
-    Map<String, Object> record(Map<String, Object> entity, String id) {
+    public Map<String, Object> record(Map<String, Object> entity, String id) {
         Map<String, Object> r = db.one("SELECT id, data, created, created_by, updated, updated_by FROM entity_records WHERE id = ? AND entity_id = ?", id, entity.get("id"));
         if (r == null) throw new OoaException("DATA.NOT_FOUND", "No record " + id + " in " + entity.get("name"));
         Map<String, Object> m = new LinkedHashMap<>(r);
@@ -296,26 +299,26 @@ public final class DataStore {
     // console: records
     @SuppressWarnings("unchecked")
     public Map<String, Object> records(User by, String entityId, Map<String, String> q) {
-        cr.require(by, "data.view", "see the data store");
+        ctx.require(by, "data.view", "see the data store");
         int limit = q.get("limit") == null ? 200 : Integer.parseInt(q.get("limit")), offset = q.get("offset") == null ? 0 : Integer.parseInt(q.get("offset"));
         return query(entity(entityId), List.of(), q.get("sort"), "true".equals(q.get("desc")), limit, offset, q.get("q"));
     }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> saveRecord(User by, String entityId, String id, Map<String, Object> body, String ip) {
-        cr.require(by, "data.edit", "change data store records");
+        ctx.require(by, "data.edit", "change data store records");
         Map<String, Object> e = entity(entityId);
         Map<String, Object> data = body.get("data") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         Map<String, Object> r = id == null ? create(e, data, by.username()) : change(e, id, data, by.username(), true);
-        cr.audit.record(by.username(), id == null ? "data.record_create" : "data.record_update", "entity_record", (String) r.get("id"), Map.of("entity", e.get("name")), "ok", ip);
+        ctx.audit(by.username(), id == null ? "data.record_create" : "data.record_update", "entity_record", (String) r.get("id"), Map.of("entity", e.get("name")), "ok", ip);
         return r;
     }
 
     public void deleteRecord(User by, String entityId, String id, String ip) {
-        cr.require(by, "data.edit", "change data store records");
+        ctx.require(by, "data.edit", "change data store records");
         Map<String, Object> e = entity(entityId);
         if (!remove(e, id)) throw notFound("Record " + id);
-        cr.audit.record(by.username(), "data.record_delete", "entity_record", id, Map.of("entity", e.get("name")), "ok", ip);
+        ctx.audit(by.username(), "data.record_delete", "entity_record", id, Map.of("entity", e.get("name")), "ok", ip);
     }
 
     // ===================== storage buckets =====================
@@ -328,7 +331,7 @@ public final class DataStore {
     }
 
     public List<Map<String, Object>> buckets(User by) {
-        cr.require(by, "data.view", "see the data store");
+        ctx.require(by, "data.view", "see the data store");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT id, name, folder, description, max_mb, created, created_by FROM buckets ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(r);
@@ -350,7 +353,7 @@ public final class DataStore {
     }
 
     public Map<String, Object> saveBucket(User by, String id, Map<String, Object> b, String ip) {
-        cr.require(by, "data.manage", "define storage buckets");
+        ctx.require(by, "data.manage", "define storage buckets");
         String n = name(b.get("name"), "bucket"), f = folder(b.get("folder"));
         String desc = b.get("description") == null ? null : String.valueOf(b.get("description")).trim();
         if (desc != null && desc.length() > 500) throw new OoaException("CR.BAD_INPUT", "The description is up to 500 characters");
@@ -358,23 +361,23 @@ public final class DataStore {
         if (mb < 1 || mb > MAX_MB) throw new OoaException("CR.BAD_INPUT", "A file is up to between 1 and " + MAX_MB + " MB");
         if (db.one("SELECT id FROM buckets WHERE LOWER(name) = ? AND id <> ?", n.toLowerCase(Locale.ROOT), id == null ? "" : id) != null)
             throw new OoaException("CR.CONFLICT", "A bucket is already called '" + n + "'");
-        String bid = id == null ? ControlRoom.id("bkt") : id;
+        String bid = id == null ? id("bkt") : id;
         if (id == null) db.update("INSERT INTO buckets (id, name, folder, description, max_mb, created, created_by) VALUES (?,?,?,?,?,?,?)", bid, n, f, desc, mb, now(), by.username());
         else {
             if (db.one("SELECT id FROM buckets WHERE id = ?", id) == null) throw notFound("Bucket " + id);
             db.update("UPDATE buckets SET name = ?, folder = ?, description = ?, max_mb = ? WHERE id = ?", n, f, desc, mb, id);
         }
-        cr.audit.record(by.username(), id == null ? "data.bucket_create" : "data.bucket_update", "bucket", bid, Map.of("name", n, "folder", f), "ok", ip);
+        ctx.audit(by.username(), id == null ? "data.bucket_create" : "data.bucket_update", "bucket", bid, Map.of("name", n, "folder", f), "ok", ip);
         return bucket(bid);
     }
 
     public void deleteBucket(User by, String id, String ip) {
-        cr.require(by, "data.manage", "define storage buckets");
+        ctx.require(by, "data.manage", "define storage buckets");
         Map<String, Object> b = bucket(id);
         long[] n = usage((String) b.get("id"));
         db.update("DELETE FROM buckets WHERE id = ?", b.get("id"));
         deleteTree(root.resolve((String) b.get("id")));
-        cr.audit.record(by.username(), "data.bucket_delete", "bucket", (String) b.get("id"), Map.of("name", b.get("name"), "files", n[0]), "ok", ip);
+        ctx.audit(by.username(), "data.bucket_delete", "bucket", (String) b.get("id"), Map.of("name", b.get("name"), "files", n[0]), "ok", ip);
     }
 
     private static void deleteTree(Path d) {
@@ -438,23 +441,23 @@ public final class DataStore {
     }
 
     // console: files
-    public List<Map<String, Object>> files(User by, String bucketId, String prefix) { cr.require(by, "data.view", "see the data store"); return files(bucket(bucketId), prefix); }
+    public List<Map<String, Object>> files(User by, String bucketId, String prefix) { ctx.require(by, "data.view", "see the data store"); return files(bucket(bucketId), prefix); }
 
     public Map<String, Object> upload(User by, String bucketId, String path, byte[] content, String ip) {
-        cr.require(by, "data.edit", "change files in storage buckets");
+        ctx.require(by, "data.edit", "change files in storage buckets");
         Map<String, Object> b = bucket(bucketId);
         Map<String, Object> r = put(b, path, content, true);
-        cr.audit.record(by.username(), "data.file_upload", "bucket", (String) b.get("id"), Map.of("path", r.get("path"), "bytes", content.length), "ok", ip);
+        ctx.audit(by.username(), "data.file_upload", "bucket", (String) b.get("id"), Map.of("path", r.get("path"), "bytes", content.length), "ok", ip);
         return r;
     }
 
-    public byte[] download(User by, String bucketId, String path) { cr.require(by, "data.view", "see the data store"); return get(bucket(bucketId), path); }
+    public byte[] download(User by, String bucketId, String path) { ctx.require(by, "data.view", "see the data store"); return get(bucket(bucketId), path); }
 
     public void removeFile(User by, String bucketId, String path, String ip) {
-        cr.require(by, "data.edit", "change files in storage buckets");
+        ctx.require(by, "data.edit", "change files in storage buckets");
         Map<String, Object> b = bucket(bucketId);
         if (!deleteFile(b, path)) throw notFound("File " + path);
-        cr.audit.record(by.username(), "data.file_delete", "bucket", (String) b.get("id"), Map.of("path", filePath(path)), "ok", ip);
+        ctx.audit(by.username(), "data.file_delete", "bucket", (String) b.get("id"), Map.of("path", filePath(path)), "ok", ip);
     }
 
     // ===================== for runs (through the Bot Agent) =====================
@@ -473,7 +476,7 @@ public final class DataStore {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> forRun(Map<String, Object> device, Map<String, Object> body) {
-        Map<String, Object> run = cr.runOnDevice(device, (String) body.get("run_id"));
+        Map<String, Object> run = ctx.runOfDevice(device, (String) body.get("run_id"));
         if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use the data store");
         String who = "agent:" + run.get("bot_path") + " for " + (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
         Map<String, Object> r = body.get("request") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();

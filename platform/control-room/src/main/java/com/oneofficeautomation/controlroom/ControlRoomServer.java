@@ -403,14 +403,9 @@ public final class ControlRoomServer {
         }
 
         // ---------- public ----------
-        // apps embedded in other pages (G68): the embed key, never a session, and only for that link's app
-        if (seg.length >= 3 && seg[0].equals("embed")) {
-            String key = ex.getRequestHeaders().getFirst("X-OOA-Embed-Key");
-            if (m.equals("GET") && seg.length == 3 && seg[2].equals("app")) sendJson(ex, 200, cr.appEmbeds.app(seg[1], key));
-            else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.appEmbeds.act(seg[1], key, map(body(ex)), ip));
-            else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.appEmbeds.runStatus(seg[1], key, seg[3]));
-            else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.appEmbeds.records(seg[1], key, seg[3], q.get("q")));
-            else notFound(ex);
+        // public routes feature modules add, which they authenticate themselves (low-code: /api/embed/..., with the embed key)
+        if (cr.modules.publicRoutes.get(seg[0]) instanceof ModuleContext.PublicRoute pr) {
+            pr.handle(ex, m, route.startsWith(seg[0] + "/") ? route.substring(seg[0].length() + 1) : "", ip);
             return;
         }
         if (m.equals("POST") && route.equals("auth/login")) {
@@ -599,7 +594,6 @@ public final class ControlRoomServer {
             // runner routes feature modules add (Document Automation's "Send document to process")
             else if (m.equals("POST") && cr.modules.agentRoutes.get(route.substring("agent/".length())) instanceof ModuleContext.AgentRoute ar) sendJson(ex, 200, ar.handle(ex, d, q));
             else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
-            else if (m.equals("POST") && route.equals("agent/data")) sendJson(ex, 200, cr.dataStore.forRun(d, map(body(ex))));   // Data store (G66)
             else if (m.equals("POST") && route.equals("agent/locks")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.locks.forRun(d, (String) b.get("run_id"), b)); }   // Environment locks
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
@@ -1161,53 +1155,6 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
-            case "apps" -> {   // Build > Apps (G67): made by apps.manage; used by their audience, acting with the publisher's rights
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("apps", cr.apps.list(u)));
-                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.apps.save(u, null, map(body(ex)), ip));
-                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.apps.get(u, seg[1]));
-                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.apps.save(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("DELETE") && seg.length == 2) { cr.apps.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("act")) sendJson(ex, 200, cr.apps.act(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("runs")) sendJson(ex, 200, cr.apps.runStatus(u, seg[1], seg[3]));
-                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("records")) sendJson(ex, 200, cr.apps.records(u, seg[1], seg[3], q.get("q")));
-                // embed links (G68)
-                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("embeds")) sendJson(ex, 200, Map.of("embeds", cr.appEmbeds.list(u, seg[1])));
-                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("embeds")) sendJson(ex, 200, cr.appEmbeds.make(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("DELETE") && seg.length == 4 && seg[2].equals("embeds")) { cr.appEmbeds.delete(u, seg[1], seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("POST") && seg.length == 5 && seg[2].equals("embeds") && seg[4].equals("teams")) {
-                    Map<String, Object> b = map(body(ex));
-                    sendBytes(ex, cr.appEmbeds.teamsPackage(u, seg[1], seg[3], (String) b.get("key"), (String) b.get("base_url")), "application/zip", "teams-app.zip");
-                }
-                else notFound(ex);
-            }
-            case "data" -> {   // Manage > Data store (G66): entities and their records, storage buckets and their files
-                if (seg.length >= 2 && seg[1].equals("entities")) {
-                    if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("entities", cr.dataStore.entities(u)));
-                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.dataStore.saveEntity(u, null, map(body(ex)), ip));
-                    else if (m.equals("PUT") && seg.length == 3) sendJson(ex, 200, cr.dataStore.saveEntity(u, seg[2], map(body(ex)), ip));
-                    else if (m.equals("DELETE") && seg.length == 3) { cr.dataStore.deleteEntity(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                    else if (m.equals("GET") && seg.length == 4 && seg[3].equals("records")) sendJson(ex, 200, cr.dataStore.records(u, seg[2], q));
-                    else if (m.equals("POST") && seg.length == 4 && seg[3].equals("records")) sendJson(ex, 200, cr.dataStore.saveRecord(u, seg[2], null, map(body(ex)), ip));
-                    else if (m.equals("PUT") && seg.length == 5 && seg[3].equals("records")) sendJson(ex, 200, cr.dataStore.saveRecord(u, seg[2], seg[4], map(body(ex)), ip));
-                    else if (m.equals("DELETE") && seg.length == 5 && seg[3].equals("records")) { cr.dataStore.deleteRecord(u, seg[2], seg[4], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                    else notFound(ex);
-                } else if (seg.length >= 2 && seg[1].equals("buckets")) {
-                    if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("buckets", cr.dataStore.buckets(u)));
-                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.dataStore.saveBucket(u, null, map(body(ex)), ip));
-                    else if (m.equals("PUT") && seg.length == 3) sendJson(ex, 200, cr.dataStore.saveBucket(u, seg[2], map(body(ex)), ip));
-                    else if (m.equals("DELETE") && seg.length == 3) { cr.dataStore.deleteBucket(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                    // files: the path is a query parameter, as it holds slashes; the upload's body is the file itself
-                    else if (m.equals("GET") && seg.length == 4 && seg[3].equals("files")) sendJson(ex, 200, Map.of("files", cr.dataStore.files(u, seg[2], q.get("prefix"))));
-                    else if (m.equals("PUT") && seg.length == 4 && seg[3].equals("files"))
-                        sendJson(ex, 200, cr.dataStore.upload(u, seg[2], q.get("path"), ex.getRequestBody().readNBytes(DataStore.MAX_MB * 1024 * 1024 + 1), ip));
-                    else if (m.equals("GET") && seg.length == 4 && seg[3].equals("file")) {
-                        String p0 = DataStore.filePath(q.get("path"));
-                        sendBytes(ex, cr.dataStore.download(u, seg[2], p0), "application/octet-stream", p0.substring(p0.lastIndexOf('/') + 1));
-                    }
-                    else if (m.equals("DELETE") && seg.length == 4 && seg[3].equals("files")) { cr.dataStore.removeFile(u, seg[2], q.get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
-                    else notFound(ex);
-                } else notFound(ex);
-            }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("locks", cr.locks.list(u)));
                 else if (m.equals("DELETE") && seg.length == 1) sendJson(ex, 200, cr.locks.adminRelease(u, q.get("name"), ip));
@@ -1326,7 +1273,9 @@ public final class ControlRoomServer {
      */
     private void embedPage(HttpExchange ex, String id) throws IOException {
         if (id.startsWith("assets/")) { nextConsole(ex, id); return; }   // the page's files, by the same relative paths as under /next/
-        String origins = cr.appEmbeds.frameAncestors(id);
+        // which sites may frame it: the module that made the page says (low-code's embed links); without one, no page
+        ModuleContext.FrameOrigins fo = cr.modules.embeddablePages.get("embed");
+        String origins = fo == null ? null : fo.forPage(id);
         if (origins == null) { securityHeaders(ex); ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8"); writeBody(ex, 404, "No such embed link".getBytes(StandardCharsets.UTF_8)); return; }
         try (InputStream in = ControlRoomServer.class.getResourceAsStream("/studio-next/console.html")) {
             if (in == null) { securityHeaders(ex); writeBody(ex, 503, "The console was not built into this copy".getBytes(StandardCharsets.UTF_8)); return; }

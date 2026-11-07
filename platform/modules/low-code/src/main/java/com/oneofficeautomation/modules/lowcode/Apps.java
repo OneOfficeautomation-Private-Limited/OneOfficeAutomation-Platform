@@ -1,6 +1,11 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.lowcode;
 
 import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
+
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
@@ -28,10 +33,12 @@ public final class Apps {
     static final List<String> INPUT_TYPES = List.of("text", "textarea", "number", "date", "boolean", "choice");
     static final List<String> ACTIONS = List.of("run_agent", "create_record", "add_queue_item", "go_page");
 
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    Apps(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    private final DataStore data;
+
+    public Apps(ModuleContext ctx, DataStore data) { this.ctx = ctx; this.db = ctx.db(); this.data = data; }
 
     // ===================== definition =====================
 
@@ -102,7 +109,7 @@ public final class Apps {
 
     /** A value with its {field} references filled in: "{amount}" alone keeps the field's own value (a number stays a number). */
     @SuppressWarnings("unchecked")
-    static Object fill(Object o, Map<String, Object> fields) {
+    public static Object fill(Object o, Map<String, Object> fields) {
         if (o instanceof String s) {
             Matcher whole = REF.matcher(s);
             if (whole.matches()) return fields.get(whole.group(1));
@@ -129,21 +136,21 @@ public final class Apps {
     void checkActions(User by, Map<String, Object> def) {
         for (Object po : (List<Object>) def.get("pages")) for (Object co : (List<Object>) ((Map<String, Object>) po).get("components")) {
             Map<String, Object> c = (Map<String, Object>) co;
-            if ("records".equals(c.get("kind"))) { cr.require(by, "data.view", "show data store records in apps"); cr.dataStore.entity(str(c.get("entity"))); }
+            if ("records".equals(c.get("kind"))) { ctx.require(by, "data.view", "show data store records in apps"); data.entity(str(c.get("entity"))); }
             if (!"button".equals(c.get("kind"))) continue;
             Map<String, Object> a = (Map<String, Object>) c.get("action");
             switch (str(a.get("kind"))) {
                 case "run_agent" -> {
                     String path = str(a.get("agent"));
-                    cr.require(by, "runs.start", "run agents from apps");
-                    cr.folders.require(by.username(), by.role(), path, "run", "run agents from apps");
+                    ctx.require(by, "runs.start", "run agents from apps");
+                    ctx.requirePathAccess(by.username(), by.role(), path, "run", "run agents from apps");
                     if (db.one("SELECT path FROM bots WHERE path = ? AND production_version IS NOT NULL", path) == null)
                         throw new OoaException("CR.BAD_INPUT", "The agent " + path + " has no production version", "Put a version in production first.");
                     if (str(a.get("runner")).isEmpty() && str(a.get("pool")).isEmpty()) throw new OoaException("CR.BAD_INPUT", "The button " + c.get("label") + " needs a runner or a runner pool");
                 }
-                case "create_record" -> { cr.require(by, "data.edit", "add data store records from apps"); cr.dataStore.entity(str(a.get("entity"))); }
+                case "create_record" -> { ctx.require(by, "data.edit", "add data store records from apps"); data.entity(str(a.get("entity"))); }
                 case "add_queue_item" -> {
-                    cr.require(by, "queues.work", "add work items from apps");
+                    ctx.require(by, "queues.work", "add work items from apps");
                     if (db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue"))) == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'");
                 }
                 default -> { }
@@ -168,7 +175,7 @@ public final class Apps {
 
     boolean mayUse(User by, Map<String, Object> app) {
         String aud = str(app.get("audience"));
-        return aud.isEmpty() || cr.can(by, "apps.manage") || Arrays.asList(aud.split(",")).contains(by.role());
+        return aud.isEmpty() || ctx.can(by, "apps.manage") || Arrays.asList(aud.split(",")).contains(by.role());
     }
 
     /** The apps the person may use (and, for app makers, every app). */
@@ -182,12 +189,12 @@ public final class Apps {
         Map<String, Object> r = app(id);
         if (!mayUse(by, r)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you");
         Map<String, Object> m = row(r, true);
-        m.put("can_edit", cr.can(by, "apps.manage"));
+        m.put("can_edit", ctx.can(by, "apps.manage"));
         return m;
     }
 
     public Map<String, Object> save(User by, String id, Map<String, Object> b, String ip) {
-        cr.require(by, "apps.manage", "make apps");
+        ctx.require(by, "apps.manage", "make apps");
         String name = str(b.get("name"));
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Give the app a name (up to 120 characters)");
         String desc = str(b.get("description"));
@@ -198,24 +205,24 @@ public final class Apps {
         if (b.get("audience") instanceof List<?> l) for (Object o : l) { String r = str(o); if (!r.isEmpty() && !aud.contains(r)) aud.add(r); }
         if (db.one("SELECT id FROM apps WHERE LOWER(name) = ? AND id <> ?", name.toLowerCase(Locale.ROOT), id == null ? "" : id) != null)
             throw new OoaException("CR.CONFLICT", "An app is already called '" + name + "'");
-        String aid = id == null ? ControlRoom.id("app") : id;
+        String aid = id == null ? id("app") : id;
         if (id == null) db.update("INSERT INTO apps (id, name, description, definition, audience, published_by, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            aid, name, desc, JsonLite.write(def), String.join(",", aud), by.username(), ControlRoom.now(), by.username(), ControlRoom.now(), by.username());
+            aid, name, desc, JsonLite.write(def), String.join(",", aud), by.username(), now(), by.username(), now(), by.username());
         else {
             app(id);
             db.update("UPDATE apps SET name = ?, description = ?, definition = ?, audience = ?, published_by = ?, updated = ?, updated_by = ? WHERE id = ?",
-                name, desc, JsonLite.write(def), String.join(",", aud), by.username(), ControlRoom.now(), by.username(), id);
+                name, desc, JsonLite.write(def), String.join(",", aud), by.username(), now(), by.username(), id);
         }
-        cr.audit.record(by.username(), id == null ? "app.create" : "app.update", "app", aid, Map.of("name", name, "audience", aud), "ok", ip);
+        ctx.audit(by.username(), id == null ? "app.create" : "app.update", "app", aid, Map.of("name", name, "audience", aud), "ok", ip);
         return get(by, aid);
     }
 
     public void delete(User by, String id, String ip) {
-        cr.require(by, "apps.manage", "make apps");
+        ctx.require(by, "apps.manage", "make apps");
         Map<String, Object> r = app(id);
         db.update("DELETE FROM app_embeds WHERE app_id = ?", id);
         db.update("DELETE FROM apps WHERE id = ?", id);
-        cr.audit.record(by.username(), "app.delete", "app", id, Map.of("name", r.get("name")), "ok", ip);
+        ctx.audit(by.username(), "app.delete", "app", id, Map.of("name", r.get("name")), "ok", ip);
     }
 
     // ===================== using an app =====================
@@ -253,31 +260,31 @@ public final class Apps {
             case "run_agent" -> {
                 Map<String, Object> inputs = (Map<String, Object>) fill(a.getOrDefault("inputs", Map.of()), fields);
                 inputs.values().removeIf(Objects::isNull);
-                Map<String, Object> r = cr.startRun(pub.username(), pub.role(), str(a.get("agent")), str(a.get("runner")).isEmpty() ? null : str(a.get("runner")),
-                    str(a.get("pool")).isEmpty() ? null : str(a.get("pool")), inputs, "app:" + id, ip, 0, null, null, null, null);
-                db.update("INSERT INTO app_runs (run_id, app_id, username, created) VALUES (?,?,?,?)", r.get("run_id"), id, owner, ControlRoom.now());
+                Map<String, Object> r = ctx.startRun(pub.username(), pub.role(), str(a.get("agent")), str(a.get("runner")).isEmpty() ? null : str(a.get("runner")),
+                    str(a.get("pool")).isEmpty() ? null : str(a.get("pool")), inputs, "app:" + id, ip, 0, null, null, null);
+                db.update("INSERT INTO app_runs (run_id, app_id, username, created) VALUES (?,?,?,?)", r.get("run_id"), id, owner, now());
                 result.put("run_id", r.get("run_id"));
                 result.put("status", "queued");
             }
             case "create_record" -> {
-                cr.require(pub, "data.edit", "add data store records from apps");
-                Map<String, Object> e = cr.dataStore.entity(str(a.get("entity")));
-                Map<String, Object> rec = cr.dataStore.create(e, (Map<String, Object>) fill(a.getOrDefault("values", Map.of()), fields), actor);
+                ctx.require(pub, "data.edit", "add data store records from apps");
+                Map<String, Object> e = data.entity(str(a.get("entity")));
+                Map<String, Object> rec = data.create(e, (Map<String, Object>) fill(a.getOrDefault("values", Map.of()), fields), actor);
                 result.put("record_id", rec.get("id"));
                 result.put("outputs", rec.get("data"));
             }
             case "add_queue_item" -> {
-                cr.require(pub, "queues.work", "add work items from apps");
+                ctx.require(pub, "queues.work", "add work items from apps");
                 Map<String, Object> q = db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue")));
                 if (q == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'");
-                Map<String, Object> added = cr.platform.addItemsAs(pub, actor, (String) q.get("id"), List.of(fill(a.getOrDefault("data", Map.of()), fields)), ip);
+                Map<String, Object> added = ctx.addWorkItems(pub, actor, (String) q.get("id"), List.of(fill(a.getOrDefault("data", Map.of()), fields)), ip);
                 result.put("item_id", ((List<Object>) added.get("ids")).get(0));
             }
             case "go_page" -> { result.put("page", a.get("page")); return result; }
             default -> throw new OoaException("CR.BAD_INPUT", "Unknown action");
         }
         result.put("message", fill(str(a.get("success")).isEmpty() ? "Done." : str(a.get("success")), fields));
-        cr.audit.record(actor, "app.act", "app", id, Map.of("button", str(c.get("label")), "action", a.get("kind")), "ok", ip);
+        ctx.audit(actor, "app.act", "app", id, Map.of("button", str(c.get("label")), "action", a.get("kind")), "ok", ip);
         return result;
     }
 
@@ -308,10 +315,10 @@ public final class Apps {
     Map<String, Object> recordsFor(Map<String, Object> app, String compId, String search) {
         Map<String, Object> c = component((Map<String, Object>) JsonLite.parse((String) app.get("definition")), compId);
         if (!"records".equals(c.get("kind"))) throw new OoaException("CR.BAD_INPUT", "Not a records table");
-        cr.require(publisher(app), "data.view", "show data store records in apps");
-        Map<String, Object> e = cr.dataStore.entity(str(c.get("entity")));
+        ctx.require(publisher(app), "data.view", "show data store records in apps");
+        Map<String, Object> e = data.entity(str(c.get("entity")));
         int limit = c.get("limit") instanceof Number n ? Math.min(500, n.intValue()) : 100;
-        return cr.dataStore.query(e, c.get("filters") instanceof List<?> l ? (List<Object>) l : List.of(), str(c.get("sort")).isEmpty() ? null : str(c.get("sort")),
+        return data.query(e, c.get("filters") instanceof List<?> l ? (List<Object>) l : List.of(), str(c.get("sort")).isEmpty() ? null : str(c.get("sort")),
             Boolean.TRUE.equals(c.get("descending")), limit, 0, search);
     }
 }

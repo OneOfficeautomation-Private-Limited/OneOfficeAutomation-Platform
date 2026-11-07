@@ -103,6 +103,12 @@ public interface ModuleContext {
     /** Starts a trigger's agent with these inputs, as the trigger's owner. */
     Map<String, Object> fireTrigger(Map<String, Object> trigger, Map<String, Object> inputs, String source, String ip);
 
+    /**
+     * Adds work items to a work queue on behalf of a person (an app's publisher, with actor saying who used the app):
+     * the queue's rules and the person's rights apply. Returns {ids}.
+     */
+    Map<String, Object> addWorkItems(User by, String actor, String queueId, List<Object> items, String ip);
+
     /** A trigger's settings (its config), as the trigger pollers read them. */
     Map<String, Object> triggerConfig(Map<String, Object> trigger);
 
@@ -116,6 +122,9 @@ public interface ModuleContext {
 
     /** Sends a JSON answer. */
     void sendJson(HttpExchange ex, int status, Object body) throws IOException;
+
+    /** Sends a file to download (Content-Disposition attachment), with the kernel's security headers. */
+    void sendFile(HttpExchange ex, byte[] content, String contentType, String fileName) throws IOException;
 
     /** The request body, up to Settings > Largest upload (CR.TOO_LARGE beyond). */
     byte[] body(HttpExchange ex) throws IOException;
@@ -139,6 +148,12 @@ public interface ModuleContext {
 
     /** A call from another service at /api/{route}, before sign-in: the module authenticates it (a service token). Returns the JSON answer. */
     @FunctionalInterface interface CallbackRoute { Object handle(HttpExchange ex, String ip) throws IOException; }
+
+    /** A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key). The route is after the prefix. */
+    @FunctionalInterface interface PublicRoute { void handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
+
+    /** The sites that may show a page in a frame, as a frame-ancestors list ("https://a.example https://b.example"), or null when there is no such page. */
+    @FunctionalInterface interface FrameOrigins { String forPage(String id); }
 
     /** Checks a value saved in Settings for a module's setting; throws OoaException (CR.BAD_INPUT) to refuse it. */
     @FunctionalInterface interface SettingCheck { void check(String value, boolean saas); }
@@ -194,6 +209,18 @@ public interface ModuleContext {
     /** CR.FORBIDDEN: "You do not have permission to {what}". */
     static com.oneofficeautomation.sdk.OoaException denied(String what) { return com.oneofficeautomation.controlroom.ControlRoom.deniedTo(what); }
 
+    /** A random token of this many bytes, URL-safe (embed keys, API keys), as the kernel makes them. */
+    static String secureToken(int bytes) { return com.oneofficeautomation.controlroom.Security.token(bytes); }
+
+    /** The SHA-256 of a text, in hex (how keys are kept: only their hash). */
+    static String sha256(String text) { return com.oneofficeautomation.controlroom.Security.sha256(text); }
+
+    /** Compares two secrets in constant time. */
+    static boolean constantEquals(String a, String b) { return com.oneofficeautomation.controlroom.Security.constantEquals(a, b); }
+
+    /** A folder path as the repository keeps it ("Finance/AP"); refuses one that is not valid (CR.BAD_PATH). */
+    static String folderPath(String path) { return com.oneofficeautomation.controlroom.ControlRoom.normalizedFolder(path); }
+
     /** CR.NOT_FOUND: "{what} not found". */
     static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
 
@@ -217,6 +244,15 @@ public interface ModuleContext {
 
     /** Requests at /api/{route} from another service, before sign-in (POST only). */
     void callbackRoute(String route, CallbackRoute handler);
+
+    /** Requests under /api/{prefix}/ before sign-in, which the module authenticates itself. */
+    void publicRoute(String prefix, PublicRoute handler);
+
+    /**
+     * The console page at /{path}/{id} (apps embedded in other sites: /embed/{link}), which the sites the module names
+     * may frame; an unknown id gets 404.
+     */
+    void embeddablePage(String path, FrameOrigins origins);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

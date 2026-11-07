@@ -27,6 +27,8 @@ public final class Modules {
     final Map<String, ModuleContext.UserRoute> userRoutes = new LinkedHashMap<>();
     final Map<String, ModuleContext.AgentRoute> agentRoutes = new LinkedHashMap<>();
     final Map<String, ModuleContext.CallbackRoute> callbacks = new LinkedHashMap<>();
+    final Map<String, ModuleContext.PublicRoute> publicRoutes = new LinkedHashMap<>();
+    final Map<String, ModuleContext.FrameOrigins> embeddablePages = new LinkedHashMap<>();
     final List<Job> jobs = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskKind> taskKinds = new LinkedHashMap<>();
     final List<ModuleContext.McpTools> mcpTools = new CopyOnWriteArrayList<>();
@@ -155,6 +157,7 @@ public final class Modules {
         public Map<String, Object> fireTrigger(Map<String, Object> trigger, Map<String, Object> inputs, String source, String ip) {
             return cr.fireTrigger(trigger, inputs, source, ip);
         }
+        public Map<String, Object> addWorkItems(User by, String actor, String queueId, List<Object> items, String ip) { return cr.platform.addItemsAs(by, actor, queueId, items, ip); }
         public Map<String, Object> triggerConfig(Map<String, Object> trigger) { return TriggerPollers.config(trigger); }
 
         public MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) {
@@ -174,10 +177,13 @@ public final class Modules {
         public Map<String, Object> jsonBody(HttpExchange ex) throws IOException { return ControlRoomServer.map(ControlRoomServer.body(ex)); }
         public int maxBody() { return ControlRoomServer.maxBody.getAsInt(); }
         public Map<String, String> query(HttpExchange ex) { return ControlRoomServer.query(ex); }
+        public void sendFile(HttpExchange ex, byte[] content, String contentType, String fileName) throws IOException { ControlRoomServer.sendBytes(ex, content, contentType, fileName); }
 
         public void route(String prefix, UserRoute handler) { claim(userRoutes, prefix, handler, "the route /api/" + prefix); }
         public void agentRoute(String route, AgentRoute handler) { claim(agentRoutes, route, handler, "the runner route /api/agent/" + route); }
         public void callbackRoute(String route, CallbackRoute handler) { claim(callbacks, route, handler, "the callback /api/" + route); }
+        public void publicRoute(String prefix, PublicRoute handler) { claim(publicRoutes, prefix, handler, "the public route /api/" + prefix); }
+        public void embeddablePage(String path, FrameOrigins origins) { claim(embeddablePages, path, origins, "the page /" + path + "/"); }
         public void every(Duration delay, Duration period, Runnable job) { jobs.add(new Job(module, delay, period, job)); }
         public void defineSetting(String key, Object defaultValue, SettingCheck check) { Platform.defineModuleSetting(key, defaultValue, check); }
         public void taskKind(String kind, TaskKind rules) { claim(taskKinds, kind, rules, "the task kind " + kind); }

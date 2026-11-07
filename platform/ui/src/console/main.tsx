@@ -6,7 +6,7 @@ import "../components/components.css";
 import "../studio/studio.css";
 import "./console.css";
 import { ConsoleApp } from "./ConsoleApp";
-import { EmbedApp } from "./EmbedApp";
+import { EmbedApp } from "../modules/low-code/EmbedApp";
 
 // Dialogs add one style element (to stop the page scrolling behind them). The security policy refuses inline styles
 // unless they carry the page's nonce, which the server puts in this meta tag.
