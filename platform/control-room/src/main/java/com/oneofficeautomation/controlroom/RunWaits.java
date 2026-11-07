@@ -104,6 +104,20 @@ public final class RunWaits {
         return Map.of("task_id", id);
     }
 
+    /** A task this chain of runs made: its status, outcome and comment (an AI agent waits on it; G44). */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> taskStatus(Map<String, Object> run, Map<String, Object> a) {
+        String id = text(a.get("task_id"), 100);
+        Map<String, Object> t = id == null ? null : db.one("SELECT status, outcome, result, data FROM human_tasks WHERE id = ?", id);
+        if (t == null || !(t.get("data") instanceof String d) || !(JsonLite.parse(d) instanceof Map<?, ?> m) || !rootRun((String) run.get("id")).equals(m.get("_run")))
+            throw new OoaException("CR.NOT_FOUND", "There is no task " + id + " made by this run");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("status", t.get("status"));
+        out.put("outcome", t.get("outcome"));
+        if (t.get("result") instanceof String r && JsonLite.parse(r) instanceof Map<?, ?> rm && rm.get("comment") != null) out.put("comment", rm.get("comment"));
+        return out;
+    }
+
     /**
      * The run asks to be suspended: {kind, ref, timeout_seconds, step_id, values, pool}. Checks are made as the run's
      * user; the wait is kept and the run is expected to end with status "suspended" right after.

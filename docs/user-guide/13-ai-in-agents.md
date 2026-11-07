@@ -131,7 +131,25 @@ which tools to call, in which order, with which inputs, until the goal is reache
 3. Outputs: **answer**, **status** (`completed`, `limit_reached` or `stopped`; with output fields also `failed` or
    `cancelled`), **outputs**, **trace** (each model turn and tool call, for review) and **tokens**.
 
-Check the tool agents in to One CommandCenter too. In unattended runs, approvals of sensitive tools are refused.
+Check the tool agents in to One CommandCenter too.
+
+**Approvals when nobody is at the runner.** In an unattended run, a sensitive tool is refused at once, unless you name
+**approvers** (`user:NAME` or `role:NAME`, separated by commas). Then the request goes to their Task inbox: the AI agent
+names the tool and its arguments, and waits up to **approval_timeout_seconds** (at most 1700). Approved, the tool runs.
+Rejected or unanswered, the agent is told no and does not try again. A comment the approver writes is kept in the
+run's log. When approval links are on (Administrator's guide), approvers can also answer from e-mail, Teams or their
+phone.
+
+**Knowledge the agent looks up itself.** Give **knowledge_indexes** (indexes made with Knowledge Q&A > Build index,
+section 7). The agent gets a `search_knowledge` tool: it searches them when it needs a fact or a rule, and the passages
+it finds go back to it with their sources.
+
+**Tools of other systems (MCP).** Give an **mcp_server_url** (a server that speaks the Model Context Protocol over HTTP)
+and its **mcp_token** when it needs one. The server's tools are offered to the agent as `mcp_NAME`. **mcp_tools**
+limits which ones (empty: all), and naming a tool as `mcp:NAME` in **sensitive_tools** makes it need approval like a
+sensitive agent. The **MCP tools** toolkit lists a server's tools (**List MCP tools**) and calls one directly (**Call
+MCP tool**), outside an AI agent. One CommandCenter also offers your agents to outside assistants as an MCP server, the
+other direction.
 
 ## 6. The web goal agent
 

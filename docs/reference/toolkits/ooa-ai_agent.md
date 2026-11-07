@@ -45,6 +45,12 @@ Give an agent a goal and a set of agents it may use; it plans, calls the agents 
 | Maximum duration (seconds) | `max_duration_seconds` | Number | No | `0` | More options | Stop with limit_reached after this many seconds; no time limit when 0. |
 | Temperature | `temperature` | Number | No | `0` | More options | 0 = consistent, higher = more creative. |
 | Hide personal data | `mask_pii` | Yes/No | No | Yes | More options | Replace emails, phone and card numbers, IBANs and similar before sending; restored in the answer. |
+| Approvers | `approvers` | Text | No |  | More options; tick Ask approvers in the Task inbox when nobody is at the runner | When nobody is at the runner, a sensitive tool's approval goes to the Task inbox of these people (user:NAME or role:NAME, separated by commas). Empty: denied at once. Example: `role:supervisor` |
+| Approval timeout (seconds) | `approval_timeout_seconds` | Number | No | `600` | More options; tick Ask approvers in the Task inbox when nobody is at the runner | How long to wait for an answer in the Task inbox; no answer means no. Range: 30 to 1700 |
+| Knowledge indexes | `knowledge_indexes` | List | No |  | More options | Knowledge indexes (Knowledge Q&A > Build index) the agent searches itself for facts, with a search_knowledge tool. Example: `["Knowledge/policies.kidx"]` |
+| Mcp server address (URL) | `mcp_server_url` | Text | No |  | More options; tick Use an MCP server's tools | An MCP server whose tools the agent may use (Streamable HTTP). Example: `https://mcp.example.com/mcp` |
+| Mcp token | `mcp_token` | Credential (vault) | No |  | More options; tick Use an MCP server's tools | The MCP server's bearer token, when it needs one. |
+| Mcp tools | `mcp_tools` | List | No |  | More options; tick Use an MCP server's tools | Which of the server's tools it may use (names); empty: all. Name them in sensitive_tools as mcp:NAME to need approval. |
 
 **Results**
 
