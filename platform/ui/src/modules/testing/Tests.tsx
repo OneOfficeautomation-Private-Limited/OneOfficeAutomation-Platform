@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { FolderIcon } from "./Repository";
+import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { FolderIcon } from "../../console/Repository";
 
 /**
  * Build > Agent tests, after UiPath's Test Manager test sets (AA keeps testing out of its Control Room; checked

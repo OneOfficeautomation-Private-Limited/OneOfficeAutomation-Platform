@@ -58,6 +58,9 @@ public interface ModuleContext {
     /** A folder path as the repository keeps it ("Finance/AP"); refuses one that is not valid (CR.BAD_PATH). */
     String normalizeFolder(String path);
 
+    /** Whether the person may see a repository path (an agent) by its folder's permissions. */
+    boolean mayView(User u, String path);
+
     /** Refuses unless the person has the level on the folder of a repository path (an agent). */
     void requirePathAccess(String username, String role, String path, String level, String what);
 

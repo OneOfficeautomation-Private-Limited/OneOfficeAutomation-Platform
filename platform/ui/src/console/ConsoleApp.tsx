@@ -32,7 +32,7 @@ import { Skills } from "../modules/ai-services/Skills";
 import { Repository } from "./Repository";
 import { Teams } from "./Teams";
 import { Templates } from "./Templates";
-import { Tests } from "./Tests";
+import { Tests } from "../modules/testing/Tests";
 import { Toolkits } from "./Toolkits";
 import { Triggers } from "./Triggers";
 import { Users } from "./Users";

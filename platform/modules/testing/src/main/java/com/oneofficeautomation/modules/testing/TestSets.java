@@ -1,6 +1,9 @@
-package com.oneofficeautomation.controlroom;
+package com.oneofficeautomation.modules.testing;
 
 import com.oneofficeautomation.controlroom.ControlRoom.User;
+import com.oneofficeautomation.controlroom.Db;
+import com.oneofficeautomation.controlroom.module.ModuleContext;
+
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -9,7 +12,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static com.oneofficeautomation.controlroom.ControlRoom.*;
+import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
  * Test sets and scores (A2). A test set belongs to an agent and lists cases: inputs, and what the run should give back.
@@ -25,19 +28,19 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
  */
 public final class TestSets {
     static final Set<String> OPS = Set.of("equals", "contains", "not_contains", "matches", "approx", "not_empty", "one_of");
-    private final ControlRoom cr;
+    private final ModuleContext ctx;
     private final Db db;
 
-    TestSets(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
+    public TestSets(ModuleContext ctx) { this.ctx = ctx; this.db = ctx.db(); }
 
     // ---------- the sets ----------
 
     public List<Map<String, Object>> list(User by, String botPath) {
-        cr.require(by, "repo.view", "view test sets");
+        ctx.require(by, "repo.view", "view test sets");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> s : botPath == null || botPath.isBlank() ? db.query("SELECT * FROM test_sets ORDER BY bot_path, name")
                 : db.query("SELECT * FROM test_sets WHERE bot_path = ? ORDER BY name", botPath)) {
-            if (!cr.folders.mayView(by, (String) s.get("bot_path"))) continue;
+            if (!ctx.mayView(by, (String) s.get("bot_path"))) continue;
             Map<String, Object> m = view(s);
             Map<String, Object> last = db.one("SELECT id, version, started, finished, total, passed, status FROM test_runs WHERE set_id = ? ORDER BY started DESC LIMIT 1", s.get("id"));
             m.put("last_run", last);
@@ -55,13 +58,13 @@ public final class TestSets {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> save(User by, String id, Map<String, Object> b, String ip) {
-        cr.require(by, "repo.checkin", "manage test sets");
+        ctx.require(by, "repo.checkin", "manage test sets");
         String name = String.valueOf(b.getOrDefault("name", "")).trim();
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Test set names have 1 to 120 characters");
         String bot = String.valueOf(b.getOrDefault("bot_path", ""));
         if (!bot.endsWith(".flow.json")) throw new OoaException("CR.BAD_INPUT", "Choose the agent the test set is for");
-        cr.content(bot, "latest");
-        cr.folders.require(by.username(), by.role(), bot, "edit", "test this agent");
+        ctx.agentContent(bot, "latest");
+        ctx.requirePathAccess(by.username(), by.role(), bot, "edit", "test this agent");
         if (!(b.get("cases") instanceof List<?> cases) || cases.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Add at least one case");
         if (cases.size() > 500) throw new OoaException("CR.BAD_INPUT", "At most 500 cases in a test set");
         Set<String> names = new HashSet<>();
@@ -81,7 +84,7 @@ public final class TestSets {
                 sid, name, bot, b.get("description"), json, by.username(), now(), by.username());
         else if (db.update("UPDATE test_sets SET name = ?, bot_path = ?, description = ?, cases = ?, updated = ?, updated_by = ? WHERE id = ?",
                 name, bot, b.get("description"), json, now(), by.username(), sid) == 0) throw notFound("Test set");
-        cr.audit.record(by.username(), "testset.save", "test_set", sid, Map.of("name", name, "agent", bot, "cases", cases.size()), "ok", ip);
+        ctx.audit(by.username(), "testset.save", "test_set", sid, Map.of("name", name, "agent", bot, "cases", cases.size()), "ok", ip);
         return Map.of("id", sid);
     }
 
@@ -106,17 +109,17 @@ public final class TestSets {
     }
 
     public void delete(User by, String id, String ip) {
-        cr.require(by, "repo.checkin", "manage test sets");
+        ctx.require(by, "repo.checkin", "manage test sets");
         Map<String, Object> s = db.one("SELECT bot_path FROM test_sets WHERE id = ?", id);
         if (s == null) throw notFound("Test set");
-        cr.folders.require(by.username(), by.role(), (String) s.get("bot_path"), "edit", "test this agent");
+        ctx.requirePathAccess(by.username(), by.role(), (String) s.get("bot_path"), "edit", "test this agent");
         db.tx(() -> {
             db.update("DELETE FROM test_results WHERE test_run_id IN (SELECT id FROM test_runs WHERE set_id = ?)", id);
             db.update("DELETE FROM test_runs WHERE set_id = ?", id);
             db.update("DELETE FROM test_sets WHERE id = ?", id);
             return null;
         });
-        cr.audit.record(by.username(), "testset.delete", "test_set", id, null, "ok", ip);
+        ctx.audit(by.username(), "testset.delete", "test_set", id, null, "ok", ip);
     }
 
     // ---------- running and scoring ----------
@@ -131,7 +134,7 @@ public final class TestSets {
         if (s == null) throw notFound("Test set");
         List<Map<String, Object>> cases = (List<Map<String, Object>>) JsonLite.parse((String) s.get("cases"));
         String bot = (String) s.get("bot_path");
-        Map<String, Object> content = cr.content(bot, "production");
+        Map<String, Object> content = ctx.agentContent(bot, "production");
         String trId = id("trun");
         db.update("INSERT INTO test_runs (id, set_id, bot_path, version, started, started_by, total, passed, status) VALUES (?,?,?,?,?,?,?,?,?)",
             trId, setId, bot, ((Number) content.get("version")).intValue(), now(), by.username(), cases.size(), 0, "running");
@@ -141,7 +144,7 @@ public final class TestSets {
             // the case's mocks travel with the run itself, so a runner that claims it at once has them (G61)
             if (c.get("mocks") instanceof Map<?, ?> mk && !mk.isEmpty()) { inputs = new LinkedHashMap<>(inputs); inputs.put(MOCKS_INPUT, mk); }
             try {
-                Map<String, Object> r = cr.startRun(by.username(), by.role(), bot, deviceId, poolId, inputs, "test:" + trId, ip, 0, null, null, null);
+                Map<String, Object> r = ctx.startRun(by.username(), by.role(), bot, deviceId, poolId, inputs, "test:" + trId, ip, 0, null, null, null);
                 db.update("INSERT INTO test_results (run_id, test_run_id, case_name, status, passed, detail, finished) VALUES (?,?,?,?,?,?,?)",
                     r.get("run_id"), trId, c.get("name"), "running", false, null, null);
                 started++;
@@ -150,7 +153,7 @@ public final class TestSets {
                     id("norun"), trId, c.get("name"), "failed", false, "Did not start: " + e.getMessage(), now());
             }
         }
-        cr.audit.record(by.username(), "testset.run", "test_set", setId, Map.of("test_run", trId, "cases", cases.size(), "started", started), "ok", ip);
+        ctx.audit(by.username(), "testset.run", "test_set", setId, Map.of("test_run", trId, "cases", cases.size(), "started", started), "ok", ip);
         settle(trId);
         return Map.of("test_run_id", trId, "cases", cases.size(), "started", started);
     }
@@ -175,12 +178,12 @@ public final class TestSets {
 
     /** Scores a test run when no case is still running. */
     synchronized void settle(String trId) {
-        if (cr.count("SELECT COUNT(*) AS n FROM test_results WHERE test_run_id = ? AND status = 'running'", trId) > 0) return;
-        long passed = cr.count("SELECT COUNT(*) AS n FROM test_results WHERE test_run_id = ? AND passed = TRUE", trId);
-        long total = cr.count("SELECT COUNT(*) AS n FROM test_results WHERE test_run_id = ?", trId);
+        if (ctx.count("SELECT COUNT(*) AS n FROM test_results WHERE test_run_id = ? AND status = 'running'", trId) > 0) return;
+        long passed = ctx.count("SELECT COUNT(*) AS n FROM test_results WHERE test_run_id = ? AND passed = TRUE", trId);
+        long total = ctx.count("SELECT COUNT(*) AS n FROM test_results WHERE test_run_id = ?", trId);
         if (db.update("UPDATE test_runs SET status = ?, passed = ?, total = ?, finished = ? WHERE id = ? AND status = 'running'",
                 passed == total ? "passed" : "failed", passed, total, now(), trId) == 1)
-            cr.audit.record("system", "testset.scored", "test_run", trId, Map.of("passed", passed, "total", total), passed == total ? "ok" : "failed", null);
+            ctx.audit("system", "testset.scored", "test_run", trId, Map.of("passed", passed, "total", total), passed == total ? "ok" : "failed", null);
     }
 
     /** The reserved input that carries a test case's mocks to the runner, which takes it out before the agent runs. */
@@ -200,7 +203,7 @@ public final class TestSets {
 
     /** What is wrong with a run's result against a case's expectations; empty when it passes. */
     @SuppressWarnings("unchecked")
-    static List<String> judge(Map<String, Object> expect, String status, Map<String, Object> result) {
+    public static List<String> judge(Map<String, Object> expect, String status, Map<String, Object> result) {
         List<String> why = new ArrayList<>();
         String want = expect.get("status") == null ? "success" : String.valueOf(expect.get("status"));
         if (!want.equals(status)) {
@@ -224,7 +227,7 @@ public final class TestSets {
 
     /** One output against its rule; null when it passes. */
     @SuppressWarnings("unchecked")
-    static String check(Object rule, Object got) {
+    public static String check(Object rule, Object got) {
         String op = "equals";
         Object want = rule;
         double tol = 0;
@@ -257,10 +260,10 @@ public final class TestSets {
 
     /** A test run with each case's verdict. */
     public Map<String, Object> testRun(User by, String trId) {
-        cr.require(by, "repo.view", "view test results");
+        ctx.require(by, "repo.view", "view test results");
         Map<String, Object> tr = db.one("SELECT * FROM test_runs WHERE id = ?", trId);
         if (tr == null) throw notFound("Test run");
-        if (!cr.folders.mayView(by, (String) tr.get("bot_path"))) throw cr.denied("view this agent's tests");
+        if (!ctx.mayView(by, (String) tr.get("bot_path"))) throw denied("view this agent's tests");
         Map<String, Object> m = new LinkedHashMap<>(tr);
         m.put("results", db.query("SELECT run_id, case_name, status, passed, detail, finished FROM test_results WHERE test_run_id = ? ORDER BY case_name", trId));
         return m;
@@ -268,10 +271,10 @@ public final class TestSets {
 
     /** The scores of a set over time, newest first. */
     public List<Map<String, Object>> history(User by, String setId) {
-        cr.require(by, "repo.view", "view test results");
+        ctx.require(by, "repo.view", "view test results");
         Map<String, Object> s = db.one("SELECT bot_path FROM test_sets WHERE id = ?", setId);
         if (s == null) throw notFound("Test set");
-        if (!cr.folders.mayView(by, (String) s.get("bot_path"))) throw cr.denied("view this agent's tests");
+        if (!ctx.mayView(by, (String) s.get("bot_path"))) throw denied("view this agent's tests");
         return db.query("SELECT id, version, started, started_by, finished, total, passed, status FROM test_runs WHERE set_id = ? ORDER BY started DESC LIMIT 50", setId);
     }
 }

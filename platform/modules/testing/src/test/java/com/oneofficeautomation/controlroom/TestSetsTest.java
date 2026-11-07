@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.testing.TestSets;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -40,17 +42,17 @@ class TestSetsTest {
             Map<String, Object> dev = cr.registerDevice((String) cr.createRegistrationKey(admin, 1, false, null).get("key"), "PC-T", "pc-t", "Windows 11", "0.2.0", null);
             String device = (String) dev.get("device_id");
 
-            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.testSets.save(admin, null, Map.of("name", "x", "bot_path", "Support/Triage.flow.json",
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(TestSets.class).save(admin, null, Map.of("name", "x", "bot_path", "Support/Triage.flow.json",
                 "cases", List.of(Map.of("name", "a", "expect", Map.of("outputs", Map.of("label", Map.of("op", "smells_like", "value", "x")))))), null)).code());
-            String set = (String) cr.testSets.save(admin, null, Map.of("name", "Triage basics", "bot_path", "Support/Triage.flow.json", "cases", List.of(
+            String set = (String) cr.modules.service(TestSets.class).save(admin, null, Map.of("name", "Triage basics", "bot_path", "Support/Triage.flow.json", "cases", List.of(
                 Map.of("name", "urgent mail", "inputs", Map.of("text", "Server down!"), "expect", Map.of("outputs", Map.of("label", Map.of("op", "one_of", "value", List.of("urgent", "high"))))),
                 Map.of("name", "thank you", "inputs", Map.of("text", "Thanks"), "expect", Map.of("outputs", Map.of("label", "low"))),
                 Map.of("name", "bad input", "inputs", Map.of("text", ""), "expect", Map.of("status", "failed")))), null).get("id");
 
-            Map<String, Object> started = cr.testSets.run(admin, set, device, null, null, null);
+            Map<String, Object> started = cr.modules.service(TestSets.class).run(admin, set, device, null, null, null);
             String tr = (String) started.get("test_run_id");
             assertEquals(3, started.get("started"));
-            assertEquals("running", cr.testSets.testRun(admin, tr).get("status"));
+            assertEquals("running", cr.modules.service(TestSets.class).testRun(admin, tr).get("status"));
 
             // the runner answers each case
             Map<String, Object> d = db.one("SELECT * FROM devices WHERE id = ?", device);
@@ -63,20 +65,20 @@ class TestSetsTest {
                 };
                 cr.finish(d, (String) r.get("id"), result);
             }
-            Map<String, Object> scored = cr.testSets.testRun(admin, tr);
+            Map<String, Object> scored = cr.modules.service(TestSets.class).testRun(admin, tr);
             assertEquals("failed", scored.get("status"));
             assertEquals(2, ((Number) scored.get("passed")).intValue());
             assertEquals(3, ((Number) scored.get("total")).intValue());
             Map<String, Object> thanks = ((List<Map<String, Object>>) scored.get("results")).stream().filter(x -> "thank you".equals(x.get("case_name"))).findFirst().orElseThrow();
             assertTrue(String.valueOf(thanks.get("detail")).contains("expected \"low\""), String.valueOf(thanks.get("detail")));
-            assertEquals(1, cr.testSets.history(admin, set).size());
-            assertNotNull(((Map<String, Object>) cr.testSets.list(admin, "Support/Triage.flow.json").get(0)).get("last_run"));
+            assertEquals(1, cr.modules.service(TestSets.class).history(admin, set).size());
+            assertNotNull(((Map<String, Object>) cr.modules.service(TestSets.class).list(admin, "Support/Triage.flow.json").get(0)).get("last_run"));
 
             // a case that cannot start fails at once and the run is still scored
             cr.setDeviceEnabled(admin, device, false, null);
-            Map<String, Object> blocked = cr.testSets.run(admin, set, device, null, null, null);
+            Map<String, Object> blocked = cr.modules.service(TestSets.class).run(admin, set, device, null, null, null);
             assertEquals(0, blocked.get("started"));
-            assertEquals("failed", cr.testSets.testRun(admin, (String) blocked.get("test_run_id")).get("status"));
+            assertEquals("failed", cr.modules.service(TestSets.class).testRun(admin, (String) blocked.get("test_run_id")).get("status"));
         } finally { db.close(); }
     }
 }

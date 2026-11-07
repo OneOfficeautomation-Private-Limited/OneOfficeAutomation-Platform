@@ -226,11 +226,10 @@
       "id": "testing",
       "name": "Agent testing",
       "layer": 3,
-      "description": "Test sets and their runs.",
+      "description": "Test sets and their runs. Moved out of the kernel: platform/modules/testing (Gradle project :testing).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/TestSets.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/TestSets*Test.java",
-        "platform/ui/src/console/Tests.tsx"
+        "platform/modules/testing/**",
+        "platform/ui/src/modules/testing/**"
       ],
       "dependsOn": [
         "kernel"

@@ -34,7 +34,6 @@ public final class ControlRoom {
     public final Workflows workflows;
     /** Approving from e-mail, Teams and a phone (G43). */
     final ApprovalChannels taskChannels;
-    public final TestSets testSets;
     public final Dashboards dashboards;
     public final CustomToolkits customToolkits;
     public final ServerlessRuns serverless;
@@ -177,7 +176,6 @@ public final class ControlRoom {
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
         this.taskChannels = new ApprovalChannels(this);
-        this.testSets = new TestSets(this);
         this.dashboards = new Dashboards(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
@@ -1540,7 +1538,7 @@ public final class ControlRoom {
         }
         for (var e : (inputs == null ? Map.<String, Object>of() : inputs).entrySet()) {
             // a test case's mocks (G61) ride in a reserved input, for test-set runs only
-            if (TestSets.MOCKS_INPUT.equals(e.getKey())) {
+            if (com.oneofficeautomation.runner.Runner.MOCKS_INPUT.equals(e.getKey())) {
                 if (source != null && source.startsWith("test:") && e.getValue() instanceof Map<?, ?>) { clean.put(e.getKey(), e.getValue()); continue; }
                 throw new OoaException("CR.BAD_INPUT", "Only test-set runs take mocks", "Put mocks on a test case (Agent tests).");
             }
@@ -1937,11 +1935,11 @@ public final class ControlRoom {
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
         if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { testSets.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
-        if (modules != null) modules.runEnded(r, status, result);   // feature modules (One Chat tells the chat at once)
+        // feature modules, with the chain's first run as the kernel's own follow-up gets it (test sets, KPIs, One Chat)
+        if (modules != null) modules.runEnded(first, status, result);
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 

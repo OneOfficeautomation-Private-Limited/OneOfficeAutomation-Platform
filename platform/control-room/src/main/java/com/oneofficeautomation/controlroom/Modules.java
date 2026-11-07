@@ -142,6 +142,7 @@ public final class Modules {
         }
         public boolean atLeast(String access, String level) { return Folders.atLeast(access, level); }
         public String normalizeFolder(String path) { return Folders.normalize(path); }
+        public boolean mayView(User u, String path) { return cr.folders.mayView(u, path); }
         public void requirePathAccess(String username, String role, String path, String level, String what) { cr.folders.require(username, role, path, level, what); }
 
         public String systemCredential(String ref) { return cr.systemCredential(ref); }
