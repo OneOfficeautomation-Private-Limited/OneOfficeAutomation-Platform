@@ -51,6 +51,24 @@ def tokenize(src: str) -> list[tuple[str, str]]:
     return out
 
 
+_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", "'": "'", '"': '"', "0": "\0", "b": "\b", "f": "\f"}
+
+
+def _unescape(body):
+    """A quoted literal's escapes (\\n, \\t, \\\\, \\', \\", \\uXXXX); other text, accented letters included, stays as it is (REF-1)."""
+    out, i = [], 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "\\" and i + 1 < len(body):
+            nxt = body[i + 1]
+            if nxt == "u" and re.fullmatch(r"[0-9a-fA-F]{4}", body[i + 2:i + 6] or ""):
+                out.append(chr(int(body[i + 2:i + 6], 16))); i += 6; continue
+            if nxt in _ESCAPES:
+                out.append(_ESCAPES[nxt]); i += 2; continue
+        out.append(ch); i += 1
+    return "".join(out)
+
+
 class _Parser:
     def __init__(self, src: str):
         self.src = src
@@ -101,7 +119,7 @@ class _Parser:
         if kind == "num":
             return ("lit", Decimal(text))
         if kind == "str":
-            return ("lit", bytes(text[1:-1], "utf-8").decode("unicode_escape"))
+            return ("lit", _unescape(text[1:-1]))
         if kind == "var":
             return ("var", text[1:])
         if kind == "ident":
