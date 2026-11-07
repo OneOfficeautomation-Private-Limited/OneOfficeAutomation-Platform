@@ -13,6 +13,9 @@
     "A feature module never uses another feature module's classes; they talk through kernel events.",
     "The kernel never names a feature module's classes; it reaches them through the module contract."
   ],
+  "defaultOwners": [
+    "@VirupakshaPrabhu"
+  ],
   "modules": [
     {
       "id": "foundation",

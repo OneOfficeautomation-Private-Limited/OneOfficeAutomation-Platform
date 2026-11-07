@@ -13,7 +13,10 @@
 #                and the Command Center with the DocFlow container (docker/compose.docflow.yaml)
 #   docflow-windows  Windows: the setup package with -DocFlow (DocFlow from its release, managed), checked end to end
 #   changes      which modules a change touches (module-map.json): docflow and docflow-windows run only when Document
-#                Automation (or what it depends on, or the installer) changed; master always runs every job
+#                Automation (or what it depends on, or the installer) changed, sqlserver and postgres only when the
+#                kernel (or what it depends on) changed; master always runs every job
+# On a branch, build-test takes the results of tasks whose inputs did not change (an unchanged module's tests) from
+# Gradle's build cache; master runs every task again (--rerun-tasks) and refreshes the cache (phase 7).
 name: CI
 
 on:
@@ -43,7 +46,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
+      # Gradle's build cache between runs (phase 7, docs/architecture/13-modules.md): on a branch a module whose inputs
+      # did not change takes its test results from the cache; master runs every task again and refreshes the cache
+      - uses: gradle/actions/setup-gradle@v4
       - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
         with:
           node-version: "22"
@@ -57,7 +62,7 @@ jobs:
         shell: pwsh
         env:
           OOA_INTERNET_SAMPLES: "0"   # live public websites are too slow and changeable to fail a build on; run them locally
-        run: ./gradlew.bat build --continue --console=plain
+        run: ./gradlew.bat build --continue --console=plain ${{ github.ref == 'refs/heads/master' && '--rerun-tasks' || '' }}
       - name: Short load test (many runners, a work queue, the audit trail)
         run: ./gradlew.bat :cli:loadTest "-Pooa.load.runners=20" "-Pooa.load.items=300" "-Pooa.load.audit=2000" --console=plain
       - name: Customer zip without vendor tools
@@ -100,6 +105,9 @@ jobs:
 
   sqlserver:
     name: Command Center on SQL Server (Linux)
+    # the kernel's tests on this database: when the kernel (or what it depends on) changed; master always
+    needs: changes
+    if: github.ref == 'refs/heads/master' || needs.changes.outputs.kernel == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -135,6 +143,9 @@ jobs:
 
   postgres:
     name: Command Center on PostgreSQL (Linux)
+    # the kernel's tests on this database: when the kernel (or what it depends on) changed; master always
+    needs: changes
+    if: github.ref == 'refs/heads/master' || needs.changes.outputs.kernel == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -177,6 +188,7 @@ jobs:
     outputs:
       modules: ${{ steps.affected.outputs.modules }}
       document_automation: ${{ steps.affected.outputs.document_automation }}
+      kernel: ${{ steps.affected.outputs.kernel }}
       apps: ${{ steps.affected.outputs.apps }}
     steps:
       - uses: actions/checkout@v4
@@ -189,6 +201,9 @@ jobs:
           # a new branch has no "before": compare with the first commit, so everything counts as changed
           if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
           python3 -I platform/scripts/affected_modules.py "$BASE" HEAD
+      - name: CODEOWNERS matches the module map
+        working-directory: .
+        run: python3 -I platform/scripts/codeowners.py --check
 
   docflow:
     name: Document Automation with the real DocFlow (Linux)

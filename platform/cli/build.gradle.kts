@@ -117,7 +117,14 @@ tasks.named<CreateStartScripts>("startScripts") {
 // 3g since the gap branches were merged (665 samples): the cases with child agents or credentials each build their
 // own registry, and about 100 of them stay reachable until the test class ends (a registry and a runner on their own
 // are freed, so it is something these cases' toolkits keep; see MERGE-1 in the gap tracker)
-tasks.named<Test>("test") { maxHeapSize = "3g" }
+tasks.named<Test>("test") {
+    maxHeapSize = "3g"
+    // the whole-product tests read the repository itself (module map, every module's sources, docs, installer, CI
+    // workflow): all of it is an input, so a cached result is never reused after any of it changes (phase 7)
+    inputs.files(fileTree(rootProject.file("..")) {
+        exclude(".git/**", ".claude/**", "**/build/**", "**/node_modules/**", "**/.gradle/**", "platform/ui/dist/**", "**/__pycache__/**", "platform/vendor-tools/**")
+    }).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("repository")
+}
 
 // Load and soak (Q5): gradlew :cli:loadTest [-Pooa.load.runners=100 -Pooa.load.items=2000 -Pooa.load.audit=100000]
 tasks.register<Test>("loadTest") {
