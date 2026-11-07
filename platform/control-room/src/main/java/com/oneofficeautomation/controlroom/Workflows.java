@@ -190,14 +190,9 @@ public final class Workflows {
                                 String.valueOf(s.get("assignee")), "open", now(), due);
                         data.put("_task", tid);
                         history(wf, h, sid, "task_created", Map.of("task_id", tid, "assignee", s.get("assignee")));
-                        // Settings: the people the task is given to get an e-mail too
-                        if (cr.platform.intSetting("notify_task_assigned") == 1) {
-                            String link = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
-                            cr.mailPeople(List.of(String.valueOf(s.get("assignee")).split(",")), "A task for you: " + title,
-                                    "You have a new " + (type.equals("approval") ? "approval" : "form") + " to complete: " + title + "."
-                                    + (due == null ? "" : "\nIt is due by " + due + ".") + "\n\n"
-                                    + (link.isEmpty() ? "Open One CommandCenter to see it (Workflows > Tasks)." : "See it: " + link + "/next/#/tasks"), "task", tid);
-                        }
+                        // Settings: the people the task is given to hear about it by e-mail, on their phone and in the Teams
+                        // channel; approvals carry each person's own Approve and Reject links when those are on (G43)
+                        cr.taskChannels.taskCreated(tid, type, title, String.valueOf(s.get("assignee")), due, visible(data));
                         save(wfId, "waiting", sid, data, h);
                         return;
                     }

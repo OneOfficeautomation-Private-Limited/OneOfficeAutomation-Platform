@@ -408,6 +408,12 @@ export class CrApi {
   async saveSettings(changes: Record<string, string | number>) { await this.call("PUT", "settings", changes); }
   async syslogTest() { await this.call("POST", "settings/syslog-test"); }
   async siemTest() { await this.call("POST", "settings/siem-test"); }
+  /** G43: a test Adaptive Card to the Teams channel; phone notifications for the signed-in person. */
+  async teamsTest() { await this.call("POST", "settings/teams-test"); }
+  pushStatus() { return this.call<PushStatus>("GET", "me/push"); }
+  pushEnable() { return this.call<PushStatus>("POST", "me/push"); }
+  async pushDisable() { await this.call("DELETE", "me/push"); }
+  async pushTest() { await this.call("POST", "me/push/test"); }
   /** SCIM provisioning tokens (Settings > Single sign-on): listed without the token; a new one returns it this once. */
   async scimTokens() { return (await this.call<{ tokens?: ScimToken[] }>("GET", "settings/scim-tokens")).tokens ?? []; }
   makeScimToken(name: string) { return this.call<{ id: string; name: string; token: string }>("POST", "settings/scim-tokens", { name }); }
@@ -708,3 +714,6 @@ export class CrApi {
   operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }
+
+/** Phone notifications (G43): whether the server is set, whether this person turned them on, and their private topic. */
+export type PushStatus = { available: boolean; enabled: boolean; server: string; topic?: string; subscribe_url?: string };
