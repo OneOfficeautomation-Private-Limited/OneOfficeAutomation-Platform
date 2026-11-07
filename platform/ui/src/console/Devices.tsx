@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { PoolScalingDialog } from "./PoolScaling";
 
 /**
  * Manage > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and
@@ -100,6 +101,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   });
   const can = (p: string) => user.permissions.includes(p);
   const manage = can("devices.manage");
+  const [scaling, setScaling] = useState<RunnerPool | null>(null);   // a pool's auto-scaling (G52)
 
   const load = useCallback(async () => {
     try {
@@ -235,6 +237,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
           </div>}
         </div>
       </> : <Pools pools={pools} runners={runners ?? []} canManage={can("pools.manage")} onOpen={(p) => setDialog({ kind: "pool", pool: p })}
+        onScaling={manage ? (p) => setScaling(p) : undefined}
         onRunners={(p) => { setTab("runners"); setF({ pool: p.id }); setOffset(0); }} />}
 
       {dialog?.kind === "columns" && (
@@ -261,12 +264,13 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
       )}
       {dialog?.kind === "details" && (() => { const d = runners?.find((x) => x.id === dialog.id); return d &&
         <RunnerDetails api={api} runner={d} pools={pools} manage={manage} onClose={() => setDialog(null)} onChanged={(t) => { onNotice(t); load(); }} />; })()}
+      {scaling && <PoolScalingDialog api={api} pool={scaling} onClose={() => setScaling(null)} onSaved={onNotice} />}
       {dialog?.kind === "pool" && <PoolDialog api={api} pool={dialog.pool} members={dialog.members} runners={runners ?? []} chooseOwners={can("pools.manage")} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
   );
 }
 
-function Pools({ pools, runners, canManage, onOpen, onRunners }: { pools: RunnerPool[]; runners: Runner[]; canManage: boolean; onOpen: (p: RunnerPool) => void; onRunners: (p: RunnerPool) => void }) {
+function Pools({ pools, runners, canManage, onOpen, onRunners, onScaling }: { pools: RunnerPool[]; runners: Runner[]; canManage: boolean; onOpen: (p: RunnerPool) => void; onRunners: (p: RunnerPool) => void; onScaling?: (p: RunnerPool) => void }) {
   const nameOf = (id: string) => runners.find((d) => d.id === id)?.name ?? id;
   const mayOpen = (p: RunnerPool) => canManage || !!p.can_manage;
   return (
@@ -282,7 +286,8 @@ function Pools({ pools, runners, canManage, onOpen, onRunners }: { pools: Runner
               <td>{p.devices.filter((id) => runners.find((d) => d.id === id)?.status === "online").length} of {p.devices.length}</td>
               <td>{(p.owners ?? []).join(", ") || p.created_by || ""}</td><td>{(p.consumers ?? []).join(", ") || "Anyone who may start runs"}</td>
               <td className="cc-list-menu"><RowMenu label={"Actions for " + p.name} items={[...(mayOpen(p) ? [{ key: "open", label: "Open", onSelect: () => onOpen(p) }] : []),
-                { key: "runners", label: "Show its runners", onSelect: () => onRunners(p) }]} /></td>
+                { key: "runners", label: "Show its runners", onSelect: () => onRunners(p) },
+                ...(onScaling ? [{ key: "scaling", label: "Auto-scaling", onSelect: () => onScaling(p) }] : [])]} /></td>
             </tr>
           ))}
           {!pools.length && <tr className="is-static"><td colSpan={7} className="cc-none">No runner pools yet. A pool shares work between runners: a run sent to it goes to its least busy online runner.</td></tr>}
