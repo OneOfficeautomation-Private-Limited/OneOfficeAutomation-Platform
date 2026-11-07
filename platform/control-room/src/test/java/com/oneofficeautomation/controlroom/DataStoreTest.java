@@ -97,10 +97,10 @@ class DataStoreTest {
         Map<String, Object> made = cr.dataStore.saveRecord(cara, "Suppliers", null, Map.of("data", Map.of("name", "Umbrella", "country", "DE")), "127.0.0.1");
         assertEquals(1, cr.dataStore.records(vic, (String) e.get("id"), Map.of("q", "umbrel")).get("total"));
         cr.dataStore.deleteRecord(cara, "Suppliers", (String) made.get("id"), null);
-        assertEquals(1L, db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'data.record_delete'").get("n"));
+        assertEquals(1L, ((Number) db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'data.record_delete'").get("n")).longValue());
 
         cr.dataStore.deleteEntity(admin, (String) e.get("id"), null);
-        assertEquals(0L, db.one("SELECT COUNT(*) AS n FROM entity_records").get("n"));
+        assertEquals(0L, ((Number) db.one("SELECT COUNT(*) AS n FROM entity_records").get("n")).longValue());
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -116,7 +116,7 @@ class DataStoreTest {
         assertEquals("DATA.BAD_PATH", assertThrows(OoaException.class, () -> ask(run, "op", "download", "bucket", "Invoices", "path", "../../secret.txt")).code());
         String big = Base64.getEncoder().encodeToString(new byte[1024 * 1024 + 1]);
         assertEquals("DATA.TOO_LARGE", assertThrows(OoaException.class, () -> ask(run, "op", "upload", "bucket", "Invoices", "path", "big.bin", "content", big)).code());
-        assertEquals(1L, cr.dataStore.buckets(vic).get(0).get("files"));
+        assertEquals(1L, ((Number) cr.dataStore.buckets(vic).get(0).get("files")).longValue());
         assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.dataStore.upload(vic, "Invoices", "a.txt", new byte[1], null)).code());
         cr.dataStore.upload(cara, "Invoices", "notes/a.txt", "x".getBytes(StandardCharsets.UTF_8), null);
         assertArrayEquals("x".getBytes(StandardCharsets.UTF_8), cr.dataStore.download(vic, "Invoices", "notes/a.txt"));

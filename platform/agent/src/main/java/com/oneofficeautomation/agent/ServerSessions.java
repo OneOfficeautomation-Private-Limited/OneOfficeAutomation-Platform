@@ -32,6 +32,12 @@ public final class ServerSessions {
         return new Object[]{p.isAlive() ? -1 : p.exitValue(), out};
     };
 
+    /** Starts a program that keeps running (Remote Desktop) without waiting for it, and without a shell. */
+    interface Launch { void start(List<String> command) throws IOException; }
+
+    static Launch launch = command -> new ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+
     /** The loopback address for the i-th robot account (0-based): 127.0.0.2 onwards. */
     static String address(int i) {
         if (i < 0 || i > 250) throw new OoaException("AGENT.BAD_INPUT", "At most 250 sessions");
@@ -65,7 +71,7 @@ public final class ServerSessions {
         if (!user.matches("[A-Za-z0-9._\\-]{1,64}(\\\\[A-Za-z0-9._\\-]{1,104})?")) throw new OoaException("AGENT.BAD_INPUT", "Not an account name: " + user);
         Object[] k = exec.run(List.of("cmdkey", "/generic:TERMSRV/" + address, "/user:" + user, "/pass:" + password));
         if ((int) k[0] != 0) throw new OoaException("AGENT.SESSION_FAILED", "Windows did not keep the credential for " + user + ": " + String.valueOf(k[1]).strip());
-        exec.run(List.of("cmd", "/c", "start", "\"\"", "/min", "mstsc", "/v:" + address, "/w:" + width, "/h:" + height));
+        launch.start(List.of("mstsc", "/v:" + address, "/w:" + width, "/h:" + height));   // runs on; not waited for
         return "Opening the session of " + user + " (" + address + ")";
     }
 

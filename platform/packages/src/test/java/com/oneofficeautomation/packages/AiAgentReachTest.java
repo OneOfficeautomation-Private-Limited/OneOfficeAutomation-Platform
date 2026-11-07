@@ -78,7 +78,7 @@ class AiAgentReachTest {
     @Test void theAgentUsesAnMcpToolAndSearchesKnowledge() throws Exception {
         List<String> seen = new ArrayList<>();
         new KnowledgePackage().buildIndex(ctx(w, Map.of()), null, List.of(Map.of("source", "credit.pdf", "text", "Orders above the credit limit need the finance manager's approval.")),
-                "kb/credit.json", null, null, null, null, null, 1000, 150, false);
+                "kb/credit.json", null, null, null, null, null, 1000, 150, false, null, null);
         try (ConnectorsTest.Fake s = mcp(seen); ConnectorsTest.Fake llm = new ConnectorsTest.Fake()) {
             List<String> bodies = new ArrayList<>();
             int[] turn = {0};

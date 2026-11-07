@@ -60,7 +60,7 @@ class IdeasTest {
         assertEquals("approved", assessed.get("status"));
         assertEquals(Ideas.score(5, 4, 4, "medium", 1200), assessed.get("score"));
         assertEquals(48000L, assessed.get("value_year"));
-        assertEquals(1L, db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'idea.update' AND object_id = ? AND details LIKE '%from_status%'", id).get("n"));
+        assertEquals(1L, ((Number) db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'idea.update' AND object_id = ? AND details LIKE '%from_status%'", id).get("n")).longValue());
 
         // once it is past submitted, its author can no longer change it
         assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.ideas.save(vic, id, new HashMap<>(Map.of("title", "y")), null)).code());
