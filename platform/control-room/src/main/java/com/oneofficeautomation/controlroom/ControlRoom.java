@@ -34,7 +34,6 @@ public final class ControlRoom {
     public final Workflows workflows;
     /** Approving from e-mail, Teams and a phone (G43). */
     final ApprovalChannels taskChannels;
-    public final Dashboards dashboards;
     public final CustomToolkits customToolkits;
     public final ServerlessRuns serverless;
     /** Repository folders and folder permissions. */
@@ -46,10 +45,6 @@ public final class ControlRoom {
     public final Teams teams;
     /** Vault folder members, credential owners, people's own values and the master key. */
     public final VaultAdmin vaultAdmin;
-    /** Run analytics for Operations. */
-    public final Analytics analytics;
-    /** Alert rules, checked once a minute, and the alerts they raised. */
-    public final Alerts alerts;
     /** Agents behind their own URL and token. */
     public final ApiTasks apiTasks;
     /** Files in the repository that are not agents. */
@@ -171,14 +166,11 @@ public final class ControlRoom {
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
         this.taskChannels = new ApprovalChannels(this);
-        this.dashboards = new Dashboards(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
         this.lifecycle = new Lifecycle(this);
         this.templates = new Templates(this);
         this.vaultAdmin = new VaultAdmin(this);
-        this.analytics = new Analytics(this);
-        this.alerts = new Alerts(this);
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.customToolkits = new CustomToolkits(this, registry);
@@ -205,6 +197,12 @@ public final class ControlRoom {
     public static String normalizedFolder(String path) { return Folders.normalize(path); }
     public static String folderOfPath(String path) { return Folders.folderOf(path == null ? "" : path); }
     public static String csvLine(List<String> cells) { return Platform.Csv.row(cells); }
+    public static String mailAddressChecked(String address) { return Mailer.address(address); }
+    public static int intOrDefault(String value, int dflt) { return intOr(value, dflt); }
+    public static final java.time.Duration ONLINE_WINDOW = ONLINE;
+    public static byte[] textPdfOf(String title, List<String> lines) { return TextPdf.of(title, lines); }
+    public static Instant instantOf(String value, boolean endOfDay) { return instant(value, endOfDay); }
+    public static User userFromRow(Map<String, Object> row) { return user(row); }
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
@@ -1938,7 +1936,6 @@ public final class ControlRoom {
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
-        if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
@@ -2097,7 +2094,6 @@ public final class ControlRoom {
                 if (!Set.of("queued", "running").contains(String.valueOf(r.get("status")))) out = Map.of("stopped", false, "status", r.get("status"));
                 else { control(as, job, "stop", null); out = Map.of("stopped", true, "status", "stopping"); }
             }
-            case "raise_alert" -> out = alerts.raiseFromRun(run, (String) args.get("message"), (String) args.get("severity"), (String) args.get("subject"));
             case "calendar" -> {   // gap G34: a holiday calendar for ooa.datetime's working-day actions, read as the run's user
                 String cal = args.get("name") instanceof String s ? s.strip() : "";
                 out = platform.calendarFor(as, cal);
@@ -2111,7 +2107,12 @@ public final class ControlRoom {
             case "suspend" -> out = runWaits.suspend(run, as, args, actor);
             case "create_task" -> out = runWaits.createTask(run, args, actor);
             case "task_status" -> out = runWaits.taskStatus(run, args);   // G44: an AI agent waiting for an approval it asked for
-            default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
+            default -> {
+                // a request a feature module answers (insights: raise_alert); it audits it itself
+                ModuleContext.RunRequest h = modules == null ? null : modules.runRequests.get(call);
+                if (h == null) throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
+                return h.handle(run, as, args, actor);
+            }
         }
         if (!Set.of("raise_alert", "create_callback", "suspend", "create_task", "task_status").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
         return out;
@@ -2313,8 +2314,6 @@ public final class ControlRoom {
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
-        try { alerts.checkIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
-        try { dashboards.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================

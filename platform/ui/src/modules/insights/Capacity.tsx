@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { Capacity as CapacityData, CrApi, CrUser, Runner, RunnerPool } from "../api/cr";
-import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import type { Capacity as CapacityData, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
+import { HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
  * Operational Insights > Runner capacity, as Blue Prism Hub's utilisation heatmap and FTE comparison and AA's Devices

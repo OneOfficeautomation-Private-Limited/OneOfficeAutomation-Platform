@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.insights.Analytics;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -147,7 +149,7 @@ class PendingItemsTest {
                     "run_r" + n, "Accounts/Pay/Run pay.flow.json", 1, device, "success", "{}", "admin", "manual", t, t, false, false, JsonLite.write(Map.of("total", 10 * n, "state", n == 3 ? "late" : "ok")));
             db.update("INSERT INTO run_events (run_id, seq, event) VALUES (?,?,?)", "run_r" + n, 1, "{}");
         }
-        Map<String, Object> prof = cr.analytics.variables(admin, "Accounts/Pay/Run pay.flow.json", Map.of("days", "90"));
+        Map<String, Object> prof = cr.modules.service(Analytics.class).variables(admin, "Accounts/Pay/Run pay.flow.json", Map.of("days", "90"));
         Map<String, Object> total = ((List<Map<String, Object>>) prof.get("variables")).stream().filter(x -> x.get("variable").equals("total")).findFirst().orElseThrow();
         assertEquals(10.0, total.get("min"));
         assertEquals(30.0, total.get("max"));

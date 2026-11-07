@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AgentStats, BusinessAgent, CrApi, CrUser, DashWidget, VariableProfile } from "../api/cr";
-import { Button, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import type { AgentStats, BusinessAgent, CrApi, CrUser, DashWidget, VariableProfile } from "../../api/cr";
+import { Button, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 
 /**
  * Operational Insights > Business > Agents (item 7 step 2, 1 Nov 2026), as AA's Business dashboards: every agent whose

@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.insights.Alerts;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -95,7 +97,7 @@ class JobsAndAlertsTest {
         // the same subject once per run
         assertEquals(0, ((List<Object>) cr.runRequest(dev, run, "raise_alert", Map.of("message", "again", "subject", "invoice 4711")).get("alerts")).size());
         // a rule of this kind for the agent sends them to its recipients (the task inbox here)
-        cr.alerts.saveRule(admin, null, Map.of("name", "Agent alerts", "kind", "agent_raised", "scope", "Ops/Watch.flow.json", "notify_to", List.of("role:admin")), null);
+        cr.modules.service(Alerts.class).saveRule(admin, null, Map.of("name", "Agent alerts", "kind", "agent_raised", "scope", "Ops/Watch.flow.json", "notify_to", List.of("role:admin")), null);
         raised = (List<Object>) cr.runRequest(dev, run, "raise_alert", Map.of("message", "Bank file missing")).get("alerts");
         assertEquals(1, raised.size());
         assertEquals("Agent alerts", ((Map<String, Object>) raised.get(0)).get("rule"));
@@ -105,7 +107,7 @@ class JobsAndAlertsTest {
         for (int i = 0; i < 18; i++) cr.runRequest(dev, run, "raise_alert", Map.of("message", "item " + i));
         assertEquals("ALERT.TOO_MANY", code(() -> cr.runRequest(dev, run, "raise_alert", Map.of("message", "one too many"))));
         // the rule check every minute leaves these rules alone
-        cr.alerts.checkRule(db.one("SELECT * FROM alert_rules WHERE kind = 'agent_raised'"));
+        cr.modules.service(Alerts.class).checkRule(db.one("SELECT * FROM alert_rules WHERE kind = 'agent_raised'"));
         db.update("UPDATE runs SET status = 'success' WHERE id = ?", run);
         assertEquals("JOBS.BAD_CALL", code(() -> cr.runRequest(dev, running("Ops/Watch.flow.json", "admin"), "delete_everything", Map.of())));
     }

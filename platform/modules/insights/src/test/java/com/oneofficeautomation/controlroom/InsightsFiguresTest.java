@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.insights.Analytics;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -33,11 +35,11 @@ class InsightsFiguresTest {
         cr.audit.record("agent:PC-1", "credential.read", "credential", "f/c/a", Map.of("run", "r1"), "denied", null);
         cr.audit.record("agent:PC-1 for admin", "run.start", "run", "r1", null, "ok", null);
         cr.audit.record("system", "run.lost", "run", "r2", null, "failed", null);
-        Map<String, Object> a = cr.analytics.audit(admin, Map.of("days", "30", "tz", "UTC"));
+        Map<String, Object> a = cr.modules.service(Analytics.class).audit(admin, Map.of("days", "30", "tz", "UTC"));
         assertTrue(((Number) a.get("entries")).longValue() >= 4);
         assertEquals(1, a.get("people"), "the system and runners are not people");
         cr.audit.record("nobody", "auth.login", "user", "nobody", null, "failed", null);
-        assertEquals(2, cr.analytics.audit(admin, Map.of("days", "30")).get("people"), "a sign-in attempt with an unknown name is a person");
+        assertEquals(2, cr.modules.service(Analytics.class).audit(admin, Map.of("days", "30")).get("people"), "a sign-in attempt with an unknown name is a person");
         assertTrue(((Number) a.get("sign_ins")).longValue() >= 2);
         assertTrue(((Number) a.get("failed_sign_ins")).longValue() >= 1);
         List<Map<String, Object>> who = (List<Map<String, Object>>) a.get("by_actor");
@@ -46,20 +48,20 @@ class InsightsFiguresTest {
         assertEquals(2L, ((Number) pc1.get("entries")).longValue(), "a runner once, whoever it acted for");
         assertTrue(who.stream().noneMatch(w -> String.valueOf(w.get("actor")).contains(" for ")));
         assertEquals("system", who.stream().filter(w -> w.get("actor").equals("system")).findFirst().orElseThrow().get("is"));
-        assertEquals(2L, ((Number) cr.analytics.audit(admin, Map.of("days", "30", "actor", "agent:PC-1")).get("entries")).longValue());
+        assertEquals(2L, ((Number) cr.modules.service(Analytics.class).audit(admin, Map.of("days", "30", "actor", "agent:PC-1")).get("entries")).longValue());
         assertEquals("person", who.stream().filter(w -> w.get("actor").equals("admin")).findFirst().orElseThrow().get("is"));
         assertTrue(((List<Map<String, Object>>) a.get("by_kind")).stream().anyMatch(k -> k.get("kind").equals("auth")));
         List<Map<String, Object>> notDone = (List<Map<String, Object>>) a.get("not_done");
         assertEquals(List.of("failed", "denied", "failed"), notDone.stream().limit(3).map(r -> r.get("result")).toList(), "the latest first");
 
         // filters: one kind, one person, one result
-        Map<String, Object> signIns = cr.analytics.audit(admin, Map.of("days", "30", "kind", "auth", "result", "failed"));
+        Map<String, Object> signIns = cr.modules.service(Analytics.class).audit(admin, Map.of("days", "30", "kind", "auth", "result", "failed"));
         assertEquals(2L, ((Number) signIns.get("entries")).longValue(), "admin's and nobody's failed sign-ins");
-        assertEquals(0L, ((Number) cr.analytics.audit(admin, Map.of("days", "30", "kind", "a%")).get("entries")).longValue(), "a wildcard is not one");
+        assertEquals(0L, ((Number) cr.modules.service(Analytics.class).audit(admin, Map.of("days", "30", "kind", "a%")).get("entries")).longValue(), "a wildcard is not one");
 
         // the Audit Trail's permission is needed
         ControlRoom.User viewer = RepositoryLifecycleTest.person(cr, admin, "vic", "viewer");
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.analytics.audit(viewer, Map.of())).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(Analytics.class).audit(viewer, Map.of())).code());
     }
 
     @Test @SuppressWarnings("unchecked") void eachRunnersRunsStateAndErrors() {
@@ -71,7 +73,7 @@ class InsightsFiguresTest {
         run(device, "failed", "{\"code\":\"AGENT.LOST\",\"message\":\"x\"}", t.plusSeconds(120));
         run(device, "stopped", null, t.plusSeconds(180));
         db.update("UPDATE devices SET last_seen = ? WHERE id = ?", Instant.now(), device);
-        Map<String, Object> c = cr.analytics.capacity(admin, Map.of("days", "1", "tz", "UTC"));
+        Map<String, Object> c = cr.modules.service(Analytics.class).capacity(admin, Map.of("days", "1", "tz", "UTC"));
         Map<String, Object> r = ((List<Map<String, Object>>) c.get("runners")).stream().filter(x -> x.get("device_id").equals(device)).findFirst().orElseThrow();
         assertEquals("PC-2", r.get("name"));
         assertEquals("online", r.get("status"));

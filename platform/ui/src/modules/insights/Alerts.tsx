@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Alert, AlertKind, AlertRule, CrApi, CrUser } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import type { Alert, AlertKind, AlertRule, CrApi, CrUser } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
  * Operational Insights > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's

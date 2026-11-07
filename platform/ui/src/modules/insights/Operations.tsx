@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { howStarted } from "./Activity";
+import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../../api/cr";
+import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { howStarted } from "../../console/Activity";
 
 /**
  * Operational Insights > Operations, rebuilt from today's console with AA's Bot Insight operational dashboards, UiPath

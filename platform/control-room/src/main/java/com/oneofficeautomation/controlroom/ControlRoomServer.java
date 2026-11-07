@@ -662,34 +662,6 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
-            case "dashboards" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("dashboards", cr.dashboards.list(u)));
-                else if (m.equals("GET") && route.equals("dashboards/kpis")) sendJson(ex, 200, Map.of("kpis", cr.dashboards.kpis(u)));
-                // e-mailed on a schedule: dashboards/{id}/mail lists and adds; dashboards/mail/{schedule} stops; .../send sends now
-                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("mail")) sendJson(ex, 200, Map.of("schedules", cr.dashboards.mailList(u, seg[1])));
-                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("mail")) sendJson(ex, 200, cr.dashboards.mailSave(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("DELETE") && seg.length == 3 && seg[1].equals("mail")) { cr.dashboards.mailDelete(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("POST") && seg.length == 4 && seg[1].equals("mail") && seg[3].equals("send")) sendJson(ex, 200, cr.dashboards.mailNow(u, seg[2], ip));
-                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.dashboards.save(u, null, map(body(ex)), ip));
-                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.dashboards.save(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("DELETE") && seg.length == 2) { cr.dashboards.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("data")) sendJson(ex, 200, cr.dashboards.data(u, seg[1], q.get("tz")));
-                else notFound(ex);
-            }
-            case "alerts" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.alerts.list(u, q));
-                else if (m.equals("POST") && route.equals("alerts/acknowledge")) sendJson(ex, 200, cr.alerts.acknowledge(u, (List<?>) map(body(ex)).getOrDefault("ids", List.of()), ip));
-                else notFound(ex);
-            }
-            case "alert-rules" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("rules", cr.alerts.rules(u)));
-                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.alerts.saveRule(u, null, map(body(ex)), ip));
-                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.alerts.saveRule(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("PATCH") && seg.length == 2) { cr.alerts.setEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("DELETE") && seg.length == 2) { cr.alerts.deleteRule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, cr.alerts.test(u, seg[1], ip));
-                else notFound(ex);
-            }
             case "mcp" -> {
                 if (!m.equals("POST")) { ex.getResponseHeaders().set("Allow", "POST"); ex.sendResponseHeaders(405, -1); return; }
                 Map<String, Object> res = mcp.handle(u, body(ex), ip);
@@ -790,24 +762,10 @@ public final class ControlRoomServer {
                 else notFound(ex);
             }
             case "analytics" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.analytics.overview(u, q));
-                else if (m.equals("GET") && route.equals("analytics/agent")) sendJson(ex, 200, cr.analytics.agent(u, q.get("path"), q));
-                else if (m.equals("GET") && route.equals("analytics/capacity")) sendJson(ex, 200, cr.analytics.capacity(u, q));
-                else if (m.equals("GET") && route.equals("analytics/audit")) sendJson(ex, 200, cr.analytics.audit(u, q));
-                else if (m.equals("GET") && route.equals("analytics/business-agents")) sendJson(ex, 200, cr.analytics.businessAgents(u, q));
-                // the analytics data API: pages of rows ({items, next}) for Power BI, Tableau or a data warehouse
-                else if (m.equals("GET") && route.equals("analytics/data/runs")) sendJson(ex, 200, cr.analytics.dataRuns(u, q));
-                else if (m.equals("GET") && route.equals("analytics/data/kpis")) sendJson(ex, 200, cr.analytics.dataKpis(u, q));
-                else if (m.equals("GET") && route.equals("analytics/data/audit")) sendJson(ex, 200, cr.analytics.dataAudit(u, q));
-                else if (m.equals("POST") && route.equals("analytics/goal")) sendJson(ex, 200, cr.platform.setSavingsGoal(u, map(body(ex)), ip));
+                // the savings settings are the kernel's; everything else is the insights module's
+                if (m.equals("POST") && route.equals("analytics/goal")) sendJson(ex, 200, cr.platform.setSavingsGoal(u, map(body(ex)), ip));
                 else if (m.equals("POST") && route.equals("analytics/queue-savings")) { Map<String, Object> b = map(body(ex)); cr.platform.setQueueSavings(u, String.valueOf(b.get("queue_id")), b, ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else if (m.equals("GET") && route.equals("analytics/queues")) sendJson(ex, 200, cr.analytics.queues(u, q));
-                else if (m.equals("GET") && route.equals("analytics/value")) sendJson(ex, 200, cr.analytics.value(u, q));
-                else if (m.equals("GET") && route.equals("analytics/variables")) sendJson(ex, 200, cr.analytics.variables(u, q.get("path"), q));
-                else if (m.equals("GET") && route.equals("analytics/export")) {
-                    String report = q.getOrDefault("report", "");
-                    sendText(ex, 200, "text/csv; charset=utf-8", cr.analytics.csv(u, report, q), "operations-" + report + ".csv");
-                }
+                else if (cr.modules.userRoutes.get("analytics") instanceof ModuleContext.UserRoute mr) mr.handle(ex, u, m, route.startsWith("analytics/") ? route.substring(10) : "", ip);
                 else notFound(ex);
             }
             case "queue-models" -> {

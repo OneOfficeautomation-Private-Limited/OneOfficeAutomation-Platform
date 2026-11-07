@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, ValueReport, ValueRow } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import type { CrApi, CrUser, ValueReport, ValueRow } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 
 /**
  * Operational Insights > Value, as AA's Center of Excellence dashboard and UiPath Insights' Business ROI (checked

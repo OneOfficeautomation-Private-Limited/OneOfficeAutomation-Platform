@@ -25,7 +25,7 @@ class BusinessCalendarsTest {
         cr = new ControlRoom(db, data, FirstPartyPackages.registry(), null);
         admin = RepositoryLifecycleTest.boot(cr);
         vera = RepositoryLifecycleTest.person(cr, admin, "vera", "viewer");   // sees schedules and calendars, may not change them
-        cr.checkin(admin, "Ops/Due.flow.json", JobsAndAlertsTest.flow("due"), "v1", true, null);
+        cr.checkin(admin, "Ops/Due.flow.json", KernelTestKit.flow("due"), "v1", true, null);
         Map<String, Object> d = cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null);
         dev = cr.device((String) d.get("device_id"), (String) d.get("secret"));
         cr.setDefaultDevice(admin, "admin", (String) d.get("device_id"), null);

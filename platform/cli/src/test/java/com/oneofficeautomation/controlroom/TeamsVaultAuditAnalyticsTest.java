@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.insights.Analytics;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -177,7 +179,7 @@ class TeamsVaultAuditAnalyticsTest {
                     "run_a" + n, r[0], 1, device, r[1], "{}", "admin", n % 2 == 0 ? "schedule:s1" : "manual", t.plusSeconds(n), false, false, r[2],
                     r[3] == null ? null : JsonLite.write(Map.of("code", r[3], "message", "x")));
         }
-        Map<String, Object> o = cr.analytics.overview(admin, Map.of());
+        Map<String, Object> o = cr.modules.service(Analytics.class).overview(admin, Map.of());
         Map<String, Object> tot = (Map<String, Object>) o.get("totals");
         assertEquals(7, tot.get("runs"));
         assertEquals(3L, tot.get("success"));
@@ -199,19 +201,19 @@ class TeamsVaultAuditAnalyticsTest {
         Map<String, Object> heat = (Map<String, Object>) o.get("by_hour");
         assertEquals(7L, ((List<List<Long>>) heat.get("runs")).stream().flatMap(List::stream).mapToLong(Long::longValue).sum());
         assertEquals(3L, ((List<List<Long>>) heat.get("failed")).stream().flatMap(List::stream).mapToLong(Long::longValue).sum());
-        assertEquals("Asia/Kolkata", ((Map<String, Object>) cr.analytics.overview(admin, Map.of("tz", "Asia/Kolkata")).get("by_hour")).get("time_zone"));
+        assertEquals("Asia/Kolkata", ((Map<String, Object>) cr.modules.service(Analytics.class).overview(admin, Map.of("tz", "Asia/Kolkata")).get("by_hour")).get("time_zone"));
         assertEquals(0, ((Map<String, Object>) o.get("previous")).get("runs"));
         assertEquals(List.of("manual", "schedule"), ((List<Map<String, Object>>) o.get("by_source")).stream().map(x -> x.get("source")).toList());
         // carl may not see Finance: its runs are not counted for him
-        assertEquals(3, ((Map<String, Object>) cr.analytics.overview(carl, Map.of()).get("totals")).get("runs"));
-        Map<String, Object> pay = cr.analytics.agent(admin, "Finance/Pay.flow.json", Map.of());
+        assertEquals(3, ((Map<String, Object>) cr.modules.service(Analytics.class).overview(carl, Map.of()).get("totals")).get("runs"));
+        Map<String, Object> pay = cr.modules.service(Analytics.class).agent(admin, "Finance/Pay.flow.json", Map.of());
         assertEquals(3, ((Map<String, Object>) pay.get("totals")).get("runs"));
         assertEquals("WEB.TIMEOUT", ((List<Map<String, Object>>) pay.get("errors")).get(0).get("code"));
-        String csv = cr.analytics.csv(admin, "most_failed", Map.of());
+        String csv = cr.modules.service(Analytics.class).csv(admin, "most_failed", Map.of());
         assertTrue(csv.startsWith("agent,runs,success,failed,stopped,success_rate,total_ms,avg_ms,p95_ms,max_ms,failure_rate,top_errors\r\n"), csv);
-        assertTrue(cr.analytics.csv(admin, "run_history", Map.of()).split("\r\n").length == 8);
-        assertEquals("CR.BAD_INPUT", code(() -> cr.analytics.csv(admin, "nope", Map.of())));
-        assertEquals("CR.FORBIDDEN", code(() -> cr.analytics.agent(carl, "Finance/Pay.flow.json", Map.of())));
+        assertTrue(cr.modules.service(Analytics.class).csv(admin, "run_history", Map.of()).split("\r\n").length == 8);
+        assertEquals("CR.BAD_INPUT", code(() -> cr.modules.service(Analytics.class).csv(admin, "nope", Map.of())));
+        assertEquals("CR.FORBIDDEN", code(() -> cr.modules.service(Analytics.class).agent(carl, "Finance/Pay.flow.json", Map.of())));
     }
 
     @Test @Order(5)
@@ -224,7 +226,7 @@ class TeamsVaultAuditAnalyticsTest {
                 "run_c1", "Ops/Backup.flow.json", 1, device, "success", "{}", "admin", "manual", now.minusSeconds(7800), now.minusSeconds(7200), now.minusSeconds(3600), false, false, 3_600_000L);
         db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, started, cancel_requested, pause_requested) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 "run_c2", "Ops/Backup.flow.json", 1, device, "running", "{}", "admin", "manual", now.minusSeconds(1800), now.minusSeconds(1800), false, false);
-        Map<String, Object> c = cr.analytics.capacity(admin, Map.of("days", "1", "tz", "Asia/Kolkata"));
+        Map<String, Object> c = cr.modules.service(Analytics.class).capacity(admin, Map.of("days", "1", "tz", "Asia/Kolkata"));
         Map<String, Object> pc = ((List<Map<String, Object>>) c.get("runners")).get(0);
         assertEquals(device, pc.get("device_id"));
         assertEquals(2L, pc.get("runs"));
@@ -253,7 +255,7 @@ class TeamsVaultAuditAnalyticsTest {
                     now.minusSeconds(60L * (Integer) i[1]), now, i[2] == null ? null : now.minusSeconds(60L * (Integer) i[2]));
         db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, started, finished, cancel_requested, pause_requested, duration_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 "run_q1", "Ops/Backup.flow.json", 1, device, "success", "{}", "admin", "queue:q_ins", now.minusSeconds(6600), now.minusSeconds(6600), now.minusSeconds(3600), false, false, 600_000L);
-        Map<String, Object> qi = ((List<Map<String, Object>>) cr.analytics.queues(admin, Map.of("days", "1")).get("queues")).stream()
+        Map<String, Object> qi = ((List<Map<String, Object>>) cr.modules.service(Analytics.class).queues(admin, Map.of("days", "1")).get("queues")).stream()
                 .filter(x -> "q_ins".equals(x.get("id"))).findFirst().orElseThrow();
         assertEquals(3L, qi.get("waiting"));
         assertEquals(1L, qi.get("overdue"));     // waiting 70 minutes, past the hour's target
@@ -281,7 +283,7 @@ class TeamsVaultAuditAnalyticsTest {
         for (Object[] r : rows)
             db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, duration_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     "run_v" + (++n), r[0], 1, device, r[1], "{}", "admin", "manual", t.plusSeconds(n), false, false, 60_000L);
-        Map<String, Object> v = cr.analytics.value(admin, Map.of("days", "1"));
+        Map<String, Object> v = cr.modules.service(Analytics.class).value(admin, Map.of("days", "1"));
         assertEquals("INR", v.get("currency"));
         assertEquals(3L, v.get("successful_runs"));
         assertEquals(1.2, v.get("hours"));   // 2 x 30 + 10 minutes
@@ -293,7 +295,7 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals(List.of("Finance", "Ops"), ((List<Map<String, Object>>) v.get("folders")).stream().map(x -> x.get("folder")).toList());
         assertEquals(0.0, v.get("previous_hours"));
         // carl may not see Finance: only Backup's 10 minutes count for him
-        assertEquals(0.2, cr.analytics.value(carl, Map.of("days", "1")).get("hours"));
+        assertEquals(0.2, cr.modules.service(Analytics.class).value(carl, Map.of("days", "1")).get("hours"));
         cr.platform.updateSettings(admin, Map.of("default_minutes_saved", 0, "hourly_cost", 0, "currency", ""), null);
     }
 }

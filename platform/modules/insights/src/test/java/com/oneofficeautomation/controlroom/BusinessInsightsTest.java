@@ -1,5 +1,8 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.insights.Analytics;
+import com.oneofficeautomation.modules.insights.Dashboards;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -47,7 +50,7 @@ class BusinessInsightsTest {
     }
 
     @Test @SuppressWarnings("unchecked") void agentsTheirValuesAndProfile() {
-        List<Map<String, Object>> agents = (List<Map<String, Object>>) cr.analytics.businessAgents(admin, Map.of("days", "1")).get("agents");
+        List<Map<String, Object>> agents = (List<Map<String, Object>>) cr.modules.service(Analytics.class).businessAgents(admin, Map.of("days", "1")).get("agents");
         Map<String, Object> tickets = agents.get(0);
         assertEquals("Sales/Tickets.flow.json", tickets.get("bot_path"));
         assertEquals(List.of("billing", "other", "team"), tickets.get("values"));
@@ -55,7 +58,7 @@ class BusinessInsightsTest {
         assertEquals(2L, tickets.get("runs_with_values"));
         assertTrue(agents.stream().noneMatch(a -> a.get("bot_path").equals("Sales/Invoices.flow.json")), "no outputs: not listed");
 
-        Map<String, Object> prof = cr.analytics.variables(admin, "Sales/Tickets.flow.json", Map.of("days", "1", "tz", "UTC"));
+        Map<String, Object> prof = cr.modules.service(Analytics.class).variables(admin, "Sales/Tickets.flow.json", Map.of("days", "1", "tz", "UTC"));
         Map<String, Object> billing = ((List<Map<String, Object>>) prof.get("variables")).stream().filter(v -> v.get("variable").equals("billing")).findFirst().orElseThrow();
         assertEquals("number", billing.get("kind"));
         assertEquals(2.0, billing.get("sum"));
@@ -68,16 +71,16 @@ class BusinessInsightsTest {
     }
 
     @Test @SuppressWarnings("unchecked") void widgetsOverAnAgentsOutputAndWhoMayMakeThem() {
-        String id = (String) cr.dashboards.save(admin, null, Map.of("name", "Tickets", "widgets", List.of(
+        String id = (String) cr.modules.service(Dashboards.class).save(admin, null, Map.of("name", "Tickets", "widgets", List.of(
                 Map.of("title", "billing", "type", "number", "source", "output", "bot", "Sales/Tickets.flow.json", "kpi", "billing", "agg", "sum", "days", 1),
                 Map.of("title", "by team", "type", "table", "source", "output", "bot", "Sales/Tickets.flow.json", "kpi", "team", "agg", "count", "group", "value", "days", 1))), null).get("id");
-        List<Map<String, Object>> w = (List<Map<String, Object>>) cr.dashboards.data(admin, id, "UTC").get("widgets");
+        List<Map<String, Object>> w = (List<Map<String, Object>>) cr.modules.service(Dashboards.class).data(admin, id, "UTC").get("widgets");
         assertEquals(0, new java.math.BigDecimal("2").compareTo((java.math.BigDecimal) w.get(0).get("value")));
         assertEquals("north", ((List<Map<String, Object>>) w.get(1).get("points")).get(0).get("label"));
-        assertEquals("CR.BAD_INPUT", code(() -> cr.dashboards.save(admin, null, Map.of("name", "x", "widgets", List.of(Map.of("source", "output", "kpi", "billing"))), null)), "an output needs its agent");
+        assertEquals("CR.BAD_INPUT", code(() -> cr.modules.service(Dashboards.class).save(admin, null, Map.of("name", "x", "widgets", List.of(Map.of("source", "output", "kpi", "billing"))), null)), "an output needs its agent");
         // making dashboards needs insights.design; viewers still see shared ones
         ControlRoom.User viewer = RepositoryLifecycleTest.person(cr, admin, "val", "viewer");
-        assertEquals("CR.FORBIDDEN", code(() -> cr.dashboards.save(viewer, null, Map.of("name", "Mine", "widgets", List.of(Map.of("source", "runs"))), null)));
+        assertEquals("CR.FORBIDDEN", code(() -> cr.modules.service(Dashboards.class).save(viewer, null, Map.of("name", "Mine", "widgets", List.of(Map.of("source", "runs"))), null)));
         assertEquals("CR.FORBIDDEN", code(() -> cr.platform.setSavingsGoal(viewer, Map.of("hours", 10), null)));
         assertEquals("CR.FORBIDDEN", code(() -> cr.platform.setQueueSavings(viewer, "q1", Map.of("minutes_saved", 5), null)));
         assertTrue(Rbac.all().containsAll(List.of("insights.design", "insights.admin")), "offered to custom roles");
@@ -86,7 +89,7 @@ class BusinessInsightsTest {
     @Test @SuppressWarnings("unchecked") void savingsPerAgentAndQueueEstimatesAndTheGoal() {
         cr.platform.updateSettings(admin, Map.of("default_minutes_saved", 10, "hourly_cost", 600), null);
         cr.platform.setAgentSavings(admin, new HashMap<>(Map.of("path", "Sales/Invoices.flow.json", "minutes_saved", 30, "hourly_cost", 1200, "estimated_runs_month", 100)), null);
-        Map<String, Object> v = cr.analytics.value(admin, Map.of("days", "1"));
+        Map<String, Object> v = cr.modules.service(Analytics.class).value(admin, Map.of("days", "1"));
         Map<String, Object> inv = ((List<Map<String, Object>>) v.get("agents")).stream().filter(a -> a.get("bot_path").equals("Sales/Invoices.flow.json")).findFirst().orElseThrow();
         assertEquals(60L, inv.get("minutes"), "two runs at its own 30 minutes");
         assertEquals(1200L, inv.get("money"), "an hour at its own cost");
@@ -95,7 +98,7 @@ class BusinessInsightsTest {
 
         // the queue's own minutes count for its item instead of the agent's; the run counts once
         cr.platform.setQueueSavings(admin, "q1", new HashMap<>(Map.of("minutes_saved", 6)), null);
-        v = cr.analytics.value(admin, Map.of("days", "1"));
+        v = cr.modules.service(Analytics.class).value(admin, Map.of("days", "1"));
         inv = ((List<Map<String, Object>>) v.get("agents")).stream().filter(a -> a.get("bot_path").equals("Sales/Invoices.flow.json")).findFirst().orElseThrow();
         assertEquals(36L, inv.get("minutes"), "6 for the queue item and 30 for the other run");
         Map<String, Object> q = ((List<Map<String, Object>>) v.get("queues")).get(0);
@@ -106,7 +109,7 @@ class BusinessInsightsTest {
 
         // the goal, set with insights.admin, with this year's figures
         cr.platform.setSavingsGoal(admin, Map.of("hours", 100, "money", 50000), null);
-        Map<String, Object> goal = (Map<String, Object>) cr.analytics.value(admin, Map.of("days", "1")).get("goal");
+        Map<String, Object> goal = (Map<String, Object>) cr.modules.service(Analytics.class).value(admin, Map.of("days", "1")).get("goal");
         assertEquals(100, goal.get("hours"));
         assertEquals(50000L, goal.get("money"));
         assertTrue(((Number) goal.get("year_hours")).doubleValue() > 0);

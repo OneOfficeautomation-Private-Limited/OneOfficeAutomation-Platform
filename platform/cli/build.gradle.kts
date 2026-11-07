@@ -14,10 +14,13 @@ val kernelTestKit = project(":control-room").the<SourceSetContainer>()["test"].o
 
 dependencies {
     testImplementation(kernelTestKit)
+    // whole-product tests that build Excel workbooks (work items from Excel)
+    testImplementation("org.apache.poi:poi-ooxml:5.3.0")
     implementation(project(":packages"))
     implementation(project(":control-room"))
     // feature modules of One CommandCenter, found by the kernel with ServiceLoader (ooa docflow uses its settings file)
     implementation(project(":document-automation"))
+    implementation(project(":insights"))
     implementation(project(":governance"))
     implementation(project(":testing"))
     implementation(project(":one-chat"))

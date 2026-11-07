@@ -40,6 +40,7 @@ public final class Modules {
     volatile ModuleContext.ProductionGate productionGate;
     final List<ModuleContext.Guardrails> guardrails = new CopyOnWriteArrayList<>();
     final List<ModuleContext.RepositoryChange> repositoryChanges = new CopyOnWriteArrayList<>();
+    final Map<String, ModuleContext.RunRequest> runRequests = new LinkedHashMap<>();
     private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
@@ -170,6 +171,7 @@ public final class Modules {
         public boolean atLeast(String access, String level) { return Folders.atLeast(access, level); }
         public String normalizeFolder(String path) { return Folders.normalize(path); }
         public boolean mayView(User u, String path) { return cr.folders.mayView(u, path); }
+        public String folderAccessFor(List<String> principals, String role, String folder, Map<String, Map<String, String>> entries) { return cr.folders.accessToFolder(principals, role, folder, entries); }
         public String pathAccess(String username, String role, String path) { return cr.folders.access(username, role, path); }
         public Map<String, Object> getAgent(User by, String path, Object version) { return cr.getBot(by, path, version); }
         public List<Map<String, Object>> listAgents(User by) { return cr.repoList(by, null); }
@@ -204,6 +206,19 @@ public final class Modules {
         public String onlineRunner() { return cr.platform.onlineRunner(); }
         public Map<String, Object> modelConnectionsFor(List<String> roles) { return cr.platform.connectionsForJob(roles); }
         public void recordAiCalls(Map<String, Object> run, List<?> calls) { cr.platform.recordAiCalls(run, calls); }
+        public List<String> principalsOf(String username, String role) { return cr.teams.principalsOf(username, role); }
+        public String defaultTimeZone() { return cr.defaultTimeZone(); }
+        public boolean queueAllows(User u, String queueId, String level) { return cr.platform.queueAllows(u, queueId, level); }
+        public Map<String, Object> queueCounts(String queueId) { return cr.platform.counts(queueId); }
+        public long tokensThisMonth(String connection) { return cr.platform.tokensThisMonth(connection); }
+        public void emitEvent(String type, Map<String, Object> data) { cr.events.emit(type, data); }
+        public boolean mailConfigured() { return cr.mailer.configured(); }
+        public void sendMail(List<String> to, String subject, String body, List<MailAttachment> attachments) {
+            List<Mailer.Attachment> files = new ArrayList<>();
+            for (MailAttachment a : attachments == null ? List.<MailAttachment>of() : attachments) files.add(new Mailer.Attachment(a.name(), a.contentType(), a.bytes()));
+            cr.mailer.send(to, subject, body, files);
+        }
+        public List<String> addressesOf(java.util.Collection<String> people) { return cr.addressesOf(people); }
         public Map<String, Object> triggerConfig(Map<String, Object> trigger) { return TriggerPollers.config(trigger); }
 
         public MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) {
@@ -240,6 +255,7 @@ public final class Modules {
         public void guardrails(Guardrails source) { guardrails.add(source); }
         public void repositoryChanged(String by, String message) { Modules.this.repositoryChanged(by, message); }
         public void onRepositoryChanged(RepositoryChange listener) { repositoryChanges.add(listener); }
+        public void runRequest(String call, RunRequest handler) { claim(runRequests, call, handler, "the run request " + call); }
         public void every(Duration delay, Duration period, Runnable job) { jobs.add(new Job(module, delay, period, job)); }
         public void defineSetting(String key, Object defaultValue, SettingCheck check) { Platform.defineModuleSetting(key, defaultValue, check); }
         public void taskKind(String kind, TaskKind rules) { claim(taskKinds, kind, rules, "the task kind " + kind); }

@@ -70,8 +70,14 @@ public interface ModuleContext {
     /** The agents the person may see in the repository. */
     List<Map<String, Object>> listAgents(User by);
 
+    /** What a group of principals (a person's user:, role: and team: entries) may do in a folder path. */
+    String folderAccessFor(List<String> principals, String role, String folder, Map<String, Map<String, String>> entries);
+
     /** Refuses unless the person has the level on the folder of a repository path (an agent). */
     void requirePathAccess(String username, String role, String path, String level, String what);
+
+    /** As above, for a person. */
+    default void requirePathAccess(User u, String path, String level, String what) { requirePathAccess(u.username(), u.role(), path, level, what); }
 
     /** A secret One CommandCenter itself needs, from a vault reference folder/credential/attribute. */
     String systemCredential(String ref);
@@ -136,6 +142,39 @@ public interface ModuleContext {
     /** Records the AI calls a run (or a chat turn) made, for AI governance. */
     void recordAiCalls(Map<String, Object> run, List<?> calls);
 
+    /** The teams and roles a person acts as (user:, role:, team: principals), for sharing checks. */
+    List<String> principalsOf(String username, String role);
+
+    /** One CommandCenter's default time zone (Settings), as an id such as Asia/Kolkata. */
+    String defaultTimeZone();
+
+    /** Whether the person may use a work queue at a level (view, work, manage). */
+    boolean queueAllows(User u, String queueId, String level);
+
+    /** A work queue's item counts by status. */
+    Map<String, Object> queueCounts(String queueId);
+
+    /** The AI tokens a model connection used this month. */
+    long tokensThisMonth(String connection);
+
+    /** Publishes an event to the event subscriptions (events out), as the kernel's own events go. */
+    void emitEvent(String type, Map<String, Object> data);
+
+    /** Whether outgoing mail is set up (Settings > Mail). */
+    boolean mailConfigured();
+
+    /** A file sent with a mail. */
+    record MailAttachment(String name, String contentType, byte[] bytes) {}
+
+    /** Sends a mail through Settings > Mail. */
+    void sendMail(List<String> to, String subject, String body, List<MailAttachment> attachments);
+
+    /** Sends a mail without attachments. */
+    default void sendMail(List<String> to, String subject, String body) { sendMail(to, subject, body, List.of()); }
+
+    /** The mail addresses of people (user names, role:, team:), as the kernel resolves them. */
+    List<String> addressesOf(java.util.Collection<String> people);
+
     /** A trigger's settings (its config), as the trigger pollers read them. */
     Map<String, Object> triggerConfig(Map<String, Object> trigger);
 
@@ -197,6 +236,9 @@ public interface ModuleContext {
 
     /** Told when something in the repository changed (a check-in, a version made live), for Git sync. */
     @FunctionalInterface interface RepositoryChange { void changed(String by, String message); }
+
+    /** A request a running agent makes of One CommandCenter (raise_alert): the run, its user, the step's arguments and the audit actor. */
+    @FunctionalInterface interface RunRequest { Map<String, Object> handle(Map<String, Object> run, User as, Map<String, Object> args, String actor); }
 
     /** A request under /api/{prefix}/ before sign-in: the module authenticates it itself (an embed key). The route is after the prefix. */
     @FunctionalInterface interface PublicRoute { void handle(HttpExchange ex, String method, String route, String ip) throws IOException; }
@@ -260,6 +302,9 @@ public interface ModuleContext {
 
     // ------------------------------------------------------------------ the kernel's conventions, the same for every module
 
+    /** How long after its last heartbeat a runner still counts as online. */
+    java.time.Duration ONLINE = com.oneofficeautomation.controlroom.ControlRoom.ONLINE_WINDOW;
+
     /** A new id with a prefix ("idea_3f2a..."), as the kernel makes them. */
     static String id(String prefix) { return com.oneofficeautomation.controlroom.ControlRoom.newId(prefix); }
 
@@ -286,6 +331,21 @@ public interface ModuleContext {
 
     /** One CSV line (with its line break), quoted and protected against spreadsheet formulas, as the kernel's exports write it. */
     static String csvRow(List<String> cells) { return com.oneofficeautomation.controlroom.ControlRoom.csvLine(cells); }
+
+    /** Checks a mail address (CR.BAD_INPUT when it is not one); returns it trimmed. */
+    static String mailAddress(String address) { return com.oneofficeautomation.controlroom.ControlRoom.mailAddressChecked(address); }
+
+    /** A person as the kernel represents them, from a users row. */
+    static User userOf(Map<String, Object> row) { return com.oneofficeautomation.controlroom.ControlRoom.userFromRow(row); }
+
+    /** A whole number from a request parameter, or the default when it is missing or not a number. */
+    static int intOr(String value, int dflt) { return com.oneofficeautomation.controlroom.ControlRoom.intOrDefault(value, dflt); }
+
+    /** A time from a request parameter (an ISO instant or a date; a date's end with endOfDay), or null; anything else is CR.BAD_INPUT. */
+    static java.time.Instant instant(String value, boolean endOfDay) { return com.oneofficeautomation.controlroom.ControlRoom.instantOf(value, endOfDay); }
+
+    /** A simple PDF of a title and text lines (mailed reports), as the kernel writes them. */
+    static byte[] textPdf(String title, List<String> lines) { return com.oneofficeautomation.controlroom.ControlRoom.textPdfOf(title, lines); }
 
     /** CR.NOT_FOUND: "{what} not found". */
     static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
@@ -340,6 +400,9 @@ public interface ModuleContext {
 
     /** Follows repository changes (Git sync). */
     void onRepositoryChanged(RepositoryChange listener);
+
+    /** Answers a running agent's request of this name (POST /api/agent/request with call). */
+    void runRequest(String call, RunRequest handler);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { AuditFigures, AuditRecord, CrApi, CrUser } from "../api/cr";
-import { Button, HelpButton, Select, usePersistent, type HelpTopic } from "../components";
-import { AREAS, wordsOf } from "./Audit";
+import type { AuditFigures, AuditRecord, CrApi, CrUser } from "../../api/cr";
+import { Button, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { AREAS, wordsOf } from "../../console/Audit";
 import { BusinessAgents } from "./BusinessAgents";
 import { Capacity } from "./Capacity";
 import { Dashboards } from "./Dashboards";
-import { RefreshButton, rowClick, when } from "./ListParts";
+import { RefreshButton, rowClick, when } from "../../console/ListParts";
 import { Operations } from "./Operations";
-import { QueueInsights } from "./QueueInsights";
+import { QueueInsights } from "../../console/QueueInsights";
 import { Value } from "./Value";
 
 /**
