@@ -267,6 +267,17 @@ When the agent runs from a work queue and returns `validation` as an output name
 **To validate** in One CommandCenter. A person opens **Validate**, sees the unsure fields in red, corrects them and
 **Approve**s (the item goes back to the agent with `validated_fields`) or **Reject**s it.
 
+### 8.3a Route, extract by rules, and learn from corrections
+
+The **Document processing** toolkit works on a document's text (read it first with the PDF, OCR or Word toolkits):
+
+| Action | What it does |
+| --- | --- |
+| **Classify document** | Decides the document type from a list such as `[{"name": "invoice", "keywords": ["invoice", "VAT", "amount due"], "description": "a supplier invoice"}]`. **keywords** counts each type's words; **ai** asks the model with the descriptions; **keywords_then_ai** (the default) uses the keywords when the best type reaches **min_score** and leads, and asks the model otherwise. A type the model names that is not in the list counts as `unknown` |
+| **Extract by rules** | Per field, a **regex** (its first match, or its first group) or **after** a label (the rest of the line, up to **until**). No AI: nothing leaves the runner. Fields not found are in **missing** |
+| **Save validated example** | After a person checked the values (for example in **To validate**), keeps them with the start of the document's text in an example file per type (the newest 50) |
+| **Extract with examples** | Extracts with AI and sends the newest **max_examples** examples of the same type with the request, so the model follows how your documents are read and gets better as people correct it |
+
 ### 8.4 Ready-made cloud AI services (AWS, Azure, Google)
 
 If your company already pays for a cloud provider's AI services, three toolkits call them directly, with no REST
