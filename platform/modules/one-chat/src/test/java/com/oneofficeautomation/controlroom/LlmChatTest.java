@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.chat.Chat;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.sun.net.httpserver.HttpServer;
@@ -59,7 +61,7 @@ class LlmChatTest {
         cr.platform.saveModelConnection(admin, Map.of("name", "local", "provider", "openai_compatible", "model", "stub-model",
                 "base_url", "http://127.0.0.1:" + model.getAddress().getPort() + "/v1"), null);
         cr.platform.updateSettings(admin, Map.of("chat_runner", device, "chat_mode", "llm", "chat_connection", "local"), null);
-        chat = new Chat(cr, data, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
+        chat = new Chat(cr.modules.contextFor("one-chat"), data, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
     }
 
     @AfterAll void stop() { model.stop(0); cr.triggerPollers.stop(); db.close(); }

@@ -67,8 +67,8 @@ public interface ModuleContext {
     /** Whether the person may use the vault folder (as its consumer). */
     boolean consumesVaultFolder(String username, String role, String folder);
 
-    /** Records an Audit Trail entry. */
-    void audit(String by, String action, String objectType, String objectId, Map<String, Object> details, String outcome, String ip);
+    /** Records an Audit Trail entry; details is usually a map, or a short text. */
+    void audit(String by, String action, String objectType, String objectId, Object details, String outcome, String ip);
 
     /** A Settings value (the module's own, from {@link #defineSetting}, or the kernel's). */
     Object setting(String key);
@@ -108,6 +108,21 @@ public interface ModuleContext {
      * the queue's rules and the person's rights apply. Returns {ids}.
      */
     Map<String, Object> addWorkItems(User by, String actor, String queueId, List<Object> items, String ip);
+
+    /** Every main and further role of a person. */
+    List<String> rolesOf(String username, String role);
+
+    /** Whether a role exists (built in or custom). */
+    boolean roleExists(String role);
+
+    /** An online runner that takes work, or null when none is online. */
+    String onlineRunner();
+
+    /** The model connections (AI gateway) a person's roles may use, as a run's job carries them. */
+    Map<String, Object> modelConnectionsFor(List<String> roles);
+
+    /** Records the AI calls a run (or a chat turn) made, for AI governance. */
+    void recordAiCalls(Map<String, Object> run, List<?> calls);
 
     /** A trigger's settings (its config), as the trigger pollers read them. */
     Map<String, Object> triggerConfig(Map<String, Object> trigger);
@@ -154,6 +169,17 @@ public interface ModuleContext {
 
     /** The sites that may show a page in a frame, as a frame-ancestors list ("https://a.example https://b.example"), or null when there is no such page. */
     @FunctionalInterface interface FrameOrigins { String forPage(String id); }
+
+    /** Told when a run (or a chain of suspended and resumed runs) ends: success, failed or stopped. */
+    @FunctionalInterface interface RunEnded { void ended(Map<String, Object> run, String status, Map<String, Object> result); }
+
+    /** Task inbox tasks of a stage a module opens (One Chat's R3 approvals), whatever their kind. */
+    interface TaskStage {
+        /** Refuses (OoaException) a person completing the task, such as approving their own request. */
+        default void checkComplete(User u, Map<String, Object> task) { }
+        /** The task was decided; returns the id of a run it started, or null. */
+        String decided(Map<String, Object> task, User u, String outcome, String comment, String ip);
+    }
 
     /** Checks a value saved in Settings for a module's setting; throws OoaException (CR.BAD_INPUT) to refuse it. */
     @FunctionalInterface interface SettingCheck { void check(String value, boolean saas); }
@@ -253,6 +279,12 @@ public interface ModuleContext {
      * may frame; an unknown id gets 404.
      */
     void embeddablePage(String path, FrameOrigins origins);
+
+    /** Tells the module when runs end (after the kernel's own follow-up: work items, KPIs, workflows). */
+    void onRunEnded(RunEnded listener);
+
+    /** Tasks whose stage the module owns (One Chat: chat_approval). */
+    void taskStage(String stage, TaskStage rules);
 
     /** A job on One CommandCenter's clock, on the cluster's leader only, first after the delay. Failures are ignored until the next turn. */
     void every(Duration delay, Duration period, Runnable job);

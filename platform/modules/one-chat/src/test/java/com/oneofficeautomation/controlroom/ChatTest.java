@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.chat.Chat;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -41,7 +43,7 @@ class ChatTest {
                 "{\"examples\":[\"start the payment run\",\"pay due vendor invoices\"],\"risk\":\"R3\"}"), "v1", true, null);
         device = (String) cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null).get("device_id");
         cr.platform.updateSettings(admin, Map.of("chat_runner", device), null);
-        chat = new Chat(cr, data, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
+        chat = new Chat(cr.modules.contextFor("one-chat"), data, Clock.fixed(Instant.parse("2026-11-03T05:30:00Z"), ZoneId.of("Asia/Kolkata")));
     }
 
     @AfterAll void stop() { cr.triggerPollers.stop(); db.close(); }
@@ -95,24 +97,24 @@ class ChatTest {
         String sid = (String) chat.message(admin, null, "process vendor invoices", null).get("session_id");
         assertNotNull(db.one("SELECT username FROM chat_sessions WHERE id = ?", sid), "stored after the message");
 
-        Chat restarted = new Chat(cr, data, clock);   // a new Command Center process reads the same database
+        Chat restarted = new Chat(cr.modules.contextFor("one-chat"), data, clock);   // a new Command Center process reads the same database
         assertEquals("question", restarted.message(admin, sid, "globex", null).get("kind"));
         Map<String, Object> c = restarted.message(admin, sid, "today", null);
         assertEquals("confirm", c.get("kind"));
         assertEquals(Map.of("vendor", "Globex", "from", "2026-11-03"), c.get("inputs"));
-        assertEquals("cancelled", new Chat(cr, data, clock).message(admin, sid, "no", null).get("kind"));
-        assertEquals(8, new Chat(cr, data, clock).history(admin, sid).size());
+        assertEquals("cancelled", new Chat(cr.modules.contextFor("one-chat"), data, clock).message(admin, sid, "no", null).get("kind"));
+        assertEquals(8, new Chat(cr.modules.contextFor("one-chat"), data, clock).history(admin, sid).size());
     }
 
     @Test void theChatSaysWhenItsRunsEnd() {
-        Map<String, Object> started = cr.chat.message(admin, null, "show payables aging", null);
+        Map<String, Object> started = cr.modules.service(Chat.class).message(admin, null, "show payables aging", null);
         String sid = (String) started.get("session_id"), runId = (String) started.get("run_id");
         assertTrue(String.valueOf(started.get("reply")).contains("I'll tell you here when it finishes"));
 
         // the runner picks the run up and reports it finished: the chat hears at once
         db.update("UPDATE runs SET status = 'running', started = CURRENT_TIMESTAMP WHERE id = ?", runId);
         cr.finish(db.one("SELECT * FROM devices WHERE id = ?", device), runId, Map.of("status", "success", "outputs", Map.of("note", "ok", "overdue_inr", 1840000)));
-        List<Map<String, Object>> h = cr.chat.history(admin, sid);
+        List<Map<String, Object>> h = cr.modules.service(Chat.class).history(admin, sid);
         Map<String, Object> last = h.get(h.size() - 1);
         assertEquals("run_success", last.get("kind"));
         assertEquals(runId, last.get("run_id"));
@@ -120,13 +122,13 @@ class ChatTest {
         assertTrue(said.contains("finished. Results: ") && said.contains("note = ok") && said.contains("overdue_inr = 1840000"), said);
 
         // a run that ends another way (here: refused at dispatch) is picked up on the clock tick, and told once
-        String sid2 = (String) cr.chat.message(admin, null, "show payables aging", null).get("session_id");
-        String run2 = (String) cr.chat.history(admin, sid2).get(1).get("run_id");
+        String sid2 = (String) cr.modules.service(Chat.class).message(admin, null, "show payables aging", null).get("session_id");
+        String run2 = (String) cr.modules.service(Chat.class).history(admin, sid2).get(1).get("run_id");
         db.update("UPDATE runs SET status = 'failed', finished = CURRENT_TIMESTAMP, error = ? WHERE id = ?",
                 JsonLite.write(Map.of("message", "SAP did not answer", "suggestedFix", "Try again in a few minutes.")), run2);
-        cr.reap();
-        cr.reap();
-        List<Map<String, Object>> h2 = cr.chat.history(admin, sid2);
+        cr.modules.service(Chat.class).deliverRunUpdates();   // the module's clock job (every 15 s on the leader)
+        cr.modules.service(Chat.class).deliverRunUpdates();
+        List<Map<String, Object>> h2 = cr.modules.service(Chat.class).history(admin, sid2);
         assertEquals(1, h2.stream().filter(m -> String.valueOf(m.get("kind")).startsWith("run_")).count(), "told once: " + h2);
         assertEquals("AP aging report (run " + run2 + ") failed: SAP did not answer Try again in a few minutes.", h2.get(h2.size() - 1).get("text"));
     }
@@ -141,11 +143,11 @@ class ChatTest {
     void r3AgentRunsOnlyAfterSomeoneElseApproves() {
         ControlRoom.User olga = RepositoryLifecycleTest.person(cr, admin, "olga", "admin");
         long before = runs("admin");
-        Map<String, Object> c = cr.chat.message(admin, null, "start the payment run", null);
+        Map<String, Object> c = cr.modules.service(Chat.class).message(admin, null, "start the payment run", null);
         assertEquals("confirm", c.get("kind"));
         assertTrue(String.valueOf(c.get("reply")).contains("someone other than you must approve"), String.valueOf(c));
         String sid = (String) c.get("session_id");
-        Map<String, Object> asked = cr.chat.message(admin, sid, "yes", null);
+        Map<String, Object> asked = cr.modules.service(Chat.class).message(admin, sid, "yes", null);
         assertEquals("awaiting_approval", asked.get("kind"), String.valueOf(asked));
         String task = (String) asked.get("task_id");
         assertEquals(before, runs("admin"), "nothing runs before the approval");
@@ -160,7 +162,7 @@ class ChatTest {
         assertEquals("chat", run.get("source"));
         assertEquals(PAYMENT, run.get("bot_path"));
 
-        List<Map<String, Object>> history = cr.chat.history(admin, sid);
+        List<Map<String, Object>> history = cr.modules.service(Chat.class).history(admin, sid);
         assertTrue(String.valueOf(history.get(history.size() - 1).get("text")).contains("olga approved"), String.valueOf(history));
         assertTrue(cr.workflows.tasks(admin, "open", false).stream().anyMatch(t -> String.valueOf(t.get("title")).startsWith("Approved: ")), "a notice in the requester's inbox");
         List<String> actions = db.query("SELECT action FROM audit WHERE object_id = ?", task).stream().map(a -> String.valueOf(a.get("action"))).toList();

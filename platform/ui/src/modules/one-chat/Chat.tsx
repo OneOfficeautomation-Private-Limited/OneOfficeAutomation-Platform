@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatMessage, CrApi } from "../api/cr";
-import { Button, HelpButton, TextInput, type HelpTopic } from "../components";
+import type { ChatMessage, CrApi } from "../../api/cr";
+import { Button, HelpButton, TextInput, type HelpTopic } from "../../components";
 
 /**
  * AI > One Chat: run agents and check your runs in plain words. Runs start as the person, with their permissions; anything

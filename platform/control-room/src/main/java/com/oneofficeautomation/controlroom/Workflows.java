@@ -443,9 +443,9 @@ public final class Workflows {
         ModuleContext.TaskKind moduleKind = cr.modules == null ? null : cr.modules.taskKind(kind);
         if (moduleKind != null && moduleKind.completeElsewhere() != null)
             throw new OoaException("CR.BAD_INPUT", moduleKind.completeElsewhere(), "The task then closes by itself.");
-        // One Chat's R3 approvals: never your own request, administrators included
-        if (kind.equals("approval") && u.username().equals(Chat.requester(t)))
-            throw new OoaException("CR.FORBIDDEN", "You cannot approve your own request", "Someone else among the approvers decides it.");
+        // a stage a feature module owns (One Chat's R3 approvals: never your own request, administrators included)
+        ModuleContext.TaskStage moduleStage = cr.modules == null ? null : cr.modules.taskStage(t.get("stage"));
+        if (moduleStage != null) moduleStage.checkComplete(u, t);
         Map<String, Object> result = new LinkedHashMap<>();
         String forcedNext = null;
         String out;
@@ -475,8 +475,8 @@ public final class Workflows {
         if (t.get("workflow_run_id") != null && !kind.equals("notification"))
             resume((String) t.get("workflow_run_id"), String.valueOf(t.get("stage")), result, kind.equals("approval") ? out : "task_completed",
                     Map.of("task_id", taskId, "by", u.username()), forcedNext);
-        if (kind.equals("approval") && Chat.APPROVAL_STAGE.equals(t.get("stage"))) {
-            String runId = cr.chat.decided(t, u, out, comment, ip);
+        if (moduleStage != null) {
+            String runId = moduleStage.decided(t, u, out, comment, ip);
             if (runId != null) return Map.of("ok", true, "outcome", out, "run_id", runId);
         }
         return Map.of("ok", true, "outcome", out);

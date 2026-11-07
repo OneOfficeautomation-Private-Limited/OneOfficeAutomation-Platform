@@ -78,17 +78,12 @@
       "id": "one-chat",
       "name": "One Chat",
       "layer": 3,
-      "description": "Running agents and checking runs in plain words.",
+      "description": "Running agents and checking runs in plain words. Moved out of the kernel: platform/modules/one-chat (Gradle project :one-chat).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Chat.java",
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/ChatModel.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Chat*Test.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/ChatModel*Test.java",
-        "platform/ui/src/console/Chat.tsx",
-        "platform/ui/src/console/Chat.test.tsx",
+        "platform/modules/one-chat/**",
+        "platform/ui/src/modules/one-chat/**",
         "platform/conversation/**",
-        "docs/user-guide/16-one-chat.md",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/LlmChatTest.java"
+        "docs/user-guide/16-one-chat.md"
       ],
       "dependsOn": [
         "kernel"

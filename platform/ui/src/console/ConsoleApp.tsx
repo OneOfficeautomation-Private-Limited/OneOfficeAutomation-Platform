@@ -15,7 +15,7 @@ import { Ideas } from "../modules/coe/Ideas";
 import { DataStore } from "../modules/low-code/DataStore";
 import { Apps } from "../modules/low-code/Apps";
 import { KnowledgeBases } from "../modules/ai-services/KnowledgeBases";
-import { Chat } from "./Chat";
+import { Chat } from "../modules/one-chat/Chat";
 import { EventSubscriptions } from "./EventSubscriptions";
 import { Globals } from "./Globals";
 import { Governance } from "./Governance";
