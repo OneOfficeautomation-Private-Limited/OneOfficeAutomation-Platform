@@ -172,6 +172,31 @@ Outputs: **success**, **answer**, **data**, **steps** (each step in words), **ur
 
 > **Tip:** Always set **Allowed sites** and clear rules in **Instructions** for goal agents that can change data.
 
+## 6a. Decision tables (business rules)
+
+Keep rules that change, such as approval limits or discounts, in a **decision table** instead of If steps. The
+**Business rules** toolkit's **Evaluate decision table** reads it from a CSV file, which you can keep and edit in
+Excel (Save As > CSV), or from a table value. The header row names the columns:
+
+- `in:NAME`: a condition on the input NAME;
+- `out:NAME`: what a matching rule gives;
+- `rule` (optional): the rule's name, returned as **rule**.
+
+A condition cell is empty or `-` for any value; a value for equal (numbers as numbers, text without regard to case);
+`<1000`, `<=1000`, `>1000`, `>=1000` or `!=EU`; a range `1000..5000` (both ends included; `[1000..5000)` leaves the
+upper end out); a list `EU, UK`; or `not EU, UK`. For example:
+
+| rule | in:amount | in:region | out:approver |
+| --- | --- | --- | --- |
+| small | <1000 | - | team lead |
+| eu large | 1000..50000 | EU, UK | finance manager |
+| large | 1000..50000 | - | controller |
+| huge | >50000 | - | CFO |
+
+**Hit policy** says what happens when several rules match: **first** (the first in order, the default), **unique**
+(exactly one must match, else the step fails with `RULES.NOT_UNIQUE`) or **collect** (all of them, in **all**). With no
+match the step gives **default_outputs**, or fails when **fail_when_none** is ticked.
+
 ## 7. Knowledge Q&A
 
 Answer questions from your company's documents:

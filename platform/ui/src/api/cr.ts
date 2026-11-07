@@ -174,7 +174,7 @@ export type TaskFormField = { id: string; type: string; label?: string; text?: s
 /** A task a workflow gives a person or role: fill in a form, approve, or read a notice. */
 export type HumanTask = { id: string; title: string; description?: string | null; kind: "form" | "approval" | "notification"; status: string; assignee?: string;
   claimed_by?: string | null; completed_by?: string | null; created?: string; due?: string | null; completed?: string | null; overdue?: boolean; can_act?: boolean; outcome?: string | null;
-  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string;
+  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string; stage?: string | null; stages?: { id: string; name: string }[];
   /** Where it comes from: its workflow's name and the request's reference. */
   workflow?: string | null; reference?: string | null };
 /** A holiday calendar: dates schedules skip, and (gap G34) the weekend agents' working-day steps skip too. */

@@ -24,6 +24,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
+| [Business rules](ooa-rules.md) | `ooa.rules` | 1 | 0 | 0 | Decide with a decision table kept as a CSV file (or a table): conditions in in: columns, results in out: columns. |
 | [Credential vault](ooa-vault.md) | `ooa.vault` | 2 | 1 | 0 | Save a credential's new value in One CommandCenter's vault, for example after a password reset, and check when a credential expires. |
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
