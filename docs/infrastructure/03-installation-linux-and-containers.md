@@ -209,6 +209,33 @@ data-only account and a trusted certificate (see [05](05-databases.md)).
 `.env`: `OOA_DB_PASSWORD`, `OOA_MASTER_KEY`, `OOA_OPERATOR_TOKEN_SHA256` (from `ooa region token`). Tenants answer
 at `NAME.in.localtest.me:8720`. See [09](09-saas-and-multi-region-operations.md) for production.
 
+### Document Automation: `compose.docflow.yaml` and `compose.saas.docflow.yaml`
+
+These are optional add-on files. Each one adds the DocFlow service (AI > Document Automation) and its own
+PostgreSQL database to the file it extends:
+
+```bash
+docker compose -f docker/compose.yaml -f docker/compose.docflow.yaml up -d
+docker compose -f docker/compose.saas.yaml -f docker/compose.saas.docflow.yaml up -d
+```
+
+| Service | What it does |
+| --- | --- |
+| `docflow-db` | `postgres:16-alpine`, database and user `docflow`, volume `docflow-db` |
+| `docflow` | DocFlow at the version this release is tested with (built from its `v3.1.0` tag, or `DOCFLOW_IMAGE`). It runs in managed mode, uses volume `docflow-data` and publishes no port |
+| `command-center` / `region` | Gets `OOA_DOCFLOW_URL` and `OOA_DOCFLOW_TOKEN`, so Document Automation works with no further set-up |
+
+Add these to `.env`:
+- `DOCFLOW_TOKEN`: the shared service token (`openssl rand -hex 32`);
+- `DOCFLOW_DB_PASSWORD`;
+- for SaaS only, `DOCFLOW_PLATFORM_URL` with `{tenant}`, for example `https://{tenant}.in.example.com`;
+- engine keys, only for the cloud and AI engines a customer chooses. Each engine stays off while its key is empty.
+
+Managed mode means DocFlow won't start without the token and never updates itself. On premises,
+Settings > Document Automation still overrides the address and token. Offline sites build or pull the image
+elsewhere, load it with `docker load`, and set `DOCFLOW_IMAGE`. The full agreement between the two services is in
+[the Document Automation contract](../integration/document-automation-contract.md).
+
 ## 10. Orchestrators
 
 | Platform | Notes |

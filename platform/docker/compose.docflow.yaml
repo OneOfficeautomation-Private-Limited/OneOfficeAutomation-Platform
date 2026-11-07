@@ -1,0 +1,61 @@
+# Document Automation (AI > Document Automation): adds the DocFlow service and its PostgreSQL to compose.yaml.
+#   docker compose -f docker/compose.yaml -f docker/compose.docflow.yaml up -d
+# Without this file nothing changes: One CommandCenter runs as before and the page says the service is not set up.
+#
+# Add to the .env file beside compose.yaml (never commit it):
+#   DOCFLOW_TOKEN=...          the service token both sides share: openssl rand -hex 32
+#   DOCFLOW_DB_PASSWORD=...    DocFlow's own database account
+# Optional, only for the cloud and AI engines a customer chooses to use (each stays off while its key is empty):
+#   AZURE_DI_ENDPOINT, AZURE_DI_KEY, AZURE_DI_REGION, CLAUDE_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_API_KEY,
+#   LOCAL_LLM_BASE_URL, LOCAL_LLM_MODEL
+#
+# DocFlow is the version this release is tested with (control-room's docflow-compat.properties: pinned, ref). It is
+# built from its release tag the first time; DOCFLOW_IMAGE can name an image from your own registry instead (offline
+# sites load it with docker load). It runs in managed mode: it will not start without the token, never updates
+# itself, and is reached only by One CommandCenter on the compose network (no port is published).
+services:
+  docflow-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: docflow
+      POSTGRES_USER: docflow
+      POSTGRES_PASSWORD: ${DOCFLOW_DB_PASSWORD:?set DOCFLOW_DB_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    volumes: [ "docflow-db:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U docflow -d docflow" ]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+
+  docflow:
+    image: ${DOCFLOW_IMAGE:-oneoffice/docauto:3.1.0}
+    build: https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#v3.1.0
+    depends_on: { docflow-db: { condition: service_healthy } }
+    environment:
+      DOCAUTO_MANAGED: "true"
+      DOCAUTO_API_TOKEN: ${DOCFLOW_TOKEN:?set DOCFLOW_TOKEN in .env}
+      DOCAUTO_DATABASE_URL: postgresql://docflow:${DOCFLOW_DB_PASSWORD}@docflow-db:5432/docflow
+      # where "Start a bot" deliveries and document events go back to
+      DOCAUTO_PLATFORM_URL: http://command-center:8720
+      AZURE_DI_ENDPOINT: ${AZURE_DI_ENDPOINT:-}
+      AZURE_DI_KEY: ${AZURE_DI_KEY:-}
+      AZURE_DI_REGION: ${AZURE_DI_REGION:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-}
+    volumes: [ "docflow-data:/app/data" ]
+    restart: unless-stopped
+
+  command-center:
+    environment:
+      # used while Settings > Document Automation is empty; an administrator can still point it elsewhere there
+      OOA_DOCFLOW_URL: http://docflow:8085
+      OOA_DOCFLOW_TOKEN: ${DOCFLOW_TOKEN}
+
+volumes:
+  docflow-db:
+  docflow-data:

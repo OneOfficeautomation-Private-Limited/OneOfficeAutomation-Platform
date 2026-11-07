@@ -1,0 +1,55 @@
+# Document Automation for a SaaS region: adds the region's DocFlow service and its PostgreSQL to compose.saas.yaml.
+#   docker compose -f docker/compose.saas.yaml -f docker/compose.saas.docflow.yaml up -d
+# One DocFlow serves every tenant of the region. Each tenant's documents and settings are kept apart (DocFlow keys
+# them by the X-OOA-Tenant header the region sends); a tenant cannot point Document Automation anywhere else.
+#
+# Add to the .env file beside compose.saas.yaml (never commit it):
+#   DOCFLOW_TOKEN=...          the service token the region and DocFlow share: openssl rand -hex 32
+#   DOCFLOW_DB_PASSWORD=...    DocFlow's own database account
+#   DOCFLOW_PLATFORM_URL=...   how DocFlow reaches a tenant's Command Center for "Start a bot" deliveries and events,
+#                              with {tenant} for the tenant, e.g. https://{tenant}.in.example.com (the trial domain
+#                              *.in.localtest.me of compose.saas.yaml resolves only on the host, not inside DocFlow)
+# Optional engine keys as in compose.docflow.yaml. With our own (resold) keys they are set here for the whole region.
+services:
+  docflow-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: docflow
+      POSTGRES_USER: docflow
+      POSTGRES_PASSWORD: ${DOCFLOW_DB_PASSWORD:?set DOCFLOW_DB_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    volumes: [ "docflow-db:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U docflow -d docflow" ]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+
+  docflow:
+    image: ${DOCFLOW_IMAGE:-oneoffice/docauto:3.1.0}
+    build: https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#v3.1.0
+    depends_on: { docflow-db: { condition: service_healthy } }
+    environment:
+      DOCAUTO_MANAGED: "true"
+      DOCAUTO_PROFILE: cloud_saas
+      DOCAUTO_API_TOKEN: ${DOCFLOW_TOKEN:?set DOCFLOW_TOKEN in .env}
+      DOCAUTO_DATABASE_URL: postgresql://docflow:${DOCFLOW_DB_PASSWORD}@docflow-db:5432/docflow
+      DOCAUTO_PLATFORM_URL: ${DOCFLOW_PLATFORM_URL:?set DOCFLOW_PLATFORM_URL in .env}
+      AZURE_DI_ENDPOINT: ${AZURE_DI_ENDPOINT:-}
+      AZURE_DI_KEY: ${AZURE_DI_KEY:-}
+      AZURE_DI_REGION: ${AZURE_DI_REGION:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    volumes: [ "docflow-data:/app/data" ]
+    restart: unless-stopped
+
+  region:
+    environment:
+      OOA_DOCFLOW_URL: http://docflow:8085
+      OOA_DOCFLOW_TOKEN: ${DOCFLOW_TOKEN}
+
+volumes:
+  docflow-db:
+  docflow-data:

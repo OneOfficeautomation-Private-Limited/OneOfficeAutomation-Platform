@@ -404,6 +404,46 @@ jobs:
           docker run --rm --volumes-from withdb --network ooa -e "OOA_MASTER_KEY=$KEY" -e "OOA_DB_URL=jdbc:postgresql://pg:5432/ooa2" \
             -e OOA_DB_USER=postgres -e "OOA_DB_PASSWORD=$PW" ooa-command-center:ci backup restore "/data/backups/$FILE"
           docker exec pg psql -U postgres -d ooa2 -tAc "SELECT COUNT(*) FROM users" | grep -qx 1
+      - name: Command Center with the DocFlow container (Document Automation, as docker/compose.docflow.yaml runs it)
+        run: |
+          # DocFlow at the release this Command Center is tested with, built from its tag like the compose file does
+          REF=$(sed -n 's/^ref=//p' control-room/src/main/resources/docflow-compat.properties | tr -d '\r')
+          docker build -q -t docflow:ci "https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#$REF"
+          PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"; TOK="$(openssl rand -hex 32)"; NEW="Ci-Admin-$(openssl rand -hex 8)"
+          echo "::add-mask::$PW"; echo "::add-mask::$KEY"; echo "::add-mask::$TOK"; echo "::add-mask::$NEW"
+          docker network create dfnet
+          docker run -d --name dfdb --network dfnet -e POSTGRES_USER=docflow -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_DB=docflow \
+            -e "POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C" postgres:16-alpine
+          for i in $(seq 1 60); do docker exec dfdb pg_isready -U docflow -d docflow >/dev/null 2>&1 && break; sleep 2; done
+          DB="postgresql://docflow:$PW@dfdb:5432/docflow"
+          # managed mode: without the token DocFlow refuses to start
+          if timeout 180 docker run --rm --network dfnet -e DOCAUTO_MANAGED=true -e "DOCAUTO_DATABASE_URL=$DB" docflow:ci > notoken.log 2>&1; then
+            cat notoken.log; echo "DocFlow started without a token"; exit 1
+          fi
+          grep -q "DOCAUTO_API_TOKEN" notoken.log
+          docker run -d --name docflow --network dfnet -e DOCAUTO_MANAGED=true -e "DOCAUTO_API_TOKEN=$TOK" -e "DOCAUTO_DATABASE_URL=$DB" \
+            -e DOCAUTO_PLATFORM_URL=http://cc:8720 docflow:ci
+          docker run -d --name cc --network dfnet -p 8740:8720 -e "OOA_MASTER_KEY=$KEY" -e OOA_DOCFLOW_URL=http://docflow:8085 \
+            -e "OOA_DOCFLOW_TOKEN=$TOK" ooa-command-center:ci
+          for i in $(seq 1 60); do curl -sf http://localhost:8740/api/health/ready >/dev/null && break; sleep 2; done
+          curl -sf http://localhost:8740/api/health/ready || { docker logs cc | tail -50; exit 1; }
+          # sign in as the first administrator (one-time password from the log), set a password, sign in again
+          FIRST=$(docker logs cc 2>&1 | grep -o "one-time password  [^ ]*" | tail -1 | awk '{print $3}')
+          echo "::add-mask::$FIRST"; test -n "$FIRST"
+          login() { curl -s -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"$1\"}" http://localhost:8740/api/auth/login | grep -o '"token":"[^"]*"' | cut -d'"' -f4; }
+          T=$(login "$FIRST"); echo "::add-mask::$T"; test -n "$T"
+          curl -sf -H "Authorization: Bearer $T" -H "Content-Type: application/json" -d "{\"current\":\"$FIRST\",\"new\":\"$NEW\"}" http://localhost:8740/api/auth/password
+          T=$(login "$NEW"); echo "::add-mask::$T"; test -n "$T"
+          # the page's service card: DocFlow answers, in managed mode, at the version this release is tested with
+          for i in $(seq 1 60); do
+            V=$(curl -s -H "Authorization: Bearer $T" http://localhost:8740/api/docflow/version)
+            echo "$V" | grep -q '"status":"compatible"' && break; sleep 3
+          done
+          echo "$V"; echo "$V" | grep -q '"status":"compatible"' || { docker logs docflow | tail -50; exit 1; }
+          curl -sf -H "Authorization: Bearer $T" http://localhost:8740/api/docflow/df/flows | grep -q '"smart-inbox"'
+          docker exec docflow python -c "import urllib.request,json; v=json.load(urllib.request.urlopen('http://127.0.0.1:8085/api/docs/v1/admin/version')); assert v['managed'] is True and 'folder' not in v, v"
+          # DocFlow publishes no port: only the Command Center on its network reaches it
+          test -z "$(docker port docflow)"
       - name: A SaaS region with two tenants on PostgreSQL (C3)
         run: |
           PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"

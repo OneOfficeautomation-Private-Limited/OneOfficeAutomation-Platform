@@ -141,6 +141,34 @@ class DocFlowProxyTest {
         assertTrue(Rbac.allowed("viewer", "docs.view"));                       // everyone who may see the page may see this
     }
 
+    @Test void withoutSettingsTheContainersAddressAndTokenAreUsed() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String url = "http://127.0.0.1:" + docflow.getAddress().getPort();
+        var before = DocFlowProxy.env;
+        try {
+            cr.platform.updateSettings(admin, Map.of("docflow_url", "", "docflow_token_ref", ""), null);
+            DocFlowProxy.env = k -> null;
+            DocFlowProxy p = new DocFlowProxy(cr);
+            assertFalse(p.configured());
+            assertEquals(DocFlowProxy.DEFAULT_URL, p.baseUrl());
+            // what the platform's containers and installer set when they start DocFlow beside the Command Center
+            DocFlowProxy.env = k -> switch (k) { case "OOA_DOCFLOW_URL" -> url + "/"; case "OOA_DOCFLOW_TOKEN" -> "env-tok"; default -> null; };
+            assertTrue(p.configured());
+            assertEquals(url, p.baseUrl());
+            seen.clear();
+            assertEquals(200, call("GET", "/api/docflow/df/flows", null).statusCode());
+            assertEquals("Bearer env-tok", seen.get(0).get("auth"));
+            // Settings > Document Automation still wins
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", "docflow/service/token"), null);
+            seen.clear();
+            assertEquals(200, call("GET", "/api/docflow/df/flows", null).statusCode());
+            assertEquals("Bearer svc-123", seen.get(0).get("auth"));
+        } finally {
+            DocFlowProxy.env = before;
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", "docflow/service/token"), null);
+        }
+    }
+
     @Test void permissionsPerRoute() {
         assertEquals("docs.view", DocFlowProxy.permission("GET", "df/flows"));
         assertEquals("docs.review", DocFlowProxy.permission("POST", "df/documents/x1/review"));

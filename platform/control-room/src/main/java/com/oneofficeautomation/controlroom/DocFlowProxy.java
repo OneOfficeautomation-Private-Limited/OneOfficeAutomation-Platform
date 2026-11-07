@@ -188,8 +188,11 @@ final class DocFlowProxy {
     /** Whether Document Automation is set up here (so the background sync does not knock on a service that is not there). */
     boolean configured() {
         if (cr.tenant != null) return env.apply("OOA_DOCFLOW_URL") != null;
-        return !String.valueOf(cr.platform.setting("docflow_url")).isBlank() || !String.valueOf(cr.platform.setting("docflow_token_ref")).isBlank();
+        return !String.valueOf(cr.platform.setting("docflow_url")).isBlank() || !String.valueOf(cr.platform.setting("docflow_token_ref")).isBlank()
+                || !blank(env.apply("OOA_DOCFLOW_URL"));
     }
+
+    private static boolean blank(String s) { return s == null || s.isBlank(); }
 
     /**
      * Keeps the Task inbox in step with DocFlow's review queue: a task for each document waiting for review (due at the
@@ -521,15 +524,24 @@ final class DocFlowProxy {
 
     private String tenant() { return cr.tenant == null ? "default" : cr.tenant; }
 
+    /**
+     * DocFlow's address. On premises Settings > Document Automation wins; when it is empty, OOA_DOCFLOW_URL (set by the
+     * platform's containers and installer, which start DocFlow beside the Command Center), else 127.0.0.1:8085.
+     */
     String baseUrl() {
         String u = cr.tenant != null ? env.apply("OOA_DOCFLOW_URL") : String.valueOf(cr.platform.setting("docflow_url")).trim();
-        return (u == null || u.isBlank() ? DEFAULT_URL : u.trim()).replaceAll("/+$", "");
+        if (cr.tenant == null && blank(u)) u = env.apply("OOA_DOCFLOW_URL");
+        return (blank(u) ? DEFAULT_URL : u.trim()).replaceAll("/+$", "");
     }
 
+    /** The service token: on premises the vault credential Settings names, else OOA_DOCFLOW_TOKEN (as in SaaS). */
     private String token() {
-        if (cr.tenant != null) { String t = env.apply("OOA_DOCFLOW_TOKEN"); return t == null ? "" : t.trim(); }
-        String ref = String.valueOf(cr.platform.setting("docflow_token_ref")).trim();
-        return ref.isEmpty() ? "" : cr.systemCredential(ref);
+        if (cr.tenant == null) {
+            String ref = String.valueOf(cr.platform.setting("docflow_token_ref")).trim();
+            if (!ref.isEmpty()) return cr.systemCredential(ref);
+        }
+        String t = env.apply("OOA_DOCFLOW_TOKEN");
+        return t == null ? "" : t.trim();
     }
 
     /** The environment (tests replace it). */

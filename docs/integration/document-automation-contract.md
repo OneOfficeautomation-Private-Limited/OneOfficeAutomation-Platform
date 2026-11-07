@@ -26,8 +26,8 @@ DocFlow ──> /api/docflow-callback/events     (not built here yet: see Known 
 
 | | On premises | SaaS (each region) |
 |---|---|---|
-| Address | Settings `docflow_url` (empty means `http://127.0.0.1:8085`) | `OOA_DOCFLOW_URL`, set by the region's operator |
-| Token | Settings `docflow_token_ref`, a vault reference `folder/credential/attribute` | `OOA_DOCFLOW_TOKEN` |
+| Address | Settings `docflow_url`; when empty, `OOA_DOCFLOW_URL` (set by the platform's containers); else `http://127.0.0.1:8085` | `OOA_DOCFLOW_URL`, set by the region's operator |
+| Token | Settings `docflow_token_ref`, a vault reference `folder/credential/attribute`; when empty, `OOA_DOCFLOW_TOKEN` | `OOA_DOCFLOW_TOKEN` |
 | Tenant sent | `default` | The tenant's id |
 
 DocFlow has the same token in `DOCAUTO_API_TOKEN`, and the Command Center's address in `DOCAUTO_PLATFORM_URL` for
@@ -116,5 +116,6 @@ DocFlow's `DOCAUTO_PLATFORM_URL` must then be `http://127.0.0.1:18766`.
 1. **Events.** DocFlow posts document events to `/api/docflow-callback/events`. The Command Center has no such route
    and answers 404, which DocFlow does not retry. Nothing breaks, because the Command Center reads the review queue
    every 20 s instead. Adding the route is a later phase.
-2. **Not packaged yet.** DocFlow isn't in `platform/docker` compose files or the Windows installer yet (phase 5),
-   and there is no Helm chart yet (phase 6).
+2. **Packaging.** DocFlow is in the containers through the add-on files `docker/compose.docflow.yaml` and
+   `docker/compose.saas.docflow.yaml`, which CI tests in the "Container image" job. It is not yet in the Windows
+   installer (phase 5, second part), and there is no Helm chart yet (phase 6).
