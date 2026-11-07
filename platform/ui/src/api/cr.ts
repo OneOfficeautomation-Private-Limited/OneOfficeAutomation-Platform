@@ -242,6 +242,9 @@ export type Idea = { id: string; title: string; description?: string | null; dep
   updated?: string; updated_by?: string | null; votes: number; voted: boolean; mine: boolean; hours_year: number; value_year?: number | null; score?: number | null;
   runs_30_days?: number; hours_saved_30_days?: number | null };
 export type IdeaList = { ideas: Idea[]; can_manage: boolean; statuses: string[] };
+/** A knowledge base (G71): an index kept in One CommandCenter, filled by an indexing agent. */
+export type KnowledgeBase = { id: string; name: string; folder: string; description?: string; passages: number; documents: number; bytes: number;
+  created: string; created_by: string; updated?: string; updated_by_agent?: string; updated_by_run?: string };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -604,6 +607,10 @@ export class CrApi {
   async saveIdea(id: string | null, body: Partial<Idea>) { return this.call<Idea>(id ? "PUT" : "POST", id ? "ideas/" + encodeURIComponent(id) : "ideas", body); }
   async voteIdea(id: string) { return this.call<Idea>("POST", "ideas/" + encodeURIComponent(id) + "/vote"); }
   async deleteIdea(id: string) { await this.call("DELETE", "ideas/" + encodeURIComponent(id)); }
+  async knowledgeBases() { return (await this.call<{ knowledge_bases?: KnowledgeBase[] }>("GET", "knowledge-bases")).knowledge_bases ?? []; }
+  saveKnowledgeBase(id: string | null, body: { name: string; folder: string; description: string }) {
+    return this.call<KnowledgeBase>(id ? "PUT" : "POST", "knowledge-bases" + (id ? "/" + encodeURIComponent(id) : ""), body); }
+  async deleteKnowledgeBase(id: string) { await this.call("DELETE", "knowledge-bases/" + encodeURIComponent(id)); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----

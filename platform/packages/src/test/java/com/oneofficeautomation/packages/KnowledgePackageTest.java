@@ -49,13 +49,13 @@ class KnowledgePackageTest {
 
         // words only: no model needed
         Map<String, Object> built = k.buildIndex(ctx, List.of("policies"), List.of(Map.of("source", "travel.pdf", "text", "Book travel through the portal.")),
-            "kb/words.json.gz", null, null, null, null, null, 1000, 150, false);
+            "kb/words.json.gz", null, null, null, null, null, 1000, 150, false, null, null);
         assertEquals(BigDecimal.valueOf(4), built.get("documents"));
         assertEquals(1, ((List<Object>) built.get("skipped")).size(), "the picture is skipped with its reason");
-        List<Object> hits = (List<Object>) k.search(ctx, "kb/words.json.gz", "how many holiday days", 3, null, null).get("results");
+        List<Object> hits = (List<Object>) k.search(ctx, "kb/words.json.gz", "how many holiday days", 3, null, null, null).get("results");
         assertEquals("holidays.html", ((Map<String, Object>) hits.get(0)).get("source"));
         assertFalse(String.valueOf(((Map<String, Object>) hits.get(0)).get("text")).contains("var x"), "scripts are not indexed");
-        assertTrue(((List<Object>) k.search(ctx, "kb/words.json.gz", "reimbursement", 3, null, null).get("results")).isEmpty(), "words alone do not find the refund passage");
+        assertTrue(((List<Object>) k.search(ctx, "kb/words.json.gz", "reimbursement", 3, null, null, null).get("results")).isEmpty(), "words alone do not find the refund passage");
 
         try (Fake f = new Fake()) {
             f.on("POST /v1/embeddings", c -> {
@@ -65,15 +65,15 @@ class KnowledgePackageTest {
                 return ok(JsonLite.write(Map.of("data", data, "usage", Map.of("prompt_tokens", 7))));
             });
             f.on("POST /v1/chat/completions", c -> ok(String.format(AiGapsTest.CHAT_OK, "Refunds are paid within 14 days [1].")));
-            k.buildIndex(ctx, List.of("policies"), null, "kb/meaning.json", null, "openai_compatible", "emb-1", null, f.url() + "/v1", 1000, 150, false);
+            k.buildIndex(ctx, List.of("policies"), null, "kb/meaning.json", null, "openai_compatible", "emb-1", null, f.url() + "/v1", 1000, 150, false, null, null);
             Map<String, Object> idx = (Map<String, Object>) JsonLite.parse(Files.readString(w.resolve("kb/meaning.json")));
             assertEquals("emb-1", ((Map<String, Object>) idx.get("embedding_model")).get("model"));
 
             // by meaning: "reimbursement" finds the refund passage
-            List<Object> sem = (List<Object>) k.search(ctx, "kb/meaning.json", "reimbursement", 2, null, null).get("results");
+            List<Object> sem = (List<Object>) k.search(ctx, "kb/meaning.json", "reimbursement", 2, null, null, null).get("results");
             assertEquals("refunds.md", ((Map<String, Object>) sem.get(0)).get("source"));
 
-            Map<String, Object> a = k.ask(ctx, "kb/meaning.json", "Will I be reimbursed?", 2, null, "openai_compatible", "chat-1", null, f.url() + "/v1", null, 512, true, 0);
+            Map<String, Object> a = k.ask(ctx, "kb/meaning.json", "Will I be reimbursed?", 2, null, "openai_compatible", "chat-1", null, f.url() + "/v1", null, 512, true, 0, null);
             assertEquals("Refunds are paid within 14 days [1].", a.get("answer"));
             assertEquals(Boolean.TRUE, a.get("found"));
             String sent = f.last("POST", "/v1/chat/completions").text();
@@ -83,9 +83,9 @@ class KnowledgePackageTest {
         }
 
         // nothing matches: the model is not asked
-        Map<String, Object> none = k.ask(ctx, "kb/words.json.gz", "zebra xylophone", 3, null, "openai", "gpt", null, "http://127.0.0.1:9", null, 512, true, 0);
+        Map<String, Object> none = k.ask(ctx, "kb/words.json.gz", "zebra xylophone", 3, null, "openai", "gpt", null, "http://127.0.0.1:9", null, 512, true, 0, null);
         assertEquals(Boolean.FALSE, none.get("found"));
-        assertEquals("KNOWLEDGE.NO_INDEX", assertThrows(ActionException.class, () -> k.search(ctx, "kb/none.json", "x", 3, null, null)).code());
+        assertEquals("KNOWLEDGE.NO_INDEX", assertThrows(ActionException.class, () -> k.search(ctx, "kb/none.json", "x", 3, null, null, null)).code());
     }
 
     @Test

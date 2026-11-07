@@ -350,6 +350,20 @@ The assistant needs a model connection; without one it offers **Set up a Model C
 | The AI agent stops with `limit_reached` | Raise **Max steps** or **Max tokens total**, or give a clearer **Action plan**. |
 | The web goal agent wanders to other sites | Set **Allowed sites**. |
 
+## Knowledge bases kept in One CommandCenter
+
+Instead of each agent carrying its own index file, keep shared documents in a **knowledge base**: make it in
+**AI > Knowledge bases** (a name, the folder whose agents may use it, what it holds), then:
+
+- **Fill and refresh it** with an indexing agent: Knowledge Q&A > **Build index** with **Knowledge base** set to its
+  name. It reads files and folders (a share, a synced SharePoint library), **web pages** (intranet or public pages:
+  HTML, text or PDF) and texts. Schedule that agent (for example every night) so the base stays current; the list
+  shows when it was last refreshed and by which agent.
+- **Ask it** from any agent in its folder: **Search** or **Ask** with **Knowledge base** set. A runner fetches the base
+  once and again only when it has changed.
+- In Studio without One CommandCenter, the same steps keep the base in the work folder (knowledge-bases/), so agents
+  can be tried before they are published.
+
 ## Related guides
 
 - [Building agents](03-studio-building-agents.md)

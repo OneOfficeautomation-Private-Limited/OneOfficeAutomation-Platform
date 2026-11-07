@@ -86,6 +86,8 @@ public final class ControlRoom {
     public final Apps apps;
     /** Apps embedded in other web pages (gap G68): embed links with the sites allowed to frame them. */
     public final AppEmbeds appEmbeds;
+    /** Knowledge bases (gap G71): knowledge indexes kept here, refreshed by agents, asked by name. */
+    public final KnowledgeBases knowledge;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
     public final RunWaits runWaits;
     /** Auto-scaling runner pools (G52). */
@@ -171,6 +173,7 @@ public final class ControlRoom {
         this.dataStore = new DataStore(this);
         this.apps = new Apps(this);
         this.appEmbeds = new AppEmbeds(this);
+        this.knowledge = new KnowledgeBases(this);
         this.runWaits = new RunWaits(this);
         this.poolScaling = new PoolScaling(this);
         this.events = new EventSubscriptions(this);

@@ -40,6 +40,7 @@ const PERMS: Record<string, { area: string; kind: Kind; label: string }> = {
   "data.view": { area: "Data store", kind: "see", label: "See the data store" },
   "data.edit": { area: "Data store", kind: "change", label: "Change data store records and files" },
   "data.manage": { area: "Data store", kind: "admin", label: "Define data store entities and buckets" },
+  "knowledge.manage": { area: "AI", kind: "change", label: "Manage knowledge bases" },
   "schedules.view": { area: "Schedules and triggers", kind: "see", label: "See schedules" },
   "schedules.manage": { area: "Schedules and triggers", kind: "change", label: "Manage schedules" },
   "triggers.view": { area: "Schedules and triggers", kind: "see", label: "See triggers" },

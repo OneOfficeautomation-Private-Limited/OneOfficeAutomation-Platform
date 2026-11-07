@@ -15,7 +15,7 @@ public final class Rbac {
                     "queues.view", "queues.work", "analytics.view", "skills.view", "docs.view", "docs.review", "data.view"),
             "bot_creator", Set.of("repo.view", "repo.checkin", "repo.delete", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
                     "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage", "analytics.view", "apitasks.manage", "skills.view", "skills.manage",
-                    "docs.view", "docs.review", "docs.manage", "data.view", "data.edit", "apps.manage"),
+                    "docs.view", "docs.review", "docs.manage", "data.view", "data.edit", "apps.manage", "knowledge.manage"),
             "admin", Set.of("*"));
 
     /** Permissions only administrators have unless a custom role grants them. */
