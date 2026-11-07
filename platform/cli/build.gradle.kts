@@ -9,6 +9,13 @@ val optionalModules = ((findProperty("ooa.optionalModules") as String?) ?: "")
 
 dependencies {
     implementation(project(":packages"))
+    // the toolkit groups (found by FirstPartyPackages with ServiceLoader)
+    implementation(project(":toolkits-microsoft"))
+    implementation(project(":toolkits-google"))
+    implementation(project(":toolkits-enterprise"))
+    implementation(project(":toolkits-cloud-data"))
+    implementation(project(":toolkits-ai"))
+    implementation(project(":toolkits-devops"))
     implementation(project(":control-room"))
     // feature modules of One CommandCenter, found by the kernel with ServiceLoader (ooa docflow uses its settings file)
     implementation(project(":document-automation"))

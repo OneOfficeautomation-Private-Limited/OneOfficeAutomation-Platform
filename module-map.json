@@ -30,9 +30,9 @@
     },
     {
       "id": "toolkits",
-      "name": "Toolkits",
+      "name": "Toolkits (core)",
       "layer": 1,
-      "description": "Built-in and optional toolkits (phase 5 splits them into groups).",
+      "description": "The core first-party toolkits (strings, lists, files, JSON, REST, databases, GenAI, OCR...) and the optional ones (packages-*); FirstPartyPackages finds the toolkit groups with ServiceLoader (phase 5).",
       "paths": [
         "platform/packages/**",
         "platform/packages-*/**",
@@ -40,6 +40,84 @@
       ],
       "dependsOn": [
         "foundation"
+      ]
+    },
+    {
+      "id": "toolkits-microsoft",
+      "name": "Toolkits: microsoft",
+      "layer": 1,
+      "description": "The microsoft toolkit group (Microsoft365, ActiveDirectory, AzureVm, Exchange), in platform/toolkits/microsoft.",
+      "paths": [
+        "platform/toolkits/microsoft/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-google",
+      "name": "Toolkits: google",
+      "layer": 1,
+      "description": "The google toolkit group (Google), in platform/toolkits/google.",
+      "paths": [
+        "platform/toolkits/google/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-enterprise",
+      "name": "Toolkits: enterprise",
+      "layer": 1,
+      "description": "The enterprise toolkit group (Sap, SapBapi, Salesforce, ServiceNow, Workday, Jira, Zendesk, Asana, DocuSign, Box, Slack, Okta), in platform/toolkits/enterprise.",
+      "paths": [
+        "platform/toolkits/enterprise/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-cloud-data",
+      "name": "Toolkits: cloud-data",
+      "layer": 1,
+      "description": "The cloud-data toolkit group (Ec2, AwsAi, Databricks, Snowflake, Kafka), in platform/toolkits/cloud-data.",
+      "paths": [
+        "platform/toolkits/cloud-data/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-ai",
+      "name": "Toolkits: ai",
+      "layer": 1,
+      "description": "The ai toolkit group (AiAgent, AiSkills, AiScreen, Knowledge, Mining), in platform/toolkits/ai.",
+      "paths": [
+        "platform/toolkits/ai/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
+      ]
+    },
+    {
+      "id": "toolkits-devops",
+      "name": "Toolkits: devops",
+      "layer": 1,
+      "description": "The devops toolkit group (GitHub, AzureDevOps), in platform/toolkits/devops.",
+      "paths": [
+        "platform/toolkits/devops/**"
+      ],
+      "dependsOn": [
+        "foundation",
+        "toolkits"
       ]
     },
     {
@@ -52,7 +130,13 @@
       ],
       "dependsOn": [
         "foundation",
-        "toolkits"
+        "toolkits",
+        "toolkits-microsoft",
+        "toolkits-google",
+        "toolkits-enterprise",
+        "toolkits-cloud-data",
+        "toolkits-ai",
+        "toolkits-devops"
       ]
     },
     {
@@ -321,7 +405,13 @@
       ],
       "dependsOn": [
         "kernel",
-        "toolkits"
+        "toolkits",
+        "toolkits-microsoft",
+        "toolkits-google",
+        "toolkits-enterprise",
+        "toolkits-cloud-data",
+        "toolkits-ai",
+        "toolkits-devops"
       ]
     }
   ]
