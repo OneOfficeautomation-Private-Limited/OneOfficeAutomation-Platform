@@ -136,6 +136,13 @@ final class FullCommands {
         c.command("check", "Check whether this computer is ready for One CommandCenter.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
 
+        c.group("docflow", "Document Automation's DocFlow service.");
+        c.command("docflow configure", "Record where DocFlow is and its service token (encrypted with the vault key); the Windows installer runs it.",
+                a -> DocFlowCommand.configure(a.o()))
+            .opt("--url", "URL", "DocFlow's address (default http://127.0.0.1:8085).")
+            .required("--token-env", "VAR", "The environment variable with DocFlow's service token (its DOCAUTO_API_TOKEN).")
+            .opt("--data", "DIR", DATA);
+
         c.group("vault", "Look after the vault's master key.");
         database(c.command("vault rekey", "Re-encrypt every stored secret with a new master key. Stop the server first.", a -> Ooa.vaultRekey(a.o()))
             .required("--new-key-env", "VAR", "The environment variable with the new key (32 random bytes, Base64)."));

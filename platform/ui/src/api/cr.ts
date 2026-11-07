@@ -120,6 +120,11 @@ export type AiCall = { ts: string; purpose?: string; provider?: string; model?: 
 export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
 export type ConsolePlugin = { id: string; name: string; description: string; path: string };
+/** GET /api/docflow/version: the DocFlow in use against the one this release is tested with. */
+export interface DocFlowVersion {
+  status: "compatible" | "newer" | "too_old" | "other_contract" | "unreachable" | "not_set_up" | "unknown";
+  compatible: boolean; version: string | null; tested: string; minimum: string; contract: string; message: string;
+}
 /** A machine running the OneRunner (AA: a device), as GET devices gives it. */
 export type Runner = { id: string; name: string; hostname?: string; os?: string; agent_version?: string; enabled: boolean;
   status: "online" | "offline" | "disabled"; last_seen?: string | null; registered?: string; registered_by?: string; log_level?: string;
@@ -172,12 +177,19 @@ export type HumanTask = { id: string; title: string; description?: string | null
   form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string;
   /** Where it comes from: its workflow's name and the request's reference. */
   workflow?: string | null; reference?: string | null };
-/** A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily or weekly. */
-export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly";
-  every_minutes?: number | null; at_time?: string | null; days?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
+/** A holiday calendar: dates schedules skip, and (gap G34) the weekend agents' working-day steps skip too. */
+export type HolidayCalendar = { name: string; dates: string[]; weekend?: string[]; updated?: string; updated_by?: string };
+/**
+ * A schedule: an agent run on a runner, a pool or the run-as user's default runner, every N minutes, daily, weekly,
+ * monthly (rule like "days=1,15,last" or "weekday=first MON;every=3;start=2026-11") or by a cron expression (rule).
+ */
+export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly" | "monthly" | "cron";
+  every_minutes?: number | null; at_time?: string | null; days?: string | null; rule?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
   created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null;
   /** Its last run, and how that run ended (queued, running, success, failed or stopped). */
   last_run_id?: string | null; last_status?: string | null };
+/** A draft schedule's next times: UTC (time), in its time zone (local, with the offset), and whether a holiday skips it. */
+export type SchedulePreview = { kind: string; time_zone: string; rule?: string; next_runs: { time: string; local: string; holiday: boolean }[] };
 /** A trigger: an event that starts an agent, watched on a runner or checked by One CommandCenter (evaluated_on). */
 export type Trigger = { id: string; name: string; kind: string; bot_path: string; device_id?: string | null; run_as?: string | null; created_by?: string; enabled: boolean;
   status?: string | null; evaluated_on?: "runner" | "server" | null; windows_only?: boolean; fire_count?: number; last_fired?: string | null; last_error?: string | null;
@@ -199,7 +211,16 @@ export type GlobalValue = { name: string; value: unknown; changeable: boolean; m
   type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
   /** Values per team (user group): runs of the team's members use them unless the person set their own. */
   team_values?: { team_id: string; team_name: string; value: unknown }[] };
+/** A subscription to One CommandCenter's events (Administration > Event subscriptions); the secret itself is never sent back. */
+export type EventSubscription = { id: string; name: string; url: string; events: string[]; format: "json" | "splunk"; filters: string[]; enabled: boolean;
+  has_secret: boolean; last_status?: string | null; last_error?: string | null; last_delivery?: string | null; failures: number; created?: string; created_by?: string;
+  this_node?: { delivered: number; failed: number; dropped: number } };
+export type EventSubscriptionList = { subscriptions: EventSubscription[]; types: string[]; allow_http: boolean; allow_private: boolean; metrics_token: boolean; node?: string };
 /** An environment lock a run holds (Manage > Environment locks); expired: its lease ran out, so another run may take it. */
+/** A suspended run's wait (long-running agents, G36): what it waits for, until when, and the run that carried on. */
+export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
+  ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
+  created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -274,6 +295,8 @@ export class CrApi {
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
+  /** Whether the Document Automation service (DocFlow) in use is a version this One CommandCenter works with. */
+  docflowVersion() { return this.call<DocFlowVersion>("GET", "docflow/version"); }
   /** Runs: filter=active (queued, running) or history (finished), with status, bot, device, user, source, q, from, to, limit, offset. */
   runs(params: Record<string, string>) { return this.call<{ runs: Run[]; total: number }>("GET", "runs?" + new URLSearchParams(params).toString()); }
   /** One run with its events (only those after event number `after`, to follow a run as it goes). */
@@ -408,9 +431,14 @@ export class CrApi {
   async setScheduleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "schedules/" + encodeURIComponent(id), { enabled }); }
   async deleteSchedule(id: string) { await this.call("DELETE", "schedules/" + encodeURIComponent(id)); }
   runSchedule(id: string) { return this.call<{ run_id: string }>("POST", "schedules/" + encodeURIComponent(id) + "/run"); }
+  /** The next times a draft schedule would run (nothing is saved); each says whether its holiday calendar skips it. */
+  previewSchedule(b: Record<string, unknown>) { return this.call<SchedulePreview>("POST", "schedules/preview", b); }
   bulkSchedules(ids: string[], action: "enable" | "disable" | "owner", owner?: string) { return this.call<{ changed: number }>("POST", "schedules/bulk", { ids, action, ...(owner ? { owner } : {}) }); }
-  async calendars() { return (await this.call<{ calendars?: { name: string; dates: string[]; updated?: string; updated_by?: string }[] }>("GET", "calendars")).calendars ?? []; }
-  async saveCalendar(name: string, dates: string[]) { await this.call("PUT", "calendars/" + encodeURIComponent(name), { dates }); }
+  async calendars() { return (await this.call<{ calendars?: HolidayCalendar[] }>("GET", "calendars")).calendars ?? []; }
+  /** Saves a calendar's dates; its weekend too when given (days MON..SUN; an empty list means every day is a working day). */
+  async saveCalendar(name: string, dates: string[], weekend?: string[]) {
+    await this.call("PUT", "calendars/" + encodeURIComponent(name), weekend === undefined ? { dates } : { dates, weekend: weekend.length ? weekend : "NONE" });
+  }
   async deleteCalendar(name: string) { await this.call("DELETE", "calendars/" + encodeURIComponent(name)); }
   /** Agents with their live (production) version, for choosing what a schedule, trigger or queue runs. */
   async liveAgents() { return ((await this.call<{ bots?: { path: string; production_version?: number | null }[] }>("GET", "repo")).bots ?? []).filter((b) => b.production_version && b.path.endsWith(".flow.json")); }
@@ -480,7 +508,20 @@ export class CrApi {
     await this.call("PUT", "saved-connections/" + encodeURIComponent(name), b);
   }
   async deleteConnection(name: string) { await this.call("DELETE", "saved-connections/" + encodeURIComponent(name)); }
+  // ---- Event subscriptions (G38): events posted to receivers; the metrics token for GET /metrics ----
+  eventSubscriptions() { return this.call<EventSubscriptionList>("GET", "event-subscriptions"); }
+  saveEventSubscription(id: string | null, b: Record<string, unknown>) {
+    return this.call<EventSubscription & { secret?: string }>(id ? "PUT" : "POST", "event-subscriptions" + (id ? "/" + encodeURIComponent(id) : ""), b);
+  }
+  async setEventSubscriptionEnabled(id: string, enabled: boolean) { await this.call("PATCH", "event-subscriptions/" + encodeURIComponent(id), { enabled }); }
+  async deleteEventSubscription(id: string) { await this.call("DELETE", "event-subscriptions/" + encodeURIComponent(id)); }
+  testEventSubscription(id: string) { return this.call<{ ok: boolean; status?: number; error?: string; event_id: string }>("POST", "event-subscriptions/" + encodeURIComponent(id) + "/test"); }
+  makeMetricsToken() { return this.call<{ token: string }>("POST", "metrics-token"); }
+  async deleteMetricsToken() { await this.call("DELETE", "metrics-token"); }
   // ---- Environment locks: named locks one run holds at a time; administrators give one back ----
+  async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
+  async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
+  async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----

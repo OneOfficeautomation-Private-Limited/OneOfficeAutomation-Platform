@@ -56,7 +56,8 @@ final class DocFlowProxy {
     DocFlowProxy(ControlRoom cr) {
         this.cr = cr;
         // DocFlow runs next to the Command Center: never through the outbound proxy for internet traffic
-        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
+        // and over HTTP/1.1: DocFlow (uvicorn) does not take the HTTP/2 upgrade and logged a warning for every request
+        this.http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
     }
 
     /** The permission a request needs. */
@@ -71,6 +72,11 @@ final class DocFlowProxy {
         if (route.equals("mail-status") && method.equals("GET")) {
             cr.require(u, "docs.view", "see Document Automation");
             ControlRoomServer.sendJson(ex, 200, Map.of("inboxes", cr.db.query("SELECT process_id, last_check, last_error, documents FROM docflow_mail ORDER BY process_id")));
+            return;
+        }
+        if (route.equals("version") && method.equals("GET")) {
+            cr.require(u, "docs.view", "see Document Automation");
+            ControlRoomServer.sendJson(ex, 200, version());
             return;
         }
         if (!ROUTES.matcher(route).matches() || route.contains("..")) throw new OoaException("CR.NOT_FOUND", "Not found");
@@ -183,8 +189,11 @@ final class DocFlowProxy {
     /** Whether Document Automation is set up here (so the background sync does not knock on a service that is not there). */
     boolean configured() {
         if (cr.tenant != null) return env.apply("OOA_DOCFLOW_URL") != null;
-        return !String.valueOf(cr.platform.setting("docflow_url")).isBlank() || !String.valueOf(cr.platform.setting("docflow_token_ref")).isBlank();
+        return !String.valueOf(cr.platform.setting("docflow_url")).isBlank() || !String.valueOf(cr.platform.setting("docflow_token_ref")).isBlank()
+                || !blank(env.apply("OOA_DOCFLOW_URL")) || !DocFlowConfig.url(cr.dataDir).isEmpty();
     }
+
+    private static boolean blank(String s) { return s == null || s.isBlank(); }
 
     /**
      * Keeps the Task inbox in step with DocFlow's review queue: a task for each document waiting for review (due at the
@@ -428,6 +437,82 @@ final class DocFlowProxy {
         return cr.startRun(by, (String) user.get("role"), bot, null, pool, inputs, "docflow:" + doc.getOrDefault("flowId", ""), ip, 0, null, pool == null ? by : null, null);
     }
 
+    // ------------------------------------------------------------------ which DocFlow
+
+    /** The DocFlow this release is built and tested with: contract, pinned, minimum, ref (docflow-compat.properties). */
+    static final Properties COMPAT = new Properties();
+    static {
+        try (var in = DocFlowProxy.class.getResourceAsStream("/docflow-compat.properties")) { if (in != null) COMPAT.load(in); }
+        catch (IOException ignored) { }
+    }
+
+    private volatile Map<String, Object> lastVersion;
+    private volatile Instant lastVersionAt = Instant.EPOCH;
+
+    /**
+     * Whether the DocFlow in use is one this Command Center works with, for the Document Automation page. It only
+     * warns: nothing is blocked. Asked of DocFlow (GET /api/docs/v1/admin/version) at most once a minute.
+     */
+    Map<String, Object> version() {
+        Map<String, Object> cached = lastVersion;
+        if (cached != null && lastVersionAt.plusSeconds(60).isAfter(Instant.now())) return cached;
+        Map<String, Object> out = new LinkedHashMap<>();
+        String pinned = COMPAT.getProperty("pinned", ""), minimum = COMPAT.getProperty("minimum", pinned);
+        out.put("contract", COMPAT.getProperty("contract", "v1"));
+        out.put("tested", pinned);
+        out.put("minimum", minimum);
+        String version = null, status;
+        if (!configured()) status = "not_set_up";
+        else {
+            try {
+                HttpResponse<byte[]> r = http.send(HttpRequest.newBuilder(URI.create(baseUrl() + "/api/docs/v1/admin/version")).timeout(Duration.ofSeconds(5)).GET().build(),
+                        HttpResponse.BodyHandlers.ofByteArray());
+                Object body = r.statusCode() == 200 ? JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) : null;
+                if (body instanceof Map<?, ?> m && m.get("version") != null) version = String.valueOf(m.get("version"));
+                status = version == null ? "unknown" : compare(version, minimum, pinned);
+            } catch (IOException | IllegalArgumentException e) {
+                status = "unreachable";
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                status = "unreachable";
+            }
+        }
+        out.put("version", version);
+        out.put("status", status);
+        out.put("compatible", status.equals("compatible") || status.equals("newer"));
+        out.put("message", switch (status) {
+            case "compatible" -> "DocFlow " + version + " works with this One CommandCenter.";
+            case "newer" -> "DocFlow " + version + " is newer than the version tested with this release (" + pinned + "). It should work; tell support if something looks wrong.";
+            case "too_old" -> "DocFlow " + version + " is too old for this One CommandCenter. Update DocFlow to " + pinned + " (at least " + minimum + ").";
+            case "other_contract" -> "DocFlow " + version + " speaks a different version of the interface than this One CommandCenter (tested with " + pinned + "). Install DocFlow " + pinned + ".";
+            case "unreachable" -> "The Document Automation service does not answer at " + baseUrl() + ". Start DocFlow, or check Settings > Document Automation.";
+            case "not_set_up" -> "Document Automation's service is not set up yet (Settings > Document Automation).";
+            default -> "DocFlow answered but did not say its version. It may be older than " + minimum + ".";
+        });
+        lastVersion = out;
+        lastVersionAt = Instant.now();
+        return out;
+    }
+
+    /**
+     * How a DocFlow version compares with this release: compatible (from the minimum up to the tested version), newer
+     * (same major version, newer than tested), too_old, other_contract (another major version), or unknown.
+     */
+    static String compare(String version, String minimum, String pinned) {
+        int[] v = parse(version), min = parse(minimum), tested = parse(pinned);
+        if (v == null || min == null || tested == null) return "unknown";
+        if (v[0] != tested[0]) return v[0] < tested[0] && order(v, min) < 0 ? "too_old" : "other_contract";
+        if (order(v, min) < 0) return "too_old";
+        return order(v, tested) > 0 ? "newer" : "compatible";
+    }
+
+    private static int[] parse(String s) {
+        Matcher m = Pattern.compile("^v?(\\d+)\\.(\\d+)(?:\\.(\\d+))?").matcher(s == null ? "" : s.trim());
+        return m.find() ? new int[] {Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), m.group(3) == null ? 0 : Integer.parseInt(m.group(3))} : null;
+    }
+
+    private static int order(int[] a, int[] b) { for (int i = 0; i < 3; i++) if (a[i] != b[i]) return Integer.compare(a[i], b[i]); return 0; }
+
     // ------------------------------------------------------------------ where DocFlow is
 
     /** Uploads are forwarded as they came (multipart), up to Settings > Largest upload. */
@@ -440,15 +525,29 @@ final class DocFlowProxy {
 
     private String tenant() { return cr.tenant == null ? "default" : cr.tenant; }
 
+    /**
+     * DocFlow's address. On premises Settings > Document Automation wins; when it is empty, OOA_DOCFLOW_URL (set by the
+     * platform's containers), then config/ooa-docflow.properties (written by the Windows installer), else 127.0.0.1:8085.
+     */
     String baseUrl() {
         String u = cr.tenant != null ? env.apply("OOA_DOCFLOW_URL") : String.valueOf(cr.platform.setting("docflow_url")).trim();
-        return (u == null || u.isBlank() ? DEFAULT_URL : u.trim()).replaceAll("/+$", "");
+        if (cr.tenant == null && blank(u)) u = env.apply("OOA_DOCFLOW_URL");
+        if (cr.tenant == null && blank(u)) u = DocFlowConfig.url(cr.dataDir);
+        return (blank(u) ? DEFAULT_URL : u.trim()).replaceAll("/+$", "");
     }
 
+    /**
+     * The service token: on premises the vault credential Settings names, else OOA_DOCFLOW_TOKEN (as in SaaS), else the
+     * token the Windows installer stored (encrypted) in config/ooa-docflow.properties.
+     */
     private String token() {
-        if (cr.tenant != null) { String t = env.apply("OOA_DOCFLOW_TOKEN"); return t == null ? "" : t.trim(); }
-        String ref = String.valueOf(cr.platform.setting("docflow_token_ref")).trim();
-        return ref.isEmpty() ? "" : cr.systemCredential(ref);
+        if (cr.tenant == null) {
+            String ref = String.valueOf(cr.platform.setting("docflow_token_ref")).trim();
+            if (!ref.isEmpty()) return cr.systemCredential(ref);
+        }
+        String t = env.apply("OOA_DOCFLOW_TOKEN");
+        if (!blank(t) || cr.tenant != null) return t == null ? "" : t.trim();
+        return DocFlowConfig.token(cr.dataDir, cr.vault);
     }
 
     /** The environment (tests replace it). */

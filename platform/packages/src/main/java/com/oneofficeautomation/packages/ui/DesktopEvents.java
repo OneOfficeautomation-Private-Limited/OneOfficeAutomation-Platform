@@ -29,6 +29,12 @@ public interface DesktopEvents {
      */
     AutoCloseable onHotkey(String combination, Runnable onPress);
 
+    /**
+     * Keyboard and mouse hooks for key-press and click triggers (see {@link InputTriggers}, which also states the
+     * privacy rule); empty when this implementation has none.
+     */
+    default Optional<InputTriggers.Native> input() { return Optional.empty(); }
+
     /** The installed implementation, if any (cached). */
     static Optional<DesktopEvents> installed() { return Holder.INSTANCE; }
 

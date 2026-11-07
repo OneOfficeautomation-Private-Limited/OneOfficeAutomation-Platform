@@ -36,8 +36,8 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 
 ## 2. Agent Activity: what is running and what ran
 
-**Manage > Agent Activity** (needs `runs.view`) has three tabs: **In progress** and **Scheduled**, each with a count,
-and **Completed**. The figures above them (**Running now**, **Waiting for a runner**, **Failed in the last 24 hours**,
+**Manage > Agent Activity** (needs `runs.view`) has four tabs: **In progress** and **Scheduled**, each with a count,
+**Suspended** and **Completed**. The figures above them (**Running now**, **Waiting for a runner**, **Failed in the last 24 hours**,
 **Ended in the last 24 hours** and the next scheduled run) open the runs behind them. **Scheduled** (with
 `schedules.view`) lists the next run of each schedule, soonest first; tick schedules to **Run now**, **Turn on** or
 **Turn off** them. Schedules are made and changed on **Schedules** (section 5).
@@ -58,6 +58,30 @@ With `runs.stop`, tick runs and use these buttons above the list (a run's **⋯*
 | **Stop** | The run stops after the current step; the runner gets the request within seconds. |
 
 When nothing runs you see "Nothing is running or waiting."
+
+### The Suspended tab
+
+Long-running agents stop for a while to wait for something: a time, a task in the Task inbox, a work item, another
+run, or another system calling their callback URL (the agent's builder uses the **Long-running agents** toolkit,
+[reference](../reference/toolkits/ooa-longrunning.md)). While it waits the run shows as **Suspended** and its runner is
+free for other work. When the wait is over (checked every 5 seconds), a **new run** carries on from the step that
+waited, with the values the agent had. The run's details (and `GET /api/runs/{id}`) name the run it was resumed from
+and the run that carried it on, so you can follow the chain. The work item, workflow or caller of the first run hears
+only when the last run of the chain ends.
+
+The tab lists every suspended run you may see: **Agent** (with its version; hover for the run id and step), **Waits
+for** (for example "Task task_... to be done" or "A call to its callback URL"), **Since**, **Times out** (or
+**Never**), **Started by** and **Runner**. Click a run to open its details.
+
+With `runs.stop`, each line has two buttons, asked first:
+
+| Button | What happens |
+| --- | --- |
+| **Resume now** | The wait ends at once: a new run carries on from the waiting step, and the step's result says it was resumed by a person. |
+| **Stop** | The run is stopped and its wait is cancelled; it will not carry on. **Stop** on a suspended run elsewhere does the same. |
+
+Both are written to the audit trail (`run.resume`, `run.wait_cancel`). A run that cannot carry on (its user was
+disabled, its runner removed or disabled, no licence) ends **Failed** with `LONGRUN.RESUME_FAILED` and the reason.
 
 ### The Completed tab
 
@@ -189,14 +213,51 @@ runners** lists them on the **Runners** tab. Administrators handle registering, 
 4. **Run as (credentials are checked against this person)**: leave "(the owner, on the runner chosen here)", or pick a
    person. Tick **Use the run-as user's default runner** to follow that person's default runner instead of the one
    chosen above.
-5. **Repeat**: **Every N minutes** (with **Minutes**), **Daily** (with **Time**, such as `08:30`) or **Weekly** (with
-   the days, Monday to Friday ticked by default).
+5. **Repeat**: **Every N minutes** (with **Minutes**), **Daily** (with **Time**, such as `08:30`), **Weekly** (with
+   the days, Monday to Friday ticked by default), **Monthly** or **Cron expression** (see below). **Next runs** shows
+   the next five times in the schedule's time zone as you choose; a time its holiday calendar skips is struck through
+   and marked "holiday, skipped", and a wrong rule shows what is wrong with an example.
 6. **Time zone** (your browser's, by default) and **Skip the dates of a holiday calendar**.
 7. **Inputs (JSON, optional)**, for example `{"region": "EU"}`.
 8. **Times missed while One CommandCenter was down**: **Run once for them** (default) or **Skip them** (a time more
    than 15 minutes in the past is not run).
 9. **When the previous run is still going**: **Start another run** (default) or **Skip this time**.
 10. Press **Create**. A toast shows the next run time.
+
+### Monthly and cron schedules
+
+**Monthly** runs at **Time** on:
+
+- **Days of the month**: click the days (1 to 31) and/or **Last day**; or
+- **A weekday of the month**: **Which** (First, Second, Third, Fourth, Fifth or Last) and **Weekday**, such as the
+  first Monday or the last Friday.
+
+**Every (months)** repeats every N months (1 to 120), counted from the month the schedule is made. **A day the month
+does not have** (31 in April, 29 to 31 in February) is **Skip that month** by default, as UiPath's and Blue Prism's
+schedules do; choose **Run on the month's last day** to run on the 30th or 28th instead. A Fifth weekday is skipped in
+months that have only four.
+
+**Cron expression** takes the standard five fields `minute hour day month weekday` (0 or 7 is Sunday), or Quartz's six
+or seven as UiPath's advanced triggers use (`second minute hour day month weekday [year]`, 1 is Sunday, with `?` in one
+of the day fields). Both understand lists (`1,15`), ranges (`MON-FRI`), steps (`*/15`), names (`JAN`, `MON`), `L`
+(last day), `L-3`, `15W` (nearest weekday), `LW`, `6L` / `FRIL` (last Friday) and `6#1` / `FRI#1` (first Friday), and
+the shortcuts `@hourly`, `@daily`, `@weekly`, `@monthly` and `@yearly`. With five fields and both day fields given,
+either matching is enough, as in Unix cron. The seconds field must be one number: schedules start at most once a
+minute. Examples:
+
+| Expression | Runs |
+| --- | --- |
+| `0 9 * * MON-FRI` | 09:00 on weekdays |
+| `*/15 8-18 * * *` | every 15 minutes from 08:00 to 18:45 |
+| `0 0 9 ? * MON#1` | 09:00 on the first Monday of the month (Quartz) |
+| `0 30 18 L * ?` | 18:30 on the last day of the month (Quartz) |
+
+**Clock changes.** Times follow the schedule's time zone. A time in the hour skipped when clocks go forward runs as
+much later (02:30 becomes 03:30), as daily and weekly schedules do; a time in the hour repeated when clocks go back
+runs once. Only a cron expression that runs every hour (`*` in the hour field) runs in both copies of that hour.
+
+Holiday calendars, **Times missed while One CommandCenter was down** and **When the previous run is still going**
+work for monthly and cron schedules as for the others.
 
 ### The list
 
@@ -210,8 +271,27 @@ Several at once: tick schedules, then **Enable selected**, **Disable selected** 
 
 ### Holiday calendars
 
-**Holiday calendars** lists calendars with their number of dates and the next one. To add or change one, type a
-**Name** and the **Dates** (YYYY-MM-DD, one per line or separated by commas) and press **Save calendar**.
+**Holiday calendars** lists calendars with their number of dates, the next one and the **Weekend**. To add or change
+one, type a **Name** and the **Dates** (YYYY-MM-DD, one per line or separated by commas), tick the **Weekend** days
+(Saturday and Sunday unless you change them; Friday and Saturday in much of the Middle East; none for teams that work
+every day; at least one day of the week must stay a working day) and press **Save calendar**. **Edit** fills the form
+with a calendar so you can change it. Saving and deleting need permission to manage schedules and are written to the
+Audit Trail (`calendar.save` records the number of dates and the weekend, and the old weekend when it changed).
+
+A calendar is used in two places:
+
+- **Schedules** that name it do not start on its dates (in the schedule's time zone). The weekend does not stop a
+  schedule; choose the schedule's days for that.
+- **Agents** count working days with it. The Date and time toolkit's **Add working days** (a negative number goes
+  back), **Count working days**, **Next working day**, **Previous working day** and **Is working day** (a step and a
+  condition) take the calendar's name. A working day is one that is neither on the calendar's weekend nor one of its
+  dates. The runner reads the calendar from One CommandCenter once per run, as the run's user (who needs permission
+  to view schedules); each read is in the Audit Trail as `agent.calendar`. A name that does not exist fails the step
+  with `DATETIME.CALENDAR_NOT_FOUND`.
+- In One AgentStudio, or any run without One CommandCenter, the same steps take the **holidays** (a list of
+  YYYY-MM-DD dates) and the **weekend** (such as `SAT,SUN`, `FRI,SAT` or `NONE`) on the step itself; a calendar name
+  there fails with `DATETIME.NO_COMMAND_CENTER`. Holidays given with a calendar are added to its dates, and a weekend
+  given with a calendar replaces the calendar's.
 
 ### Rules to remember
 
@@ -239,6 +319,8 @@ happens.
    | Process started, Process stopped | Process name, such as `excel.exe` | `trigger_process` |
    | Service started, Service stopped (Windows) | Windows service name (from `sc query`, not the display name) | `trigger_service` |
    | Hotkey pressed (Windows, signed-in desktop) | Key combination, such as `CTRL+ALT+F9` | `trigger_hotkey` |
+   | Key pressed in a window (Windows, signed-in desktop) | Key or combination, such as `F9` or `CTRL+ENTER`; optionally only while a window (title pattern) or program is in front; Ignore repeats within (default 500 ms) | `trigger_key` |
+   | Mouse click on an element or window (Windows, signed-in desktop) | Window title pattern or program; Mouse button (`left`, `right`, `middle`, `any`); optionally the element's name, type and automation id; Ignore repeats within | `trigger_click` (the element's name, else the window title) |
 
    **On One CommandCenter** (checked every interval, 15 seconds or more):
 
@@ -251,10 +333,35 @@ happens.
    | Webhook (HTTP call) | none | `payload` |
 
    Every agent also receives `trigger_event` with all details, if it declares it.
+
+   The hotkey trigger takes the combination for itself (other programs no longer receive it). The key-press trigger
+   only listens: the key still reaches the application, so it suits keys such as `CTRL+ENTER` in one program. To
+   pick the element of a click trigger, choose **Mouse click on an element or window** among the triggers of One
+   AgentStudio's command list: it captures the control (Ctrl+Shift+C, as Capture does) and opens **Create trigger**
+   with the window and element filled in.
 3. Passwords and tokens are always vault references such as `mail/imap/password`; the trigger's owner must be a
    consumer of that vault folder.
 4. Press **Create**. For a webhook you then see its **URL** and **Secret** (send it in the `X-OOA-Secret` header),
    shown only once.
+
+### Key-press and click triggers: privacy
+
+Security teams usually ask what these triggers can see. The rules, which the runner enforces and the tests check:
+
+- A key-press trigger names **one** key or combination, such as `F9`, `CTRL+ENTER` or `SHIFT+F2`. The runner's hook
+  compares each key going down with that one key and lets everything else pass untouched. **Typed text is never
+  recorded, buffered, logged or passed to the agent.** The event says only which configured key was pressed, and the
+  title and program of the window in front.
+- Letters, digits, space and backspace are refused unless held with `CTRL`, `ALT` or `WIN` (`SHIFT+A` is just typing a
+  capital), so a trigger cannot be used to count what someone types.
+- A click trigger reports the mouse button, the window title and program, and the clicked element's name, type and
+  automation id. It never reads screen contents or the value of a field, and gives no name for password fields.
+- The key or click still reaches the application; nothing is blocked. Input sent by programs (including agents) is
+  ignored, so these triggers only react to the person at the computer.
+- Both work on **Windows runners with a signed-in desktop only**. On a Linux runner the trigger shows the error "Key-press
+  and click triggers work on Windows runners only" and is not watched.
+- They use operating-system input hooks, not polling: no CPU is used while nothing is pressed, and the hook is removed
+  when the trigger is paused, deleted or the runner stops.
 
 ### Watching triggers
 
@@ -458,6 +565,10 @@ On the **Alerts** tab, tick open alerts and press **Acknowledge** to show that s
 severity or rule. A new rule only counts what happens after it is made. The bell in the top bar shows how many alerts
 are open.
 
+Alerts can also reach other systems as they happen: an administrator subscribes a receiver to `alert.raised`, run,
+work-item and runner events, or run log lines in **Administration > Event subscriptions** (see the
+[Administrator's guide](06-administrators-guide.md#event-subscriptions-events-and-run-logs-to-other-systems)).
+
 ### Operations > Agents: how agents ran
 
 **Agents** summarises a period, from the last 24 hours to the last year, for **All agents** or one, **All runners**
@@ -652,6 +763,9 @@ it up; the calls are described in
 | `AI.CONTENT_FLAGGED` | The provider's moderation flagged the answer | Check the input data |
 | `CR.LICENSE_LIMIT` | Not enough licence seats | An administrator assigns or frees a seat |
 | `FILE.OUTSIDE_WORKSPACE` | A serverless run used a path outside its workspace | The agent must not run serverless |
+| `LONGRUN.TIMEOUT` | A long-running agent waited until its timeout | Check why the task, item, run or callback did not come; the builder may catch it in a Try |
+| `LONGRUN.RESUME_FAILED` | A suspended run could not carry on (its user, runner or licence) | Fix the reason, then run the agent again |
+| `LONGRUN.CANNOT_SUSPEND`, `LONGRUN.SESSION_OPEN` | The agent tried to wait inside a loop, Catch, Finally or subflow, or with a browser, workbook or file open | Tell the builder |
 
 ### When runs do not start at all
 

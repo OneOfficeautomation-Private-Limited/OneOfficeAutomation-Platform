@@ -1,6 +1,7 @@
 package com.oneofficeautomation.agent;
 
 import com.oneofficeautomation.packages.ui.DesktopEvents;
+import com.oneofficeautomation.packages.ui.InputTriggers;
 import com.oneofficeautomation.packages.ui.TitlePattern;
 
 import java.io.IOException;
@@ -19,8 +20,10 @@ import java.util.stream.Stream;
  * One CommandCenter triggers that the OneRunner evaluates on its own machine, by polling: files and folders
  * (arrive, change, delete; folders created or deleted), windows opened or closed, processes started or stopped,
  * Windows services started or stopped, and global hotkeys. The first look at the machine only records what is
- * there; later looks fire for the differences. Operating-system access goes through {@link OsProbe} and
- * {@link Hotkeys}, so the logic is tested with fakes.
+ * there; later looks fire for the differences. Key-press and click triggers (gap G37) are not polled: they use the
+ * operating system's input hooks through {@link InputTriggers} (Windows only; typed text is never recorded).
+ * Operating-system access goes through {@link OsProbe}, {@link Hotkeys} and {@link InputTriggers.Native}, so the
+ * logic is tested with fakes.
  */
 final class LocalTriggers {
     /** Where events and watch problems go (One CommandCenter in production). */
@@ -43,14 +46,19 @@ final class LocalTriggers {
     private final Reporter reporter;
     private final OsProbe os;
     private final Hotkeys hotkeys;
+    private final InputTriggers.Native input;
+    /** Milliseconds for the key-press and click debounce; tests set a fake clock. */
+    java.util.function.LongSupplier clock = System::currentTimeMillis;
     private final Consumer<String> log;
     private final Map<String, Watch> watches = new LinkedHashMap<>();
     private final Map<String, String> reported = new HashMap<>();   // last status sent per trigger, to send changes only
     private String signature = "";
     private Thread thread;
 
-    LocalTriggers(Reporter reporter, OsProbe os, Hotkeys hotkeys, Consumer<String> log) {
-        this.reporter = reporter; this.os = os; this.hotkeys = hotkeys; this.log = log;
+    LocalTriggers(Reporter reporter, OsProbe os, Hotkeys hotkeys, Consumer<String> log) { this(reporter, os, hotkeys, null, log); }
+
+    LocalTriggers(Reporter reporter, OsProbe os, Hotkeys hotkeys, InputTriggers.Native input, Consumer<String> log) {
+        this.reporter = reporter; this.os = os; this.hotkeys = hotkeys; this.input = input; this.log = log;
     }
 
     /** Replaces the watched triggers with this list from the heartbeat; unchanged lists keep their state. */
@@ -88,6 +96,7 @@ final class LocalTriggers {
             case "process_started", "process_stopped" -> new CountWatch(id, kind, "process", processMatcher(String.valueOf(cfg.get("process"))), os::processNames, kind.endsWith("started"));
             case "service_started", "service_stopped" -> new ServiceWatch(id, kind, String.valueOf(cfg.get("service")));
             case "hotkey" -> new HotkeyWatch(id, String.valueOf(cfg.get("hotkey")));
+            case "key_pressed", "mouse_clicked" -> new InputWatch(id, kind, cfg);
             default -> throw new IllegalArgumentException("This OneRunner does not know the trigger kind '" + kind + "'; update the runner");
         };
     }
@@ -297,6 +306,29 @@ final class LocalTriggers {
         void close() { try { if (handle != null) handle.close(); } catch (Exception ignored) { } }
     }
 
+    /**
+     * A key-press or click trigger: hooked once, it fires from the hook's worker thread. The event carries only the
+     * configured key (or the button and element) and the window, never typed text.
+     */
+    final class InputWatch extends Watch {
+        final String what; final AutoCloseable handle;
+        InputWatch(String id, String kind, Map<String, Object> cfg) {
+            super(id);
+            if (input == null) throw new IllegalStateException(WINDOWS ? InputTriggers.WINDOWS_ONLY + " with the Window toolkit (packages-windows) installed"
+                    : InputTriggers.WINDOWS_ONLY + "; this runner runs " + System.getProperty("os.name") + ", so the trigger is not watched here");
+            try { what = InputTriggers.describe(kind, cfg); }
+            catch (IllegalArgumentException e) { throw new IllegalStateException(e.getMessage()); }
+            try {
+                handle = kind.equals("key_pressed") ? InputTriggers.watchKey(input, cfg, clock, ev -> fire(id, ev))
+                        : InputTriggers.watchClick(input, cfg, clock, ev -> fire(id, ev));
+            } catch (RuntimeException e) { throw new IllegalStateException("The " + what + " trigger cannot be watched: " + e.getMessage()); }
+            catch (Exception e) { throw new IllegalStateException("The " + what + " trigger cannot be watched: " + e); }
+        }
+        String describe() { return what; }
+        List<Map<String, Object>> poll() { return List.of(); }
+        void close() { try { handle.close(); } catch (Exception ignored) { } }
+    }
+
     // ---------------- the real machine ----------------
     static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
 
@@ -353,6 +385,11 @@ final class LocalTriggers {
             out.add(cur.toString());
             return out;
         }
+    }
+
+    /** Keyboard and mouse hooks through the Window toolkit, or null when it is not installed (not Windows). */
+    static InputTriggers.Native systemInput() {
+        return DesktopEvents.installed().flatMap(DesktopEvents::input).orElse(null);
     }
 
     /** Global hotkeys through the Window toolkit, or null when it is not installed (not Windows). */

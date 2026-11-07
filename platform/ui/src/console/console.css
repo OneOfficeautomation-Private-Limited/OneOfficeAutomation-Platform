@@ -819,3 +819,20 @@ a.ov-tab { text-decoration: none; }
 .cc-scim-token { min-width: 360px; }
 /* a list row reached with the arrow keys (item 9) */
 .cc-list-table tbody tr:focus { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
+
+/* Schedules (gap G35): the days of a monthly schedule as a dense grid of toggles, and the next runs of a draft */
+.cc-monthly { margin: 4px 0 2px; }
+.cc-mdays { display: grid; grid-template-columns: repeat(8, minmax(30px, 1fr)); gap: 3px; margin: 6px 0 4px; max-width: 360px; }
+.cc-mdays button { height: 26px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; cursor: pointer; padding: 0; }
+.cc-mdays button.is-last { grid-column: span 2; }
+.cc-mdays button[aria-pressed="true"] { background: var(--ui-accent); border-color: var(--ui-accent); color: #ffffff; font-weight: 600; }
+.cc-mdays button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+.cc-nextruns ol { margin: 0; padding: 6px 10px 6px 28px; background: var(--ui-soft); border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); }
+.cc-nextruns li { padding: 1px 0; font-variant-numeric: tabular-nums; }
+.cc-nextruns li.is-holiday > span:first-child { text-decoration: line-through; }
+.cc-nextruns-error { margin: 0; padding: 6px 10px; color: var(--ui-error-text); background: var(--ui-error-bg); border: 1px solid var(--ui-error-line); border-radius: var(--ui-radius); }
+
+/* Event subscriptions (G38): the event tick boxes, one per line under their family */
+.cc-ev-types { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.cc-ev-types strong { margin-bottom: 2px; }
+.cc-ev-types .st-check-line { display: flex; align-items: center; gap: 6px; }

@@ -4,10 +4,14 @@
 #   ui           Linux: the console and Studio UI tests (jsdom) against real servers started from the build
 #   msi          Windows: builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls
 #   postgres     Linux: the Command Center tests against a real PostgreSQL 16 (a throwaway container)
+#   docflow      Linux: Document Automation against the real DocFlow service (oneoffice-docauto at the ref pinned in
+#                docflow-compat.properties): proxy routes, an upload, the review queue and a "Start a bot" callback
 #   headless     Linux (every push) and macOS (master): a Command Center and a headless runner end to end, the runner and
 #                SDK tests and the shared conformance cases, so runners for API, data and browser-free work run there (R14)
 #   native       Linux and Windows: the native executable (GraalVM), checked against the Java program (Q13)
-#   container    Linux: the image alone, with PostgreSQL, backup and restore, and a SaaS region with two tenants (C3)
+#   container    Linux: the image alone, with PostgreSQL, backup and restore, and a SaaS region with two tenants (C3),
+#                and the Command Center with the DocFlow container (docker/compose.docflow.yaml)
+#   docflow-windows  Windows: the setup package with -DocFlow (DocFlow from its release, managed), checked end to end
 name: CI
 
 on:
@@ -159,6 +163,75 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports-postgres
+          path: platform/control-room/build/reports/tests/
+          retention-days: 7
+
+  docflow:
+    name: Document Automation with the real DocFlow (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Which DocFlow this release is tested with
+        id: pin
+        run: echo "ref=$(sed -n 's/^ref=//p' control-room/src/main/resources/docflow-compat.properties | tr -d '\r')" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: OneOfficeautomation-Private-Limited/oneoffice-docauto
+          ref: ${{ steps.pin.outputs.ref }}
+          path: docauto
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start PostgreSQL 16 for DocFlow
+        run: |
+          PW="Ci-$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "PG_PW=$PW" >> "$GITHUB_ENV"
+          docker run -d --name pg -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_DB=docflow -e "POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C" -p 5432:5432 postgres:16
+          for i in $(seq 1 60); do
+            docker exec pg pg_isready -U postgres -d docflow >/dev/null 2>&1 && echo "PostgreSQL is up" && exit 0
+            sleep 2
+          done
+          docker logs pg; exit 1
+      - name: Start DocFlow
+        working-directory: docauto
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr tesseract-ocr-ara
+          pip install -q -r requirements.txt
+          TOKEN="ci-$(openssl rand -hex 16)"
+          echo "::add-mask::$TOKEN"
+          echo "DOCFLOW_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          # the test's Command Center listens on 18766: DocFlow's "Start a bot" deliveries call it back there
+          # managed mode, as the platform runs it: the token is required and DocFlow does not update itself
+          DOCAUTO_MANAGED=true DOCAUTO_API_TOKEN="$TOKEN" DOCAUTO_DATABASE_URL="postgresql://postgres:$PG_PW@localhost:5432/docflow" \
+            DOCAUTO_PLATFORM_URL=http://127.0.0.1:18766 DOCAUTO_DATA_DIR="$RUNNER_TEMP/docflow-data" \
+            nohup python -m uvicorn docauto.api.app:app --host 127.0.0.1 --port 8085 > "$RUNNER_TEMP/docflow.log" 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:8085/api/docs/v1/admin/version && echo && echo "DocFlow is up" && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/docflow.log"; exit 1
+      - name: Command Center against DocFlow
+        run: |
+          chmod +x gradlew
+          ./gradlew :control-room:test --tests "*DocFlowLiveTest*" --console=plain -Pooa.test.docflow=http://127.0.0.1:8085 \
+            "-Pooa.test.docflow.token=$DOCFLOW_TOKEN" -Pooa.test.docflow.port=18766 "-Pooa.test.docflow.samples=$GITHUB_WORKSPACE/docauto/samples"
+          # the tests skip themselves without a DocFlow: make sure they really ran
+          grep -q 'skipped="0"' control-room/build/test-results/test/TEST-com.oneofficeautomation.controlroom.DocFlowLiveTest.xml
+      - name: DocFlow's log
+        if: always()
+        run: tail -n 200 "$RUNNER_TEMP/docflow.log" || true
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-docflow
           path: platform/control-room/build/reports/tests/
           retention-days: 7
 
@@ -333,6 +406,46 @@ jobs:
           docker run --rm --volumes-from withdb --network ooa -e "OOA_MASTER_KEY=$KEY" -e "OOA_DB_URL=jdbc:postgresql://pg:5432/ooa2" \
             -e OOA_DB_USER=postgres -e "OOA_DB_PASSWORD=$PW" ooa-command-center:ci backup restore "/data/backups/$FILE"
           docker exec pg psql -U postgres -d ooa2 -tAc "SELECT COUNT(*) FROM users" | grep -qx 1
+      - name: Command Center with the DocFlow container (Document Automation, as docker/compose.docflow.yaml runs it)
+        run: |
+          # DocFlow at the release this Command Center is tested with, built from its tag like the compose file does
+          REF=$(sed -n 's/^ref=//p' control-room/src/main/resources/docflow-compat.properties | tr -d '\r')
+          docker build -q -t docflow:ci "https://github.com/OneOfficeautomation-Private-Limited/oneoffice-docauto.git#$REF"
+          PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"; TOK="$(openssl rand -hex 32)"; NEW="Ci-Admin-$(openssl rand -hex 8)"
+          echo "::add-mask::$PW"; echo "::add-mask::$KEY"; echo "::add-mask::$TOK"; echo "::add-mask::$NEW"
+          docker network create dfnet
+          docker run -d --name dfdb --network dfnet -e POSTGRES_USER=docflow -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_DB=docflow \
+            -e "POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C" postgres:16-alpine
+          for i in $(seq 1 60); do docker exec dfdb pg_isready -U docflow -d docflow >/dev/null 2>&1 && break; sleep 2; done
+          DB="postgresql://docflow:$PW@dfdb:5432/docflow"
+          # managed mode: without the token DocFlow refuses to start
+          if timeout 180 docker run --rm --network dfnet -e DOCAUTO_MANAGED=true -e "DOCAUTO_DATABASE_URL=$DB" docflow:ci > notoken.log 2>&1; then
+            cat notoken.log; echo "DocFlow started without a token"; exit 1
+          fi
+          grep -q "DOCAUTO_API_TOKEN" notoken.log
+          docker run -d --name docflow --network dfnet -e DOCAUTO_MANAGED=true -e "DOCAUTO_API_TOKEN=$TOK" -e "DOCAUTO_DATABASE_URL=$DB" \
+            -e DOCAUTO_PLATFORM_URL=http://cc:8720 docflow:ci
+          docker run -d --name cc --network dfnet -p 8740:8720 -e "OOA_MASTER_KEY=$KEY" -e OOA_DOCFLOW_URL=http://docflow:8085 \
+            -e "OOA_DOCFLOW_TOKEN=$TOK" ooa-command-center:ci
+          for i in $(seq 1 60); do curl -sf http://localhost:8740/api/health/ready >/dev/null && break; sleep 2; done
+          curl -sf http://localhost:8740/api/health/ready || { docker logs cc | tail -50; exit 1; }
+          # sign in as the first administrator (one-time password from the log), set a password, sign in again
+          FIRST=$(docker logs cc 2>&1 | grep -o "one-time password  [^ ]*" | tail -1 | awk '{print $3}')
+          echo "::add-mask::$FIRST"; test -n "$FIRST"
+          login() { curl -s -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"$1\"}" http://localhost:8740/api/auth/login | grep -o '"token":"[^"]*"' | cut -d'"' -f4; }
+          T=$(login "$FIRST"); echo "::add-mask::$T"; test -n "$T"
+          curl -sf -H "Authorization: Bearer $T" -H "Content-Type: application/json" -d "{\"current\":\"$FIRST\",\"new\":\"$NEW\"}" http://localhost:8740/api/auth/password
+          T=$(login "$NEW"); echo "::add-mask::$T"; test -n "$T"
+          # the page's service card: DocFlow answers, in managed mode, at the version this release is tested with
+          for i in $(seq 1 60); do
+            V=$(curl -s -H "Authorization: Bearer $T" http://localhost:8740/api/docflow/version)
+            echo "$V" | grep -q '"status":"compatible"' && break; sleep 3
+          done
+          echo "$V"; echo "$V" | grep -q '"status":"compatible"' || { docker logs docflow | tail -50; exit 1; }
+          curl -sf -H "Authorization: Bearer $T" http://localhost:8740/api/docflow/df/flows | grep -q '"smart-inbox"'
+          docker exec docflow python -c "import urllib.request,json; v=json.load(urllib.request.urlopen('http://127.0.0.1:8085/api/docs/v1/admin/version')); assert v['managed'] is True and 'folder' not in v, v"
+          # DocFlow publishes no port: only the Command Center on its network reaches it
+          test -z "$(docker port docflow)"
       - name: A SaaS region with two tenants on PostgreSQL (C3)
         run: |
           PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"
@@ -464,3 +577,90 @@ jobs:
           path: platform/cli/build/distributions/ooa-*.msi
           retention-days: 14
           compression-level: 0
+
+  docflow-windows:
+    name: Document Automation installed on Windows (setup -DocFlow)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-node@v4   # the new Studio (platform/ui) is built by npm inside the Gradle build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/ui/package-lock.json
+      - uses: actions/setup-python@v5   # what DocFlow's installer looks for (winget is not on the runner)
+        with:
+          python-version: "3.12"
+      - name: Tesseract OCR (DocFlow's installer would use winget)
+        shell: pwsh
+        run: choco install tesseract -y --no-progress
+      - name: Build the setup package
+        shell: pwsh
+        run: ./gradlew.bat :cli:setupDistZip --console=plain
+      - name: Install One CommandCenter as a service with Document Automation
+        shell: pwsh
+        env:
+          # DocFlow's installer reads GitHub's API; with a token it is not held up by the anonymous rate limit
+          DOCFLOW_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $zip = Get-ChildItem cli/build/distributions/ooa-setup-*.zip | Select-Object -First 1
+          $src = Join-Path $env:RUNNER_TEMP "setup"
+          Expand-Archive $zip.FullName $src
+          $setup = Get-ChildItem $src -Recurse -Filter Install-OOA.ps1 | Select-Object -First 1
+          $inst = Join-Path $env:RUNNER_TEMP "ooa"; $data = Join-Path $env:RUNNER_TEMP "ooa-data"
+          "OOA_INST=$inst" >> $env:GITHUB_ENV; "OOA_DATA=$data" >> $env:GITHUB_ENV
+          powershell -NoProfile -ExecutionPolicy Bypass -File $setup.FullName -Silent -Role CommandCenter -InstallDir $inst -DataDir $data `
+            -Service -Port 8750 -ListenAddress 127.0.0.1 -DocFlow -NoShortcuts -SkipCheck
+          $code = $LASTEXITCODE
+          Get-Content (Join-Path $env:TEMP "ooa-install.log") -Tail 60
+          if ($code -ne 0) { throw "setup ended with exit code $code" }
+      - name: DocFlow runs in managed mode and One CommandCenter reaches it
+        shell: pwsh
+        run: |
+          $v = $null
+          for ($i = 0; $i -lt 100 -and -not $v; $i++) { try { $v = Invoke-RestMethod http://127.0.0.1:8085/api/docs/v1/admin/version } catch { Start-Sleep 3 } }
+          if (-not $v) { Get-ScheduledTask -TaskName "OOA DocFlow" | Get-ScheduledTaskInfo | Format-List; throw "DocFlow did not start" }
+          $v | Format-List
+          if (-not $v.managed) { throw "DocFlow is not in managed mode" }
+          $acl = (Get-Acl (Join-Path $env:OOA_INST "DocFlow\config\local.env")).Access.IdentityReference.Value
+          if ($acl | Where-Object { $_ -match "Users$" }) { throw "local.env (the token) is readable by every user: $($acl -join ', ')" }
+          if (-not (Select-String -Path (Join-Path $env:OOA_DATA "config\ooa-docflow.properties") -Pattern "^token=enc:" -Quiet)) { throw "the token is not stored encrypted" }
+          # sign in: a one-time password for admin (with the service stopped), then a password of its own
+          $ooa = Join-Path $env:OOA_INST "bin\ooa.bat"
+          Stop-Service "OOA Command Center"
+          $first = ([regex]::Match((& $ooa reset-admin --data $env:OOA_DATA | Out-String), "one-time password\s+(\S+)")).Groups[1].Value
+          if (-not $first) { throw "no one-time password" }
+          Start-Service "OOA Command Center"
+          $ready = $false
+          for ($i = 0; $i -lt 60 -and -not $ready; $i++) { try { Invoke-RestMethod http://127.0.0.1:8750/api/health/ready | Out-Null; $ready = $true } catch { Start-Sleep 2 } }
+          if (-not $ready) { throw "One CommandCenter did not start" }
+          function Login($pw) { (Invoke-RestMethod -Method Post http://127.0.0.1:8750/api/auth/login -ContentType "application/json" -Body (@{ username = "admin"; password = $pw } | ConvertTo-Json)).token }
+          $new = "Ci-Admin-" + [guid]::NewGuid().ToString("N").Substring(0, 12)
+          $t = Login $first
+          Invoke-RestMethod -Method Post http://127.0.0.1:8750/api/auth/password -Headers @{ Authorization = "Bearer $t" } -ContentType "application/json" -Body (@{ current = $first; new = $new } | ConvertTo-Json) | Out-Null
+          $h = @{ Authorization = "Bearer $(Login $new)" }
+          $s = $null
+          for ($i = 0; $i -lt 40; $i++) { $s = Invoke-RestMethod http://127.0.0.1:8750/api/docflow/version -Headers $h; if ($s.status -eq "compatible") { break }; Start-Sleep 3 }
+          $s | Format-List
+          if ($s.status -ne "compatible") { throw "the service card says $($s.status)" }
+          $flows = Invoke-RestMethod http://127.0.0.1:8750/api/docflow/df/flows -Headers $h
+          if (-not ($flows | Where-Object { $_.id -eq "smart-inbox" })) { throw "no smart-inbox in the processes" }
+          "Document Automation works on Windows: DocFlow $($v.version), managed, reached by One CommandCenter"
+      - name: Uninstall keeps DocFlow's documents
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:OOA_INST "Uninstall-OOA.ps1") -Silent
+          Start-Sleep 8
+          if (Get-ScheduledTask -TaskName "OOA DocFlow" -ErrorAction SilentlyContinue) { throw "the task 'OOA DocFlow' is still there" }
+          if (-not (Test-Path (Join-Path $env:OOA_DATA "docflow"))) { throw "DocFlow's data folder was removed" }
+          "Uninstalled; DocFlow's data folder is kept"
+      - name: Setup log
+        if: failure()
+        shell: pwsh
+        run: Get-Content (Join-Path $env:TEMP "ooa-install.log") -ErrorAction SilentlyContinue

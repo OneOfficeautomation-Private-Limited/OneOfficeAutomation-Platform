@@ -2,7 +2,7 @@
 
 ## What this covers
 
-How agents are started without a person: schedules (every N minutes, daily, weekly) with time zones and holiday
+How agents are started without a person: schedules (every N minutes, daily, weekly, monthly, cron) with time zones and holiday
 calendars, and triggers that react to events on a runner, on remote systems polled by One CommandCenter, or through
 webhooks. It specifies who a scheduled or triggered run belongs to, which values the agent receives, how failures are
 reported, and what happens with overlapping runs and with occurrences missed while One CommandCenter was down.
@@ -32,7 +32,8 @@ A schedule (Manage > Schedules) starts the live production version of one agent 
 | --- | --- |
 | Name | 1-200 characters (default "Schedule") |
 | Agent | Must exist and have a live production version; the creator needs folder access **run** |
-| Kind | `every` (every N minutes, N ≥ 1), `daily` (at HH:mm) or `weekly` (at HH:mm on chosen days `MON`…`SUN`) |
+| Kind | `every` (every N minutes, N ≥ 1), `daily` (at HH:mm), `weekly` (at HH:mm on chosen days `MON`…`SUN`), `monthly` (at HH:mm, on the days of `rule`) or `cron` (the expression in `rule`) |
+| Rule | For `monthly` and `cron` only, up to 200 characters; see "Monthly rules" and "Cron expressions" below. A wrong rule, or one that never runs again, is refused (`CR.BAD_SCHEDULE`) with an example |
 | Time zone | An IANA name such as `Asia/Kolkata`, `Europe/London` (default `UTC`); an unknown zone is refused (`CR.BAD_SCHEDULE`) |
 | Where | A runner, or a runner pool, or neither when a run-as user with a default runner is given |
 | Run-as user | Optional; must be enabled; without a runner or pool they need a default runner (`CR.NO_DEFAULT_RUNNER`) |
@@ -56,6 +57,15 @@ zone), not on CALENDAR"), owner and run-as user, and next and last run.
 - On a listed date, in the schedule's own time zone, the schedule does not start its agent. The skip is recorded in the
   audit trail (`schedule.skip_holiday`) and the next run is computed as usual.
 - Managing calendars needs `schedules.manage`; seeing them needs `schedules.view`.
+- Since gap G34 a calendar also has a **weekend**: the days of the week that are not working days (`MON`..`SUN`;
+  `SAT,SUN` when none is stored, `NONE` for none; at least one working day must remain). `PUT /api/calendars/{name}`
+  takes `dates` and optionally `weekend` (a list or comma text); a save without `weekend` keeps the calendar's.
+  `calendar.save` audits the number of dates, the weekend and, when it changed, the old weekend. The weekend does not
+  change when schedules run.
+- Running agents read a calendar for the Date and time toolkit's working-day steps (Add working days, Count working
+  days, Next / Previous working day, Is working day) through the run-request relay (`call` = `calendar`), as the run's
+  user with `schedules.view`; the read is audited as `agent.calendar` and an unknown name gives `CALENDAR.NOT_FOUND`
+  (`DATETIME.CALENDAR_NOT_FOUND` on the step). The runner keeps what it read for the rest of the run.
 
 ## 3. How a schedule fires
 
@@ -78,6 +88,44 @@ Next run times:
 | every | The moment the occurrence was handled, plus N minutes (so the interval is measured from when it fired) |
 | daily | The next HH:mm in the schedule's time zone after now |
 | weekly | The next HH:mm on one of the chosen days, in the time zone |
+| monthly | The next HH:mm on a day of the rule, in the time zone |
+| cron | The next time the expression names, in the time zone |
+
+A preview of the next times (`POST /api/schedules/preview`, needs `schedules.view`) takes a draft schedule's timing
+(`kind`, `every_minutes`, `at_time`, `days`, `rule`, `time_zone`, `holiday_calendar`, optional `count` 1-20, default 5)
+and returns `next_runs`, each with `time` (UTC), `local` (in the time zone, with its offset) and `holiday` (skipped by
+the calendar). Nothing is stored.
+
+### Monthly rules
+
+Parts separated by `;`, stored the tidy way (for example `days=1,15,last;every=3;start=2026-11`):
+
+| Part | Meaning |
+| --- | --- |
+| `days=1,15,last` | Days of the month, 1-31, and/or `last` |
+| `weekday=first MON` | Or ordinal weekdays: `first`, `second`, `third`, `fourth`, `fifth` or `last` with `MON`…`SUN` (several with commas) |
+| `every=3` | Every N months, 1-120 (default 1) |
+| `start=2026-11` | The month counting starts from (default: the month the schedule is made; stored when `every` is more than 1) |
+| `missing=skip` or `missing=last` | A day the month does not have (31 in April) is skipped (default), or runs on the month's last day |
+
+Skipping a missing day is what UiPath's (Quartz) triggers and Blue Prism's Scheduler do by default; Blue Prism also
+offers the last day, which is `missing=last`. A `fifth` weekday is skipped in months with only four.
+
+### Cron expressions
+
+Five fields (`minute hour day-of-month month day-of-week`, Sunday is 0 or 7), or Quartz's six or seven (`second` first
+and an optional `year` last, Sunday is 1; one of the two day fields is `?`). Lists, ranges, steps (`*/15`, `5/10`,
+`1-5/2`), month and day names, `L`, `L-n`, `nW`, `LW`, `xL` (last weekday x of the month), `x#n` (n-th weekday x) and
+`@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`. With five fields and both day fields restricted, either
+matching is enough (Unix cron). The seconds field must be a single number. A cron rule whose `year` field has passed
+has no next run; the schedule stays enabled but does not run again.
+
+### Clock changes
+
+Monthly and cron times are wall-clock times in the schedule's time zone. A time in the hour skipped when clocks go
+forward runs as many minutes later as the clocks moved (02:30 becomes 03:30), as for daily and weekly schedules. A
+time in the hour repeated when clocks go back runs once, the first time; a cron expression with `*` in the hour field
+runs in both copies of that hour. No time runs twice.
 
 Daily and weekly times follow the time zone's clock changes (summer time). Enabling a schedule computes its next run
 from that moment; disabling clears it.
@@ -126,6 +174,8 @@ error and polls One CommandCenter trigger again soon. Over the API: `POST /api/t
 | `service_started` | Service started | Runner | Yes |
 | `service_stopped` | Service stopped | Runner | Yes |
 | `hotkey` | Hotkey pressed | Runner | Yes (needs the Window toolkit) |
+| `key_pressed` | Key pressed in a window | Runner | Yes (needs the Window toolkit) |
+| `mouse_clicked` | Mouse click on an element or window | Runner | Yes (needs the Window toolkit) |
 | `email` | New email (IMAP) | One CommandCenter | No |
 | `outlook` | New email (Microsoft 365 Outlook) | One CommandCenter | No |
 | `servicenow` | ServiceNow record | One CommandCenter | No |
@@ -147,6 +197,15 @@ records what is there**; later looks fire for differences, so files present when
 | Process started, stopped | Process name only, such as `notepad.exe` (no path) | A process of that name starts or stops |
 | Service started, stopped | Windows service name as `sc query` shows it | The service reaches running or stopped |
 | Hotkey | Up to five keys joined with `+`, such as `CTRL+ALT+F9` | The global hotkey is pressed |
+| Key pressed in a window | `key`: one key with any of `CTRL`, `ALT`, `SHIFT`, `WIN`, such as `F9` or `CTRL+ENTER` (letters, digits, space and backspace need `CTRL`, `ALT` or `WIN`); optional `window` (title pattern) and `process`; `debounce_ms` (default 500, 0 to 60,000) | The key goes down with exactly those modifiers while a matching window is in front; held-key repeats and presses within `debounce_ms` of the last firing do not fire. Event: `key`, `window`, `process` |
+| Mouse click | `window` (title pattern) and/or `process` (one is required); `button` (`left` default, `right`, `middle`, `any`); optional `element_name` (pattern), `element_type` (such as `Button`), `automation_id`; `debounce_ms` | The button goes down in a matching window (on a matching element, read with UI Automation at the click point). Event: `button`, `window`, `process`, `element_name`, `element_type`, `automation_id` |
+
+Key-press and click triggers use Windows low-level input hooks (no polling). The hook callback only compares the key
+code with the configured key (or notes which button went down) and hands off to a worker thread; typed text is never
+recorded, buffered, logged or sent, and input injected by programs is ignored. The keys and clicks still reach the
+application. On a runner that is not Windows the trigger reports "Key-press and click triggers work on Windows runners
+only". The same events are available inside an attended agent through the Trigger Loop iterators
+`ooa.triggerloop/key_pressed` and `ooa.triggerloop/mouse_clicked`.
 
 When the runner cannot watch a trigger (folder missing, hotkey taken, kind not supported on that system) it reports the
 reason, which shows as the trigger's last error; when it can again, the error clears.
@@ -188,6 +247,8 @@ The agent receives only the values it declares as inputs:
 | `trigger_process` | The process name |
 | `trigger_service` | The service name |
 | `trigger_hotkey` | The key combination |
+| `trigger_key` | The configured key combination that was pressed (never typed text) |
+| `trigger_click` | The clicked element's name, or the window title when the element has none |
 | `trigger_email` | The message (email and Outlook kinds) |
 | `trigger_record` | The ServiceNow record |
 | `trigger_item` | The polled item |

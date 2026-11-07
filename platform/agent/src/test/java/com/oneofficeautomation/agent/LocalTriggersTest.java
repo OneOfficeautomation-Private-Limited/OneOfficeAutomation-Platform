@@ -1,5 +1,6 @@
 package com.oneofficeautomation.agent;
 
+import com.oneofficeautomation.packages.ui.InputTriggers;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.*;
@@ -124,6 +125,52 @@ class LocalTriggersTest {
         lt.update(List.of(t("hk", "hotkey", Map.of("hotkey", "F9")), t("x", "teleport", Map.of())));
         assertTrue(status.get("hk").contains("Windows runner"));
         assertTrue(status.get("x").contains("does not know"));
+    }
+
+    /** Fake keyboard and mouse hooks: the test plays the operating system. */
+    final List<java.util.function.Consumer<InputTriggers.Window>> keyHooks = new ArrayList<>();
+    final List<java.util.function.Consumer<InputTriggers.Click>> mouseHooks = new ArrayList<>();
+    final InputTriggers.Native input = new InputTriggers.Native() {
+        public AutoCloseable onKeyChord(InputTriggers.KeyChord chord, java.util.function.Consumer<InputTriggers.Window> onPress) { keyHooks.add(onPress); return () -> keyHooks.remove(onPress); }
+        public AutoCloseable onMouseDown(java.util.function.Consumer<InputTriggers.Click> onClick) { mouseHooks.add(onClick); return () -> mouseHooks.remove(onClick); }
+        public InputTriggers.ElementLookup openElementLookup() {
+            return new InputTriggers.ElementLookup() {
+                public Map<String, String> at(int x, int y) { return Map.of("Name", "Approve", "ControlType", "Button", "AutomationId", "ok"); }
+                public void close() { }
+            };
+        }
+    };
+
+    @Test void keyPressAndClickTriggersHookOnceFireWithDebounceAndUnhook() {
+        long[] now = {0};
+        LocalTriggers lt = new LocalTriggers(new LocalTriggers.Reporter() {
+            public void fired(String id, Map<String, Object> ev) { fired.add(id + " " + new TreeMap<>(ev)); }
+            public void status(String id, String error) { status.put(id, error); }
+        }, null, null, input, s -> { });
+        lt.clock = () -> now[0];
+        List<Object> list = List.of(t("kp", "key_pressed", Map.of("key", "CTRL+ENTER", "window", "*ERP*", "debounce_ms", 500)),
+                t("mc", "mouse_clicked", Map.of("process", "erp.exe", "element_name", "Approve")),
+                t("bad", "key_pressed", Map.of("key", "A")));
+        lt.update(list);
+        lt.update(list);
+        assertEquals(1, keyHooks.size(), "one hook per trigger, kept across heartbeats");
+        assertEquals(1, mouseHooks.size());
+        assertTrue(status.get("bad").contains("typing key"), String.valueOf(status));
+        keyHooks.get(0).accept(new InputTriggers.Window("Orders - ERP", "erp.exe"));
+        keyHooks.get(0).accept(new InputTriggers.Window("Orders - ERP", "erp.exe"));   // within 500 ms
+        keyHooks.get(0).accept(new InputTriggers.Window("Mail", "outlook.exe"));
+        mouseHooks.get(0).accept(new InputTriggers.Click("left", 3, 4, new InputTriggers.Window("Orders - ERP", "erp.exe")));
+        assertEquals(List.of("kp {key=CTRL+ENTER, process=erp.exe, window=Orders - ERP}",
+                "mc {automation_id=ok, button=left, element_name=Approve, element_type=Button, process=erp.exe, window=Orders - ERP}"), fired);
+        lt.update(List.of());
+        assertTrue(keyHooks.isEmpty() && mouseHooks.isEmpty(), "removed triggers unhook");
+    }
+
+    @Test void keyPressAndClickTriggersSayWindowsOnlyWithoutHooks() {
+        LocalTriggers lt = triggers(false);
+        lt.update(List.of(t("kp", "key_pressed", Map.of("key", "F9")), t("mc", "mouse_clicked", Map.of("window", "ERP"))));
+        assertTrue(status.get("kp").contains("Windows runners only"), String.valueOf(status));
+        assertTrue(status.get("mc").contains("Windows runners only"), String.valueOf(status));
     }
 
     @Test void processNameMatching() {

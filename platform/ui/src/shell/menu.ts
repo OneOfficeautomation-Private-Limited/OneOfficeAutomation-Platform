@@ -25,7 +25,8 @@ export const MENU_SECTIONS: MenuSection[] = [
   { id: "administration", label: "ADMINISTRATION", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
     { id: "teams", label: "Teams", perm: "teams.manage|team_lead" }, { id: "policies", label: "Policies", perm: "settings.manage" },
-    { id: "audit", label: "Audit Trail", perm: "audit.view" }, { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
+    { id: "audit", label: "Audit Trail", perm: "audit.view" }, { id: "events", label: "Event subscriptions", perm: "events.manage" },
+    { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }] },
   { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [
     { id: "connections", label: "Model Connections", perm: "connections.manage" }, { id: "skills", label: "Prompt Skills", perm: "skills.view" },

@@ -76,6 +76,12 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
+    /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
+    public final RunWaits runWaits;
+    /** Event subscriptions (gap G38): events posted to receivers as they happen. */
+    public final EventSubscriptions events;
+    /** The Prometheus metrics (gap G38). */
+    public final Metrics metrics;
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
@@ -149,11 +155,18 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
+        this.runWaits = new RunWaits(this);
+        this.events = new EventSubscriptions(this);
+        this.metrics = new Metrics(this);
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
         this.mailer = new Mailer(this);
-        audit.onRecord(syslog::forward);
+        audit.onRecord(e -> {
+            syslog.forward(e);
+            try { metrics.onAudit(e); } catch (RuntimeException ignored) { }
+            events.onAudit(e);
+        });
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
         this.testSets = new TestSets(this);
@@ -1399,6 +1412,9 @@ public final class ControlRoom {
             String list = String.join(",", tk.stream().map(String::valueOf).filter(x -> x.matches("[A-Za-z0-9._-]{1,80}@[A-Za-z0-9._-]{1,40}")).sorted().toList());
             if (list.length() <= 20000) db.update("UPDATE devices SET toolkits = ? WHERE id = ?", list, did);
         }
+        // runner.online (G38): its first report, or the first after a minute without one (offline comes from the leader's clock)
+        if (d.get("last_seen") == null || Instant.parse(d.get("last_seen").toString()).isBefore(now().minus(ONLINE)))
+            events.emit("runner.online", Map.of("runner_id", did, "name", String.valueOf(d.get("name")), "hostname", String.valueOf(info.getOrDefault("hostname", d.get("hostname")))));
         db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state), build = COALESCE(?, build) WHERE id = ?",
                 now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, build, did);
         List<Object> cancel = new ArrayList<>(), pause = new ArrayList<>(), resume = new ArrayList<>();
@@ -1795,6 +1811,9 @@ public final class ControlRoom {
             if (guardrails != null) job.put("guardrails", guardrails);
             if (platform.intSetting("runner_error_screenshots") == 0) job.put("error_screenshots", false);   // Settings: no pictures of the screen
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
+            Map<String, Object> resume = runWaits.forJob((String) run.get("id"));   // a resumed run (G36): where it starts, with what
+            if (resume != null) job.put("resume", resume);
+            events.emit("run.started", Map.of("run_id", run.get("id"), "runner_id", did, "runner", String.valueOf(d.get("name"))));
             return job;
         }
         return null;
@@ -1826,7 +1845,9 @@ public final class ControlRoom {
     public void appendEvents(Map<String, Object> d, String runId, List<Object> events) {
         Map<String, Object> r = runOnDevice(d, runId);
         if (!"running".equals(r.get("status"))) return;
+        List<Object> fresh = new ArrayList<>();   // the entries not stored before (a runner may send a batch again)
         db.tx(() -> {
+            fresh.clear();
             for (Object o : events) {
                 Map<String, Object> e = (Map<String, Object>) o;
                 Object seq = e.get("seq");
@@ -1834,9 +1855,13 @@ public final class ControlRoom {
                 if (db.one("SELECT seq FROM run_events WHERE run_id = ? AND seq = ?", runId, ((Number) seq).longValue()) != null) continue;
                 String json = JsonLite.write(e);
                 db.update("INSERT INTO run_events (run_id, seq, event) VALUES (?,?,?)", runId, ((Number) seq).longValue(), json.length() > 19000 ? json.substring(0, 19000) : json);
+                fresh.add(e);
             }
             return null;
         });
+        // run log streaming (G38): the new entries as one run.log event, when a subscription takes them
+        if (!fresh.isEmpty() && this.events.wanted("run.log"))
+            this.events.emit("run.log", Map.of("run_id", runId, "bot_path", String.valueOf(r.get("bot_path")), "runner_id", String.valueOf(d.get("id")), "lines", fresh));
     }
 
     @SuppressWarnings("unchecked")
@@ -1844,21 +1869,42 @@ public final class ControlRoom {
         Map<String, Object> r = runOnDevice(d, runId);
         if (!"running".equals(r.get("status"))) return;
         String status = String.valueOf(result.getOrDefault("status", "failed"));
-        if (!Set.of("success", "failed", "stopped").contains(status)) status = "failed";
+        if (!Set.of("success", "failed", "stopped", "suspended").contains(status)) status = "failed";
+        // a suspended run (G36) must have told One CommandCenter what it waits for; other ends cancel its waits
+        String ended = runWaits.onRunEnd(runId, status);
+        if (!ended.equals(status)) {
+            result = new LinkedHashMap<>(result);
+            result.put("error", new OoaException("LONGRUN.NOT_REGISTERED", "The run ended as suspended, but One CommandCenter has no wait for it").toMap());
+            status = ended;
+        }
         Instant started = r.get("started") == null ? now() : Instant.parse(r.get("started").toString());
         // the run's AI calls are recorded before it shows as finished, so whoever waits for the status sees them
         if (result.get("ai_calls") instanceof List<?> calls) platform.recordAiCalls(r, calls);
         db.update("UPDATE runs SET status = ?, finished = ?, duration_ms = ?, error = ?, outputs = ?, steps = ? WHERE id = ?",
                 status, now(), Duration.between(started, now()).toMillis(), result.get("error") == null ? null : JsonLite.write(result.get("error")),
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
+        try { metrics.runFinished(status, Duration.between(started, now()).toMillis()); } catch (RuntimeException ignored) { }
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         try { locks.releaseForRun(runId, "its run ended (" + status + ")"); } catch (RuntimeException e) { /* the server clock gives them back */ }
+        if (status.equals("suspended")) return;   // the chain goes on: its work item, workflow, test and callback wait for the run that ends it
+        afterRunEnded(r, status, result);
+    }
+
+    /**
+     * What follows the end of a run, or of a chain of suspended and resumed runs (G36): its work item, KPIs, test case,
+     * workflow, failing trigger, failure mail and callback. A workflow and a test know the chain by its first run.
+     */
+    void afterRunEnded(Map<String, Object> r, String status, Map<String, Object> result) {
+        String runId = (String) r.get("id");
+        String root = runWaits.rootRun(runId);
+        Map<String, Object> first = r;
+        if (!root.equals(runId)) { first = new LinkedHashMap<>(r); first.put("id", root); }
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
         if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
-        try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        try { testSets.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        try { workflows.onRunFinished(first, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (status.equals("failed") && r.get("source") instanceof String src && src.startsWith("trigger:")) switchOffFailingTrigger(src.substring(8));
         if (status.equals("failed") && platform.intSetting("notify_run_failed") == 1) runFailedMail(r, result.get("error"));
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
@@ -1939,9 +1985,11 @@ public final class ControlRoom {
         Instant cutoff = now().minus(Duration.ofHours(hours));
         String error = JsonLite.write(Map.of("code", "QUEUE.ABANDONED", "message", "In progress for more than " + hours + " hours without an answer",
                 "suggestedFix", "Check the runner and the agent, then retry the item."));
-        for (Map<String, Object> i : db.query("SELECT id FROM queue_items WHERE status = 'in_progress' AND updated < ?", cutoff))
-            if (db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ? AND status = 'in_progress'", error, now(), now(), i.get("id")) > 0)
+        for (Map<String, Object> i : db.query("SELECT id, queue_id FROM queue_items WHERE status = 'in_progress' AND updated < ?", cutoff))
+            if (db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ? AND status = 'in_progress'", error, now(), now(), i.get("id")) > 0) {
                 audit.record("system", "queue.item_abandoned", "queue_item", (String) i.get("id"), Map.of("hours", hours), "ok", null);
+                events.emit("queue.item_abandoned", Map.of("item_id", i.get("id"), "queue_id", String.valueOf(i.get("queue_id")), "status", "failed"));
+            }
     }
 
     /** Posts the run result to the caller's callback URL in the background (3 attempts); failures are audited, never raised. */
@@ -2013,9 +2061,21 @@ public final class ControlRoom {
                 else { control(as, job, "stop", null); out = Map.of("stopped", true, "status", "stopping"); }
             }
             case "raise_alert" -> out = alerts.raiseFromRun(run, (String) args.get("message"), (String) args.get("severity"), (String) args.get("subject"));
+            case "calendar" -> {   // gap G34: a holiday calendar for ooa.datetime's working-day actions, read as the run's user
+                String cal = args.get("name") instanceof String s ? s.strip() : "";
+                out = platform.calendarFor(as, cal);
+                if (out == null) throw new OoaException("CALENDAR.NOT_FOUND", "There is no holiday calendar '" + cal + "' in One CommandCenter",
+                        "Check the name under Manage > Schedules > Holiday calendars, or give the holidays and weekend on the step.");
+                audit.record(actor, "agent.calendar", "calendar", cal, Map.of("from_run", runId), "ok", null);
+                return out;
+            }
+            // long-running agents (G36); each audits itself
+            case "create_callback" -> out = runWaits.createCallback(run, actor);
+            case "suspend" -> out = runWaits.suspend(run, as, args, actor);
+            case "create_task" -> out = runWaits.createTask(run, args, actor);
             default -> throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
         }
-        if (!call.equals("raise_alert")) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
+        if (!Set.of("raise_alert", "create_callback", "suspend", "create_task").contains(call)) audit.record(actor, "agent." + call, "run", job == null ? runId : job, Map.of("from_run", runId), "ok", null);
         return out;
     }
 
@@ -2034,6 +2094,11 @@ public final class ControlRoom {
         require(by, "runs.stop", "control runs");
         Map<String, Object> r = db.one("SELECT status FROM runs WHERE id = ?", runId);
         if (r == null) throw notFound("Run");
+        if ("suspended".equals(r.get("status"))) {   // a suspended run (G36) has no runner: stopping it cancels its wait
+            if (!action.equals("stop")) throw new OoaException("CR.CONFLICT", "The run is suspended", "Resume it or stop it from the Suspended tab.");
+            runWaits.stopSuspended(runId, by.username(), ip);
+            return;
+        }
         switch (action) {
             case "stop" -> {
                 if ("queued".equals(r.get("status"))) db.update("UPDATE runs SET status = 'stopped', finished = ?, error = ? WHERE id = ? AND status = 'queued'",
@@ -2051,7 +2116,8 @@ public final class ControlRoom {
 
     public List<Map<String, Object>> runs(User by, String filter, int limit) {
         require(by, "runs.view", "view runs");
-        String where = "active".equals(filter) ? "WHERE r.status IN ('queued', 'running')" : "history".equals(filter) ? "WHERE r.status IN ('success', 'failed', 'stopped')" : "";
+        String where = "active".equals(filter) ? "WHERE r.status IN ('queued', 'running')" : "history".equals(filter) ? "WHERE r.status IN ('success', 'failed', 'stopped')"
+                : "suspended".equals(filter) ? "WHERE r.status = 'suspended'" : "";
         return db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.run_as, r.run_mode, r.source, r.created, r.started, r.finished, r.duration_ms, " +
                 "r.error, r.pause_requested, r.cancel_requested, r.steps FROM runs r LEFT JOIN devices d ON d.id = r.device_id " + where + " ORDER BY r.created DESC LIMIT " + Math.max(1, Math.min(500, limit)));
     }
@@ -2067,8 +2133,9 @@ public final class ControlRoom {
         String filter = q.getOrDefault("filter", "all");
         if ("active".equals(filter)) where.add("r.status IN ('queued', 'running')");
         else if ("history".equals(filter)) where.add("r.status IN ('success', 'failed', 'stopped')");
+        else if ("suspended".equals(filter)) where.add("r.status = 'suspended'");
         String status = q.get("status");
-        if (status != null && Set.of("queued", "running", "success", "failed", "stopped").contains(status)) { where.add("r.status = ?"); p.add(status); }
+        if (status != null && Set.of("queued", "running", "success", "failed", "stopped", "suspended").contains(status)) { where.add("r.status = ?"); p.add(status); }
         for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}}) {
             String v = q.get(f[0]);
             if (v != null && !v.isBlank()) { where.add(f[1] + " = ?"); p.add(v); }
@@ -2166,6 +2233,7 @@ public final class ControlRoom {
         for (Map<String, Object> e : db.query("SELECT event FROM run_events WHERE run_id = ? AND seq > ? ORDER BY seq LIMIT 2000", runId, afterSeq)) events.add(JsonLite.parse((String) e.get("event")));
         Map<String, Object> out = new LinkedHashMap<>(r);
         out.put("events", events);
+        out.putAll(runWaits.chain(runId));   // suspended and resumed runs (G36): what it waits for, the runs before and after
         return out;
     }
 
@@ -2203,6 +2271,7 @@ public final class ControlRoom {
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { abandonStaleItems(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { locks.sweep(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { events.checkRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
@@ -2212,10 +2281,29 @@ public final class ControlRoom {
 
     // ===================== schedules =====================
 
+
+    /** A schedule row as the API shows it: the timing_rule column (RULE is reserved in SQL Server) is the schedule's rule. */
+    static Map<String, Object> scheduleRow(Map<String, Object> r) {
+        if (r != null && r.containsKey("timing_rule")) { r = new LinkedHashMap<>(r); r.put("rule", r.remove("timing_rule")); }
+        return r;
+    }
+
+    static List<Map<String, Object>> scheduleRows(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (Map<String, Object> r : rows) out.add(scheduleRow(r));
+        return out;
+    }
+
+    /**
+     * The schedule's next time after {@code after}. Monthly and cron schedules follow their rule (ScheduleRules); a cron
+     * rule whose years have all passed has no next time (null), so the schedule stays enabled but does not run again.
+     */
     static Instant nextRun(Map<String, Object> s, Instant after) {
         ZoneId zone = ZoneId.of(String.valueOf(s.getOrDefault("time_zone", "UTC")));
         String kind = String.valueOf(s.get("kind"));
         if (kind.equals("every")) return after.plus(Duration.ofMinutes(((Number) s.get("every_minutes")).longValue()));
+        if (kind.equals("monthly") || kind.equals("cron"))
+            return ScheduleRules.next(ScheduleRules.of(kind, (String) s.get("rule"), String.valueOf(s.get("at_time")), java.time.YearMonth.from(after.atZone(zone))), after, zone);
         LocalTime at = LocalTime.parse(String.valueOf(s.get("at_time")));
         Set<DayOfWeek> days = new HashSet<>();
         if (kind.equals("weekly")) for (String d : String.valueOf(s.get("days")).split(",")) days.add(DayOfWeek.valueOf(switch (d.trim().toUpperCase(Locale.ROOT)) {
@@ -2228,17 +2316,72 @@ public final class ControlRoom {
         throw new OoaException("CR.BAD_SCHEDULE", "No next run could be computed");
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> createSchedule(User by, Map<String, Object> s, String ip) {
-        require(by, "schedules.manage", "manage schedules");
+    static final Set<String> SCHEDULE_KINDS = Set.of("every", "daily", "weekly", "monthly", "cron");
+
+    /**
+     * Checks a schedule's timing (kind, every_minutes, at_time, days, rule, time_zone) and returns it ready to store: the
+     * time zone filled in, a monthly rule written the stored way (with its start month when it repeats every N months),
+     * a cron expression with its spaces tidied. Refuses a rule that never runs again.
+     */
+    Map<String, Object> scheduleTiming(Map<String, Object> s) {
         String kind = String.valueOf(s.get("kind"));
-        if (!Set.of("every", "daily", "weekly").contains(kind)) throw new OoaException("CR.BAD_SCHEDULE", "kind must be every, daily or weekly");
+        if (!SCHEDULE_KINDS.contains(kind)) throw new OoaException("CR.BAD_SCHEDULE", "kind must be every, daily, weekly, monthly or cron");
         if (kind.equals("every") && (!(s.get("every_minutes") instanceof Number n) || n.intValue() < 1)) throw new OoaException("CR.BAD_SCHEDULE", "every_minutes must be at least 1");
-        if (!kind.equals("every") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30");
+        if (!kind.equals("every") && !kind.equals("cron") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30");
         if (kind.equals("weekly") && !String.valueOf(s.get("days")).matches("^(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*$"))
             throw new OoaException("CR.BAD_SCHEDULE", "days must be like MON,WED,FRI");
         String tz = s.get("time_zone") instanceof String z && !z.isBlank() ? z.trim() : defaultTimeZone();
-        try { ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
+        ZoneId zone;
+        try { zone = ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
+        Map<String, Object> t = new HashMap<>();
+        t.put("kind", kind);
+        t.put("time_zone", tz);
+        if (kind.equals("every")) t.put("every_minutes", ((Number) s.get("every_minutes")).intValue());
+        if (!kind.equals("every") && !kind.equals("cron")) t.put("at_time", s.get("at_time"));
+        if (kind.equals("weekly")) t.put("days", s.get("days"));
+        String rule = s.get("rule") == null ? null : String.valueOf(s.get("rule"));
+        if (kind.equals("monthly")) t.put("rule", ScheduleRules.monthly(rule, LocalTime.parse(String.valueOf(s.get("at_time"))), java.time.YearMonth.from(now().atZone(zone))).text());
+        if (kind.equals("cron")) t.put("rule", ScheduleRules.cron(rule).text);
+        if ((kind.equals("monthly") || kind.equals("cron")) && nextRun(t, now()) == null)
+            throw new OoaException("CR.BAD_SCHEDULE", "The rule '" + t.get("rule") + "' never runs again", kind.equals("cron") ? ScheduleRules.CRON_EXAMPLE : ScheduleRules.MONTHLY_EXAMPLE);
+        return t;
+    }
+
+    /**
+     * The next times a draft schedule would run (for the console's preview), each with whether its holiday calendar
+     * skips it. Nothing is stored. {@code count} is 1 to 20 (default 5).
+     */
+    public Map<String, Object> previewSchedule(User by, Map<String, Object> s) {
+        require(by, "schedules.view", "view schedules");
+        Map<String, Object> t = scheduleTiming(s);
+        String cal = s.get("holiday_calendar") instanceof String cs && !cs.isBlank() ? cs : null;
+        if (cal != null && db.one("SELECT name FROM holiday_calendars WHERE name = ?", cal) == null) throw notFound("Holiday calendar");
+        t.put("holiday_calendar", cal);
+        int count = s.get("count") instanceof Number n ? Math.max(1, Math.min(20, n.intValue())) : 5;
+        List<Map<String, Object>> runs = new ArrayList<>();
+        Instant at = now();
+        ZoneId zone = ZoneId.of((String) t.get("time_zone"));
+        while (runs.size() < count && (at = nextRun(t, at)) != null) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("time", at.toString());
+            r.put("local", at.atZone(zone).toOffsetDateTime().toString());
+            r.put("holiday", platform.isHoliday(t, at));
+            runs.add(r);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("kind", t.get("kind"));
+        out.put("time_zone", t.get("time_zone"));
+        if (t.get("rule") != null) out.put("rule", t.get("rule"));
+        out.put("next_runs", runs);
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createSchedule(User by, Map<String, Object> s, String ip) {
+        require(by, "schedules.manage", "manage schedules");
+        Map<String, Object> timing = scheduleTiming(s);
+        String kind = (String) timing.get("kind");
+        String tz = (String) timing.get("time_zone");
         content(String.valueOf(s.get("bot_path")), "production");
         folders.require(by, String.valueOf(s.get("bot_path")), "run", "schedule agents");
         String pool = s.get("pool_id") instanceof String ps && !ps.isBlank() ? ps : null;
@@ -2249,15 +2392,17 @@ public final class ControlRoom {
         String cal = s.get("holiday_calendar") instanceof String cs && !cs.isBlank() ? cs : null;
         if (cal != null && db.one("SELECT name FROM holiday_calendars WHERE name = ?", cal) == null) throw notFound("Holiday calendar");
         String sid = id("sch");
-        Map<String, Object> row = new HashMap<>(s);
-        row.put("time_zone", tz);
-        Instant next = nextRun(row, now());
+        Instant next = nextRun(timing, now());
         db.update("INSERT INTO schedules (id, name, bot_path, device_id, kind, every_minutes, at_time, days, time_zone, inputs, enabled, next_run, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, s.get("every_minutes") instanceof Number n ? n.intValue() : null,
-                kind.equals("every") ? null : s.get("at_time"), kind.equals("weekly") ? s.get("days") : null, tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
-        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ? WHERE id = ?", pool, cal, runAs,
-                scheduleOption(s.get("missed_runs"), MISSED_RUNS), scheduleOption(s.get("overlap"), OVERLAP), sid);
-        audit.record(by.username(), "schedule.create", "schedule", sid, Map.of("bot", s.get("bot_path"), "kind", kind), "ok", ip);
+                sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, timing.get("every_minutes"),
+                timing.get("at_time"), timing.get("days"), tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
+        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ?, timing_rule = ? WHERE id = ?", pool, cal, runAs,
+                scheduleOption(s.get("missed_runs"), MISSED_RUNS), scheduleOption(s.get("overlap"), OVERLAP), timing.get("rule"), sid);
+        Map<String, Object> what = new LinkedHashMap<>();
+        what.put("bot", s.get("bot_path"));
+        what.put("kind", kind);
+        if (timing.get("rule") != null) what.put("rule", timing.get("rule"));
+        audit.record(by.username(), "schedule.create", "schedule", sid, what, "ok", ip);
         return Map.of("id", sid, "next_run", next.toString());
     }
 
@@ -2295,7 +2440,7 @@ public final class ControlRoom {
     public List<Map<String, Object>> schedules(User by) {
         require(by, "schedules.view", "view schedules");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> s : db.query("SELECT * FROM schedules ORDER BY name")) {
+        for (Map<String, Object> s : scheduleRows(db.query("SELECT * FROM schedules ORDER BY name"))) {
             Map<String, Object> m = new LinkedHashMap<>(s);
             Map<String, Object> last = db.one("SELECT id, status FROM runs WHERE source = ? ORDER BY created DESC LIMIT 1", "schedule:" + s.get("id"));
             if (last != null) { m.put("last_run_id", last.get("id")); m.put("last_status", last.get("status")); }
@@ -2306,7 +2451,7 @@ public final class ControlRoom {
 
     public Map<String, Object> schedule(User by, String sid) {
         require(by, "schedules.view", "view schedules");
-        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", sid));
         if (s == null) throw notFound("Schedule");
         return s;
     }
@@ -2329,7 +2474,7 @@ public final class ControlRoom {
         if (action.equals("owner") && (owner == null || db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", owner) == null)) throw notFound("User " + owner);
         int n = 0;
         for (String id : ids) {
-            Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", id);
+            Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", id));
             if (s == null) continue;
             switch (action) {
                 case "enable" -> n += db.update("UPDATE schedules SET enabled = TRUE, next_run = ? WHERE id = ?", nextRun(s, now()), id);
@@ -2345,7 +2490,7 @@ public final class ControlRoom {
     /** Starts a schedule's bot now, with its device and inputs, as the person who asked. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> runScheduleNow(User by, String sid, String ip) {
-        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", sid));
         if (s == null) throw notFound("Schedule");
         Map<String, Object> inputs = s.get("inputs") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) s.get("inputs"));
         return startRun(by.username(), by.role(), (String) s.get("bot_path"), (String) s.get("device_id"), (String) s.get("pool_id"), inputs, "schedule:" + sid, ip, 0, null, (String) s.get("run_as"), null);
@@ -2353,7 +2498,7 @@ public final class ControlRoom {
 
     public void setScheduleEnabled(User by, String sid, boolean en, String ip) {
         require(by, "schedules.manage", "manage schedules");
-        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        Map<String, Object> s = scheduleRow(db.one("SELECT * FROM schedules WHERE id = ?", sid));
         if (s == null) throw notFound("Schedule");
         db.update("UPDATE schedules SET enabled = ?, next_run = ? WHERE id = ?", en, en ? nextRun(s, now()) : null, sid);
         audit.record(by.username(), en ? "schedule.enable" : "schedule.disable", "schedule", sid, null, "ok", ip);
@@ -2383,9 +2528,15 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     public int tickSchedules() {
         int started = 0;
-        for (Map<String, Object> s : db.query("SELECT * FROM schedules WHERE enabled = TRUE AND next_run <= ?", now())) {
+        for (Map<String, Object> s : scheduleRows(db.query("SELECT * FROM schedules WHERE enabled = TRUE AND next_run <= ?", now()))) {
             Instant due = Instant.parse(s.get("next_run").toString());
-            Instant next = nextRun(s, now());
+            Instant next;
+            try { next = nextRun(s, now()); }
+            catch (RuntimeException e) {   // a rule that cannot be read stops this schedule only, not the others
+                if (db.update("UPDATE schedules SET next_run = NULL WHERE id = ? AND next_run = ?", s.get("id"), due) == 1)
+                    audit.record("scheduler", "schedule.fire", "schedule", (String) s.get("id"), "its timing cannot be read: " + e.getMessage(), "failed", null);
+                continue;
+            }
             if (db.update("UPDATE schedules SET last_run = ?, next_run = ? WHERE id = ? AND next_run = ?", now(), next, s.get("id"), due) != 1) continue;
             if (platform.isHoliday(s, now())) { audit.record("scheduler", "schedule.skip_holiday", "schedule", (String) s.get("id"), s.get("holiday_calendar"), "ok", null); continue; }
             if ("skip".equals(s.get("missed_runs")) && due.isBefore(now().minus(MISSED_AFTER))) {
@@ -2526,9 +2677,10 @@ public final class ControlRoom {
     }
 
     /**
-     * A runner reports a local event (file or folder, window, process, service, hotkey) for one of its triggers. The
-     * agent receives trigger_event (all details) and, by kind, trigger_file, trigger_window, trigger_process,
-     * trigger_service or trigger_hotkey.
+     * A runner reports a local event (file or folder, window, process, service, hotkey, key press, click) for one of its
+     * triggers. The agent receives trigger_event (all details) and, by kind, trigger_file, trigger_window,
+     * trigger_process, trigger_service, trigger_hotkey, trigger_key (the configured key) or trigger_click (the clicked
+     * element's name, else the window title).
      */
     public Map<String, Object> localFired(Map<String, Object> d, String tid, Map<String, Object> event) {
         Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND device_id = ? AND enabled = TRUE", tid, d.get("id"));
@@ -2542,8 +2694,9 @@ public final class ControlRoom {
         ev.put("trigger_name", t.get("name"));
         ev.putIfAbsent("time", now().toString());
         String input = kind.startsWith("window") ? "trigger_window" : kind.startsWith("process") ? "trigger_process" : kind.startsWith("service") ? "trigger_service"
-                : kind.equals("hotkey") ? "trigger_hotkey" : "trigger_file";
-        Object main = ev.get(switch (input) { case "trigger_window" -> "title"; case "trigger_process" -> "process"; case "trigger_service" -> "service"; case "trigger_hotkey" -> "hotkey"; default -> "path"; });
+                : kind.equals("hotkey") ? "trigger_hotkey" : kind.equals("key_pressed") ? "trigger_key" : kind.equals("mouse_clicked") ? "trigger_click" : "trigger_file";
+        Object main = ev.get(switch (input) { case "trigger_window" -> "title"; case "trigger_process" -> "process"; case "trigger_service" -> "service"; case "trigger_hotkey" -> "hotkey";
+            case "trigger_key" -> "key"; case "trigger_click" -> ev.get("element_name") instanceof String n && !n.isBlank() ? "element_name" : "window"; default -> "path"; });
         Map<String, Object> in = new LinkedHashMap<>();
         in.put("trigger_event", ev);
         if (main != null) in.put(input, String.valueOf(main));

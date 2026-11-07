@@ -26,6 +26,9 @@ class DocFlowProxyTest {
     volatile String reviewQueue = "[]";
     /** What the fake DocFlow lists as processes. */
     volatile String flowsJson = "[]";
+    /** What the fake DocFlow says its version is. */
+    static final String PINNED = DocFlowProxy.COMPAT.getProperty("pinned");
+    volatile String versionJson = "{\"version\":\"" + PINNED + "\"}";
 
     @BeforeAll void start() throws Exception {
         Path data = Files.createTempDirectory("ooa-docflow-proxy");
@@ -53,6 +56,7 @@ class DocFlowProxyTest {
             String path = ex.getRequestURI().getPath();
             byte[] b = (path.endsWith("/documents") && ex.getRequestMethod().equals("POST") ? "{\"documents\":[{\"documentId\":\"d7\",\"status\":\"processing\"}]}"
                     : path.endsWith("/df/documents/d7") ? "{\"id\":\"d7\",\"status\":\"validation\",\"fields\":{\"total\":115}}"
+                    : path.endsWith("/admin/version") ? versionJson
                     : path.endsWith("/df/review") ? reviewQueue : path.endsWith("/df/flows") && ex.getRequestMethod().equals("GET") && ex.getRequestURI().getQuery() == null ? flowsJson : path.contains("/df/flows") && in.length > 0 ? new String(in, StandardCharsets.UTF_8)
                     : "{\"ok\":true}").getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().set("Content-Type", "application/json");
@@ -107,6 +111,93 @@ class DocFlowProxyTest {
         assertEquals(404, call("GET", "/api/docflow/admin/installer.bat", null).statusCode());
         assertEquals(404, call("GET", "/api/docflow/df/../admin/update", null).statusCode());
         assertTrue(seen.isEmpty());
+    }
+
+    @Test void docFlowVersionsAreComparedWithTheTestedOne() {
+        assertEquals("compatible", DocFlowProxy.compare("3.1.0", "3.1.0", "3.1.0"));
+        assertEquals("compatible", DocFlowProxy.compare("3.1.4", "3.1.0", "3.2.0"));     // between the minimum and the tested version
+        assertEquals("newer", DocFlowProxy.compare("3.4.0", "3.1.0", "3.1.0"));
+        assertEquals("too_old", DocFlowProxy.compare("3.0.9", "3.1.0", "3.1.0"));
+        assertEquals("too_old", DocFlowProxy.compare("2.5.0", "3.1.0", "3.1.0"));
+        assertEquals("other_contract", DocFlowProxy.compare("4.0.0", "3.1.0", "3.1.0"));
+        assertEquals("compatible", DocFlowProxy.compare("v3.1", "3.1.0", "3.1.0"));
+        assertEquals("unknown", DocFlowProxy.compare("dev", "3.1.0", "3.1.0"));
+    }
+
+    @Test void thePageSaysWhetherTheDocFlowInUseFits() throws Exception {
+        try {
+            HttpResponse<String> r = call("GET", "/api/docflow/version", null);
+            assertEquals(200, r.statusCode(), r.body());
+            Map<?, ?> v = (Map<?, ?>) JsonLite.parse(r.body());
+            assertEquals(List.of("compatible", true, PINNED, PINNED), List.of(v.get("status"), v.get("compatible"), v.get("version"), v.get("tested")));
+            versionJson = "{\"version\":\"4.0.0\"}";
+            Map<String, Object> other = new DocFlowProxy(cr).version();
+            assertEquals(List.of("other_contract", false), List.of(other.get("status"), other.get("compatible")));
+            assertTrue(String.valueOf(other.get("message")).contains("Install DocFlow " + PINNED));
+            versionJson = "{\"version\":\"3.0.0\"}";
+            assertEquals("too_old", new DocFlowProxy(cr).version().get("status"));
+            versionJson = "{}";
+            assertEquals("unknown", new DocFlowProxy(cr).version().get("status"));
+        } finally { versionJson = "{\"version\":\"" + PINNED + "\"}"; }
+        assertTrue(Rbac.allowed("viewer", "docs.view"));                       // everyone who may see the page may see this
+    }
+
+    @Test void withoutSettingsTheContainersAddressAndTokenAreUsed() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String url = "http://127.0.0.1:" + docflow.getAddress().getPort();
+        var before = DocFlowProxy.env;
+        try {
+            cr.platform.updateSettings(admin, Map.of("docflow_url", "", "docflow_token_ref", ""), null);
+            DocFlowProxy.env = k -> null;
+            DocFlowProxy p = new DocFlowProxy(cr);
+            assertFalse(p.configured());
+            assertEquals(DocFlowProxy.DEFAULT_URL, p.baseUrl());
+            // what the platform's containers and installer set when they start DocFlow beside the Command Center
+            DocFlowProxy.env = k -> switch (k) { case "OOA_DOCFLOW_URL" -> url + "/"; case "OOA_DOCFLOW_TOKEN" -> "env-tok"; default -> null; };
+            assertTrue(p.configured());
+            assertEquals(url, p.baseUrl());
+            seen.clear();
+            assertEquals(200, call("GET", "/api/docflow/df/flows", null).statusCode());
+            assertEquals("Bearer env-tok", seen.get(0).get("auth"));
+            // Settings > Document Automation still wins
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", "docflow/service/token"), null);
+            seen.clear();
+            assertEquals(200, call("GET", "/api/docflow/df/flows", null).statusCode());
+            assertEquals("Bearer svc-123", seen.get(0).get("auth"));
+        } finally {
+            DocFlowProxy.env = before;
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", "docflow/service/token"), null);
+        }
+    }
+
+    @Test void theWindowsInstallersFileIsUsedLastAndKeepsTheTokenEncrypted() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String url = "http://127.0.0.1:" + docflow.getAddress().getPort();
+        var before = DocFlowProxy.env;
+        Path file = DocFlowConfig.file(cr.dataDir);
+        try {
+            cr.platform.updateSettings(admin, Map.of("docflow_url", "", "docflow_token_ref", ""), null);
+            DocFlowProxy.env = k -> null;
+            DocFlowConfig.save(cr.dataDir, cr.vault, url, "file-tok");    // what ooa docflow configure writes
+            String saved = Files.readString(file);
+            assertTrue(saved.contains("token=enc:"), saved);
+            assertFalse(saved.contains("file-tok"), "the token is never kept in clear text");
+            DocFlowProxy p = new DocFlowProxy(cr);
+            assertTrue(p.configured());
+            assertEquals(url, p.baseUrl());
+            seen.clear();
+            assertEquals(200, call("GET", "/api/docflow/df/flows", null).statusCode());
+            assertEquals("Bearer file-tok", seen.get(0).get("auth"));
+            // the containers' variables come before the file, and Settings before both
+            DocFlowProxy.env = k -> k.equals("OOA_DOCFLOW_TOKEN") ? "env-tok" : null;
+            seen.clear();
+            call("GET", "/api/docflow/df/flows", null);
+            assertEquals("Bearer env-tok", seen.get(0).get("auth"));
+        } finally {
+            DocFlowProxy.env = before;
+            Files.deleteIfExists(file);
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", "docflow/service/token"), null);
+        }
     }
 
     @Test void permissionsPerRoute() {

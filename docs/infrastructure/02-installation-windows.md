@@ -93,6 +93,9 @@ Install.cmd -Silent -Role Runner -AllUsers -Service -Url https://ooa.example.com
 | `-DbSetupPasswordEnv VAR` | One CommandCenter | Asked when not silent | Environment variable holding the setup password |
 | `-DbTrustCertificate` | One CommandCenter | Off | Accept a test SQL Server's self-signed certificate |
 | `-SkipCheck` | One CommandCenter | Off | Install even if `ooa check` finds a FAIL |
+| `-DocFlow` | One CommandCenter | Asked when not silent | Also install Document Automation's DocFlow service (needs internet; see below) |
+| `-DocFlowPort N` | One CommandCenter | `8085` | DocFlow's port on `127.0.0.1` |
+| `-DocFlowDir DIR` | One CommandCenter | `INSTALLDIR\DocFlow` | Where DocFlow's program goes |
 | `-Url URL` | Runner | Required | One CommandCenter address, `https://...` or `http://...` |
 | `-RegistrationKey KEY` | Runner | Required | One-time key `ooareg_...` |
 | `-RunnerName NAME` | Runner | Computer name | Name shown in One CommandCenter |
@@ -112,6 +115,38 @@ when the MSI runs again with `ROLE`, the script keeps it with its settings and l
 service's settings (port, listen address, data folder), run `ooa service uninstall`, then install it again.
 
 Passwords travel only in environment variables, never on the command line or in the log.
+
+### Document Automation (`-DocFlow`)
+
+`-DocFlow` also installs DocFlow, the service behind AI > Document Automation. It installs the version this release
+is tested with (the `ref` in control-room's `docflow-compat.properties`, for example `v3.1.1`), using DocFlow's own
+installer from its GitHub release.
+
+**Needs internet.** DocFlow's installer:
+- downloads Python 3.12 and Tesseract OCR with winget, if they are missing;
+- downloads Python packages and Tesseract's language files;
+- reads GitHub's API. Behind a busy shared address, set `DOCFLOW_GITHUB_TOKEN` (a read-only token).
+
+Offline sites use the containers instead (`docker/compose.docflow.yaml`).
+
+What it does, after One CommandCenter is installed:
+
+1. Installs DocFlow into `INSTALLDIR\DocFlow`. DocFlow's installer also runs its own tests.
+2. Writes DocFlow's `config\local.env`:
+   - `DOCAUTO_MANAGED=true`;
+   - a new service token, or the existing one on an update;
+   - its port;
+   - the Command Center's address for callbacks;
+   - `DOCAUTO_DATA_DIR=DATA\docflow`, so documents and DocFlow's database live with One CommandCenter's data.
+
+   Only administrators, the system account and the installing user can read the file.
+3. Runs `ooa docflow configure`, which stores DocFlow's address and the token in `DATA\config\ooa-docflow.properties`.
+   The token is encrypted with the vault key. Settings > Document Automation still overrides this file.
+4. Registers the scheduled task **OOA DocFlow**. With `-Service` it runs as the system account at Windows start;
+   otherwise it runs at the user's sign-in. It runs `windows\start.ps1`, and the task starts it straight away.
+
+If any step fails, One CommandCenter stays installed and works without Document Automation. The script exits with
+code 5. Run setup again with `-DocFlow` to retry.
 
 ## 5. MSI: all properties
 
@@ -246,9 +281,9 @@ the upgrade order in [10. Upgrades](10-upgrades-releases-and-patching.md).
 | Silent, setup package | `powershell -ExecutionPolicy Bypass -File "<install>\Uninstall-OOA.ps1" -Silent` |
 | MSI | `msiexec /x ooa-<version>.msi /qn` |
 
-Uninstall removes the services (`ooa service uninstall`), the sign-in task, ends Java processes running from the
-install folder, removes the Start menu entries, the Apps entry and the program folder. It keeps: One CommandCenter
-data folder, the runner registration (`%USERPROFILE%\.ooa-agent`), workspaces, and the vault key. Delete those by
+Uninstall removes the services (`ooa service uninstall`), the sign-in task, the task "OOA DocFlow", ends Java,
+Python and PostgreSQL processes running from the install folder, removes the Start menu entries, the Apps entry and
+the program folder. It keeps: One CommandCenter data folder (with DocFlow's documents and database in `docflow`), the runner registration (`%USERPROFILE%\.ooa-agent`), workspaces, and the vault key. Delete those by
 hand if the machine is retired, after taking a backup.
 
 ## 11. Logs and exit codes
@@ -270,6 +305,7 @@ hand if the machine is retired, after taking a backup.
 | 2 | The install failed (copying files, database set-up, registration, service) |
 | 3 | Administrator rights are needed (`-AllUsers` or `-Service`) |
 | 4 | The prerequisite check (`ooa check`) found a FAIL |
+| 5 | One CommandCenter is installed, but Document Automation (`-DocFlow`) could not be set up; see the log |
 
 The MSI returns the usual Windows Installer codes (0 success, 3010 restart needed, 1603 fatal error; the
 configuration custom action fails the install when the script returns non-zero). `Uninstall-OOA.ps1` returns 0, or 1

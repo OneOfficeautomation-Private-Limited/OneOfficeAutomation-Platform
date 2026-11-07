@@ -186,6 +186,16 @@ class ControlRoomE2ETest {
             call("POST", "/api/repo/checkin", d1, Map.of("path", "Ops/Echo.flow.json", "flow", echo));
             String sid = (String) call("POST", "/api/schedules", d1, Map.of("name", "Every minute", "bot_path", "Ops/Echo.flow.json", "device_id", deviceId, "kind", "every", "every_minutes", 1)).body().get("id");
             assertEquals("CR.BAD_SCHEDULE", call("POST", "/api/schedules", d1, Map.of("name", "x", "bot_path", "Ops/Echo.flow.json", "device_id", deviceId, "kind", "daily", "at_time", "25:00")).err().get("code"));
+            // G35: monthly and cron schedules, and the preview of a draft's next times
+            Map<String, Object> preview = call("POST", "/api/schedules/preview", d1, Map.of("kind", "cron", "rule", "0 0 9 ? * MON#1", "time_zone", "Europe/London")).body();
+            assertEquals(5, ((List<?>) preview.get("next_runs")).size(), String.valueOf(preview));
+            assertEquals("0 0 9 ? * MON#1", preview.get("rule"));
+            Map<String, Object> badCron = call("POST", "/api/schedules/preview", d1, Map.of("kind", "cron", "rule", "61 * * * *")).err();
+            assertEquals("CR.BAD_SCHEDULE", badCron.get("code"));
+            String monthly = (String) call("POST", "/api/schedules", d1, Map.of("name", "Month end", "bot_path", "Ops/Echo.flow.json", "device_id", deviceId, "kind", "monthly",
+                    "rule", "days=last", "at_time", "18:00", "time_zone", "UTC")).body().get("id");
+            assertEquals("days=last", call("GET", "/api/schedules/" + monthly, d1, null).body().get("rule"));
+            call("DELETE", "/api/schedules/" + monthly, d1, null);
             db.update("UPDATE schedules SET next_run = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), sid);
             assertEquals(1, cr.tickSchedules());
             assertTrue(until(() -> JsonLite.write(call("GET", "/api/runs?filter=history", d1, null).body()).contains("schedule:" + sid), 30000));

@@ -23,6 +23,9 @@ function details(t: Trigger) {
   if (t.kind === "webhook") return "POST " + location.origin + "/api/hooks/" + t.id;
   if (t.folder) return t.folder + " / " + (t.pattern || "*") + (c.recursive ? " (with sub-folders)" : "");
   if (c.title) return "Title: " + c.title;
+  if (t.kind === "key_pressed") return String(c.key) + (c.window || c.process ? " in " + [c.window, c.process].filter(Boolean).join(" / ") : " in any window");
+  if (t.kind === "mouse_clicked") return c.button + " click in " + [c.window, c.process].filter(Boolean).join(" / ")
+    + (c.element_name || c.element_type || c.automation_id ? " on " + [c.element_type, c.element_name, c.automation_id].filter(Boolean).join(" ") : "");
   if (c.process || c.service || c.hotkey) return String(c.process ?? c.service ?? c.hotkey);
   if (t.kind === "email") return c.username + " @ " + c.host + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
   if (t.kind === "outlook") return (c.mailbox || "the token's mailbox") + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
@@ -32,11 +35,14 @@ function details(t: Trigger) {
 }
 
 const HELP: HelpTopic = { title: "Triggers",
-  about: "Start an agent when something happens: files, windows, processes, services and hotkeys on a runner; new e-mail, ServiceNow records and web data "
+  about: "Start an agent when something happens: files, windows, processes, services, hotkeys, key presses and clicks on a runner; new e-mail, ServiceNow records and web data "
     + "checked by One CommandCenter; or a webhook call. The list refreshes every 30 seconds.",
   items: [
     { name: "Create trigger", text: "Pick the event and fill in its settings, then the agent (its live version runs) and the runner it runs on. Runner "
       + "events are watched on that runner. Needs permission to manage triggers." },
+    { name: "Key presses and clicks", text: "Windows runners only. A key-press trigger listens for one named key or combination (such as F9 or "
+      + "CTRL+ENTER), optionally only in one window; typed text is never recorded. A click trigger listens in one window, or on one element captured "
+      + "in One AgentStudio. Repeats within the debounce time are ignored." },
     { name: "Vault references", text: "Passwords and tokens are never typed into a trigger: give a vault reference such as mail/imap/password. The "
       + "trigger's owner must be a consumer of that vault folder." },
     { name: "Webhook", text: "After creating a webhook trigger you see its address and secret once. Call the address with POST and send the secret in the "
@@ -57,9 +63,14 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, string>>({});
   // One AgentStudio's command list opens #/triggers?new=<event>&bot=<agent>: Create trigger, for that agent and event
-  const [dialog, setDialog] = useState<null | { kind: "new"; event?: string; bot?: string } | { kind: "edit"; t: Trigger } | { kind: "hook"; url: string; secret: string }>(() => {
+  // a click trigger from One AgentStudio also brings the captured element's settings (window, process, element_name, ...)
+  const [dialog, setDialog] = useState<null | { kind: "new"; event?: string; bot?: string; preset?: Record<string, string> } | { kind: "edit"; t: Trigger } | { kind: "hook"; url: string; secret: string }>(() => {
     const q = new URLSearchParams(location.hash.split("?")[1] ?? "");
-    return q.get("new") && KINDS[q.get("new")!] ? { kind: "new", event: q.get("new")!, bot: q.get("bot") ?? undefined } : null;
+    const ev = q.get("new");
+    if (!ev || !KINDS[ev]) return null;
+    const preset: Record<string, string> = {};
+    for (const fd of KINDS[ev].fields) { const v = q.get(fd[0]); if (v !== null && fd[4] !== "check") preset[fd[0]] = v; }
+    return { kind: "new", event: ev, bot: q.get("bot") ?? undefined, preset };
   });
   const manage = user.permissions.includes("triggers.manage");
 
@@ -138,7 +149,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         </div>
         {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}{filtered ? " matching" : ""} · refreshes every 30 seconds</span></div>}
       </div>
-      {dialog?.kind === "new" && <NewTrigger api={api} runners={runners} event={dialog.event} agent={dialog.bot} onClose={() => setDialog(null)}
+      {dialog?.kind === "new" && <NewTrigger api={api} runners={runners} event={dialog.event} agent={dialog.bot} preset={dialog.preset} onClose={() => setDialog(null)}
         onCreated={(t, hook) => { onNotice(t); load(); setDialog(hook ? { kind: "hook", ...hook } : null); }} />}
       {dialog?.kind === "edit" && <EditTrigger key={dialog.t.id} api={api} t={dialog.t} manage={manage} where={dialog.t.evaluated_on === "server" ? "One CommandCenter" : runnerName(dialog.t.device_id)}
         onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
@@ -154,14 +165,14 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
 }
 
 /** Create trigger in sections: the event and its settings, then the agent, the runner and run-as. */
-function NewTrigger({ api, runners, event, agent, onClose, onCreated }: { api: CrApi; runners: Runner[]; event?: string; agent?: string; onClose: () => void;
+function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: { api: CrApi; runners: Runner[]; event?: string; agent?: string; preset?: Record<string, string>; onClose: () => void;
   onCreated: (t: string, hook?: { url: string; secret: string }) => void }) {
   const [agents, setAgents] = useState<string[]>([]);
   const [kind, setKind] = useState(event ?? "file");
   const [name, setName] = useState("");
   const [bot, setBot] = useState(agent ?? "");
   const [device, setDevice] = useState(runners[0]?.id ?? "");
-  const [values, setValues] = useState<Record<string, string | boolean>>({});
+  const [values, setValues] = useState<Record<string, string | boolean>>(preset ?? {});
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setBot((o) => o || b[0]?.path || ""); }, () => {}); }, [api]);
   const fields = KINDS[kind].fields;

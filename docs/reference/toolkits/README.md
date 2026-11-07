@@ -30,7 +30,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Data Table](ooa-datatable.md) | `ooa.datatable` | 33 | 5 | 0 | Build, filter, sort, search and change in-memory tables. |
 | [Database](ooa-database.md) | `ooa.database` | 12 | 0 | 1 | Connect to databases and run parameterised queries, updates and transactions. |
 | [Databricks](ooa-databricks.md) | `ooa.databricks` | 14 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
-| [Date and time](ooa-datetime.md) | `ooa.datetime` | 14 | 7 | 0 | Current time, add, difference, format and time zone conversion. |
+| [Date and time](ooa-datetime.md) | `ooa.datetime` | 19 | 8 | 0 | Current time, add, difference, format, time zone conversion and working days with business calendars. |
 | [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
@@ -62,6 +62,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Knowledge Q&A](ooa-knowledge.md) | `ooa.knowledge` | 3 | 0 | 0 | Index your documents and answer questions from them, with the passages each answer comes from. |
 | [List](ooa-list.md) | `ooa.list` | 17 | 2 | 0 | Add, read, remove, sort and join list items. |
 | [Log to file](ooa-log.md) | `ooa.log` | 5 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
+| [Long-running agents](ooa-longrunning.md) | `ooa.longrunning` | 8 | 0 | 0 | Suspend an agent until a time, a task, a work item, another run or a callback URL is called, and carry on from the same step; only from One CommandCenter. |
 | [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 21 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
@@ -91,7 +92,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [String](ooa-string.md) | `ooa.string` | 16 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
 | [System](ooa-system.md) | `ooa.system` | 15 | 0 | 0 | Read environment variables and runner information; lock, sign out, restart or shut down the runner. |
 | [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 19 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. |
-| [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 3 | Wait for events (new files, timer ticks, process starts) and run the loop's nested steps once per event. |
+| [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 5 | Wait for events (new files, timer ticks, process starts, key presses, clicks) and run the loop's nested steps once per event. |
 | [Web goal agent](ooa-web_agent.md) | `ooa.web_agent` | 3 | 0 | 0 | Reach a goal on a web page described in plain words: an AI model reads the page and clicks, types and selects until done. |
 | [Window](ooa-window.md) | `ooa.window` | 16 | 2 | 0 | Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows. |
 | [Windows Credential Manager](ooa-credential_manager.md) | `ooa.credential_manager` | 4 | 1 | 0 | Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account. |
@@ -102,4 +103,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 91 toolkits, 1242 actions, 49 conditions and 13 loop types.
+In all: 92 toolkits, 1255 actions, 50 conditions and 15 loop types.

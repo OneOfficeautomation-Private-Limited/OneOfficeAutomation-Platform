@@ -149,6 +149,8 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
+        // long-running agents (G36): resume suspended runs whose wait is over or timed out
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.runWaits.tick(); } catch (RuntimeException ignored) { } }, 6, 5, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
         // documents waiting for review in Document Automation become Task inbox tasks
@@ -167,6 +169,7 @@ public final class ControlRoomServer {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
+            else if (path.equals("/metrics")) metrics(ex);
             else if (path.equals("/scim/v2") || path.startsWith("/scim/v2/")) scim(ex, path.substring(Math.min(path.length(), 9)));
             else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             // The new console is the default (31 Oct 2026): the bare address opens it. The classic console stays at
@@ -199,6 +202,29 @@ public final class ControlRoomServer {
             try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
+    }
+
+    /**
+     * GET /metrics (G38): Prometheus text. The IP allow list applies as for the API; the caller shows the metrics token
+     * as the bearer, or is signed in with the metrics.view permission.
+     */
+    private void metrics(HttpExchange ex) throws IOException {
+        if (!Set.of("GET", "HEAD").contains(ex.getRequestMethod())) { ex.getResponseHeaders().set("Allow", "GET"); securityHeaders(ex); writeBody(ex, 405, new byte[0]); return; }
+        String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
+        IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
+        if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new OoaException("CR.IP_BLOCKED", "This address may not use One CommandCenter");
+        String auth = ex.getRequestHeaders().getFirst("Authorization");
+        String bearer = auth != null && auth.startsWith("Bearer ") ? auth.substring(7).trim() : null;
+        if (!cr.metrics.tokenMatches(bearer)) {
+            if (bearer != null && bearer.startsWith("ooam_")) {
+                ex.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"metrics\"");
+                throw new OoaException("CR.UNAUTHENTICATED", "The metrics token is wrong or was replaced");
+            }
+            cr.require(user(ex, false), "metrics.view", "read the metrics");
+        }
+        securityHeaders(ex);
+        ex.getResponseHeaders().set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        writeBody(ex, 200, cr.metrics.text().getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -461,6 +487,12 @@ public final class ControlRoomServer {
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("hooks")) {
             String secret = ex.getRequestHeaders().getFirst("X-OOA-Secret");
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
+            return;
+        }
+        // long-running agents (G36): a one-time callback URL; the token is the secret, the body at most 64 KB
+        if (m.equals("POST") && seg.length == 2 && seg[0].equals("callbacks")) {
+            byte[] raw = ex.getRequestBody().readNBytes(RunWaits.MAX_CALLBACK_BODY + 1);
+            sendJson(ex, 202, cr.runWaits.callback(seg[1], raw, ip));
             return;
         }
         if (m.equals("GET") && route.equals("health/ready")) {
@@ -833,7 +865,11 @@ public final class ControlRoomServer {
             }
             case "calendars" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("calendars", cr.platform.calendars(u)));
-                else if (m.equals("PUT") && seg.length == 2) { cr.platform.saveCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), map(body(ex)).get("dates"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 2) {   // weekend (gap G34) is changed only when the body has it
+                    Map<String, Object> b = map(body(ex));
+                    cr.platform.saveCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), b.get("dates"), b.get("weekend"), b.containsKey("weekend"), ip);
+                    sendJson(ex, 200, Map.of("ok", true));
+                }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
@@ -990,6 +1026,7 @@ public final class ControlRoomServer {
             case "schedules" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("schedules", cr.schedules(u)));
                 else if (m.equals("POST") && route.equals("schedules/bulk")) sendJson(ex, 200, cr.bulkSchedules(u, map(body(ex)), ip));
+                else if (m.equals("POST") && route.equals("schedules/preview")) sendJson(ex, 200, cr.previewSchedule(u, map(body(ex))));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.schedule(u, seg[1]));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.createSchedule(u, map(body(ex)), ip));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) sendJson(ex, 200, cr.runScheduleNow(u, seg[1], ip));
@@ -1045,6 +1082,29 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.connections(u)));
                 else if (m.equals("PUT") && seg.length == 2) { cr.saveConnection(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteConnection(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "run-waits" -> {   // Activity > Suspended (G36): suspended runs, resume now, cancel
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("waits", cr.runWaits.list(u, q.get("status"), q.get("limit") != null && q.get("limit").matches("\\d{1,3}") ? Integer.parseInt(q.get("limit")) : 200)));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("resume")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.runWaits.resumeNow(u, seg[1], b.get("result") instanceof Map<?, ?> r ? (Map<String, Object>) r : null, ip));
+                }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("cancel")) { cr.runWaits.cancel(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "event-subscriptions" -> {   // Administration > Event subscriptions (G38)
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.events.list(u));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.events.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.events.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("PATCH") && seg.length == 2) { cr.events.setEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.events.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, cr.events.test(u, seg[1], ip));
+                else notFound(ex);
+            }
+            case "metrics-token" -> {   // the bearer token for GET /metrics (G38), shown once
+                if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.metrics.makeToken(u, ip));
+                else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash

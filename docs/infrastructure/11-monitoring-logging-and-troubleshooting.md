@@ -35,6 +35,8 @@ inside another packaged app. For operations and support teams.
 | Licence | Licenses page, reminder e-mails (30, 15, 7, 3, 2, 1 days) | Expiring |
 | Audit integrity | Audit Trail > Verify integrity | Not valid |
 | Service state | Windows Services / `systemctl` / orchestrator | Restarting repeatedly |
+| Run failures, backlog, runners, memory | `GET /metrics` (Prometheus) | `ooa_runs_finished_total{status="failed"}` rising, `ooa_queue_items` growing, `ooa_runners{state="online"}` low, `ooa_up{part="database"} 0` |
+| Event deliveries | Administration > Event subscriptions; `ooa_events_total` | Failures in a row, `outcome="dropped"` rising |
 
 ## 2. Health endpoints
 
@@ -45,6 +47,35 @@ inside another packaged app. For operations and support teams.
 | `GET /healthz` | SaaS region address: `{"status":"ok"}` |
 
 Health routes are exempt from the IP allow list and from sign-in.
+
+### Metrics: `GET /metrics`
+
+One CommandCenter's figures in the Prometheus text format: runs finished by status and their durations (a histogram),
+runs queued and running, work items per queue and status, runners enabled, online and busy, open alerts, licence
+seats, events delivered, failed and dropped, and the Java process (memory, threads, garbage collection, uptime). Every
+series has a `node` label. Counters are the node's own since it started; figures from the database are the same on
+every node (use `max by` the other labels across nodes). The full list is in
+[functional/11](../functional/11-operations-audit-and-dashboards.md#event-subscriptions-and-metrics-gap-g38).
+
+Unlike the health routes, `/metrics` needs the metrics token (Administration > Event subscriptions > Make a metrics
+token) as a bearer token, or a signed-in administrator, and the IP allow list applies. It is made at most every 5
+seconds, so a 15 to 60 second scrape interval costs little. Prometheus:
+
+```yaml
+scrape_configs:
+  - job_name: ooa-command-center
+    scheme: https
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/ooa-metrics-token
+    static_configs:
+      - targets: ["cc-node1.example.com:8443", "cc-node2.example.com:8443"]
+```
+
+OpenTelemetry: One CommandCenter has no OTLP exporter of its own. Run the OpenTelemetry Collector with its
+`prometheus` receiver using the same scrape configuration, and send on with any Collector exporter (OTLP to your
+observability platform, for example).
 
 ## 3. Logs and where they are
 
@@ -68,7 +99,8 @@ pick it up with the next heartbeat.
 ## 4. Audit trail and SIEM
 
 Forward every audit entry to the SIEM with `syslog_target` and `syslog_protocol` (see
-[08](08-security-hardening.md)). Useful actions to alert on: failed sign-ins and lockouts, `settings.update`,
+[08](08-security-hardening.md)), or subscribe a receiver to `audit.entry` and the run log lines in Administration >
+Event subscriptions (Splunk's HTTP Event Collector format is built in). Useful actions to alert on: failed sign-ins and lockouts, `settings.update`,
 `vault.rotate`, `run.lost`, `device.expired`, `license.*`, failed backups.
 
 ## 5. `ooa check`

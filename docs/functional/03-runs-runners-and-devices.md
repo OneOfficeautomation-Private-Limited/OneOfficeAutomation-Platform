@@ -83,6 +83,7 @@ The start is recorded in the Audit Trail (`run.start`) and the runner is woken a
 | `success` | Ended normally (including Stop agent with status success) | History |
 | `failed` | Ended with an error, or failed before it could start | History |
 | `stopped` | Stopped by a person (or a cancelled workflow) | History |
+| `suspended` | A long-running agent ended for now to wait (section 3.1); its runner is free; a new run carries on later | Agent Activity > Suspended |
 
 Transitions:
 
@@ -94,9 +95,53 @@ Transitions:
   running is ignored, so a result sent twice is harmless.
 - `running` → `failed` with `AGENT.LOST` when the runner has not reported for 2 minutes.
 
+- `running` → `suspended` when the agent's long-running step registered its wait and the run ended there; `suspended` →
+  `stopped` when someone stops it (its wait is cancelled); `suspended` → `failed` with `LONGRUN.RESUME_FAILED` when the
+  next run cannot be queued. A suspended run never becomes running again: a new run carries on.
+
 When a run ends: its AI calls are recorded, a work item it processed is updated, KPIs are recorded (success only), a
 test case is judged, a waiting workflow continues, and the callback URL (if any) receives `{run_id, status, outputs,
 error}` (3 attempts, 1 s and 2 s apart; each delivery is audited).
+
+### 3.1 Long-running agents: suspend and carry on (gap G36)
+
+An agent can wait for hours or days without holding a runner, as UiPath's long-running workflows do (OOA's own design;
+AA and Blue Prism builders split such work into separate runs by hand). The **Long-running agents** toolkit
+(`ooa.longrunning`) has:
+
+| Step | What it does |
+| --- | --- |
+| Create callback URL | A one-time address `https://.../api/callbacks/TOKEN` for another system to POST a JSON body to. The token is shown to the agent once and kept only as a hash. |
+| Create task | An approval or a form in the Task inbox, for `user:NAME` or `role:NAME`; e-mailed when e-mail is set up |
+| Suspend until | Waits for `time` (seconds, or a date and time), `task`, `queue_item`, `job` (another run) or `callback`, with an optional timeout and runner pool |
+| Resume after delay, Wait for callback, Wait for task, Wait for work item, Wait for job | The same, one kind each |
+
+What happens:
+
+1. At the wait the run saves the agent's variable values and the step, and ends with status `suspended`. Credential
+   inputs are read from the vault again later; Credential, Window, UI element, Image and Binary variables are not saved
+   (a warning names them). Open browsers, workbooks, files and other sessions cannot be carried: the step fails with
+   `LONGRUN.SESSION_OPEN` (close them before the wait and open them again after it). Environment locks are given back.
+2. The wait must be in the agent's main steps, outside loops, Parallel blocks, Catch and Finally, subflows and child
+   agents (`LONGRUN.CANNOT_SUSPEND`). It may be inside If, Switch, Step group, State machine and the Try part of a Try:
+   neither Catch nor Finally runs at the wait, and both are in force after it.
+3. When the task is completed or cancelled, the work item ends as success or failed, the other run ends, the time comes
+   or the callback URL is called, One CommandCenter starts a new run of the **same version** with the same inputs (an
+   input changed before the wait keeps its new value), source, run-as user, mode, priority, work item and callback
+   address, on the same runner or on the least busy online runner of the pool the step names. It starts at the waiting
+   step, which returns `resumed_by`, `timed_out` and `result` (the callback's body, the task's outcome and answers, the
+   item's or run's status and result) and the agent carries on.
+4. A timeout fails the step with `LONGRUN.TIMEOUT` (catch it in a Try around the wait), or, with **On timeout:
+   continue**, returns `timed_out` true.
+5. The work item, workflow, test case and callback address of the first run are told only when the last run of the
+   chain ends. A work item stays in progress meanwhile, so Settings > abandon work items after N hours also counts the
+   wait; set it longer than the longest wait, or leave it off.
+
+Checks are made as the run's user: a task the user may act on (or one this chain of runs made), a work queue the user
+may see, a run the user may see. The callback route is public but needs the token, is rate limited (120 a minute per
+address), takes at most 64 KB and works once; with an IP allow list (Settings), the calling system must be on it. The steps only work in runs from One CommandCenter
+(`LONGRUN.NOT_AVAILABLE` in Studio and on the command line). Limits: waits and timeouts up to 365 days, saved values up
+to 1,000,000 characters, 20 callback URLs per run. Every suspend, callback, resume and cancel is audited.
 
 ## 4. What ends a run with an error before or during the run
 
@@ -307,7 +352,7 @@ uses it (`CR.IN_USE`, listing them). Removal takes it off pools and default runn
 | --- | --- |
 | See runs, run details and logs | `runs.view` |
 | Start runs, rerun, deploy | `runs.start` (plus folder access run) |
-| Pause, resume, stop | `runs.stop` |
+| Pause, resume, stop; resume a suspended run now, stop it | `runs.stop` |
 | See runners and run-as users | `devices.view` |
 | Register, enable, disable, update, remove runners | `devices.manage` |
 | Manage pools | `pools.manage` |

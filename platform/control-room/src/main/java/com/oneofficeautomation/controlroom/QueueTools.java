@@ -27,6 +27,17 @@ final class QueueTools {
 
     QueueTools(ControlRoom cr, Platform p) { this.cr = cr; this.p = p; this.db = cr.db; }
 
+    /** A work item event's data (G38): the item, its queue and its status; never its data, which may be private. */
+    static Map<String, Object> item(String itemId, String qid, String reference, String status) { return item(itemId, qid, reference, status, null); }
+
+    static Map<String, Object> item(String itemId, String qid, String reference, String status, String runId) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("item_id", itemId); m.put("queue_id", qid); m.put("status", status);
+        if (reference != null && !reference.isBlank()) m.put("reference", reference);
+        if (runId != null) m.put("run_id", runId);
+        return m;
+    }
+
     static final int MAX_TAGS = 20;
     static final List<String> ALL_STATUSES = List.of("new", "in_progress", "review", "retry", "success", "failed", "deferred");
 
@@ -342,6 +353,7 @@ final class QueueTools {
                 requireItem(by, qid, itemId, "process");
                 db.update("UPDATE queue_items SET status = 'success', result = ?, updated = ?, finished = ? WHERE id = ?",
                         r.get("result") == null ? null : JsonLite.write(r.get("result")), now(), now(), itemId);
+                cr.events.emit("queue.item_finished", item(itemId, qid, null, "success"));
                 yield Map.of();
             }
             case "fail" -> {
@@ -351,6 +363,9 @@ final class QueueTools {
                 String error = JsonLite.write(Map.of("code", kind.equals("business") ? "QUEUE.BUSINESS_EXCEPTION" : "QUEUE.SYSTEM_EXCEPTION", "message", String.valueOf(r.getOrDefault("error", ""))));
                 db.update("UPDATE queue_items SET status = ?, error = ?, error_kind = ?, updated = ?, finished = ? WHERE id = ?",
                         again ? "retry" : "failed", error, kind, now(), again ? null : now(), itemId);
+                Map<String, Object> ev = item(itemId, qid, null, again ? "retry" : "failed");
+                ev.put("error_kind", kind);
+                cr.events.emit("queue.item_finished", ev);
                 yield Map.of("will_retry", again);
             }
             case "defer" -> {
@@ -438,6 +453,9 @@ final class QueueTools {
             if (db.update("UPDATE queue_items SET status = 'in_progress', attempts = attempts + 1, run_id = ?, device_id = ?, defer_until = NULL, updated = ? WHERE id = ? "
                     + "AND (status IN ('new', 'retry') OR (status = 'deferred' AND defer_until <= ?))", runId, deviceId, now(), i.get("id"), t) != 1) continue;
             Map<String, Object> row = db.one("SELECT * FROM queue_items WHERE id = ?", i.get("id"));
+            Map<String, Object> ev = item((String) row.get("id"), qid, (String) row.get("reference"), "in_progress");
+            if (runId != null) ev.put("run_id", runId);
+            cr.events.emit("queue.item_started", ev);
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("found", true);
             out.put("item_id", row.get("id"));

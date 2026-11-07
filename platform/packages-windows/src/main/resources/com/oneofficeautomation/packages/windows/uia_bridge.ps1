@@ -271,6 +271,7 @@ public static class Bridge {
             case "find": return Find(req);
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
+            case "element_at": return ElementAt(Int(req, "x", 0), Int(req, "y", 0));
             case "parent": return Parent(req);
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
             case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true),
@@ -897,6 +898,20 @@ public static class Bridge {
         Dictionary<string, object> d = new Dictionary<string, object>();
         d["element"] = props; d["window"] = win; d["path"] = path;
         d["screenshot"] = shot ? Screenshot(e.Current.BoundingRectangle) : "";
+        return d;
+    }
+
+    /** Click triggers: only the name, type and ids of the element at a point (no value, no screenshot; no name for password fields). */
+    static Dictionary<string, object> ElementAt(int x, int y) {
+        AutomationElement e = AutomationElement.FromPoint(new System.Windows.Point(x, y));
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        bool pw = false;
+        try { pw = e.Current.IsPassword; } catch (Exception) { }
+        d["Name"] = pw ? "" : (e.Current.Name ?? "");
+        d["ControlType"] = Fmt(e.Current.ControlType);
+        d["AutomationId"] = e.Current.AutomationId ?? "";
+        d["ClassName"] = e.Current.ClassName ?? "";
+        d["IsPassword"] = pw ? "true" : "false";
         return d;
     }
 

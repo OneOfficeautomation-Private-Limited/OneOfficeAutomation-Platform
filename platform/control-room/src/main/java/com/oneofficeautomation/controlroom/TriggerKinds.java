@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.packages.ui.InputTriggers;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.net.URI;
@@ -33,6 +34,8 @@ final class TriggerKinds {
                 new Kind("service_started", Where.RUNNER, "Service started", true),
                 new Kind("service_stopped", Where.RUNNER, "Service stopped", true),
                 new Kind("hotkey", Where.RUNNER, "Hotkey pressed", true),
+                new Kind("key_pressed", Where.RUNNER, "Key pressed in a window", true),
+                new Kind("mouse_clicked", Where.RUNNER, "Mouse click on an element or window", true),
                 new Kind("email", Where.SERVER, "New email (IMAP)", false),
                 new Kind("outlook", Where.SERVER, "New email (Microsoft 365 Outlook)", false),
                 new Kind("servicenow", Where.SERVER, "ServiceNow record", false),
@@ -119,6 +122,11 @@ final class TriggerKinds {
                 String k = need(in, "hotkey", "A hotkey trigger needs a key combination such as CTRL+ALT+F9");
                 if (!k.toUpperCase(Locale.ROOT).matches("^[A-Z0-9_]+(\\s*\\+\\s*[A-Z0-9_]+){0,4}$")) throw bad("Write the hotkey like CTRL+ALT+F9");
                 out.put("hotkey", k.toUpperCase(Locale.ROOT).replace(" ", ""));
+            }
+            case "key_pressed", "mouse_clicked" -> {
+                // gap G37: a named key or combination (never typed text) or a click, optionally limited to a window
+                try { out.putAll(kind.equals("key_pressed") ? InputTriggers.keyConfig(in) : InputTriggers.clickConfig(in)); }
+                catch (IllegalArgumentException e) { throw bad(e.getMessage()); }
             }
             case "email" -> {
                 out.put("host", need(in, "host", "An email trigger needs the IMAP server host"));

@@ -149,6 +149,9 @@ public final class ServerlessRuns {
                 .service("vault_write", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) req -> "expiry".equals(req.get("op"))
                     ? cr.agentWrites.credentialExpiry(d, runId, (String) req.get("ref"))
                     : cr.agentWrites.setCredential(d, runId, (String) req.get("ref"), (String) req.get("value"), req.get("expires")))
+                // requests to One CommandCenter as the run's user (gap G34: holiday calendars for ooa.datetime)
+                .service("command_center", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) req ->
+                    cr.runRequest(d, runId, String.valueOf(req.get("call")), req.get("args") instanceof Map<?, ?> a ? (Map<String, Object>) a : Map.of()))
                 .principal(String.valueOf(job.getOrDefault("principal", "agent"))).build();
             RunResult result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),
                 new Runner.RunOptions().runId(runId).cancel(cancel).maxRunSeconds(MAX_SECONDS));

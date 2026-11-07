@@ -1,5 +1,7 @@
 package com.oneofficeautomation.packages;
 
+import com.oneofficeautomation.packages.ui.DesktopEvents;
+import com.oneofficeautomation.packages.ui.InputTriggers;
 import com.oneofficeautomation.sdk.*;
 
 import java.io.IOException;
@@ -9,18 +11,22 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
  * Event-driven loops for attended and long-running agents. Each iterator here waits for an event (a file arriving
- * in a folder, a timer tick, a process starting) and hands it to the Loop step, which runs its nested steps for
+ * in a folder, a timer tick, a process starting, a configured key pressed or a click in a window) and hands it to the Loop step, which runs its nested steps for
  * that event. Put one in a core/loop step: {"iterator": "ooa.triggerloop/file_arrives", "iterator_args": {...}, "as": "event"}.
  * The loop ends when max_events or max_seconds is reached, when a nested Exit loop step runs, or when the run is stopped.
  * While waiting, the iterator checks every 200 ms whether the run was stopped.
  */
 @OoaPackage(id = "ooa.triggerloop", name = "Trigger Loop", version = "1.0.0",
-        description = "Wait for events (new files, timer ticks, process starts) and run the loop's nested steps once per event.")
+        description = "Wait for events (new files, timer ticks, process starts, key presses, clicks) and run the loop's nested steps once per event.")
 public final class TriggerLoopPackage {
     static final String P = "TRIGGER";
     static final long SLICE_MS = 200;
@@ -218,5 +224,102 @@ public final class TriggerLoopPackage {
             @Input(name = "process_name", type = OoaType.STRING, description = "Executable name, with or without .exe.") String name) {
         if (name == null || name.isBlank()) throw new ActionException(P + ".NO_PROCESS", "Give the program's executable name");
         return ProcessHandle.allProcesses().anyMatch(p -> nameMatches(processName(p), name));
+    }
+
+    // ---------- key presses and clicks (Windows, gap G37) ----------
+
+    /** The keyboard and mouse hooks (Windows: packages-windows); tests put fakes here. */
+    static Supplier<Optional<InputTriggers.Native>> inputHooks = () -> DesktopEvents.installed().flatMap(DesktopEvents::input);
+    static LongSupplier clockMs = System::currentTimeMillis;
+    /** Events waiting while the nested steps run; more are dropped (with the debounce, a person rarely gets near). */
+    static final int QUEUE = 100;
+
+    interface Hook { AutoCloseable start(Consumer<Map<String, Object>> sink) throws Exception; }
+
+    /**
+     * Hooks on start, queues the events while the nested steps run, and unhooks when the loop ends (the iterator is
+     * AutoCloseable, which the Loop step closes) or when the limits are reached.
+     */
+    static Iterable<Object> inputEvents(ActionContext ctx, String event, int maxEvents, double maxSeconds, Hook hook) {
+        BlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>(QUEUE);
+        AutoCloseable handle;
+        try { handle = hook.start(queue::offer); }
+        catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_INPUT", e.getMessage(), "Check the trigger settings."); }
+        catch (ActionException e) { throw e; }
+        catch (Exception e) { throw new ActionException(P + ".HOOK_FAILED", "Cannot watch the keyboard or mouse: " + e.getMessage(), "Run the agent on a Windows runner with a signed-in desktop."); }
+        Iterator<Object> it = events(ctx, 0.2, maxEvents, maxSeconds, () -> {
+            Map<String, Object> e = queue.poll();
+            if (e == null) return null;
+            Map<String, Object> ev = new LinkedHashMap<>();
+            ev.put("event", event);
+            ev.putAll(e);
+            ev.put("time", LocalDateTime.now(java.time.ZoneOffset.UTC).withNano(0));  // UTC, like every DateTime
+            return ev;
+        }).iterator();
+        final class Closing implements Iterator<Object>, AutoCloseable {
+            boolean closed;
+            public boolean hasNext() {
+                boolean more;
+                try { more = !closed && it.hasNext(); } catch (RuntimeException e) { close(); throw e; }
+                if (!more) close();
+                return more;
+            }
+            public Object next() { return it.next(); }
+            public void close() { if (!closed) { closed = true; try { handle.close(); } catch (Exception ignored) { } } }
+        }
+        Closing c = new Closing();
+        return () -> c;
+    }
+
+    static InputTriggers.Native hooks() {
+        return inputHooks.get().orElseThrow(() -> new ActionException(P + ".WINDOWS_ONLY", InputTriggers.WINDOWS_ONLY + " (this computer runs " + System.getProperty("os.name") + ")",
+                "Run this agent on a Windows runner with a signed-in desktop."));
+    }
+
+    static Map<String, Object> settings(Object... kv) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) if (kv[i + 1] != null) m.put((String) kv[i], kv[i + 1]);
+        return m;
+    }
+
+    static final String D_WINDOW = "Only while this window is in front: title text, a pattern with * and ?, or re: and a regular expression. Empty: any window.";
+    static final String D_PROCESS = "Only in this program, such as excel.exe. Empty: any program.";
+    static final String D_DEBOUNCE = "Ignore repeats within this many milliseconds of the last event.";
+
+    @LoopIterator(id = "key_pressed", name = "Each time a key is pressed",
+            description = "Windows only. Run the nested steps each time the named key or combination (such as F9, CTRL+ENTER or SHIFT+F2) is pressed, "
+                    + "optionally only while a given window is in front. Typed text is never recorded: the event gives only the key, the window title and the process. "
+                    + "The key still reaches the application.")
+    public Iterable<Object> keyPressed(ActionContext ctx,
+            @Input(name = "key", type = OoaType.STRING, example = "CTRL+ENTER", description = "The key or combination: CTRL, ALT, SHIFT, WIN with one key such as A-Z, 0-9, F1-F24, ENTER, TAB, ESC, arrows. Letters and digits need CTRL, ALT or WIN.") String key,
+            @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
+            @Input(name = "process", type = OoaType.STRING, required = false, description = D_PROCESS) String process,
+            @Input(name = "debounce_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_DEBOUNCE) double debounce,
+            @Input(name = "max_events", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_EVENTS) int maxEvents,
+            @Input(name = "max_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_SECONDS) double maxSeconds) {
+        Map<String, Object> cfg = settings("key", key, "window", window, "process", process, "debounce_ms", debounce);
+        try { InputTriggers.keyConfig(cfg); } catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_KEY", e.getMessage(), "Write the key like F9 or CTRL+ENTER."); }
+        InputTriggers.Native n = hooks();
+        return inputEvents(ctx, "key", maxEvents, maxSeconds, sink -> InputTriggers.watchKey(n, cfg, clockMs, sink));
+    }
+
+    @LoopIterator(id = "mouse_clicked", name = "Each click in a window",
+            description = "Windows only. Run the nested steps each time the person clicks in a given window, optionally only on a given element (name, type, automation id as captured). "
+                    + "The event gives the button, the window title, the process and the element's name, type and automation id; never screen contents. Clicks made by programs are ignored.")
+    public Iterable<Object> mouseClicked(ActionContext ctx,
+            @Input(name = "window", type = OoaType.STRING, required = false, description = "The window: title text, a pattern with * and ?, or re: and a regular expression. Give this or the process.") String window,
+            @Input(name = "process", type = OoaType.STRING, required = false, description = "The program, such as excel.exe. Give this or the window.") String process,
+            @Input(name = "button", type = OoaType.STRING, required = false, defaultValue = "\"left\"", description = "left, right, middle or any.") String button,
+            @Input(name = "element_name", type = OoaType.STRING, required = false, description = "Only clicks on an element with this name (text, * and ? pattern, or re:). Empty: any element.") String elementName,
+            @Input(name = "element_type", type = OoaType.STRING, required = false, example = "Button", description = "Only clicks on this type of element, such as Button or MenuItem. Empty: any type.") String elementType,
+            @Input(name = "automation_id", type = OoaType.STRING, required = false, description = "Only clicks on the element with this automation id. Empty: any.") String automationId,
+            @Input(name = "debounce_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_DEBOUNCE) double debounce,
+            @Input(name = "max_events", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_EVENTS) int maxEvents,
+            @Input(name = "max_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_SECONDS) double maxSeconds) {
+        Map<String, Object> cfg = settings("window", window, "process", process, "button", button, "element_name", elementName, "element_type", elementType,
+                "automation_id", automationId, "debounce_ms", debounce);
+        try { InputTriggers.clickConfig(cfg); } catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_CLICK", e.getMessage(), "Give the window title or the process."); }
+        InputTriggers.Native n = hooks();
+        return inputEvents(ctx, "click", maxEvents, maxSeconds, sink -> InputTriggers.watchClick(n, cfg, clockMs, sink));
     }
 }

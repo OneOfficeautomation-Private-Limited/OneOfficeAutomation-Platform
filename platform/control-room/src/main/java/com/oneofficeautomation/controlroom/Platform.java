@@ -143,6 +143,9 @@ public final class Platform {
         DEFAULTS.put("docflow_token_ref", "");   // and its service token, a vault reference folder/credential/attribute
         // agents may save credentials in the vault (gap G30): off until an administrator switches it on
         DEFAULTS.put("agents_write_credentials", 0);
+        // event subscriptions (gap G38): receivers at plain http:// addresses, and at private or local addresses
+        DEFAULTS.put("events_allow_http", 0);
+        DEFAULTS.put("events_allow_private", 0);
     }
 
     static final List<String> ENVIRONMENT_COLOURS = List.of("blue", "green", "amber", "red", "grey");
@@ -194,6 +197,8 @@ public final class Platform {
         Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
         Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
         Map.entry("agents_write_credentials", new long[] { 0, 1 }),
+        Map.entry("events_allow_http", new long[] { 0, 1 }),
+        Map.entry("events_allow_private", new long[] { 0, 1 }),
         Map.entry("notify_run_failed", new long[] { 0, 1 }),
         Map.entry("notify_task_assigned", new long[] { 0, 1 }),
         Map.entry("value_goal_hours", new long[] { 0, 100_000_000 }),
@@ -805,6 +810,7 @@ public final class Platform {
         boolean encrypt = queueTools.encrypted(qid);
         List<String> ids = new ArrayList<>();
         List<Object> outcomes = new ArrayList<>();
+        List<String> refs = new ArrayList<>();
         db.tx(() -> {
             int row = 0;
             for (Object o : items) {
@@ -819,9 +825,12 @@ public final class Platform {
                 Map<String, Object> r = queueTools.addOne(qid, encrypt, item, ref == null ? null : String.valueOf(ref), pr instanceof Number n ? n.intValue() : null, tags, ifExists);
                 ids.add((String) r.get("id"));
                 outcomes.add(r.get("outcome"));
+                refs.add(ref == null ? null : String.valueOf(ref));
             }
             return null;
         });
+        // queue.item_added (G38) once the items are saved, so a batch that was refused announces nothing
+        for (int i = 0; i < ids.size(); i++) if ("added".equals(outcomes.get(i))) cr.events.emit("queue.item_added", QueueTools.item(ids.get(i), qid, refs.get(i), "new"));
         long added = outcomes.stream().filter("added"::equals).count(), skipped = outcomes.stream().filter("skipped"::equals).count();
         Map<String, Object> detail = new LinkedHashMap<>(Map.of("count", added));
         if (skipped > 0) detail.put("skipped", skipped);
@@ -1393,6 +1402,8 @@ public final class Platform {
             Instant cut = now().minus(Duration.ofDays(runDays));
             events += db.update("DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped'))", cut);
             runs = db.update("DELETE FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped')", cut);
+            // ended waits of long-running agents (G36) go with them; a suspended run's wait is never removed
+            db.update("DELETE FROM run_waits WHERE status <> 'waiting' AND finished < ?", cut);
         }
         cr.audit.record(by, "runs.purge", "runs", null, Map.of("run_days", runDays, "log_days", logDays, "runs", runs, "log_lines", events), "ok", ip);
         return Map.of("runs_removed", runs, "log_lines_removed", events);
@@ -1491,6 +1502,7 @@ public final class Platform {
                     Map<String, Object> run = cr.startRun((String) q.get("run_as"), creator == null ? "viewer" : (String) creator.get("role"), (String) q.get("bot_path"), device,
                             null, inputs, "queue:" + q.get("id"), null, 0, null, null, null, (String) next.get("id"));
                     db.update("UPDATE queue_items SET run_id = ? WHERE id = ?", run.get("run_id"), next.get("id"));
+                    cr.events.emit("queue.item_started", QueueTools.item((String) next.get("id"), (String) q.get("id"), null, "in_progress", (String) run.get("run_id")));
                     started++;
                 } catch (OoaException e) {
                     db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ? WHERE id = ?", JsonLite.write(e.toMap()), now(), next.get("id"));
@@ -1534,6 +1546,7 @@ public final class Platform {
                 error == null ? null : JsonLite.write(error), outputs == null ? null : JsonLite.write(outputs), now(),
                 next.equals("retry") || next.equals("review") ? null : now(), item.get("id"));
         if (error != null && (next.equals("retry") || next.equals("failed"))) db.update("UPDATE queue_items SET error_kind = 'system' WHERE id = ?", item.get("id"));
+        cr.events.emit("queue.item_finished", QueueTools.item((String) item.get("id"), (String) item.get("queue_id"), (String) item.get("reference"), next, runId));
         if (next.equals("review")) cr.audit.record("system", "queue.item_review", "work_item", (String) item.get("id"), Map.of("queue", item.get("queue_id")), "ok", null);
     }
 
@@ -1699,22 +1712,98 @@ public final class Platform {
     public List<Map<String, Object>> calendars(User by) {
         cr.require(by, "schedules.view", "view schedules");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT * FROM holiday_calendars ORDER BY name")) {
-            Map<String, Object> m = new LinkedHashMap<>(c);
-            m.put("dates", csv(c.get("dates")));
-            out.add(m);
-        }
+        for (Map<String, Object> c : db.query("SELECT * FROM holiday_calendars ORDER BY name")) out.add(calendarRecord(c));
         return out;
     }
 
-    public void saveCalendar(User by, String name, Object dates, String ip) {
+    /** A calendar as the console and agents see it: its dates as a list and its weekend as a list of MON..SUN. */
+    private static Map<String, Object> calendarRecord(Map<String, Object> c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : c.entrySet()) m.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue());
+        m.put("dates", csv(c.get("dates")));
+        m.put("weekend", weekendDays(c.get("weekend") == null ? null : String.valueOf(c.get("weekend"))));
+        return m;
+    }
+
+    /** Days of the week in calendar order, as stored in holiday_calendars.weekend. */
+    static final List<String> WEEK = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
+
+    /** The weekend days a stored value means: empty or null is SAT,SUN (as before version 37), NONE is no weekend. */
+    static List<String> weekendDays(String stored) {
+        if (stored == null || stored.isBlank()) return List.of("SAT", "SUN");
+        if (stored.trim().equalsIgnoreCase("NONE")) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String d : WEEK) if (csv(stored).contains(d)) out.add(d);
+        return out;
+    }
+
+    /**
+     * The value stored for a weekend given as a list or comma text of day names (MON or Monday, any case). Nothing given
+     * means SAT,SUN; NONE (or an empty list in a list with NONE) means every day is a working day.
+     */
+    static String weekendValue(Object given) {
+        List<String> parts = new ArrayList<>();
+        if (given instanceof List<?> l) { for (Object o : l) if (o != null) parts.addAll(csv(String.valueOf(o))); }
+        else if (given != null) parts.addAll(csv(String.valueOf(given).replace(';', ',').replace(' ', ',')));
+        parts.removeIf(String::isBlank);
+        if (parts.isEmpty()) return "SAT,SUN";
+        if (parts.size() == 1 && parts.get(0).equalsIgnoreCase("NONE")) return "NONE";
+        Set<String> days = new HashSet<>();
+        for (String p : parts) {
+            String d = p.trim().toUpperCase(Locale.ROOT);
+            String day = d.length() >= 3 ? d.substring(0, 3) : d;
+            if (!WEEK.contains(day) || d.length() > 3 && !java.time.DayOfWeek.valueOf(fullDay(day)).name().equals(d))
+                throw new OoaException("CR.BAD_INPUT", "Not a day of the week: " + p, "Use MON, TUE, WED, THU, FRI, SAT, SUN (or NONE for no weekend).");
+            days.add(day);
+        }
+        if (days.size() == 7) throw new OoaException("CR.BAD_INPUT", "A calendar needs at least one working day in the week", "Leave at least one day out of the weekend.");
+        List<String> out = new ArrayList<>();
+        for (String d : WEEK) if (days.contains(d)) out.add(d);
+        return String.join(",", out);
+    }
+
+    private static String fullDay(String three) {
+        for (java.time.DayOfWeek d : java.time.DayOfWeek.values()) if (d.name().startsWith(three)) return d.name();
+        return three;
+    }
+
+    public void saveCalendar(User by, String name, Object dates, String ip) { saveCalendar(by, name, dates, null, false, ip); }
+
+    /**
+     * Adds or changes a calendar. The weekend is changed only when weekendGiven (a calendar saved without one keeps its
+     * weekend; a new one gets SAT,SUN). Audited with the number of dates and the weekend.
+     */
+    public void saveCalendar(User by, String name, Object dates, Object weekend, boolean weekendGiven, String ip) {
         cr.require(by, "schedules.manage", "manage holiday calendars");
         if (name == null || !name.matches("^[A-Za-z0-9 _.-]{1,80}$")) throw new OoaException("CR.BAD_INPUT", "Calendar names use letters, digits, spaces and . _ -");
         List<String> ds = new ArrayList<>(new TreeSet<>(csv(dates)));
         for (String d : ds) try { LocalDate.parse(d); } catch (RuntimeException e) { throw new OoaException("CR.BAD_INPUT", "Not a date: " + d, "Use YYYY-MM-DD."); }
-        if (db.update("UPDATE holiday_calendars SET dates = ?, updated = ?, updated_by = ? WHERE name = ?", String.join(",", ds), now(), by.username(), name) == 0)
-            db.update("INSERT INTO holiday_calendars (name, dates, updated, updated_by) VALUES (?,?,?,?)", name, String.join(",", ds), now(), by.username());
-        cr.audit.record(by.username(), "calendar.save", "calendar", name, Map.of("dates", ds.size()), "ok", ip);
+        Map<String, Object> before = db.one("SELECT weekend FROM holiday_calendars WHERE name = ?", name);
+        String wk = weekendGiven ? weekendValue(weekend)
+            : before != null && before.get("weekend") != null ? String.valueOf(before.get("weekend")) : "SAT,SUN";
+        if (db.update("UPDATE holiday_calendars SET dates = ?, weekend = ?, updated = ?, updated_by = ? WHERE name = ?", String.join(",", ds), wk, now(), by.username(), name) == 0)
+            db.update("INSERT INTO holiday_calendars (name, dates, weekend, updated, updated_by) VALUES (?,?,?,?,?)", name, String.join(",", ds), wk, now(), by.username());
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("dates", ds.size());
+        details.put("weekend", wk);
+        String was = before == null ? null : String.join(",", weekendDays(before.get("weekend") == null ? null : String.valueOf(before.get("weekend"))));
+        String now = String.join(",", weekendDays(wk));
+        if (was != null && !was.equals(now)) details.put("weekend_was", was.isEmpty() ? "NONE" : was);
+        cr.audit.record(by.username(), "calendar.save", "calendar", name, details, "ok", ip);
+    }
+
+    /**
+     * A calendar for a running agent (ooa.datetime working-day actions), read as the run's user: they need View
+     * schedules, as in the console. Null when there is no calendar of that name.
+     */
+    Map<String, Object> calendarFor(User as, String name) {
+        cr.require(as, "schedules.view", "read holiday calendars");
+        Map<String, Object> c = name == null ? null : db.one("SELECT name, dates, weekend FROM holiday_calendars WHERE name = ?", name.strip());
+        if (c == null) return null;
+        Map<String, Object> m = calendarRecord(c);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("name", m.get("name")); out.put("dates", m.get("dates")); out.put("weekend", m.get("weekend"));
+        return out;
     }
 
     public void deleteCalendar(User by, String name, String ip) {

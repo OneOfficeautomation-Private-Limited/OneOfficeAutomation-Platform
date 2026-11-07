@@ -678,6 +678,38 @@ For a summary (who acted, sign-ins and failed sign-ins, what failed or was refus
 **Operational Insights > Operations > Audit**; its **Open in Audit Trail** brings you back here with the same filters.
 To keep a copy outside One CommandCenter, forward every entry to your SIEM by syslog or HTTPS (section 12).
 
+### Event subscriptions: events and run logs to other systems
+
+**Administration > Event subscriptions** (needs `events.manage`; administrators) sends events to other systems the
+moment they happen, so a ticketing tool, an integration platform or Splunk does not have to keep asking.
+
+1. Click **New subscription**. Give it a **Name** and the **Receiver address** (`https://...`).
+2. Choose the **Format**: **JSON, signed** for your own receiver, or **Splunk HTTP Event Collector** (then paste the
+   collector token as the **Collector token**; each run log line becomes one Splunk event).
+3. Tick the **Events**: runs (queued, started, finished, failed, paused, resumed, run log lines), work items (added,
+   started, finished, abandoned), runners (came online, went offline), alerts raised, every audit entry.
+4. Optionally limit it with **Only for these folders or agents** (for example `Finance/`).
+5. **Make the subscription**. For the JSON format a signing secret is made and shown **once**: copy it into the
+   receiver. It is kept encrypted and never shown again; **Edit > Make a new signing secret** replaces it.
+
+The receiver checks each message: the `X-OOA-Signature` header is `sha256=` and the HMAC-SHA256 of the
+`X-OOA-Timestamp` value, a dot and the body, made with the secret. Use `X-OOA-Event-Id` to ignore an event that arrives
+twice. Use **Send a test event** in the row's menu to check the receiver; the list shows the last delivery and the
+**Failures** in a row (hover for the last error). A receiver that is down is tried again for about three minutes;
+events never hold up a run.
+
+Receivers must be `https://` addresses on the public internet. For a test system or a receiver inside your own
+network, switch on **Settings > E-mail, proxy and SIEM > Event subscriptions > Allow plain http:// receivers** or **Allow receivers
+in private networks**. Every change is in the Audit Trail.
+
+### Metrics for Prometheus and OpenTelemetry
+
+At the bottom of the same page, **Make a metrics token** makes the token Prometheus uses to read `/metrics` (shown
+once; making a new one replaces it). Point Prometheus, Grafana Agent or the OpenTelemetry Collector's Prometheus
+receiver at `https://<One CommandCenter>/metrics` with the token as a bearer token; with several nodes, scrape each
+node. The figures and a scrape example are in
+[Monitoring, logging and troubleshooting](../infrastructure/11-monitoring-logging-and-troubleshooting.md#2-health-endpoints).
+
 ## 15. AI: model connections, Prompt Skills and AI governance
 
 **AI > Model Connections** (needs `connections.manage`):

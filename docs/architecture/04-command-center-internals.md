@@ -114,7 +114,7 @@ failures. Every response carries the security headers described in [06-security-
 | Repository | `repo`, `repo/bot`, `repo/checkin`, `repo/checkout`, `repo/undo-checkout`, `repo/versions`, `repo/labels`, `repo/production`, `repo/production-requests`, `repo/folders`, `repo/permissions`, `repo/files`, `repo/move`, `repo/copy`, `repo/delete`, `repo/recover`, `repo/dependencies`, `repo/analyze`, `repo/analysis`, `repo/policy`, `repo/roi` |
 | Runs | `runs` (list, start one or many, control, purge), `runs/{id}/ai-calls`, `changes` (live update feed) |
 | Runners | `devices`, `devices/registration-key`, `devices/runasusers`, `devices/update`, `pools` |
-| Automation | `schedules`, `schedules/bulk`, `triggers`, `calendars`, `queues`, `queues/import`, `queue-models`, `workflows`, `workflows/start`, `workflows/runs`, `workflows/form`, `tasks`, `apitasks`, `test-sets` |
+| Automation | `schedules`, `schedules/bulk`, `schedules/preview`, `triggers`, `calendars`, `queues`, `queues/import`, `queue-models`, `workflows`, `workflows/start`, `workflows/runs`, `workflows/form`, `tasks`, `apitasks`, `test-sets` |
 | Vault and values | `lockers`, `vault`, `vault/credential`, `vault/value`, `vault/my-value`, `vault/requests`, `vault/rotate`, `vault/status`, `globals`, `saved-connections`, `connection-kinds` |
 | AI | `connections` (model connections), `connections/test`, `skills`, `skills/templates`, `skills/from-template`, `governance`, `mcp` |
 | Administration | `users`, `roles`, `teams`, `apikeys`, `settings`, `settings/mail-test`, `settings/syslog-test`, `database`, `toolkits`, `toolkits/custom`, `toolkits/publishers`, `license`, `license/assignments`, `license/usage`, `backups`, `cluster`, `git`, `git/sync`, `git/status`, `audit`, `audit/verify`, `audit/export` |
@@ -137,6 +137,7 @@ once, and writes on other nodes are seen within 2 seconds.
 | `POST agent/credential` | Fetch one vault value for a running job |
 | `POST agent/global-values` | A running job changes an existing shared value; checked as the run's user (`globals.manage`) |
 | `POST agent/vault` | A running job saves a credential value and expiry (`op` save) or reads a credential's expiry (`op` expiry); checked as the run's user, saving only with Settings `agents_write_credentials` |
+| `POST agent/run-request` | A running job asks One CommandCenter as the run's user: `{run_id, call, args}`. Calls: `get_job`, `list_jobs`, `stop_job`, `raise_alert` (G32); `create_callback`, `suspend`, `create_task` (long-running agents, G36, section 5.1) |
 | `POST agent/locks` | Environment locks for a running job: `{run_id, op: acquire \| release \| check, name, lease_seconds, comment}`. The run must be on this runner and running; the holder is always that run |
 | `POST agent/rotate` | Get a new device secret when the heartbeat asks for it |
 | `POST agent/trigger-fired`, `agent/trigger-status` | Report a runner-side trigger event or error |
@@ -148,6 +149,7 @@ once, and writes on other nodes are seen within 2 seconds.
 | --- | --- | --- |
 | `POST /api/hooks/{trigger id}` | `X-OOA-Secret` header, compared as a SHA-256 hash in constant time | Starts the trigger's agent with the payload; answers 202 |
 | `POST /api/apitasks/{id}/run` | `X-OOA-Task-Token` (or Bearer) | Section 11 |
+| `POST /api/callbacks/{token}` | The token in the address (made by Create callback URL; kept only as its SHA-256 hash, compared in constant time) | Resumes a suspended run once (section 5.1). Body: a JSON object, at most 64 KB (another JSON value arrives as `{"value": ...}`; empty is `{}`). Answers 202 `{"accepted": true}`; 404 for an unknown token, 409 when already used or the run no longer waits, 400 for a body that is too large or not JSON, 429 above 120 calls a minute from one address |
 | `POST /api/mcp` | Bearer API key, session, or OAuth JWT | JSON-RPC 2.0; see [08-ai-architecture.md](08-ai-architecture.md) |
 | `GET /.well-known/oauth-protected-resource` | none | OAuth protected resource metadata (RFC 9728) for MCP clients |
 | `GET /api/health`, `/api/health/ready` | none | Liveness and readiness (503 when not ready) |
@@ -190,6 +192,44 @@ callback URL (3 attempts in the background, failures audited).
 Run control (`POST /api/runs/{id}` with stop, pause, resume) sets `cancel_requested` or `pause_requested` and asks the
 runner to send a heartbeat at once, which carries the instruction back.
 
+
+### 5.1 Suspended runs (long-running agents, G36)
+
+An agent's step of the `ooa.longrunning` toolkit suspends the run until a time, a Task inbox task, a work item,
+another run or a call to a callback URL (`RunWaits.java`):
+
+1. In the worker, the step asks the runner (`RunSuspension`) whether the run can stop here and for its variable values.
+   It cannot inside a loop, a Parallel block, a Catch or a Finally, a subflow, a child agent or the error handler
+   (`LONGRUN.CANNOT_SUSPEND`), nor with a browser, workbook, file or other session open (`LONGRUN.SESSION_OPEN`).
+   Credential, Window, UI element, Image and Binary variables are not kept.
+2. The step sends `run-request` `suspend` `{kind, ref, timeout_seconds, pool, step_id, values}`. One CommandCenter
+   checks it as the run's user (the task, work item or run must be one that user may see), keeps a `run_waits` row and
+   audits `run.suspend`. The step then throws `RUN.SUSPENDED`, which no Catch, retry, continue-on-error or error handler
+   takes and which skips the Finally of a Try around it; the run ends with status `suspended` and its locks are given
+   back. A run that ends as suspended without a wait is recorded as failed (`LONGRUN.NOT_REGISTERED`).
+3. The clock of the cluster leader (every 5 seconds) marks waits whose task is completed or cancelled, whose work item
+   is success or failed, or whose run ended (a run that is itself suspended is followed to the run that carried it on)
+   as due, then for each due or timed-out wait of a suspended run: one conditional UPDATE ends the wait, and a new run
+   is queued with the same agent version, inputs (an input the run changed keeps its new value), source, people, mode,
+   priority, work item and callback address, on the same runner or on the least busy runner of the pool given.
+   Credential inputs are read from the vault again. Audited as `run.resume`.
+4. The runner gets the job with `resume {step_id, values, answer}` and runs it from that step (Run from here) with the
+   values; the step gets `answer` (`resumed_by`, `timed_out`, `result`) and returns it instead of suspending again.
+   A timed-out wait fails the step with `LONGRUN.TIMEOUT` unless the step says to continue.
+5. What follows the end of a run (the work item, KPIs, test case, workflow, failure mail, callback URL) waits for the
+   end of the chain; a workflow and a test know the chain by its first run.
+
+If the new run cannot be queued (its user disabled, its runner gone or disabled, no licence), the suspended run fails
+with `LONGRUN.RESUME_FAILED`. Stopping a suspended run (Activity, or `POST /api/run-waits/{id}/cancel`) cancels its
+wait (`run.wait_cancel`); `POST /api/run-waits/{id}/resume` (`runs.stop`) resumes it at once with
+`{resumed_by: "admin"}`. `GET /api/run-waits?status=waiting|resumed|timed_out|cancelled|all` lists waits
+(`runs.view`, folder access); values, payloads and token hashes are never listed. `GET /api/runs/{id}` adds `wait`,
+`resumed_from` and `resumed_as`.
+
+Limits: a wait or timeout lasts at most 365 days; saved values at most 1,000,000 characters; a callback body at most
+64 KB; at most 20 callback URLs per run; a payload kept at most 100,000 characters (larger results are left out with a
+note). A callback URL needs Settings > Public address.
+
 ## 6. The runner protocol
 
 ```mermaid
@@ -222,9 +262,10 @@ sequenceDiagram
   the runner's workspace.
 - `{check: true}` tells the runner to send a heartbeat now (a run of its own was stopped or paused).
 - The housekeeping fails runs whose runner has not reported for **2 minutes** with `AGENT.LOST`.
-- Runner-side triggers (files, folders, windows, processes, services, hotkeys) arrive in the heartbeat answer as
-  `local_triggers`; `LocalTriggers` polls the machine every 2 seconds and reports differences to
-  `agent/trigger-fired`.
+- Runner-side triggers (files, folders, windows, processes, services, hotkeys, key presses, clicks) arrive in the
+  heartbeat answer as `local_triggers`; `LocalTriggers` polls the machine every 2 seconds and reports differences to
+  `agent/trigger-fired`. Key-press and click triggers are not polled: they use Windows input hooks through
+  `InputTriggers` (packages), which never pass on typed text.
 
 ## 7. The background clock
 
@@ -247,15 +288,19 @@ checkpoints, scheduled backups (`backup_hours`, `backup_keep_days`) and licence 
 
 ## 8. Schedules and triggers
 
-- **Schedules** (`schedules` table): kinds every N minutes, daily at a time, weekly on days; a time zone; an optional
-  holiday calendar; a runner, pool or run-as user; inputs. `tickSchedules()` starts every enabled schedule whose
-  `next_run` has passed and computes the next one (`nextRun`, skipping holidays). Schedules can be changed in bulk
-  (`schedules/bulk`) and run at once (`run now`).
+- **Schedules** (`schedules` table): kinds every N minutes, daily at a time, weekly on days, monthly (days of the
+  month, the last day or an ordinal weekday, every N months) and cron (five-field or Quartz expressions); a time zone;
+  an optional holiday calendar; a runner, pool or run-as user; inputs. `tickSchedules()` starts every enabled schedule
+  whose `next_run` has passed and computes the next one (`nextRun`, skipping holidays). Monthly and cron rules are read
+  by `ScheduleRules` (no scheduling library): it walks wall-clock days in the schedule's time zone, moves a time in the
+  spring-forward gap on by the gap and runs a repeated autumn time once (both copies only for an every-hour cron). A
+  rule that cannot be read stops only its own schedule (audited as a failed `schedule.fire`). `schedules/preview`
+  returns a draft's next times. Schedules can be changed in bulk (`schedules/bulk`) and run at once (`run now`).
 - **Triggers** (`TriggerKinds.KINDS`):
 
 | Where evaluated | Kinds |
 | --- | --- |
-| Runner (`LocalTriggers`) | `file`, `file_changed`, `file_deleted`, `folder_created`, `folder_deleted`, `window_opened`, `window_closed`, `process_started`, `process_stopped`, `service_started`, `service_stopped`, `hotkey` |
+| Runner (`LocalTriggers`) | `file`, `file_changed`, `file_deleted`, `folder_created`, `folder_deleted`, `window_opened`, `window_closed`, `process_started`, `process_stopped`, `service_started`, `service_stopped`, `hotkey`, `key_pressed`, `mouse_clicked` |
 | One CommandCenter (`TriggerPollers`) | `email` (IMAP), `outlook` (Microsoft 365 via Graph), `servicenow`, `http_poll` (universal HTTP poller with JSON path selection) |
 | Webhook | `webhook` (`POST /api/hooks/{id}`) |
 
@@ -330,6 +375,22 @@ needed.
 - Sign-ins in progress (two-step codes, SAML and OIDC state) are kept in `auth_pending` (`Cluster.put/take/peek`), so
   any node can finish them.
 - All nodes need the same `OOA_MASTER_KEY` and a shared repository-files folder (`repo_files_folder`).
+- Events to subscriptions (G38) leave from the node where they happened: run and work-item events from the node that
+  handled the runner's or person's request, `runner.offline` and clock work from the leader. Each event is therefore
+  sent once. `/metrics` answers per node with its `node` label; counters (runs finished, durations, events) are this
+  node's, gauges read from the database are the same everywhere.
+
+### Events out (gap G38)
+
+`EventSubscriptions` is fed from three places: the audit listener (`Audit.onRecord`, which also feeds
+`SyslogForwarder` and `Metrics`) gives `audit.entry` and the run events the audit trail already records (`run.start`
+becomes `run.queued`; `run.finish` and `run.lost` become `run.finished`, and `run.failed` when failed; `run.pause`,
+`run.resume`); direct calls give the rest (`claimNext` for `run.started`, `appendEvents` for `run.log`, `heartbeat` for
+`runner.online`, `reap` for `runner.offline`, `Alerts.insert` for `alert.raised`, work-queue code for
+`queue.item_*`). `emit` only checks a 5-second copy of the enabled subscriptions and offers the event to a bounded
+queue, so it is safe inside a transaction and never waits; one dispatcher thread adds the agent's path (for filters)
+and hands each match to four sender threads, which retry with back-off through a scheduled executor. Delivery results
+are written to `event_subscriptions` (every failure; a success at most every 5 seconds).
 
 ## 13. Runner updates
 
