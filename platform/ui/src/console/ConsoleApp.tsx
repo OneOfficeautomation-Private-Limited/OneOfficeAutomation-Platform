@@ -11,7 +11,7 @@ import { Connections } from "./Connections";
 import { Devices } from "./Devices";
 import { DocumentAutomation } from "../modules/document-automation/ConsolePage";
 import { EnvironmentLocks } from "./EnvironmentLocks";
-import { Ideas } from "./Ideas";
+import { Ideas } from "../modules/coe/Ideas";
 import { DataStore } from "./DataStore";
 import { Apps } from "./Apps";
 import { KnowledgeBases } from "./KnowledgeBases";

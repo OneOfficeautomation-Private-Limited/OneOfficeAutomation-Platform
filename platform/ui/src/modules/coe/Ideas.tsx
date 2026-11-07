@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, Idea, IdeaList } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import type { CrApi, Idea, IdeaList } from "../../api/cr";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
  * Build > Automation ideas (gap G65, after UiPath's Automation Hub): anyone signed in suggests a process to automate

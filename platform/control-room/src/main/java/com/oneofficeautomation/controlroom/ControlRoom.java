@@ -82,8 +82,6 @@ public final class ControlRoom {
     public final RunnerCare runnerCare;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
-    /** Automation ideas (gap G65): suggested, voted, assessed and scored, linked to the agent built. */
-    public final Ideas ideas;
     /** Business data store (gap G66): entities with records, and storage buckets runs read and write. */
     public final DataStore dataStore;
     /** Low-code apps (gap G67): pages of fields and buttons that run agents, add records and work items. */
@@ -173,7 +171,6 @@ public final class ControlRoom {
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
         this.locks = new EnvironmentLocks(this);
-        this.ideas = new Ideas(this);
         this.dataStore = new DataStore(this);
         this.apps = new Apps(this);
         this.appEmbeds = new AppEmbeds(this);
@@ -218,6 +215,12 @@ public final class ControlRoom {
         this.modules = new Modules(this);
         modules.start();
     }
+
+    /** The kernel's conventions, published to feature modules through ModuleContext (id, now, denied, notFound). */
+    public static String newId(String prefix) { return id(prefix); }
+    public static Instant nowMillis() { return now(); }
+    public static OoaException deniedTo(String what) { return denied(what); }
+    public static OoaException notFoundError(String what) { return notFound(what); }
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }

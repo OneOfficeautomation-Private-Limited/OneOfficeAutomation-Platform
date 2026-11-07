@@ -181,7 +181,8 @@
         "platform/ui/src/console/Capacity.tsx",
         "platform/ui/src/console/EventSubscriptions.tsx",
         "platform/ui/src/console/Activity.tsx",
-        "platform/ui/src/console/EventSubscriptions.test.tsx"
+        "platform/ui/src/console/EventSubscriptions.test.tsx",
+        "platform/ui/src/console/BusinessAgents.tsx"
       ],
       "dependsOn": [
         "kernel"
@@ -235,13 +236,10 @@
       "id": "coe",
       "name": "Automation ideas",
       "layer": 3,
-      "description": "Ideas suggested, voted, assessed and linked to the agent built.",
+      "description": "Ideas suggested, voted, assessed and linked to the agent built. Moved out of the kernel: platform/modules/coe (Gradle project :coe).",
       "paths": [
-        "platform/control-room/src/main/java/com/oneofficeautomation/controlroom/Ideas.java",
-        "platform/control-room/src/test/java/com/oneofficeautomation/controlroom/Ideas*Test.java",
-        "platform/ui/src/console/Ideas.tsx",
-        "platform/ui/src/console/BusinessAgents.tsx",
-        "platform/ui/src/console/Ideas.test.tsx"
+        "platform/modules/coe/**",
+        "platform/ui/src/modules/coe/**"
       ],
       "dependsOn": [
         "kernel"

@@ -1218,14 +1218,6 @@ public final class ControlRoomServer {
                     else notFound(ex);
                 } else notFound(ex);
             }
-            case "ideas" -> {   // Build > Automation ideas (G65): anyone signed in suggests and votes; ideas.manage assesses
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.ideas.list(u));
-                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.ideas.save(u, null, map(body(ex)), ip));
-                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.ideas.save(u, seg[1], map(body(ex)), ip));
-                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("vote")) sendJson(ex, 200, cr.ideas.vote(u, seg[1]));
-                else if (m.equals("DELETE") && seg.length == 2) { cr.ideas.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
-                else notFound(ex);
-            }
             case "knowledge-bases" -> {   // AI > Knowledge bases (G71)
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("knowledge_bases", cr.knowledge.list(u)));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.knowledge.save(u, null, map(body(ex)), ip));

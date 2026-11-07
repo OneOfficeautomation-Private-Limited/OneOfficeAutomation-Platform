@@ -73,6 +73,12 @@ public interface ModuleContext {
     /** A Settings value (the module's own, from {@link #defineSetting}, or the kernel's). */
     Object setting(String key);
 
+    /** A whole-number setting (0 when it is not a number). */
+    default int intSetting(String key) { return setting(key) instanceof Number n ? n.intValue() : 0; }
+
+    /** COUNT(*) AS n of a query, as a long. */
+    default long count(String sql, Object... params) { return ((Number) db().one(sql, params).get("n")).longValue(); }
+
     /** Refuses an outbound address the network policy does not allow (Settings > Outbound connections). */
     void checkHost(String host, String what);
 
@@ -164,6 +170,29 @@ public interface ModuleContext {
         /** Creates the bundle's items in the folder the template is installed in; returns each with its status. */
         List<Map<String, Object>> install(User by, Map<String, Object> bundle, String folder);
     }
+
+    /**
+     * Offers one of the module's objects to the rest of One CommandCenter by its type (its tests, and other modules
+     * through an interface the kernel publishes); {@code Modules.service(type)} finds it.
+     */
+    <T> void provide(Class<T> type, T service);
+
+    /** An object a module or the kernel offers by this type, or null when none does. */
+    <T> T service(Class<T> type);
+
+    // ------------------------------------------------------------------ the kernel's conventions, the same for every module
+
+    /** A new id with a prefix ("idea_3f2a..."), as the kernel makes them. */
+    static String id(String prefix) { return com.oneofficeautomation.controlroom.ControlRoom.newId(prefix); }
+
+    /** Now, to the millisecond, as the kernel stores times. */
+    static java.time.Instant now() { return com.oneofficeautomation.controlroom.ControlRoom.nowMillis(); }
+
+    /** CR.FORBIDDEN: "You do not have permission to {what}". */
+    static com.oneofficeautomation.sdk.OoaException denied(String what) { return com.oneofficeautomation.controlroom.ControlRoom.deniedTo(what); }
+
+    /** CR.NOT_FOUND: "{what} not found". */
+    static com.oneofficeautomation.sdk.OoaException notFound(String what) { return com.oneofficeautomation.controlroom.ControlRoom.notFoundError(what); }
 
     /** Requests under /api/{prefix}/ from signed-in people. */
     void route(String prefix, UserRoute handler);

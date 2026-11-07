@@ -1,5 +1,7 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.modules.coe.Ideas;
+
 import com.oneofficeautomation.packages.FirstPartyPackages;
 import com.oneofficeautomation.sdk.OoaException;
 import org.junit.jupiter.api.*;
@@ -36,7 +38,7 @@ class IdeasTest {
 
     @Test @SuppressWarnings("unchecked")
     void anyoneSuggestsAndVotesTheTeamAssesses() {
-        Map<String, Object> idea = cr.ideas.save(vic, null, new HashMap<>(Map.of("title", "Post supplier invoices", "department", "Finance",
+        Map<String, Object> idea = cr.modules.service(Ideas.class).save(vic, null, new HashMap<>(Map.of("title", "Post supplier invoices", "department", "Finance",
             "volume_month", 400, "minutes_each", 15, "status", "live", "rules_score", 5)), null);
         String id = (String) idea.get("id");
         assertEquals("submitted", idea.get("status"), "people who do not assess cannot set the status");
@@ -46,44 +48,44 @@ class IdeasTest {
         assertEquals(true, idea.get("mine"));
 
         // the person who suggested it may change it while it is submitted; others may not
-        cr.ideas.save(vic, id, new HashMap<>(Map.of("title", "Post supplier invoices from the mailbox", "volume_month", 400, "minutes_each", 15)), null);
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.ideas.save(rita, id, new HashMap<>(Map.of("title", "x")), null)).code());
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.ideas.delete(rita, id, null)).code());
+        cr.modules.service(Ideas.class).save(vic, id, new HashMap<>(Map.of("title", "Post supplier invoices from the mailbox", "volume_month", 400, "minutes_each", 15)), null);
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(Ideas.class).save(rita, id, new HashMap<>(Map.of("title", "x")), null)).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(Ideas.class).delete(rita, id, null)).code());
 
-        assertEquals(1, cr.ideas.vote(rita, id).get("votes"));
-        assertEquals(true, cr.ideas.vote(vic, id).get("voted"));
-        assertEquals(1, cr.ideas.vote(vic, id).get("votes"), "voting again takes the vote back");
+        assertEquals(1, cr.modules.service(Ideas.class).vote(rita, id).get("votes"));
+        assertEquals(true, cr.modules.service(Ideas.class).vote(vic, id).get("voted"));
+        assertEquals(1, cr.modules.service(Ideas.class).vote(vic, id).get("votes"), "voting again takes the vote back");
 
         Map<String, Object> b = new HashMap<>(Map.of("title", "Post supplier invoices from the mailbox", "volume_month", 400, "minutes_each", 15, "status", "approved",
             "rules_score", 5, "structured_score", 4, "stable_score", 4, "complexity", "medium", "hourly_cost", 40));
-        Map<String, Object> assessed = cr.ideas.save(admin, id, b, "127.0.0.1");
+        Map<String, Object> assessed = cr.modules.service(Ideas.class).save(admin, id, b, "127.0.0.1");
         assertEquals("approved", assessed.get("status"));
         assertEquals(Ideas.score(5, 4, 4, "medium", 1200), assessed.get("score"));
         assertEquals(48000L, assessed.get("value_year"));
         assertEquals(1L, ((Number) db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'idea.update' AND object_id = ? AND details LIKE '%from_status%'", id).get("n")).longValue());
 
         // once it is past submitted, its author can no longer change it
-        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.ideas.save(vic, id, new HashMap<>(Map.of("title", "y")), null)).code());
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.ideas.save(admin, id, new HashMap<>(Map.of("title", "y", "status", "done")), null)).code());
-        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.ideas.save(admin, id, new HashMap<>(Map.of("title", "y", "rules_score", 9)), null)).code());
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.modules.service(Ideas.class).save(vic, id, new HashMap<>(Map.of("title", "y")), null)).code());
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(Ideas.class).save(admin, id, new HashMap<>(Map.of("title", "y", "status", "done")), null)).code());
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(Ideas.class).save(admin, id, new HashMap<>(Map.of("title", "y", "rules_score", 9)), null)).code());
 
-        Map<String, Object> l = cr.ideas.list(vic);
+        Map<String, Object> l = cr.modules.service(Ideas.class).list(vic);
         assertEquals(false, l.get("can_manage"));
-        assertEquals(true, cr.ideas.list(admin).get("can_manage"));
+        assertEquals(true, cr.modules.service(Ideas.class).list(admin).get("can_manage"));
         Map<String, Object> seen = ((List<Map<String, Object>>) l.get("ideas")).stream().filter(i -> id.equals(i.get("id"))).findFirst().orElseThrow();
         assertEquals(false, seen.get("voted"));
         assertFalse(seen.containsKey("voters"), "who voted is not shown");
-        cr.ideas.delete(admin, id, null);
-        assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> cr.ideas.vote(vic, id)).code());
+        cr.modules.service(Ideas.class).delete(admin, id, null);
+        assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> cr.modules.service(Ideas.class).vote(vic, id)).code());
     }
 
     @Test void aLinkedAgentShowsTheHoursItSaved() {
         cr.checkin(admin, "Ideas/Post.flow.json", LicensingAndChecksTest.agent("post"), "v1", true, null);
-        Map<String, Object> idea = cr.ideas.save(admin, null, new HashMap<>(Map.of("title", "Post", "volume_month", 100, "minutes_each", 12, "bot_path", "Ideas/Post.flow.json")), null);
+        Map<String, Object> idea = cr.modules.service(Ideas.class).save(admin, null, new HashMap<>(Map.of("title", "Post", "volume_month", 100, "minutes_each", 12, "bot_path", "Ideas/Post.flow.json")), null);
         for (int i = 0; i < 5; i++)
             db.update("INSERT INTO runs (id, bot_path, version, device_id, status, requested_by, source, created, cancel_requested, pause_requested) VALUES (?, ?, 1, 'd', 'success', 'admin', 'manual', ?, FALSE, FALSE)",
                 "run_idea_" + i, "Ideas/Post.flow.json", ControlRoom.now());
-        Map<String, Object> again = cr.ideas.get(admin, (String) idea.get("id"));
+        Map<String, Object> again = cr.modules.service(Ideas.class).get(admin, (String) idea.get("id"));
         assertEquals(5L, again.get("runs_30_days"));
         assertEquals(1.0, again.get("hours_saved_30_days"), "5 runs of 12 minutes");
     }

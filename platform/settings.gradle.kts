@@ -10,3 +10,5 @@ project(":document-automation").projectDir = file("modules/document-automation")
 val optionalModules = (providers.gradleProperty("ooa.optionalModules").orNull ?: "")
     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
 optionalModules.forEach { include(it) }
+include("coe")
+project(":coe").projectDir = file("modules/coe")

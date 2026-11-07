@@ -31,6 +31,10 @@ public final class Modules {
     final Map<String, ModuleContext.TaskKind> taskKinds = new LinkedHashMap<>();
     final List<ModuleContext.McpTools> mcpTools = new CopyOnWriteArrayList<>();
     final List<ModuleContext.TemplatePart> templateParts = new CopyOnWriteArrayList<>();
+    private final Map<Class<?>, Object> services = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** An object a module offers by this type (ModuleContext.provide), or null when no module running here does. */
+    public <T> T service(Class<T> type) { return type.cast(services.get(type)); }
 
     Modules(ControlRoom cr) { this.cr = cr; }
 
@@ -178,8 +182,10 @@ public final class Modules {
         public void triggerKind(String kind, String label, TriggerKind rules) { TriggerKinds.defineModuleKind(kind, label, rules); }
         public void mcpTools(McpTools tools) { mcpTools.add(tools); }
         public void templatePart(TemplatePart part) { templateParts.add(part); }
+        public <T> void provide(Class<T> type, T service) { claim(services, type, service, "the service " + type.getName()); }
+        public <T> T service(Class<T> type) { return Modules.this.service(type); }
 
-        private <T> void claim(Map<String, T> map, String key, T value, String what) {
+        private <K, T> void claim(Map<K, T> map, K key, T value, String what) {
             if (map.putIfAbsent(key, value) != null) throw new IllegalStateException("Module " + module + " registers " + what + ", which another module has");
         }
     }
