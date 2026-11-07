@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, CustomDashboard, DashMail, DashWidget, WidgetData } from "../../api/cr";
+import type { CrApi, CrUser } from "../../api/cr";
+import type { CustomDashboard, DashMail, DashWidget, WidgetData } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu } from "../../console/ListParts";
 

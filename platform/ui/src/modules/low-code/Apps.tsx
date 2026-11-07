@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppComponent, AppDefinition, AppEmbed, AppInfo, CrApi, CrUser } from "../../api/cr";
+import type { CrApi, CrUser } from "../../api/cr";
+import type { AppComponent, AppDefinition, AppEmbed, AppInfo } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 

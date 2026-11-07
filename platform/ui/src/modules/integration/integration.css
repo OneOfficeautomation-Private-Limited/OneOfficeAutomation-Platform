@@ -1,0 +1,6 @@
+/* integration's styles (docs/architecture/13-modules.md, phase 6): only classes its own pages use. */
+.cc-api-addr { white-space: nowrap; }
+.cc-api-copy { height: 22px !important; padding: 0 6px !important; font-size: 12px; }
+.cc-api-empty { display: block; white-space: normal; max-width: 760px; color: var(--ui-text-2); line-height: 1.5; padding: 8px 0; }
+.cc-api-empty strong { color: var(--ui-text); }
+.cc-api-addr .ui-mono { font-size: 12px; margin-right: 6px; }

@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BucketFile, CrApi, CrUser, DataBucket, DataEntity, DataField, DataRecord } from "../../api/cr";
+import type { CrApi, CrUser } from "../../api/cr";
+import type { BucketFile, DataBucket, DataEntity, DataField, DataRecord } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TabPanel, Tabs, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 

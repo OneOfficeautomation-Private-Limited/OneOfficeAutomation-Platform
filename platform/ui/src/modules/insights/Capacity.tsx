@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { Capacity as CapacityData, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
+import type { CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
+import type { Capacity as CapacityData } from "./consoleApi";
 import { HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 

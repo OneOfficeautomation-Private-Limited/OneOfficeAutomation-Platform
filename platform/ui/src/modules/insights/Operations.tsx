@@ -1,5 +1,8 @@
+import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { AgentStats, CrApi, CrUser, Operations as OpsData, RunStats, VariableProfile } from "../../api/cr";
+import type { CrApi, CrUser } from "../../api/cr";
+import type { Operations as OpsData } from "./consoleApi";
+import type { AgentStats, RunStats, VariableProfile } from "./consoleApi";
 import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { howStarted } from "../../console/Activity";

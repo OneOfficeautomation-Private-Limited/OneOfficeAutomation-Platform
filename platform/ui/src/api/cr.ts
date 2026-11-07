@@ -20,88 +20,25 @@ export type Dashboard = {
   my_recent_runs?: { id: string; bot_path: string; status: string; created?: string; finished?: string }[];
   days?: { date: string; success: number; failed: number; stopped: number; active: number }[];
 };
-/** Run figures of a group: counts, success rate (of finished runs) and timing. */
-export type RunStats = { runs: number; success: number; failed: number; stopped: number; active: number; success_rate: number | null; total_ms: number;
-  avg_ms: number | null; p95_ms: number | null; max_ms: number | null };
-/** The Operations figures (GET analytics). */
-export type Operations = { totals: RunStats; duration_distribution: { bucket: string; runs: number }[]; by_day: (RunStats & { day: string })[];
-  most_run: (RunStats & { bot_path: string })[]; longest: (RunStats & { bot_path: string })[];
-  most_failed: (RunStats & { bot_path: string; failure_rate: number; top_errors: string[] })[];
-  failure_reasons?: { code: string; runs: number; agents: number; agent: string | null; last: string }[];
-  by_runner: (RunStats & { runner: string })[]; by_source: (RunStats & { source: string })[]; period: { runs_counted: number; capped: boolean };
-  /** Runs and failed runs per weekday (Monday first) and hour, in the time zone asked for. */
-  by_hour?: { time_zone: string; runs: number[][]; failed: number[][] };
-  /** The same totals for the period just before, as long as this one. */
-  previous?: RunStats };
-/** Runner capacity for a period (GET analytics/capacity): busy time, share in use, waits to start, a weekday-by-hour use heatmap. */
-export type Capacity = { from: string; to: string; enabled_runners: number; busy_ms: number; use: number | null; full_time_people: number; avg_wait_ms: number | null;
-  p95_wait_ms: number | null; waiting_now: number; runners: { device_id: string; busy_ms: number; runs: number; use: number; avg_wait_ms: number | null;
-    /** AA's Devices dashboard: its name and state now, how its runs ended, its last run and most common error. */
-    name?: string | null; os?: string | null; status?: string; success?: number; failed?: number; stopped?: number; last_run?: string | null; top_error?: string | null }[];
-  heat: { time_zone: string; use: (number | null)[][] }; by_day: { day: string; busy_ms: number }[];
-  online?: number; offline?: number; schedules?: number; next_schedule?: string | null; top_errors?: { code: string; runs: number }[] };
-/** Audit figures for a period (GET analytics/audit), as AA's Audit dashboard. */
-export type AuditFigures = { from: string; to: string; time_zone: string; entries: number; capped: boolean; people: number; sign_ins: number; failed_sign_ins: number;
-  by_kind: { kind: string; entries: number }[]; by_actor: { actor: string; entries: number; is: "person" | "runner" | "system" }[];
-  by_result: { result: string; entries: number }[]; by_day: { day: string; entries: number }[]; busiest_day: { day: string; entries: number } | null;
-  not_done: AuditRecord[] };
 /** One work queue's insights for a period (GET analytics/queues). */
 export type QueueInsight = { id: string; name: string; sla_minutes?: number | null; processing: boolean; bot_path?: string | null; pool_id?: string | null;
   counts: Record<string, number>; waiting: number; oldest_waiting?: string | null; overdue?: number; at_risk?: number; added: number; finished: number; success: number; failed: number;
   success_rate: number | null; in_time_rate: number | null; per_hour: number; avg_handling_ms: number | null; avg_wait_ms: number | null; runners_needed: number | null;
   errors: { code: string; items: number }[]; by_day: { day: string; added: number; finished: number }[] };
-/** Value saved for a period (GET analytics/value): hours of manual work and money, per agent, folder and day, and the period before. */
-export type ValueRow = { runs: number; minutes: number; hours: number; money: number; run_hours: number };
-export type ValueReport = { currency: string; hourly_cost: number; default_minutes_saved: number; successful_runs: number; hours: number; money: number; full_time_people: number;
-  previous_hours: number; previous_money: number; agents: (ValueRow & { bot_path: string; minutes_each: number; own_value: boolean;
-    /** Business (step 2): its own cost of an hour, and the runs a month expected (estimated against actual hours a month). */
-    hourly_cost?: number; own_cost?: boolean; estimated_runs_month?: number | null; estimated_hours_month?: number | null; actual_hours_month?: number })[];
-  folders: (ValueRow & { folder: string })[]; by_day: (ValueRow & { day: string })[];
-  /** Work queues: an item done counts its queue's minutes saved (when set) instead of its agent's. */
-  queues?: (ValueRow & { queue_id: string; name: string; minutes_each?: number | null; hourly_cost?: number | null })[];
-  /** This year's goal (0: none), saved so far this year, and at this pace by its end. */
-  goal?: { hours: number; money: number; year_hours: number; year_money: number; pace_hours: number; pace_money: number } };
-/** A dashboard e-mailed on a schedule: to whom, each day, week (on a weekday) or month (its first day), at a time in a time zone. */
-export type DashMail = { id: string; recipients: string; every: "day" | "week" | "month"; at_time: string; weekday?: string | null; time_zone: string; created_by: string;
-  created: string; next_send: string; last_sent?: string | null; last_error?: string | null };
 /** A SCIM token for an identity provider (the token itself is shown only when made). */
 export type ScimToken = { id: string; name: string; created: string; created_by: string; last_used?: string | null };
-/** Business > Agents: an agent whose runs return values. */
-export type BusinessAgent = { bot_path: string; values: string[]; kpis: string[]; runs: number; runs_with_values: number; last_run?: string | null };
-/** A dashboard widget: a figure from the runs or from a KPI agents record, shown as a number, bars, a line, a table or a pie. */
-export type DashWidget = { title?: string; type?: "number" | "bars" | "line" | "table" | "pie"; source?: "kpi" | "runs" | "output"; kpi?: string; agg?: "sum" | "avg" | "count" | "min" | "max" | "last";
-  metric?: "runs" | "success_rate" | "failed" | "avg_seconds" | "hours_saved"; bot?: string; group?: "none" | "day" | "week" | "month" | "agent" | "value"; by?: string; days?: number };
-/** A dashboard: its owner's, or shared with roles, teams, users or everyone (*). */
-export type CustomDashboard = { id: string; name: string; description?: string | null; owner: string; shared_with: string[]; widgets: DashWidget[]; can_edit: boolean; updated?: string };
-/** A widget with its figures: value for a number, points for the others, or why it could not be worked out. */
-export type WidgetData = DashWidget & { value?: number | null; points?: { label: string; value: number | null }[]; error?: string };
 /** An export bundle: each agent's exact version with a checksum (and the agents they call), to import in another One CommandCenter. */
 export type AgentBundle = { format: string; format_version?: number; exported_at?: string; exported_by?: string; source?: string; checksum?: string; toolkits?: string[];
   agents: { path: string; bot_id?: string; name?: string; version: number; production?: boolean; included_as?: string; sha256?: string; content?: unknown }[] };
 /** What happened to each agent of an import (or promotion): created, updated, skipped, failed or not imported. */
 export type ImportResult = { ok: boolean; imported: number; results: { path: string; status: string; version?: number; error?: { code?: string; message: string } }[] };
 /** The code analysis policy: each rule on or off, error or warning, its settings; and whether check-ins with errors are refused. */
-/** A policy under Administration > Policies (1 Nov 2026): code analysis rules or AI guardrails, given to folders; "default" is the default code analysis. */
-export type Policy = { id: string; name: string; kind: "code" | "ai"; description?: string; rules: CodePolicy & Record<string, unknown>; folders: string[]; built_in: boolean;
-  updated?: string; updated_by?: string };
 export type CodePolicy = { enforce_at_checkin: boolean; rules: Record<string, { enabled: boolean; severity: "error" | "warning"; description: string; params: Record<string, unknown> }> };
 /** A version's code analysis: errors, warnings and each finding. */
 export type CodeReport = { path: string; version: number; errors: number; warnings: number; passed: boolean; analyzed?: string; analyzed_by?: string;
   violations: { rule: string; severity: "error" | "warning"; step?: string | null; message: string }[] };
 /** A file kept in the repository (a template, workbook or list agents use); runners receive it before a run. */
 export type RepoFile = { path: string; size: number; sha256?: string; content_type?: string; updated?: string; updated_by?: string; version: number; folder: string; access: string };
-/** One agent's statistics for a period (GET analytics/agent). */
-export type AgentStats = { bot_path: string; totals: RunStats; by_day: (RunStats & { day: string })[]; errors: { code: string; runs: number }[]; by_runner: (RunStats & { runner: string })[];
-  last_run?: { id: string; status: string; created: string } | null; last_failure?: { id: string; created: string; code: string } | null };
-/** An agent's outputs over a period: how often each had a value, its common values and, for numbers, the range. */
-export type VariableProfile = { runs: number; variables: { variable: string; runs: number; runs_with_value: number; min?: number; max?: number; avg?: number; common?: { value: string; runs: number }[];
-  /** The data profile (Business, step 2): kind, total, different values, the total per day. */
-  kind?: string; sum?: number; distinct?: number; by_day?: { day: string; sum: number }[] }[];
-  /** The latest 20 runs that returned values. */
-  recent?: { id: string; status: string; created: string; outputs: Record<string, unknown> }[] };
-/** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
-export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
-  webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
 export type AlertKind = "run_failed" | "failure_rate" | "run_long" | "runner_offline" | "queue_overdue" | "ai_budget" | "agent_raised";
 /** An alert a rule raised: open, acknowledged (seen) or cleared (its state ended, or its rule was deleted). */
 export type Alert = { id: string; rule_id: string; rule_name?: string; kind: AlertKind; subject: string; subject_label?: string; message: string; severity: "warning" | "critical";
@@ -120,11 +57,6 @@ export type AiCall = { ts: string; purpose?: string; provider?: string; model?: 
 export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
 export type ConsolePlugin = { id: string; name: string; description: string; path: string };
-/** GET /api/docflow/version: the DocFlow in use against the one this release is tested with. */
-export interface DocFlowVersion {
-  status: "compatible" | "newer" | "too_old" | "other_contract" | "unreachable" | "not_set_up" | "unknown";
-  compatible: boolean; version: string | null; tested: string; minimum: string; contract: string; message: string;
-}
 /** A machine running the OneRunner (AA: a device), as GET devices gives it. */
 export type Runner = { id: string; name: string; hostname?: string; os?: string; agent_version?: string; enabled: boolean;
   status: "online" | "offline" | "disabled"; last_seen?: string | null; registered?: string; registered_by?: string; log_level?: string;
@@ -201,11 +133,6 @@ export type WorkItem = { id: string; reference?: string | null; status: string; 
   data: unknown; result?: unknown; error?: unknown; run_id?: string | null; tags?: string[]; error_kind?: "business" | "system" | null };
 /** The fields every item of a queue has (AA's work item template). */
 export type ItemModel = { id: string; name: string; description?: string | null; queues?: number; fields: { name: string; type: "text" | "number" | "boolean" | "date"; required?: boolean; display?: boolean }[] };
-/** A run of a workflow: its stage, data and the timeline of what happened. */
-export type WorkflowRun = { id: string; path: string; version: number; status: string; stage?: string | null; reference?: string | null; started_by?: string; created: string;
-  updated?: string; finished?: string | null; error?: { code?: string; message?: string } | null; data?: Record<string, unknown>;
-  history?: { event: string; stage?: string; ts: string; detail?: Record<string, unknown> | null }[];
-  tasks?: { id: string; stage?: string; kind: string; title: string; assignee?: string; status: string; claimed_by?: string | null; outcome?: string | null; created?: string; completed?: string | null }[] };
 export type GlobalValue = { name: string; value: unknown; changeable: boolean; my_value?: unknown; updated?: string; updated_by?: string;
   /** Checked by the server: text, number, boolean, date, list, record, or any (values made before types). */
   type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
@@ -221,33 +148,6 @@ export type EventSubscriptionList = { subscriptions: EventSubscription[]; types:
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
   created_by?: string | null; run_as?: string | null; resumed_run_id?: string | null; finished?: string | null; device_name?: string | null; suspended?: string | null };
-/** Low-code apps (G67): pages of components; a button's action is kept by the server, the browser sends only which button and the fields. */
-export type AppAction = { kind: string; agent?: string; runner?: string; pool?: string; inputs?: Record<string, unknown>; entity?: string; values?: Record<string, unknown>;
-  queue?: string; data?: Record<string, unknown>; page?: string; success?: string };
-export type AppComponent = { id: string; kind: string; text?: string; name?: string; label?: string; hint?: string; type?: string; required?: boolean; choices?: string[];
-  style?: string; requires?: string[]; action?: AppAction; entity?: string; title?: string; columns?: string[]; sort?: string };
-export type AppDefinition = { pages: { id: string; title: string; components: AppComponent[] }[] };
-export type AppEmbed = { id: string; app_id: string; name: string; origins: string[]; created: string; created_by?: string; last_used?: string | null };
-export type AppInfo = { id: string; name: string; description?: string | null; audience: string[]; published_by: string; updated?: string; definition?: AppDefinition; can_edit?: boolean };
-/** The business data store (G66): entities with typed fields and their records, and storage buckets of files. */
-export type DataField = { name: string; type: string; required?: boolean; unique?: boolean; choices?: string[] };
-export type DataEntity = { id: string; name: string; folder: string; description?: string | null; fields: DataField[]; records: number; updated?: string; updated_by?: string | null };
-export type DataRecord = { id: string; data: Record<string, unknown>; created?: string; created_by?: string | null; updated?: string; updated_by?: string | null };
-export type DataBucket = { id: string; name: string; folder: string; description?: string | null; max_mb: number; files: number; bytes: number };
-export type BucketFile = { path: string; bytes: number; modified: string };
-/** An automation idea (G65): suggested and voted by anyone, assessed by the automation team; the score and savings are worked out by the server. */
-export type Idea = { id: string; title: string; description?: string | null; department?: string | null; process_owner?: string | null; status: string;
-  volume_month?: number | null; minutes_each?: number | null; hourly_cost?: number | null; complexity?: string | null; rules_score?: number | null;
-  structured_score?: number | null; stable_score?: number | null; bot_path?: string | null; notes?: string | null; submitted_by: string; submitted: string;
-  updated?: string; updated_by?: string | null; votes: number; voted: boolean; mine: boolean; hours_year: number; value_year?: number | null; score?: number | null;
-  runs_30_days?: number; hours_saved_30_days?: number | null };
-export type IdeaList = { ideas: Idea[]; can_manage: boolean; statuses: string[] };
-/** A knowledge base (G71): an index kept in One CommandCenter, filled by an indexing agent. */
-/** One Chat: a message in a chat, as the server keeps it; kind says what the reply is (confirm waits for yes or no; started, run_* and approval_* follow a run). */
-export type ChatMessage = { role: "user" | "assistant"; text: string; kind?: string; run_id?: string };
-export type ChatReply = { session_id: string; reply: string; kind: string; run_id?: string };
-export type KnowledgeBase = { id: string; name: string; folder: string; description?: string; passages: number; documents: number; bytes: number;
-  created: string; created_by: string; updated?: string; updated_by_agent?: string; updated_by_run?: string };
 export type EnvironmentLock = { name: string; run_id: string; device_id?: string | null; device_name?: string | null; bot_path?: string | null; held_by?: string | null;
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
@@ -258,12 +158,6 @@ export type Toolkit = { id: string; name: string; version?: string; versions?: s
 export type ModelConnection = { name: string; provider: string; model?: string | null; model_type?: string | null; base_url?: string | null; key_ref?: string | null;
   description?: string | null; allowed_roles?: string[]; monthly_tokens?: number | null; tokens_this_month?: number; calls_per_minute?: number | null; calls_per_run?: number | null;
   pii_analyzer_url?: string | null; content_check?: string | null; updated?: string; updated_by?: string };
-export type PromptSkill = { name: string; description?: string | null; owner: string; shared: boolean; template?: boolean; version: number; updated?: string; updated_by?: string };
-export type SkillDefinition = { prompt: string; system?: string; output: "text" | "json"; temperature: number; connection?: string; inputs: { name: string; description?: string }[];
-  knowledge?: { index: string; top_k?: number; query?: string } };
-export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; output_tokens?: number; masked_calls?: number; tool_calls?: number; avg_latency_ms?: number | null };
-  by_model?: { provider: string; model?: string; calls: number; input_tokens: number; output_tokens: number }[]; by_agent?: { bot_path: string; calls: number; tokens: number }[];
-  recent?: { ts: string; bot_path: string; requested_by?: string; purpose?: string; provider?: string; model?: string; input_tokens?: number; output_tokens?: number; masked?: string; tool_calls?: string; prompt_sha256?: string; run_id?: string }[] };
 export type AgentApi = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; serverless?: boolean; timeout_seconds: number; enabled: boolean;
   created_by?: string; created?: string; last_used?: string | null; calls: number; url: string };
 export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number; started_by?: string | null };
@@ -292,7 +186,10 @@ export class CrFailure extends Error {
 
 export class CrApi {
   /** base: where the API is, "/api/" when the console is served by One CommandCenter. */
-  constructor(readonly base = "/api/", private readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
+  constructor(readonly base = "/api/", readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
+
+  /** A request to One CommandCenter's API, for the modules' parts of this client (modules/<id>/api.ts). */
+  request<T>(method: string, route: string, body?: unknown): Promise<T> { return this.call<T>(method, route, body); }
 
   private async call<T>(method: string, route: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {};
@@ -326,8 +223,6 @@ export class CrApi {
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
-  /** Whether the Document Automation service (DocFlow) in use is a version this One CommandCenter works with. */
-  docflowVersion() { return this.call<DocFlowVersion>("GET", "docflow/version"); }
   /** Runs: filter=active (queued, running) or history (finished), with status, bot, device, user, source, q, from, to, limit, offset. */
   runs(params: Record<string, string>) { return this.call<{ runs: Run[]; total: number }>("GET", "runs?" + new URLSearchParams(params).toString()); }
   /** One run with its events (only those after event number `after`, to follow a run as it goes). */
@@ -528,11 +423,6 @@ export class CrApi {
   async deleteItemModel(id: string) { await this.call("DELETE", "queue-models/" + encodeURIComponent(id)); }
   // ---- Workflows: processes chaining agents, people and decisions; their runs ----
   async liveWorkflows() { return ((await this.call<{ bots?: { path: string; production_version?: number | null }[] }>("GET", "repo")).bots ?? []).filter((b) => b.production_version && b.path.endsWith(".process.json")); }
-  async workflowRuns(status?: string) { return (await this.call<{ runs?: WorkflowRun[] }>("GET", "workflows/runs" + (status ? "?status=" + encodeURIComponent(status) : ""))).runs ?? []; }
-  workflowRun(id: string) { return this.call<WorkflowRun>("GET", "workflows/runs/" + encodeURIComponent(id)); }
-  workflowForm(path: string) { return this.call<{ form?: { fields?: TaskFormField[] } | null }>("GET", "workflows/form?path=" + encodeURIComponent(path)); }
-  startWorkflow(path: string, data: Record<string, unknown>, reference: string | null) { return this.call<{ id: string; reference?: string }>("POST", "workflows/start", { path, data, reference }); }
-  async cancelWorkflow(id: string) { await this.call("POST", "workflows/runs/" + encodeURIComponent(id) + "/cancel"); }
   // ---- Shared Global values ($global.name), and each person's own value where people may change them ----
   async globals() { return (await this.call<{ globals?: GlobalValue[] }>("GET", "globals")).globals ?? []; }
   async saveGlobal(name: string, value: unknown, changeable: boolean, type?: string) { await this.call("PUT", "globals/" + encodeURIComponent(name), { value, changeable, ...(type ? { type } : {}) }); }
@@ -562,62 +452,6 @@ export class CrApi {
   async runWaits(status = "waiting") { return (await this.call<{ waits?: RunWait[] }>("GET", "run-waits?" + new URLSearchParams({ status }))).waits ?? []; }
   async resumeRunWait(id: string) { return this.call<{ run_id: string }>("POST", "run-waits/" + encodeURIComponent(id) + "/resume", {}); }
   async cancelRunWait(id: string) { await this.call("POST", "run-waits/" + encodeURIComponent(id) + "/cancel", {}); }
-  async apps() { return (await this.call<{ apps?: AppInfo[] }>("GET", "apps")).apps ?? []; }
-  app(id: string) { return this.call<AppInfo>("GET", "apps/" + encodeURIComponent(id)); }
-  saveApp(id: string | null, body: { name: string; description?: string; audience: string[]; definition: AppDefinition }) {
-    return this.call<AppInfo>(id ? "PUT" : "POST", "apps" + (id ? "/" + encodeURIComponent(id) : ""), body); }
-  async appEmbeds(id: string) { return (await this.call<{ embeds?: AppEmbed[] }>("GET", "apps/" + encodeURIComponent(id) + "/embeds")).embeds ?? []; }
-  makeAppEmbed(id: string, body: { name: string; origins: string[] }) { return this.call<AppEmbed & { key: string; path: string }>("POST", "apps/" + encodeURIComponent(id) + "/embeds", body); }
-  async deleteAppEmbed(id: string, embed: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed)); }
-  /** A Teams app package (zip) whose tab shows the embed link; the key is needed again, as only its hash is kept. */
-  async teamsPackage(id: string, embed: string, key: string, baseUrl: string) {
-    const res = await this.fetcher(this.base + "apps/" + encodeURIComponent(id) + "/embeds/" + encodeURIComponent(embed) + "/teams", { method: "POST", credentials: "same-origin",
-      headers: { "X-OOA-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify({ key, base_url: baseUrl }) });
-    if (!res.ok) { let d: { error?: CrError } = {}; try { d = JSON.parse(await res.text()); } catch { /* not JSON */ } throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Failed" }); }
-    return res.blob();
-  }
-  async deleteApp(id: string) { await this.call("DELETE", "apps/" + encodeURIComponent(id)); }
-  appAct(id: string, component: string, fields: Record<string, unknown>) {
-    return this.call<{ run_id?: string; record_id?: string; item_id?: string; page?: string; message?: string; outputs?: Record<string, unknown> }>("POST", "apps/" + encodeURIComponent(id) + "/act", { component, fields }); }
-  appRun(id: string, runId: string) { return this.call<{ status: string; outputs?: Record<string, unknown>; error?: string }>("GET", "apps/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(runId)); }
-  appRecords(id: string, component: string, q = "") {
-    return this.call<{ records: { id: string; data: Record<string, unknown> }[]; total: number; fields: { name: string }[] }>("GET", "apps/" + encodeURIComponent(id) + "/records/" + encodeURIComponent(component) + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
-  async dataEntities() { return (await this.call<{ entities?: DataEntity[] }>("GET", "data/entities")).entities ?? []; }
-  saveDataEntity(id: string | null, body: { name: string; folder: string; description?: string; fields: DataField[] }) {
-    return this.call<DataEntity>(id ? "PUT" : "POST", "data/entities" + (id ? "/" + encodeURIComponent(id) : ""), body); }
-  async deleteDataEntity(id: string) { await this.call("DELETE", "data/entities/" + encodeURIComponent(id)); }
-  dataRecords(entity: string, q = "") { return this.call<{ records: DataRecord[]; total: number }>("GET", "data/entities/" + encodeURIComponent(entity) + "/records" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")); }
-  saveDataRecord(entity: string, id: string | null, data: Record<string, unknown>) {
-    return this.call<DataRecord>(id ? "PUT" : "POST", "data/entities/" + encodeURIComponent(entity) + "/records" + (id ? "/" + encodeURIComponent(id) : ""), { data }); }
-  async deleteDataRecord(entity: string, id: string) { await this.call("DELETE", "data/entities/" + encodeURIComponent(entity) + "/records/" + encodeURIComponent(id)); }
-  async dataBuckets() { return (await this.call<{ buckets?: DataBucket[] }>("GET", "data/buckets")).buckets ?? []; }
-  saveDataBucket(id: string | null, body: { name: string; folder: string; description?: string; max_mb: number }) {
-    return this.call<DataBucket>(id ? "PUT" : "POST", "data/buckets" + (id ? "/" + encodeURIComponent(id) : ""), body); }
-  async deleteDataBucket(id: string) { await this.call("DELETE", "data/buckets/" + encodeURIComponent(id)); }
-  async bucketFiles(bucket: string) { return (await this.call<{ files?: BucketFile[] }>("GET", "data/buckets/" + encodeURIComponent(bucket) + "/files")).files ?? []; }
-  bucketFileUrl(bucket: string, path: string) { return this.base + "data/buckets/" + encodeURIComponent(bucket) + "/file?path=" + encodeURIComponent(path); }
-  async uploadBucketFile(bucket: string, path: string, file: Blob) {
-    const res = await this.fetcher(this.base + "data/buckets/" + encodeURIComponent(bucket) + "/files?path=" + encodeURIComponent(path), { method: "PUT", credentials: "same-origin",
-      headers: { "X-OOA-Request": "1", "Content-Type": "application/octet-stream" }, body: file });
-    const text = await res.text();
-    let d: { error?: CrError; path?: string } = {};
-    try { d = JSON.parse(text); } catch { /* not JSON */ }
-    if (!res.ok) throw new CrFailure(res.status, d.error ?? { code: "HTTP." + res.status, message: res.statusText || "Upload failed" });
-    return d;
-  }
-  async deleteBucketFile(bucket: string, path: string) { await this.call("DELETE", "data/buckets/" + encodeURIComponent(bucket) + "/files?path=" + encodeURIComponent(path)); }
-  async ideas() { return this.call<IdeaList>("GET", "ideas"); }
-  async saveIdea(id: string | null, body: Partial<Idea>) { return this.call<Idea>(id ? "PUT" : "POST", id ? "ideas/" + encodeURIComponent(id) : "ideas", body); }
-  async voteIdea(id: string) { return this.call<Idea>("POST", "ideas/" + encodeURIComponent(id) + "/vote"); }
-  async deleteIdea(id: string) { await this.call("DELETE", "ideas/" + encodeURIComponent(id)); }
-  /** One Chat: sends a message (a new chat when sessionId is null); the reply comes in the person's language. */
-  chat(sessionId: string | null, message: string, lang: string) { return this.call<ChatReply>("POST", "chat", { session_id: sessionId, message, lang }); }
-  /** One Chat: the messages of a chat, including what One CommandCenter added since (a run finished, an approval decided). */
-  async chatHistory(sessionId: string) { return (await this.call<{ messages?: ChatMessage[] }>("GET", "chat/" + encodeURIComponent(sessionId))).messages ?? []; }
-  async knowledgeBases() { return (await this.call<{ knowledge_bases?: KnowledgeBase[] }>("GET", "knowledge-bases")).knowledge_bases ?? []; }
-  saveKnowledgeBase(id: string | null, body: { name: string; folder: string; description: string }) {
-    return this.call<KnowledgeBase>(id ? "PUT" : "POST", "knowledge-bases" + (id ? "/" + encodeURIComponent(id) : ""), body); }
-  async deleteKnowledgeBase(id: string) { await this.call("DELETE", "knowledge-bases/" + encodeURIComponent(id)); }
   async environmentLocks() { return (await this.call<{ locks?: EnvironmentLock[] }>("GET", "environment-locks")).locks ?? []; }
   async releaseEnvironmentLock(name: string) { await this.call("DELETE", "environment-locks?" + new URLSearchParams({ name })); }
   // ---- Agent ToolKits: packages of actions; usage, switching off, versions, signed custom toolkits ----
@@ -646,27 +480,11 @@ export class CrApi {
   async saveModelConnection(name: string, b: Record<string, unknown>) { await this.call("PUT", "connections/" + encodeURIComponent(name), b); }
   async deleteModelConnection(name: string) { await this.call("DELETE", "connections/" + encodeURIComponent(name)); }
   testModelConnection(b: Record<string, unknown>) { return this.call<{ ok: boolean; ms?: number; answer?: string; message?: string }>("POST", "connections/test", b); }
-  // ---- Prompt Skills (reviewed prompt templates, versioned) and AI governance (every AI call) ----
-  async skills() { return (await this.call<{ skills?: PromptSkill[] }>("GET", "skills")).skills ?? []; }
-  skill(name: string) { return this.call<PromptSkill & { definition: SkillDefinition; versions?: { version: number; updated_by?: string; updated?: string; comment?: string | null }[] }>("GET", "skills/" + encodeURIComponent(name)); }
-  saveSkill(name: string, b: { description: string; definition: SkillDefinition; shared: boolean; template: boolean; comment: string | null }) { return this.call<{ name: string; version: number }>("PUT", "skills/" + encodeURIComponent(name), b); }
-  async deleteSkill(name: string) { await this.call("DELETE", "skills/" + encodeURIComponent(name)); }
-  async skillTemplates() { return (await this.call<{ templates?: { name: string; description?: string }[] }>("GET", "skills/templates")).templates ?? []; }
-  skillFromTemplate(template: string, name: string) { return this.call<{ name: string }>("POST", "skills/from-template", { template, name }); }
-  governance(days: number) { return this.call<AiGovernance>("GET", "governance?days=" + days); }
   // ---- Agent APIs: an agent behind its own address and token ----
   async agentApis() { return (await this.call<{ tasks?: AgentApi[] }>("GET", "apitasks")).tasks ?? []; }
-  createAgentApi(b: Record<string, unknown>) { return this.call<{ id: string; name?: string; url: string; token: string }>("POST", "apitasks", b); }
-  newAgentApiToken(id: string) { return this.call<{ token: string }>("POST", "apitasks/" + encodeURIComponent(id) + "/token"); }
-  async setAgentApiEnabled(id: string, enabled: boolean) { await this.call("PATCH", "apitasks/" + encodeURIComponent(id), { enabled }); }
-  async deleteAgentApi(id: string) { await this.call("DELETE", "apitasks/" + encodeURIComponent(id)); }
   // ---- Agent tests: test sets of cases, runs scored per case ----
   async testSets() { return (await this.call<{ sets?: TestSet[] }>("GET", "test-sets")).sets ?? []; }
-  saveTestSet(id: string | null, b: { name: string; description: string; bot_path: string; cases: unknown[] }) { return this.call<{ id: string }>(id ? "PUT" : "POST", "test-sets" + (id ? "/" + encodeURIComponent(id) : ""), b); }
   async deleteTestSet(id: string) { await this.call("DELETE", "test-sets/" + encodeURIComponent(id)); }
-  runTestSet(id: string, where: { device_id?: string; pool_id?: string }) { return this.call<{ test_run_id: string; started: number; cases: number }>("POST", "test-sets/" + encodeURIComponent(id) + "/run", where); }
-  async testHistory(id: string) { return (await this.call<{ runs?: TestRunSummary[] }>("GET", "test-sets/" + encodeURIComponent(id) + "/history")).runs ?? []; }
-  testRun(id: string) { return this.call<TestRunSummary & { bot_path: string; version: number; started_by?: string; results: { case_name: string; status: string; passed: boolean; detail?: string; run_id?: string }[] }>("GET", "test-sets/runs/" + encodeURIComponent(id)); }
   // ---- Agent Repository: folders and their permissions, agents with versions, labels, live production and approvals ----
   async repo(folder?: string) { return (await this.call<{ bots?: RepoAgent[] }>("GET", "repo" + (folder ? "?folder=" + encodeURIComponent(folder) : ""))).bots ?? []; }
   async deletedAgents() { return (await this.call<{ bots?: RepoAgent[] }>("GET", "repo?deleted=true")).bots ?? []; }
@@ -715,69 +533,21 @@ export class CrApi {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);
   }
   async deletePool(id: string) { await this.call("DELETE", "pools/" + encodeURIComponent(id)); }
-  /** G52: a pool's auto-scaling and what it would ask for now. */
-  poolScaling(id: string) { return this.call<{ scaling: PoolScaling; now: PoolScalingNow }>("GET", "pools/" + encodeURIComponent(id) + "/scaling"); }
-  savePoolScaling(id: string, b: PoolScaling) { return this.call<{ scaling: PoolScaling; now: PoolScalingNow }>("PUT", "pools/" + encodeURIComponent(id) + "/scaling", b); }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
   // ---- Alerts: rules checked once a minute, and the alerts they raised ----
   alerts(params: Record<string, string>) { return this.call<{ alerts: Alert[]; open: number }>("GET", "alerts?" + new URLSearchParams(params).toString()); }
-  acknowledgeAlerts(ids: string[]) { return this.call<{ acknowledged: number }>("POST", "alerts/acknowledge", { ids }); }
-  async alertRules() { return (await this.call<{ rules?: AlertRule[] }>("GET", "alert-rules")).rules ?? []; }
-  saveAlertRule(id: string | null, b: Record<string, unknown>) { return this.call<{ id: string }>(id ? "PUT" : "POST", "alert-rules" + (id ? "/" + encodeURIComponent(id) : ""), b); }
-  async setAlertRuleEnabled(id: string, enabled: boolean) { await this.call("PATCH", "alert-rules/" + encodeURIComponent(id), { enabled }); }
-  async deleteAlertRule(id: string) { await this.call("DELETE", "alert-rules/" + encodeURIComponent(id)); }
-  testAlertRule(id: string) { return this.call<NonNullable<Alert["delivery"]>>("POST", "alert-rules/" + encodeURIComponent(id) + "/test"); }
   async queueInsights(params: Record<string, string>) { return (await this.call<{ queues?: QueueInsight[] }>("GET", "analytics/queues?" + new URLSearchParams(params).toString())).queues ?? []; }
-  // ---- Dashboards of business KPIs and run figures ----
-  async dashboards() { return (await this.call<{ dashboards?: CustomDashboard[] }>("GET", "dashboards")).dashboards ?? []; }
-  async dashboardKpis() { return (await this.call<{ kpis?: { bot_path: string; name: string; n: number }[] }>("GET", "dashboards/kpis")).kpis ?? []; }
-  saveDashboard(id: string | null, b: { name: string; description?: string; shared_with: string[]; widgets: DashWidget[] }) {
-    return this.call<{ id: string }>(id ? "PUT" : "POST", "dashboards" + (id ? "/" + encodeURIComponent(id) : ""), b); }
-  async deleteDashboard(id: string) { await this.call("DELETE", "dashboards/" + encodeURIComponent(id)); }
-  async dashboardMail(id: string) { return (await this.call<{ schedules?: DashMail[] }>("GET", "dashboards/" + encodeURIComponent(id) + "/mail")).schedules ?? []; }
-  addDashboardMail(id: string, b: { recipients: string; every: string; at_time: string; weekday?: string; time_zone: string }) {
-    return this.call<{ id: string }>("POST", "dashboards/" + encodeURIComponent(id) + "/mail", b); }
-  async stopDashboardMail(schedule: string) { await this.call("DELETE", "dashboards/mail/" + encodeURIComponent(schedule)); }
-  sendDashboardMail(schedule: string) { return this.call<{ sent_to: number }>("POST", "dashboards/mail/" + encodeURIComponent(schedule) + "/send"); }
-  dashboardData(id: string, tz?: string) { return this.call<{ id: string; name: string; widgets: WidgetData[] }>("GET", "dashboards/" + encodeURIComponent(id) + "/data" + (tz ? "?tz=" + encodeURIComponent(tz) : "")); }
-  value(params: Record<string, string>) { return this.call<ValueReport>("GET", "analytics/value?" + new URLSearchParams(params).toString()); }
   /** Minutes of manual work one successful run of the agent saves; null uses the default in Settings. */
   async setMinutesSaved(path: string, minutes: number | null) { await this.call("POST", "repo/roi", { path, minutes_saved: minutes }); }
   /** An agent's savings: minutes a run, its own cost of an hour, runs a month expected; null uses the default (or none). */
   async setAgentSavings(path: string, b: { minutes_saved: number | null; hourly_cost: number | null; estimated_runs_month: number | null }) { await this.call("POST", "repo/roi", { path, ...b }); }
   async setQueueSavings(queueId: string, b: { minutes_saved: number | null; hourly_cost: number | null }) { await this.call("POST", "analytics/queue-savings", { queue_id: queueId, ...b }); }
   async setSavingsGoal(hours: number | null, money: number | null) { await this.call("POST", "analytics/goal", { hours, money }); }
-  async businessAgents(params: Record<string, string>) { return (await this.call<{ agents?: BusinessAgent[] }>("GET", "analytics/business-agents?" + new URLSearchParams(params).toString())).agents ?? []; }
-  agentStatsFor(params: Record<string, string>) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams(params).toString()); }
-  agentVariablesFor(params: Record<string, string>) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams(params).toString()); }
-  capacity(params: Record<string, string>) { return this.call<Capacity>("GET", "analytics/capacity?" + new URLSearchParams(params).toString()); }
-  auditFigures(params: Record<string, string>) { return this.call<AuditFigures>("GET", "analytics/audit?" + new URLSearchParams(params).toString()); }
-  agentStats(path: string, days: string) { return this.call<AgentStats>("GET", "analytics/agent?" + new URLSearchParams({ path, days }).toString()); }
-  agentVariables(path: string, days: string) { return this.call<VariableProfile>("GET", "analytics/variables?" + new URLSearchParams({ path, days }).toString()); }
-  /** One Operations list as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */
-  async operationsCsv(report: string, params: Record<string, string>) {
-    const res = await this.fetcher(this.base + "analytics/export?" + new URLSearchParams({ ...params, report }).toString(), { method: "GET", credentials: "same-origin" });
-    const text = await res.text();
-    if (!res.ok) { let e: CrError = { code: "HTTP." + res.status, message: res.statusText || "Export failed" }; try { e = JSON.parse(text).error ?? e; } catch { /* not JSON */ } throw new CrFailure(res.status, e); }
-    return text;
-  }
   // ---- Agent Repository: export and import, promotion, code analysis, repository files ----
   exportAgents(b: { paths: string[]; version: string; include_dependencies: boolean }) { return this.call<AgentBundle>("POST", "lifecycle/export", b); }
   importAgents(b: { bundle: AgentBundle; conflict: "skip" | "overwrite"; production: boolean; target_folder: string | null }) { return this.call<ImportResult>("POST", "lifecycle/import", b); }
   promoteAgents(b: { paths: string[]; version: string; include_dependencies: boolean; target_url: string; api_key_ref: string; conflict: "skip" | "overwrite"; production: boolean }) {
     return this.call<{ ok: boolean; status: number; target: string; result?: Partial<ImportResult> & Record<string, unknown> }>("POST", "lifecycle/promote", b); }
-  codePolicy() { return this.call<CodePolicy>("GET", "repo/policy"); }
-  async policies() { return (await this.call<{ policies?: Policy[] }>("GET", "policies")).policies ?? []; }
-  /** What an AI guardrails policy stopped (steps, latest first) and masked (by kind) over the last days. */
-  policyStopped(id: string, days: string) {
-    return this.call<{ stopped: { run_id: string; agent: string; created: string; code: string; message: string }[]; stopped_total: number; masked: Record<string, number>; calls_masked: number }>(
-      "GET", "policies/" + encodeURIComponent(id) + "/stopped?days=" + encodeURIComponent(days));
-  }
-  savePolicy(id: string | null, b: { name?: string; kind?: string; description?: string; folders?: string[]; rules: unknown }) {
-    return id ? this.call<Policy>("PUT", "policies/" + encodeURIComponent(id), b) : this.call<Policy>("POST", "policies", b);
-  }
-  async deletePolicy(id: string) { await this.call("DELETE", "policies/" + encodeURIComponent(id)); }
-  saveCodePolicy(b: { enforce_at_checkin: boolean; rules: Record<string, { enabled: boolean; severity: string; params: Record<string, unknown> }> }) { return this.call<CodePolicy>("PUT", "repo/policy", b); }
   codeAnalysis(path: string) { return this.call<CodeReport>("GET", "repo/analysis?path=" + encodeURIComponent(path)); }
   analyzeAgent(path: string) { return this.call<CodeReport>("POST", "repo/analyze", { path }); }
   async codeAnalysisCsv() {
@@ -799,12 +569,8 @@ export class CrApi {
     return { version: d.version ?? 1 };
   }
   async deleteRepoFile(path: string) { await this.call("DELETE", "repo/files?path=" + encodeURIComponent(path)); }
-  /** Operations figures for a period (days, or from and to) and filters (bot, device, user, source): only agents the caller may see. */
-  operations(params: Record<string, string>) { return this.call<Operations>("GET", "analytics?" + new URLSearchParams(params).toString()); }
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }
 
 /** Phone notifications (G43): whether the server is set, whether this person turned them on, and their private topic. */
 export type PushStatus = { available: boolean; enabled: boolean; server: string; topic?: string; subscribe_url?: string };
-export type PoolScaling = { enabled?: boolean; min?: number | ""; max?: number | ""; runs_per_runner?: number | ""; cooldown_minutes?: number | ""; provider?: string; [k: string]: unknown };
-export type PoolScalingNow = { queued: number; running: number; refused_recently: number; online: number; desired: number };

@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { PoolScalingDialog } from "../modules/runner-management/PoolScaling";
+import { modulePart } from "../modules/pages";
+
+/** Auto-scaling a pool, when the runner-management module is installed. */
+const PoolScalingDialog = modulePart<{ api: CrApi; pool: RunnerPool; onClose: () => void; onSaved: (t: string) => void }>("pool-scaling");
 
 /**
  * Manage > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and
@@ -237,7 +240,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
           </div>}
         </div>
       </> : <Pools pools={pools} runners={runners ?? []} canManage={can("pools.manage")} onOpen={(p) => setDialog({ kind: "pool", pool: p })}
-        onScaling={manage ? (p) => setScaling(p) : undefined}
+        onScaling={manage && PoolScalingDialog ? (p) => setScaling(p) : undefined}
         onRunners={(p) => { setTab("runners"); setF({ pool: p.id }); setOffset(0); }} />}
 
       {dialog?.kind === "columns" && (
@@ -264,7 +267,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
       )}
       {dialog?.kind === "details" && (() => { const d = runners?.find((x) => x.id === dialog.id); return d &&
         <RunnerDetails api={api} runner={d} pools={pools} manage={manage} onClose={() => setDialog(null)} onChanged={(t) => { onNotice(t); load(); }} />; })()}
-      {scaling && <PoolScalingDialog api={api} pool={scaling} onClose={() => setScaling(null)} onSaved={onNotice} />}
+      {scaling && PoolScalingDialog && <PoolScalingDialog api={api} pool={scaling} onClose={() => setScaling(null)} onSaved={onNotice} />}
       {dialog?.kind === "pool" && <PoolDialog api={api} pool={dialog.pool} members={dialog.members} runners={runners ?? []} chooseOwners={can("pools.manage")} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
     </section>
   );

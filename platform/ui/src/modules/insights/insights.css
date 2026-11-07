@@ -1,0 +1,114 @@
+/* insights's styles (docs/architecture/13-modules.md, phase 6): only classes its own pages use. */
+.cc-card-foot { margin: 8px 0 0; font-size: 12.5px; }
+.cc-use { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cc-use progress { width: 56px; height: 8px; accent-color: var(--ui-accent); }
+.cc-ops-charts { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) auto; gap: 10px; padding: 10px 20px 0; }
+.cc-ops-charts .cc-card-foot { margin: 4px 0 0; font-size: 11.5px; }
+@media (max-width: 1250px) {
+.cc-ops-charts { grid-template-columns: 1fr 1fr; }
+}
+.cc-val-chart { margin: 10px 20px 0; padding: 10px 12px; }
+.cc-val-chart h2 { margin-bottom: 6px; font-size: 13px; }
+.cc-cap-title { margin: 0; padding: 8px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
+.cc-scroll { overflow-x: auto; }
+.cc-ins-out { text-decoration: none; }
+.cc-ins-head { font-weight: 600; }
+.cc-ins-more { align-self: center; padding: 0 8px; font-size: 12.5px; }
+.cc-ins-bars li { grid-template-columns: 130px 1fr auto; }
+.cc-ins-pick { border: 0; background: none; padding: 0; font: inherit; text-align: left; color: var(--ui-accent-text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+.cc-ins-pick:hover { text-decoration: underline; }
+.cc-ins-pick:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
+.cc-week-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 0; font-size: 12px; color: var(--ui-text-2); }
+.cc-week-legend span { display: inline-flex; align-items: center; gap: 5px; }
+/* Business (item 7 step 2): an agent's values as small chips (KPI-marked bold), figures and charts inside an agent's page, the yearly goal */
+.cc-chip-s { display: inline-block; margin-right: 4px; padding: 0 7px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; line-height: 18px; }
+.cc-chip-s.is-kpi { font-weight: 700; }
+.cc-goal { margin: 10px 20px 0; padding: 10px 12px; }
+.cc-goal h2 { margin: 0 0 6px; font-size: 13px; }
+.cc-goal-bar { display: block; height: 12px; border-radius: 6px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; }
+.cc-goal-bar > span { display: block; height: 100%; background: #1d6b38; }
+.cc-goal p { margin: 4px 0 0; font-size: 12.5px; color: var(--ui-text-2); }
+/* a dashboard printed or saved as PDF (item 7 step 3): only the dashboard, with its name and the time */
+.cc-print-only { display: none; }
+.cc-dlg-h { margin: 14px 0 6px; font-size: 13px; }
+@media print {
+body.cc-printing .cc-print-only { display: block; margin: 0 0 8px; font-size: 16px; }
+body.cc-printing .cc-dash { break-inside: auto; }
+body.cc-printing .cc-dash > * { break-inside: avoid; }
+}
+.cc-heat { border-collapse: separate; border-spacing: 2px; font-size: 11px; }
+.cc-heat th { font-weight: 400; color: var(--ui-text-2); padding: 0 2px; text-align: left; }
+.cc-heat td { width: 22px; height: 18px; border-radius: 3px; border: 1px solid var(--ui-divider); }
+.cc-heat td.cc-heat-l0 { background: var(--ui-bg); }
+.cc-heat td.cc-heat-l1 { background: color-mix(in srgb, var(--ui-accent) 20%, var(--ui-bg)); }
+.cc-heat td.cc-heat-l2 { background: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-bg)); }
+.cc-heat td.cc-heat-l3 { background: color-mix(in srgb, var(--ui-accent) 70%, var(--ui-bg)); }
+.cc-heat td.cc-heat-l4 { background: var(--ui-accent); }
+.cc-heat td.has-failed { border: 2px solid var(--ui-error-text); }
+/* Operational Insights > Dashboards. Pie colours: the accent and Home's chart colours, each 3:1 or more on the card in both themes */
+.cc-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; padding: 12px 20px 20px; }
+.cc-dash-card { display: flex; flex-direction: column; min-width: 0; }
+.cc-dash-number { font-size: 30px; font-weight: 700; line-height: 1.2; padding: 8px 0; }
+.cc-dash-line { margin: 0; }
+.cc-dash-line svg { width: 100%; height: 130px; }
+.cc-dash-line polyline { stroke: var(--ui-accent); }
+.cc-dash-line circle { fill: var(--ui-accent); }
+.cc-dash-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ui-text-2); }
+.cc-pie { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cc-pie svg { width: 120px; height: 120px; flex: none; }
+.cc-pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
+.cc-pie-legend li { display: flex; align-items: center; gap: 6px; }
+.cc-pie-key { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+/* Overview, dense and clean (design plan step 2b): one grid, four text styles (18 / 14 / 13 / 12, numbers 20), 12 px spacing, 32 px rows */
+.ov { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.ov-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
+.ov-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
+.ov-meta { font-size: 12px; color: var(--ui-text-3); }
+.ov-icon-btn { width: var(--ui-h); height: var(--ui-h); box-sizing: border-box; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-accent-text);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ov-figs { display: grid; }
+.ov-fig { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-right: 1px solid var(--ui-divider); color: var(--ui-text); text-decoration: none; min-width: 0; }
+.ov-fig:last-child { border-right: 0; }
+.ov-fig:hover { background: var(--ui-row-hover); }
+.ov-fig:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.ov-fig-l { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-fig-v { font-size: 20px; font-weight: 600; line-height: 26px; }
+.ov-good { color: var(--ui-ok-text); }
+.ov-fig-m { font-size: 12px; color: var(--ui-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-ic { width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+@media (max-width: 1100px) {
+.ov-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+}
+.ov-more { margin-left: auto; font-size: 12px; }
+.ov-ok { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 12px; min-height: 36px; color: var(--ui-ok-text); }
+.ov-rows { list-style: none; margin: 0; padding: 0; }
+.ov-rows li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
+.ov-rows li:last-child { border-bottom: 0; }
+.ov-r { margin-left: auto; padding-left: 8px; font-size: 12px; white-space: nowrap; }
+.ov-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ui-success); flex: none; }
+.ov-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--ui-selected); color: var(--ui-pill-text); }
+@media (max-width: 1440px) {
+.cc-list-table .cc-wide-only { display: none; }
+}
+.cc-list-table td.cc-alert-msg { max-width: 420px; }
+.cc-ops-charts > .cc-card { margin: 0; padding: 10px 12px; min-width: 0; }
+.cc-ops-charts > .cc-card h2 { margin-bottom: 6px; font-size: 13px; }
+@media (max-width: 1250px) {
+.cc-ops-charts > .cc-card:nth-child(3) { grid-column: 1 / -1; }
+}
+.cc-ins-charts > .cc-card h2.cc-ins-h2 { margin-top: 10px; }
+.cc-week .cc-hbar-track { display: flex; }
+.cc-week .cc-seg { height: 100%; width: auto; }
+.cc-week-legend .cc-seg { width: 10px; height: 10px; border-radius: 2px; }
+.cc-charts-flush { padding-left: 0; padding-right: 0; }
+@media print {
+body.cc-printing .cc-top, body.cc-printing nav, body.cc-printing .cc-list-head, body.cc-printing .ov-tabs, body.cc-printing .cc-list-tools,
+  body.cc-printing .st-notice, body.cc-printing .st-alert, body.cc-printing .ui-help-panel, body.cc-printing .cc-dash .cc-card-head button { display: none !important; }
+}
+.cc-pie-legend .st-muted { margin-left: 6px; }
+.ov-fig-v.is-bad, .ov-bad { color: var(--ui-error-text); }
+.ov-dot.is-bad { background: #d14343; }
+.ov-pill.is-success { background: var(--ui-ok-bg); color: var(--ui-ok-text); }
+.ov-pill.is-failed, .ov-pill.is-critical { background: var(--ui-error-bg); color: var(--ui-error-text); }
+.ov-pill.is-warning, .ov-pill.is-queued { background: var(--ui-running-bg); color: var(--ui-warning-text); }
+.ov-pill.is-stopped { background: var(--ui-bg); color: var(--ui-text-2); border: 1px solid var(--ui-field); }

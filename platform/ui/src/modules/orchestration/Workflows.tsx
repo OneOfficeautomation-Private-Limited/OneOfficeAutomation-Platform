@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CrApi, CrUser, TaskFormField, WorkflowRun } from "../../api/cr";
+import type { CrApi, CrUser, TaskFormField } from "../../api/cr";
+import type { WorkflowRun } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";

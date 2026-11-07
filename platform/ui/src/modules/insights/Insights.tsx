@@ -1,5 +1,7 @@
+import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { AuditFigures, AuditRecord, CrApi, CrUser } from "../../api/cr";
+import type { AuditRecord, CrApi, CrUser } from "../../api/cr";
+import type { AuditFigures } from "./consoleApi";
 import { Button, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
 import { AREAS, wordsOf } from "../../console/Audit";
 import { BusinessAgents } from "./BusinessAgents";

@@ -1,0 +1,5 @@
+/* governance's styles (docs/architecture/13-modules.md, phase 6): only classes its own pages use. */
+.cc-gov-tools { display: inline-flex; align-items: center; gap: 8px; }
+/* an AI guardrails policy (Administration > Policies) */
+.cc-guard { display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
+.cc-gov-tools .ui-input { width: 260px; height: 28px; }

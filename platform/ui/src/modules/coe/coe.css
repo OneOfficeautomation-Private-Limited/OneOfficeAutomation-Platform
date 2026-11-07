@@ -1,0 +1,2 @@
+/* coe's styles (docs/architecture/13-modules.md, phase 6): only classes its own pages use. */
+.cc-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
