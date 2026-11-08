@@ -117,6 +117,6 @@ Order, one tested commit each. Tick when committed:
 - [x] 16: foldable menu sections (remembered, current always open)
 - [x] 19, 20: Catch fields in AA's order; On error variable field with message and line
 - [x] UI check at full width (item 17), 9 Nov 2026: Close, Details tables, Clone, Copy to Private, Edit = check out, Disable step and Run from here, notices, written help, AA-name search, menu folding
-- [ ] Full test suite, push branch
+- [x] Full test suite (UI 358 tests, Java BUILD SUCCESSFUL), branch pushed
 
 After that, with the user's OK: the per-command review (UI, behaviour, technical logic, reuse, easy upgrades).
