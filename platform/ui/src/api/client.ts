@@ -40,6 +40,12 @@ export type ConnectorOperation = { id: string; name: string; method: string; pat
   parameters?: { name: string; required?: boolean; default?: unknown }[]; body?: { example?: unknown }; result?: { binary?: boolean } };
 export type ConnectorDef = { name: string; title?: string; server?: string; operations: ConnectorOperation[] };
 /** An open window: a browser tab (with the extension's tab id, or a debugging endpoint) or an application window. */
+/** A file or folder on this computer (One AgentStudio's Browse…). */
+export type FsEntry = { name: string; path: string; dir: boolean };
+/** A folder's contents, its parent, and the places to start from (drives, home, the workspace). */
+export type FsListing = { path?: string; parent?: string; entries: FsEntry[]; places: { name: string; path: string }[] };
+/** A credential in One CommandCenter's vault the person may use: folder (locker), credential and attribute, never its value. */
+export type VaultCredentialRef = { locker: string; name: string; attribute: string };
 export type OpenWindow = { title?: string; url?: string; browser?: string; source?: "browser" | "application"; process?: string;
   tab_id?: number; connector?: boolean; endpoint?: string };
 /** Values every agent can read: $sys.* from the platform, $global.* shared by all agents. */
@@ -217,6 +223,10 @@ export class StudioApi {
   /** Where a file downloads from (a folder comes as a zip). */
   downloadUrl(path: string) { return this.base + "files/download?path=" + encodeURIComponent(path); }
   /** Windows open on this computer now, for the window editor. */
+  /** This computer's folders for Browse…: a folder's contents, or the places to start from when path is empty. */
+  fsList(path: string) { return this.call<FsListing>("GET", "fs/list?path=" + encodeURIComponent(path)); }
+  /** The vault credentials of the connected One CommandCenter the person may use (none when not connected). */
+  crCredentials() { return this.call<{ connected: boolean; credentials: VaultCredentialRef[] }>("GET", "cr/credentials"); }
   async windows() { return (await this.call<{ windows?: OpenWindow[] }>("GET", "windows")).windows ?? []; }
   /** Capture: the person clicks an element in a browser (a new page at url, or an open tab); gives its object and selector. */
   capture(req: { url?: string; browser?: string; tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string }) {

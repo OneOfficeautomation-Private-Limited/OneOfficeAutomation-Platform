@@ -7,7 +7,8 @@ import { holdsType, isInput, isOutput } from "./variables";
 
 /**
  * A text field that reports its value when it loses focus or on Enter, not on every key. Callers key it on the value,
- * so undo shows. With `want` it has a {x} button (and Ctrl+Space) to put a variable at the cursor; `apply` is what
+ * so undo shows. With `want` it has a {x} button (and Ctrl+Space) to put a variable at the cursor, and typing `$`
+ * opens the same list (`$@` at the Shared Global values), the `$` replaced by what is picked; `apply` is what
  * "+ New variable" changes in the agent once the variable is made.
  */
 export function CommitInput({ id, initial, placeholder, mono, onCommit, want, apply, nameHint, label }:
@@ -15,28 +16,38 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
     want?: string; apply?: (text: string, flow: Flow) => Flow; nameHint?: string; label?: string }) {
   const ref = useRef<HTMLInputElement>(null);
   const [picking, setPicking] = useState<DOMRect | null>(null);
+  // the "$" typed that opened the list: where it is, so what is picked takes its place
+  const typedAt = useRef<number | null>(null);
   const vars = useVars();
   const commit = (el: HTMLInputElement) => { if (el.value !== initial) onCommit(el.value); };
   const withRef = (r: string) => {
     const el = ref.current;
-    const t = el?.value ?? initial, a = el?.selectionStart ?? t.length, b = el?.selectionEnd ?? t.length;
+    const t = el?.value ?? initial;
+    if (typedAt.current !== null) { const at = typedAt.current; return t.slice(0, at) + r + t.slice(at + 1); }
+    const a = el?.selectionStart ?? t.length, b = el?.selectionEnd ?? t.length;
     return t.slice(0, a) + r + t.slice(b);
   };
+  const open = (el: HTMLInputElement, at: number | null) => { typedAt.current = at; setPicking(el.getBoundingClientRect()); };
   const input = <TextInput ref={ref} id={id} aria-label={label} defaultValue={initial} placeholder={placeholder} mono={mono}
     onBlur={(e) => { if (!picking) commit(e.currentTarget); }}
+    onInput={(e) => {
+      // "$" typed at the start or after a space or symbol (not "US$" or a price like "5$") opens the variable list
+      const el = e.currentTarget, at = (el.selectionStart ?? 0) - 1;
+      if (want && vars && at >= 0 && el.value[at] === "$" && (at === 0 || !/[\w$]/.test(el.value[at - 1]))) open(el, at);
+    }}
     onKeyDown={(e) => {
       if (e.key === "Enter") { e.preventDefault(); commit(e.currentTarget); }
-      else if (want && vars && is(e.nativeEvent, "fields.variable")) { e.preventDefault(); setPicking(e.currentTarget.getBoundingClientRect()); }
+      else if (want && vars && is(e.nativeEvent, "fields.variable")) { e.preventDefault(); open(e.currentTarget, null); }
     }} />;
   if (!want || !vars) return input;
   return (
     <div className="st-var-field">
       {input}
       <button type="button" className="st-x-btn" aria-label="Insert a variable" title={withKey("Insert a variable", "fields.variable")} aria-expanded={!!picking}
-        onMouseDown={(e) => e.preventDefault()} onClick={() => setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null)}>{"{x}"}</button>
-      {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking}
-        onClose={() => { setPicking(null); ref.current?.focus(); }}
-        onPick={(r) => { setPicking(null); onCommit(withRef(r)); }}
+        onMouseDown={(e) => e.preventDefault()} onClick={() => { typedAt.current = null; setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null); }}>{"{x}"}</button>
+      {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking} typed={typedAt.current !== null}
+        onClose={() => { setPicking(null); typedAt.current = null; ref.current?.focus(); }}
+        onPick={(r) => { setPicking(null); onCommit(withRef(r)); typedAt.current = null; }}
         onNew={apply && ((r, flow) => apply(withRef(r), flow))} />}
     </div>
   );

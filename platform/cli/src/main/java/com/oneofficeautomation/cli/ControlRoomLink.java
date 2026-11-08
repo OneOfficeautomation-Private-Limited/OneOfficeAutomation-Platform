@@ -136,6 +136,24 @@ final class ControlRoomLink {
 
     Map<String, Object> versions(String path) { return call("GET", "repo/versions?path=" + enc(path), null, true); }
 
+    /**
+     * The vault credentials the signed-in person may use, as folder (locker), credential and attribute: never a value.
+     * For a step's Credential field in One AgentStudio; none when not connected.
+     */
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> credentials() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (!connected()) return out;
+        if (call("GET", "lockers", null, true).get("lockers") instanceof List<?> lockers)
+            for (Object o : lockers)
+                if (o instanceof Map<?, ?> l && l.get("credentials") instanceof List<?> creds)
+                    for (Object c : creds)
+                        if (c instanceof Map<?, ?> m && m.get("name") != null && m.get("attribute") != null)
+                            out.add(Map.of("locker", String.valueOf(l.get("name")), "name", String.valueOf(m.get("name")), "attribute", String.valueOf(m.get("attribute"))));
+        out.sort(Comparator.comparing((Map<String, Object> m) -> String.valueOf(m.get("locker"))).thenComparing(m -> String.valueOf(m.get("name"))).thenComparing(m -> String.valueOf(m.get("attribute"))));
+        return out;
+    }
+
     // ---------- check-out mapping ----------
     @SuppressWarnings("unchecked")
     Map<String, Object> mapping() {

@@ -1031,7 +1031,22 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Export or promote" }));
     const ex = await screen.findByRole("dialog", { name: "Export or promote agents" });
     const pick = await within(ex).findByRole("group", { name: "Agents to export" });
+    // the repository's folder tree (item 1, docs/research/input-help-check.md): a folder's box ticks all its agents
+    const tree = within(pick).getByRole("tree", { name: "Agents and folders" });
+    const finance = within(tree).getByLabelText("All of Finance") as HTMLInputElement;
+    fireEvent.click(finance);
+    const financeRow = finance.closest("[role=treeitem]") as HTMLElement;
+    const inFinance = Number(/(\d+) agents?/.exec(financeRow.textContent ?? "")![1]);
+    expect(inFinance).toBeGreaterThan(0);
+    expect(within(ex).getByText(inFinance + " ticked")).toBeTruthy();
+    fireEvent.click(finance);
+    expect(within(ex).getByText("0 ticked")).toBeTruthy();
+    // searching narrows the tree to the matches
+    fireEvent.change(within(ex).getByLabelText("Search agents to export"), { target: { value: "zzz-no-such-agent" } });
+    expect(within(pick).getByText("No agents match.")).toBeTruthy();
+    fireEvent.change(within(ex).getByLabelText("Search agents to export"), { target: { value: "" } });
     fireEvent.click(within(pick).getByLabelText(/^Invoice intake/));
+    if (inFinance > 1) expect((within(pick).getByLabelText("All of Finance") as HTMLInputElement).indeterminate).toBe(true);
     fireEvent.click(within(ex).getByRole("button", { name: "Promote to another One CommandCenter" }));
     fireEvent.change(within(ex).getByLabelText("Its address"), { target: { value: "https://cc-prod.example.com" } });
     fireEvent.change(within(ex).getByLabelText("Its API key (vault reference)"), { target: { value: "Prod/cc-key/token" } });
@@ -1055,6 +1070,11 @@ describe("rebuilt One CommandCenter console", () => {
     const inside = await within(im).findByRole("table", { name: "In the bundle" });
     expect(within(inside).getByText("Yes: skipped")).toBeTruthy();   // Invoice intake is here already
     expect(within(inside).getByText("Called by another")).toBeTruthy();
+    // the target folder is chosen from the tree, or typed (a new name makes the folder)
+    fireEvent.click(within(im).getByRole("button", { name: "Choose…" }));
+    const folders = await within(im).findByRole("tree", { name: "Folders" });
+    fireEvent.click(within(folders).getByText("Finance"));
+    expect((within(im).getByLabelText("Put them under folder") as HTMLInputElement).value).toBe("Finance");
     fireEvent.change(within(im).getByLabelText("Put them under folder"), { target: { value: "Imported" } });
     expect(within(inside).getByText("Imported/Shared/Read PDF.flow.json")).toBeTruthy();
     await act(async () => { fireEvent.click(within(im).getByRole("button", { name: "Import" })); });
