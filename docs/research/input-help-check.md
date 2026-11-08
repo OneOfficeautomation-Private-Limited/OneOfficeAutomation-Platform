@@ -47,6 +47,18 @@ kind (`studio/FieldKinds.tsx`, with Studio's `GET /api/fs/list` and `GET /api/cr
 Items 3 to 9 are one change each to the shared field control, so every command with that kind of field gets it at
 once. Fixed-choice fields (dropdowns) behave the same in both products and need no change.
 
+## Observation list, part 2: pages that hold too much (2026-11-08)
+
+The user's second round: pages should not squeeze many things into one screen, and fixed panels should be adjustable.
+
+| # | Where | Today | Proposed | Size |
+| --- | --- | --- | --- | --- |
+| 11 | Operational Insights > Overview | One screen with figures, Latest runs, Runners, Next scheduled runs, Work queues, AI use this month and Set up next, each a short panel | Overview keeps the figures and one line per area with "View all"; Runners, Next scheduled runs, Work queues, AI use and Set up next each get their own full-width page (own address, full list with search and paging) | Medium |
+| 12 | Operational Insights > Alerts, Operations, Business | Alerts and their Rules share one page; Operations puts three charts and five lists (failures, most failed, most run, longest, runners) on one tab; Business holds Agents, Value and Dashboards as tabs | Alerts and Alert rules as two pages; Operations: each list and each chart group its own page (the tab row becomes the section's menu); Business: Value and Dashboards as their own pages | Medium to large |
+| 13 | Every page: the ⓘ details panel on the right | Fixed 300 px wide | Drag its edge to make it wider or narrower (the console's splitter), a button to widen it fully or shrink it back, and the width remembered | Small |
+| 14 | Administration > Settings | A fixed list of 13 sections on the left and one section's settings beside it | A start page of the sections (title, what it covers, changes not saved); choosing one opens it as its own full-width page with a way back; search finds settings in every section as today | Medium |
+| 15 | AI > Document Automation | Title row with Installed and the Open button on the right; a description card and the service card | Open Document Automation on the left under the title; a start screen with the service's state (version, tested, reachable), entry cards for its areas (processes, review queue, engines, test lab) and first steps when nothing is set up yet | Medium |
+
 ## Commands per item
 
 The commands each item reaches, by toolkit (from the current manifest).
