@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Icon, IconTile, Splitter, usePanelSize, usePersistent } from "../components";
-import { canSee, type MenuPage, type MenuSection, type MenuViewer } from "./menu";
+import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewer } from "./menu";
 
 /**
  * One CommandCenter menu (approved look), used by Studio and the console: Home, then the sections. A page the app
@@ -11,12 +11,16 @@ import { canSee, type MenuPage, type MenuSection, type MenuViewer } from "./menu
  * In the console (`console`, the design plan's step 1): a box to find a page, only the current section open (opening
  * another closes it), Collapse at the bottom, and its width set by dragging its edge or with Narrower and Wider (200 to
  * 360 px, 232 by default; remembered). Studio uses the same look since 1 Nov 2026; Favourites was taken out that day.
+ * With `groups` (the console, option B, 8 Nov 2026): every section open, one entry per group of pages with its icon;
+ * an entry opens the first of its pages the person may see and is current on any of them (the page shows the others
+ * as tabs); a page in no group is an entry of its own.
  */
+type Entry = { id: string; label: string; icon?: MenuGroup["icon"]; first: MenuPage; pages: string[] };
 const WIDTH = { min: 200, max: 360, normal: 232, step: 32 };
-export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, viewer = null, editing = false, offTitle, console: inConsole = false }:
+export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, viewer = null, editing = false, offTitle, console: inConsole = false, groups }:
   { sections: MenuSection[]; current: string | null; local: ReadonlySet<string>; onLocal: (id: string) => void;
     hrefFor: (id: string) => string | undefined; home: { href?: string; onClick?: () => void; current?: boolean };
-    viewer?: MenuViewer; editing?: boolean; offTitle?: string; console?: boolean }) {
+    viewer?: MenuViewer; editing?: boolean; offTitle?: string; console?: boolean; groups?: MenuGroup[] }) {
   const [chosenMini, setChosenMini] = usePersistent("menu.mini", false);
   const [openWhileEditing, setOpenWhileEditing] = useState(false);
   useEffect(() => { if (!editing) setOpenWhileEditing(false); }, [editing]);
@@ -32,7 +36,19 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const sectionOf = (id: string | null) => shown.find((s) => s.pages.some((p) => p.id === id))?.label ?? null;
   const [openOne, setOpenOne] = useState<string | null>(() => sectionOf(current));
   useEffect(() => { const s = sectionOf(current); if (s) setOpenOne(s); }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const isOpen = (label: string) => inConsole ? openOne === label : !closed.includes(label);
+  const isOpen = (label: string) => groups ? true : inConsole ? openOne === label : !closed.includes(label);
+  // the entries of a section: its groups with a page the person may see (a page goes where its group is), then its pages in no group
+  const visible = new Map(shown.flatMap((s) => s.pages.map((p) => [p.id, p] as const)));
+  const entriesOf = (sec: MenuSection): Entry[] => {
+    if (!groups) return sec.pages.map((p) => ({ id: p.id, label: p.label, first: p, pages: [p.id] }));
+    const grouped: Entry[] = groups.filter((g) => g.section === sec.id).flatMap((g) => {
+      const pages = g.pages.filter((id) => visible.has(id));
+      return pages.length ? [{ id: g.id, label: g.label, icon: g.icon, first: visible.get(pages[0])!, pages }] : [];
+    });
+    const loose = sec.pages.filter((p) => !groups.some((g) => g.pages.includes(p.id))).map((p) => ({ id: p.id, label: p.label, first: p, pages: [p.id] }));
+    return [...grouped, ...loose];
+  };
+  const sectionsShown = groups ? sections.filter((s) => entriesOf(s).length) : shown;
   const toggle = (label: string) => { if (inConsole) setOpenOne(openOne === label ? null : label); else toggleSection(label); };
   const [width, setWidth] = usePanelSize("console.menu");
   const w = width ?? WIDTH.normal;
@@ -51,6 +67,16 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
       <Icon name={mini ? "chevronRight" : "chevronLeft"} size={14} stroke={2.6} />{!mini && "Collapse menu"}
     </button>
   );
+  /** A group's entry: its icon and name; it opens its first page and is current on any of its pages. */
+  const entry = (e: Entry) => {
+    const isCurrent = !!current && e.pages.includes(current);
+    const body = <>{e.icon && <Icon name={e.icon} size={18} />}<span className="st-menu-entry-label">{e.label}</span></>;
+    if (local.has(e.first.id)) return <button type="button" className={`st-menu-item st-menu-entry${isCurrent ? " is-current" : ""}`} aria-current={isCurrent ? "page" : undefined}
+      onClick={() => { setFind(""); setOpenNarrow(false); onLocal(e.first.id); }}>{body}</button>;
+    const href = hrefFor(e.first.id);
+    return href ? <a className={`st-menu-item st-menu-entry${isCurrent ? " is-current" : ""}`} href={href} aria-current={isCurrent ? "page" : undefined}>{body}</a>
+      : <span className="st-menu-item st-menu-entry is-off" aria-disabled="true" title={offTitle}>{body}</span>;
+  };
   const item = (it: MenuPage, extra?: string) => {
     if (local.has(it.id)) {
       const isCurrent = current === it.id;
@@ -75,7 +101,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
           : <p className="st-menu-hint">No page matches.</p>
       ) : <>
         {homeEl}
-        {shown.map((sec) => {
+        {sectionsShown.map((sec) => {
           const open = isOpen(sec.label);
           if (mini) {
             // folded: one icon per section; it opens the menu at that section
@@ -86,6 +112,12 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
               </button>
             );
           }
+          if (groups) return (
+            <div key={sec.label} className="st-menu-section is-grouped">
+              <div className="st-menu-group-head"><IconTile name={sec.icon} color={sec.color} size={20} /><span className="st-menu-label">{sec.label}</span></div>
+              <ul className="st-menu-items" aria-label={sec.label}>{entriesOf(sec).map((e) => <li key={e.id}>{entry(e)}</li>)}</ul>
+            </div>
+          );
           return (
             <div key={sec.label} className="st-menu-section">
               <button type="button" className="st-menu-heading" aria-expanded={open} title={sec.label} onClick={() => toggle(sec.label)}>
