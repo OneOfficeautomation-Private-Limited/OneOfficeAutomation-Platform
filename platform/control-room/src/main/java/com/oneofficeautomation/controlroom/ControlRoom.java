@@ -1096,7 +1096,14 @@ public final class ControlRoom {
      * Deletes an agent: it disappears from the repository and can no longer run, but its versions are kept and it can be
      * recovered. Agents still used by schedules, triggers or work queues are not deleted (those are listed).
      */
-    public Map<String, Object> deleteBot(User by, String path, String ip) {
+    public Map<String, Object> deleteBot(User by, String path, String ip) { return deleteBot(by, path, null, ip); }
+
+    /**
+     * Deletes an agent (it can be recovered). Refused while it is checked out by someone else, or while a schedule,
+     * trigger, work queue, API task or another agent uses it (as AA: remove the references first). The reason, when
+     * given, goes into the audit trail (as Blue Prism asks for one).
+     */
+    public Map<String, Object> deleteBot(User by, String path, String reason, String ip) {
         require(by, "repo.delete", "delete agents");
         folders.require(by, path, "edit", "delete agents");
         Map<String, Object> b = db.one("SELECT locked_by, deleted_at, bot_id FROM bots WHERE path = ?", path);
@@ -1107,9 +1114,10 @@ public final class ControlRoom {
         for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE bot_path = ?", path)) users.add("trigger " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM queues WHERE bot_path = ?", path)) users.add("work queue " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM api_tasks WHERE bot_path = ?", path)) users.add("API task " + r.get("name"));
+        for (String parent : parentsOf((String) b.get("bot_id"))) users.add("agent " + parent);
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
-        audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
+        audit.record(by.username(), "repo.delete", "bot", path, reason == null || reason.isBlank() ? null : Map.of("reason", reason.strip()), "ok", ip);
         repositoryChanged(by.username(), path + " deleted");
         return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
     }
@@ -1119,7 +1127,8 @@ public final class ControlRoom {
      * runs it. Refused while someone else has it checked out, or a workflow names it by path.
      */
     public Map<String, Object> moveBot(User by, String path, String toFolder, String ip) {
-        require(by, "repo.checkin", "move agents");
+        // as AA, builders move agents in their Private workspace before check-in; in the repository only an administrator does
+        require(by, "repo.production", "move agents in the repository");
         Map<String, Object> b = db.one("SELECT locked_by FROM bots WHERE path = ?", path);
         if (b == null) throw notFound("Agent " + path);
         String name = path.substring(path.lastIndexOf('/') + 1);
@@ -1156,6 +1165,11 @@ public final class ControlRoom {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> copyBot(User by, String path, String toPath, String ip) {
+        // as AA, a copy is made in the person's Private workspace (One AgentStudio's Copy to Private); a copy straight into
+        // the repository is for administrators only (for example while reorganising)
+        if (!can(by, "repo.production"))
+            throw new OoaException("CR.COPY_TO_PRIVATE", "Copies are made in your Private workspace",
+                    "Use Copy to Private on the agent in One AgentStudio's Public tab, change it there, then check it in.");
         Map<String, Object> flow = new LinkedHashMap<>((Map<String, Object>) getBot(by, path, "latest").get("flow"));
         String to = toPath == null || toPath.isBlank() ? path.replaceAll("\\.(flow|process|form)\\.json$", "") + " (copy)" + path.substring(path.lastIndexOf(".", path.length() - 6)) : toPath.trim();
         if (!to.matches(".*\\.(flow|process|form)\\.json$") || !to.substring(to.indexOf('.', to.lastIndexOf('/') + 1)).equals(path.substring(path.indexOf('.', path.lastIndexOf('/') + 1))))

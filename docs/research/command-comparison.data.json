@@ -397,7 +397,7 @@
     "Prompt/For value": "ooa.desktop/prompt_value",
     "Prompt/For yes/no": "ooa.desktop/prompt_yes_no",
     "Message box/Message box": "ooa.desktop/message_box",
-    "Application/Open program/file": "ooa.application/start_program",
+    "Application/Open program/file": "ooa.application/open_program_file",
     "Image Recognition/Find image in window": "ooa.image/find_on_screen",
     "Image Recognition/Find window in window": "ooa.image/find_in_image",
     "OCR/Capture text by path": "ooa.ocr/read_image",

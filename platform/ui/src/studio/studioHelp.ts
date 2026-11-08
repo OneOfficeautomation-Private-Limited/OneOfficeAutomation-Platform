@@ -38,9 +38,10 @@ export const EDITOR_HELP: HelpTopic = {
   title: "Agent editor", about: "An agent is a list of steps run from START to END. Pick an action on the left to add a step, select a step to change its settings on the right, and press Run or Debug at the top to try it.",
   items: [
     { name: "Adding steps", text: "Click an action in the Actions panel to add it after the selected step, or drag it to where it goes. Select START to add at the very beginning." },
-    { name: "Selecting steps", text: "Click a step; Ctrl+click or Shift+click selects several; the arrow keys move between steps. The toolbar then shows Cut, Copy, Delete, Duplicate, Switch off and Breakpoint." },
+    { name: "Selecting steps", text: "Click a step; Ctrl+click or Shift+click selects several; the arrow keys move between steps. The toolbar then shows Cut, Copy, Delete, Duplicate, Disable and Breakpoint." },
     { name: "⋮ on a step", text: "Everything for that step: run from here, run only this step, move up or down, fold, breakpoint and more. Right-click a step for the same menu." },
-    { name: "Switch off", text: "Keeps a step in the agent but skips it when the agent runs (Ctrl+/). Switch it on again the same way." },
+    { name: "Disable step", text: "Keeps a step in the agent but skips it when the agent runs (Ctrl+/); it shows Disabled. Enable it again the same way. "
+      + "Run from here on a disabled step, or on a step inside a disabled block, starts at the next enabled step; Run this step only needs the step enabled." },
     { name: "List and Flow", text: "Shows the steps as a numbered list or as a flow chart. Both edit the same agent." },
     { name: "Record and Capture", text: "Record clicks and typing in a browser or a Windows application and turn them into steps; Capture adds one step for a single web element or desktop control." },
     { name: "Assistant", text: "Describe what the agent should do and it suggests steps, or ask it to explain the agent." },

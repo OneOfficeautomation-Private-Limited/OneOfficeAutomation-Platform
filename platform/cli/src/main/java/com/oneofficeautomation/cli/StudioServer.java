@@ -226,6 +226,8 @@ public final class StudioServer {
                 sendJson(ex, 200, Map.of("path", rel, "flow", json.parse(Files.readString(p))));
             } else if (method.equals("PUT")) {
                 if (!Files.isDirectory(p.getParent())) throw new OoaException("STUDIO.NOT_FOUND", "Folder not found for " + rel);
+                if (cr.isClone(rel)) throw new OoaException("STUDIO.CLONE_READ_ONLY", rel + " is a clone, which is read-only",
+                        "Check it out on the Public tab to change it, or use Copy to Private for a copy of your own.");
                 Map<String, Object> flow = (Map<String, Object>) body(ex);
                 Path tmp = p.resolveSibling("." + p.getFileName() + ".tmp");
                 Files.writeString(tmp, json.write(flow, true));
@@ -318,6 +320,8 @@ public final class StudioServer {
             else if (method.equals("GET") && r.equals("states")) sendJson(ex, 200, cr.states(json));
             // a step's Credential field: the vault credentials the person may use (names only, never values)
             else if (method.equals("GET") && r.equals("credentials")) sendJson(ex, 200, Map.of("connected", cr.connected(), "credentials", cr.connected() ? cr.credentials() : List.of()));
+            else if (method.equals("POST") && r.equals("clone")) sendJson(ex, 200, cr.cloneBot((String) ((Map<String, Object>) body(ex)).get("path"), json));
+            else if (method.equals("POST") && r.equals("copy")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.copyToPrivate((String) b.get("path"), (String) b.get("to"), json)); }
             else if (method.equals("POST") && r.equals("revert")) sendJson(ex, 200, cr.revert((String) ((Map<String, Object>) body(ex)).get("local"), json));
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");

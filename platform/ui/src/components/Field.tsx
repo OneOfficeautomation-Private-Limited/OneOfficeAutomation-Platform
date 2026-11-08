@@ -2,22 +2,27 @@ import { useId, useState, type ReactNode } from "react";
 
 /**
  * A labelled field. "beside" puts the label to the left (properties panels, as in AA); "above" puts it on top
- * (dialogs). The control gets the label's id, so screen readers announce it.
+ * (dialogs). The control gets the label's id, so screen readers announce it. Help ("info") up to SHORT_HELP characters
+ * is written under the field, as AA writes its hints (usage review item 24); longer help stays behind the (i) button.
  */
+const SHORT_HELP = 160;
 export function Field({ label, hint, info, layout = "above", children }:
   { label: string; hint?: string; info?: string; layout?: "above" | "beside"; children: (id: string) => ReactNode }) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const shown = info && info.length <= SHORT_HELP ? info : undefined;
+  const behind = info && !shown ? info : undefined;
   return (
     <div className={`ui-field ui-field-${layout}`}>
       <span className="ui-field-label">
         <label htmlFor={id}>{label}</label>
-        {info && <button type="button" className="ui-info" aria-label={"About " + label.replace(/ \*$/, "")} aria-expanded={open} title={info} onClick={() => setOpen(!open)}>i</button>}
+        {behind && <button type="button" className="ui-info" aria-label={"About " + label.replace(/ \*$/, "")} aria-expanded={open} title={behind} onClick={() => setOpen(!open)}>i</button>}
       </span>
       <div className="ui-field-control">
         {children(id)}
         {hint && <div className="ui-field-hint">{hint}</div>}
-        {info && open && <div className="ui-field-hint" role="note">{info}</div>}
+        {shown && shown !== hint && <div className="ui-field-hint">{shown}</div>}
+        {behind && open && <div className="ui-field-hint" role="note">{behind}</div>}
       </div>
     </div>
   );

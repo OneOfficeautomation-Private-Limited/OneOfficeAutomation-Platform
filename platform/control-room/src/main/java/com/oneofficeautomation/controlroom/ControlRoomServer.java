@@ -883,7 +883,7 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && route.equals("repo/files")) { cr.repoFiles.delete(u, p, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("repo/move")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.moveBot(u, (String) b.get("path"), (String) b.get("folder"), ip)); }
                 else if (m.equals("POST") && route.equals("repo/copy")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.copyBot(u, (String) b.get("path"), (String) b.get("to"), ip)); }
-                else if (m.equals("POST") && route.equals("repo/delete")) sendJson(ex, 200, cr.deleteBot(u, (String) map(body(ex)).get("path"), ip));
+                else if (m.equals("POST") && route.equals("repo/delete")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.deleteBot(u, (String) b.get("path"), (String) b.get("reason"), ip)); }
                 else if (m.equals("POST") && route.equals("repo/recover")) { cr.recoverBot(u, (String) map(body(ex)).get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && route.equals("repo/labels")) {
                     Map<String, Object> b = map(body(ex));

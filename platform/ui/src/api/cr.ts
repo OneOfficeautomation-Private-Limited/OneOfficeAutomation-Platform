@@ -500,8 +500,9 @@ export class CrApi {
   async folderPermissions(folder: string) { return (await this.call<{ permissions?: { principal: string; access: string }[] }>("GET", "repo/permissions?folder=" + encodeURIComponent(folder))).permissions ?? []; }
   async saveFolderPermissions(folder: string, permissions: { principal: string; access: string }[]) { await this.call("PUT", "repo/permissions", { folder, permissions }); }
   moveAgent(path: string, folder: string) { return this.call<{ path: string }>("POST", "repo/move", { path, folder }); }
+  /** A copy straight into the repository: administrators only (builders use Copy to Private in One AgentStudio). */
   copyAgent(path: string, to: string) { return this.call<{ path?: string }>("POST", "repo/copy", { path, to }); }
-  deleteAgent(path: string) { return this.call<{ deleted: string; called_by?: string[] }>("POST", "repo/delete", { path }); }
+  deleteAgent(path: string, reason?: string) { return this.call<{ deleted: string; called_by?: string[] }>("POST", "repo/delete", reason ? { path, reason } : { path }); }
   async recoverAgent(path: string) { await this.call("POST", "repo/recover", { path }); }
   async undoCheckout(path: string) { await this.call("POST", "repo/undo-checkout", { path }); }
   async agentVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "repo/versions?path=" + encodeURIComponent(path))).versions ?? []; }

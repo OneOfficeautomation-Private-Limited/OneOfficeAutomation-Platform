@@ -644,7 +644,9 @@ public final class Runner {
                     String id = String.valueOf(s.get("id"));
                     if (startAt != null && !reached) {
                         if (id.equals(startAt)) reached = true;
-                        else { if (!off && startPath.contains(id)) enterTowards(s); continue; }
+                        // a disabled block around the start step does not run: the run starts after it (usage review item 25)
+                        else if (off && startPath.contains(id)) { reached = true; continue; }
+                        else { if (startPath.contains(id)) enterTowards(s); continue; }
                     }
                     try {
                         if (!off) execStep(s, forceContinue);

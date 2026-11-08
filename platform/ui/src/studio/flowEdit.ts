@@ -45,6 +45,21 @@ export function locate(steps: FlowStep[], id: string): Lists | null {
   return null;
 }
 
+/**
+ * Whether a step is skipped when the agent runs: disabled itself ("self"), inside a disabled block ("inside"), or not
+ * (null). Used by the step menu (usage review item 25): Run from here then starts at the next enabled step.
+ */
+export function disabledState(steps: FlowStep[], id: string, offAbove = false): "self" | "inside" | null | undefined {
+  for (const s of steps) {
+    if (s.id === id) return s.disabled ? "self" : offAbove ? "inside" : null;
+    for (const inner of innerLists(s)) {
+      const r = disabledState(inner, id, offAbove || !!s.disabled);
+      if (r !== undefined) return r;
+    }
+  }
+  return undefined;
+}
+
 function* every(steps: FlowStep[]): Generator<FlowStep> {
   for (const s of steps) { yield s; for (const inner of innerLists(s)) yield* every(inner); }
 }

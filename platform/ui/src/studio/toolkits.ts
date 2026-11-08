@@ -55,14 +55,16 @@ export function toolkitMark(toolkitId: string): Mark {
 }
 
 /** Display name and mark of a step's action: core blocks by name, toolkit actions from the toolkit catalogue. */
-export function describeAction(action: string, packages: PackageManifest[]): { name: string; toolkit: string; mark: Mark } {
+export function describeAction(action: string, packages: PackageManifest[]): { name: string; toolkit: string; mark: Mark; description?: string } {
   const [toolkitId, actionId] = action.split("/");
   const pkg = packages.find((p) => p.id === toolkitId);
   const a = pkg?.actions.find((x) => x.id === actionId);
   // the catalogue's name, as the action library shows it; ours only when the catalogue has not loaded
   const core = CORE[action];
-  if (core) return { name: a?.name ?? core.name, toolkit: "Flow", mark: core.mark };
-  return { name: a?.name ?? (actionId ?? action).replace(/_/g, " "), toolkit: pkg?.name ?? toolkitId, mark: toolkitMark(toolkitId) };
+  // the catalogue's one-line description, shown under the name in the step's panel (usage review item 24)
+  const description = a?.description?.trim() || undefined;
+  if (core) return { name: a?.name ?? core.name, toolkit: "Flow", mark: core.mark, description };
+  return { name: a?.name ?? (actionId ?? action).replace(/_/g, " "), toolkit: pkg?.name ?? toolkitId, mark: toolkitMark(toolkitId), description };
 }
 
 /** Every action a list of steps uses, blocks included. */

@@ -45,7 +45,7 @@ public final class ApplicationPackage {
     }
 
     @Action(id = "open_file", name = "Open file", category = "Application", capabilities = "desktop",
-            description = "Open a document with its default application, e.g. a PDF in the PDF viewer.",
+            description = "Open a document with its default application, e.g. a PDF in the PDF viewer. Kept for older agents: new ones use Open program/file.",
             panel = "path")
     public Map<String, Object> openFile(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File to open.") String path) {
         Path p = ctx.resolvePath(path);
@@ -54,6 +54,66 @@ public final class ApplicationPackage {
             throw new ActionException("DESKTOP.NO_SESSION", "No desktop session to open files in", "Run this agent on a runner with a signed-in desktop (attended, or unattended with auto-login).");
         try { Desktop.getDesktop().open(p.toFile()); } catch (IOException e) { throw new ActionException("APPLICATION.OPEN_FAILED", e.getMessage(), "Check a default application is set for this file type."); }
         return Map.of();
+    }
+
+    /**
+     * Open program/file (usage review item 26, 9 Nov 2026): AA's one command for both. A program (.exe, .bat, .cmd, .com,
+     * or a name such as notepad found on the PATH) starts with its parameters in its start-in folder, as Start program; any
+     * other file opens in its default application, as Open file (which stays for older agents but is no longer offered).
+     */
+    @Action(id = "open_program_file", name = "Open program/file", category = "Application", capabilities = "desktop",
+            description = "Open a program with its parameters, or a file in the application that opens it (a PDF in the PDF viewer).",
+            panel = "location, parameters, start_in, wait_seconds")
+    @Output(name = "process_id", type = OoaType.NUMBER, description = "The program's process id, for Stop program; 0 when a file was opened in its application.")
+    public Map<String, Object> openProgramFile(ActionContext ctx,
+            @Input(name = "location", type = OoaType.FILE, example = "C:/Program Files/Notepad++/notepad++.exe",
+                    description = "The program or file to open: browse for it or type its path. A $variable works too.") String location,
+            @Input(name = "parameters", type = OoaType.STRING, required = false,
+                    description = "For a program: what to pass to it, as typed after it on a command line. Words in quotes stay together.") String parameters,
+            @Input(name = "start_in", type = OoaType.FILE, required = false,
+                    description = "For a program: the folder it starts in. Empty: the agent's working folder.") String startIn,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
+                    description = "Pause this long after opening so its window can appear; 0 continues at once.") double waitSeconds) {
+        String loc = location == null ? "" : location.strip();
+        if (loc.length() > 1 && loc.startsWith("\"") && loc.endsWith("\"")) loc = loc.substring(1, loc.length() - 1).strip();
+        if (loc.isEmpty()) throw new ActionException("APPLICATION.NO_LOCATION", "Choose the program or file to open", "Browse for it, or type its path.");
+        if (isProgram(loc, ctx)) return startProgram(ctx, loc, splitParameters(parameters), startIn, "normal", null, waitSeconds, false);
+        if (parameters != null && !parameters.isBlank()) ctx.warn("Parameters are passed to programs only; " + loc + " opens in its own application without them");
+        openFile(ctx, loc);
+        pause(ctx, waitSeconds);
+        return Map.of("process_id", BigDecimal.ZERO);
+    }
+
+    /** A program: a name ending .exe, .bat, .cmd or .com, or a name with no extension that is not a file (notepad, found on the PATH). */
+    static boolean isProgram(String location, ActionContext ctx) {
+        String name = location.substring(Math.max(location.lastIndexOf('/'), location.lastIndexOf('\\')) + 1).toLowerCase(Locale.ROOT);
+        if (name.matches(".*\\.(exe|bat|cmd|com)$")) return true;
+        if (name.contains(".")) return false;
+        try { return !Files.isRegularFile(ctx.resolvePath(location)); } catch (RuntimeException outside) { return true; }
+    }
+
+    /** The parameters as a command line splits them: spaces separate, double quotes keep words together. */
+    static List<Object> splitParameters(String parameters) {
+        List<Object> out = new ArrayList<>();
+        if (parameters == null) return out;
+        StringBuilder cur = new StringBuilder();
+        boolean quoted = false, any = false;
+        for (char ch : parameters.toCharArray()) {
+            if (ch == '"') { quoted = !quoted; any = true; }
+            else if (Character.isWhitespace(ch) && !quoted) { if (any) { out.add(cur.toString()); cur.setLength(0); any = false; } }
+            else { cur.append(ch); any = true; }
+        }
+        if (any) out.add(cur.toString());
+        return out;
+    }
+
+    private static void pause(ActionContext ctx, double seconds) {
+        if (seconds <= 0) return;
+        long end = System.currentTimeMillis() + (long) (Math.min(600, seconds) * 1000);
+        while (System.currentTimeMillis() < end) {
+            ctx.checkCancelled();
+            try { Thread.sleep(Math.min(200, Math.max(1, end - System.currentTimeMillis()))); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
     }
 
     @Action(id = "start_program", name = "Start program", category = "Application", capabilities = "desktop",

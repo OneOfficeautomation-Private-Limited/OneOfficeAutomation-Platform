@@ -239,6 +239,18 @@ class PropertyGapsTest {
         assertEquals("APPLICATION.BAD_VARIABLE_NAME", code(() -> ApplicationPackage.env(Map.of("A=B", "x"))));
         assertEquals("APPLICATION.BAD_WINDOW_STATE", code(() -> a.startProgram(c, "x", null, null, "tiny", null, 0, false)));
         assertEquals("Minimized", ApplicationPackage.windowStyle("minimized"));
+        // Open program/file (item 26): programs start with their parameters split as a command line; other files open in their application
+        assertEquals(List.of("/c", "echo", "two words", "end"), ApplicationPackage.splitParameters(" /c echo \"two words\"  end "));
+        assertEquals(List.of(), ApplicationPackage.splitParameters(null));
+        assertEquals(List.of(""), ApplicationPackage.splitParameters("\"\""), "an empty quoted parameter is kept");
+        assertTrue(ApplicationPackage.isProgram("C:/Tools/run.EXE", c));
+        assertTrue(ApplicationPackage.isProgram("scripts/nightly.bat", c));
+        assertTrue(ApplicationPackage.isProgram("notepad", c), "a name with no extension that is not a file is a program on the PATH");
+        assertFalse(ApplicationPackage.isProgram("report.pdf", c));
+        Files.writeString(w.resolve("README"), "x");
+        assertFalse(ApplicationPackage.isProgram("README", c), "an existing file without an extension is a file");
+        assertEquals("APPLICATION.NO_LOCATION", code(() -> a.openProgramFile(c, "  ", null, null, 0)));
+        assertEquals("FILE.NOT_FOUND", code(() -> a.openProgramFile(c, "missing.pdf", null, null, 0)));
         assertTrue(ApplicationPackage.START_SCRIPT.contains("$env:OOA_APP_PROGRAM"), "values travel in environment variables");
         List<Object> echo = ProcessRunner.WINDOWS ? List.of("/c", "echo %OOA_APP_TEST%") : List.of("-c", "echo $OOA_APP_TEST");
         Map<String, Object> r = a.runProgram(c, ProcessRunner.WINDOWS ? "cmd.exe" : "sh", echo, null, null, 30, true, Map.of("OOA_APP_TEST", "from-env"), "utf-8", false);
@@ -247,6 +259,9 @@ class PropertyGapsTest {
             long pid = ((BigDecimal) a.startProgram(c, "ping.exe", List.of("-n", "3", "127.0.0.1"), null, "hidden", null, 0, false).get("process_id")).longValue();
             assertTrue(pid > 0);
             ProcessHandle.of(pid).ifPresent(ProcessHandle::destroy);
+            long viaOpen = ((BigDecimal) a.openProgramFile(c, "ping.exe", "-n 3 127.0.0.1", null, 0).get("process_id")).longValue();
+            assertTrue(viaOpen > 0, "Open program/file starts a program with its parameters");
+            ProcessHandle.of(viaOpen).ifPresent(ProcessHandle::destroy);
         }
     }
 

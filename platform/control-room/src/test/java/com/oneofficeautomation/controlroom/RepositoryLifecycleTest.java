@@ -103,6 +103,10 @@ class RepositoryLifecycleTest {
         Map<String, Object> deps = cr.dependencies(admin, "Finance/Parent.flow.json", "latest");
         assertEquals("Finance/Child.flow.json", ((Map<String, Object>) ((List<Object>) deps.get("agents")).get(0)).get("path"));
         assertEquals(List.of("Finance/Parent.flow.json"), cr.dependencies(admin, "Finance/Child.flow.json", "latest").get("called_by"));
+        // an agent another agent runs is not deleted (as AA: remove the reference first)
+        OoaException inUse = assertThrows(OoaException.class, () -> cr.deleteBot(admin, "Finance/Child.flow.json", "tidy up", null));
+        assertEquals("CR.IN_USE", inUse.code());
+        assertTrue(inUse.getMessage().contains("agent Finance/Parent.flow.json"), inUse.getMessage());
         // labels
         cr.checkout(admin, "Sales/Report.flow.json", null);
         cr.checkin(admin, "Sales/Report.flow.json", flow("report"), "v2", false, null);

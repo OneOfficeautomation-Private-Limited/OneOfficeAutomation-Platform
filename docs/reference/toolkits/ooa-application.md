@@ -6,7 +6,7 @@ Toolkit `ooa.application`, version 1.0.0. Open files, start, run and stop progra
 
 ## Contents
 
-- **Application**: Close command session, Open file, Open command session, Read command session, Run program and wait, Start program, Stop program, Write to command session
+- **Application**: Close command session, Open file, Open program/file, Open command session, Read command session, Run program and wait, Start program, Stop program, Write to command session
 - **Conditions**: Program is running
 
 ## Application
@@ -37,13 +37,36 @@ End a command session: optionally ask the program to exit, then stop it and ever
 
 `ooa.application/open_file` (action)
 
-Open a document with its default application, e.g. a PDF in the PDF viewer.
+Open a document with its default application, e.g. a PDF in the PDF viewer. Kept for older agents: new ones use Open program/file.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | File to open. |
+
+*Time limit 60 s; needs: desktop, filesystem.*
+
+### Open program/file
+
+`ooa.application/open_program_file` (action)
+
+Open a program with its parameters, or a file in the application that opens it (a PDF in the PDF viewer).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Location | `location` | File path | Yes |  | Main | The program or file to open: browse for it or type its path. A $variable works too. Example: `C:/Program Files/Notepad++/notepad++.exe` |
+| Parameters | `parameters` | Text | No |  | Main | For a program: what to pass to it, as typed after it on a command line. Words in quotes stay together. |
+| Start in | `start_in` | File path | No |  | Main | For a program: the folder it starts in. Empty: the agent's working folder. |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Pause this long after opening so its window can appear; 0 continues at once. Range: 0 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `process_id` | Number | The program's process id, for Stop program; 0 when a file was opened in its application. |
 
 *Time limit 60 s; needs: desktop, filesystem.*
 

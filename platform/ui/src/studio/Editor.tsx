@@ -9,7 +9,7 @@ import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyO
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
-  addBranch, addOnError, blockIds, CLIP_KEY, copySteps, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
+  addBranch, addOnError, blockIds, CLIP_KEY, copySteps, disabledState, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
   pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
   moveCase, parseLoose, setCaseValues, showValue,
@@ -32,6 +32,15 @@ const openUrl = (flow: Flow): string | undefined => {
   return find(flow.steps);
 };
 import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
+import { AA_NAMES } from "./aaNames";
+
+/**
+ * Actions kept so older agents still run, but no longer offered in the library (usage review item 26): Open file is
+ * part of Open program/file, as in AA.
+ */
+export const RETIRED_ACTIONS = new Set(["ooa.application/open_file"]);
+/** The AA command name that matched a search, when the action's own name did not. */
+const aaMatch = (id: string, q: string) => q ? AA_NAMES[id]?.find((n) => n.toLowerCase().includes(q)) : undefined;
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -47,7 +56,7 @@ const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["fi
 export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, onSimple }: { packages: PackageManifest[]; onAdd: (action: string) => void;
   onTrigger?: (kind: string, where: "studio" | "server") => void; simple?: boolean; onSimple?: (on: boolean) => void }) {
   // Simple mode (G47): everyday toolkits under plain names; no triggers
-  const packages = simple ? simplePackages(all) : all;
+  const packages = (simple ? simplePackages(all) : all).map((p) => ({ ...p, actions: p.actions.filter((a) => !RETIRED_ACTIONS.has(p.id + "/" + a.id)) }));
   if (simple) onTrigger = undefined;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -61,7 +70,8 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
     const all = list.flatMap(({ p, actions }) => actions.map((a) => ({ id: p.id + "/" + a.id, name: a.name.toLowerCase() })));
     return (all.find((a) => a.name === q) ?? all.find((a) => a.name.startsWith(q)) ?? all[0])?.id;
   };
-  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
+  // a search also finds an action by its AA command name ("Open program/file", "Simulate keystrokes")
+  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !!aaMatch(p.id + "/" + a.id, q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
     <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
@@ -104,7 +114,8 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
               {isOpen && <ul className="st-group-actions">{actions.map((a) => (
                 <li key={a.id}><button type="button" className="st-action" title={a.description} draggable
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
-                  onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}</button></li>
+                  onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
+                  {(() => { const aa = !a.name.toLowerCase().includes(q) ? aaMatch(p.id + "/" + a.id, q) : undefined; return aa && <span className="st-aa-name">AA: {aa}</span>; })()}</button></li>
               ))}</ul>}
             </li>
           );
@@ -169,7 +180,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     askTrigger?: { kind: string; n: number } | null;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
-    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
+    onRunFrom: (stepId: string, only: boolean, defaults: boolean, note?: string) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
     onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void;
     /** The problems a check without saving found. */
     onChecked: (problems: Problem[]) => void; dirty: boolean }) {
@@ -494,7 +505,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
       { key: "rename", label: "Rename", description: "Shown on the step", shortcut: keyOf("steps.rename"), onSelect: act.note },
       { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },
-      { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: keyOf("steps.disable"), onSelect: act.disable },
+      { key: "disable", label: (allOff ? "Enable " : "Disable ") + (chosen.length > 1 ? "steps" : "step"),
+        description: allOff ? "It runs again" : "Kept in the agent, but skipped when it runs", shortcut: keyOf("steps.disable"), onSelect: act.disable },
       { key: "delete", label: "Delete", shortcut: keyOf("steps.delete"), onSelect: act.remove },
       { key: "up", label: "Move up", shortcut: keyOf("steps.up"), separatorBefore: true, onSelect: act.up },
       { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
@@ -507,10 +519,16 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
       items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
+    // a disabled step (or one in a disabled block) does not run: Run from here starts at the next enabled step (item 25)
+    const off = disabledState(flow.steps, step.id) ?? null;
+    const offNote = off === "self" ? "This step is disabled, so the run starts at the next enabled step"
+      : off === "inside" ? "This step is in a disabled block, so the run starts at the next enabled step after the block" : undefined;
     if (!running && chosen.length === 1 && !inHandler(flow, step.id)) items.push(   // the error handler's steps run only after an error
-      { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
-      { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true) },
-      { key: "only", label: "Run this step only", onSelect: () => onRunFrom(step.id, true, false) },
+      { key: "from", label: "Run from here", description: offNote ?? "Earlier steps are skipped; their values come from the last run", separatorBefore: true,
+        onSelect: () => onRunFrom(step.id, false, false, offNote) },
+      { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true, offNote) },
+      { key: "only", label: "Run this step only", disabled: !!off, description: off ? "Disabled steps do not run: enable it first" : undefined,
+        onSelect: () => onRunFrom(step.id, true, false) },
     );
     if (innerLists(step).length) items.push({ key: "fold", label: folded.has(step.id) ? "Unfold" : "Fold", onSelect: () => act.fold([step.id], !folded.has(step.id)) });
     return items;
@@ -551,7 +569,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
             return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
           {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
-          {r.step.disabled && <span className="st-badge">OFF</span>}
+          {r.step.disabled && <span className="st-badge" title="Disabled: kept in the agent, skipped when it runs">Disabled</span>}
           {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
         </button>
         <span className="st-step-tools">
@@ -587,7 +605,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             {chosen.length > 0 && <>
               <button type="button" className="st-tool" aria-label="Delete" title={withKey("Delete", "steps.delete")} onClick={act.remove}><Icon name="trash" size={16} /></button>
               <button type="button" className="st-tool" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
-              <button type="button" className="st-tool" aria-label={allOff ? "Switch on" : "Switch off"} title={withKey(allOff ? "Switch on" : "Switch off", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
+              <button type="button" className="st-tool" aria-label={allOff ? "Enable" : "Disable"} title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
             </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [
@@ -709,6 +727,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               {selStep && selInfo ? <>
                 <div className="st-prop-head"><IconTile name={selInfo.mark.icon} color={selInfo.mark.color} size={28} />
                   <div><strong>{selInfo.name}</strong><div>Line {selStep.n} · {selInfo.toolkit}</div></div></div>
+                {selInfo.description && <p className="st-prop-about">{selInfo.description}</p>}
                 <StepForm step={selStep.step} packages={packages}
                   onArg={(name, v) => onEdit(setArg(flow, selStep.step.id, name, v))}
                   onNote={(n) => onEdit(setNote(flow, selStep.step.id, n))} />
@@ -718,7 +737,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               ) : selected.includes(ON_ERROR) && flow.onError ? <OnErrorProperties flow={flow} onEdit={onEdit} />
               : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
                 : chosen.length > 1
-                ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
+                ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Disable act on all of them; select one step to change its settings.</p>
                 : <AgentProperties flow={flow} onEdit={onEdit} />}
               {!selected.length && <div className="st-pad">
                 <h3 className="st-prop-section">If an error ends the agent</h3>

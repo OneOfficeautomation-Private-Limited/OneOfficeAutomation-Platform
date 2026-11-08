@@ -125,7 +125,7 @@ export type RepoFacts = { labels?: { label: string; version: number }[]; analysi
   size?: number; updated?: string; updated_by?: string };
 export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null } & RepoFacts;
 /** A private copy's state against the repository, as AA's statuses (1 Nov 2026). "linked": signed out, so the locks are not known. */
-export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited"; path: string; locked_by?: string;
+export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited" | "cloned"; path: string; locked_by?: string;
   latest_version?: number; production_version?: number | null } & RepoFacts;
 export type RepoVersion = { version: number; author: string; created: string; comment?: string };
 /** A check-in: the new version, and whether it became live or waits for approval first. */
@@ -278,6 +278,10 @@ export class StudioApi {
   crCheckout(path: string, version?: number) {
     return this.call<{ local: string; path: string; version: number; kept?: boolean; cloned?: string[] }>("POST", "cr/checkout", version ? { path, version } : { path });
   }
+  /** Clone: a read-only private copy that follows the repository (AA's Clone); check it out to change it. */
+  crClone(path: string) { return this.call<{ local: string; path: string; version: number }>("POST", "cr/clone", { path }); }
+  /** Copy to Private: the agent's latest version becomes a new agent of your own at "to" (AA's Copy). */
+  crCopy(path: string, to: string) { return this.call<{ local: string; from: string; version: number; cloned?: string[] }>("POST", "cr/copy", { path, to }); }
   /** Each private copy linked to the repository, with its state (checked out, edited, checked in …); unlinked items are new. */
   crStates() { return this.call<{ states: Record<string, RepoState>; connected: boolean }>("GET", "cr/states"); }
   /** Revert edits: the private copy goes back to the version that was checked out. */

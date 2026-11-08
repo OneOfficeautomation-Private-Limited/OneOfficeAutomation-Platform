@@ -627,7 +627,7 @@ span.cc-tree-chev { cursor: default; }
 /* An agent line by line, as AA's View (review round 2, approved on the canvas 31 Oct 2026): it opens as a page in place of the
    folder panes, read-only, with numbered steps, open and close on blocks, and the chosen line's settings beside them */
 .cc-agent { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 48px); background: var(--ui-bg); }
-.cc-agent-head { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 12px 0 16px; background: var(--ui-soft); border-bottom: 1px solid var(--ui-border); flex-wrap: wrap; }
+.cc-agent-head { display: flex; align-items: center; gap: 10px; min-height: 52px; flex-shrink: 0; padding: 6px 12px 6px 16px; background: var(--ui-soft); border-bottom: 1px solid var(--ui-border); flex-wrap: wrap; }
 .cc-agent-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .cc-agent > .st-alert { margin: 8px 16px 0; }
 .cc-agent-tabs { padding: 0 12px; }

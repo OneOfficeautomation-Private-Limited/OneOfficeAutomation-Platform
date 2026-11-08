@@ -142,6 +142,34 @@ class StudioControlRoomTest {
             assertEquals("checked_out", stateOf(sb, "Shared/Main.flow.json"));
             assertEquals("checked_in", stateOf(sb, "Shared/Child.flow.json"), "the copied agent is not checked out");
 
+            // Clone (AA): a read-only private copy that does not lock the agent and follows the repository
+            Files.createDirectories(wsA.resolve("Team"));
+            Files.writeString(wsA.resolve("Team/Report.flow.json"), bot.replace("invoice_bot", "report_bot").replace("Invoice bot", "Report"));
+            assertEquals(200, call(sa, "POST", "/api/cr/checkin", Map.of("local", "Team/Report.flow.json", "comment", "report"), null).get("_status"));
+            Map<String, Object> cl = call(sb, "POST", "/api/cr/clone", Map.of("path", "Team/Report.flow.json"), null);
+            assertEquals("Team/Report.flow.json", cl.get("local"), String.valueOf(cl));
+            assertEquals("cloned", stateOf(sb, "Team/Report.flow.json"));
+            Map<String, Object> ro = call(sb, "PUT", "/api/bot?path=Team/Report.flow.json", JsonLite.parse(Files.readString(wsB.resolve("Team/Report.flow.json"))), null);
+            assertEquals("STUDIO.CLONE_READ_ONLY", ((Map<String, Object>) ro.get("error")).get("code"), "a clone cannot be saved");
+            assertEquals(200, call(sa, "POST", "/api/cr/checkout", Map.of("path", "Team/Report.flow.json"), null).get("_status"), "a clone locks nothing");
+            Path aliceReport = wsA.resolve("Team/Report.flow.json");
+            Files.writeString(aliceReport, Files.readString(aliceReport).replace("\"v1\"", "\"report v2\""));
+            assertEquals(200, call(sa, "POST", "/api/cr/checkin", Map.of("local", "Team/Report.flow.json", "comment", "v2"), null).get("_status"));
+            assertEquals("cloned", stateOf(sb, "Team/Report.flow.json"));
+            assertTrue(Files.readString(wsB.resolve("Team/Report.flow.json")).contains("report v2"), "the clone follows the repository's latest version");
+            // Copy to Private (AA): a new agent of Bob's own, with its own id; names stay unique across Public and Private
+            assertEquals("STUDIO.NAME_TAKEN", ((Map<String, Object>) call(sb, "POST", "/api/cr/copy", Map.of("path", "Team/Report.flow.json", "to", "Team/Report"), null).get("error")).get("code"));
+            assertEquals("STUDIO.BAD_NAME", ((Map<String, Object>) call(sb, "POST", "/api/cr/copy", Map.of("path", "Team/Report.flow.json", "to", "Mine/CON"), null).get("error")).get("code"));
+            Map<String, Object> cp = call(sb, "POST", "/api/cr/copy", Map.of("path", "Team/Report.flow.json", "to", "Mine/Report copy"), null);
+            assertEquals("Mine/Report copy.flow.json", cp.get("local"), String.valueOf(cp));
+            Map<String, Object> copied = (Map<String, Object>) JsonLite.parse(Files.readString(wsB.resolve("Mine/Report copy.flow.json")));
+            assertEquals("report_bot_copy", copied.get("id"));
+            assertEquals("Report copy", copied.get("name"));
+            assertEquals("new", stateOf(sb, "Mine/Report copy.flow.json"), "the copy is not linked to the repository");
+            // checking the agent out replaces the clone with an editable copy
+            assertEquals(200, call(sb, "POST", "/api/cr/checkout", Map.of("path", "Team/Report.flow.json"), null).get("_status"));
+            assertEquals("checked_out", stateOf(sb, "Team/Report.flow.json"));
+
             Files.writeString(wsA.resolve("My Bots/Broken.flow.json"), "{\"kind\":\"TaskBot\",\"id\":\"broken_bot\",\"name\":\"b\",\"variables\":[],\"steps\":[{\"id\":\"s1\",\"action\":\"core/log\",\"args\":{\"message\":\"$nope\"}}]}");
             Map<String, Object> bad = call(sa, "POST", "/api/cr/checkin", Map.of("local", "My Bots/Broken.flow.json"), null);
             assertEquals("CR.INVALID_BOT", ((Map<String, Object>) bad.get("error")).get("code"));

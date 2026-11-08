@@ -748,8 +748,17 @@ describe("new Studio", () => {
     expect(screen.getByText(/3 steps selected/)).toBeTruthy();
     fireEvent.click(stepButton(steps, "Loop"), { ctrlKey: true });   // Ctrl+click takes one out again
     expect(within(steps).getByText(/^2 selected of 3 steps/)).toBeTruthy();
-    fireEvent.click(within(steps).getByRole("button", { name: "Switch off" }));
-    expect(within(steps).getAllByText("OFF")).toHaveLength(2);
+    fireEvent.click(within(steps).getByRole("button", { name: "Disable" }));
+    expect(within(steps).getAllByText("Disabled")).toHaveLength(2);
+    // a disabled step: Run from here starts at the next enabled step, and Run this step only is greyed out (item 25)
+    fireEvent.click(stepButton(steps, "Write to log"));
+    fireEvent.contextMenu(stepButton(steps, "Write to log"));
+    const runMenu = await screen.findByRole("menu");
+    expect(within(runMenu).getByRole("menuitem", { name: /^Run from here, This step is disabled, so the run starts at the next enabled step/ })).toBeTruthy();
+    expect(within(runMenu).getByRole("menuitem", { name: /^Run this step only/ }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.keyDown(runMenu, { key: "Escape" });
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    fireEvent.click(stepButton(steps, "Write to log"), { ctrlKey: true });
     fireEvent.click(within(steps).getByRole("button", { name: "Delete" }));
     expect(stepNames(steps)).toEqual(["Loop"]);
   });
@@ -1188,7 +1197,7 @@ describe("new Studio", () => {
     fireEvent.contextMenu(stepButton(steps, "Loop"));
     const menu = await screen.findByRole("menu");
     const names = within(menu).getAllByRole("menuitem").map((i) => i.getAttribute("aria-label"));
-    expect(names).toEqual(expect.arrayContaining(["Cut", "Copy", "Paste after, 1 step copied", "Duplicate", "Switch off", "Delete", "Add note", "Fold"]));
+    expect(names).toEqual(expect.arrayContaining(["Cut", "Copy", "Paste after, 1 step copied", "Duplicate", "Disable step, Kept in the agent, but skipped when it runs", "Delete", "Add note", "Fold"]));
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Cut" }));   // the loop goes with both steps in it
     expect(stepNames(steps)).toEqual(["Open workbook"]);
     // the loop (with its step) is now on the clipboard; paste it at the start
@@ -1218,7 +1227,7 @@ describe("new Studio", () => {
     key(stepButton(steps, "Open workbook"), "ArrowUp", { shiftKey: true });   // gives one back
     expect(within(steps).getByText(/^2 selected of 3 steps/)).toBeTruthy();
     key(stepButton(steps, "Open workbook"), "/", { ctrlKey: true });
-    expect(within(steps).getAllByText("OFF")).toHaveLength(2);
+    expect(within(steps).getAllByText("Disabled")).toHaveLength(2);
     key(stepButton(steps, "Open workbook"), "Escape");
     expect(within(steps).getByText(/^3 steps/)).toBeTruthy();
   });
@@ -1297,7 +1306,7 @@ describe("new Studio", () => {
     expect(stepNames(steps)).toEqual(["Open workbook", "Open workbook", "Loop", "Write to log"]);
   });
 
-  it("sets a Loop by its kind: N times shows the count with its limit behind an ⓘ, For each what it goes through", async () => {
+  it("sets a Loop by its kind: N times shows the count with its limit written under it, For each what it goes through", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     const steps = await openIntake();
@@ -1312,9 +1321,9 @@ describe("new Studio", () => {
     expect(await screen.findByLabelText("Number of times *")).toBeTruthy();
     expect(screen.queryByLabelText("Start at position")).toBeNull();
     expect(screen.queryByLabelText("Loop type")).toBeNull();
-    const about = screen.getByRole("button", { name: "About Number of times" });
-    fireEvent.click(about);
-    expect(screen.getByRole("note").textContent).toMatch(/Smallest value: 0/);
+    // short help is written under the field (item 24), not hidden behind an (i)
+    expect(screen.queryByRole("button", { name: "About Number of times" })).toBeNull();
+    expect(screen.getByText(/Smallest value: 0/)).toBeTruthy();
     const count = screen.getByLabelText("Number of times *");
     fireEvent.change(count, { target: { value: "$rows - 1" } });   // not a number: kept as a calculation
     fireEvent.blur(count);

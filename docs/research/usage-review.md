@@ -108,12 +108,12 @@ Next: area B (editor step menu, command explanations, notices: items 24, 25, 27)
 
 Order, one tested commit each. Tick when committed:
 
-- [ ] 22, 23: labelled Close and Back to folder; Details card and headed tables (Inputs, Outputs, Runs)
-- [ ] 21: Copy to Private only (server refuses Public), Clone (read-only private copy), no Move in Public, Delete reason and called-by block, Edit checks this agent out, check-in dialog with dependencies
-- [ ] 25: Disable step / Enable step; Run from here on a disabled step starts at the next enabled one; Run this step only greyed out; every step action tested
-- [ ] 24: one-line command description under the name; field hints as text, ⓘ only for long help
-- [ ] 27: info notices close after about 6 s (hover keeps them), errors stay with Close, at most 3
-- [ ] 26: Open program/file command (location, start in, parameters, timeout); Open file hidden from the library; library search by AA command names
+- [x] 22, 23: labelled Close and Back to folder; Details card and headed tables (Inputs, Outputs, Runs)
+- [x] 21: Copy to Private only (server refuses Public), Clone (read-only private copy), no Move in Public, Delete reason and called-by block, Edit checks this agent out, check-in dialog with dependencies
+- [x] 25: Disable step / Enable step; Run from here on a disabled step starts at the next enabled one; Run this step only greyed out; every step action tested
+- [x] 24: one-line command description under the name; field hints as text, ⓘ only for long help
+- [x] 27: info notices close after about 6 s (hover or focus keeps them), errors stay with a labelled Close; one notice at a time (a newer one replaces it)
+- [x] 26: Open program/file command (location, start in, parameters, timeout); Open file hidden from the library; library search by AA command names
 - [ ] 16: foldable menu sections (remembered, current always open)
 - [ ] 19, 20: Catch fields in AA's order; On error variable field with message and line
 - [ ] Full test suite, UI check at full width (item 17), push branch

@@ -86,8 +86,40 @@ const FOLDER_ICON = (sel: boolean) => <span style={{ color: sel ? "#ffffff" : "#
  * the right. Check out an agent to get a private copy at the same folder path in the workspace (others cannot check it
  * in meanwhile); check it back in from the agent's Check in button. A search looks through every folder.
  */
-export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNotice, onError }:
+/** An action on a repository agent asked for from outside the Public tab (the console's agent page): check out, clone or copy. */
+export type RepoRequest = { act: "checkout" | "clone" | "copy"; path: string };
+
+/**
+ * Copy to Private (AA's Copy): the agent's latest version becomes a new agent of your own, in your Private workspace, at
+ * the name and folder chosen; nothing changes in the repository. Names stay unique across Public and Private.
+ */
+export function CopyToPrivate({ api, path, onClose, onCopied }: { api: StudioApi; path: string; onClose: () => void; onCopied: (local: string, note: string) => void }) {
+  const suffix = path.slice(path.search(/\.(flow|process|form)\.json$/));
+  const [to, setTo] = useState(path.slice(0, path.length - suffix.length) + " (copy)");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const copy = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.crCopy(path, to.trim());
+      const also = r.cloned?.length ? ` Also copied ${r.cloned.length === 1 ? "the agent" : r.cloned.length + " agents"} it runs: ${r.cloned.join(", ")}.` : "";
+      onCopied(r.local, `Copied v${r.version} of ${nameOf(path)} to your Private workspace as ${shortName(r.local)}.` + also);
+    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={"Copy " + nameOf(path) + " to Private"} width={520}
+      footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={busy || !to.trim()} onClick={copy}>{busy ? "Copying…" : "Copy"}</Button></>}>
+      <p className="st-muted">The latest version becomes a new agent of your own in your Private workspace. Change it there, then check it in as a new agent. The original stays as it is.</p>
+      <Field label="Name, with its folder" hint="Folders are separated by /. The name may not end with a dot or a space, and may not be one the repository already has in that folder.">{(id) =>
+        <TextInput id={id} value={to} onChange={(e) => setTo(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !busy && to.trim()) copy(); }} />}</Field>
+      {error && <p className="st-cr-error" role="alert">{error}</p>}
+    </Dialog>
+  );
+}
+
+export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOpenLocal, request, onRequestDone, onNotice, onError }:
   { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string, mine?: boolean, version?: number) => Promise<void>;
+    onOpenLocal: (local: string, note: string) => Promise<void>; request?: RepoRequest | null; onRequestDone?: () => void;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
   const [q, setQ] = useState("");
   const [list, setList] = useState<{ agents: RepoAgent[]; mapping: Record<string, string> } | null>(null);
@@ -95,6 +127,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const [versions, setVersions] = useState<{ agent: RepoAgent; list: RepoVersion[] } | null>(null);
   const [picking, setPicking] = useState<{ agent: RepoAgent; list: RepoVersion[]; version: number } | null>(null);   // check out a chosen version
   const [undoing, setUndoing] = useState<RepoAgent | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);   // Copy to Private: the repository path
   const [tick, setTick] = useState(0);
   const reload = () => setTick((t) => t + 1);
   const [folder, setFolder] = useState("");
@@ -110,6 +143,23 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
     const t = setTimeout(() => { api.crRepo(q.trim()).then((r) => { setList(r); setFailed(null); }, (e) => setFailed(message(e))); }, q ? 250 : 0);
     return () => clearTimeout(t);
   }, [api, status.connected, q, tick]);
+  const clone = async (path: string) => {
+    try { const r = await api.crClone(path); reload(); await onOpenLocal(r.local, `Cloned v${r.version} of ${nameOf(path)} into your Private workspace, read-only. Check it out to change it.`); }
+    catch (e) { onError(e); }
+  };
+  // an action asked for from the console's agent page (../studio/#public/checkout/<path>), once the repository is read
+  useEffect(() => {
+    if (!request || !list) return;
+    const a = list.agents.find((x) => x.path === request.path);
+    onRequestDone?.();
+    if (!a) { onError(new Error("The agent " + request.path + " is not in the repository, or you may not see it.")); return; }
+    if (request.act === "copy") setCopying(a.path);
+    else if (request.act === "clone") clone(a.path);
+    else if (a.locked_by && a.locked_by !== status.user?.username) {
+      onNotice(nameOf(a.path) + " is checked out by " + a.locked_by + ". You can clone it (read-only) or copy it to your Private workspace instead.");
+      setFolder(folderOf(a.path));
+    } else onCheckOut(a.path, localOf(a.path), a.locked_by === status.user?.username).then(reload, onError);
+  }, [request, list]);   // eslint-disable-line react-hooks/exhaustive-deps
   if (!status.connected) return (
     <div className="st-cr">
       <p className="st-muted">Your workspace is private. Sign in to One CommandCenter to share agents through its agent repository, with check-out and check-in.</p>
@@ -179,6 +229,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
                         {mine ? "Open my copy" : "Check out"}</Button>}
                       <Menu label={nameOf(a.path) + " menu"} align="end" items={[
                         { key: "versions", label: "Versions", onSelect: async () => { try { setVersions({ agent: a, list: await api.crVersions(a.path) }); } catch (e) { onError(e); } } },
+                        ...(!local ? [{ key: "clone", label: "Clone (read-only)", description: "A copy to look at; it follows the repository", onSelect: () => clone(a.path) }] : []),
+                        { key: "copy", label: "Copy to Private…", description: "A new agent of your own, from the latest version", onSelect: () => setCopying(a.path) },
                     ...(!a.locked_by || mine ? [{ key: "pick", label: "Check out a version…", description: "An earlier version, to change it or to bring it back",
                       onSelect: async () => { try { setPicking({ agent: a, list: await api.crVersions(a.path), version: a.latest_version }); } catch (e) { onError(e); } } }] : []),
                         ...(mine ? [{ key: "undo", label: "Undo check-out…", separatorBefore: true, onSelect: () => setUndoing(a) }] : []),
@@ -206,6 +258,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
         </Dialog>
       )}
       {choosingCols && <ColumnsDialog columns={PUBLIC_COLUMNS} hidden={hiddenCols} onChange={setHiddenCols} onClose={() => setChoosingCols(false)} />}
+      {copying && <CopyToPrivate api={api} path={copying} onClose={() => setCopying(null)}
+        onCopied={(local, note) => { setCopying(null); reload(); onOpenLocal(local, note).catch(onError); }} />}
       {picking && (
         <Dialog open onClose={() => setPicking(null)} title={"Check out a version of " + shortName(picking.agent.path)} width={620}
           footer={<><Button kind="secondary" onClick={() => setPicking(null)}>Cancel</Button>

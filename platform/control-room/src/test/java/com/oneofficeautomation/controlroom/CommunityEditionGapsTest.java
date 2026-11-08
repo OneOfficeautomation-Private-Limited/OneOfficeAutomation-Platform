@@ -109,22 +109,25 @@ class CommunityEditionGapsTest {
         cr.checkin(jane, "Sales/Quote.flow.json", agent("quote", ""), "v1", true, null);
         cr.setLabel(jane, "Sales/Quote.flow.json", "UAT", 1, null);
         Map<String, Object> sch = cr.createSchedule(admin, new HashMap<>(Map.of("name", "q", "bot_path", "Sales/Quote.flow.json", "device_id", device, "kind", "daily", "at_time", "02:00")), null);
-        assertEquals("Archive/Quote.flow.json", cr.moveBot(jane, "Sales/Quote.flow.json", "Archive", null).get("path"));
+        assertEquals("CR.FORBIDDEN", code(() -> cr.moveBot(jane, "Sales/Quote.flow.json", "Archive", null)));   // builders move in Private (AA)
+        assertEquals("Archive/Quote.flow.json", cr.moveBot(admin, "Sales/Quote.flow.json", "Archive", null).get("path"));
         assertEquals(1, cr.getBot(admin, "Archive/Quote.flow.json", "UAT").get("version"));
         assertEquals("Archive/Quote.flow.json", cr.schedule(admin, (String) sch.get("id")).get("bot_path"));
         assertEquals("CR.NOT_FOUND", code(() -> cr.getBot(admin, "Sales/Quote.flow.json", "latest")));
         assertEquals("CR.FORBIDDEN", code(() -> cr.moveBot(bob, "Archive/Quote.flow.json", "Sales", null)));
         // a workflow that names it blocks the move
         cr.checkin(admin, "Proc/Q.process.json", json("{\"name\":\"Q\",\"stages\":[{\"id\":\"a\",\"type\":\"bot\",\"name\":\"Q\",\"bot\":\"Archive/Quote.flow.json\"}]}"), "v1", true, null);
-        assertEquals("CR.IN_USE", code(() -> cr.moveBot(jane, "Archive/Quote.flow.json", "Sales", null)));
+        assertEquals("CR.IN_USE", code(() -> cr.moveBot(admin, "Archive/Quote.flow.json", "Sales", null)));
 
-        Map<String, Object> copy = cr.copyBot(jane, "Archive/Quote.flow.json", null, null);
+        // a builder's copy goes to the Private workspace (One AgentStudio), not into the repository
+        assertEquals("CR.COPY_TO_PRIVATE", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", null, null)));
+        Map<String, Object> copy = cr.copyBot(admin, "Archive/Quote.flow.json", null, null);
         assertEquals("Archive/Quote (copy).flow.json", copy.get("path"));
-        Map<String, Object> flow = castMap(cr.getBot(jane, "Archive/Quote (copy).flow.json", "latest").get("flow"));
+        Map<String, Object> flow = castMap(cr.getBot(admin, "Archive/Quote (copy).flow.json", "latest").get("flow"));
         assertEquals("quote_copy", flow.get("id"), "the copy gets its own agent id");
-        assertEquals("quote_copy2", castMap(cr.getBot(jane, (String) cr.copyBot(jane, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null).get("path"), "latest").get("flow")).get("id"));
-        assertEquals("CR.CONFLICT", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null)));
-        assertEquals("CR.BAD_PATH", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", "Sales/Quote 3.process.json", null)));
+        assertEquals("quote_copy2", castMap(cr.getBot(admin, (String) cr.copyBot(admin, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null).get("path"), "latest").get("flow")).get("id"));
+        assertEquals("CR.CONFLICT", code(() -> cr.copyBot(admin, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null)));
+        assertEquals("CR.BAD_PATH", code(() -> cr.copyBot(admin, "Archive/Quote.flow.json", "Sales/Quote 3.process.json", null)));
     }
 
     @SuppressWarnings("unchecked")

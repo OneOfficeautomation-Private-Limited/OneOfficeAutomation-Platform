@@ -196,8 +196,101 @@ final class ControlRoomLink {
         }
         m.put(local, repoPath);
         saveMapping(m);
+        forgetClone(local);
         List<String> cloned = cloneDependencies((Map<String, Object>) r.get("flow"), json);
         return Map.of("local", local, "path", repoPath, "version", r.get("version"), "kept", kept, "cloned", cloned);
+    }
+
+    // ---------- Clone and Copy to Private (usage review item 21, 9 Nov 2026, as AA's repository) ----------
+
+    /**
+     * Clone: a read-only copy of the agent's latest version at the same folder path in the private workspace, without
+     * checking it out, so others can still change it. It follows the repository (a newer version replaces it when the
+     * states are read). To change it: Copy to Private, or check it out (the check-out replaces the clone).
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> cloneBot(String repoPath, JsonCodec json) throws IOException {
+        Map<String, Object> m = mapping();
+        Path p = ws.resolve(repoPath);
+        if (Files.exists(p) && !repoPath.equals(m.get(repoPath)))
+            throw new OoaException("STUDIO.NAME_TAKEN", "Your workspace already has your own " + repoPath + ", which is not a copy of this agent",
+                    "Rename or move your own item, then clone again.");
+        if (Files.exists(p) && !isClone(repoPath))
+            throw new OoaException("STUDIO.ALREADY_COPIED", "You already have a copy of " + repoPath + " in your workspace",
+                    "Open it from the Private tab; check it out to change it.");
+        Map<String, Object> got = call("GET", "repo/bot?path=" + enc(repoPath), null, true);
+        String text = json.write(got.get("flow"), true);
+        writeCopy(p, text);
+        m.put(repoPath, repoPath);
+        saveMapping(m);
+        markSynced(repoPath, text);
+        Map<String, Object> c = state("clones.json");
+        c.put(repoPath, got.get("version"));
+        saveState("clones.json", c);
+        return Map.of("local", repoPath, "path", repoPath, "version", got.get("version"));
+    }
+
+    /** True when this private item is a clone (read-only until it is checked out). */
+    boolean isClone(String local) { return state("clones.json").containsKey(local); }
+
+    private void forgetClone(String local) throws IOException {
+        Map<String, Object> c = state("clones.json");
+        if (c.remove(local) != null) saveState("clones.json", c);
+    }
+
+    /**
+     * Copy to Private: the agent's latest version becomes a new agent of the person's own (a new id, not linked to the
+     * repository, status New) at the path asked for; the agents it runs come along as at check-out. As AA, the name may
+     * not be one the repository already has in that folder, nor an item already in the workspace.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> copyToPrivate(String repoPath, String to, JsonCodec json) throws IOException {
+        if (repoPath == null || repoPath.isBlank()) throw new OoaException("STUDIO.NOT_FOUND", "Choose the agent to copy");
+        if (to == null || to.isBlank()) throw new OoaException("STUDIO.BAD_NAME", "Give the copy a name");
+        String target = to.strip();
+        String kind = repoPath.substring(repoPath.indexOf('.', repoPath.lastIndexOf('/') + 1));
+        if (!target.endsWith(kind)) target = target + kind;
+        String name = target.substring(target.lastIndexOf('/') + 1, target.length() - kind.length());
+        if (name.isBlank() || name.endsWith(".") || name.endsWith(" ") || name.matches("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])"))
+            throw new OoaException("STUDIO.BAD_NAME", "'" + name + "' cannot be used as a name",
+                    "Do not end a name with a dot or a space, or use a name Windows keeps for itself (CON, PRN, AUX, NUL, COM1, LPT1 ...).");
+        Path p = ws.resolve(target);
+        if (Files.exists(p)) throw new OoaException("STUDIO.NAME_TAKEN", "Your workspace already has " + target, "Choose another name or folder.");
+        for (Object o : (List<Object>) repo("").getOrDefault("bots", List.of()))
+            if (target.equalsIgnoreCase(String.valueOf(((Map<String, Object>) o).get("path"))))
+                throw new OoaException("STUDIO.NAME_TAKEN", "The repository already has an agent called " + target,
+                        "Choose another name or folder: names stay unique across Public and Private.");
+        Map<String, Object> got = call("GET", "repo/bot?path=" + enc(repoPath), null, true);
+        Map<String, Object> flow = new LinkedHashMap<>((Map<String, Object>) got.get("flow"));
+        if (target.endsWith(Workspace.BOT_SUFFIX)) {
+            flow.put("id", newAgentId(String.valueOf(flow.getOrDefault("id", "agent"))));
+            flow.put("name", name);
+        }
+        writeCopy(p, json.write(flow, true));
+        List<String> cloned = cloneDependencies(flow, json);
+        return Map.of("local", target, "from", repoPath, "version", got.get("version"), "cloned", cloned);
+    }
+
+    /** A new agent id, not used by any agent in the repository. */
+    @SuppressWarnings("unchecked")
+    private String newAgentId(String from) {
+        Set<String> used = new HashSet<>();
+        for (Object o : (List<Object>) repo("").getOrDefault("bots", List.of())) used.add(String.valueOf(((Map<String, Object>) o).get("bot_id")));
+        String base = from.replaceAll("_copy[0-9]*$", "") + "_copy", id = base;
+        for (int k = 2; used.contains(id); k++) id = base + k;
+        return id;
+    }
+
+    private void writeCopy(Path p, String text) throws IOException {
+        Files.createDirectories(p.getParent());
+        Path tmp = p.resolveSibling("." + p.getFileName() + ".saving");
+        Files.writeString(tmp, text, StandardCharsets.UTF_8);
+        Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private void saveState(String name, Map<String, Object> value) throws IOException {
+        Files.createDirectories(stateFile("x").getParent());
+        Files.writeString(stateFile(name), JsonLite.write(value), StandardCharsets.UTF_8);
     }
 
     /**
@@ -381,8 +474,22 @@ final class ControlRoomLink {
             String local = e.getKey(), repoPath = String.valueOf(e.getValue());
             if (!Files.isRegularFile(ws.resolve(local))) continue;
             boolean edited = edited(local, json);
+            Map<String, Object> clones = state("clones.json");
+            if (clones.containsKey(local) && connected() && bots.containsKey(repoPath)) {
+                // a clone follows the repository: a newer version replaces it (it cannot have changes of its own)
+                Object latest = bots.get(repoPath).get("latest_version");
+                if (latest != null && !String.valueOf(latest).equals(String.valueOf(clones.get(local)))) {
+                    Map<String, Object> got = call("GET", "repo/bot?path=" + enc(repoPath), null, true);
+                    String text = json.write(got.get("flow"), true);
+                    writeCopy(ws.resolve(local), text);
+                    markSynced(local, text);
+                    clones.put(local, got.get("version"));
+                    saveState("clones.json", clones);
+                    edited = false;
+                }
+            }
             // signed out, the locks are not known: the copy is only "linked" (or edited)
-            String status = !connected() ? (edited ? "edited" : "linked")
+            String status = clones.containsKey(local) ? "cloned" : !connected() ? (edited ? "edited" : "linked")
                     : !locks.containsKey(repoPath) ? "new"
                     : !Objects.equals(me, locks.get(repoPath)) ? (edited ? "edited" : "checked_in")
                     : edited ? "checked_out_edited" : "checked_out";
