@@ -650,3 +650,5 @@ button.st-menu-group-head { width: 100%; border: 0; background: transparent; fon
 button.st-menu-group-head:hover { background: rgba(255, 255, 255, .06); }
 button.st-menu-group-head:focus-visible { outline: 2px solid #8fb4ff; outline-offset: -2px; }
 .st-menu-group-head .st-menu-caret { margin-left: auto; display: inline-flex; color: #8b97a8; }
+button.st-menu-group-head { letter-spacing: .02em; gap: 6px; padding-right: 6px; }
+button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

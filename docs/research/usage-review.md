@@ -116,6 +116,7 @@ Order, one tested commit each. Tick when committed:
 - [x] 26: Open program/file command (location, start in, parameters, timeout); Open file hidden from the library; library search by AA command names
 - [x] 16: foldable menu sections (remembered, current always open)
 - [x] 19, 20: Catch fields in AA's order; On error variable field with message and line
-- [ ] Full test suite, UI check at full width (item 17), push branch
+- [x] UI check at full width (item 17), 9 Nov 2026: Close, Details tables, Clone, Copy to Private, Edit = check out, Disable step and Run from here, notices, written help, AA-name search, menu folding
+- [ ] Full test suite, push branch
 
 After that, with the user's OK: the per-command review (UI, behaviour, technical logic, reuse, easy upgrades).
