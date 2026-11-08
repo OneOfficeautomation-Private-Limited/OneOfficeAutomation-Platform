@@ -491,7 +491,13 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByText("Installed").closest(".cc-pill")).toBeTruthy();
     // the service it uses: its version against the one this release is tested with
     const service = await screen.findByRole("generic", { name: "Document Automation service" });
-    expect(within(service).getByRole("heading", { name: /Service: DocFlow 3\.2\.0/ })).toBeTruthy();
+    expect(within(service).getByText("DocFlow 3.2.0")).toBeTruthy();
+    // the start screen (item 15): each area opens at its own address in the module's pages, and the first steps
+    const areas = screen.getByRole("navigation", { name: "Document Automation areas" });
+    expect(within(areas).getByRole("link", { name: /^Inbox/ }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");
+    expect(within(areas).getAllByRole("link")).toHaveLength(7);
+    expect(screen.getByRole("link", { name: "Open the Inbox" }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");
+    expect(within(screen.getByRole("generic", { name: "First steps" })).getAllByRole("listitem")).toHaveLength(4);
     expect(within(service).getByText("Newer than tested").closest(".cc-pill")?.className).toContain("is-pending");
     expect(within(service).getByText(/tested with DocFlow 3\.1\.0 \(works from 3\.1\.0\)/)).toBeTruthy();
   });
@@ -622,10 +628,12 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click((within(latest).getAllByRole("row")[1] as HTMLTableRowElement).cells[3]);
     expect(location.hash).toMatch(/^#\/activity\?run=/);
     location.hash = "#/insights";
-    // the next scheduled runs: enabled ones only, soonest first
-    const next = await screen.findByRole("list", { name: "Next scheduled runs" });
-    expect(within(next).getByText("Nightly invoices")).toBeTruthy();
-    expect(within(next).queryByText("Hourly onboarding")).toBeNull();
+    // item 11: one card per area, each opening its own page; the upcoming runs card names the next enabled one
+    const more = await screen.findByRole("group", { name: "More detail" });
+    const upcoming = within(more).getByRole("link", { name: /^Upcoming runs/ });
+    expect(upcoming.getAttribute("href")).toBe("#/upcoming");
+    expect(within(upcoming).getByText("Next: Nightly invoices")).toBeTruthy();
+    expect(within(more).getByRole("link", { name: /^Runners/ }).getAttribute("href")).toBe("#/runner-status");
     expect(screen.queryByRole("list", { name: "Set up next" })).toBeNull();
     expect(screen.getByRole("link", { name: "New alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
     // the period, then a failure reason opens Agent Activity's Completed runs, filtered to it
@@ -663,7 +671,9 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "alerts/acknowledge", body: { ids: ["al1"] } }));
     expect(await screen.findByText("Acknowledged 1 alert.")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: /^Rules/ }));
+    // item 12: the rules are their own page
+    fireEvent.click(screen.getByRole("link", { name: /rules? ›$/ }));
+    expect(await screen.findByRole("heading", { name: "Alert rules", level: 1 })).toBeTruthy();
     const rules = await screen.findByRole("table", { name: "Alert rules" });
     expect(within(rules).getByText("Too many runs fail · Invoice intake")).toBeTruthy();
     expect(within(rules).getByText("Failed share of finished runs: 50% · Over the last 60 min")).toBeTruthy();
@@ -710,14 +720,18 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(figs).getByText(/^Succeeded · \d+% · \+25 points on before$/)).toBeTruthy();
     expect(within(figs).getByText("In progress or waiting")).toBeTruthy();
     expect(within(figs).getByText("Stopped by someone")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Runs by week" })).toBeTruthy();
-    expect(within(screen.getByRole("tablist", { name: "Operations" })).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Agents", "Runners", "Work queues", "Audit"]);
+    expect(within(screen.getByRole("tablist", { name: "Operations" })).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Agents", "Trends", "Runners", "Work queues", "Audit"]);
+    // item 12: the charts are on their own tab, Trends; the lists stay on Agents
+    expect(screen.queryByRole("heading", { name: "Runs by week" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Trends" }));
+    expect(await screen.findByRole("heading", { name: "Runs by week" })).toBeTruthy();
     const heat = screen.getByRole("table", { name: "When runs start, by weekday and hour (UTC)" });
     const busy = within(heat).getByTitle("Mon 09:00 · 4 runs, 1 failed");
     expect(busy.className).toBe("cc-heat-l4 has-failed");
     expect(within(heat).getByTitle("Wed 14:00 · 1 run").className).toBe("cc-heat-l1");
+    fireEvent.click(screen.getByRole("tab", { name: "Agents" }));
     // the lists in one tabbed panel, one line per row
-    expect(screen.getByRole("tab", { name: /^Agents run most/ }).getAttribute("aria-selected")).toBe("true");
+    expect((await screen.findByRole("tab", { name: /^Agents run most/ })).getAttribute("aria-selected")).toBe("true");
     fireEvent.click(screen.getByRole("tab", { name: /^Why runs failed/ }));
     expect(within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" }).getAttribute("href"))
       .toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND");
@@ -1615,7 +1629,8 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(within(sec).getByLabelText("Two-step sign-in"), { target: { value: "1" } });
     expect(within(sec).getByText("was Optional (each person decides)")).toBeTruthy();
     fireEvent.click(within(sec).getByRole("switch", { name: "Viewer in use" }));
-    expect(within(nav).getByTitle("Changed, not saved yet").textContent).toBe("3");
+    // a section is its own page (item 14): the section menu at the top says which sections have changes not saved
+    expect((screen.getByLabelText("Go to section") as HTMLSelectElement).selectedOptions[0].textContent).toBe("Sign-in and security (3 not saved)");
     const bar = within(sec).getByRole("group", { name: "Changes in Sign-in and security" });
     expect(within(bar).getByText("3 changes")).toBeTruthy();
     await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Save Sign-in and security" })); });
@@ -1633,7 +1648,7 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
     // the directory test: who it finds, their groups and the role they get
-    fireEvent.click(within(nav).getByRole("button", { name: "Single sign-on" }));
+    fireEvent.change(screen.getByLabelText("Go to section"), { target: { value: "sso" } });
     const sso = await screen.findByRole("region", { name: "Single sign-on" });
     expect(within(sso).getByLabelText(/Directory addresses/)).toBeTruthy();
     fireEvent.change(within(sso).getByLabelText("A user name to look up in the directory"), { target: { value: "alice" } });
@@ -1648,7 +1663,8 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(scim).getByRole("button", { name: "Make a SCIM token" })); });
     expect((within(scim).getByLabelText("The new SCIM token") as HTMLInputElement).value).toBe("scim_secret123");
     // removing old runs asks first, with the saved numbers (not ones typed but not saved)
-    fireEvent.click(within(nav).getByRole("button", { name: "Data retention and backups" }));
+    fireEvent.click(screen.getByRole("button", { name: "‹ All settings" }));
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Settings sections" })).getByRole("button", { name: "Data retention and backups" }));
     const data = await screen.findByRole("region", { name: "Data retention and backups" });
     fireEvent.change(within(data).getByLabelText("Keep runs for"), { target: { value: "7" } });
     fireEvent.click(within(data).getByRole("button", { name: "Remove old runs now…" }));

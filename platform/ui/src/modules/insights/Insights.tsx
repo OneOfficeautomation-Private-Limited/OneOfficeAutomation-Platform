@@ -20,7 +20,7 @@ import { Value } from "./Value";
  * so a tab can be linked to and Back works; the old pages' addresses open their tab (ConsoleApp's MOVED).
  */
 type Tab = { id: string; label: string; perm: string };
-const OPERATIONS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "runners", label: "Runners", perm: "analytics.view" },
+const OPERATIONS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "trends", label: "Trends", perm: "analytics.view" }, { id: "runners", label: "Runners", perm: "analytics.view" },
   { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "audit", label: "Audit", perm: "audit.view" }];
 const BUSINESS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "value", label: "Value", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }];
 const tabInAddress = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("tab");
@@ -51,6 +51,7 @@ export function OperationsPage({ api, user }: { api: CrApi; user: CrUser }) {
   if (tab === "queues") return <QueueInsights api={api} user={user} title="Operations" tabs={strip} />;
   if (tab === "audit") return <AuditFiguresTab api={api} title="Operations" tabs={strip} />;
   if (tab === "agents") return <Operations api={api} user={user} tabs={strip} />;
+  if (tab === "trends") return <Operations key="trends" api={api} user={user} tabs={strip} part="trends" />;
   return <section className="st-page cc-list"><header className="cc-list-head"><h1>Operations</h1></header><p className="cc-none cc-pad">You may not see operations figures.</p></section>;
 }
 

@@ -1,4 +1,5 @@
 import type { UiModulePages } from "../pages";
+import "./document-automation.css";
 import { DocumentAutomation } from "./ConsolePage";
 
 /** document-automation's console pages (by menu page id) and the parts other pages show when it is installed (modules/pages.tsx finds this file). */

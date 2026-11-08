@@ -217,7 +217,11 @@ function marked(text: string, q: string): ReactNode {
 export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [section, setSection] = useState("general");
+  // the section open (its own full-width page, in the address as #/settings?section=<id>), or null for the start page
+  const sectionInAddress = () => { const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("section"); return SECTIONS.some((x) => x.id === id) ? id : null; };
+  const [section, setSectionState] = useState<string | null>(sectionInAddress);
+  const setSection = (id: string | null) => { setSectionState(id); history.replaceState(null, "", "#/settings" + (id ? "?section=" + id : "")); };
+  useEffect(() => { const on = () => setSectionState(sectionInAddress()); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -282,7 +286,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
     </div>;
   };
   const tile = (s: Section) => <span className="cc-set-tile" style={{ background: s.colour }} aria-hidden="true">{s.mark}</span>;
-  const current = SECTIONS.find((s) => s.id === section)!;
+  const current = SECTIONS.find((s) => s.id === section) ?? null;
 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-settings-title">
@@ -295,12 +299,8 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
       </header>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {!saved && !error && <p className="cc-none" role="status">Loading…</p>}
-      {saved && <div className="cc-set">
-        <nav className="cc-set-nav" aria-label="Settings sections">
-          {SECTIONS.map((s) => <button key={s.id} type="button" className="cc-set-tab" aria-current={!text && s.id === section ? "page" : undefined} onClick={() => { setSection(s.id); setQ(""); }}>
-            {tile(s)}<span className="cc-set-tab-name">{s.title}</span>{changedIn(s).length > 0 && <span className="cc-set-badge" title="Changed, not saved yet">{changedIn(s).length}</span>}</button>)}
-        </nav>
-        {text ? <div className="cc-set-form" role="region" aria-label="Settings found">
+      {saved && (text ? <div className="cc-set cc-set-full">
+        <div className="cc-set-form" role="region" aria-label="Settings found">
           <div className="cc-set-head"><h2>{found.reduce((n, r) => n + r.groups.reduce((m, g) => m + g.settings.length, 0), 0) || "No"} setting{found.reduce((n, r) => n + r.groups.reduce((m, g) => m + g.settings.length, 0), 0) === 1 ? "" : "s"} match “{q.trim()}”</h2>
             <p>{found.length ? "In " + found.length + " section" + (found.length === 1 ? "" : "s") + ". Change them here; each section saves on its own." : "Try another word: names, hints and setting keys are searched."}</p></div>
           {found.map(({ s, groups }) => <Fragment key={s.id}>
@@ -311,7 +311,23 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
           </Fragment>)}
           {found.length > 0 && <p className="cc-set-foot">Searches names, hints and setting keys (such as <code>password_min_length</code>).</p>}
         </div>
-          : <div className="cc-set-form" role="region" aria-label={current.title}>
+      </div> : !current ? <nav className="cc-set-start" aria-label="Settings sections">
+        {SECTIONS.map((s) => { const n = changedIn(s).length, count = settingsOf(s).length;
+          return <button key={s.id} type="button" className="cc-set-card" aria-label={s.title} onClick={() => setSection(s.id)}>
+            <span className="cc-set-card-head">{tile(s)}<span className="cc-set-card-title">{s.title}</span>
+              {n > 0 && <span className="cc-set-badge" title="Changed, not saved yet">{n}</span>}</span>
+            <span className="cc-set-card-about">{s.about}</span>
+            <span className="cc-set-card-foot">{count ? count + " setting" + (count === 1 ? "" : "s") : "Facts and actions"} ›</span>
+          </button>; })}
+      </nav> : <div className="cc-set cc-set-full">
+        <div className="cc-set-bar">
+          <Button kind="secondary" onClick={() => setSection(null)}>‹ All settings</Button>
+          <span className="cc-set-crumb">{tile(current)}<strong>{current.title}</strong></span>
+          <span className="ov-fill" />
+          <Select aria-label="Go to section" value={current.id} onChange={(e) => setSection(e.target.value)}
+            options={SECTIONS.map((x) => ({ value: x.id, label: x.title + (changedIn(x).length ? " (" + changedIn(x).length + " not saved)" : "") }))} />
+        </div>
+        <div className="cc-set-form" role="region" aria-label={current.title}>
             <div className="cc-set-head"><h2>{current.title}{current.groups.length > 0 && <HelpButton topic={helpOf(current.title, settingsOf(current), current.about)} />}</h2><p>{current.about}</p>
               {current.id === "sso" && <p>Register these with your provider. OpenID Connect redirect: <code>{(saved.public_url || location.origin) + "/api/auth/sso/callback"}</code>.
                 SAML metadata: <code>{(saved.public_url || location.origin) + "/api/auth/saml/metadata"}</code>.</p>}</div>
@@ -321,8 +337,8 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
             </Fragment>)}
             <div className="cc-set-extras"><Extras api={api} section={current.id} form={form} saved={saved ?? {}} onNotice={onNotice} onError={setError} /></div>
             {saveBar(current)}
-          </div>}
-      </div>}
+        </div>
+      </div>)}
     </section>
   );
 }

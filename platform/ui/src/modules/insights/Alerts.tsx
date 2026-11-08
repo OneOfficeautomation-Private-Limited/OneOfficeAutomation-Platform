@@ -53,10 +53,16 @@ const HELP: HelpTopic = { title: "Alerts", about: "Rules that watch runs, runner
       + "edit, turn on or off, send a test, show its alerts or delete it." },
   ] };
 
-export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
-  const [tab, setTab] = useState<"alerts" | "rules">("alerts");
-  const [status, setStatus] = useState("open");
-  const [rule, setRule] = useState("");   // only this rule's alerts (a rule's "Show its alerts")
+/**
+ * Item 12 (docs/research/input-help-check.md): the alerts and their rules are two pages, Alerts and Alert rules, each
+ * with its own address; "Show its alerts" on a rule opens Alerts for that rule (#/alerts?rule=<id>).
+ */
+export function Alerts({ api, user, onNotice, view = "alerts" }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; view?: "alerts" | "rules" }) {
+  const tab = view;
+  const setTab = (t: "alerts" | "rules", query = "") => { location.hash = (t === "rules" ? "#/alert-rules" : "#/alerts") + query; };
+  const asked = new URLSearchParams(location.hash.split("?")[1] ?? "");
+  const [status, setStatus] = useState(asked.get("rule") ? "all" : "open");
+  const [rule, setRule] = useState(asked.get("rule") ?? "");   // only this rule's alerts (a rule's "Show its alerts")
   const [severity, setSeverity] = useState("");
   const [q, setQ] = useState("");
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
@@ -95,7 +101,7 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   const test = (r: AlertRule) => api.testAlertRule(r.id).then((d) => onNotice("Test sent. " + (sentTo(d) || "Nothing was sent.") + (d.note ? " " + d.note + "." : "")), (e) => setError(message(e)));
   const remove = (r: AlertRule) => api.deleteAlertRule(r.id).then(() => { onNotice("Deleted the alert rule " + r.name + "; its alerts are kept as cleared."); setDeleting(null); load(); }, (e) => setError(message(e)));
   /** A rule's alerts, in every state, on the Alerts tab. */
-  const showAlerts = (r: AlertRule) => { setRule(r.id); setStatus("all"); setSeverity(""); setQ(""); setAlerts(null); setTab("alerts"); };
+  const showAlerts = (r: AlertRule) => setTab("alerts", "?rule=" + encodeURIComponent(r.id));
   const goTo = (a: Alert) => { if (a.link?.startsWith("#")) location.hash = a.link; };
   const shown = (alerts ?? []).filter((a) => (!severity || a.severity === severity)
     && (!q.trim() || [a.message, a.rule_name, a.subject_label, a.subject].join(" ").toLowerCase().includes(q.trim().toLowerCase())));
@@ -117,15 +123,14 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-al-title">
       <header className="cc-list-head">
-        <h1 id="cc-al-title">Alerts</h1>
+        <h1 id="cc-al-title">{tab === "rules" ? "Alert rules" : "Alerts"}</h1>
         <HelpButton topic={HELP} />
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setEditing("new")}>New alert rule</Button>}
       </header>
-      <div className="st-page-tabs" role="tablist" aria-label="Alerts">
-        <button type="button" role="tab" className="st-page-tab" aria-selected={tab === "alerts"} onClick={() => setTab("alerts")}>Alerts{open != null && <span className="cc-count">{open}</span>}</button>
-        <button type="button" role="tab" className="st-page-tab" aria-selected={tab === "rules"} onClick={() => setTab("rules")}>Rules{rules && <span className="cc-count">{rules.length}</span>}</button>
-      </div>
+      <p className="cc-list-count cc-al-count">{tab === "alerts"
+        ? <>{open != null && <>{open} open · </>}<a href="#/alert-rules">{rules ? rules.length + " rule" + (rules.length === 1 ? "" : "s") : "Alert rules"} ›</a></>
+        : <>{rules && <>{rules.length} rule{rules.length === 1 ? "" : "s"} · </>}<a href="#/alerts">{open != null ? open + " open alert" + (open === 1 ? "" : "s") : "Alerts"} ›</a></>}</p>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {tab === "alerts" ? <>
         <div className="cc-list-tools">
@@ -201,7 +206,7 @@ export function Alerts({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
         </div></div>
       </>}
       {editing && <RuleDialog api={api} rule={editing === "new" ? null : editing} choices={choices} onClose={() => setEditing(null)}
-        onSaved={(t) => { onNotice(t); setEditing(null); setTab("rules"); load(); }} />}
+        onSaved={(t) => { onNotice(t); setEditing(null); if (tab !== "rules") setTab("rules"); else load(); }} />}
     </section>
   );
 }
