@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RowMenu, rowClick, when } from "./ListParts";
+import { RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
  * Manage > Agent ToolKits, built as AA's Packages (checked against AA's docs, UiPath's libraries and feeds, and Blue
@@ -144,7 +144,7 @@ function ToolkitView({ api, t, canUpdate, onSwitch, onClose, onNotice }: { api: 
   useEffect(() => { read(); }, [read]);
   const update = () => api.updateToolkitRange(t.id, range.trim()).then((r) => { setResults(r.results); onNotice("Updated " + r.results.filter((x) => x.status === "updated").length + " agent(s) to " + range.trim() + "."); read(); }, (e) => setError(message(e)));
   const misfit = v?.agents.filter((a) => !a.satisfied).length ?? 0;
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the toolkits" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the toolkits" />;
   return (
     <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Toolkit " + t.name}>
       <div className="cc-agent-head">

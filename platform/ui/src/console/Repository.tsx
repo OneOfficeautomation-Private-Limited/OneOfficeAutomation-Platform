@@ -3,7 +3,7 @@ import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFol
 import type { FlowStep } from "../api/client";
 import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 import { Analysis, ColumnsDialog, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText } from "../studio/columns";
 
@@ -307,9 +307,13 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const loadVersions = useCallback(() => api.agentVersions(a.path).then(setVersions, (e) => setError(message(e))), [api, a.path]);
+  // Inputs and details show the inputs of any version (item 23): the live one first, else the latest
+  const [ioVersion, setIoVersion] = useState<number>(a.production_version ?? a.latest_version);
   useEffect(() => {
-    if (a.production_version) api.agentFlow(a.path, "production").then((r) => setVars(r.flow.variables ?? []), () => setVars([]));
-    else setVars([]);
+    setVars(null);
+    api.agentFlow(a.path, ioVersion).then((r) => setVars(r.flow.variables ?? []), () => setVars([]));
+  }, [api, a.path, ioVersion]);
+  useEffect(() => {
     api.dependencies(a.path).then(setDeps, () => {});
     if (can("runs.view")) api.runs({ limit: "8", bot: a.path }).then((r) => setRuns(r.runs), () => {});
     loadVersions();
@@ -354,7 +358,8 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   return (
     <div className="cc-agent" role="dialog" aria-modal="false" aria-label={agentName(a.path)}>
       <div className="cc-agent-head">
-        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => onFolder("")}>Automation</button>
+        <span className="cc-crumbs-path"><button type="button" className="cc-link cc-back" onClick={onClose} title="Back to the folder">‹ Back</button>
+          <button type="button" className="cc-link" onClick={() => onFolder("")}>Automation</button>
           {crumbs.map((c, i) => <span key={i}> › <button type="button" className="cc-link" onClick={() => onFolder(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>)} ›</span>
         <h1>{agentName(a.path)}</h1>
         <HelpButton topic={HELP_AGENT} />
@@ -365,7 +370,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
         {studio && can("repo.checkin") && <a className="ui-btn ui-btn-secondary cc-btn-link" href="../studio/#public" title="Check the agent out to your Private workspace, then change it there">Edit</a>}
         {can("runs.start") && a.production_version && kind === "Agent" && <Button kind="primary" onClick={onRun}>Run</Button>}
         {more.length > 0 && <RowMenu label={"More for " + agentName(a.path)} items={more} />}
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the folder" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} to="the folder" />
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {ask && <div className="st-alert cc-inline" role="alert">
@@ -441,26 +446,41 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
       <div className="cc-agent-tab" hidden={tab === "steps"}>
       {tab === "about" && <>
       {a.description && <p>{a.description}</p>}
-      <dl className="cc-facts cc-facts-wide">
-        <dt>Kind</dt><dd>{kind}</dd><dt>Folder</dt><dd>{folderOf(a.path) || "(top)"}</dd>
-        <dt>Live</dt><dd>{a.production_version ? "v" + a.production_version : "Not live yet"}</dd><dt>Latest</dt><dd>v{a.latest_version}</dd>
-        <dt>Status</dt><dd>{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"}</dd><dt>Updated</dt><dd>{when(a.updated)}{a.updated_by ? " by " + a.updated_by : ""}</dd>
-        {a.bot_id && <><dt>Agent id</dt><dd className="ui-mono">{a.bot_id}</dd></>}<dt>Your access</dt><dd>{a.access ?? ""}</dd>
-      </dl>
-      {a.production_version ? <>
-        <h3 className="cc-log-title">Inputs of the live version</h3>
-        {inputs.length ? <table className="st-table" aria-label="Inputs"><tbody>{inputs.map((v) => <tr key={v.name}><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.required ? "Required" : ""}</td><td>{v.description ?? ""}</td></tr>)}</tbody></table>
-          : <p className="st-muted">{vars ? "No inputs." : "Loading…"}</p>}
-        {outputs.length > 0 && <><h3 className="cc-log-title">Outputs</h3>
-          <table className="st-table" aria-label="Outputs"><tbody>{outputs.map((v) => <tr key={v.name}><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.description ?? ""}</td></tr>)}</tbody></table></>}
-      </> : null}
+      <section className="cc-card cc-details" aria-label="Details">
+        <h3 className="cc-log-title">Details</h3>
+        <dl className="cc-facts cc-facts-wide">
+          <dt>Kind</dt><dd>{kind}</dd><dt>Folder</dt><dd>{folderOf(a.path) || "(top)"}</dd>
+          <dt>Status</dt><dd>{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"}</dd><dt>Live version</dt><dd>{a.production_version ? "v" + a.production_version : "Not live yet"}</dd>
+          <dt>Latest version</dt><dd>v{a.latest_version}</dd><dt>Updated</dt><dd>{when(a.updated)}{a.updated_by ? " by " + a.updated_by : ""}</dd>
+          {a.bot_id && <><dt>Agent id</dt><dd className="ui-mono">{a.bot_id}</dd></>}<dt>Your access</dt><dd>{a.access ?? ""}</dd>
+        </dl>
+      </section>
+      <div className="cc-bar">
+        <h3 className="cc-log-title">Inputs and outputs</h3>
+        <label className="cc-inline-field">Version <select className="ui-input" value={ioVersion} onChange={(e) => setIoVersion(Number(e.target.value))}>
+          {Array.from({ length: a.latest_version }, (_, i) => a.latest_version - i).map((v) => <option key={v} value={v}>v{v}{v === a.production_version ? " (live)" : v === a.latest_version ? " (latest)" : ""}</option>)}
+        </select></label>
+      </div>
+      <table className="st-table" aria-label="Inputs">
+        <thead><tr><th scope="col">Input</th><th scope="col">Type</th><th scope="col">Required</th><th scope="col">Default</th><th scope="col">Description</th></tr></thead>
+        <tbody>{vars === null ? <tr className="is-static"><td colSpan={5} className="cc-none">Loading…</td></tr>
+          : inputs.length ? inputs.map((v) => <tr key={v.name} className="is-static"><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.required ? "Yes" : "No"}</td>
+            <td className="ui-mono">{v.default === undefined || v.default === null || v.default === "" ? "" : typeof v.default === "object" ? JSON.stringify(v.default) : String(v.default)}</td><td>{v.description ?? ""}</td></tr>)
+          : <tr className="is-static"><td colSpan={5} className="cc-none">This version takes no inputs.</td></tr>}</tbody>
+      </table>
+      <table className="st-table" aria-label="Outputs">
+        <thead><tr><th scope="col">Output</th><th scope="col">Type</th><th scope="col">Description</th></tr></thead>
+        <tbody>{vars !== null && outputs.length ? outputs.map((v) => <tr key={v.name} className="is-static"><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.description ?? ""}</td></tr>)
+          : <tr className="is-static"><td colSpan={3} className="cc-none">{vars === null ? "Loading…" : "This version gives back no outputs."}</td></tr>}</tbody>
+      </table>
       </>}
       {tab === "deps" && (deps ? <dl className="cc-facts">
         <dt>Calls</dt><dd>{deps.agents.length ? deps.agents.map((d) => <span key={d.bot_id} className={d.found ? "cc-tag" : "cc-risk"} title={d.found ? undefined : "Not in this One CommandCenter"}>{d.path ? agentName(d.path) : d.bot_id}</span>) : "No other agent"}</dd>
         <dt>Called by</dt><dd>{deps.called_by.length ? deps.called_by.map((p) => <span key={p} className="cc-tag">{agentName(p)}</span>) : "No other agent"}</dd>
         <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl> : <p className="cc-none" role="status">Loading…</p>)}
       {tab === "findings" && kind !== "File" && <AgentAnalysis api={api} path={a.path} />}
-      {tab === "runs" && (runs.length > 0 ? <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
+      {tab === "runs" && (runs.length > 0 ? <table className="st-table" aria-label="Recent runs">
+        <thead><tr><th scope="col">When</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Runner</th><th scope="col">Started by</th></tr></thead><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
           <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table> : <p className="cc-none">No runs yet.</p>)}
       {tab === "versions" && <>
       <div className="cc-bar"><span className="st-muted">Tick two versions to compare them.</span><Button kind="secondary" disabled={picks.length !== 2} onClick={compare}>Compare</Button></div>

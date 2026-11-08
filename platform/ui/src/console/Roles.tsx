@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { roleName } from "./roleNames";
 
 /**
@@ -306,7 +306,7 @@ function RolePage({ api, role, copyOf, all, roles, onClose, onCopy, onDelete, on
   const save = () => api.saveRole(name.trim(), description, perms).then(() => onSaved((role ? "Saved" : "Created") + " the role " + name.trim() + "."), (e) => setError(message(e)));
   const title = role ? (readOnly ? "Built-in role " + roleName(role.name) : "Role " + role.name) : "Create role";
   const members = role?.members ?? [];
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the roles" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the roles" />;
   return (
     <div className="cc-agent" role="dialog" aria-modal="false" aria-label={title}>
       <div className="cc-agent-head">

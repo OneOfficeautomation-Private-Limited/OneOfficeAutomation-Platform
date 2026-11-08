@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AuditRecord, CrApi } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 
 /**
  * Administration > Audit Trail, built as AA's Audit log (checked against AA's docs, UiPath's Audit page and Blue
@@ -342,7 +342,7 @@ function RecordPanel({ api, record: a, onClose, newer, older, onSearch }: { api:
         <span className="cc-none">#{a.seq}</span>
         <Button kind="plain" disabled={!newer} onClick={() => newer?.()}>‹ Newer</Button>
         <Button kind="plain" disabled={!older} onClick={() => older?.()}>Older ›</Button>
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} />
       </div>
       <div className="cc-au-panel-body">
         <dl className="cc-facts">

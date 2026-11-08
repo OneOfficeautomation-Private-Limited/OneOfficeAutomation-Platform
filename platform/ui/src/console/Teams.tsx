@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrTeam, CrUser } from "../api/cr";
 import { Button, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 
 /**
  * Administration > Teams. AA has no teams of its own (it maps directory groups to roles); this follows UiPath's groups
@@ -171,7 +171,7 @@ function TeamPage({ api, team, admin, me, people, onClose, onDelete, onSaved }:
   const others = people.filter((p) => !members.some((m) => m.username === p.username));
   const used = team?.used_in ?? [];
   const leadCount = members.filter((m) => m.role === "lead").length;
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the teams" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the teams" />;
   return (
     <div className="cc-agent" role="dialog" aria-modal="false" aria-label={team ? "Team " + team.name : "Create team"}>
       <div className="cc-agent-head">

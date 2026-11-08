@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { PromptSkill, SkillDefinition } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
-import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 
 /**
  * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
@@ -143,7 +143,7 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
         kIndex: d.knowledge?.index ?? "", kTop: String(d.knowledge?.top_k ?? 4), kQuery: d.knowledge?.query ?? "" }); },
     (e) => setError(message(e)));
   }, [api, name]);
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the skills" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the skills" />;
   if (name && !s) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="Prompt Skill"><div className="cc-agent-head"><h1>{name}</h1><span className="ov-fill" />{close}</div>
     {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
   const can = (p: string) => user.permissions.includes(p);

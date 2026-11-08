@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { repeats } from "./Schedules";
 import { logFields } from "../studio/flowEdit";
 import { SuspendedRuns } from "./SuspendedRuns";
@@ -584,7 +584,7 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, n
         <span className="cc-none ui-mono" title={id}>{id.length > 16 ? id.slice(0, 14) + "…" : id}</span>
         <Button kind="plain" disabled={!newer} onClick={() => newer && onOpen(newer)}>‹ Newer</Button>
         <Button kind="plain" disabled={!older} onClick={() => older && onOpen(older)}>Older ›</Button>
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} />
       </div>
       <div className="cc-run-body">
       {error && <p className="st-alert" role="alert">{error}</p>}
