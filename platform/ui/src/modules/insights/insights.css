@@ -1,42 +1,42 @@
 /* insights's styles (docs/architecture/13-modules.md, phase 6): only classes its own pages use. */
-.cc-card-foot { margin: 8px 0 0; font-size: 12.5px; }
+.cc-card-foot { margin: 8px 0 0; font-size: 13px; }
 .cc-use { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .cc-use progress { width: 56px; height: 8px; accent-color: var(--ui-accent); }
 .cc-ops-charts { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) auto; gap: 10px; padding: 10px 20px 0; }
-.cc-ops-charts .cc-card-foot { margin: 4px 0 0; font-size: 11.5px; }
+.cc-ops-charts .cc-card-foot { margin: 4px 0 0; font-size: 12.5px; }
 @media (max-width: 1250px) {
 .cc-ops-charts { grid-template-columns: 1fr 1fr; }
 }
 .cc-val-chart { margin: 10px 20px 0; padding: 10px 12px; }
-.cc-val-chart h2 { margin-bottom: 6px; font-size: 13px; }
-.cc-cap-title { margin: 0; padding: 8px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
+.cc-val-chart h2 { margin-bottom: 6px; font-size: 14px; }
+.cc-cap-title { margin: 0; padding: 8px 12px; font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); }
 .cc-scroll { overflow-x: auto; }
 .cc-ins-out { text-decoration: none; }
 .cc-ins-head { font-weight: 600; }
-.cc-ins-more { align-self: center; padding: 0 8px; font-size: 12.5px; }
+.cc-ins-more { align-self: center; padding: 0 8px; font-size: 13px; }
 .cc-ins-bars li { grid-template-columns: 130px 1fr auto; }
 .cc-ins-pick { border: 0; background: none; padding: 0; font: inherit; text-align: left; color: var(--ui-accent-text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
 .cc-ins-pick:hover { text-decoration: underline; }
 .cc-ins-pick:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
-.cc-week-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 0; font-size: 12px; color: var(--ui-text-2); }
+.cc-week-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 0; font-size: 13px; color: var(--ui-text-2); }
 .cc-week-legend span { display: inline-flex; align-items: center; gap: 5px; }
 /* Business (item 7 step 2): an agent's values as small chips (KPI-marked bold), figures and charts inside an agent's page, the yearly goal */
-.cc-chip-s { display: inline-block; margin-right: 4px; padding: 0 7px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; line-height: 18px; }
+.cc-chip-s { display: inline-block; margin-right: 4px; padding: 0 7px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 13px; line-height: 18px; }
 .cc-chip-s.is-kpi { font-weight: 700; }
 .cc-goal { margin: 10px 20px 0; padding: 10px 12px; }
-.cc-goal h2 { margin: 0 0 6px; font-size: 13px; }
+.cc-goal h2 { margin: 0 0 6px; font-size: 14px; }
 .cc-goal-bar { display: block; height: 12px; border-radius: 6px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; }
 .cc-goal-bar > span { display: block; height: 100%; background: #1d6b38; }
-.cc-goal p { margin: 4px 0 0; font-size: 12.5px; color: var(--ui-text-2); }
+.cc-goal p { margin: 4px 0 0; font-size: 13px; color: var(--ui-text-2); }
 /* a dashboard printed or saved as PDF (item 7 step 3): only the dashboard, with its name and the time */
 .cc-print-only { display: none; }
-.cc-dlg-h { margin: 14px 0 6px; font-size: 13px; }
+.cc-dlg-h { margin: 14px 0 6px; font-size: 14px; }
 @media print {
 body.cc-printing .cc-print-only { display: block; margin: 0 0 8px; font-size: 16px; }
 body.cc-printing .cc-dash { break-inside: auto; }
 body.cc-printing .cc-dash > * { break-inside: avoid; }
 }
-.cc-heat { border-collapse: separate; border-spacing: 2px; font-size: 11px; }
+.cc-heat { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; }
 .cc-heat th { font-weight: 400; color: var(--ui-text-2); padding: 0 2px; text-align: left; }
 .cc-heat td { width: 22px; height: 18px; border-radius: 3px; border: 1px solid var(--ui-divider); }
 .cc-heat td.cc-heat-l0 { background: var(--ui-bg); }
@@ -53,17 +53,17 @@ body.cc-printing .cc-dash > * { break-inside: avoid; }
 .cc-dash-line svg { width: 100%; height: 130px; }
 .cc-dash-line polyline { stroke: var(--ui-accent); }
 .cc-dash-line circle { fill: var(--ui-accent); }
-.cc-dash-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ui-text-2); }
+.cc-dash-axis { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ui-text-2); }
 .cc-pie { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .cc-pie svg { width: 120px; height: 120px; flex: none; }
-.cc-pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
+.cc-pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
 .cc-pie-legend li { display: flex; align-items: center; gap: 6px; }
 .cc-pie-key { width: 10px; height: 10px; border-radius: 2px; flex: none; }
 /* Overview, dense and clean (design plan step 2b): one grid, four text styles (18 / 14 / 13 / 12, numbers 20), 12 px spacing, 32 px rows */
 .ov { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
 .ov-head { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .ov-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
-.ov-meta { font-size: 12px; color: var(--ui-text-3); }
+.ov-meta { font-size: 13px; color: var(--ui-text-3); }
 .ov-icon-btn { width: var(--ui-h); height: var(--ui-h); box-sizing: border-box; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-accent-text);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .ov-figs { display: grid; }
@@ -71,26 +71,26 @@ body.cc-printing .cc-dash > * { break-inside: avoid; }
 .ov-fig:last-child { border-right: 0; }
 .ov-fig:hover { background: var(--ui-row-hover); }
 .ov-fig:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
-.ov-fig-l { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-fig-l { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ov-fig-v { font-size: 20px; font-weight: 600; line-height: 26px; }
-.ov-fig-m { font-size: 12px; color: var(--ui-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-fig-m { font-size: 13px; color: var(--ui-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ov-ic { width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 @media (max-width: 1100px) {
 .ov-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
 }
-.ov-more { margin-left: auto; font-size: 12px; }
+.ov-more { margin-left: auto; font-size: 13px; }
 .ov-ok { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 12px; min-height: 36px; color: var(--ui-ok-text); }
 .ov-rows { list-style: none; margin: 0; padding: 0; }
 .ov-rows li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
 .ov-rows li:last-child { border-bottom: 0; }
-.ov-r { margin-left: auto; padding-left: 8px; font-size: 12px; white-space: nowrap; }
-.ov-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--ui-selected); color: var(--ui-pill-text); }
+.ov-r { margin-left: auto; padding-left: 8px; font-size: 13px; white-space: nowrap; }
+.ov-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--ui-selected); color: var(--ui-pill-text); }
 @media (max-width: 1440px) {
 .cc-list-table .cc-wide-only { display: none; }
 }
 .cc-list-table td.cc-alert-msg { max-width: 420px; }
 .cc-ops-charts > .cc-card { margin: 0; padding: 10px 12px; min-width: 0; }
-.cc-ops-charts > .cc-card h2 { margin-bottom: 6px; font-size: 13px; }
+.cc-ops-charts > .cc-card h2 { margin-bottom: 6px; font-size: 14px; }
 @media (max-width: 1250px) {
 .cc-ops-charts > .cc-card:nth-child(3) { grid-column: 1 / -1; }
 }
@@ -117,5 +117,10 @@ body.cc-printing .cc-top, body.cc-printing nav, body.cc-printing .cc-list-head, 
 .ov-card:hover, .ov-card:focus-visible { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
 .ov-card-l { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .ov-card-v { font-size: 18px; font-weight: 700; }
-.ov-card-m { font-size: 12.5px; color: var(--ui-text-2); }
-.ov-card-go { margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--ui-accent-text); }
+.ov-card-m { font-size: 13px; color: var(--ui-text-2); }
+.ov-card-go { margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--ui-accent-text); }
+/* option B step 2: the console's sizes for Insights' own controls; its small tiles keep their 12 px signs */
+.cc-app .cc-main .ov-icon-btn { width: 32px; height: 32px; }
+.cc-app .cc-main .ov-icon-btn > svg { width: 18px; height: 18px; }
+.cc-app .cc-main .ov-ic svg { width: 12px; height: 12px; }
+
